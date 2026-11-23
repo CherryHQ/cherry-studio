@@ -48,6 +48,7 @@ function expectedMemoryWriteError(reason: 'conflict' | 'too_large' | 'read_only'
     too_large: AGENT_MEMORY_TOO_LARGE,
     read_only: AGENT_MEMORY_READ_ONLY
   }[reason]
+
   const error = new Error(message)
   logFailure(
     logger,
@@ -57,6 +58,7 @@ function expectedMemoryWriteError(reason: 'conflict' | 'too_large' | 'read_only'
     { source: 'application', kind: 'expected', reason, outcome: 'failed' },
     'warn'
   )
+
   return error
 }
 
@@ -82,25 +84,31 @@ async function lstatIfExists(targetPath: string): Promise<FileStats | undefined>
 async function resolveMemoryPath(dir: string, name: string): Promise<string> {
   const exact = path.join(dir, name)
   const exactStats = await lstatIfExists(exact)
+
   if (exactStats) {
     if (!exactStats.isFile() || exactStats.isSymbolicLink()) {
       throw new Error(`Agent memory file must be a real file: ${exact}`)
     }
+
     return exact
   }
 
   try {
     const entries = await readdir(dir)
     const match = entries.find((entry) => entry.toLowerCase() === name.toLowerCase())
+
     if (!match) return exact
     const matchedPath = path.join(dir, match)
     const matchedStats = await lstat(matchedPath)
+
     if (!matchedStats.isFile() || matchedStats.isSymbolicLink()) {
       throw new Error(`Agent memory file must be a real file: ${matchedPath}`)
     }
+
     return matchedPath
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+
     return exact
   }
 }
@@ -108,6 +116,7 @@ async function resolveMemoryPath(dir: string, name: string): Promise<string> {
 async function resolveAgentDirectory(agentId: string): Promise<{ root: string; directory: string }> {
   const root = application.getPath('feature.agents.data')
   const directory = agentDataDirectoryPath(root, agentId)
+
   try {
     await assertAgentStorageDirectory(root, directory)
   } catch (error) {
@@ -115,6 +124,7 @@ async function resolveAgentDirectory(agentId: string): Promise<{ root: string; d
     // file as missing instead of failing the whole snapshot.
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
+
   return { root, directory }
 }
 
@@ -135,6 +145,7 @@ async function readMemoryFile(
   await assertAgentStoragePath(root, filePath)
 
   const stats = await lstatIfExists(filePath)
+
   if (!stats) {
     return {
       key: file.key,
@@ -157,6 +168,7 @@ async function readMemoryFile(
   const start = file.tailWhenLarge ? stats.size - length : 0
   const buffer = Buffer.alloc(length)
   const handle = await open(filePath, 'r')
+
   try {
     await handle.read(buffer, 0, length, start)
   } finally {
@@ -164,11 +176,13 @@ async function readMemoryFile(
   }
 
   let content = buffer.toString('utf8')
+
   if (start > 0) {
     // Drop the partial first line (and any split UTF-8 lead byte) of a tail read.
     // Only when that newline is near the start: a large single-line file has its
     // only newline at the end, and discarding through it would return nothing.
     const firstNewline = content.indexOf('\n')
+
     if (firstNewline >= 0 && firstNewline < 4096) content = content.slice(firstNewline + 1)
   }
 
@@ -195,9 +209,11 @@ async function writeMemoryFile(
   // The journal is append-only and written concurrently by the running agent.
   // Replacing it from the editor would silently drop entries.
   if (file.key === 'journal') throw expectedMemoryWriteError('read_only')
+
   if (Buffer.byteLength(content, 'utf8') > MAX_FILE_BYTES) throw expectedMemoryWriteError('too_large')
 
   await ensureAgentStorageDirectory(root, directory)
+
   if (file.segments.length > 1) {
     await ensureAgentStorageDirectory(root, path.join(directory, 'memory'))
   }
@@ -207,18 +223,23 @@ async function writeMemoryFile(
 
   return withAgentMemoryFileLock(filePath, async () => {
     const existing = await lstatIfExists(filePath)
+
     if (existing && (!existing.isFile() || existing.isSymbolicLink())) {
       throw new Error(`Agent memory file must be a real file: ${filePath}`)
     }
+
     if (existing && existing.size > MAX_FILE_BYTES) throw expectedMemoryWriteError('too_large')
+
     if (revisionOf(existing) !== expectedVersion) throw expectedMemoryWriteError('conflict')
 
     // Write beside the target, then replace it. The lock serializes every writer
     // in this process; the second revision check still guards the runtime tool,
     // which takes the same lock.
     const tempPath = path.join(path.dirname(filePath), `.${path.basename(filePath)}.${randomUUID()}.tmp`)
+
     try {
       await writeFile(tempPath, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+
       if (revisionOf(await lstatIfExists(filePath)) !== expectedVersion) throw expectedMemoryWriteError('conflict')
       await rename(tempPath, filePath)
     } finally {
@@ -234,17 +255,21 @@ export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
   'agent.memory.read': async ({ agentId }) => {
     const { root, directory } = await resolveAgentDirectory(agentId)
     const files = await Promise.all(MEMORY_FILES.map((file) => readMemoryFile(root, directory, file)))
+
     return { directory, files }
   },
   'agent.memory.write': async ({ agentId, key, content, expectedVersion }) => {
     const file = MEMORY_FILES.find((candidate) => candidate.key === key)
+
     if (!file) throw new Error(`Unknown agent memory file: ${key}`)
     const { root, directory } = await resolveAgentDirectory(agentId)
+
     return writeMemoryFile(root, directory, file, content, expectedVersion)
   },
   'agent.memory.open_folder': async ({ agentId }) => {
     const { directory } = await resolveAgentDirectory(agentId)
     const errorMessage = await shell.openPath(directory)
+
     if (errorMessage) throw new Error(`Failed to open agent memory folder: ${errorMessage}`)
   }
 }

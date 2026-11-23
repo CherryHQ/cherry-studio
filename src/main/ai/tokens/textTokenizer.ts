@@ -35,5 +35,6 @@ export async function loadGptO200kTokenizer(): Promise<TextTokenizer> {
       count: (text) => (text ? countTokens(text, ordinaryTextOptions) : 0)
     }
   }
+
   return o200k
 }

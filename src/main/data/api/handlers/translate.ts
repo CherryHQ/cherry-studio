@@ -21,14 +21,17 @@ export const translateHandlers: HandlersFor<TranslateSchemas> = {
   '/translate/histories': {
     GET: async ({ query }) => {
       const parsed = TranslateHistoryQuerySchema.parse(query ?? {})
+
       return translateHistoryService.list(parsed)
     },
     POST: async ({ body }) => {
       const parsed = CreateTranslateHistorySchema.parse(body)
+
       return translateHistoryService.create(parsed)
     },
     DELETE: async () => {
       translateHistoryService.clearAll()
+
       return undefined
     }
   },
@@ -39,10 +42,12 @@ export const translateHandlers: HandlersFor<TranslateSchemas> = {
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTranslateHistorySchema.parse(body)
+
       return translateHistoryService.update(params.id, parsed)
     },
     DELETE: async ({ params }) => {
       translateHistoryService.delete(params.id)
+
       return undefined
     }
   },
@@ -53,6 +58,7 @@ export const translateHandlers: HandlersFor<TranslateSchemas> = {
     },
     POST: async ({ body }) => {
       const parsed = CreateTranslateLanguageSchema.parse(body)
+
       return translateLanguageService.create(parsed)
     }
   },
@@ -63,10 +69,12 @@ export const translateHandlers: HandlersFor<TranslateSchemas> = {
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTranslateLanguageSchema.parse(body)
+
       return translateLanguageService.update(params.langCode, parsed)
     },
     DELETE: async ({ params }) => {
       translateLanguageService.delete(params.langCode)
+
       return undefined
     }
   }

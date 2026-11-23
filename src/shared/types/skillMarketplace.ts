@@ -24,6 +24,7 @@ export const CherrySkillSchema = z.object({
 })
 
 export const CherrySkillDetailSchema = CherrySkillSchema.extend({ longDescription: localizedTextSchema })
+
 export const CherrySkillPageSchema = z.object({
   items: z.array(CherrySkillSchema),
   pagination: z.object({
@@ -35,7 +36,9 @@ export const CherrySkillPageSchema = z.object({
 })
 
 export type CherrySkill = z.infer<typeof CherrySkillSchema>
+
 export type MarketplaceSkillMember = { path: string; name: string }
+
 export type MarketplaceSkill = Omit<CherrySkill, 'downloads'> & {
   downloads: number | null
   subscription?: { sourceId: string; kind: 'github' | 'zip'; url: string }
@@ -43,11 +46,14 @@ export type MarketplaceSkill = Omit<CherrySkill, 'downloads'> & {
   membersKnown: boolean
   isCollection: boolean
 }
+
 export type MarketplaceSkillDetail = MarketplaceSkill & Pick<z.infer<typeof CherrySkillDetailSchema>, 'longDescription'>
+
 export type MarketplaceSkillPage = {
   items: MarketplaceSkill[]
   pagination: z.infer<typeof CherrySkillPageSchema>['pagination']
 }
+
 export type MarketplaceInstallResult = {
   members: MarketplaceSkillMember[]
   installed: InstalledSkill[]

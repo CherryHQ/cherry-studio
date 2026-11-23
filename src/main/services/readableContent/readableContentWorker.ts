@@ -40,12 +40,14 @@ function stripMarkdownImagesAndLinks(text: string): string {
     result += text.slice(cursor, start)
     const labelStart = bracketStart + 1
     const labelEnd = text.indexOf(']', labelStart)
+
     if (labelEnd === -1 || text[labelEnd + 1] !== '(') {
       result += text.slice(start)
       break
     }
 
     const targetEnd = text.indexOf(')', labelEnd + 2)
+
     if (targetEnd === -1) {
       result += text.slice(start)
       break
@@ -54,6 +56,7 @@ function stripMarkdownImagesAndLinks(text: string): string {
     if (!isImage) {
       result += text.slice(labelStart, labelEnd)
     }
+
     cursor = targetEnd + 1
   }
 
@@ -66,6 +69,7 @@ function formatPreview(text: string, maxLength: number): string {
   cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ')
   cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '')
   cleaned = cleaned.replace(/\s+/g, ' ').trim()
+
   return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength)}...` : cleaned
 }
 

@@ -56,6 +56,7 @@ const meta: Meta<typeof DescriptionSwitch> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default

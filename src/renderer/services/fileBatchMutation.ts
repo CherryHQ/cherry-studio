@@ -4,7 +4,9 @@ import type { FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
+
 type FileBatchMutationOutcome = FileBatchMutationResult & { requestFailed: boolean }
+
 type FileBatchMutationRoute =
   | 'file.batch_trash'
   | 'file.batch_remove_from_library'
@@ -22,6 +24,7 @@ export async function requestBatchedFileMutation(
   if (ids.length === 0) return { succeeded: [], failed: [], requestFailed: false }
 
   const chunks: FileEntryId[][] = []
+
   for (let index = 0; index < ids.length; index += FILE_MUTATION_BATCH_SIZE) {
     chunks.push(ids.slice(index, index + FILE_MUTATION_BATCH_SIZE))
   }
@@ -42,8 +45,10 @@ export async function requestBatchedFileMutation(
   )
 
   const outcome: FileBatchMutationOutcome = { succeeded: [], failed: [], requestFailed: false }
+
   for (let index = 0; index < results.length; index += 1) {
     const settled = results[index]
+
     if (settled.status === 'fulfilled') {
       outcome.succeeded.push(...settled.value.succeeded)
       outcome.failed.push(...settled.value.failed)

@@ -99,6 +99,7 @@ export class VertexAiService {
 
       // 转换为普通对象
       const headers: Record<string, string> = {}
+
       for (const [key, value] of Object.entries(authHeaders)) {
         if (typeof value === 'string') {
           headers[key] = value

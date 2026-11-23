@@ -6,7 +6,9 @@ import { GammaLight } from './light'
 
 const Gamma = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GammaLight {...props} className={className} />
+
   if (variant === 'dark') return <GammaDark {...props} className={className} />
+
   return (
     <>
       <GammaLight className={cn('dark:hidden', className)} {...props} />

@@ -14,6 +14,7 @@ export class AgentBrowserController extends SessionBrowserController {
     super(service, {
       assertAvailable: () => {
         const agent = agentService.getAgent(context.agentId)
+
         if (
           !agent ||
           agent.disabledTools?.includes(BROWSER_TOOL_GROUP) ||
@@ -35,6 +36,7 @@ export class AgentBrowserController extends SessionBrowserController {
       },
       trackCursor: (hide) => {
         const runtime = application.get('AgentSessionRuntimeService')
+
         return runtime.onTurnTerminal((event) => {
           if (event.sessionId === context.sessionId && event.assistantMessageId === cursorTurn) hide()
         })

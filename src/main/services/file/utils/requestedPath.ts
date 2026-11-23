@@ -9,6 +9,7 @@ import { type DefaultOpenContext, safeOpen } from '../system'
 
 function expandHomePath(rawPath: string): string {
   if (!rawPath.startsWith('~/') && !rawPath.startsWith('~\\')) return rawPath
+
   return path.join(application.getPath('sys.home'), rawPath.slice(2))
 }
 
@@ -29,16 +30,20 @@ function unavailableTarget(rawPath: string, reason: 'relative' | 'invalid'): Ipc
  */
 export function resolveRequestedPath(rawPath: string, workspaceRoot?: AbsoluteFilePath): AbsoluteFilePath {
   const expanded = expandHomePath(rawPath.trim())
+
   if (!expanded) throw unavailableTarget(rawPath, 'invalid')
 
   // An unusable root is dropped, not trusted: resolving against a relative one would silently
   // point at whatever the cwd happens to be.
   const root = workspaceRoot && AbsoluteFilePathSchema.safeParse(workspaceRoot).success ? workspaceRoot : undefined
   const absolute = path.isAbsolute(expanded) ? expanded : root ? path.resolve(root, expanded) : null
+
   if (!absolute) throw unavailableTarget(rawPath, 'relative')
 
   const parsed = AbsoluteFilePathSchema.safeParse(absolute)
+
   if (!parsed.success) throw unavailableTarget(rawPath, 'invalid')
+
   return parsed.data
 }
 

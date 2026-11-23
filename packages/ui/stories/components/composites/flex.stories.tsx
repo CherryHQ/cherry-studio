@@ -18,6 +18,7 @@ const meta: Meta<typeof Flex> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 const Item = ({ label }: { label: string }) => (

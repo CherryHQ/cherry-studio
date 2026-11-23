@@ -6,6 +6,7 @@ const clearEl = document.getElementById('clear')
 const statusEl = document.getElementById('status')
 const COPY_FEEDBACK_DURATION_MS = 2500
 const RECONNECT_INTERVAL_MS = 1000
+
 // Keep in sync with MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT in src/main/services/mainNetworkDevtools/MainNetworkDevtoolsService.ts.
 const MAIN_NETWORK_DEVTOOLS_PORT = 38997
 
@@ -41,7 +42,9 @@ function getSearchText(event) {
 
 function filteredEvents() {
   const query = filterEl.value.trim().toLowerCase()
+
   if (!query) return events
+
   return events.filter((event) => getSearchText(event).includes(query))
 }
 
@@ -65,6 +68,7 @@ function renderRows(force = false) {
   countEl.textContent = `${events.length} requests`
 
   const nextSignature = getRowsSignature(visible)
+
   if (!force && nextSignature === rowsSignature) return
 
   rowsEl.replaceChildren()
@@ -73,6 +77,7 @@ function renderRows(force = false) {
   for (const event of visible) {
     const tr = document.createElement('tr')
     tr.dataset.id = event.id
+
     if (event.id === selectedId) tr.classList.add('selected')
 
     const cells = [
@@ -88,7 +93,9 @@ function renderRows(force = false) {
     for (const cell of cells) {
       const td = document.createElement('td')
       td.textContent = String(cell.text)
+
       if (cell.className) td.className = cell.className
+
       if (cell.title) td.title = cell.title
       tr.appendChild(td)
     }
@@ -105,6 +112,7 @@ function renderRows(force = false) {
 
 function renderDetails(event, force = false) {
   const nextSignature = JSON.stringify(event)
+
   if (!force && nextSignature === detailsSignature) return
 
   detailsSignature = nextSignature
@@ -137,6 +145,7 @@ function renderDetails(event, force = false) {
 async function copyText(text) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text)
+
     return
   }
 
@@ -168,6 +177,7 @@ function appendSection(title, copyTextProvider) {
   content.className = 'detail-section-content'
   section.append(header, content)
   detailsEl.appendChild(section)
+
   return content
 }
 
@@ -183,10 +193,12 @@ function createCopyButton(copyTextProvider) {
     } catch {
       copyButton.textContent = 'Failed'
     }
+
     setTimeout(() => {
       copyButton.textContent = 'Copy'
     }, COPY_FEEDBACK_DURATION_MS)
   })
+
   return copyButton
 }
 
@@ -213,11 +225,13 @@ function appendHeadersSection(title, headers) {
 
   if (entries.length === 0) {
     appendMuted(content, 'No headers captured.')
+
     return
   }
 
   const table = document.createElement('div')
   table.className = 'headers-list'
+
   for (const [key, value] of entries) {
     const name = document.createElement('div')
     name.className = 'header-name'
@@ -227,6 +241,7 @@ function appendHeadersSection(title, headers) {
     headerValue.textContent = value
     table.append(name, headerValue)
   }
+
   content.appendChild(table)
 }
 
@@ -236,6 +251,7 @@ function appendBodySection(title, body, error) {
   const content = appendSection(title, copyValue ? () => copyValue : undefined)
 
   const meta = formatBodyMeta(body)
+
   if (meta) {
     const metaEl = document.createElement('div')
     metaEl.className = 'body-meta'
@@ -245,12 +261,15 @@ function appendBodySection(title, body, error) {
 
   if (error) {
     appendMuted(content, `Capture failed: ${error}`)
+
     return
   }
 
   if (body?.note) appendMuted(content, body.note)
+
   if (!formattedText) {
     if (!body?.note) appendMuted(content, 'No body captured.')
+
     return
   }
 
@@ -270,16 +289,23 @@ function appendMuted(parent, text) {
 function formatBodyMeta(body) {
   if (!body) return ''
   const parts = []
+
   if (body.contentType) parts.push(body.contentType)
+
   if (typeof body.size === 'number') parts.push(`${body.size} chars`)
+
   if (body.truncated) parts.push('truncated')
+
   return parts.join(' · ')
 }
 
 function formatBodyText(text, contentType = '') {
   if (isJsonContentType(contentType) || looksJson(text)) return tryFormatJson(text)
+
   if (isUrlEncodedContentType(contentType)) return formatUrlEncoded(text)
+
   if (contentType.toLowerCase().includes('event-stream')) return formatEventStream(text)
+
   return text
 }
 
@@ -294,6 +320,7 @@ function tryFormatJson(text) {
 function formatUrlEncoded(text) {
   try {
     const params = new URLSearchParams(text)
+
     return [...params].map(([key, value]) => `${key} = ${value}`).join('\n')
   } catch {
     return text
@@ -305,7 +332,9 @@ function formatEventStream(text) {
     .split('\n')
     .map((line) => {
       const match = line.match(/^(data:\s*)(.+)$/)
+
       if (!match) return line
+
       return `${match[1]}${tryFormatJson(match[2])}`
     })
     .join('\n')
@@ -321,23 +350,28 @@ function isUrlEncodedContentType(contentType) {
 
 function looksJson(text) {
   const trimmed = text.trim()
+
   return trimmed.startsWith('{') || trimmed.startsWith('[')
 }
 
 function upsertEvent(event) {
   const index = events.findIndex((item) => item.id === event.id)
+
   if (index === -1) events.push(event)
   else events[index] = event
 
   renderRows()
+
   if (selectedId === event.id) renderDetails(event)
 }
 
 function replaceEvents(nextEvents) {
   events = Array.isArray(nextEvents) ? nextEvents : []
   renderRows(true)
+
   if (selectedId) {
     const selectedEvent = events.find((event) => event.id === selectedId)
+
     if (selectedEvent) renderDetails(selectedEvent, true)
   }
 }
@@ -353,6 +387,7 @@ function clearEvents() {
 
 function handleMessage(raw) {
   let message
+
   try {
     message = JSON.parse(raw)
   } catch {
@@ -361,11 +396,13 @@ function handleMessage(raw) {
 
   if (message.type === 'snapshot') {
     replaceEvents(message.events)
+
     return
   }
 
   if (message.type === 'event' && message.event) {
     upsertEvent(message.event)
+
     return
   }
 
@@ -395,12 +432,15 @@ filterEl.addEventListener('input', () => renderRows())
 
 rowsEl.addEventListener('pointerdown', (pointerEvent) => {
   const target = pointerEvent.target
+
   if (!(target instanceof Element)) return
 
   const row = target.closest('tr[data-id]')
+
   if (!row || !rowsEl.contains(row)) return
 
   const event = events.find((item) => item.id === row.dataset.id)
+
   if (!event) return
 
   selectedId = event.id
@@ -411,6 +451,7 @@ rowsEl.addEventListener('pointerdown', (pointerEvent) => {
 clearEl.addEventListener('click', () => {
   if (socket?.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: 'clear' }))
+
     return
   }
 
@@ -418,4 +459,5 @@ clearEl.addEventListener('click', () => {
 })
 
 setInterval(ensureConnection, RECONNECT_INTERVAL_MS)
+
 ensureConnection()

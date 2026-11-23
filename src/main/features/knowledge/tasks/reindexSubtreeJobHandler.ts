@@ -55,9 +55,11 @@ export function createReindexSubtreeJobHandler(
       // Reindex is admitted only for completed/failed subtrees, but delete may win after enqueue.
       // Every check is per root: a delete owns the roots it marked, not a container whose child it is.
       const liveRoots = resolveLiveKnowledgeRoots(baseId, rootItemIds)
+
       if (liveRoots.length === 0) {
         logger.info('Skipping reindex-subtree for deleting roots', { baseId, rootItemIds, jobId: ctx.jobId })
         reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
+
         return
       }
 
@@ -75,16 +77,20 @@ export function createReindexSubtreeJobHandler(
         // Re-check under the mutation lock so reindex cannot turn a just-deleted
         // root back into preparing/processing during cleanup/reset.
         const selectedRoots = resolveLiveKnowledgeRoots(baseId, rootItemIds)
+
         if (selectedRoots.length === 0) {
           logger.info('Skipping reindex-subtree reset for deleting roots', { baseId, rootItemIds, jobId: ctx.jobId })
+
           return { roots: [], skippedDeleting: true, skippedMissingSource: 0 }
         }
+
         // Admission (assertSubtreesCanReindex) already rejected roots whose source is gone, but the
         // source can vanish between admission and acquiring this lock. Re-check before activating:
         // a root that can no longer rebuild keeps its existing vectors (stays completed/searchable)
         // instead of being wiped with nothing to re-read from.
         const rebuildableRoots: typeof selectedRoots = []
         const missingSourceRootIds: string[] = []
+
         for (const root of selectedRoots) {
           if (await canKnowledgeItemReacquireSource(root)) {
             rebuildableRoots.push(root)
@@ -92,6 +98,7 @@ export function createReindexSubtreeJobHandler(
             missingSourceRootIds.push(root.id)
           }
         }
+
         if (missingSourceRootIds.length > 0) {
           logger.warn('Skipping reindex for roots whose source could not be read before the mutation lock', {
             baseId,
@@ -99,6 +106,7 @@ export function createReindexSubtreeJobHandler(
             jobId: ctx.jobId
           })
         }
+
         if (rebuildableRoots.length === 0) {
           return { roots: [], skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
         }
@@ -110,17 +118,22 @@ export function createReindexSubtreeJobHandler(
           if (root.type === 'directory') {
             cacheService.deleteShared(directoryCopyProgressCacheKey(root.id))
           }
+
           knowledgeItemService.updateStatus(root.id, root.type === 'directory' ? 'preparing' : 'processing')
         }
+
         return { roots: rebuildableRoots, skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
       })
+
       if (activation.roots.length === 0) {
         const detail: Parameters<typeof reportKnowledgeProgress>[2] = {
           stage: activation.skippedDeleting ? 'deleting' : 'done',
           totalFiles: 0
         }
+
         if (activation.skippedMissingSource > 0) detail.skippedMissingSource = activation.skippedMissingSource
         reportKnowledgeProgress(ctx, 100, detail)
+
         return
       }
 
@@ -139,16 +152,19 @@ export function createReindexSubtreeJobHandler(
         // live root is already active, so a delete of one of its children must not strand it here.
         const liveRootIds = new Set(resolveLiveKnowledgeRoots(baseId, rootItemIds).map((item) => item.id))
         const rebuildableRoots = activation.roots.filter((root) => liveRootIds.has(root.id))
+
         if (rebuildableRoots.length === 0) {
           logger.info('Skipping reindex-subtree reset for roots deleted during re-acquisition', {
             baseId,
             rootItemIds,
             jobId: ctx.jobId
           })
+
           return { roots: [], skippedDeleting: true, skippedMissingSource: 0 }
         }
 
         const rebuildableRootIds = rebuildableRoots.map((item) => item.id)
+
         const leafItemIds = knowledgeItemService
           .getSubtreeItems(baseId, rebuildableRootIds, { includeRoots: true, leafOnly: true })
           .map((item) => item.id)
@@ -158,6 +174,7 @@ export function createReindexSubtreeJobHandler(
         const containerRootIds = rebuildableRoots
           .filter((item) => isContainerKnowledgeItem(item))
           .map((item) => item.id)
+
         if (containerRootIds.length > 0) {
           // Container roots are rescanned from source, so their previous expansion must be removed.
           const descendantItems = knowledgeItemService.getSubtreeItems(baseId, containerRootIds)
@@ -175,18 +192,22 @@ export function createReindexSubtreeJobHandler(
           skippedMissingSource: activation.skippedMissingSource
         }
       })
+
       if (resetResult.roots.length === 0) {
         const detail: Parameters<typeof reportKnowledgeProgress>[2] = {
           stage: resetResult.skippedDeleting ? 'deleting' : 'done',
           totalFiles: 0
         }
+
         if (resetResult.skippedMissingSource > 0) detail.skippedMissingSource = resetResult.skippedMissingSource
         reportKnowledgeProgress(ctx, 100, detail)
+
         return
       }
 
       // Re-enqueue only the selected roots; container children will be recreated by prepare-root.
       const completedSchedulingRootIds = new Set<string>()
+
       try {
         for (const item of resetResult.roots) {
           ctx.signal.throwIfAborted()
@@ -203,9 +224,11 @@ export function createReindexSubtreeJobHandler(
         // Only the rebuildable roots were reset/activated — missing-source roots were left
         // untouched (still completed on their existing vectors), so they must not be failed here.
         const message = error instanceof Error ? error.message : String(error)
+
         const unscheduledRootIds = resetResult.roots
           .map((item) => item.id)
           .filter((rootItemId) => !completedSchedulingRootIds.has(rootItemId))
+
         if (unscheduledRootIds.length > 0) {
           // A shutdown abort (deliberate quit) lands here when `throwIfAborted` fires in the
           // scheduling loop. Store the localized `indexing_interrupted` code instead of a raw
@@ -214,10 +237,12 @@ export function createReindexSubtreeJobHandler(
           const failError = ctx.signal.aborted
             ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
             : `Failed to schedule reindex after reset: ${message}`
+
           knowledgeItemService.setSubtreeStatus(baseId, unscheduledRootIds, 'failed', {
             error: failError
           })
         }
+
         throw error
       }
 
@@ -225,6 +250,7 @@ export function createReindexSubtreeJobHandler(
         stage: 'done',
         totalFiles: resetResult.roots.length
       }
+
       if (resetResult.skippedMissingSource > 0) detail.skippedMissingSource = resetResult.skippedMissingSource
       reportKnowledgeProgress(ctx, 100, detail)
     },
@@ -256,10 +282,12 @@ async function produceReacquireWrites(
   const producers = roots.flatMap((item) => {
     if (!isIndexableKnowledgeItem(item)) return []
     const produce = resolveKnowledgeReacquireProducer(item)
+
     return produce ? [{ itemId: item.id, produce }] : []
   })
 
   ctx.signal.throwIfAborted()
+
   const settled = await Promise.allSettled(
     producers.map(async ({ itemId, produce }) => {
       try {
@@ -270,6 +298,7 @@ async function produceReacquireWrites(
             error: error instanceof Error ? error.message : String(error)
           })
         }
+
         throw error
       }
     })
@@ -277,6 +306,7 @@ async function produceReacquireWrites(
 
   const writes = new Map<string, KnowledgeReacquireWrite>()
   const failures: unknown[] = []
+
   for (const result of settled) {
     if (result.status === 'fulfilled') {
       writes.set(result.value.itemId, result.value.write)
@@ -284,6 +314,7 @@ async function produceReacquireWrites(
       failures.push(result.reason)
     }
   }
+
   if (failures.length > 0) {
     // Only one reason reaches the job record, so log the whole batch: a single dead link and an
     // expired provider key are indistinguishable from that one message alone.
@@ -298,6 +329,7 @@ async function produceReacquireWrites(
     )
     throw failures[0]
   }
+
   return writes
 }
 
@@ -308,20 +340,26 @@ async function markReindexSubtreeFailedOnSettled(
   if (event.status === 'completed') return
 
   const { baseId, rootItemIds } = event.input
+
   if (rootItemIds.length === 0) return
 
   const reason = event.error?.message?.trim() || `Job ${event.status}`
+
   try {
     const jobManager = application.get('JobManager')
+
     const activeJobs = await jobManager.list({
       queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
       status: [...ACTIVE_JOB_STATUSES],
       parentId: event.jobId
     })
+
     const rootsWithFollowUpJobs = getRootsWithFollowUpJobs(activeJobs, rootItemIds)
+
     const rootItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, {
       includeRoots: true
     })
+
     const rootsToFail = rootItems
       .filter((item) => rootItemIds.includes(item.id))
       .filter((item) => REINDEX_RECOVERY_ACTIVE_STATUSES.has(item.status))
@@ -340,6 +378,7 @@ async function markReindexSubtreeFailedOnSettled(
       event.status === 'cancelled'
         ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
         : `Reindex job ${event.status}: ${reason}`
+
     knowledgeItemService.setSubtreeStatus(baseId, rootsToFail, 'failed', { error })
   } catch (error) {
     logger.error(
@@ -357,11 +396,14 @@ async function markReindexSubtreeFailedOnSettled(
 function getRootsWithFollowUpJobs(activeJobs: JobSnapshot[], rootItemIds: string[]): Set<string> {
   const rootItemIdSet = new Set(rootItemIds)
   const rootsWithFollowUpJobs = new Set<string>()
+
   for (const job of activeJobs) {
     const narrowed = narrowKnowledgeJobInput(job)
+
     if (narrowed && 'itemId' in narrowed.input && rootItemIdSet.has(narrowed.input.itemId)) {
       rootsWithFollowUpJobs.add(narrowed.input.itemId)
     }
   }
+
   return rootsWithFollowUpJobs
 }

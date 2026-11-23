@@ -8,9 +8,13 @@ import type { CommandId } from '@shared/utils/command'
 import type { ModelSelectorTag } from './filters'
 
 export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
+
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
+
 export type ModelSelectorSelectionType = 'model' | 'id'
+
 export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
+
 export type ModelSelectorFilter = (model: Model, provider?: Provider) => boolean
 
 interface ModelSelectorCommonProps {
@@ -132,6 +136,7 @@ export interface ModelSelectorComposition {
 }
 
 export type ModelSelectorNavigableItem = ModelSelectorModelItem | ModelSelectorActionItem
+
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorNavigableItem
 
 export interface UseModelSelectorDataOptions {

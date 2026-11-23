@@ -23,6 +23,7 @@ export const aiFailureReasonSchema = z.enum([
   'internal',
   'unknown'
 ])
+
 export type AiFailureReason = z.infer<typeof aiFailureReasonSchema>
 
 export const aiFailureSnapshotSchema = z.strictObject({
@@ -43,6 +44,7 @@ export const aiFailureSnapshotSchema = z.strictObject({
     })
     .optional()
 })
+
 export type AiFailureSnapshot = z.infer<typeof aiFailureSnapshotSchema>
 
 export const executionFailureSchema = z
@@ -52,4 +54,5 @@ export const executionFailureSchema = z
     failure: aiFailureSnapshotSchema
   })
   .refine((value) => new TextEncoder().encode(JSON.stringify(value)).length <= 4096, 'Failure exceeds byte budget')
+
 export type ExecutionFailure = z.infer<typeof executionFailureSchema>

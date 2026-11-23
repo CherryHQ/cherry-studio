@@ -31,6 +31,7 @@ interface MutableClientRequestMethods {
 }
 
 type MainNetworkDevtoolsState = 'pending' | 'success' | 'error'
+
 type MainNetworkDevtoolsSource = 'fetch' | 'http' | 'https' | 'net'
 
 export interface MainNetworkDevtoolsBody {
@@ -93,6 +94,7 @@ export function redactHeaders(headers: Headers | RequestOptions['headers']): Rec
   }
 
   const redactedEntries: [string, string][] = []
+
   for (const [key, value] of entries) {
     if (value === undefined) continue
     redactedEntries.push([key, isSensitiveHeaderName(key) ? REDACTED : normalizeHeaderValue(value)])
@@ -111,6 +113,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 
   if (typeof firstArg === 'string' || firstArg instanceof URL) {
     urlArg = firstArg
+
     if (isRequestOptions(secondArg)) {
       options = secondArg
     }
@@ -124,6 +127,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
   const port = normalizeOptionValue(options.port)
   const authority = port && !host.includes(':') ? `${host}:${port}` : host
   const path = normalizeOptionValue(options.path) ?? getUrlPath(parsedUrl) ?? getFallbackPath(urlArg)
+
   const normalizedPath =
     path.startsWith('/') || path.startsWith('http://') || path.startsWith('https://') ? path : `/${path}`
 
@@ -209,6 +213,7 @@ export class MainNetworkDevtoolsService extends BaseService {
 
   private isOriginAllowed(origin: string | undefined): boolean {
     if (!origin) return false
+
     return this.allowedOrigins.has(normalizeOrigin(origin))
   }
 
@@ -235,6 +240,7 @@ export class MainNetworkDevtoolsService extends BaseService {
           duration: performance.now() - startedAt
         })
         this.captureFetchResponseBody(id, response)
+
         return response
       } catch (error) {
         this.updateEvent(id, {
@@ -278,6 +284,7 @@ export class MainNetworkDevtoolsService extends BaseService {
           duration: performance.now() - startedAt
         })
         this.captureFetchResponseBody(id, response)
+
         return response
       } catch (error) {
         this.updateEvent(id, {
@@ -317,12 +324,15 @@ export class MainNetworkDevtoolsService extends BaseService {
     this.registerDisposable(() => {
       if (this.monitoredHttpGet && http.get === this.monitoredHttpGet && this.originalHttpGet)
         http.get = this.originalHttpGet
+
       if (this.monitoredHttpRequest && http.request === this.monitoredHttpRequest && this.originalHttpRequest) {
         http.request = this.originalHttpRequest
       }
+
       if (this.monitoredHttpsGet && https.get === this.monitoredHttpsGet && this.originalHttpsGet) {
         https.get = this.originalHttpsGet
       }
+
       if (this.monitoredHttpsRequest && https.request === this.monitoredHttpsRequest && this.originalHttpsRequest) {
         https.request = this.originalHttpsRequest
       }
@@ -349,6 +359,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       }
 
       this.trackClientRequest(request, id, startedAt, description.requestContentType)
+
       return request
     }
   }
@@ -360,6 +371,7 @@ export class MainNetworkDevtoolsService extends BaseService {
     requestContentType: string | undefined
   ): void {
     let completed = false
+
     const complete = (patch: Partial<MainNetworkDevtoolsEvent>) => {
       if (completed) return
       completed = true
@@ -403,18 +415,22 @@ export class MainNetworkDevtoolsService extends BaseService {
     if (description.requestBody || typeof Request === 'undefined' || !(input instanceof Request) || !input.body) return
 
     const contentType = description.requestContentType
+
     // Do not clone non-text bodies: Request.clone() tees the stream, and the unread
     // clone branch would buffer the whole binary payload without backpressure.
     if (!isTextLikeContentType(contentType)) {
       this.updateEvent(id, { requestBody: { contentType, note: 'Binary request body is not captured.' } })
+
       return
     }
 
     let clonedRequest: Request
+
     try {
       clonedRequest = input.clone()
     } catch (error) {
       this.updateEvent(id, { requestBody: { contentType, note: getErrorMessage(error) } })
+
       return
     }
 
@@ -425,18 +441,22 @@ export class MainNetworkDevtoolsService extends BaseService {
 
   private captureFetchResponseBody(id: string, response: Response): void {
     const contentType = getHeaderValue(redactHeaders(response.headers), 'content-type')
+
     // Do not clone non-text bodies: Response.clone() tees the stream, and the unread
     // clone branch would buffer the whole binary payload without backpressure.
     if (!isTextLikeContentType(contentType)) {
       this.updateEvent(id, { responseBody: { contentType, note: 'Binary response body is not captured.' } })
+
       return
     }
 
     let clonedResponse: Response
+
     try {
       clonedResponse = response.clone()
     } catch (error) {
       this.updateEvent(id, { responseBodyError: getErrorMessage(error) })
+
       return
     }
 
@@ -455,16 +475,19 @@ export class MainNetworkDevtoolsService extends BaseService {
 
     request.write = function monitoredWrite(this: ClientRequest, ...args: unknown[]) {
       requestBodyAccumulator.append(args[0], args[1])
+
       return originalWrite.apply(this, args)
     }
 
     request.end = function monitoredEnd(this: ClientRequest, ...args: unknown[]) {
       requestBodyAccumulator.append(args[0], args[1])
       const requestBody = requestBodyAccumulator.toBody()
+
       if (requestBody) {
         // Queue the update after Node has accepted `end()` so diagnostics cannot affect request dispatch.
         queueMicrotask(() => updateRequestBody(requestBody))
       }
+
       return originalEnd.apply(this, args)
     }
   }
@@ -482,9 +505,11 @@ export class MainNetworkDevtoolsService extends BaseService {
     }
 
     this.events.push(event)
+
     if (this.events.length > MAX_EVENTS) {
       this.events.splice(0, this.events.length - MAX_EVENTS)
       this.broadcast({ type: 'snapshot', events: this.events })
+
       return event.id
     }
 
@@ -495,6 +520,7 @@ export class MainNetworkDevtoolsService extends BaseService {
 
   private updateEvent(id: string, patch: Partial<MainNetworkDevtoolsEvent>): void {
     const event = this.events.find((item) => item.id === id)
+
     if (!event) return
 
     Object.assign(event, patch)
@@ -512,6 +538,7 @@ export class MainNetworkDevtoolsService extends BaseService {
     server.on('connection', (socket, request) => {
       if (!this.isOriginAllowed(request.headers.origin)) {
         socket.close(1008, 'Unauthorized origin')
+
         return
       }
 
@@ -530,6 +557,7 @@ export class MainNetworkDevtoolsService extends BaseService {
     }
 
     const address = server.address()
+
     if (!address || typeof address === 'string') {
       throw new Error('Main Network DevTools websocket server did not expose a TCP port')
     }
@@ -548,6 +576,7 @@ export class MainNetworkDevtoolsService extends BaseService {
 
   private handleClientMessage(raw: string): void {
     let message: unknown
+
     try {
       message = JSON.parse(raw)
     } catch {
@@ -569,6 +598,7 @@ export class MainNetworkDevtoolsService extends BaseService {
     if (this.clients.size === 0) return
 
     const payload = JSON.stringify(message)
+
     for (const client of this.clients) {
       if (client.readyState === 1) {
         client.send(payload)
@@ -602,13 +632,17 @@ function describeFetchRequest(
 
 function getFetchUrl(input: Parameters<typeof globalThis.fetch>[0]): string {
   if (typeof input === 'string') return input
+
   if (input instanceof URL) return input.toString()
+
   if (typeof Request !== 'undefined' && input instanceof Request) return input.url
+
   return String(input)
 }
 
 function parseUrlArg(urlArg: string | URL | undefined): URL | undefined {
   if (!urlArg) return undefined
+
   try {
     return new URL(urlArg.toString())
   } catch {
@@ -618,11 +652,13 @@ function parseUrlArg(urlArg: string | URL | undefined): URL | undefined {
 
 function getUrlPath(url: URL | undefined): string | undefined {
   if (!url) return undefined
+
   return `${url.pathname}${url.search}`
 }
 
 function getFallbackPath(urlArg: string | URL | undefined): string {
   if (typeof urlArg === 'string') return urlArg || '/'
+
   return '/'
 }
 
@@ -633,21 +669,25 @@ function isRequestOptions(value: unknown): value is RequestOptions {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Captured Node options are only structurally recognized; normalize raw protocol, host, port and path fields before native validation.
 function normalizeOptionValue(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined
+
   return String(value)
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Header dictionaries can contain arbitrary runtime values; normalize each non-redacted value for the diagnostic view.
 function normalizeHeaderValue(value: unknown): string {
   if (Array.isArray(value)) return value.map((item) => String(item)).join(', ')
+
   return String(value)
 }
 
 function getHeaderValue(headers: Record<string, string> | undefined, name: string): string | undefined {
   if (!headers) return undefined
   const normalizedName = name.toLowerCase()
+
   for (const [key, value] of Object.entries(headers)) {
     if (key.toLowerCase() === normalizedName) return value
   }
+
   return undefined
 }
 
@@ -656,11 +696,14 @@ export function captureRequestBody(body: unknown, contentType?: string): MainNet
   if (body === undefined || body === null) return undefined
 
   if (typeof body === 'string') return createCapturedTextBody(body, contentType)
+
   if (body instanceof URLSearchParams)
     return createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded')
+
   if (typeof FormData !== 'undefined' && body instanceof FormData) {
     return createCapturedTextBody(JSON.stringify(formDataToRecord(body)), contentType ?? 'multipart/form-data')
   }
+
   if (typeof Blob !== 'undefined' && body instanceof Blob) {
     return {
       contentType: contentType ?? (body.type || undefined),
@@ -668,10 +711,13 @@ export function captureRequestBody(body: unknown, contentType?: string): MainNet
       note: 'Blob request body is not captured.'
     }
   }
+
   if (body instanceof ArrayBuffer) return createCapturedBinaryBody(new Uint8Array(body), contentType)
+
   if (ArrayBuffer.isView(body)) {
     return createCapturedBinaryBody(new Uint8Array(body.buffer, body.byteOffset, body.byteLength), contentType)
   }
+
   if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
     return { contentType, note: 'Streaming request body is not captured.' }
   }
@@ -693,18 +739,22 @@ async function readWebBody(
 
   try {
     let done = false
+
     while (text.length < MAX_BODY_CHARS) {
       const result = await reader.read()
       done = result.done
+
       if (done) break
       text += decoder.decode(result.value, { stream: true })
     }
+
     text += decoder.decode()
 
     if (text.length > MAX_BODY_CHARS) {
       text = text.slice(0, MAX_BODY_CHARS)
       truncated = true
     }
+
     if (!done && text.length >= MAX_BODY_CHARS) truncated = true
 
     if (truncated) {
@@ -725,13 +775,16 @@ function createBodyAccumulator(contentType?: string) {
 
   const appendText = (value: string) => {
     size += value.length
+
     if (text.length >= MAX_BODY_CHARS) {
       truncated = true
+
       return
     }
 
     const remaining = MAX_BODY_CHARS - text.length
     text += value.slice(0, remaining)
+
     if (value.length > remaining) truncated = true
   }
 
@@ -739,27 +792,36 @@ function createBodyAccumulator(contentType?: string) {
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Node write/end overloads expose raw chunk, encoding or callback arguments before the native method validates them.
     append(chunk: unknown, encoding?: unknown) {
       if (chunk === undefined || chunk === null || typeof chunk === 'function') return
+
       if (!isTextLikeContentType(contentType)) {
         note = 'Binary body is not captured.'
         size += getChunkSize(chunk)
+
         return
       }
 
       if (typeof chunk === 'string') {
         appendText(chunk)
+
         return
       }
+
       if (Buffer.isBuffer(chunk)) {
         const textEncoding = typeof encoding === 'string' && Buffer.isEncoding(encoding) ? encoding : 'utf8'
         appendText(chunk.toString(textEncoding))
+
         return
       }
+
       if (chunk instanceof ArrayBuffer) {
         appendText(new TextDecoder().decode(chunk))
+
         return
       }
+
       if (ArrayBuffer.isView(chunk)) {
         appendText(new TextDecoder().decode(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)))
+
         return
       }
 
@@ -767,7 +829,9 @@ function createBodyAccumulator(contentType?: string) {
     },
     toBody(): MainNetworkDevtoolsBody | undefined {
       if (!text && size === 0 && !note) return undefined
+
       if (note && !text) return { contentType, size, note }
+
       return createCapturedTextBody(text, contentType, truncated, size)
     }
   }
@@ -777,6 +841,7 @@ function createCapturedBinaryBody(bytes: Uint8Array, contentType?: string): Main
   if (!isTextLikeContentType(contentType)) {
     return { contentType, size: bytes.byteLength, note: 'Binary request body is not captured.' }
   }
+
   return createCapturedTextBody(new TextDecoder().decode(bytes), contentType, false, bytes.byteLength)
 }
 
@@ -788,6 +853,7 @@ function createCapturedTextBody(
 ): MainNetworkDevtoolsBody {
   const truncated = alreadyTruncated || text.length > MAX_BODY_CHARS
   const visibleText = text.slice(0, MAX_BODY_CHARS)
+
   return {
     text: redactBodyText(visibleText, contentType),
     contentType,
@@ -800,7 +866,9 @@ function redactBodyText(text: string, contentType?: string): string {
   if (isJsonContentType(contentType) || looksJson(text)) {
     try {
       const value: unknown = JSON.parse(text)
+
       if (!isSerializable(value)) return text
+
       return JSON.stringify(redactJsonValue(value))
     } catch {
       return text
@@ -809,9 +877,11 @@ function redactBodyText(text: string, contentType?: string): string {
 
   if (isUrlEncodedContentType(contentType)) {
     const params = new URLSearchParams(text)
+
     for (const [key] of [...params]) {
       if (isSensitiveName(key, OAUTH_QUERY_EXTRAS)) params.set(key, REDACTED)
     }
+
     return params.toString()
   }
 
@@ -820,6 +890,7 @@ function redactBodyText(text: string, contentType?: string): string {
 
 function redactJsonValue(value: Serializable): Serializable {
   if (Array.isArray(value)) return value.map((item) => redactJsonValue(item))
+
   if (value === null || typeof value !== 'object') return value
 
   return Object.fromEntries(
@@ -832,20 +903,24 @@ function redactJsonValue(value: Serializable): Serializable {
 
 function formDataToRecord(formData: FormData) {
   const entries: [string, string][] = []
+
   for (const [key, value] of formData.entries()) {
     entries.push([key, isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : describeFormDataValue(value)])
   }
+
   return Object.fromEntries(entries)
 }
 
 function describeFormDataValue(value: FormDataEntryValue): string {
   if (typeof value === 'string') return value
+
   return `[file ${value.name || 'unnamed'} ${value.size} bytes]`
 }
 
 function isTextLikeContentType(contentType: string | undefined): boolean {
   if (!contentType) return true
   const normalized = contentType.toLowerCase()
+
   return (
     normalized.startsWith('text/') ||
     normalized.includes('json') ||
@@ -866,15 +941,20 @@ function isUrlEncodedContentType(contentType: string | undefined): boolean {
 
 function looksJson(text: string): boolean {
   const trimmed = text.trim()
+
   return trimmed.startsWith('{') || trimmed.startsWith('[')
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The request hook observes raw write/end arguments; size binary buffers and views before falling back to diagnostic text.
 function getChunkSize(chunk: unknown): number {
   if (typeof chunk === 'string') return chunk.length
+
   if (Buffer.isBuffer(chunk)) return chunk.byteLength
+
   if (chunk instanceof ArrayBuffer) return chunk.byteLength
+
   if (ArrayBuffer.isView(chunk)) return chunk.byteLength
+
   return String(chunk).length
 }
 
@@ -885,6 +965,7 @@ function getHttpStatusPatch(
   if (status !== undefined && status >= 200 && status < 300) return { state: 'success' }
 
   const label = [status, statusText].filter((value) => value !== undefined && value !== '').join(' ')
+
   return {
     state: 'error',
     error: label ? `HTTP ${label}` : 'HTTP status is not 2xx'
@@ -897,6 +978,7 @@ function isSensitiveHeaderName(name: string): boolean {
 
 function isSensitiveName(name: string, extraNames: readonly string[] | undefined): boolean {
   const normalized = name.toLowerCase()
+
   return isSensitiveKey(normalized) || (extraNames?.includes(normalized) ?? false)
 }
 
@@ -917,10 +999,12 @@ function waitForServerListening(server: WebSocketServer): Promise<void> {
       server.off('listening', handleListening)
       server.off('error', handleError)
     }
+
     const handleListening = () => {
       cleanup()
       resolve()
     }
+
     const handleError = (error: Error) => {
       cleanup()
       reject(error)

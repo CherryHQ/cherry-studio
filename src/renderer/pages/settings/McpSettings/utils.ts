@@ -20,9 +20,11 @@ const TRUSTED_SERVER_WHITELIST: readonly string[] = [
  */
 function isServerInWhitelist(server: McpServer): boolean {
   const isUrlBasedServer = server.type === 'sse' || server.type === 'streamableHttp'
+
   if (!isUrlBasedServer || !server.baseUrl) {
     return false
   }
+
   return TRUSTED_SERVER_WHITELIST.includes(server.baseUrl)
 }
 
@@ -74,6 +76,7 @@ export async function ensureServerTrusted(
       isTrusted: true,
       trustedAt: Date.now()
     }
+
     updateServer(trustFields)
 
     return { ...currentServer, ...trustFields }
@@ -92,6 +95,7 @@ export async function ensureServerTrusted(
     isTrusted: true,
     trustedAt: Date.now()
   }
+
   updateServer(trustFields)
 
   return { ...currentServer, ...trustFields }
@@ -110,6 +114,7 @@ export const formatMcpLogData = (data: unknown): string => safeToString(data, 2)
  */
 const formatMcpLog = (log: McpServerLogEntry): string => {
   const data = log.data !== undefined ? `\n${formatMcpLogData(log.data)}` : ''
+
   return `[${new Date(log.timestamp).toLocaleTimeString()}] [${log.level.toUpperCase()}] ${log.message}${data}`
 }
 

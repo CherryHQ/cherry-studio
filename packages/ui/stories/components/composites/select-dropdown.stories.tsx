@@ -20,6 +20,7 @@ const meta: Meta<typeof SelectDropdown> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 interface Model {
@@ -40,6 +41,7 @@ const models: Model[] = [
 export const Default: Story = {
   render: function DefaultExample() {
     const [selected, setSelected] = useState<string>('gpt-4o')
+
     return (
       <div className="w-72">
         <SelectDropdown<Model>
@@ -65,6 +67,7 @@ export const Removable: Story = {
   render: function RemovableExample() {
     const [items, setItems] = useState(models.slice(0, 4))
     const [selected, setSelected] = useState<string | null>(items[0]?.id ?? null)
+
     return (
       <div className="w-72">
         <SelectDropdown<Model>
@@ -73,6 +76,7 @@ export const Removable: Story = {
           onSelect={setSelected}
           onRemove={(id) => {
             setItems((prev) => prev.filter((m) => m.id !== id))
+
             if (selected === id) setSelected(null)
           }}
           removeLabel="Remove"
@@ -97,7 +101,9 @@ export const Virtualized: Story = {
         })),
       []
     )
+
     const [selected, setSelected] = useState<string>('item-0')
+
     return (
       <div className="w-72">
         <SelectDropdown<Model>

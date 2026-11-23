@@ -46,10 +46,13 @@ const SearchResultsPage = () => {
   const goTo = useCallback(
     (index: number) => {
       const result = results[index]
+
       if (!result) return
       setPendingFocus(result.focusId)
       const search: Record<string, string> = {}
+
       if (result.panel) search.panel = result.panel
+
       if (result.providerId) search.id = result.providerId
       void navigate({ to: result.route, search: Object.keys(search).length ? search : undefined })
     },

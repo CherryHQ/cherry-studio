@@ -28,7 +28,9 @@ const GENERATE_METHODS = new Set(['generateContent', 'streamGenerateContent'])
  */
 function parseModelMethod(raw: string): { model: string; method: string } | null {
   const lastColon = raw.lastIndexOf(':')
+
   if (lastColon <= 0 || lastColon >= raw.length - 1) return null
+
   return { model: stripGeminiGatewayModelSuffix(raw.slice(0, lastColon)), method: raw.slice(lastColon + 1) }
 }
 
@@ -36,11 +38,14 @@ function parseModelMethod(raw: string): { model: string; method: string } | null
 function normalizeAntigravityModelPath(model: string): string {
   const separator = ANTIGRAVITY_MODEL_PATH_SEPARATOR
   const separatorIndex = model.indexOf(separator)
+
   if (separatorIndex <= 0) return model
 
   const providerId = model.slice(0, separatorIndex)
   const apiModelId = model.slice(separatorIndex + separator.length)
+
   if (!apiModelId || providerId.includes(':')) return model
+
   return `${providerId}:${apiModelId}`
 }
 
@@ -73,14 +78,17 @@ export const createGeminiRoutes = (surface: GatewaySurface) =>
       as: 'local',
       beforeHandle: ({ bearer, headers, query, set, request, body }) => {
         const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
+
         const failure =
           authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey, request.headers, surface) ??
           authorizeCredentialScope(request, body, surface)
+
         if (!failure) return undefined
         // Short-circuit responses bypass the root `onError`, so shape the Google
         // envelope here directly (401 → UNAUTHENTICATED, 403 → PERMISSION_DENIED)
         // to honour the `/v1beta` dialect's error contract.
         set.status = failure.status
+
         return googleEnvelope(failure.status, failure.error)
       }
     })
@@ -88,9 +96,11 @@ export const createGeminiRoutes = (surface: GatewaySurface) =>
       '/models/*',
       async ({ params, body, request, status }) => {
         const parsed = parseModelMethod(params['*'])
+
         if (!parsed) {
           return status(400, invalidArgument('Invalid model path. Expected "models/{model}:{method}".'))
         }
+
         const { method } = parsed
         const model = normalizeAntigravityModelPath(parsed.model)
 
@@ -103,10 +113,12 @@ export const createGeminiRoutes = (surface: GatewaySurface) =>
 
         if (method === 'countTokens') {
           const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
+
           return {
             totalTokens: await estimateGeminiRequestTokens(body, model, request.signal, isInternalRequest)
           }
         }
+
         if (!GENERATE_METHODS.has(method)) {
           return status(400, invalidArgument(`Unsupported method: "${method}".`))
         }

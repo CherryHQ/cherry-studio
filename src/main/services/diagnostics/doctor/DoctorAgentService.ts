@@ -94,24 +94,31 @@ export class DoctorAgentService extends BaseService {
     const { scope, reportRunId, incident } = input
     const key = doctorAgentKey(scope, incident)
     const busy = this.active.get(key)
+
     if (busy) return { status: 'busy', runId: busy.runId }
     const report = this.currentReport(scope)
+
     if (!report || report.runId !== reportRunId) return { status: 'stale' }
 
     const agent = this.ensureDoctorAgent(input.modelId as UniqueModelId | undefined)
+
     if (!agent?.model) return { status: 'no_model' }
 
     const session = agentSessionService.create(
       { agentId: agent.id, name: 'System Doctor', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } },
       'background'
     )
+
     const runId = randomUUID()
     const topicId = buildAgentSessionTopicId(session.id)
+
     const origin: Pick<DoctorAgentRun, 'runId' | 'scope' | 'incident'> = {
       runId,
       scope
     }
+
     if (incident) Object.assign(origin, { incident })
+
     const run: DoctorAgentRun = {
       ...origin,
       reportRunId,
@@ -123,6 +130,7 @@ export class DoctorAgentService extends BaseService {
       proposals: [],
       changes: []
     }
+
     this.sessions.set(session.id, key)
     this.active.set(key, {
       runId,
@@ -141,6 +149,7 @@ export class DoctorAgentService extends BaseService {
         headless: true,
         requireIdle: { expectedAgentId: agent.id }
       })
+
       if (started.mode !== 'started') {
         const message = `not started: ${started.reason}`
         this.finish(key, runId, (current) => ({
@@ -148,6 +157,7 @@ export class DoctorAgentService extends BaseService {
           error: message,
           ...current
         }))
+
         return { status: 'failed', message }
       }
     } catch (error) {
@@ -155,13 +165,16 @@ export class DoctorAgentService extends BaseService {
       this.finish(key, runId, (current) => ({ status: 'failed', error: message, ...current }))
       throw error
     }
+
     return { status: 'started', runId }
   }
 
   cancel(key: DoctorAgentKey, runId: string): DoctorAgentCancelResult {
     const active = this.active.get(key)
+
     if (!active || active.runId !== runId) return { status: 'not_running' }
     this.abort(key, 'canceled by user')
+
     return { status: 'canceled' }
   }
 
@@ -169,25 +182,33 @@ export class DoctorAgentService extends BaseService {
     return this.writeQueue.queue(async () => {
       // Re-read under the lock: a queued duplicate must see the first click's outcome.
       const state = this.currentState(input.key)
+
       if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
       const proposal = state.proposals.find((item) => item.id === input.proposalId)
+
       if (!proposal || proposal.status !== 'pending') return { status: 'stale' }
+
       // Every proposal was reasoned from one report; once that report expired or was replaced the
       // reasoning no longer holds, whatever the write touches.
       if (this.currentReport(state.scope)?.runId !== state.reportRunId) {
         this.patchProposal(input.key, input.runId, proposal.id, { status: 'rejected', error: 'report superseded' })
+
         return { status: 'stale' }
       }
+
       try {
         const applied = await applyWrite(proposal.write)
         const change = this.recordChange(input.key, input.runId, proposal.write, proposal.summary, applied, proposal.id)
         this.patchProposal(input.key, input.runId, proposal.id, { status: 'applied' })
         const result: Extract<DoctorAgentApplyResult, { status: 'applied' }> = { status: 'applied', change }
+
         if (applied.fix) Object.assign(result, { fix: applied.fix })
+
         return result
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         this.patchProposal(input.key, input.runId, proposal.id, { status: 'failed', error: message })
+
         return { status: 'failed', message }
       }
     })
@@ -196,20 +217,26 @@ export class DoctorAgentService extends BaseService {
   undo(input: { key: DoctorAgentKey; runId: string; changeId: string }): Promise<DoctorAgentUndoResult> {
     return this.writeQueue.queue(async () => {
       const state = this.currentState(input.key)
+
       if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
       const change = state.changes.find((item) => item.id === input.changeId)
+
       if (!change || !change.undoable || change.undone) return { status: 'stale' }
+
       if (this.currentReport(state.scope)?.runId !== state.reportRunId) return { status: 'stale' }
+
       try {
         await undoWrite(change.write, change.before, change.after)
       } catch (error) {
         return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }
+
       const undone = { ...change, undone: true }
       this.update(input.key, input.runId, (current) => ({
         ...current,
         changes: current.changes.map((item) => (item.id === change.id ? undone : item))
       }))
+
       return { status: 'undone', change: undone }
     })
   }
@@ -217,14 +244,18 @@ export class DoctorAgentService extends BaseService {
   /** Tool entry point: run low-risk writes now, queue the rest for the user. */
   async requestWrite(sessionId: string, write: DoctorAgentWrite, summary: string): Promise<DoctorAgentWriteOutcome> {
     const { key, runId } = this.runForSession(sessionId)
+
     if (writeRisk(write) === 'confirm') {
       const proposal: DoctorAgentProposal = { id: randomUUID(), write, summary, status: 'pending' }
       this.update(key, runId, (current) => ({ ...current, proposals: [...current.proposals, proposal] }))
+
       return { status: 'proposed', proposal }
     }
+
     return this.writeQueue.queue(async () => {
       try {
         const applied = await applyWrite(write)
+
         return { status: 'applied', change: this.recordChange(key, runId, write, summary, applied) }
       } catch (error) {
         return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
@@ -235,6 +266,7 @@ export class DoctorAgentService extends BaseService {
   reportForSession(sessionId: string) {
     const { scope } = this.runForSession(sessionId)
     const report = this.currentReport(scope)
+
     return report ? projectDoctorReport(report, 'upload') : { status: 'missing' }
   }
 
@@ -245,15 +277,18 @@ export class DoctorAgentService extends BaseService {
 
   reportBindingForSession(sessionId: string) {
     const { scope, reportRunId } = this.runForSession(sessionId)
+
     return { scope, reportRunId }
   }
 
   private runForSession(sessionId: string) {
     const key = this.sessions.get(sessionId)
     const state = key ? this.currentState(key) : undefined
+
     if (!key || !state || state.status !== 'running' || state.sessionId !== sessionId) {
       throw new Error('This session is not an active doctor analysis')
     }
+
     return { key, scope: state.scope, runId: state.runId, reportRunId: state.reportRunId, incident: state.incident }
   }
 
@@ -262,15 +297,20 @@ export class DoctorAgentService extends BaseService {
     const agent = agentService.ensureBuiltinAgent(loadBuiltinAgentEnsureInput(BUILTIN_AGENT_ROLE.DOCTOR))
     const defaultModel = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
     const candidates = requestedModel ? [requestedModel] : [agent.model, defaultModel]
+
     const model = candidates.find(
       (candidate): candidate is UniqueModelId => !!candidate && this.isUsableModel(candidate)
     )
+
     if (!model) return undefined
+
     if (model === agent.model) return agent
+
     try {
       return agentService.updateAgent(agent.id, { model }) ?? undefined
     } catch (error) {
       logger.warn('Could not assign the requested model to the doctor Agent', error as Error)
+
       return undefined
     }
   }
@@ -280,6 +320,7 @@ export class DoctorAgentService extends BaseService {
       const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
       const provider = providerService.getByProviderId(providerId)
       const model = modelService.getByKey(providerId, rawModelId)
+
       return provider.isEnabled && model.isEnabled && isGatewayRoutableModel(model)
     } catch {
       return false
@@ -301,6 +342,7 @@ export class DoctorAgentService extends BaseService {
   private incidentPrompt(incident: DoctorAgentIncident): string[] {
     const message = readIncidentMessage(incident)
     const errors = message ? incidentErrors(message) : []
+
     return [
       'The user opened this analysis from one failed message. Explain why THAT message failed; the report is context.',
       message
@@ -314,20 +356,25 @@ export class DoctorAgentService extends BaseService {
     let text = ''
     const toolCalls: string[] = []
     let flushTimer: NodeJS.Timeout | undefined
+
     const flush = () => {
       flushTimer = undefined
       this.update(key, runId, (current) => ({ ...current, text, toolCalls: [...toolCalls] }))
     }
+
     const scheduleFlush = () => {
       flushTimer ??= setTimeout(flush, TEXT_PUBLISH_INTERVAL_MS)
     }
+
     const settle = (status: 'completed' | 'canceled' | 'failed', error?: string) => {
       if (flushTimer) clearTimeout(flushTimer)
       this.finish(key, runId, (current) => {
         const run = { ...current, text, toolCalls: [...toolCalls] }
+
         return status === 'failed' ? { status, error: error ?? 'unknown error', ...run } : { status, ...run }
       })
     }
+
     return {
       id: `doctor-agent:${runId}`,
       onChunk(chunk) {
@@ -374,8 +421,10 @@ export class DoctorAgentService extends BaseService {
       undone: false,
       appliedAt: new Date().toISOString()
     }
+
     if (proposalId) Object.assign(change, { proposalId })
     this.update(key, runId, (current) => ({ ...current, changes: [...current.changes, change] }))
+
     return change
   }
 
@@ -393,6 +442,7 @@ export class DoctorAgentService extends BaseService {
 
   private abort(key: DoctorAgentKey, reason: string): void {
     const active = this.active.get(key)
+
     if (!active) return
     logger.info('Aborting doctor analysis', { key, runId: active.runId, reason })
     active.abortTimer ??= setTimeout(
@@ -406,17 +456,21 @@ export class DoctorAgentService extends BaseService {
   /** Terminal transition: runs once per run, releases the timer and the session binding. */
   private finish(key: DoctorAgentKey, runId: string, next: (run: DoctorAgentRun) => DoctorAgentState): void {
     const active = this.active.get(key)
+
     if (!active || active.runId !== runId) return
     clearTimeout(active.timer)
+
     if (active.abortTimer) clearTimeout(active.abortTimer)
     this.active.delete(key)
     this.sessions.delete(active.sessionId)
     const state = this.currentState(key)
+
     if (state.status !== 'idle' && state.runId === runId) this.publish(key, next(toRun(state)))
   }
 
   private update(key: DoctorAgentKey, runId: string, next: (run: DoctorAgentRun) => DoctorAgentRun): void {
     const state = this.currentState(key)
+
     if (state.status === 'idle' || state.runId !== runId) return
     const run = next(toRun(state))
     this.publish(
@@ -427,7 +481,9 @@ export class DoctorAgentService extends BaseService {
 
   private currentReport(scope: DoctorScopeKey): DoctorReport | undefined {
     const state = application.get('CacheService').getShared(doctorStateCacheKey(scope))
+
     if (!state || state.status !== 'completed') return undefined
+
     return Date.parse(state.report.expiresAt) > Date.now() ? state.report : undefined
   }
 
@@ -443,11 +499,14 @@ export class DoctorAgentService extends BaseService {
 function toRun(state: Exclude<DoctorAgentState, { status: 'idle' }>): DoctorAgentRun {
   const { runId, scope, incident, reportRunId, sessionId, modelId, startedAt, text, toolCalls, proposals, changes } =
     state
+
   const origin: Pick<DoctorAgentRun, 'runId' | 'scope' | 'incident'> = {
     runId,
     scope
   }
+
   if (incident) Object.assign(origin, { incident })
+
   return {
     ...origin,
     reportRunId,

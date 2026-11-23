@@ -16,14 +16,17 @@ export function findTextMatches(text: string, searchText: string, options: TextS
   if (!searchText) return []
 
   const regex = new RegExp(escapeRegExp(searchText), options.caseSensitive ? 'gu' : 'giu')
+
   const matches = Array.from(text.matchAll(regex), (match) => ({
     start: match.index,
     end: match.index + match[0].length
   }))
+
   if (!options.wholeWord || matches.length === 0) return matches
 
   const wordStarts = new Set<number>()
   const wordEnds = new Set<number>()
+
   for (const segment of WORD_SEGMENTER.segment(text)) {
     if (!segment.isWordLike) continue
     wordStarts.add(segment.index)
@@ -61,6 +64,7 @@ export function findRangesInScope(
 
     for (const nodeInfo of allTextNodes) {
       const nodeLength = nodeInfo.node.nodeValue?.length ?? 0
+
       if (
         startNode === null &&
         match.start >= nodeInfo.startOffset &&
@@ -69,6 +73,7 @@ export function findRangesInScope(
         startNode = nodeInfo.node
         startOffset = match.start - nodeInfo.startOffset
       }
+
       if (match.end > nodeInfo.startOffset && match.end <= nodeInfo.startOffset + nodeLength) {
         endNode = nodeInfo.node
         endOffset = match.end - nodeInfo.startOffset

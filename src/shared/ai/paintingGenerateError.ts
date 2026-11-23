@@ -64,6 +64,7 @@ export function normalizePaintingGenerateError(error: unknown): Error {
   if (error instanceof Error) {
     try {
       const message = error.message
+
       return createPaintingGenerateError('REMOTE_ERROR', { message: typeof message === 'string' ? message : undefined })
     } catch {
       return createPaintingGenerateError('REMOTE_ERROR')

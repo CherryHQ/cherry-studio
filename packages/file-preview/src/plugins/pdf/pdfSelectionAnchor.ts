@@ -6,9 +6,11 @@
  */
 export function pageToPdfAnchor(element: Element): { page: number } | null {
   const pageElement = element.closest<HTMLElement>('[data-page-number]')
+
   if (!pageElement) return null
 
   const page = Number(pageElement.getAttribute('data-page-number'))
+
   if (!Number.isInteger(page) || page <= 0) return null
 
   return { page }

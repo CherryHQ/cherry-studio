@@ -48,6 +48,7 @@ function showPlaybackError(error: unknown): void {
 
   if (!settingsRecoveryReasons.has(reason)) {
     toast.error({ title })
+
     return
   }
 
@@ -85,6 +86,7 @@ export async function readTextAloud({
     if (!normalizeReadableText(text, { mode })) return
 
     const result = await speechPlaybackService.start(startInput)
+
     if (result.status !== 'confirmation_required' || signal?.aborted || isCurrent?.() === false) return
 
     const confirmed = await popup.confirm({
@@ -94,6 +96,7 @@ export async function readTextAloud({
       cancelText: i18n.t('common.cancel'),
       focusOnClose
     })
+
     if (!confirmed || signal?.aborted || isCurrent?.() === false) return
 
     await speechPlaybackService.start({ ...startInput, confirmed: true })

@@ -15,6 +15,7 @@ export function AgentWorkspaceOpenShortcut({ workspacePath }: { workspacePath: s
     'agent.workspace.open',
     async () => {
       if (!selectedTarget) return
+
       try {
         await openTarget(selectedTarget)
       } catch (error) {

@@ -8,10 +8,13 @@ export const PROTOCOL_VERSION = 2
 
 /** Spawn → `ready` deadline. Fixed by design: heavy work belongs in handlers, not `initialize`. */
 export const READY_TIMEOUT_MS = 10_000
+
 /** `stop()` sends `shutdown`, then `kill()`s after this grace window. */
 export const STOP_GRACE_MS = 1_000
+
 /** `stop()` gives up (PROCESS_STOP_FAILED) once this much time passes without an observed exit. */
 export const STOP_TOTAL_MS = 4_000
+
 /** Per-line cap for the stdout/stderr fallback channel. */
 export const STDIO_LINE_CAP = 64 * 1024
 
@@ -20,6 +23,7 @@ export const SERVICE_NAME_PREFIX = 'CherryStudio.UtilityProcess.'
 
 /** `code` on the AbortError a handler's `signal` receives when its request is cancelled. */
 export const REQUEST_CANCELLED_CODE = 'UTILITY_PROCESS_REQUEST_CANCELLED'
+
 /** `code` on the AbortError a handler's `signal` receives when the process is shutting down. */
 export const SHUTDOWN_CODE = 'UTILITY_PROCESS_SHUTDOWN'
 

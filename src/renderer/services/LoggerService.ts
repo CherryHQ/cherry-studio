@@ -6,9 +6,11 @@ import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
 
 // check if the current process is a worker
 const IS_WORKER = typeof window === 'undefined'
+
 // check if we are in the dev env
 // DO NOT use `constants.ts` here, because the files contains other dependencies that will fail in worker process
 const IS_DEV = IS_WORKER ? false : window.electron?.process?.env?.NODE_ENV === 'development'
+
 // CS_DIAGNOSTICS makes a packaged build behave like dev for logging (verbose level,
 // console output, and the CSLOGGER_RENDERER_* overrides all turn on). Idempotent in dev.
 // The flag reaches the renderer via the preload-exposed process.env, same path as in main.
@@ -33,6 +35,7 @@ const WINDOW_SOURCE_META_NAME = 'logger-window-source'
  */
 export function resolveWindowSourceFromMeta(doc: Document | undefined): string {
   const meta = doc?.querySelector(`meta[name="${WINDOW_SOURCE_META_NAME}"]`)
+
   return meta?.getAttribute('content')?.trim() ?? ''
 }
 
@@ -79,6 +82,7 @@ export class LoggerService {
         const showModules = window.electron?.process?.env?.CSLOGGER_RENDERER_SHOW_MODULES.split(',')
           .map((module) => module.trim())
           .filter((module) => module !== '')
+
         if (showModules.length > 0) {
           this.envShowModules = showModules
 
@@ -107,9 +111,12 @@ export class LoggerService {
         this.window,
         window
       )
+
       return this
     }
+
     this.window = window
+
     return this
   }
 
@@ -142,6 +149,7 @@ export class LoggerService {
   private processLog(level: LogLevel, message: string, data: any[]): void {
     // Precedence: explicit initWindowSource() > <meta>-derived source > UNKNOWN fallback.
     let windowSource = this.window || this.derivedWindow
+
     if (!windowSource) {
       console.error('[LoggerService] window source not initialized, please initialize window source first')
       windowSource = 'UNKNOWN'
@@ -154,6 +162,7 @@ export class LoggerService {
       if (this.envLevel !== LEVEL.NONE && currentLevel < LEVEL_MAP[this.envLevel]) {
         return
       }
+
       if (this.module && this.envShowModules.length > 0 && !this.envShowModules.includes(this.module)) {
         return
       }
@@ -212,13 +221,17 @@ export class LoggerService {
         const serializedData = data.map((item) => {
           if (!(item instanceof Error)) return item
           const serialized = { name: item.name, errorMessage: item.message, stack: item.stack }
+
           if ('reportingHandled' in item && item.reportingHandled === true)
             Object.assign(serialized, { reportingHandled: true })
+
           return Object.assign(serialized, {
             code: 'code' in item && typeof item.code === 'string' ? item.code : undefined
           })
         })
+
         void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, serializedData)
+
         if (level === LEVEL.ERROR) {
           try {
             this.errorReporter?.({

@@ -4,6 +4,7 @@ import { QiniuLight } from './light'
 
 const Qiniu = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <QiniuLight {...props} className={className} />
+
   return <QiniuLight {...props} className={className} />
 }
 

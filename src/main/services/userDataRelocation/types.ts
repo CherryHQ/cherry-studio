@@ -6,5 +6,7 @@ import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas
  * aliases only name its variants for domain code.
  */
 export type RelocationState = NonNullable<BootConfigSchema['temp.user_data_relocation']>
+
 export type PendingRelocation = Extract<RelocationState, { status: 'pending' }>
+
 export type FailedRelocation = Extract<RelocationState, { status: 'failed' }>

@@ -6,7 +6,9 @@ import { RelaceLight } from './light'
 
 const Relace = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <RelaceLight {...props} className={className} />
+
   if (variant === 'dark') return <RelaceDark {...props} className={className} />
+
   return (
     <>
       <RelaceLight className={cn('dark:hidden', className)} {...props} />

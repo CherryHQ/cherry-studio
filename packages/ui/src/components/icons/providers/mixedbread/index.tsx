@@ -4,6 +4,7 @@ import { MixedbreadLight } from './light'
 
 const Mixedbread = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MixedbreadLight {...props} className={className} />
+
   return <MixedbreadLight {...props} className={className} />
 }
 

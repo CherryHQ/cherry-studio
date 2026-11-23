@@ -42,9 +42,11 @@ export function isNodeError(error: unknown, code: string): boolean {
 
 async function pathContainsActiveUserData(targetPath: string): Promise<boolean> {
   const activeUserData = application.getPath('app.userdata')
+
   if (isSameOrInside(activeUserData, targetPath)) return true
 
   const [realTarget, realActiveUserData] = await Promise.all([fs.realpath(targetPath), fs.realpath(activeUserData)])
+
   return isSameOrInside(realActiveUserData, realTarget)
 }
 
@@ -57,13 +59,17 @@ async function pathHasSymlinkedOwnedSegment(targetPath: string): Promise<boolean
   ]
     .filter((rootPath) => !isOutsidePath(path.relative(rootPath, targetPath)))
     .sort((left, right) => right.length - left.length)
+
   const trustedRoot = trustedRoots[0]
+
   if (!trustedRoot) return true
 
   const relativePath = path.relative(path.resolve(trustedRoot), path.resolve(targetPath))
   let currentPath = trustedRoot
+
   for (const segment of relativePath.split(path.sep).filter(Boolean)) {
     currentPath = path.join(currentPath, segment)
+
     try {
       if ((await fs.lstat(currentPath)).isSymbolicLink()) return true
     } catch (error) {
@@ -71,6 +77,7 @@ async function pathHasSymlinkedOwnedSegment(targetPath: string): Promise<boolean
       throw error
     }
   }
+
   return false
 }
 
@@ -83,28 +90,36 @@ async function measurePath(
 ): Promise<SizeMeasurement> {
   signal?.throwIfAborted()
   const resolvedPath = path.resolve(targetPath)
+
   if (excludedPaths.has(resolvedPath)) {
     return { bytes: 0, issues: [] }
   }
 
   let stats
+
   try {
     stats = await fs.lstat(targetPath)
   } catch (error) {
     signal?.throwIfAborted()
+
     if (isNodeError(error, 'ENOENT')) {
       return { bytes: 0, issues: [] }
     }
+
     logger.warn('Failed to inspect cleanup target size', { item, path: targetPath, error })
+
     return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
+
   signal?.throwIfAborted()
 
   if (stats.isSymbolicLink()) {
     if (!nested) {
       logger.warn('Skipped symbolic-link cleanup target', { item, path: targetPath })
+
       return { bytes: 0, issues: [issue(item, 'unsafe_target')] }
     }
+
     return { bytes: stats.size, issues: [] }
   }
 
@@ -113,30 +128,37 @@ async function measurePath(
   }
 
   let entries
+
   try {
     entries = await fs.readdir(targetPath)
   } catch (error) {
     signal?.throwIfAborted()
     logger.warn('Failed to read cleanup target directory', { item, path: targetPath, error })
+
     return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
+
   signal?.throwIfAborted()
 
   const result: SizeMeasurement = { bytes: 0, issues: [] }
+
   for (const entry of entries) {
     const child = await measurePath(path.join(targetPath, entry), item, excludedPaths, true, signal)
     result.bytes += child.bytes
     result.issues.push(...child.issues)
   }
+
   return result
 }
 
 export function mergeMeasurements(measurements: SizeMeasurement[]): SizeMeasurement {
   const result: SizeMeasurement = { bytes: 0, issues: [] }
+
   for (const measurement of measurements) {
     result.bytes += measurement.bytes
     result.issues.push(...measurement.issues)
   }
+
   return result
 }
 
@@ -146,6 +168,7 @@ export function toSizeSnapshot(
 ): CacheCleanupSizeSnapshot {
   const partial = measurement.issues.length > 0
   const allUnavailable = partial && measurement.bytes === 0
+
   return {
     bytes: allUnavailable ? null : measurement.bytes,
     accuracy: allUnavailable ? 'unavailable' : accuracy,
@@ -158,8 +181,10 @@ export async function measurePaths(
   signal?: AbortSignal
 ): Promise<SizeMeasurement> {
   const uniqueTargets = new Map<string, (typeof targets)[number]>()
+
   for (const target of targets) {
     const resolvedPath = path.resolve(target.path)
+
     if (!uniqueTargets.has(resolvedPath)) {
       uniqueTargets.set(resolvedPath, target)
     }
@@ -182,22 +207,30 @@ export async function inspectTarget(
   try {
     if (await pathHasSymlinkedOwnedSegment(targetPath)) {
       logger.warn('Cleanup target contains a symbolic-link path segment', { item, path: targetPath })
+
       return 'invalid'
     }
+
     const stats = await fs.lstat(targetPath)
     const hasExpectedType = kind === 'file' ? stats.isFile() : stats.isDirectory()
+
     if (stats.isSymbolicLink() || !hasExpectedType) {
       logger.warn('Cleanup target has an unexpected type', { item, path: targetPath, kind })
+
       return 'invalid'
     }
+
     if (await pathContainsActiveUserData(targetPath)) {
       logger.warn('Cleanup target contains the active userData directory', { item, path: targetPath })
+
       return 'invalid'
     }
+
     return 'valid'
   } catch (error) {
     if (isNodeError(error, 'ENOENT')) return 'missing'
     logger.warn('Failed to inspect cleanup target', { item, path: targetPath, kind, error })
+
     return 'invalid'
   }
 }
@@ -208,6 +241,7 @@ export async function collectOwnedTargets<T extends CleanupTarget>(
   const inspected = await Promise.all(
     candidates.map(async (target) => ({ target, status: await inspectTarget(target.path, target.item, target.kind) }))
   )
+
   return {
     targets: inspected.filter(({ status }) => status === 'valid').map(({ target }) => target),
     issues: inspected
@@ -219,9 +253,11 @@ export async function collectOwnedTargets<T extends CleanupTarget>(
 export async function captureStep(item: string, operation: () => Promise<void>): Promise<CleanupStepResult> {
   try {
     await operation()
+
     return { state: 'cleared' }
   } catch (error) {
     logger.error('Cache cleanup operation failed', { item, error })
+
     return { state: 'failed' }
   }
 }
@@ -231,21 +267,27 @@ export function resultFromSteps(group: CacheCleanupGroup, steps: CleanupStepResu
   const hasState = (state: CleanupStepResult['state']) => steps.some((step) => step.state === state)
 
   if (hasState('failed')) return { group, status: succeeded || hasState('skipped') ? 'partial' : 'failed' }
+
   if (hasState('skipped')) return { group, status: succeeded ? 'partial' : 'skipped' }
+
   return { group, status: hasState('cleared') ? 'cleared' : 'not_found' }
 }
 
 export async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepResult> {
   const status = await inspectTarget(target.path, target.item, target.kind)
+
   if (status === 'missing') return { state: 'not_found' }
+
   if (status === 'invalid') return { state: 'skipped' }
 
   try {
     await fs.rm(target.path, { recursive: target.kind === 'directory', force: false })
     logger.info('Removed cleanup target', { item: target.item, path: target.path })
+
     return { state: 'cleared' }
   } catch (error) {
     logger.error('Failed to remove cleanup target', { item: target.item, path: target.path, error })
+
     return { state: 'failed' }
   }
 }

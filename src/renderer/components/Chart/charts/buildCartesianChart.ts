@@ -23,7 +23,9 @@ export function buildCartesianChart(
 ): EChartsCoreOption {
   const series = props.series.map((item) => {
     const identity: Pick<CartesianChartProps['series'][number], 'id'> = {}
+
     if (item.id) identity.id = item.id
+
     return Object.assign(identity, {
       name: item.name,
       data: item.values,

@@ -25,6 +25,7 @@ const requestAccessiblePathMetadata = async (
   if (attachments.length === 0) return {}
 
   const chunks: AccessibleAttachment[][] = []
+
   for (let i = 0; i < attachments.length; i += FILE_IPC_BATCH_SIZE) {
     chunks.push(attachments.slice(i, i + FILE_IPC_BATCH_SIZE))
   }
@@ -49,6 +50,7 @@ const buildAccessiblePathFilePart = (
   metadataByPath: OutputFor<'file.batch_get_metadata'>
 ): FileUIPart => {
   const metadata = metadataByPath[filePath]
+
   if (!metadata || metadata.kind !== 'file') {
     throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
   }
@@ -74,10 +76,13 @@ const buildAccessiblePathFilePart = (
 export const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[] => {
   if (!workspacePath) return []
   const parsed = AbsoluteFilePathSchema.safeParse(workspacePath)
+
   if (!parsed.success) {
     logger.warn('Ignoring agent workspace path that is not an absolute filesystem path', { path: workspacePath })
+
     return []
   }
+
   return [parsed.data]
 }
 
@@ -99,6 +104,7 @@ export const buildAgentFilePartsForAttachments = async (
         filePath: canonicalizeFilePath(attachment.path),
         index
       })
+
       return
     }
 
@@ -119,9 +125,11 @@ export const buildAgentFilePartsForAttachments = async (
 
   internalizedFileParts.forEach((filePart, offset) => {
     const originalIndex = internalizedIndexes[offset]
+
     if (originalIndex === undefined || !filePart) {
       throw new Error(`Failed to build file part for attachment: ${internalizedAttachments[offset]?.path ?? ''}`)
     }
+
     fileParts[originalIndex] = filePart
   })
 

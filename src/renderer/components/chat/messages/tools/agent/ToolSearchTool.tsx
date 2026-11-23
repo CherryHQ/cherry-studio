@@ -11,8 +11,11 @@ import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 function parseOutput(output: unknown) {
   if (!output) return { matches: [] }
   const result = ToolSearchToolOutputSchema.safeParse(output)
+
   if (!result.success) return { matches: [], message: safeToString(output, 2) }
+
   if (typeof result.data === 'string') return { matches: [], message: result.data }
+
   return { matches: result.data.map((item) => item.tool_name) }
 }
 

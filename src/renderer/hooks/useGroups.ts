@@ -12,6 +12,7 @@ export function useGroups(entityType: EntityType, options: { enabled?: boolean }
     ...(options.enabled !== undefined && { enabled: options.enabled }),
     query: { entityType }
   })
+
   const groups = useMemo(() => data ?? [], [data])
 
   return { groups, isLoading, error, refetch }
@@ -19,6 +20,7 @@ export function useGroups(entityType: EntityType, options: { enabled?: boolean }
 
 export function useGroupReorder() {
   const { trigger } = useMutation('PATCH', '/groups/:id/order', { refresh: ['/groups'] })
+
   const reorderGroup = useCallback(
     (id: string, body: OrderRequest): Promise<void> => trigger({ params: { id }, body }),
     [trigger]
@@ -40,6 +42,7 @@ export function useGroupMutations(entityType: EntityType, options: UseGroupMutat
   } = useMutation('POST', '/groups', {
     refresh: ['/groups']
   })
+
   const {
     trigger: updateTrigger,
     isLoading: isUpdating,
@@ -47,6 +50,7 @@ export function useGroupMutations(entityType: EntityType, options: UseGroupMutat
   } = useMutation('PATCH', '/groups/:id', {
     refresh: ['/groups']
   })
+
   const {
     trigger: deleteTrigger,
     isLoading: isDeleting,
@@ -62,6 +66,7 @@ export function useGroupMutations(entityType: EntityType, options: UseGroupMutat
       }),
     [createTrigger, entityType]
   )
+
   const updateGroup = useCallback(
     (id: string, updates: UpdateGroupDto): Promise<Group> =>
       updateTrigger({
@@ -70,6 +75,7 @@ export function useGroupMutations(entityType: EntityType, options: UseGroupMutat
       }),
     [updateTrigger]
   )
+
   const deleteGroup = useCallback(
     (id: string): Promise<void> => deleteTrigger({ params: { id } }).then(() => undefined),
     [deleteTrigger]

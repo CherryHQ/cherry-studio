@@ -31,9 +31,11 @@ export function useViewportFollowState(): ViewportFollowController {
 
   const getState = useCallback(() => stateRef.current, [])
   const isFollowing = useCallback(() => stateRef.current.mode === 'following', [])
+
   const enterFollowing = useCallback((reason: FollowingReason) => {
     stateRef.current = { mode: 'following', reason }
   }, [])
+
   const enterReading = useCallback((reason: ReadingReason) => {
     stateRef.current = { mode: 'reading', reason }
   }, [])

@@ -28,15 +28,19 @@ function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: T
 
 function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | undefined) {
   if (typeof input === 'string') return input.trim() || toolName
+
   if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
 
   const inputEntries = Object.entries(input)
+
   for (const key of ['description', 'subject', 'title', 'name']) {
     const value = inputEntries.find(([field]) => field === key)?.[1]
+
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
 
   const prompt = inputEntries.find(([field]) => field === 'prompt')?.[1]
+
   if (typeof prompt === 'string')
     return (
       prompt
@@ -73,6 +77,7 @@ export function AgentToolCallCard({
 }) {
   const actions = useOptionalMessageListActions()
   const { t } = useTranslation()
+
   const renderedItem =
     isCherrySessionTool &&
     (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
@@ -85,6 +90,7 @@ export function AgentToolCallCard({
           : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
             ? ToMarkdownTool({ input, output })
             : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
+
   const openToolFlow =
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
       ? () =>
@@ -94,14 +100,17 @@ export function AgentToolCallCard({
             title: getAgentToolFlowTitle(toolName, input)
           })
       : undefined
+
   if (openToolFlow) {
     const requestedModel =
       input && typeof input === 'object' && 'model' in input && typeof input.model === 'string'
         ? input.model.trim()
         : ''
+
     const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const failed = hasError || status === 'error'
+
     const Icon = failed
       ? TriangleAlert
       : running
@@ -111,6 +120,7 @@ export function AgentToolCallCard({
           : status === 'cancelled'
             ? CircleStop
             : Circle
+
     const label = failed
       ? t('message.tools.status.failed')
       : running
@@ -120,7 +130,9 @@ export function AgentToolCallCard({
           : status === 'cancelled'
             ? t('message.tools.cancelled')
             : t('message.tools.pending')
+
     const selected = actions?.isAgentToolFlowActive?.(toolCallId ?? '') ?? false
+
     return (
       <Tooltip content={title} delay={600} asChild>
         <Button
@@ -178,6 +190,7 @@ export function AgentToolCallCard({
       header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-muted-foreground'
     }
   }
+
   const canShowInlineDetails =
     showInlineDetails && renderedItem.children !== undefined && renderedItem.children !== null
 

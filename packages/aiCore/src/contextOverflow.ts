@@ -1,5 +1,6 @@
 export function isContextOverflowMessage(message: string): boolean {
   const msg = message.toLowerCase()
+
   return (
     /context[_ ]length[_ ]exceeded/.test(msg) ||
     msg.includes('model_context_window_exceeded') ||

@@ -51,6 +51,7 @@ import { PaintingPromptPresetsDialog } from './PaintingPromptPresetsDialog'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
+
 // Edit-image models render their inputs via the top reference-image tray, not file
 // pills, so the composer manages no tokens then (empty set = no doc token reconcile).
 const PAINTING_NO_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = []
@@ -89,16 +90,20 @@ function formatSummaryValue(
     if (value === 'custom') {
       const width = optionalFiniteNumber(params?.customSize_width)
       const height = optionalFiniteNumber(params?.customSize_height)
+
       return width !== null && height !== null && width > 0 && height > 0 ? `${width}×${height}` : undefined
     }
+
     // Localize the selected option (e.g. `auto` → `自动`) the same way the chips
     // and the artboard prompt bar do, instead of formatting the raw enum.
     return isOptionsConfigItem(item) ? sizeOptionLabel(item, controlValue(value), params, translate) : undefined
   }
+
   if (item.type === 'slider') return `${finiteParamNumberOr(item.key, value, item.initialValue)}`
   // Option-based: show the selected option's localized label.
   const formattedValue = controlValue(value)
   const match = resolveOptions(item, params ?? {}, translate).find((opt) => controlValue(opt.value) === formattedValue)
+
   return match?.label ?? formattedValue
 }
 
@@ -114,10 +119,13 @@ function paramsSummary(
   translate: (key: string) => string
 ): string {
   const parts: string[] = []
+
   for (const item of items) {
     if (!isSummaryConfigItem(item)) continue
+
     if (item.condition && !item.condition(params ?? {})) continue
     const storedValue = params?.[item.key]
+
     // Preserve the custom-size sentinel even for older registry snapshots that
     // did not yet append it to the option list. Its dimensions are validated in
     // formatSummaryValue; every other option still goes through the typed
@@ -127,10 +135,13 @@ function paramsSummary(
         ? storedValue
         : resolveOptionValue(item, storedValue, params ?? {}, translate)
       : (params?.[item.key] ?? item.initialValue)
+
     if (value === undefined || value === null || value === '') continue
     const formatted = formatSummaryValue(item, value, params, translate)
+
     if (formatted) parts.push(formatted)
   }
+
   return parts.join(' · ')
 }
 
@@ -163,10 +174,12 @@ const PaintingParamsButton: FC<{
   const { files } = useComposerToolState()
   const imageCount = files.filter((file) => file.type === FILE_TYPE.IMAGE).length
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
+
   const configItems = useMemo(
     () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode, imageCount) }),
     [registrySupport, painting.mode, imageCount]
   )
+
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
   // A model without registry fields can still have the timeout control; hiding the entry
@@ -230,6 +243,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const restorePresetFocus = useRef(false)
   useEffect(() => {
     if (presetsOpen || !restorePresetFocus.current) return
+
     // Radix restores modal focus when the close animation finishes.
     const timer = window.setTimeout(() => {
       frame = window.requestAnimationFrame(() => {
@@ -237,7 +251,9 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         restorePresetFocus.current = false
       })
     }, DIALOG_UNMOUNT_DELAY_MS)
+
     let frame = 0
+
     return () => {
       window.clearTimeout(timer)
       window.cancelAnimationFrame(frame)
@@ -256,8 +272,10 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   // the model can only edit, not generate from text — is the one thing modality can't
   // answer, so it reads the registry's modes (no `generate` mode ⇒ image mandatory).
   const support = useImageGenerationSupport(painting.providerId, painting.model)
+
   const imageRequired =
     couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
+
   // Gate on the composer's own `files` — the chips the user sees in the image tray.
   // `painting.inputFiles` is NOT usable here: inputs are materialized at generate time
   // (usePaintingComposerInputFiles), so during the draft it still holds the *previous*
@@ -294,6 +312,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     () => (couldAddImageFile ? EMPTY_TOKENS : files.map(fileToComposerToken)),
     [couldAddImageFile, files]
   )
+
   const handleTokensChange = useComposerTokenReconcile({ scope: PAINTING_SCOPE, model })
 
   const handleTextChange = useCallback((value: string) => onPromptChange(value), [onPromptChange])
@@ -394,6 +413,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         onApply={(content) => {
           restorePresetFocus.current = true
           const adapter = presetInputAdapter.current
+
           if (adapter) {
             adapter.insertText(content)
             adapter.focus()
@@ -414,6 +434,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 const PaintingComposer: FC<PaintingComposerProps> = (props) => {
   const { painting } = props
   const { models } = useModels(painting.providerId ? { providerId: painting.providerId } : undefined)
+
   const model = useMemo(
     () =>
       painting.model
@@ -421,6 +442,7 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
         : undefined,
     [models, painting.providerId, painting.model]
   )
+
   const couldAddImageFile = model ? isEditImageModel(model) : false
 
   return (

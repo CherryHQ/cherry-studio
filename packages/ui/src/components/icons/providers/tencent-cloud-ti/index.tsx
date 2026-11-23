@@ -4,6 +4,7 @@ import { TencentCloudTiLight } from './light'
 
 const TencentCloudTi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TencentCloudTiLight {...props} className={className} />
+
   return <TencentCloudTiLight {...props} className={className} />
 }
 

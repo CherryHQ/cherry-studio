@@ -63,9 +63,11 @@ function diffSource(previous: string, next: string): SourceChange | null {
 
   const limit = Math.min(previous.length, next.length)
   let from = 0
+
   while (from < limit && previous.charCodeAt(from) === next.charCodeAt(from)) from += 1
 
   let suffix = 0
+
   while (
     suffix < limit - from &&
     previous.charCodeAt(previous.length - 1 - suffix) === next.charCodeAt(next.length - 1 - suffix)
@@ -80,12 +82,14 @@ function diffSource(previous: string, next: string): SourceChange | null {
 export function createMarkdownSession(doc: ProseMirrorNode, previous?: MarkdownSession): MarkdownSession {
   const { text, lines } = readSource(doc)
   const change = previous ? diffSource(previous.text, text) : null
+
   const reusable =
     previous && change
       ? TreeFragment.applyChanges(previous.fragments, [
           { fromA: change.from, toA: change.toOld, fromB: change.from, toB: change.toNew }
         ])
       : previous?.fragments
+
   const tree = previous && !change ? previous.tree : markdownParser.parse(text, reusable)
 
   return { text, lines, tree, fragments: TreeFragment.addTree(tree, reusable), change }
@@ -94,20 +98,25 @@ export function createMarkdownSession(doc: ProseMirrorNode, previous?: MarkdownS
 export function findSourceLineIndex(lines: ReadonlyArray<Pick<SourceLine, 'textFrom'>>, offset: number) {
   let low = 0
   let high = lines.length - 1
+
   while (low < high) {
     const middle = Math.ceil((low + high) / 2)
+
     if (lines[middle].textFrom <= offset) low = middle
     else high = middle - 1
   }
+
   return low
 }
 
 /** Indexes of the lines that belong to a fenced code block, fence lines included. */
 export function findFencedCodeLines(lines: readonly string[]) {
   let textFrom = 0
+
   const starts = lines.map((line) => {
     const start = { textFrom }
     textFrom += line.length + 1
+
     return start
   })
 
@@ -116,14 +125,18 @@ export function findFencedCodeLines(lines: readonly string[]) {
     enter: (node) => {
       if (node.name !== 'FencedCode') return
       const last = findSourceLineIndex(starts, node.to)
+
       for (let line = findSourceLineIndex(starts, node.from); line <= last; line += 1) fenced.add(line)
+
       return false
     }
   })
+
   return fenced
 }
 
 export function toDocumentPosition(lines: readonly SourceLine[], offset: number) {
   const line = lines[findSourceLineIndex(lines, offset)]
+
   return line.blockPosition + 1 + (offset - line.textFrom)
 }

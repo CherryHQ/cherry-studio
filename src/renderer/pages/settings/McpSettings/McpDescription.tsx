@@ -32,6 +32,7 @@ const McpDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
       .finally(() => {
         if (isMounted) setLoading(false)
       })
+
     return () => {
       isMounted = false
     }

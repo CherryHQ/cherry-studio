@@ -39,6 +39,7 @@ export const isHostOwnedGuestKey = (event: Pick<WebviewKeyPayload, 'key' | 'ctrl
  */
 export const isForwardableGuestKey = (event: KeyboardEventLike): boolean => {
   const binding = getShortcutBindingFromKeyboardEvent(event)
+
   // The find overlay drives next-match off a bare Enter — main or keypad, the
   // latter binding as `numenter`. That is component handling, not a command,
   // so no binding covers it.

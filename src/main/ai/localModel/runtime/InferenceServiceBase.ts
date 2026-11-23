@@ -97,26 +97,32 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
     const unsupportedArtifact = getModelBundle(modelId).requires.find(
       (id) => !localModelStorageService.isArtifactSupported(id)
     )
+
     if (unsupportedArtifact) {
       throw new Error(
         `Local ${this.capability} inference is not supported on this platform: ${unsupportedArtifact} is unavailable.`
       )
     }
+
     this.assertModelAvailable(modelId)
     const generation = this.modelGenerations.get(modelId) ?? 0
     signal?.throwIfAborted()
+
     // PQueue adds void only for its own signal cancellation; this queue handles cancellation inside the task.
     return (await this.queue.add(async () => {
       signal?.throwIfAborted()
       this.assertModelAvailable(modelId, generation)
+
       if (this.residentModelId !== null && this.residentModelId !== modelId) {
         await this.client.stop()
         this.residentModelId = null
       }
+
       await this.restartIfRuntimeChanged()
       signal?.throwIfAborted()
       this.assertModelAvailable(modelId, generation)
       this.residentModelId = modelId
+
       return operation()
     })) as T
   }
@@ -136,11 +142,14 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
 
   private async restartIfRuntimeChanged(): Promise<void> {
     const profile = this.definition.resolveRuntimeProfile?.()
+
     if (!profile) return
+
     if (this.launchedProfileId !== null && this.launchedProfileId !== profile.id) {
       this.logger.info('inference runtime configuration changed; restarting process')
       await this.client.stop()
     }
+
     this.launchedProfileId = profile.id
   }
 
@@ -163,13 +172,16 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
     this.assertModelAvailable(modelId)
     this.removingModels.add(modelId)
     this.modelGenerations.set(modelId, (this.modelGenerations.get(modelId) ?? 0) + 1)
+
     try {
       if (this.residentModelId === modelId) {
         return await this.client.withStopped(async () => {
           this.residentModelId = null
+
           return after()
         })
       }
+
       return await after()
     } finally {
       this.removingModels.delete(modelId)

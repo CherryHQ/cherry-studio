@@ -18,6 +18,7 @@ export const hermesDashboardHandlers: IpcHandlersFor<typeof hermesDashboardReque
   'hermes_dashboard.stop': async () => {
     try {
       await application.get('HermesDashboardService').stop()
+
       return { success: true }
     } catch (error) {
       return {

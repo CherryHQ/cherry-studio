@@ -85,11 +85,13 @@ function splitQuery(query: string) {
     while (cursor < chars.length) {
       const isUnsegmented = UNSEGMENTED_SCRIPT_PATTERN.test(chars[cursor])
       let end = cursor + 1
+
       while (end < chars.length && UNSEGMENTED_SCRIPT_PATTERN.test(chars[end]) === isUnsegmented) {
         end += 1
       }
 
       const run = chars.slice(cursor, end)
+
       if (!isUnsegmented || run.length <= TRIGRAM_MIN_TOKEN_LENGTH) {
         words.push(run.join(''))
       } else {
@@ -113,12 +115,14 @@ function splitQuery(query: string) {
 export function extractMatchTerms(query: string): string[] {
   const { words, trigrams } = splitQuery(query)
   const distinct = [...new Set([...words.filter((word) => charCount(word) >= TRIGRAM_MIN_TOKEN_LENGTH), ...trigrams])]
+
   if (distinct.length > MAX_MATCH_TERMS) {
     logger.warn('Trigram FTS query exceeds the MATCH term cap; shedding the tail', {
       terms: distinct.length,
       cap: MAX_MATCH_TERMS
     })
   }
+
   return distinct.slice(0, MAX_MATCH_TERMS)
 }
 
@@ -138,6 +142,7 @@ export function extractMatchTerms(query: string): string[] {
  */
 export function extractShortTerms(query: string): string[] {
   const { words } = splitQuery(query)
+
   return [...new Set(words.filter((word) => charCount(word) < TRIGRAM_MIN_TOKEN_LENGTH))]
 }
 
@@ -148,9 +153,11 @@ export function extractShortTerms(query: string): string[] {
  */
 export function toFtsMatchQuery(query: string): string | null {
   const terms = extractMatchTerms(query)
+
   if (terms.length === 0) {
     return null
   }
+
   return terms.map((term) => `"${term.replaceAll('"', '""')}"`).join(' OR ')
 }
 
@@ -162,9 +169,11 @@ export function toFtsMatchQuery(query: string): string | null {
  */
 export function needsLikeFallback(query: string): boolean {
   const { words, trigrams } = splitQuery(query)
+
   if (words.length === 0 && trigrams.length === 0) {
     return false
   }
+
   return trigrams.length === 0 && !words.some((word) => charCount(word) >= TRIGRAM_MIN_TOKEN_LENGTH)
 }
 
@@ -174,5 +183,6 @@ export function needsLikeFallback(query: string): boolean {
  */
 export function toFtsLikePattern(token: string): string {
   const escaped = token.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+
   return `%${escaped}%`
 }

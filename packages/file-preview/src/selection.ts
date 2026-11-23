@@ -18,10 +18,13 @@ export function normalizeSelectionText(text: string): string {
 
 export function createPreviewSelection(input: PreviewSelection): PreviewSelection | null {
   const collapsed = normalizeSelectionText(input.excerpt)
+
   const end =
     (collapsed.codePointAt(SELECTION_EXCERPT_MAX_LENGTH - 1) ?? 0) > 0xffff
       ? SELECTION_EXCERPT_MAX_LENGTH - 1
       : SELECTION_EXCERPT_MAX_LENGTH
+
   const excerpt = collapsed.slice(0, end)
+
   return excerpt ? { ...input, excerpt } : null
 }

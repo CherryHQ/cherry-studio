@@ -53,10 +53,12 @@ export default function ModelListSyncDrawer({
   const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
   const removableModelIdSet = useMemo(() => new Set(removableModelIds), [removableModelIds])
   const defaultModelIdSet = useMemo(() => new Set(defaultModelIds), [defaultModelIds])
+
   const isAllFilteredInProvider = useMemo(
     () => view.filteredModels.length > 0 && view.filteredModels.every((model) => localModelIds.has(model.id)),
     [localModelIds, view.filteredModels]
   )
+
   const removableFilteredModelIds = useMemo(
     () =>
       view.filteredModels
@@ -64,19 +66,24 @@ export default function ModelListSyncDrawer({
         .map((model) => model.id),
     [localModelIds, removableModelIdSet, view.filteredModels]
   )
+
   const busy = isLoading || isApplying
   const hasLoadError = Boolean(loadErrorMessage)
+
   const drawerTitle = provider?.name
     ? `${provider.name} ${t('common.models')}`
     : t('settings.models.manage.drawer_title')
+
   const bulkActionLabel = isAllFilteredInProvider
     ? t('settings.models.manage.remove_listed')
     : t('settings.models.manage.add_listed.label')
+
   const cleanStaleLabel = t('settings.models.manage.clean_stale_models')
 
   const handleBulkAction = useCallback(() => {
     if (isAllFilteredInProvider) {
       void onRemoveModels(removableFilteredModelIds)
+
       return
     }
 

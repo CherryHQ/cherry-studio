@@ -8,6 +8,7 @@ import { type WindowInfo, WindowType } from '@main/core/window/types'
  */
 export function getFullChromeWindowInfos(): WindowInfo[] {
   const windowManager = application.get('WindowManager')
+
   return [
     ...windowManager.getWindowInfosByType(WindowType.Main),
     ...windowManager.getWindowInfosByType(WindowType.SubWindow).filter((window) => window.isVisible || window.isFocused)

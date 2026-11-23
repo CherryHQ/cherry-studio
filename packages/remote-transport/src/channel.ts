@@ -16,9 +16,11 @@ import { readDeviceIdentity } from './identity'
 import { binaryRecordBytes, encodeRecord, decodeRecord, type JsonControlRecord, type TransportRecord } from './records'
 
 const profile = 'cherry-remote-noise-xx-v1'
+
 const unsupportedUpgrade = (): never => {
   throw new Error('Remote transport does not use libp2p connection upgrades')
 }
+
 const upgrader: Upgrader = {
   upgradeInbound: unsupportedUpgrade,
   upgradeOutbound: unsupportedUpgrade,
@@ -26,6 +28,7 @@ const upgrader: Upgrader = {
   getStreamMuxers: () => new Map(),
   getConnectionEncrypters: () => new Map()
 }
+
 const encode = (value: JsonControlRecord): Uint8Array => new TextEncoder().encode(JSON.stringify(value))
 
 export interface ChannelOptions {
@@ -55,22 +58,29 @@ async function secure(
   remoteIdentity?: string
 ): Promise<SecureChannel> {
   const identity = readDeviceIdentity(options.identity)
+
   const encrypter = noise({
     crypto: options.crypto ?? pureJsCrypto,
     prologueBytes: encode({ profile, protocolVersions: offer.protocolVersions, protocolVersion: version })
   })({ ...identity, logger: options.logger, upgrader })
+
   const securityOptions = { signal: options.signal, skipStreamMuxerNegotiation: true }
+
   const result =
     remoteIdentity === undefined
       ? await encrypter.secureInbound(stream, securityOptions)
       : await encrypter.secureOutbound(stream, { ...securityOptions, remotePeer: peerIdFromString(remoteIdentity) })
+
   if (result.remotePeer.type !== 'Ed25519') throw new Error('Remote identity must be Ed25519')
+
   const records = lpStream(result.connection, {
     maxDataLength: binaryRecordBytes,
     maxBufferSize: uploadTransferLimits.queuedBytes
   })
+
   let queuedBytes = 0
   let writes: Promise<void> = Promise.resolve()
+
   return {
     remoteIdentity: result.remotePeer.toString(),
     protocolVersion: version,
@@ -80,19 +90,25 @@ async function secure(
     },
     write(value, signal) {
       const bytes = encodeRecord(value)
+
       if (queuedBytes + bytes.length > uploadTransferLimits.queuedBytes) {
         const error = new Error('Remote record budget exceeded')
         result.connection.abort(error)
+
         return Promise.reject(error)
       }
+
       queuedBytes += bytes.length
+
       const write = writes
         .then(() => records.write(bytes, { signal }))
         .finally(() => {
           queuedBytes -= bytes.length
         })
+
       writes = write
       void write.catch(() => {})
+
       return write
     },
     close: () => result.connection.close(),
@@ -109,6 +125,7 @@ export async function connectSecureChannel(
     const prelude = lpStream(stream, { maxDataLength: 4096, maxBufferSize: remoteLimits.recordBytes })
     await prelude.write(encode(offer), { signal: options.signal })
     const selection = decodeRecord((await prelude.read({ signal: options.signal })).subarray())
+
     if (
       typeof selection !== 'object' ||
       selection === null ||
@@ -117,6 +134,7 @@ export async function connectSecureChannel(
       !offer.protocolVersions.includes(selection.protocolVersion)
     )
       throw new Error('Unsupported remote protocol')
+
     return await secure(prelude.unwrap(), options, offer, selection.protocolVersion, options.remoteIdentity)
   } catch (error) {
     stream.abort(error instanceof Error ? error : new Error('Remote handshake failed'))
@@ -129,8 +147,10 @@ export async function acceptSecureChannel(stream: MessageStream, options: Channe
     const prelude = lpStream(stream, { maxDataLength: 4096, maxBufferSize: remoteLimits.recordBytes })
     const offer = protocolSupportSchema.parse(decodeRecord((await prelude.read({ signal: options.signal })).subarray()))
     const result = negotiateProtocol({ protocolVersions: options.protocolVersions }, offer)
+
     if (!result.ok) throw new Error('Unsupported remote protocol')
     await prelude.write(encode(result.selection), { signal: options.signal })
+
     return await secure(prelude.unwrap(), options, offer, result.selection.protocolVersion)
   } catch (error) {
     stream.abort(error instanceof Error ? error : new Error('Remote handshake failed'))

@@ -15,6 +15,7 @@ function validateEditionArtifacts({ distDirectory, edition, platform, productNam
 
   for (const fileName of expected.files) {
     const filePath = path.join(distDirectory, fileName)
+
     if (!fs.statSync(filePath, { throwIfNoEntry: false })?.isFile()) {
       throw new Error(`Missing ${edition} release artifact: ${fileName}`)
     }
@@ -22,12 +23,14 @@ function validateEditionArtifacts({ distDirectory, edition, platform, productNam
 
   for (const manifest of expected.manifests) {
     const manifestPath = path.join(distDirectory, manifest.file)
+
     if (!fs.statSync(manifestPath, { throwIfNoEntry: false })?.isFile()) {
       throw new Error(`Missing ${edition} update manifest: ${manifest.file}`)
     }
 
     const updateInfo = parse(fs.readFileSync(manifestPath, 'utf8'))
     const urls = Array.isArray(updateInfo?.files) ? updateInfo.files.map((file) => file.url) : []
+
     for (const url of manifest.urls) {
       if (!urls.includes(url)) {
         throw new Error(`${manifest.file} does not reference ${url}`)
@@ -38,11 +41,13 @@ function validateEditionArtifacts({ distDirectory, edition, platform, productNam
 
 function main() {
   const edition = process.argv[2]
+
   if (!edition) {
     throw new Error('Usage: node scripts/release/validate-edition-artifacts.js <global|cn>')
   }
 
   const platform = PLATFORM_NAMES[process.platform]
+
   if (!platform) {
     throw new Error(`Unsupported release platform: ${process.platform}`)
   }

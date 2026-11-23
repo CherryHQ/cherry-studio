@@ -78,12 +78,14 @@ const ActionButtonWithConfirm = ({
 }) => {
   const disabled = !action.availability.enabled
   const label = typeof action.label === 'string' ? action.label : undefined
+
   const button = (
     <MessageActionButton
       className="message-action-button"
       aria-label={label}
       onClick={(e) => {
         e.stopPropagation()
+
         if (!action.confirm) {
           void executeAction(action)
         }
@@ -312,6 +314,7 @@ export function renderTranslateToolbarAction({
 }: MessageMenuBarToolbarRenderContext) {
   if (actionContext.isTranslating) {
     const label = actionContext.t('translate.stop')
+
     return (
       <Tooltip content={label}>
         <MessageActionButton
@@ -334,6 +337,7 @@ export function renderTranslateToolbarAction({
     if (open) {
       actionContext.actions.requestTranslationLanguages?.()
     }
+
     onMenuOpenChange?.(open)
   }
 
@@ -360,6 +364,7 @@ const TranslateToolbarAction = ({
 }) => {
   const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen, tooltipTriggerProps } =
     useMenuTooltipState(onMenuOpenChange)
+
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (
@@ -413,6 +418,7 @@ const MoreMenuToolbarAction = ({
 }) => {
   const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen, tooltipTriggerProps } =
     useMenuTooltipState(onMenuOpenChange)
+
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (

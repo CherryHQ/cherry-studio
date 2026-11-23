@@ -10,11 +10,13 @@ export function MessageListInitialLoading({ delayMs = MESSAGE_LIST_INITIAL_LOADI
   useEffect(() => {
     if (delayMs <= 0) {
       setVisible(true)
+
       return
     }
 
     setVisible(false)
     const timer = window.setTimeout(() => setVisible(true), delayMs)
+
     return () => window.clearTimeout(timer)
   }, [delayMs])
 

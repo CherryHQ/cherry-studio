@@ -29,6 +29,7 @@ const meta: Meta<typeof Kbd> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // 基础示例

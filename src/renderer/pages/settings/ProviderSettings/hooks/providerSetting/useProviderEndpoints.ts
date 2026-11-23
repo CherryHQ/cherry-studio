@@ -24,6 +24,7 @@ export function useProviderEndpoints(provider: Provider | undefined) {
   const [apiHost, setApiHostValue] = useState(providerApiHost)
   const [anthropicApiHost, setAnthropicApiHost] = useState(providerAnthropicHost)
   const [apiVersion, setApiVersion] = useState(providerApiVersion)
+
   const previousServerEndpoint = useRef<ProviderEndpointSnapshot>({
     providerId,
     apiHost: providerApiHost,

@@ -18,26 +18,35 @@ export async function probeOpenMineru(
         credentials: 'omit',
         signal: probeSignal
       })
+
       if (!response.ok) {
         await response.body?.cancel()
+
         if (response.status === 404) {
           if (protocol === 'v1') continue
+
           return { kind: 'not-found' }
         }
+
         return { kind: 'http-error', status: response.status }
       }
 
       const payload: unknown = await response.json().catch(() => undefined)
       probeSignal.throwIfAborted()
+
       if (protocol === 'v1' && TasksHealthSchema.safeParse(payload).success) {
         return { kind: 'supported', protocol: 'tasks' }
       }
+
       const schema = protocol === 'v1' ? V1HealthSchema : LegacyHealthSchema
+
       return schema.safeParse(payload).success ? { kind: 'supported', protocol } : { kind: 'invalid-response' }
     }
+
     return { kind: 'not-found' }
   } catch {
     signal?.throwIfAborted()
+
     return { kind: 'unreachable' }
   }
 }

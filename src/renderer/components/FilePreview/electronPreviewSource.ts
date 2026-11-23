@@ -13,6 +13,7 @@ export function createElectronPreviewSource(
   metadata: FilePreviewFileMetadata | FilePreviewMetadataRequest
 ): PreviewSource {
   const handle = createFilePathHandle(filePath)
+
   return {
     id: filePath,
     name,
@@ -20,23 +21,30 @@ export function createElectronPreviewSource(
       signal?.throwIfAborted()
       const openedMetadata = typeof metadata === 'function' ? await metadata() : metadata
       signal?.throwIfAborted()
+
       if (!openedMetadata || ('kind' in openedMetadata && openedMetadata.kind !== 'file')) {
         throw new PreviewError('load_error', 'Preview target is not an available file')
       }
+
       const size = openedMetadata.size
       // file.read reports a floored mtime; the metadata type does not promise one.
       const mtime = Math.floor(openedMetadata.modifiedAt)
       let closed = false
+
       const accept = (content: Uint8Array, version: FileVersion, expectedLength: number, offset: number) => {
         if (closed) throw new PreviewError('closed', 'Preview source is closed')
+
         if (version.size !== size || version.mtime !== mtime) {
           throw new PreviewError('source_changed', 'File changed since preview metadata was read')
         }
+
         if (content.byteLength !== expectedLength) {
           throw new PreviewError('short_read', `Short preview read at ${offset}`)
         }
+
         return content
       }
+
       return {
         size,
         revision: `${size}:${mtime}`,
@@ -44,26 +52,35 @@ export function createElectronPreviewSource(
           if (closed) throw new PreviewError('closed', 'Preview source is closed')
           assertPreviewRange(size, offset, length)
           readSignal?.throwIfAborted()
+
           if (length === 0) return new Uint8Array()
+
           if (offset === 0 && length === size) {
             const { content, version } = await ipcApi.request('file.read', {
               handle,
               options: { mode: 'full', encoding: 'binary' }
             })
+
             readSignal?.throwIfAborted()
+
             return accept(content, version, length, offset)
           }
+
           const bytes = new Uint8Array(length)
+
           for (let cursor = 0; cursor < length; cursor += RANGE_CHUNK_SIZE_BYTES) {
             readSignal?.throwIfAborted()
             const count = Math.min(RANGE_CHUNK_SIZE_BYTES, length - cursor)
+
             const { content, version } = await ipcApi.request('file.read', {
               handle,
               options: { mode: 'range', offset: offset + cursor, length: count }
             })
+
             readSignal?.throwIfAborted()
             bytes.set(accept(content, version, count, offset + cursor), cursor)
           }
+
           return bytes
         },
         async close() {

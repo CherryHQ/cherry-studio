@@ -11,6 +11,7 @@ const ShadowDomRenderer: React.FC<Props> = ({ children }) => {
 
   useEffect(() => {
     const host = hostRef.current
+
     if (!host) return
 
     // 创建 shadow root
@@ -29,6 +30,7 @@ const ShadowDomRenderer: React.FC<Props> = ({ children }) => {
 
     if (markdownStyleSheet) {
       const style = document.createElement('style')
+
       const cssRules = Array.from(markdownStyleSheet.cssRules)
         .map((rule) => rule.cssText)
         .join('\n')

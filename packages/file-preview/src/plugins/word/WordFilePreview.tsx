@@ -37,7 +37,9 @@ const formatDocxZoom = (zoom: number): string => `${Math.round(zoom * 100)}%`
 
 function getRenderedPages(body: HTMLElement): HTMLElement[] {
   const sections = Array.from(body.querySelectorAll<HTMLElement>('section'))
+
   if (sections.length > 0) return sections
+
   return Array.from(body.children).filter((child): child is HTMLElement => child instanceof HTMLElement)
 }
 
@@ -55,6 +57,7 @@ function sanitizeHyperlinks(body: HTMLElement): void {
     if (!protocol || !SAFE_HYPERLINK_PROTOCOLS.has(protocol)) {
       anchor.removeAttribute('href')
     }
+
     anchor.setAttribute('rel', 'noopener noreferrer')
   })
 }
@@ -75,12 +78,14 @@ export default function WordFilePreview({
   const renderTokenRef = useRef(0)
   const fitScrollTopRef = useRef<number | null>(null)
   const committedZoomRef = useRef(DOCX_PREVIEW_DEFAULT_ZOOM)
+
   const pinchAnchorRef = useRef<{
     zoom: number
     x: number
     y: number
     origin: [number, number]
   } | null>(null)
+
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
@@ -101,6 +106,7 @@ export default function WordFilePreview({
     pinchAnchorRef.current = null
     const container = containerRef.current
     const body = bodyRef.current
+
     if (!anchor || !container || !body) return
     const rect = body.getBoundingClientRect()
     container.scrollLeft += rect.left + anchor.x * zoom - anchor.origin[0]
@@ -110,30 +116,37 @@ export default function WordFilePreview({
   useLayoutEffect(() => {
     const container = containerRef.current
     const body = bodyRef.current
+
     if (!fitWidth || !container || !body || pageCount <= 0) return
 
     const fit = () => {
       const width = body.offsetWidth
+
       if (container.clientWidth > 0 && width > 0) {
         // Fit both ways: a pane wider than the paper should scale the page up instead of leaving gutters.
         setFitZoom(Math.min(DOCX_PREVIEW_MAX_ZOOM, container.clientWidth / width))
       }
     }
+
     fit()
     const observer = new ResizeObserver(fit)
     observer.observe(container)
     observer.observe(body)
+
     return () => observer.disconnect()
   }, [fitWidth, pageCount])
 
   useLayoutEffect(() => {
     if (!fitWidth || manualZoom) return
     const container = containerRef.current
+
     if (zoom === fitZoom) {
       if (container && fitScrollTopRef.current !== null) container.scrollTop = fitScrollTopRef.current
       fitScrollTopRef.current = null
+
       return
     }
+
     if (container) fitScrollTopRef.current = container.scrollTop * (fitZoom / zoom)
     setZoom(fitZoom)
   }, [fitWidth, fitZoom, manualZoom, zoom])
@@ -173,6 +186,7 @@ export default function WordFilePreview({
 
   const resetZoom = useCallback(() => {
     setManualZoom(false)
+
     if (!fitWidth) setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
     focusContainer()
   }, [focusContainer, fitWidth])
@@ -180,6 +194,7 @@ export default function WordFilePreview({
   useEffect(() => {
     const bodyContainer = bodyRef.current
     const styleContainer = styleRef.current
+
     if (!bodyContainer || !styleContainer) return
 
     const controller = new AbortController()
@@ -200,9 +215,11 @@ export default function WordFilePreview({
     void (async () => {
       try {
         const docxData = await readPreviewDocument(previewDocument, DOCX_PREVIEW_MAX_SOURCE_BYTES, controller.signal)
+
         if (!isCurrent()) return
 
         assertZipLimits(docxData, 'DOCX')
+
         if (!isCurrent()) return
 
         await renderAsync(docxData, stagingBody, stagingStyle, {
@@ -218,9 +235,11 @@ export default function WordFilePreview({
           renderAltChunks: false,
           normalizeSymbolBullets
         })
+
         if (!isCurrent()) return
 
         const wrapper = stagingBody.querySelector<HTMLElement>(`.${docxClassName}-wrapper`)
+
         if (wrapper) {
           wrapper.classList.add('docx-preview-wrapper')
           // docx-preview's own sheet paints a grey mat with 30px of padding around the page. The pane
@@ -228,6 +247,7 @@ export default function WordFilePreview({
           wrapper.style.background = 'transparent'
           wrapper.style.padding = '0'
         }
+
         const pages = getRenderedPages(stagingBody)
         pages.forEach((page, index) => {
           page.id = `docx-preview-page-${index + 1}`
@@ -239,6 +259,7 @@ export default function WordFilePreview({
         const scrollLeft = containerRef.current?.scrollLeft ?? 0
         bodyContainer.replaceChildren(...stagingBody.childNodes)
         styleContainer.replaceChildren(...stagingStyle.childNodes)
+
         if (containerRef.current) {
           containerRef.current.scrollTop = scrollTop
           containerRef.current.scrollLeft = scrollLeft
@@ -269,30 +290,37 @@ export default function WordFilePreview({
   useEffect(() => {
     const scrollRoot = containerRef.current
     const bodyContainer = bodyRef.current
+
     if (!scrollRoot || !bodyContainer || pageCount <= 0 || loading) return
 
     const pages = Array.from(bodyContainer.querySelectorAll<HTMLElement>('.docx-preview-page'))
+
     if (pages.length === 0) return
 
     const visiblePages = new Set<HTMLElement>()
+
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           const page = entry.target as HTMLElement
+
           if (entry.isIntersecting) {
             visiblePages.add(page)
           } else {
             visiblePages.delete(page)
           }
         }
+
         const topmost = pages.find((page) => visiblePages.has(page))
         const pageNumber = topmost ? Number(topmost.dataset.docxPreviewPage) : null
+
         if (pageNumber && Number.isFinite(pageNumber)) setCurrentPage(pageNumber)
       },
       { root: scrollRoot, threshold: [0, 0.5, 1] }
     )
 
     pages.forEach((page) => observer.observe(page))
+
     return () => observer.disconnect()
   }, [pageCount, loading])
 
@@ -302,10 +330,13 @@ export default function WordFilePreview({
     (event: ReactMouseEvent<HTMLDivElement>) => {
       const pressPosition = pressPositionRef.current
       pressPositionRef.current = null
+
       if (!onSelection || !(event.target instanceof Element)) return
+
       if (event.target.closest('a[href]')) event.preventDefault()
       const bodyContainer = bodyRef.current
       const selection = bodyContainer?.ownerDocument.getSelection()
+
       // A plain click can collapse an existing selection only after this handler runs.
       if (
         pressPosition &&
@@ -318,6 +349,7 @@ export default function WordFilePreview({
       ) {
         return
       }
+
       const previous = bodyContainer?.querySelector<HTMLElement>('[data-docx-picked="true"]') ?? null
       const resolved = paragraphToDocxAnchor(event.target)
       previous?.removeAttribute('data-docx-picked')
@@ -325,14 +357,17 @@ export default function WordFilePreview({
       // Clicking the picked paragraph again clears the pick; anything else replaces it.
       if (!resolved || resolved.element === previous) {
         onSelection(null)
+
         return
       }
+
       const reference = createPreviewSelection({
         sourceId,
         anchor: resolved.anchor,
         excerpt: resolved.excerpt,
         revision: previewDocument.revision
       })
+
       if (reference) resolved.element.setAttribute('data-docx-picked', 'true')
       onSelection(reference)
     },
@@ -348,16 +383,21 @@ export default function WordFilePreview({
   // Pinch steps are tiny, so they compound unrounded; rounding each one would stall a slow pinch.
   useEffect(() => {
     const container = containerRef.current
+
     if (!container) return
+
     return attachTouchPinch(container, (scaleFactor, origin) => {
       const body = bodyRef.current
+
       if (!body) return
       const currentZoom = committedZoomRef.current
+
       const nextZoom = clamp(
         (pinchAnchorRef.current?.zoom ?? currentZoom) * scaleFactor,
         minZoom,
         DOCX_PREVIEW_MAX_ZOOM
       )
+
       const rect = body.getBoundingClientRect()
       pinchAnchorRef.current =
         nextZoom === currentZoom

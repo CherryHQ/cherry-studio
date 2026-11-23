@@ -6,7 +6,9 @@ import { AceLight } from './light'
 
 const Ace = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AceLight {...props} className={className} />
+
   if (variant === 'dark') return <AceDark {...props} className={className} />
+
   return (
     <>
       <AceLight className={cn('dark:hidden', className)} {...props} />

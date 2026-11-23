@@ -12,6 +12,7 @@ export class DiagnosticReportService {
 
   record(report: DiagnosticReportEntity): void {
     const inserted = this.db.insert(diagnosticReportTable).values(report).onConflictDoNothing().returning().get()
+
     if (inserted) notifyDataApiDataChange([{ endpoint: '/diagnostic-reports', kind: 'membership' }])
   }
 
@@ -25,6 +26,7 @@ export class DiagnosticReportService {
         WHEN 'closed' THEN 4
       END
     `
+
     const incomingStatusRank = sql`
       CASE ${processingStatus}
         WHEN 'unprocessed' THEN 0
@@ -34,6 +36,7 @@ export class DiagnosticReportService {
         WHEN 'closed' THEN 4
       END
     `
+
     const updated = this.db
       .update(diagnosticReportTable)
       .set({
@@ -49,6 +52,7 @@ export class DiagnosticReportService {
       .where(eq(diagnosticReportTable.reportId, reportId))
       .returning()
       .get()
+
     if (updated) notifyDataApiDataChange([{ endpoint: '/diagnostic-reports', kind: 'projection' }])
   }
 
@@ -60,16 +64,19 @@ export class DiagnosticReportService {
       .limit(limit)
       .offset((page - 1) * limit)
       .all()
+
     const items: DiagnosticReportEntity[] = rows.map((row) => ({
       reportId: row.reportId,
       submittedAt: row.submittedAt,
       processingStatus: row.processingStatus,
       lastCheckedAt: row.lastCheckedAt
     }))
+
     const [{ count }] = this.db
       .select({ count: sql<number>`count(*)` })
       .from(diagnosticReportTable)
       .all()
+
     return { items, page, total: count }
   }
 }

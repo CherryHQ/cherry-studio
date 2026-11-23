@@ -9,6 +9,7 @@ export function successResponse(text: string): CallToolResult {
 
 export function errorResponse(error: Error | string): CallToolResult {
   const message = error instanceof Error ? error.message : error
+
   return {
     content: [{ type: 'text', text: message }],
     isError: true

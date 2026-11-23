@@ -61,6 +61,7 @@ class ObservabilitySinkRegistry {
   private callSink(sink: ObservabilitySink, operation: string, fn: () => void | Promise<void> | undefined): void {
     try {
       const result = fn()
+
       if (result && typeof result.catch === 'function') {
         void result.catch((error) => {
           logger.warn(`Observability sink ${sink.id} failed ${operation}`, error as Error)

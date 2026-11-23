@@ -33,9 +33,11 @@ const logger = loggerService.withContext('internal/entry/lifecycle')
 
 function trashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): void {
   const entry = deps.fileEntryService.getByIdTx(tx, id)
+
   if (entry.origin !== 'internal' || entry.deletedAt != null) {
     throw DataApiErrorFactory.notFound('FileEntry', id)
   }
+
   deps.fileEntryService.updateTx(tx, id, { deletedAt: Date.now() })
 }
 
@@ -45,9 +47,11 @@ export function trash(deps: FileManagerDeps, id: FileEntryId): void {
 
 function restoreTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
   const entry = deps.fileEntryService.getByIdTx(tx, id)
+
   if (entry.origin !== 'internal' || entry.deletedAt == null) {
     throw DataApiErrorFactory.notFound('FileEntry', id)
   }
+
   return deps.fileEntryService.updateTx(tx, id, { deletedAt: null })
 }
 
@@ -58,15 +62,18 @@ export async function restore(deps: FileManagerDeps, id: FileEntryId): Promise<F
 function permanentDeleteTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
   const entry = deps.fileEntryService.getByIdTx(tx, id)
   deps.fileEntryService.deleteTx(tx, id)
+
   return entry
 }
 
 export async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Promise<{ unlinkFailed: boolean }> {
   const physical = entry.origin === 'internal' ? resolvePhysicalPath(entry) : undefined
   deps.versionCache.invalidate(entry.id)
+
   if (entry.origin === 'external') {
     deps.danglingCache.removeEntry(entry.id, entry.externalPath)
   }
+
   if (physical !== undefined) {
     try {
       await fsRemove(physical)
@@ -75,9 +82,11 @@ export async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntr
         id: entry.id,
         code: (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
       })
+
       return { unlinkFailed: true }
     }
   }
+
   return { unlinkFailed: false }
 }
 
@@ -99,14 +108,19 @@ export async function deleteUnreferencedInternalEntry(deps: FileManagerDeps, id:
 async function deleteUnreferencedInternalEntryLocked(deps: FileManagerDeps, id: FileEntryId): Promise<boolean> {
   const entry = deps.fileEntryService.withWriteTx((tx) => {
     const current = deps.fileEntryService.findByIdTx(tx, id)
+
     if (!current || current.origin !== 'internal' || deps.fileRefService.countPersistentRefsByEntryIdTx(tx, id) > 0) {
       return null
     }
+
     deps.fileEntryService.deleteTx(tx, id)
+
     return current
   })
+
   if (!entry) return false
   await cleanupDeletedEntry(deps, entry)
+
   return true
 }
 
@@ -118,12 +132,14 @@ export async function deleteInternalTemporaryEntry(deps: FileManagerDeps, id: Fi
 
 async function deleteInternalTemporaryEntryLocked(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
   const entry = deps.fileEntryService.getById(id)
+
   if (entry.origin !== 'internal' || entry.cleanupPolicy !== 'delete_when_unreferenced') {
     throw DataApiErrorFactory.invalidOperation(
       'delete retained temporary file',
       `File entry ${id} must be an automatic internal entry`
     )
   }
+
   await fsRemove(resolvePhysicalPath(entry))
   deps.versionCache.invalidate(entry.id)
   deps.fileEntryService.withWriteTx((tx) => permanentDeleteTx(deps, tx, id))
@@ -137,14 +153,17 @@ function assertUnreferenced(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId, 
 
 function permanentDeleteFromTrashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
   const entry = deps.fileEntryService.getByIdTx(tx, id)
+
   if (entry.origin !== 'internal' || entry.deletedAt == null) {
     throw DataApiErrorFactory.invalidOperation(
       'permanently delete file from Trash',
       `File entry ${id} must be an internal file in the Recycle Bin`
     )
   }
+
   assertUnreferenced(deps, tx, id, 'permanently delete file from Trash')
   deps.fileEntryService.deleteTx(tx, id)
+
   return entry
 }
 
@@ -161,11 +180,14 @@ async function permanentDeleteFromTrashLocked(deps: FileManagerDeps, id: FileEnt
 
 function removeExternalFromLibraryTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
   const entry = deps.fileEntryService.getByIdTx(tx, id)
+
   if (entry.origin !== 'external') {
     throw DataApiErrorFactory.invalidOperation('remove file from library', `File entry ${id} must be an external file`)
   }
+
   assertUnreferenced(deps, tx, id, 'remove file from library')
   deps.fileEntryService.deleteTx(tx, id)
+
   return entry
 }
 
@@ -201,6 +223,7 @@ function aggregateWriteTx<T>(
       }
     }
   })
+
   return { succeeded, failed }
 }
 
@@ -218,6 +241,7 @@ async function aggregatePerEntry(
 ): Promise<BatchMutationResult> {
   const succeeded: FileEntryId[] = []
   const failed: BatchMutationResult['failed'] = []
+
   for (const id of ids) {
     try {
       await op(id)
@@ -227,6 +251,7 @@ async function aggregatePerEntry(
       failed.push({ id, error: (err as Error).message })
     }
   }
+
   return { succeeded, failed }
 }
 

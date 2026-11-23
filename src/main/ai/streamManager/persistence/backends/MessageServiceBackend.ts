@@ -34,6 +34,7 @@ export class MessageServiceBackend implements PersistenceBackend {
     // its tool_output file refs together.
     const parts = await trimOversizedToolOutputs(finalMessage?.parts ?? [], this.opts.contextSettingsOverride)
     const data: Parameters<typeof messageService.finalizeAssistantMessage>[1]['data'] = { parts }
+
     if (this.opts.turnOptions) data.turnOptions = this.opts.turnOptions
     messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data,

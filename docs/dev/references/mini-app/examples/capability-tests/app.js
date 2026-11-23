@@ -7,6 +7,7 @@
 
 const KB = 1024
 const MB = 1024 * KB
+
 // Everything this app creates carries this prefix, so "clean up" can find it again.
 const PREFIX = 'sbx.'
 const ECHO = 'https://postman-echo.com'
@@ -69,20 +70,25 @@ const LABELS = {
 
 const el = (id) => document.getElementById(id)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 const fmt = (bytes) =>
   bytes >= MB ? `${(bytes / MB).toFixed(2)} MB` : bytes >= KB ? `${(bytes / KB).toFixed(1)} KB` : `${bytes} B`
 
 // base64 of `n` zero bytes without materializing them: 3 bytes per 4 characters, then the tail.
 function zeroBase64(n) {
   const tail = ['', 'AA==', 'AAA='][n % 3]
+
   return 'A'.repeat(Math.floor(n / 3) * 4) + tail
 }
 
 function randomBase64(n) {
   const bytes = new Uint8Array(n)
+
   for (let i = 0; i < n; i += 65536) crypto.getRandomValues(bytes.subarray(i, Math.min(i + 65536, n)))
   let binary = ''
+
   for (let i = 0; i < n; i += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192))
+
   return btoa(binary)
 }
 
@@ -95,6 +101,7 @@ let perms = {}
 
 /** What a call gated by `leaf` must do right now: succeed, or reject with PermissionDenied. */
 const gate = (leaf) => (perms[leaf] ? 'ok' : 'PermissionDenied')
+
 /** A namespace's `usage()` is open once ANY sibling is granted. */
 const anyOf = (namespace) => Object.keys(perms).some((leaf) => leaf.startsWith(`${namespace}.`) && perms[leaf])
 
@@ -105,6 +112,7 @@ async function refreshPermissions() {
       const item = document.createElement('li')
       item.className = granted ? 'granted' : 'denied'
       item.textContent = leaf
+
       return item
     })
   )
@@ -115,8 +123,10 @@ async function showUsage() {
   const part = async (namespace) => {
     if (!anyOf(namespace)) return `${namespace} —`
     const u = await cherry[namespace].usage()
+
     return `${namespace} ${fmt(u.bytes)} / ${fmt(u.bytesLimit)} · ${u.count} / ${u.countLimit}`
   }
+
   el('usage').textContent = `${await part('storage')}   ${await part('file')}`
 }
 
@@ -130,6 +140,7 @@ function log(text, ok) {
   item.className = ok === undefined ? '' : ok ? 'pass' : 'fail'
   el('log').prepend(item)
   currentLine = item
+
   return item
 }
 
@@ -144,10 +155,12 @@ async function expect(label, expected, fn) {
     const result = await fn()
     const detail = typeof result === 'string' ? ` — ${result}` : ''
     log(`${label}: ${expected === 'ok' ? 'ok' : `resolved, expected ${expected}`}${detail}`, expected === 'ok')
+
     return result
   } catch (error) {
     const got = `${error.name}: ${error.message}`
     log(`${label}: ${error.name === expected ? got : `${got} (expected ${expected})`}`, error.name === expected)
+
     return undefined
   }
 }
@@ -180,18 +193,24 @@ async function storageRoundtrip() {
   await expect('set', gate('storage.set'), () => cherry.storage.set(key, value))
   await expect('get', gate('storage.get'), async () => {
     const got = (await cherry.storage.get(key)).value
+
     if (got !== value) throw mismatch(`read back ${got}`)
+
     return 'read back the same value'
   })
   await expect('keys', gate('storage.keys'), async () => {
     const { keys } = await cherry.storage.keys()
+
     if (!keys.includes(key)) throw mismatch(`keys=${keys.join(',')}`)
+
     return `${keys.length} keys, sorted: ${keys.every((k, i) => i === 0 || keys[i - 1] <= k)}`
   })
   await expect('delete', gate('storage.delete'), () => cherry.storage.delete(key))
   await expect('get(deleted)', gate('storage.get'), async () => {
     const got = (await cherry.storage.get(key)).value
+
     if (got !== null) throw mismatch(`still ${got}`)
+
     return 'value=null'
   })
   await expect('delete(again)', gate('storage.delete'), () => cherry.storage.delete(key))
@@ -218,20 +237,25 @@ async function storageRate() {
   const results = await Promise.allSettled(
     Array.from({ length: 30 }, (_, i) => cherry.storage.set(`${PREFIX}rate.${i}`, '1'))
   )
+
   const count = (name) => results.filter((r) => r.status === 'rejected' && r.reason.name === name).length
   const ok = results.filter((r) => r.status === 'fulfilled').length
+
   if (gate('storage.set') !== 'ok') {
     log(
       `30 parallel sets without storage.set: ${count('PermissionDenied')} PermissionDenied`,
       count('PermissionDenied') === 30
     )
+
     return
   }
+
   const limited = count('RateLimited')
   log(
     `30 parallel sets: ${ok} ok, ${limited} RateLimited, ${30 - ok - limited} other`,
     limited > 0 && ok + limited === 30
   )
+
   for (let i = 0; i < 30; i++) await patient(() => cherry.storage.delete(`${PREFIX}rate.${i}`))
   log('rate keys deleted', true)
 }
@@ -240,18 +264,23 @@ async function storageRate() {
 async function storageFill() {
   if (gate('storage.set') !== 'ok') {
     await expect('set without storage.set', 'PermissionDenied', () => cherry.storage.set(`${PREFIX}fill.0000`, '1'))
+
     return
   }
+
   const before = (await cherry.storage.usage()).count
   log(`filling from ${before} keys…`)
+
   for (let i = 0; ; i++) {
     try {
       await patient(() => cherry.storage.set(`${PREFIX}fill.${String(i).padStart(4, '0')}`, '1'))
+
       if (i % 25 === 0) progress(`filling… ${before + i + 1} keys`)
     } catch (error) {
       const total = (await cherry.storage.usage()).count
       progress(`${error.name} at key ${before + i + 1}, file holds ${total}: ${error.message}`)
       currentLine.className = error.name === 'QuotaExceeded' && total === 1000 ? 'pass' : 'fail'
+
       return
     }
   }
@@ -270,17 +299,22 @@ async function fileRoundtrip() {
   await expect('save 64 KB', gate('file.save'), () => cherry.file.save(name, data))
   await expect('load', gate('file.load'), async () => {
     const got = (await cherry.file.load(name)).data
+
     if (got !== data) throw mismatch(`read back ${got?.length} chars`)
+
     return 'read back identical bytes'
   })
   await expect('save (overwrite)', gate('file.save'), () => cherry.file.save(name, randomBase64(1 * KB)))
   await expect('usage after overwrite', anyOf('file') ? 'ok' : 'PermissionDenied', async () => {
     const { bytes } = await cherry.file.usage()
+
     return `${fmt(bytes)} in total (the 64 KB were replaced, not added)`
   })
   await expect('list', gate('file.list'), async () => {
     const { names } = await cherry.file.list()
+
     if (perms['file.save'] && !names.includes(name)) throw mismatch(`names=${names.join(',')}`)
+
     return `${names.length} names`
   })
   await expect('delete', gate('file.delete'), () => cherry.file.delete(name))
@@ -304,21 +338,28 @@ async function fileLimits() {
 async function fileQuota() {
   if (gate('file.save') !== 'ok') {
     await expect('save without file.save', 'PermissionDenied', () => cherry.file.save(`${PREFIX}quota.0`, 'AA=='))
+
     return
   }
+
   const saved = []
+
   for (let i = 0; ; i++) {
     const { bytes, bytesLimit } = await cherry.file.usage()
     const room = bytesLimit - bytes
+
     if (room <= 0) break
     const size = Math.min(10 * MB, room)
     const name = `${PREFIX}quota.${i}`
     const ok = await expect(`save ${fmt(size)}`, 'ok', () => patient(() => cherry.file.save(name, zeroBase64(size))))
+
     if (!ok) return
     saved.push(name)
   }
+
   await expect('save 1 B over budget', 'QuotaExceeded', () => cherry.file.save(`${PREFIX}quota.over`, 'AA=='))
   await showUsage()
+
   for (const name of saved)
     await expect(`delete ${name}`, gate('file.delete'), () => patient(() => cherry.file.delete(name)))
 }
@@ -326,16 +367,21 @@ async function fileQuota() {
 async function fileCount() {
   if (gate('file.save') !== 'ok') {
     await expect('save without file.save', 'PermissionDenied', () => cherry.file.save(`${PREFIX}count.000`, 'AA=='))
+
     return
   }
+
   const before = (await cherry.file.usage()).count
   const saved = []
   log(`filling from ${before} files…`)
+
   for (let i = 0; ; i++) {
     const name = `${PREFIX}count.${String(i).padStart(3, '0')}`
+
     try {
       await patient(() => cherry.file.save(name, 'AA=='))
       saved.push(name)
+
       if (i % 10 === 0) progress(`filling… ${before + i + 1} files`)
     } catch (error) {
       const total = (await cherry.file.usage()).count
@@ -344,32 +390,42 @@ async function fileCount() {
       break
     }
   }
+
   if (!perms['file.delete']) {
     log('file.delete not granted: the files stay for clear data / uninstall to remove', true)
+
     return
   }
+
   for (const [i, name] of saved.entries()) {
     await patient(() => cherry.file.delete(name))
+
     if (i % 10 === 0) progress(`deleting… ${saved.length - i} left`)
   }
+
   log(`${saved.length} files deleted`, true)
 }
 
 async function fileExport() {
   const g = gate('file.export')
+
   if (perms['file.save']) {
     const body = `Exported from ${document.title} at ${new Date().toISOString()}\n`
     await cherry.file.save(`${PREFIX}export.txt`, utf8ToBase64(body))
   } else if (g === 'ok') {
     log('file.save is needed to have something to export; grant it in Cherry', false)
+
     return
   }
+
   await expect('export(unknown name)', g === 'ok' ? 'InvalidArgument' : g, () => cherry.file.export(`${PREFIX}missing`))
   await expect('export(name with a separator)', g === 'ok' ? 'InvalidArgument' : g, () => cherry.file.export('a/b'))
   await expect('export → save dialog (save or cancel, both are fine)', g, async () => {
     const { saved } = await cherry.file.export(`${PREFIX}export.txt`, { suggestedName: 'capability-tests-export.txt' })
+
     return `saved: ${saved}`
   })
+
   if (g === 'ok') log('the dialog must carry this app’s name in its title and sit on Cherry’s window', true)
 }
 
@@ -382,24 +438,30 @@ const nextCallId = () => `sbx-${++callSeq}`
 async function chat(params, callId = nextCallId()) {
   const chunks = []
   await cherry.ai.chat(params, { onChunk: (text) => chunks.push(text), callId })
+
   return { text: chunks.join(''), chunks: chunks.length }
 }
 
 async function aiBasics() {
   const g = gate('ai.chat')
+
   for (const model of ['default', 'quick']) {
     await expect(`getCapabilities(${model})`, g, async () => {
       const caps = await cherry.ai.getCapabilities({ model })
+
       return `reasoning=${caps.reasoning} contextWindow=${caps.contextWindow}`
     })
   }
+
   await expect('chat quick, reasoning off', g, async () => {
     const { text, chunks } = await chat({
       messages: [{ role: 'user', content: 'Reply with exactly the single word PONG.' }],
       model: 'quick',
       reasoning: 'off'
     })
+
     if (chunks === 0) throw mismatch('resolved ok but no chunk arrived')
+
     return `${chunks} chunks: ${JSON.stringify(text.trim().slice(0, 40))}`
   })
   await expect('chat default, reasoning on, system + history', g, async () => {
@@ -412,7 +474,9 @@ async function aiBasics() {
       ],
       reasoning: 'on'
     })
+
     if (chunks === 0) throw mismatch('resolved ok but no chunk arrived')
+
     return `${chunks} chunks: ${JSON.stringify(text.trim().slice(0, 60))}`
   })
 }
@@ -420,22 +484,27 @@ async function aiBasics() {
 async function aiCancel() {
   const g = gate('ai.chat')
   await expect('cancel(unknown id)', 'ok', () => cherry.ai.cancel('never-started'))
+
   if (g !== 'ok') {
     await expect('chat without ai.chat', 'PermissionDenied', () =>
       chat({ messages: [{ role: 'user', content: 'hi' }] })
     )
+
     return
   }
+
   const callId = nextCallId()
   let arrived = 0
   let afterCancel = 0
   let cancelled = false
+
   const call = cherry.ai
     .chat(
       { messages: [{ role: 'user', content: 'Count from 1 to 500, one number per line.' }], model: 'quick' },
       {
         onChunk: () => {
           arrived++
+
           if (cancelled) afterCancel++
         },
         callId
@@ -445,6 +514,7 @@ async function aiCancel() {
       () => 'resolved ok',
       (error) => `rejected ${error.name}`
     )
+
   // Cancel as soon as the stream is flowing, so the cancel provably interrupts something.
   for (let waited = 0; arrived === 0 && waited < 15000; waited += 100) await sleep(100)
   cancelled = true
@@ -468,14 +538,17 @@ async function aiLimits() {
   await expect('unknown role', g === 'ok' ? 'InvalidArgument' : g, () =>
     chat({ messages: [{ role: 'tool', content: 'x' }] })
   )
+
   if (g !== 'ok') return
 
   // Same callId twice while the first is in flight: the second must be refused, not merged.
   const id = nextCallId()
+
   const first = chat(
     { messages: [{ role: 'user', content: 'Count from 1 to 300, one per line.' }], model: 'quick' },
     id
   )
+
   await sleep(300)
   await expect('callId reused while in flight', 'InvalidArgument', () => chat({ messages: [one], model: 'quick' }, id))
   await cherry.ai.cancel(id)
@@ -484,13 +557,16 @@ async function aiLimits() {
   // Two in flight per app: a third must be RateLimited immediately, not queued.
   const ids = [nextCallId(), nextCallId(), nextCallId()]
   const long = { messages: [{ role: 'user', content: 'Count from 1 to 300, one per line.' }], model: 'quick' }
+
   const calls = ids.map((callId) =>
     chat(long, callId).then(
       () => 'ok',
       (error) => error.name
     )
   )
+
   await sleep(1500)
+
   for (const callId of ids) await cherry.ai.cancel(callId)
   const outcomes = await Promise.all(calls)
   const limited = outcomes.filter((o) => o === 'RateLimited').length
@@ -503,11 +579,14 @@ async function notificationAll() {
   const g = gate('notification.show')
   // Empty title is refused by the host's schema before the rate window is touched.
   await expect('empty title', g === 'ok' ? 'InvalidArgument' : g, () => cherry.notification.show({ title: '' }))
+
   const titles = [
     `${'T'.repeat(200)} (truncated to 64)`,
     ...Array.from({ length: 5 }, (_, i) => `Sandbox ${i + 2} of 6`)
   ]
+
   const outcomes = []
+
   for (const title of titles) {
     try {
       await cherry.notification.show({ title, body: 'B'.repeat(300) })
@@ -516,8 +595,10 @@ async function notificationAll() {
       outcomes.push(error.name)
     }
   }
+
   const expected = g === 'ok' ? ['ok', 'ok', 'ok', 'ok', 'ok', 'RateLimited'] : Array(6).fill('PermissionDenied')
   log(`6 shows in a row: ${outcomes.join(', ')}`, JSON.stringify(outcomes) === JSON.stringify(expected))
+
   if (g === 'ok')
     log('(if Cherry’s mini app notifications are switched off, the calls still resolve ok and nothing is shown)')
 }
@@ -531,14 +612,18 @@ async function clipboardAll() {
   await expect('write (from a click, so the app is focused)', w, () => cherry.clipboard.write({ text: marker }))
   await expect('read returns what was written', r, async () => {
     const { text } = await cherry.clipboard.read()
+
     if (w === 'ok' && text !== marker) throw mismatch(`read "${text.slice(0, 40)}"`)
+
     return `"${text.slice(0, 40)}"`
   })
   await expect('write 1 MB + 1 — guest gate', 'InvalidArgument', () =>
     cherry.clipboard.write({ text: 'x'.repeat(MB + 1) })
   )
+
   if (w === 'ok') {
     const outcomes = []
+
     for (let i = 0; i < 31; i++) {
       try {
         await cherry.clipboard.write({ text: marker })
@@ -547,12 +632,15 @@ async function clipboardAll() {
         outcomes.push(error.name)
       }
     }
+
     // One write was spent above: 29 more fit in the minute, the last 2 must be refused.
     const pass = outcomes.slice(0, 29).every((o) => o === 'ok') && outcomes.slice(29).every((o) => o === 'RateLimited')
     log(`31 more writes: ${outcomes.filter((o) => o === 'ok').length} ok, then ${outcomes.slice(29).join(', ')}`, pass)
   }
+
   if (r === 'ok') {
     const outcomes = []
+
     for (let i = 0; i < 10; i++) {
       try {
         await cherry.clipboard.read()
@@ -561,10 +649,12 @@ async function clipboardAll() {
         outcomes.push(error.name)
       }
     }
+
     // One read was spent above: 9 more fit in the minute, the 10th must be refused.
     const pass = outcomes.slice(0, 9).every((o) => o === 'ok') && outcomes[9] === 'RateLimited'
     log(`10 more reads: ${outcomes.filter((o) => o === 'ok').length} ok, then ${outcomes[9]}`, pass)
   }
+
   // The host refuses both directions unless this app has keyboard focus. `document.hasFocus()`
   // is the guest's own view of that — the two must agree.
   log('focus rule: click into Cherry’s own UI (e.g. the sidebar) within 3 s…')
@@ -585,13 +675,18 @@ async function networkBasics() {
   await expect('GET', g, async () => {
     const res = await cherry.network.fetch({ url: `${ECHO}/get?probe=sandbox` })
     const echoed = echoJson(res)
+
     if (res.status !== 200 || echoed.args?.probe !== 'sandbox') {
       throw mismatch(`status ${res.status}, args ${JSON.stringify(echoed.args)}`)
     }
+
     const names = Object.keys(res.headers)
+
     if (names.some((n) => n !== n.toLowerCase())) throw mismatch(`header case: ${names}`)
+
     // The server does send one; it is the host's cookie jar, never the app's.
     if ('set-cookie' in res.headers) throw mismatch('set-cookie was forwarded')
+
     return `200, ${names.length} headers, lowercase, no set-cookie`
   })
   await expect('POST json + authorization', g, async () => {
@@ -601,20 +696,27 @@ async function networkBasics() {
       headers: { 'content-type': 'application/json', authorization: 'Bearer sandbox' },
       body: utf8ToBase64(JSON.stringify({ hello: '世界' }))
     })
+
     const echoed = echoJson(res)
+
     if (echoed.json?.hello !== '世界') throw mismatch(`echoed ${JSON.stringify(echoed.json)}`)
+
     if (echoed.headers?.authorization !== 'Bearer sandbox') {
       throw mismatch(`authorization arrived as ${echoed.headers?.authorization}`)
     }
+
     return 'body and authorization echoed back intact'
   })
   await expect('404 is a result', g, async () => {
     const res = await cherry.network.fetch({ url: `${ECHO}/status/404` })
+
     if (res.status !== 404) throw mismatch(`status ${res.status}`)
+
     return 'resolved with status 404'
   })
   await expect('HEAD', g, async () => {
     const res = await cherry.network.fetch({ url: `${ECHO}/get`, method: 'HEAD' })
+
     return `status ${res.status}, body ${res.body.length} chars`
   })
 }
@@ -640,6 +742,7 @@ async function networkRefusals() {
   await expect('redirect', g === 'ok' ? 'Unavailable' : g, () =>
     cherry.network.fetch({ url: `${ECHO}/redirect-to?url=${encodeURIComponent(`${ECHO}/get`)}` })
   )
+
   // Informational: `localtest.me` resolves to 127.0.0.1 on a normal resolver and the host refuses
   // it (PermissionDenied). Behind a fake-ip proxy resolver the name looks public and the fetch
   // just fails downstream, so this line reports rather than judges.
@@ -658,10 +761,13 @@ async function networkLimits() {
     cherry.network.fetch({ url: 'https://nodejs.org/dist/v24.0.0/node-v24.0.0-darwin-arm64.tar.gz' })
   )
   log(`(aborted after ${((Date.now() - started) / 1000).toFixed(1)} s — the body stops at the cap, not at the end)`)
+
   if (g !== 'ok') return
+
   const results = await Promise.allSettled(
     Array.from({ length: 6 }, () => cherry.network.fetch({ url: `${ECHO}/delay/3` }))
   )
+
   const ok = results.filter((r) => r.status === 'fulfilled' && r.value.status === 200).length
   const limited = results.filter((r) => r.status === 'rejected' && r.reason.name === 'RateLimited').length
   const other = results.filter((r) => r.status === 'rejected' && r.reason.name !== 'RateLimited')
@@ -710,6 +816,7 @@ async function sandboxAll() {
       log(`${label}: ${error.name}`, error.name === 'SecurityError')
     }
   }
+
   await expect('fetch(https) from the page', 'TypeError', () => fetch('https://example.com/'))
   await expect('navigator.clipboard.writeText', 'NotAllowedError', () => navigator.clipboard.writeText('x'))
   await expect('Notification.requestPermission', 'ok', async () => `→ ${await Notification.requestPermission()}`)
@@ -730,6 +837,7 @@ async function sandboxAll() {
       log(`${name}: not present`, true)
       continue
     }
+
     try {
       await window[name]()
       log(`${name}: resolved — a picker opened`, false)
@@ -737,6 +845,7 @@ async function sandboxAll() {
       log(`${name}: ${error.name}`, true)
     }
   }
+
   log('<input type="file"> and dropping a file onto this page are allowed: pick one to see name and size, never a path')
 }
 
@@ -746,24 +855,30 @@ async function cleanup() {
   if (perms['storage.keys'] && perms['storage.delete']) {
     const { keys } = await cherry.storage.keys()
     let removed = 0
+
     for (const key of keys) {
       if (!key.startsWith(PREFIX)) continue
       await patient(() => cherry.storage.delete(key))
       removed++
+
       if (removed % 25 === 0) progress(`deleting keys… ${removed}`)
     }
+
     log(`${removed} storage keys deleted`, true)
   } else {
     log('storage.keys + storage.delete needed to clean keys; grant them in Cherry or use clear data', false)
   }
+
   if (perms['file.list'] && perms['file.delete']) {
     const { names } = await cherry.file.list()
     let removed = 0
+
     for (const name of names) {
       if (!name.startsWith(PREFIX)) continue
       await patient(() => cherry.file.delete(name))
       removed++
     }
+
     log(`${removed} files deleted`, true)
   } else {
     log('file.list + file.delete needed to clean files; grant them in Cherry or use clear data', false)
@@ -799,12 +914,14 @@ let running = false
 async function run(id) {
   if (running) return
   running = true
+
   for (const button of document.querySelectorAll('button')) button.disabled = true
   const [labelKey, fn] = TESTS[id]
   // Permissions may have changed in Cherry since the last run; every expectation reads them fresh.
   await refreshPermissions()
   log(`▶ ${labelKey}`)
   const started = Date.now()
+
   try {
     await fn()
     log(`■ ${labelKey} done in ${((Date.now() - started) / 1000).toFixed(1)} s`)
@@ -812,6 +929,7 @@ async function run(id) {
     log(`■ ${labelKey} aborted: ${error.name}: ${error.message}`, false)
   } finally {
     running = false
+
     for (const button of document.querySelectorAll('button')) button.disabled = false
     await showUsage().catch(() => {})
   }
@@ -820,7 +938,9 @@ async function run(id) {
 function applyLocale(locale) {
   const labels = LABELS[locale] ?? LABELS[locale.split('-')[0]] ?? LABELS.en
   document.documentElement.lang = locale
+
   for (const node of document.querySelectorAll('[data-i18n]')) node.textContent = labels[node.dataset.i18n]
+
   for (const [id, [labelKey]] of Object.entries(TESTS)) el(id).textContent = labels[labelKey]
 }
 
@@ -835,6 +955,7 @@ async function init() {
   })
   el('refresh-permissions').addEventListener('click', () => refreshPermissions())
   el('clear-log').addEventListener('click', () => el('log').replaceChildren())
+
   for (const id of Object.keys(TESTS)) el(id).addEventListener('click', () => run(id))
   const gotFile = (how, file) => file && log(`${how}: "${file.name}", ${fmt(file.size)}, no path`, true)
   el('sandbox-file').addEventListener('change', (event) => gotFile('<input type="file">', event.target.files[0]))

@@ -43,6 +43,7 @@ const parseOrValidationError = (uniqueModelId: string) => {
       uniqueModelId: [`Expected "providerId::modelId", got "${uniqueModelId}"`]
     })
   }
+
   return parseUniqueModelId(uniqueModelId)
 }
 
@@ -74,6 +75,7 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
             error
           }
         )
+
         return {
           dto,
           registryData: undefined
@@ -87,6 +89,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/models': {
     GET: async ({ query }) => {
       const parsed = ListModelsQuerySchema.parse(query ?? {})
+
       return modelService.list(parsed)
     },
 
@@ -96,6 +99,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       // collection-oriented create path with consistent transaction semantics.
       const parsed = CreateModelsSchema.parse(body)
       const items = await enrichCreateItems(parsed)
+
       return modelService.create(items)
     },
 
@@ -104,10 +108,12 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       // uniqueModelId is validated up-front so a malformed entry surfaces as a
       // 422 instead of bubbling up from the service as a 500.
       const parsed = BulkUpdateModelsSchema.parse(body)
+
       const items = parsed.map((item) => ({
         ...parseOrValidationError(item.uniqueModelId),
         patch: item.patch
       }))
+
       return modelService.bulkUpdate(items)
     },
 
@@ -115,6 +121,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       const parsed = DeleteModelsQuerySchema.parse(query)
       const items = parsed.ids.map((uniqueModelId) => parseOrValidationError(uniqueModelId))
       modelService.bulkDelete(items)
+
       return undefined
     }
   },
@@ -122,18 +129,21 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/models/:uniqueModelId*': {
     GET: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
+
       return modelService.getByKey(providerId, modelId)
     },
 
     PATCH: async ({ params, body }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       const parsed = UpdateModelSchema.parse(body)
+
       return modelService.update(providerId, modelId, parsed)
     },
 
     DELETE: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       modelService.delete(providerId, modelId)
+
       return undefined
     }
   },
@@ -151,8 +161,10 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
           })
         }
       }
+
       for (const uniqueModelId of parsed.toRemove) {
         const { providerId } = parseOrValidationError(uniqueModelId)
+
         if (providerId !== params.providerId) {
           throw DataApiErrorFactory.validation({
             toRemove: [`'${uniqueModelId}' providerId does not match URL providerId '${params.providerId}'`]
@@ -161,10 +173,12 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       }
 
       const items = await enrichCreateItems(parsed.toAdd)
+
       const models = modelService.reconcileForProvider(params.providerId, {
         toAdd: items,
         toRemove: parsed.toRemove
       })
+
       // Override the default POST → 201: the response is the resulting
       // collection state for the provider, not a newly-created single resource.
       return { data: models, status: SuccessStatus.OK }
@@ -175,6 +189,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
     GET: async ({ params, query }) => {
       const parsed = ResolveProviderModelsQuerySchema.parse(query ?? {})
       const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
+
       return providerRegistryService.resolveModels(params.providerId, ids)
     }
   },

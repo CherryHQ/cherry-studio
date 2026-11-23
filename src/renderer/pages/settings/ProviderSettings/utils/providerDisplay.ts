@@ -24,6 +24,7 @@ export function isProviderPresetInstanceSource(provider: Provider): boolean {
   }
 
   const endpoint = provider.defaultChatEndpoint
+
   if (endpoint != null) {
     return provider.endpointConfigs?.[endpoint] != null
   }
@@ -36,6 +37,7 @@ export function isProviderPresetInstanceSource(provider: Provider): boolean {
 export function getFancyProviderName(provider: Provider): string {
   if (isCanonicalPresetProvider(provider)) {
     const presetProviderId = provider.presetProviderId
+
     if (presetProviderId) {
       return i18n.t(getProviderLabelKey(presetProviderId))
     }
@@ -47,6 +49,7 @@ export function getFancyProviderName(provider: Provider): string {
 export function getProviderSearchString(provider: Provider): string {
   if (isCanonicalPresetProvider(provider)) {
     const presetProviderId = provider.presetProviderId
+
     if (presetProviderId) {
       return `${i18n.t(getProviderLabelKey(presetProviderId))} ${provider.id}`
     }
@@ -59,6 +62,7 @@ export function matchKeywordsInProvider(keywords: string[], provider: Provider, 
   if (keywords.length === 0) return true
   const base = getProviderSearchString(provider)
   const searchStr = (extraSearchString ? `${base} ${extraSearchString}` : base).toLowerCase()
+
   return keywords.every((kw) => matchesSearchText(searchStr, kw))
 }
 
@@ -73,14 +77,17 @@ export function replaceEndpointConfigDomain(
 ): Partial<Record<EndpointType, EndpointConfig>> {
   if (!endpointConfigs) return {}
   const result: Partial<Record<EndpointType, EndpointConfig>> = {}
+
   for (const [key, config] of Object.entries(endpointConfigs)) {
     if (!config) continue
     const ep = key as EndpointType
     const baseUrl = config.baseUrl
+
     if (!baseUrl) {
       result[ep] = config
       continue
     }
+
     try {
       const parsed = new URL(baseUrl)
       parsed.hostname = newDomain
@@ -89,5 +96,6 @@ export function replaceEndpointConfigDomain(
       result[ep] = config
     }
   }
+
   return result
 }

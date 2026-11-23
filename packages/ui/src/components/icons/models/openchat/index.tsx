@@ -4,6 +4,7 @@ import { OpenchatLight } from './light'
 
 const Openchat = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <OpenchatLight {...props} className={className} />
+
   return <OpenchatLight {...props} className={className} />
 }
 

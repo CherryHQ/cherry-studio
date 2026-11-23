@@ -17,9 +17,11 @@ const DEFAULT_AVAILABILITY: ActionAvailability = {
 
 function normalizeAvailability(input: ActionAvailabilityInput): ActionAvailability {
   if (input === false) return { visible: false, enabled: false }
+
   if (input === true || input === undefined) return DEFAULT_AVAILABILITY
 
   const visible = input.visible ?? true
+
   return {
     visible,
     enabled: visible ? (input.enabled ?? true) : false,
@@ -29,16 +31,20 @@ function normalizeAvailability(input: ActionAvailabilityInput): ActionAvailabili
 
 function combineAvailability(first: ActionAvailability, second: ActionAvailability): ActionAvailability {
   const visible = first.visible && second.visible
+
   const availability: ActionAvailability = {
     visible,
     enabled: visible && first.enabled && second.enabled
   }
+
   if (first.reason || second.reason) availability.reason = first.reason ?? second.reason
+
   return availability
 }
 
 function matchesSurface<TContext>(action: ActionDescriptor<TContext>, surface?: ActionSurface): boolean {
   if (!surface || !action.surface) return true
+
   return Array.isArray(action.surface) ? action.surface.includes(surface) : action.surface === surface
 }
 
@@ -57,6 +63,7 @@ function resolveConfirm<TContext>(
   if (!confirm) return undefined
 
   const resolved = typeof confirm === 'function' ? confirm(context) : confirm
+
   if (!resolved) return undefined
 
   return {
@@ -73,7 +80,9 @@ function sortResolvedActions<TContext>(actions: ResolvedAction<TContext>[]): Res
   return actions.sort((first, second) => {
     const firstOrder = first.order ?? 0
     const secondOrder = second.order ?? 0
+
     if (firstOrder !== secondOrder) return firstOrder - secondOrder
+
     return first.id.localeCompare(second.id)
   })
 }
@@ -125,18 +134,23 @@ export class ActionRegistry<TContext> {
 
   async execute(actionId: string, context: TContext): Promise<boolean> {
     const action = this.findAction(actionId, context)
+
     if (!action) return false
 
     const resolvedAction = this.resolveAction(action, context)
+
     if (!resolvedAction?.availability.visible || !resolvedAction.availability.enabled) return false
 
     const commandId = resolvedAction.commandId
+
     if (!commandId) return false
 
     const command = this.commands.get(commandId)
+
     if (!command) return false
 
     await command.run(context)
+
     return true
   }
 
@@ -148,8 +162,10 @@ export class ActionRegistry<TContext> {
   private findAction(actionId: string, context: TContext): ActionDescriptor<TContext> | undefined {
     for (const action of this.actions.values()) {
       const found = this.findActionInTree(action, actionId, context)
+
       if (found) return found
     }
+
     return undefined
   }
 
@@ -160,10 +176,13 @@ export class ActionRegistry<TContext> {
   ): ActionDescriptor<TContext> | undefined {
     if (action.id === actionId) return action
     const children = typeof action.children === 'function' ? action.children(context) : (action.children ?? [])
+
     for (const child of children) {
       const found = this.findActionInTree(child, actionId, context)
+
       if (found) return found
     }
+
     return undefined
   }
 
@@ -177,16 +196,20 @@ export class ActionRegistry<TContext> {
     const commandAvailability = action.commandId
       ? normalizeAvailability(this.commands.get(action.commandId)?.availability?.(context))
       : DEFAULT_AVAILABILITY
+
     const actionAvailability = normalizeAvailability(action.availability?.(context))
     const availability = combineAvailability(actionAvailability, commandAvailability)
+
     if (!availability.visible) return undefined
 
     const actionChildren = typeof action.children === 'function' ? action.children(context) : (action.children ?? [])
+
     const children = sortResolvedActions(
       actionChildren
         .map((child) => this.resolveAction(child, context, surface))
         .filter((child): child is ResolvedAction<TContext> => !!child)
     )
+
     const confirm = resolveConfirm(action.confirm, context)
     const shortcut = action.shortcut ? resolveText(action.shortcut, context) : undefined
 

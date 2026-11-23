@@ -43,6 +43,7 @@ export interface ResolvedGatewayModelAddress {
 function gatewayModelError(message: string, status: number): Error & { status: number } {
   const error = new Error(message) as Error & { status: number }
   error.status = status
+
   return error
 }
 
@@ -52,6 +53,7 @@ function getAvailableProviders(): Provider[] {
     return providerService.list({ enabled: true })
   } catch (error) {
     logger.error('Failed to list providers', error as Error)
+
     return []
   }
 }
@@ -62,7 +64,9 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
     if (!providers) {
       return modelService.list({ enabled: true })
     }
+
     const models: Model[] = []
+
     for (const provider of providers) {
       try {
         models.push(...modelService.list({ providerId: provider.id, enabled: true }))
@@ -70,9 +74,11 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
         logger.error(`Failed to list models for provider ${provider.id}`, error as Error)
       }
     }
+
     return models
   } catch (error) {
     logger.error('Failed to list available models', error as Error)
+
     return []
   }
 }
@@ -83,6 +89,7 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
  */
 function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   const apiModelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+
   return {
     id: formatGatewayModelId(model.providerId, apiModelId),
     object: 'model',
@@ -102,40 +109,48 @@ export async function resolveGatewayModelAddress(
   internal = false
 ): Promise<ResolvedGatewayModelAddress> {
   const sepIdx = modelAddress.indexOf(':')
+
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
     throw gatewayModelError(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`, 400)
   }
 
   const providerId = modelAddress.slice(0, sepIdx)
   const apiModelId = modelAddress.slice(sepIdx + 1)
+
   if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
     throw gatewayModelError('CherryAI managed default model is not available through the API gateway', 400)
   }
 
   let provider: Provider
+
   try {
     provider = providerService.getByProviderId(providerId)
   } catch {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
+
   if (!provider.isEnabled || isExternalCliProvider(provider)) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 
   const isRoutableModel = internal ? isGatewayRoutableModel : isPublicGatewayRoutableModel
+
   const candidates = modelService
     .list({ providerId, enabled: true })
     .filter((candidate) => isRoutableModel(candidate))
     .map((candidate) => ({ candidate, id: candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId }))
+
   // Exact ids win, so catalog models whose id itself ends in `[1m]` stay addressable. Otherwise fall
   // back to the id without a Claude Code context marker / trailing whitespace (e.g. `model [1M]`, or
   // `model ` after Claude Code strips the bracket token from a spaced marker).
   const normalizedApiModelId = stripClaudeContextMarker(apiModelId)
+
   const match =
     candidates.find(({ id }) => id === apiModelId) ??
     (normalizedApiModelId && normalizedApiModelId !== apiModelId
       ? candidates.find(({ id }) => id === normalizedApiModelId)
       : undefined)
+
   if (!match) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
@@ -155,12 +170,15 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
 
     // Deduplicate by the gateway-addressable id ("providerId:apiModelId").
     const uniqueModels = new Map<string, ApiModel>()
+
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
+
       // External-CLI providers carry no app-side credentials and cannot be proxied.
       if (provider && isAgentOnlyProvider(provider)) {
         continue
       }
+
       // Same routable-model predicate as the renderer's gateway picker — the
       // listing must never advertise a model the proxy cannot route.
       if (!isPublicGatewayRoutableModel(model)) {
@@ -168,6 +186,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
       }
 
       const apiModel = transformModelToOpenAi(model, provider)
+
       if (!uniqueModels.has(apiModel.id)) {
         uniqueModels.set(apiModel.id, apiModel)
       }
@@ -176,6 +195,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     let modelData = Array.from(uniqueModels.values())
     const offset = filter.offset ?? 0
     const limit = filter.limit
+
     if (limit !== undefined) {
       modelData = modelData.slice(offset, offset + limit)
     } else if (offset > 0) {
@@ -183,9 +203,11 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     }
 
     logger.info('Models retrieved', { returned: modelData.length, discovered: models.length })
+
     return { object: 'list', data: modelData }
   } catch (error) {
     logger.error('Error getting models', error as Error)
+
     return { object: 'list', data: [] }
   }
 }

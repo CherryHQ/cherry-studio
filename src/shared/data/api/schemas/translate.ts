@@ -28,6 +28,7 @@ export const CreateTranslateHistorySchema = TranslateHistorySchema.pick({
   sourceLanguage: true,
   targetLanguage: true
 })
+
 /**
  * DTO for creating a translate history record. Uses `.strict()` — unknown
  * fields (including server-managed `id`/`createdAt`/`updatedAt`/`star`) are
@@ -42,6 +43,7 @@ export const UpdateTranslateHistorySchema = TranslateHistorySchema.pick({
   targetLanguage: true,
   star: true
 }).partial()
+
 /**
  * DTO for updating a translate history record. All fields optional. Uses
  * `.strict()` — unknown fields (including `id`/`createdAt`) are rejected
@@ -70,8 +72,10 @@ export const TranslateHistoryQuerySchema = z
     star: z.boolean().optional()
   })
   .strict()
+
 /** Parsed query parameters for listing translate histories. */
 export type TranslateHistoryQuery = z.infer<typeof TranslateHistoryQuerySchema>
+
 /** Input query parameters accepted by the API before schema defaults are applied. */
 export type TranslateHistoryQueryParams = z.input<typeof TranslateHistoryQuerySchema> & CursorPaginationParams
 
@@ -89,6 +93,7 @@ export const CreateTranslateLanguageSchema = TranslateLanguageSchema.pick({
   value: true,
   emoji: true
 })
+
 /**
  * DTO for creating a translate language. Uses `.strict()` — unknown fields
  * are rejected rather than silently stripped, matching `UpdateTranslateLanguageSchema`.
@@ -99,6 +104,7 @@ export const UpdateTranslateLanguageSchema = TranslateLanguageSchema.pick({
   value: true,
   emoji: true
 }).partial()
+
 /**
  * DTO for updating a translate language. Uses `.strict()` — unknown fields
  * (including `langCode`) are rejected, not silently stripped.

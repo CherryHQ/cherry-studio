@@ -28,12 +28,15 @@ const PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
 const PINCH_WHEEL_PIXEL_DIVISOR = 10
 const PINCH_WHEEL_IDLE_RESET_MS = 180
 const PINCH_SCALE_SENSITIVITY = 0.075
+
 // PDFViewer in pdf.js 5.4.296 clamps to these bounds but does not export them.
 const PDF_MIN_SCALE = 0.1
 const PDF_MAX_SCALE = 10
 
 type PdfJsViewer = InstanceType<typeof PDFViewer>
+
 type PdfJsLinkService = InstanceType<typeof PDFLinkService>
+
 type PdfViewerOptionsWithAbortSignal = ConstructorParameters<typeof PDFViewer>[0] & { abortSignal: AbortSignal }
 
 interface PdfPageChangingEvent {
@@ -50,6 +53,7 @@ interface PdfViewAreaEvent {
 
 function isEffectiveBackground(value: string): boolean {
   const normalized = value.trim().toLowerCase()
+
   return Boolean(normalized && normalized !== 'transparent' && normalized !== 'rgba(0, 0, 0, 0)')
 }
 
@@ -58,10 +62,12 @@ function resolveThemeBackground(element: HTMLElement | null): string | null {
 
   for (const candidate of candidates) {
     const value = getComputedStyle(candidate).getPropertyValue('--background').trim()
+
     if (value) return value
   }
 
   const backgroundColor = getComputedStyle(document.documentElement).backgroundColor
+
   return isEffectiveBackground(backgroundColor) ? backgroundColor : null
 }
 
@@ -133,6 +139,7 @@ export default function PdfFilePreview({
   const linkServiceRef = useRef<PdfJsLinkService | null>(null)
   // Restoring a numeric scale keeps the view unchanged; retain the preset separately for later resizes.
   const zoomIntentRef = useRef({ value: DEFAULT_PDF_SCALE, width: 0 })
+
   const readingPositionRef = useRef<{
     scale: number
     page: number
@@ -140,13 +147,16 @@ export default function PdfFilePreview({
     left: number
     viewBox: number[]
   } | null>(null)
+
   const captureReadingPosition = useCallback(() => {
     const viewer = pdfViewerRef.current
     const container = containerRef.current
+
     if (!viewer || restoredViewerRef.current !== viewer || !container || container.clientHeight === 0) return
     // Recompute PDF.js's first-visible-page anchor before teardown, including a scroll in this frame.
     viewer.update()
   }, [])
+
   // Activity disconnects layout effects before hiding the DOM; passive cleanup sees a zero-sized viewport.
   useLayoutEffect(() => captureReadingPosition, [captureReadingPosition])
   const [background, setBackground] = useState(() => resolveThemeBackground(null))
@@ -168,6 +178,7 @@ export default function PdfFilePreview({
 
   const applyViewerBackground = useCallback((nextBackground: string | null) => {
     const viewer = viewerRef.current
+
     if (!viewer) return
 
     if (nextBackground) {
@@ -201,6 +212,7 @@ export default function PdfFilePreview({
   const jumpToPage = useCallback(
     (pageNumber: number) => {
       const pdfViewer = pdfViewerRef.current
+
       if (!pdfViewer || pageCount <= 0) return
 
       const nextPage = clamp(pageNumber, 1, pageCount)
@@ -214,16 +226,20 @@ export default function PdfFilePreview({
   // The token guards against a slow text fetch reporting a stale pick: a new pick empties the host
   // while that page's text is in flight, so the chip can never quote the page the marker just left.
   const pickTokenRef = useRef(0)
+
   const handlePick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (!onSelection || !(event.target instanceof Element)) return
+
       if (event.target.closest('a[href]')) event.preventDefault()
 
       const resolved = pageToPdfAnchor(event.target)
       const token = ++pickTokenRef.current
+
       if (!resolved || resolved.page === pickedPage || !documentProxy) {
         setPickedPage(null)
         onSelection(null)
+
         return
       }
 
@@ -233,14 +249,17 @@ export default function PdfFilePreview({
         .getPage(resolved.page)
         .then(async (page) => {
           const content = await page.getTextContent()
+
           if (token !== pickTokenRef.current) return
           const excerpt = content.items.map((item) => ('str' in item ? item.str : '')).join(' ')
+
           const reference = createPreviewSelection({
             sourceId,
             anchor: { format: 'pdf', page: resolved.page },
             excerpt,
             revision: previewDocument.revision
           })
+
           // A page with no text at all: drop the marker the click put on, so no page stays outlined
           // as picked while the host holds nothing.
           if (!reference) setPickedPage(null)
@@ -261,10 +280,12 @@ export default function PdfFilePreview({
   // `zoom` change, which re-renders in place) repaints it. A rebuild is not a pick — report nothing.
   useEffect(() => {
     const viewerElement = viewerRef.current
+
     if (!viewerElement) return
 
     const applyMarker = () => {
       viewerElement.querySelectorAll('[data-pdf-picked]').forEach((marked) => marked.removeAttribute('data-pdf-picked'))
+
       if (pickedPage === null) return
       viewerElement.querySelector(`.page[data-page-number="${pickedPage}"]`)?.setAttribute('data-pdf-picked', 'true')
     }
@@ -272,6 +293,7 @@ export default function PdfFilePreview({
     applyMarker()
     const observer = new MutationObserver(applyMarker)
     observer.observe(viewerElement, { childList: true })
+
     return () => observer.disconnect()
   }, [pickedPage, zoom])
 
@@ -299,9 +321,11 @@ export default function PdfFilePreview({
   const zoomBy = useCallback(
     (direction: 'in' | 'out') => {
       const pdfViewer = pdfViewerRef.current
+
       if (!pdfViewer) return
 
       const options = { drawingDelay: ZOOM_DRAWING_DELAY }
+
       if (direction === 'in') {
         pdfViewer.increaseScale(options)
       } else {
@@ -311,6 +335,7 @@ export default function PdfFilePreview({
       if (Number.isFinite(pdfViewer.currentScale) && pdfViewer.currentScale > 0) {
         setZoom(pdfViewer.currentScale)
       }
+
       focusContainer()
     },
     [focusContainer]
@@ -318,6 +343,7 @@ export default function PdfFilePreview({
 
   const resetZoom = useCallback(() => {
     const pdfViewer = pdfViewerRef.current
+
     if (!pdfViewer) return
 
     pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
@@ -330,6 +356,7 @@ export default function PdfFilePreview({
   const navigateToOutlineDestination = useCallback(
     (destination: PdfDestination) => {
       const linkService = linkServiceRef.current
+
       if (!linkService) return
 
       if (outlineLayout === 'overlay') {
@@ -349,25 +376,32 @@ export default function PdfFilePreview({
   useEffect(() => {
     const container = containerRef.current
     const viewer = pdfViewerRef.current
+
     if (!responsiveLayout || status !== 'ready' || !container || !viewer) return
 
     const observer = new ResizeObserver(() => {
       const nextWidth = container.clientWidth
+
       if (nextWidth <= 0 || nextWidth === zoomIntentRef.current.width) return
       zoomIntentRef.current.width = nextWidth
+
       if (zoomIntentRef.current.value === DEFAULT_PDF_SCALE) {
         viewer.currentScaleValue = DEFAULT_PDF_SCALE
       }
     })
+
     observer.observe(container)
+
     return () => observer.disconnect()
   }, [responsiveLayout, status, documentProxy])
 
   useEffect(() => {
     const pdfViewer = pdfViewerRef.current
+
     if (pdfViewer) {
       pdfViewer.pageColors = background ? { background } : null
     }
+
     applyViewerBackground(background)
   }, [applyViewerBackground, background])
 
@@ -377,6 +411,7 @@ export default function PdfFilePreview({
     const target = document.documentElement
     const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateBackground)
     observer?.observe(target, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+
     // Hosts may theme the preview root itself (a `dark` class or token overrides) instead of the page.
     if (previewRoot) observer?.observe(previewRoot, { attributes: true, attributeFilter: ['class', 'style'] })
 
@@ -417,10 +452,13 @@ export default function PdfFilePreview({
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Worker/resource setup and pdf.js loading catches join range-reader failures here; normalize only after checking the current document.
     const failLoad = (error: unknown) => {
       if (cancelled || failed) return
+
       if (!isCurrent()) {
         dispose()
+
         return
       }
+
       failed = true
       dispose()
       const normalized = error instanceof Error ? error : new Error(String(error))
@@ -429,11 +467,14 @@ export default function PdfFilePreview({
           ? new PreviewError('too_large', normalized.message, { cause: normalized })
           : normalized
       )
+
       if (normalized instanceof PdfRangeTooLargeError) {
         setDocumentProxy(null)
         setStatus('too_large')
+
         return
       }
+
       setDocumentProxy(null)
       setStatus('error')
     }
@@ -456,6 +497,7 @@ export default function PdfFilePreview({
             : new Worker(new URL('./pdf.worker.ts', import.meta.url), { type: 'module' })
         worker = PDFWorker.create({ port: workerPort })
         rangeTransport = new PdfFileRangeTransport(previewDocument, failLoad)
+
         const loadingOptions = {
           worker,
           range: rangeTransport,
@@ -464,18 +506,22 @@ export default function PdfFilePreview({
           disableStream: true,
           cMapPacked: true
         }
+
         if (resourceBase)
           Object.assign(loadingOptions, {
             cMapUrl: new URL('cmaps/', resourceBase).href,
             standardFontDataUrl: new URL('standard_fonts/', resourceBase).href
           })
         Object.assign(loadingOptions, { useWorkerFetch: !resources?.readPdfResource })
+
         if (resources?.readPdfResource)
           Object.assign(loadingOptions, createPdfResourceFactories(resources.readPdfResource))
         loadingTask = getDocument(loadingOptions)
         const nextDocument = await loadingTask.promise
+
         if (!isCurrent() || failed) {
           dispose()
+
           return
         }
 
@@ -521,6 +567,7 @@ export default function PdfFilePreview({
   useEffect(() => {
     const container = containerRef.current
     const viewerElement = viewerRef.current
+
     if (!documentProxy || documentProxy.loadingTask.destroyed || !container || !viewerElement) return
 
     const eventBus = new EventBus()
@@ -538,6 +585,7 @@ export default function PdfFilePreview({
         abortSignal: viewerAbortController.signal,
         annotationMode: AnnotationMode.ENABLE
       }
+
       if (backgroundRef.current) viewerOptions.pageColors = { background: backgroundRef.current }
       viewerOptions.supportsPinchToZoom = true
       pdfViewer = new PDFViewer(viewerOptions)
@@ -546,10 +594,12 @@ export default function PdfFilePreview({
       const normalized = error instanceof Error ? error : new Error(String(error))
       failDocument?.(normalized)
       setStatus('error')
+
       return
     }
 
     const syncBackground = () => applyViewerBackground(backgroundRef.current)
+
     const syncPreviewControls = () => {
       const nextPageCount = documentProxy.numPages
       setPageCount(nextPageCount)
@@ -559,29 +609,36 @@ export default function PdfFilePreview({
         setZoom(pdfViewer.currentScale)
       }
     }
+
     const handlePagesInit = () => {
       syncBackground()
       syncPreviewControls()
     }
+
     const handlePageChanging = (event?: PdfPageChangingEvent) => {
       const nextPageCount = documentProxy.numPages
       const nextPage = event?.pageNumber ?? pdfViewer.currentPageNumber
       setPageCount(nextPageCount)
       setCurrentPage(nextPageCount > 0 ? clamp(nextPage, 1, nextPageCount) : 0)
     }
+
     const handleScaleChanging = (event?: PdfScaleChangingEvent) => {
       const nextScale = event?.scale ?? pdfViewer.currentScale
+
       if (typeof nextScale === 'number' && Number.isFinite(nextScale) && nextScale > 0) {
         if (restoredViewerRef.current === pdfViewer) {
           zoomIntentRef.current = { value: pdfViewer.currentScaleValue, width: container.clientWidth }
         }
+
         setZoom(nextScale)
       }
     }
+
     const handleViewArea = (event: PdfViewAreaEvent) => {
       if (restoredViewerRef.current !== pdfViewer || container.clientHeight === 0) return
       const { pageNumber, left, top } = event.location
       const pageView = pdfViewer.getPageView(pageNumber - 1)
+
       if (!pageView?.pdfPage) return
       readingPositionRef.current = {
         scale: pdfViewer.currentScale,
@@ -591,29 +648,35 @@ export default function PdfFilePreview({
         viewBox: [...pageView.viewport.viewBox]
       }
     }
+
     const zoomOptions = { drawingDelay: ZOOM_DRAWING_DELAY }
     let pinchWheelDelta = 0
     let pinchWheelResetTimer: number | null = null
     let pinchWheelAnimationFrame: number | null = null
     let pinchWheelOrigin: [number, number] = [0, 0]
+
     const clearPinchWheelResetTimer = () => {
       if (pinchWheelResetTimer === null) return
       window.clearTimeout(pinchWheelResetTimer)
       pinchWheelResetTimer = null
     }
+
     const resetPinchWheelDelta = () => {
       pinchWheelDelta = 0
       clearPinchWheelResetTimer()
     }
+
     const schedulePinchWheelReset = () => {
       clearPinchWheelResetTimer()
       pinchWheelResetTimer = window.setTimeout(resetPinchWheelDelta, PINCH_WHEEL_IDLE_RESET_MS)
     }
+
     const schedulePinchWheelAnimationFrame = () => {
       if (pinchWheelAnimationFrame !== null) return
 
       pinchWheelAnimationFrame = window.requestAnimationFrame(() => {
         pinchWheelAnimationFrame = null
+
         if (Math.abs(pinchWheelDelta) < PINCH_WHEEL_MIN_DELTA) return
 
         const scaleFactor = clamp(Math.exp(-pinchWheelDelta * PINCH_SCALE_SENSITIVITY), 0.94, 1.06)
@@ -622,16 +685,21 @@ export default function PdfFilePreview({
         pdfViewer.updateScale({ origin, scaleFactor })
       })
     }
+
     const clearPinchWheelTimers = () => {
       resetPinchWheelDelta()
+
       if (pinchWheelAnimationFrame === null) return
       window.cancelAnimationFrame(pinchWheelAnimationFrame)
       pinchWheelAnimationFrame = null
     }
+
     const scaleOrigin = ([clientX, clientY]: [number, number]): [number, number] => {
       const rect = container.getBoundingClientRect()
+
       return [clientX - rect.left + container.offsetLeft, clientY - rect.top + container.offsetTop]
     }
+
     const handleWheelZoom = (event: WheelEvent) => {
       if ((!event.ctrlKey && !event.metaKey) || event.deltaY === 0) return
 
@@ -641,9 +709,11 @@ export default function PdfFilePreview({
       schedulePinchWheelReset()
       schedulePinchWheelAnimationFrame()
     }
+
     let touchPinchFactor = 1
     let touchPinchOrigin: [number, number] = [0, 0]
     let touchPinchFrame: number | null = null
+
     const applyTouchPinch = () => {
       touchPinchFrame = null
       const targetScale = clamp(pdfViewer.currentScale * touchPinchFactor, PDF_MIN_SCALE, PDF_MAX_SCALE)
@@ -654,23 +724,28 @@ export default function PdfFilePreview({
       })
       touchPinchFactor = targetScale / pdfViewer.currentScale
     }
+
     const endTouchPinch = () => {
       if (touchPinchFrame !== null) {
         window.cancelAnimationFrame(touchPinchFrame)
         applyTouchPinch()
       }
+
       touchPinchFactor = 1
     }
+
     // Coalesce a gesture's steps per frame; drawingDelay CSS-scales pages until the fingers settle.
     const detachTouchPinch = attachTouchPinch(
       container,
       (scaleFactor, origin) => {
         touchPinchFactor *= scaleFactor
         touchPinchOrigin = scaleOrigin(origin)
+
         if (touchPinchFrame === null) touchPinchFrame = window.requestAnimationFrame(applyTouchPinch)
       },
       endTouchPinch
     )
+
     const handleKeyboardZoom = (event: KeyboardEvent) => {
       if (!event.ctrlKey && !event.metaKey) return
 
@@ -678,6 +753,7 @@ export default function PdfFilePreview({
         event.preventDefault()
         pdfViewer.increaseScale(zoomOptions)
         handleScaleChanging()
+
         return
       }
 
@@ -685,6 +761,7 @@ export default function PdfFilePreview({
         event.preventDefault()
         pdfViewer.decreaseScale(zoomOptions)
         handleScaleChanging()
+
         return
       }
 
@@ -706,48 +783,67 @@ export default function PdfFilePreview({
         .then(async () => {
           if (!isCurrent()) return
           const position = readingPositionRef.current
+
           if (position) {
             const pageNumber = clamp(position.page, 1, documentProxy.numPages)
+
             const ensurePageGeometry = async (number: number): Promise<PDFPageView | null> => {
               const view: PDFPageView = pdfViewer.getPageView(number - 1)
+
               if (!view.pdfPage) {
                 const page = await documentProxy.getPage(number)
+
                 if (!isCurrent()) return null
+
                 if (!view.pdfPage) view.setPdfPage(page)
               }
+
               return view
             }
+
             const pageView = await ensurePageGeometry(pageNumber)
+
             if (!pageView || !isCurrent()) return
             pdfViewer.currentPageNumber = pageNumber
             pdfViewer.currentScaleValue = String(position.scale)
+
             const point =
               pageNumber === position.page
                 ? [position.left, position.top].map((value, axis) => {
                     const min = pageView.viewport.viewBox[axis]
                     const max = pageView.viewport.viewBox[axis + 2]
+
                     // Preserve native page margins; constrain formerly in-page points to the new bounds.
                     if (value < position.viewBox[axis]) return min + value - position.viewBox[axis]
+
                     if (value > position.viewBox[axis + 2]) return max + value - position.viewBox[axis + 2]
+
                     return clamp(value, min, max)
                   })
                 : null
+
             // Unloaded views inherit page 1's size. Resolve the reading area before scrolling so
             // a short placeholder after the anchor cannot clamp the destination above that anchor.
             const offsetTop = point ? pageView.viewport.convertToViewportPoint(point[0], point[1])[1] : 0
             let remainingHeight = container.clientHeight + offsetTop - pageView.height
+
             for (let number = pageNumber + 1; remainingHeight > 0 && number <= documentProxy.numPages; number++) {
               const nextPage = await ensurePageGeometry(number)
+
               if (!nextPage || !isCurrent()) return
               remainingHeight -= nextPage.height
             }
+
             // At the document end, the clamped viewport also includes pages before the anchor.
             remainingHeight -= Math.max(0, offsetTop)
+
             for (let number = pageNumber - 1; remainingHeight > 0 && number >= 1; number--) {
               const previousPage = await ensurePageGeometry(number)
+
               if (!previousPage || !isCurrent()) return
               remainingHeight -= previousPage.height
             }
+
             pdfViewer.scrollPageIntoView({
               pageNumber,
               destArray: [null, { name: 'XYZ' }, point?.[0] ?? null, point?.[1] ?? null, null],
@@ -758,6 +854,7 @@ export default function PdfFilePreview({
             zoomIntentRef.current = { value: DEFAULT_PDF_SCALE, width: container.clientWidth }
             pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
           }
+
           syncBackground()
           syncPreviewControls()
           restoredViewerRef.current = pdfViewer
@@ -799,13 +896,17 @@ export default function PdfFilePreview({
       container.removeEventListener('pointerdown', focusContainer)
       clearPinchWheelTimers()
       detachTouchPinch()
+
       if (touchPinchFrame !== null) window.cancelAnimationFrame(touchPinchFrame)
       detachDocument(pdfViewer)
       pdfViewer.cleanup()
+
       if (pdfViewerRef.current === pdfViewer) {
         pdfViewerRef.current = null
       }
+
       if (restoredViewerRef.current === pdfViewer) restoredViewerRef.current = null
+
       if (linkServiceRef.current === linkService) {
         linkServiceRef.current = null
       }
@@ -896,6 +997,7 @@ export default function PdfFilePreview({
             className="absolute top-0 left-0 h-full w-64 max-w-[calc(100%-2rem)] translate-x-0 translate-y-0 gap-0 rounded-none p-0 sm:max-w-64"
             onCloseAutoFocus={(event) => {
               event.preventDefault()
+
               if (outlineNavigatedRef.current) focusContainer()
               else outlineTriggerRef.current?.focus({ preventScroll: true })
             }}>

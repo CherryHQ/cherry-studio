@@ -13,6 +13,7 @@ export function ToolResultLink({ url, isImage, name }: ToolResultLinkData) {
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
   const [failedSource, setFailedSource] = useState<string | null>(null)
+
   const { data: imageSource } = useSWRImmutable(
     ['tool-result-image', url, isImage],
     ([, targetUrl, imageHint]) => ipcApi.request('tool_result.preview_image', { url: targetUrl, imageHint }),

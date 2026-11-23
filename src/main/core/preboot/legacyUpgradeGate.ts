@@ -25,30 +25,40 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
   try {
     if (app.isPackaged && process.platform === 'win32' && isPortable) {
       const executable = application.getPath('app.portable_executable')
+
       if (
         executable &&
         restoreInterruptedPortableTraySetting(executable, path.join(path.dirname(executable), 'data')) === 'busy'
       ) {
         application.quit()
+
         return 'handled'
       }
     }
+
     const profile = findLegacyUpgradeProfile()
+
     if (!profile) return 'skipped'
+
     if (profile.kind === 'recover') {
       const previous = bootConfigService.get('app.user_data_path')
       bootConfigService.set('app.user_data_path', { ...previous, [getNormalizedExecutablePath()]: profile.path })
+
       try {
         bootConfigService.persist()
       } catch (error) {
         bootConfigService.set('app.user_data_path', previous)
         throw error
       }
+
       application.relaunch()
+
       return 'handled'
     }
+
     await app.whenReady()
     const language = resolveSystemLanguage(app.getLocale())
+
     const platform = {
       platform: process.platform,
       arch: process.arch,
@@ -57,9 +67,12 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
       edition: getAppEdition(),
       linuxPackageType: getLegacyLinuxPackageType()
     }
+
     const eligibility = getLegacyBridgeEligibility(profile.path)
+
     const prerequisiteTarget =
       eligibility.target?.version === LEGACY_PREREQUISITE_VERSION ? eligibility.target : undefined
+
     await showLegacyUpgradeWindow(
       {
         title: t('dialog.legacy_upgrade.title', undefined, language),
@@ -111,6 +124,8 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
       t('dialog.legacy_upgrade.error', { error: error instanceof Error ? error.message : String(error) }, language)
     )
   }
+
   application.quit()
+
   return 'handled'
 }

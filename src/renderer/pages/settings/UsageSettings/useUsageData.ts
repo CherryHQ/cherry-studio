@@ -49,6 +49,7 @@ export function useUsageData({
     () => ({ metric: 'tokens' as const, limit: 1, ...toQueryRange(windowRange) }),
     [windowRange]
   )
+
   const timelineQueryResult = useQuery('/ai-usage-records/timeline', { query: timelineQuery })
   const costTotals = useMemo(() => timelineQueryResult.data?.costTotals ?? [], [timelineQueryResult.data?.costTotals])
   const activeCostTotal = selectCostTotal(costTotals, selectedCurrency)
@@ -65,6 +66,7 @@ export function useUsageData({
     }),
     [queryCurrency, windowRange]
   )
+
   const previousOverviewStatsQuery = useMemo(
     () => ({
       groupBy: 'model' as const,
@@ -75,6 +77,7 @@ export function useUsageData({
     }),
     [previousWindowRange, queryCurrency]
   )
+
   const exploreQuery = useMemo(
     () => ({
       groupBy,
@@ -85,21 +88,26 @@ export function useUsageData({
     }),
     [chartMetric, groupBy, queryCurrency, topCount, windowRange]
   )
+
   const overviewStatsResult = useQuery('/ai-usage-records/stats', { query: overviewStatsQuery })
   const previousOverviewStatsResult = useQuery('/ai-usage-records/stats', { query: previousOverviewStatsQuery })
+
   const exploreStatsResult = useQuery('/ai-usage-records/stats', {
     query: exploreQuery,
     swrOptions: { keepPreviousData: false }
   })
+
   const exploreTimelineResult = useQuery('/ai-usage-records/timeline', {
     query: exploreQuery,
     enabled: rollup !== 'total'
   })
+
   const refetchTimeline = timelineQueryResult.refetch
   const refetchOverviewStats = overviewStatsResult.refetch
   const refetchPreviousOverviewStats = previousOverviewStatsResult.refetch
   const refetchExploreStats = exploreStatsResult.refetch
   const refetchExploreTimeline = exploreTimelineResult.refetch
+
   const refreshUsageReadModels = useMemo(
     () =>
       debounce(() => {
@@ -113,14 +121,17 @@ export function useUsageData({
       }, USAGE_REFRESH_DEBOUNCE_MS),
     [refetchExploreStats, refetchExploreTimeline, refetchOverviewStats, refetchPreviousOverviewStats, refetchTimeline]
   )
+
   useDataChange(['/ai-usage-records', '/ai-usage-records/stats', '/ai-usage-records/timeline'], refreshUsageReadModels)
   useEffect(() => () => refreshUsageReadModels.cancel(), [refreshUsageReadModels])
 
   const timelineRows = timelineQueryResult.data?.buckets ?? EMPTY_TIMELINE_BUCKETS
   const overviewBuckets = overviewStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
   const exploreBuckets = exploreStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
+
   const exploreTimelineRows =
     rollup === 'total' ? EMPTY_TIMELINE_BUCKETS : (exploreTimelineResult.data?.buckets ?? EMPTY_TIMELINE_BUCKETS)
+
   const timelineBuckets = useMemo(
     () => applyTimelineCurrency(timelineRows, timelineQueryResult.data?.dailyCosts ?? [], costCurrency),
     [costCurrency, timelineQueryResult.data?.dailyCosts, timelineRows]
@@ -154,16 +165,21 @@ interface UseUsageEntriesDataOptions {
 
 export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }: UseUsageEntriesDataOptions) {
   const queryCurrency = currency ?? CURRENCY.USD
+
   const entriesQuery = useMemo(() => {
     const query: Pick<AiUsageRecordListQuery, 'sortBy' | 'sortOrder' | 'costCurrency'> = { sortBy, sortOrder }
+
     if (sortBy === 'cost') query.costCurrency = queryCurrency
+
     return { ...query, ...toQueryRange(windowRange) }
   }, [queryCurrency, sortBy, sortOrder, windowRange])
+
   const { pages, isLoading, isRefreshing, hasNext, loadNext, refresh, reset } = useInfiniteQuery('/ai-usage-records', {
     query: entriesQuery,
     limit: ENTRY_PAGE_SIZE,
     swrOptions: { keepPreviousData: true }
   })
+
   const entries = useInfiniteFlatItems(pages)
   const total = pages[0]?.total ?? 0
 
@@ -181,6 +197,7 @@ export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }
       }, USAGE_REFRESH_DEBOUNCE_MS),
     [refresh, reset]
   )
+
   useDataChange(['/ai-usage-records'], refreshEntries)
   useEffect(() => () => refreshEntries.cancel(), [refreshEntries])
 

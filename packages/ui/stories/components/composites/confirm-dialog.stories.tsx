@@ -45,10 +45,12 @@ const meta: Meta<typeof ConfirmDialog> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 function DefaultDemo() {
   const [open, setOpen] = useState(false)
+
   return (
     <>
       <Button onClick={() => setOpen(true)}>Open Dialog</Button>
@@ -69,6 +71,7 @@ export const Default: Story = {
 
 function DestructiveDemo() {
   const [open, setOpen] = useState(false)
+
   return (
     <>
       <Button variant="destructive" onClick={() => setOpen(true)}>
@@ -123,6 +126,7 @@ export const WithLoading: Story = {
 
 function WithCustomContentDemo() {
   const [open, setOpen] = useState(false)
+
   return (
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
@@ -162,6 +166,7 @@ export const WithCustomContent: Story = {
 
 function CustomButtonTextDemo() {
   const [open, setOpen] = useState(false)
+
   return (
     <>
       <Button onClick={() => setOpen(true)}>Logout</Button>

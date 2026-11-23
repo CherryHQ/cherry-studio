@@ -9,7 +9,9 @@
 export function surrogateSafeEnd(text: string, end: number): number {
   if (end > 0 && end < text.length) {
     const c = text.charCodeAt(end - 1)
+
     if (c >= 0xd800 && c <= 0xdbff) return end - 1
   }
+
   return end
 }

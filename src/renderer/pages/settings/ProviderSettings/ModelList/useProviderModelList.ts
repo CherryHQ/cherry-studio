@@ -92,6 +92,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     isLoading: isModelsLoading,
     refetch: refetchModels
   } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
+
   const { deleteModel, deleteModels } = useModelMutations()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
@@ -102,6 +103,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [optimisticDeletedByModelId, setOptimisticDeletedByModelId] = useState<Record<string, true>>({})
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
+
   const defaultModelIds = useMemo(
     () =>
       new Set(
@@ -118,6 +120,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   )
 
   const modelStatuses = useModelListHealthRun().completedModelStatuses
+
   const fullyFailedModelIds = useMemo(
     () => new Set(modelStatuses.filter(isModelCompletelyFailed).map((status) => status.model.id)),
     [modelStatuses]
@@ -149,6 +152,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
   const displayState = useMemo<DisplayedSectionState>(() => {
     const preserveGroupOrder = Boolean(searchText.trim())
+
     // The order lives in the entries, not a record: a group named like a number
     // (`10`, `2`) is reordered by JavaScript's integer-key rule the moment it
     // becomes an object key, which would discard the order the models arrived in.
@@ -177,9 +181,11 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     async (modelIds: readonly UniqueModelId[]) => {
       try {
         const refreshedModels = (await refetchModels()) as readonly Model[] | undefined
+
         if (!refreshedModels) return false
 
         const refreshedModelIds = new Set(refreshedModels.map((model) => model.id))
+
         return modelIds.every((modelId) => !refreshedModelIds.has(modelId))
       } catch {
         return false
@@ -191,6 +197,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const onDeleteModel = useCallback(
     async (model: Model) => {
       if (disabled) return
+
       if (defaultModelIds.has(model.id)) {
         return
       }
@@ -208,6 +215,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
           delete next[model.id]
+
           return next
         })
 
@@ -216,6 +224,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         setPendingModelIdMap((current) => {
           const next = { ...current }
           delete next[model.id]
+
           return next
         })
       }
@@ -227,9 +236,11 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     async (modelsToDelete: Model[]) => {
       if (disabled) return
       const deletableModels = modelsToDelete.filter((model) => !defaultModelIds.has(model.id))
+
       if (deletableModels.length === 0) {
         return
       }
+
       const deletableModelIds = deletableModels.map((model) => model.id)
 
       setOptimisticDeletedByModelId((current) => {

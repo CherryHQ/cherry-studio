@@ -33,11 +33,14 @@ export class RemoteAdvertisement {
           .map((entry) => entry.address)
       )
       .sort()
+
     const snapshot = JSON.stringify([identity, port, ipv6, addresses])
+
     if (snapshot === this.snapshot) return
     this.stop()
     this.snapshot = snapshot
     this.status('starting')
+
     try {
       const publisher = new Bonjour(undefined, (error: Error) => {
         if (this.publisher !== publisher) return
@@ -45,7 +48,9 @@ export class RemoteAdvertisement {
         this.stop()
         this.status('unavailable')
       })
+
       this.publisher = publisher
+
       const service = publisher.publish({
         name: this.name,
         host: `${this.name}.local`,
@@ -56,6 +61,7 @@ export class RemoteAdvertisement {
         port,
         txt: { v: '1', identity }
       })
+
       this.service = service
       service.on('up', () => {
         if (this.publisher === publisher) this.status('available')
@@ -70,17 +76,21 @@ export class RemoteAdvertisement {
   stop(): void {
     const publisher = this.publisher
     this.publisher = undefined
+
     if (this.service) this.service.destroyed = true
     this.service = undefined
     this.snapshot = undefined
+
     if (!publisher) return
     let destroyed = false
+
     const destroy = () => {
       if (destroyed) return
       destroyed = true
       clearTimeout(timer)
       publisher.destroy()
     }
+
     const timer = setTimeout(destroy, 500)
     timer.unref()
     publisher.unpublishAll(destroy)

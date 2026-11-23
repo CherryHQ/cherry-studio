@@ -105,6 +105,7 @@ function getEnv(config: NonNullable<CliConfigWriteArgs['configBlob']>): Record<s
   if (!config || typeof config.env !== 'object' || config.env === null) {
     return {}
   }
+
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked above; no claim is made about the values it contains.
   return config.env as Record<string, unknown>
 }
@@ -114,6 +115,7 @@ function getPermissions(config: NonNullable<CliConfigWriteArgs['configBlob']>): 
     // oxlint-disable-next-line anti-slop/no-known-value-widening -- Missing permission objects stay empty; defaultMode remains unvalidated until controls inspect it.
     return {}
   }
+
   return config.permissions
 }
 
@@ -121,8 +123,10 @@ function isAttributionHidden(config: NonNullable<CliConfigWriteArgs['configBlob'
   if (!config || typeof config.attribution !== 'object' || config.attribution === null) {
     return false
   }
+
   // SAFETY: The object container is checked above; equality checks below validate both optional fields.
   const attr = config.attribution as { commit?: unknown; pr?: unknown }
+
   return attr.commit === '' && attr.pr === ''
 }
 
@@ -135,8 +139,10 @@ function getRawModelId(
   gatewayModels: Map<UniqueModelId, Model> | undefined
 ): string {
   if (!uniqueModelId || !isUniqueModelId(uniqueModelId)) return ''
+
   if (!gatewayModels) return parseUniqueModelId(uniqueModelId).modelId
   const model = gatewayModels.get(uniqueModelId)
+
   return model ? (gatewayExpectedModel(uniqueModelId, model.apiModelId) ?? '') : ''
 }
 
@@ -147,6 +153,7 @@ function toProviderModelId(
 ): UniqueModelId | undefined {
   // modelId comes from a user-typed env value; never throw in a render path.
   if (!modelId) return undefined
+
   return gatewayModels
     ? gatewayModelIdFromAddress(modelId, gatewayModels)
     : providerId
@@ -175,6 +182,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   const updateEnvField = useCallback(
     (envKey: string, value: string) => {
       const nextEnv = { ...env }
+
       if (value) nextEnv[envKey] = value
       else delete nextEnv[envKey]
       onChange({ ...config, env: nextEnv })
@@ -186,13 +194,17 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
     (role: (typeof CLAUDE_MODEL_ROLES)[number], modelValue: string) => {
       const { model } = role
       const nextEnv = { ...env }
+
       if (modelValue) {
         nextEnv[model] = modelValue
+
         if ('name' in role) nextEnv[role.name] = stripClaudeOneMMarker(modelValue)
       } else {
         delete nextEnv[model]
+
         if ('name' in role) delete nextEnv[role.name]
       }
+
       onChange({ ...config, env: nextEnv })
     },
     [env, config, onChange]
@@ -210,6 +222,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   const updateReasoningEffort = useCallback(
     (effortLevel: string | undefined) => {
       const next = { ...config }
+
       if (effortLevel) next.effortLevel = effortLevel
       else delete next.effortLevel
       onChange(next)
@@ -220,6 +233,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   const updatePermissionMode = useCallback(
     (defaultMode: string | undefined) => {
       const next = { ...config }
+
       if (defaultMode) next.permissions = { defaultMode }
       else delete next.permissions
       onChange(next)
@@ -259,6 +273,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
           <div className="flex flex-wrap gap-1.5">
             {visibleToggles.map((field) => {
               const active = env[field.envKey] === field.onValue
+
               return (
                 <TogglePill
                   key={field.envKey}
@@ -297,6 +312,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
             const rawValue = typeof envValue === 'string' ? envValue : ''
             const roleModelId = stripClaudeOneMMarker(rawValue).trim()
             const uses1M = hasOneMMarker(rawValue)
+
             return (
               <div key={field.roleKey} className="flex items-center gap-2">
                 <span className="w-14 shrink-0 text-sm text-foreground">{t(field.labelKey)}</span>

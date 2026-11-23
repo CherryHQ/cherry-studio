@@ -41,6 +41,7 @@ const CopyButton: FC<CopyButtonProps> = ({
 
   const handleCopy: MouseEventHandler<HTMLButtonElement> = (event) => {
     onClick?.(event)
+
     if (event.defaultPrevented) return
 
     navigator.clipboard
@@ -58,6 +59,7 @@ const CopyButton: FC<CopyButtonProps> = ({
   }
 
   const ariaLabel = props['aria-label'] || tooltip || t('common.copy')
+
   const buttonStyle: CopyButtonStyle = {
     ...style,
     '--copy-button-color': color,

@@ -21,4 +21,5 @@ export const diagnosticReportTable = sqliteTable(
 )
 
 export type DiagnosticReportRow = typeof diagnosticReportTable.$inferSelect
+
 export type InsertDiagnosticReportRow = typeof diagnosticReportTable.$inferInsert

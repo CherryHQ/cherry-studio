@@ -7,5 +7,6 @@ import type { Model } from '@shared/data/types/model'
  */
 export function isSupportedToolUse(model: Model | undefined) {
   if (!model) return false
+
   return isFunctionCallingModel(model)
 }

@@ -6,6 +6,7 @@ import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 export async function embedKnowledgeQuery(base: KnowledgeBase, query: string): Promise<number[]> {
   const [embedding] = await embedKnowledgeTexts(base, [query])
+
   return embedding
 }
 
@@ -20,6 +21,7 @@ export async function embedKnowledgeTexts(
   }
 
   const uniqueModelId = parseEmbeddingModelId(base)
+
   const result = await application.get('AiService').embedMany({
     uniqueModelId,
     values,
@@ -31,6 +33,7 @@ export async function embedKnowledgeTexts(
 
 function parseEmbeddingModelId(base: KnowledgeBase) {
   const parsed = UniqueModelIdSchema.safeParse(base.embeddingModelId)
+
   if (parsed.success) {
     return parsed.data
   }

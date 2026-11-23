@@ -20,7 +20,9 @@ export const notificationHandlers: HandlersFor<NotificationSchemas> = {
   '/notifications/:id': {
     GET: async ({ params }) => {
       const record = notificationRecordService.getById(z.uuid().parse(params.id))
+
       if (!record) throw DataApiErrorFactory.notFound('Notification', params.id)
+
       return record
     },
     PATCH: async ({ params, body }) => {

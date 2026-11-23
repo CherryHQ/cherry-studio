@@ -19,8 +19,11 @@ import type { Attachment, ContextMessage, ToolCall } from './types'
 // Content/part types derived from ModelMessage — no part-type imports needed
 // (provider-utils does not export them all stably). Same trick as adapter.ts.
 type UserContent = Extract<ModelMessage, { role: 'user' }>['content']
+
 type AssistantContent = Extract<ModelMessage, { role: 'assistant' }>['content']
+
 type ToolContent = Extract<ModelMessage, { role: 'tool' }>['content']
+
 type ProviderOptions = Extract<ModelMessage, { role: 'system' }>['providerOptions']
 
 /**
@@ -60,6 +63,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
   for (const msg of messages) {
     if (msg.role === 'system') {
       const message: ModelMessageIR = { role: 'system', content: msg.content }
+
       if (msg.providerOptions) message._mmProviderOptions = msg.providerOptions
       ir.push(message)
       continue
@@ -75,6 +79,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
               .join('\n')
 
       const attachments: Attachment[] = []
+
       if (typeof msg.content !== 'string') {
         for (const part of msg.content) {
           if (part.type === 'file') {
@@ -82,6 +87,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
               mediaType: part.mediaType,
               data: typeof part.data === 'string' ? part.data : ''
             }
+
             if (part.filename) attachment.filename = part.filename
             attachments.push(attachment)
           } else if (part.type === 'image') {
@@ -99,7 +105,9 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
         _mmUserContent: msg.content,
         _mmOriginalText: text
       }
+
       if (msg.providerOptions) m._mmProviderOptions = msg.providerOptions
+
       if (attachments.length) m.attachments = attachments
       ir.push(m)
       continue
@@ -121,14 +129,17 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
         // injects a spurious placeholder, duplicating the inline result on
         // round-trip. The inline result round-trips verbatim via _mmAssistantContent.
         const inlineAnsweredIds = new Set<string>()
+
         for (const part of msg.content) {
           if (part.type === 'tool-call') toolCallNames.set(part.toolCallId, part.toolName)
+
           if (part.type === 'tool-result') inlineAnsweredIds.add(part.toolCallId)
         }
 
         assistantContent = msg.content.map((part) => {
           if (part.type !== 'tool-result') return part
           const toolName = toolCallNames.get(part.toolCallId)
+
           return toolName !== undefined && toolName !== part.toolName ? { ...part, toolName } : part
         })
 
@@ -152,6 +163,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
               mediaType: part.mediaType,
               data: typeof part.data === 'string' ? part.data : ''
             }
+
             if (part.filename) attachment.filename = part.filename
             attachments.push(attachment)
           }
@@ -160,15 +172,20 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
       }
 
       const joined = textParts.join('\n')
+
       const m: ModelMessageIR = {
         role: 'assistant',
         content: joined,
         _mmAssistantContent: assistantContent,
         _mmOriginalText: joined
       }
+
       if (msg.providerOptions) m._mmProviderOptions = msg.providerOptions
+
       if (toolCalls.length) m.tool_calls = toolCalls
+
       if (thinking) m.thinking = thinking
+
       if (attachments.length) m.attachments = attachments
       ir.push(m)
       continue
@@ -182,6 +199,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
       // belongs to the whole turn — attach it to the FIRST IR message only, so
       // toModelMessages re-emits exactly one providerOptions when coalescing.
       let firstOfMessage = true
+
       for (const part of msg.content) {
         if (part.type === 'tool-result') {
           const toolName = toolCallNames.get(part.toolCallId) ?? part.toolName
@@ -197,6 +215,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
             _mmOriginalText: text,
             _mmToolName: toolResult.toolName
           }
+
           if (firstOfMessage && msg.providerOptions) anchor._mmProviderOptions = msg.providerOptions
           firstOfMessage = false
           pending.length = 0
@@ -239,6 +258,7 @@ export function toModelMessages(messages: ContextMessage[]): ModelMessage[] {
   const out: ModelMessage[] = []
 
   let i = 0
+
   while (i < messages.length) {
     const msg = asMM(messages[i])
     const modified = msg._mmOriginalText !== undefined && msg._mmOriginalText !== msg.content
@@ -248,6 +268,7 @@ export function toModelMessages(messages: ContextMessage[]): ModelMessage[] {
         role: 'system',
         content: msg.content
       }
+
       if (msg._mmProviderOptions) message.providerOptions = msg._mmProviderOptions
       out.push(message)
       i++
@@ -260,6 +281,7 @@ export function toModelMessages(messages: ContextMessage[]): ModelMessage[] {
         content:
           !modified && msg._mmUserContent !== undefined ? msg._mmUserContent : [{ type: 'text', text: msg.content }]
       }
+
       if (msg._mmProviderOptions) message.providerOptions = msg._mmProviderOptions
       out.push(message)
       i++
@@ -274,6 +296,7 @@ export function toModelMessages(messages: ContextMessage[]): ModelMessage[] {
             ? msg._mmAssistantContent
             : [{ type: 'text', text: msg.content }]
       }
+
       if (msg._mmProviderOptions) message.providerOptions = msg._mmProviderOptions
       out.push(message)
       i++
@@ -286,12 +309,15 @@ export function toModelMessages(messages: ContextMessage[]): ModelMessage[] {
       // message of the original tool turn (see fromModelMessages). Take the
       // first non-undefined across the coalesced group.
       let providerOptions: ProviderOptions
+
       while (i < messages.length && messages[i].role === 'tool') {
         const t = asMM(messages[i])
         const tModified = t._mmOriginalText !== undefined && t._mmOriginalText !== t.content
+
         if (providerOptions === undefined && t._mmProviderOptions) {
           providerOptions = t._mmProviderOptions
         }
+
         if (!tModified && t._mmToolContent) {
           content.push(...t._mmToolContent)
         } else {
@@ -302,9 +328,12 @@ export function toModelMessages(messages: ContextMessage[]): ModelMessage[] {
             output: { type: 'text', value: t.content }
           })
         }
+
         i++
       }
+
       const message: Extract<ModelMessage, { role: 'tool' }> = { role: 'tool', content }
+
       if (providerOptions) message.providerOptions = providerOptions
       out.push(message)
       continue

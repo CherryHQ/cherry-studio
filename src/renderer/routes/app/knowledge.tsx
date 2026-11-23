@@ -12,9 +12,11 @@ export const Route = createFileRoute('/app/knowledge')({
 function KnowledgeRoute() {
   const { baseId } = Route.useSearch()
   const navigate = Route.useNavigate()
+
   const handleBaseIdChange = useCallback(
     (nextBaseId?: string) => void navigate({ search: nextBaseId ? { baseId: nextBaseId } : {}, replace: true }),
     [navigate]
   )
+
   return <KnowledgePage baseId={baseId} onBaseIdChange={handleBaseIdChange} />
 }

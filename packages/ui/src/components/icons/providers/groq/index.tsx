@@ -4,6 +4,7 @@ import { GroqLight } from './light'
 
 const Groq = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GroqLight {...props} className={className} />
+
   return <GroqLight {...props} className={className} />
 }
 

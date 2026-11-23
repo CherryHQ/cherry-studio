@@ -35,10 +35,12 @@ export function useWorkdirGroupHandlers<TWorkspaces, TSessions>({
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
+
   const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
     name: string
     workspaceId: string
   } | null>(null)
+
   const { trigger: updateWorkspace, isLoading: isUpdatingWorkspace } = useMutation(
     'PATCH',
     '/agent-workspaces/:workspaceId',
@@ -50,6 +52,7 @@ export function useWorkdirGroupHandlers<TWorkspaces, TSessions>({
   const handleDeleteWorkdirGroup = useCallback(
     async (group: ResourceListGroup) => {
       const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
+
       if (!workspaceId || deletingWorkspaceGroupId) return
 
       const sessionIds = sessionItems
@@ -66,6 +69,7 @@ export function useWorkdirGroupHandlers<TWorkspaces, TSessions>({
           danger: true
         }
       })
+
       if (!confirmed) return
 
       setDeletingWorkspaceGroupId(group.id)
@@ -89,6 +93,7 @@ export function useWorkdirGroupHandlers<TWorkspaces, TSessions>({
         } catch (err) {
           logger.warn('Failed to reconcile after deleting workspace group', { err, sessionIds, workspaceId })
         }
+
         toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete workspace group', { err, sessionIds, workspaceId })
@@ -114,6 +119,7 @@ export function useWorkdirGroupHandlers<TWorkspaces, TSessions>({
   const handleStartRenameWorkdirGroup = useCallback(
     (group: ResourceListGroup) => {
       const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
+
       if (!workspaceId) return
 
       setRenamingWorkspaceGroup({
@@ -128,6 +134,7 @@ export function useWorkdirGroupHandlers<TWorkspaces, TSessions>({
     async (name: string) => {
       const target = renamingWorkspaceGroup
       const trimmedName = name.trim()
+
       if (!target || !trimmedName || trimmedName === target.name.trim()) return
 
       try {

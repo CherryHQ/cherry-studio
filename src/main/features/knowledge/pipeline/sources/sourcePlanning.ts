@@ -53,5 +53,6 @@ function needsFileProcessing(base: KnowledgeBase, item: KnowledgeItem, options: 
   }
 
   const ext = getFileExt(item.data.relativePath).toLowerCase()
+
   return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(ext)
 }

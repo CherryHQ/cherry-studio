@@ -57,6 +57,7 @@ export function AssistantConversationPickerDialog({
   const [createInitialName, setCreateInitialName] = useState('')
   const [activeTab, setActiveTab] = useState<AssistantPickerTab | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
+
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
@@ -128,6 +129,7 @@ export function AssistantConversationPickerDialog({
         const created = await createAssistant({
           body: buildCreateAssistantDto(values)
         })
+
         setCreateDialogOpen(false)
         // Start a conversation with the new assistant so it surfaces in the rail (a fresh assistant
         // has no topic yet), mirroring picking an existing one.
@@ -146,6 +148,7 @@ export function AssistantConversationPickerDialog({
     { value: 'mine', label: t('library.title') },
     { value: 'catalog', label: t('assistants.presets.title') }
   ]
+
   const toolbar = (
     <Popover open={filterOpen} onOpenChange={setFilterOpen}>
       <PopoverTrigger asChild>

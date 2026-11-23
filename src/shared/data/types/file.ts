@@ -170,11 +170,13 @@ export const SafeNameSchema = z
  * `FileEntryIdSchema.parse()` to reject random / non-UUID strings.
  */
 export const FileEntryIdSchema = z.uuid()
+
 export type FileEntryId = z.infer<typeof FileEntryIdSchema>
 
 // ─── Origin Enum ───
 
 export const FileEntryOriginSchema = z.enum(['internal', 'external'])
+
 export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
 
 // ─── Cleanup Policy Enum ───
@@ -185,6 +187,7 @@ export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
  * entries may be reclaimed by FileManager's cleanup pass.
  */
 export const CleanupPolicySchema = z.enum(['manual', 'delete_when_unreferenced'])
+
 export type CleanupPolicy = z.infer<typeof CleanupPolicySchema>
 
 // ─── FileEntry Schema (discriminated union on origin, branded) ───
@@ -307,7 +310,9 @@ export const FileEntrySchema = z
   .brand<'FileEntry'>()
 
 export type FileEntry = z.infer<typeof FileEntrySchema>
+
 export type InternalFileEntry = z.infer<typeof InternalEntrySchema>
+
 export type ExternalFileEntry = z.infer<typeof ExternalEntrySchema>
 
 // ─── Dangling State (presence of the backing file) ───
@@ -327,6 +332,7 @@ export type ExternalFileEntry = z.infer<typeof ExternalEntrySchema>
  * SQL-only boundary. See [file-manager-architecture.md §11](../../../../docs/dev/references/file/file-manager-architecture.md).
  */
 export const DanglingStateSchema = z.enum(['present', 'missing', 'unknown'])
+
 export type DanglingState = z.infer<typeof DanglingStateSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -583,6 +589,7 @@ export const translateHistorySourceType = 'translate_history' as const
 
 export const translateHistoryRoles = ['source', 'target'] as const
 export const translateHistoryRoleSchema = z.enum(translateHistoryRoles)
+
 export type TranslateHistoryFileRole = z.infer<typeof translateHistoryRoleSchema>
 
 export const translateHistoryRefFields = {
@@ -613,6 +620,7 @@ function defineSingleFileRef<const T extends string>(sourceType: T) {
     sourceType: z.literal(sourceType),
     sourceId: z.string().min(1)
   }
+
   return { sourceType, refFields, schema: z.object({ ...refCommonFields, ...refFields }) } as const
 }
 
@@ -672,6 +680,7 @@ export const allSourceTypes = [
   miniAppLogoRef.sourceType,
   miniAppFileRef.sourceType
 ] as const satisfies readonly string[]
+
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
 /**
@@ -702,4 +711,5 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   miniAppLogoRef.schema,
   miniAppFileRef.schema
 ])
+
 export type FileRef = z.infer<typeof FileRefSchema>

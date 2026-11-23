@@ -18,15 +18,19 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
   const actions = useRightPanelActions()
   const title = `${label} ${count}`
   const active = state.isActive(RESOURCE_PANE_TAB)
+
   const handleClick = useCallback(() => {
     if (active) {
       actions.close()
+
       return
     }
+
     actions.tryOpen(RESOURCE_PANE_TAB, { userInitiated: true })
   }, [actions, active])
 
   if (!actions.canOpen(RESOURCE_PANE_TAB)) return null
+
   if (state.presentationMaximized) return null
 
   return (

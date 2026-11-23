@@ -43,10 +43,12 @@ export class OAuthTransientError extends OAuthServiceError {
 export function describeOAuthError(error: unknown) {
   try {
     let current: unknown = error
+
     // Walk down to the most specific cause so an HTTP status is not hidden behind
     // an OAuthServiceError wrapper.
     for (let depth = 0; depth < 5 && current instanceof Error; depth++) {
       const status = 'status' in current ? current.status : undefined
+
       if (typeof status === 'number' && Number.isFinite(status)) {
         return {
           name: typeof current.name === 'string' ? current.name : 'Error',
@@ -54,16 +56,20 @@ export function describeOAuthError(error: unknown) {
           status
         }
       }
+
       const cause = current.cause
+
       if (!(cause instanceof Error)) break
       current = cause
     }
+
     if (error instanceof Error) {
       return {
         name: typeof error.name === 'string' ? error.name : 'Error',
         message: getErrorMessage(error, 'OAuth request failed')
       }
     }
+
     return { name: 'UnknownError', message: getErrorMessage(error, 'OAuth request failed') }
   } catch {
     return { name: 'UnknownError', message: 'OAuth request failed' }

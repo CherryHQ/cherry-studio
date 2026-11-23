@@ -37,6 +37,7 @@ interface Props {
 const GoalRoundBadge: FC<{ round: number }> = ({ round }) => {
   const { t } = useTranslation()
   const label = t('agent.session_turn_origin.goal_round', { round })
+
   return (
     <Tooltip content={label}>
       <span className="text-foreground-tertiary flex h-5 max-w-[min(18rem,45vw)] min-w-0 items-center gap-1 text-xs">
@@ -54,10 +55,12 @@ export const AgentSessionDeliveryBadge: FC<{
   const actions = useOptionalMessageListActions()
   const senderSessionLabel = delivery.senderSnapshot?.sessionName.trim() || delivery.sender.sessionId
   const senderAgentLabel = delivery.senderSnapshot?.agentName.trim() || delivery.sender.agentId
+
   const senderLabel = t('agent.session_delivery.from', {
     agent: senderAgentLabel,
     session: senderSessionLabel
   })
+
   const content = (
     <>
       <MousePointerClick aria-hidden="true" className="size-3.5 shrink-0" />
@@ -117,15 +120,19 @@ const MessageHeader: FC<Props> = memo(
     // Names remain historical; adapters may supply current avatars for authors that still exist.
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
+
     const snapshotAvatarSrc = authorSnapshot?.avatarFileId
       ? meta.assistantAvatarSources?.get(authorSnapshot.avatarFileId)
       : undefined
+
     const avatarSource = authorSnapshot
       ? (meta.authorAvatars?.get(authorSnapshot.id) ?? snapshotAvatarSrc ?? authorSnapshot.emoji)
       : assistantProfile?.avatar
+
     const [failedAvatarKey, setFailedAvatarKey] = useState<string>()
     const avatarKey = `${message.id}:${avatarSource}`
     const authorAvatar = failedAvatarKey === avatarKey ? authorSnapshot?.emoji : avatarSource
+
     const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
         return authorName || displayModel?.name || displayModel?.id || ''
@@ -136,9 +143,11 @@ const MessageHeader: FC<Props> = memo(
 
     const isAssistantMessage = message.role === 'assistant'
     const delivery = message.delivery
+
     const hiddenContentHoverClass = isAssistantMessage
       ? 'group-hover/header:opacity-100'
       : 'group-hover/message:opacity-100'
+
     const hiddenActionsHoverClass = isAssistantMessage
       ? 'group-hover/header:pointer-events-auto group-hover/header:opacity-100'
       : 'group-hover/message:pointer-events-auto group-hover/message:opacity-100'

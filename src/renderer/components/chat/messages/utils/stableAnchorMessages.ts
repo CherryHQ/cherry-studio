@@ -32,6 +32,7 @@ export function stableAnchorMessages(
   cache: StableAnchorMessagesCache
 ): AnchorMessage[] {
   const previous = cache.previous
+
   if (
     previous.length === messages.length &&
     messages.every((message, index) => sameTopology(previous[index], message))
@@ -45,6 +46,8 @@ export function stableAnchorMessages(
     isActiveBranch: message.isActiveBranch,
     isContextBoundary: message.isContextBoundary
   }))
+
   cache.previous = next
+
   return next
 }

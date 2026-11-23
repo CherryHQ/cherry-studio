@@ -73,6 +73,7 @@ const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
+
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -107,6 +108,7 @@ const useBabelDoc = (enabled: boolean) => {
   const install = useCallback(async () => {
     if (installing) return
     setInstalling(true)
+
     try {
       // A fresh install asks for the exact version too, not `@latest`: that
       // resolves against whichever PyPI mirror answers, and a lagging mirror
@@ -155,10 +157,13 @@ const OcrTaskWatcher: FC<{
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted OCR task errors can drift across versions; normalize readable error fields before presenting task failure.
     const normalizeError = (error: unknown, fallbackMessage: string) => {
       if (error instanceof Error) return error
+
       if (error && typeof error === 'object' && 'message' in error) {
         const message = error.message
+
         if (typeof message === 'string' && message) return new Error(message)
       }
+
       return new Error(fallbackMessage)
     }
 
@@ -177,6 +182,7 @@ const OcrTaskWatcher: FC<{
       logger.error('Failed to observe OCR task.', failure, { taskId })
       rejectTask(failure, failure.message)
       onSettled()
+
       return
     }
 
@@ -206,9 +212,11 @@ const TranslatePage: FC = () => {
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
+
   const { add: addHistory, update: updateHistory } = useTranslateHistory({
     update: { showErrorToast: false, rethrowError: false }
   })
+
   const { notesPath } = useNotesSettings()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
@@ -227,6 +235,7 @@ const TranslatePage: FC = () => {
   // Every output write goes through smoothReset: a direct setTranslateOutput is replayed over by the queue's next frame.
   const { reset: resetOutputStream, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
   const [outputRevision, setOutputRevision] = useState(0)
+
   const smoothReset = useCallback(
     (text = '') => {
       setOutputRevision((revision) => revision + 1)
@@ -234,6 +243,7 @@ const TranslatePage: FC = () => {
     },
     [resetOutputStream]
   )
+
   const {
     translate: runTranslate,
     isTranslating,
@@ -242,6 +252,7 @@ const TranslatePage: FC = () => {
     loggerContext: 'TranslatePage',
     onResponse: smoothUpdate
   })
+
   const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -286,7 +297,9 @@ const TranslatePage: FC = () => {
     pdfTextRequestIdRef.current += 1
     pdfHandleRef.current = null
     pdfTextCacheRef.current = null
+
     if (pdfTextFallbackActive && isTranslating) cancel()
+
     if (pdfTextFallbackStartedRef.current) smoothReset(prePdfOutputRef.current ?? '')
     pdfTextFallbackStartedRef.current = false
     prePdfOutputRef.current = null
@@ -325,6 +338,7 @@ const TranslatePage: FC = () => {
   const handleInputChange = useCallback(
     (value: string) => {
       setTranslateInput(value)
+
       if (isEmpty(value)) {
         smoothReset('')
       }
@@ -334,6 +348,7 @@ const TranslatePage: FC = () => {
 
   const onCopyInput = useCallback(async () => {
     if (!translateInput) return
+
     try {
       await navigator.clipboard.writeText(translateInput)
       setInputCopied(true)
@@ -355,6 +370,7 @@ const TranslatePage: FC = () => {
 
   const onExportOutputToNotes = useCallback(() => {
     const translationResult = translateOutput.trim()
+
     if (!translationResult) return
 
     void exportContentToNotes(getTitleFromTranslationResult(translationResult), translationResult, notesPath).catch(
@@ -374,9 +390,11 @@ const TranslatePage: FC = () => {
 
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
+
       if (!translated) {
         return
       }
+
       toast.success(t('translate.complete'))
 
       if (autoCopy) {
@@ -417,6 +435,7 @@ const TranslatePage: FC = () => {
       void detectLanguageOrUnknown(rawText, detectLanguage, () => undefined)
         .then((language) => {
           if (language === UNKNOWN_LANG_CODE) return
+
           return updateHistory(historyId, { sourceLanguage: language })
         })
         .catch(() => undefined)
@@ -431,17 +450,22 @@ const TranslatePage: FC = () => {
       if (allowBidirectional && !isBidirectional) {
         setDetectedLanguage(null)
         const history = await translate(rawText, null, targetLanguage)
+
         if (history) backfillHistorySourceLanguage(history.id, rawText)
+
         return
       }
 
       let actualSourceLanguage = sourceLanguage
+
       if ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto') {
         setIsDetecting(true)
+
         try {
           actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
             logger.error('Failed to detect language', error as Error)
           })
+
           if (isCurrent && !isCurrent()) return
           setDetectedLanguage(actualSourceLanguage)
         } finally {
@@ -453,6 +477,7 @@ const TranslatePage: FC = () => {
 
       const shouldUseBidirectionalTarget =
         allowBidirectional && isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
+
       const targetResult = determineTargetLanguage(
         actualSourceLanguage,
         targetLanguage,
@@ -464,6 +489,7 @@ const TranslatePage: FC = () => {
         toast.warning(
           targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
         )
+
         return
       }
 
@@ -498,13 +524,16 @@ const TranslatePage: FC = () => {
 
     try {
       const cached = pdfTextCacheRef.current
+
       const extractedText =
         cached?.filePath === pdfFile.path ? cached.text : await window.api.file.readExternal(pdfFile.path, true)
+
       if (pdfTextRequestIdRef.current !== requestId) return
       pdfTextCacheRef.current = { filePath: pdfFile.path, text: extractedText }
 
       if (!extractedText.trim()) {
         setPdfTextOcrRequired(true)
+
         return
       }
 
@@ -525,22 +554,29 @@ const TranslatePage: FC = () => {
   const onTranslate = useCallback(async () => {
     if (pdfFile) {
       if (babelDoc.availability === 'checking' || babelDoc.installing || targetLanguage === UNKNOWN_LANG_CODE) return
+
       if (babelDoc.availability === 'available') {
         if (!isSelectedPdfModelRoutable || pdfStatus.running) return
         // Layout-preserving translation is one-directional; guard against a same-language no-op
         // (which still spawns BabelDOC and bills a full run) the same way the text path does.
         // 'auto' source is naturally excepted (never equals a concrete target).
         const targetResult = determineTargetLanguage(sourceLanguage, targetLanguage, false, bidirectionalPair)
+
         if (!targetResult.success) {
           toast.warning(
             targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
           )
+
           return
         }
+
         pdfHandleRef.current?.start(targetLanguage)
+
         return
       }
+
       await translatePdfText()
+
       return
     }
 
@@ -569,6 +605,7 @@ const TranslatePage: FC = () => {
     } else {
       return
     }
+
     toast.info(t('translate.info.aborted'))
   }, [cancel, isTranslating, pdfStatus.running, t])
 
@@ -587,10 +624,13 @@ const TranslatePage: FC = () => {
         // entry itself is gone, which leaves nothing to show side by side.
         if (!files?.source?.path || !files.target?.path) {
           toast.error(t('translate.history.file.unavailable'))
+
           return
         }
+
         resetPdfMode()
         textRequestIdRef.current += 1
+
         if (isTranslating) cancel()
         smoothReset('')
         setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
@@ -598,6 +638,7 @@ const TranslatePage: FC = () => {
       } else {
         resetPdfMode()
         textRequestIdRef.current += 1
+
         if (isTranslating) cancel()
         setTranslateInput(history.sourceText)
         smoothReset(history.targetText)
@@ -606,6 +647,7 @@ const TranslatePage: FC = () => {
       if (history.kind === 'file' || history.sourceLanguage) {
         void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
       }
+
       void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
     },
@@ -661,6 +703,7 @@ const TranslatePage: FC = () => {
           } catch (error) {
             logger.error('Failed to check file type.', error as Error)
             toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.check_type')))
+
             return
           }
         }
@@ -668,12 +711,15 @@ const TranslatePage: FC = () => {
         if (!isText && !isDocument) {
           toast.error(t('common.file.not_supported', { type: fileExtension }))
           logger.error('Unsupported file type.')
+
           return
         }
 
         const maxSize = isDocument ? 20 * MB : 5 * MB
+
         if (file.size > maxSize) {
           toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
+
           return
         }
 
@@ -681,6 +727,7 @@ const TranslatePage: FC = () => {
           const result = isDocument
             ? await window.api.file.readExternal(file.path, true)
             : await window.api.fs.readText(file.path)
+
           appendTranslateInput(result)
         } catch (error) {
           logger.error('Failed to read file.', error as Error)
@@ -702,15 +749,18 @@ const TranslatePage: FC = () => {
   const startOcr = useCallback(
     async (file: FileMetadata) => {
       let taskId: FileProcessingTaskId
+
       try {
         const task = await ipcApi.request('file_processing.start_task', {
           feature: 'image_to_text',
           file: createFilePathHandle(AbsoluteFilePathSchema.parse(file.path))
         })
+
         taskId = task.id
       } catch (error) {
         logger.error('Failed to start image OCR.', error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
+
         return
       }
 
@@ -723,10 +773,13 @@ const TranslatePage: FC = () => {
     async (file: FileMetadata) => {
       if (getFileExtension(file.path) === '.pdf') {
         const maxSize = 20 * MB
+
         if (file.size > maxSize) {
           toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
+
           return
         }
+
         pdfTextRequestIdRef.current += 1
         pdfTextCacheRef.current = null
         pdfTextFallbackStartedRef.current = false
@@ -735,10 +788,12 @@ const TranslatePage: FC = () => {
         setPdfTextOcrRequired(false)
         setIsPdfTextExtracting(false)
         setPdfFile({ name: file.name, path: AbsoluteFilePathSchema.parse(file.path) })
+
         return
       }
 
       resetPdfMode()
+
       if (isImageFileMetadata(file)) {
         await startOcr(file)
       } else {
@@ -751,8 +806,10 @@ const TranslatePage: FC = () => {
   const handleSelectFile = useCallback(async () => {
     if (selecting || isTranslationRunning || isOcrRunning) return
     setIsProcessing(true)
+
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
+
       if (file) {
         await processFile(file)
       }
@@ -768,10 +825,13 @@ const TranslatePage: FC = () => {
   const getSingleFile = useCallback(
     (files: FileMetadata[] | FileList): FileMetadata | File | null => {
       if (files.length === 0) return null
+
       if (files.length > 1) {
         toast.error(t('translate.files.error.multiple'))
+
         return null
       }
+
       return files[0]
     },
     [t]
@@ -783,12 +843,15 @@ const TranslatePage: FC = () => {
     async (e: DragEvent<HTMLDivElement>) => {
       if (isProcessing || isOcrRunning || isTranslationRunning) return
       setIsProcessing(true)
+
       try {
         const data = await getTextFromDropEvent(e).catch((error) => {
           logger.error('getTextFromDropEvent', error as Error)
           toast.error(t('translate.files.error.unknown'))
+
           return null
         })
+
         if (data) {
           appendTranslateInput(data)
         }
@@ -796,11 +859,13 @@ const TranslatePage: FC = () => {
         const droppedFiles = await getFilesFromDropEvent(e).catch((error) => {
           logger.error('handleDrop:', error as Error)
           toast.error(t('translate.files.error.unknown'))
+
           return null
         })
 
         if (droppedFiles) {
           const file = getSingleFile(droppedFiles) as FileMetadata
+
           if (file) {
             await processFile(file)
           }
@@ -819,16 +884,20 @@ const TranslatePage: FC = () => {
     async (event: ClipboardEvent<HTMLTextAreaElement>) => {
       if (isProcessing || isOcrRunning || isTranslationRunning) return
       const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
+
       if (!hasFiles) return
       setIsProcessing(true)
+
       try {
         const clipboardText = event.clipboardData.getData('text')
+
         if (!isEmpty(clipboardText)) {
           return
         }
 
         event.preventDefault()
         const file = getSingleFile(event.clipboardData.files) as File
+
         if (!file) return
 
         const filePath = window.api.file.getPathForFile(file)
@@ -837,8 +906,10 @@ const TranslatePage: FC = () => {
         if (!filePath) {
           if (!file.type.startsWith('image/')) {
             toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
+
             return
           }
+
           const tempFilePath = await window.api.file.createTempFile(file.name)
           const arrayBuffer = await file.arrayBuffer()
           const uint8Array = new Uint8Array(arrayBuffer)
@@ -850,8 +921,10 @@ const TranslatePage: FC = () => {
 
         if (!selectedFile) {
           toast.error(t('translate.files.error.unknown'))
+
           return
         }
+
         await processFile(selectedFile)
       } catch (error) {
         logger.error('onPaste:', error as Error)
@@ -874,6 +947,7 @@ const TranslatePage: FC = () => {
     babelDoc.availability === 'available'
       ? pdfHandleReady && isSelectedPdfModelRoutable
       : babelDoc.availability === 'missing' && !!selectedModelId
+
   const couldTranslate = isPdfMode
     ? pdfModelReady &&
       !babelDoc.installing &&
@@ -990,7 +1064,9 @@ const TranslatePage: FC = () => {
               onClick={() =>
                 setHistoryOpen((open) => {
                   const next = !open
+
                   if (next) setSettingsOpen(false)
+
                   return next
                 })
               }
@@ -1005,7 +1081,9 @@ const TranslatePage: FC = () => {
               onClick={() =>
                 setSettingsOpen((open) => {
                   const next = !open
+
                   if (next) setHistoryOpen(false)
+
                   return next
                 })
               }

@@ -114,6 +114,7 @@ export async function truncateToolResults(
       }
 
       const toolPolicy = policy.get(part.toolName)
+
       if (toolPolicy?.preserve) {
         // Preserve = full bypass: no truncation, no storage write.
         newContent.push(part)
@@ -134,6 +135,7 @@ export async function truncateToolResults(
           offloader,
           logger
         )
+
         if (trimmed !== null) {
           newContent.push(trimmed)
           continue
@@ -142,6 +144,7 @@ export async function truncateToolResults(
       }
 
       const text = extractText(part.output)
+
       if (text.length <= effThreshold || effHeadChars + effTailChars >= text.length) {
         newContent.push(part)
         continue
@@ -165,6 +168,7 @@ export async function truncateToolResults(
             headChars: effHeadChars,
             tailChars: effTailChars
           })
+
           newContent.push({
             ...part,
             output: {
@@ -231,18 +235,22 @@ async function truncateEntities(
 ): Promise<LanguageModelV3ToolResultPart | null> {
   const output = part.output as Extract<LanguageModelV3ToolResultOutput, { type: 'json' }>
   const deflated = codec.deflate(output.value)
+
   if (deflated === null) return null
 
   const texts: Record<string, string> = {}
   let anyTrimmed = false
+
   for (const blob of deflated.blobs) {
     const { key, text } = blob
     const overBudget = text.length > budget.threshold && budget.headChars + budget.tailChars < text.length
+
     // Never re-truncate an already-persisted marker (same guard as the opaque path).
     if (!overBudget || text.includes(PERSISTED_OUTPUT_TAG)) {
       texts[key] = text
       continue
     }
+
     if (offloader) {
       try {
         const vfsResult = await offloader.offloadAsync(text, {
@@ -250,6 +258,7 @@ async function truncateEntities(
           headChars: budget.headChars,
           tailChars: budget.tailChars
         })
+
         texts[key] = vfsResult.content
         anyTrimmed = anyTrimmed || vfsResult.isOffloaded
         continue
@@ -262,6 +271,7 @@ async function truncateEntities(
         continue
       }
     }
+
     const head = text.slice(0, budget.headChars)
     const tail = text.slice(text.length - budget.tailChars)
     const totalLines = text.split('\n').length
@@ -273,6 +283,7 @@ async function truncateEntities(
   }
 
   if (!anyTrimmed) return part
+
   return {
     ...part,
     output: { type: 'json', value: codec.assemble(deflated.skeleton, texts) }
@@ -286,7 +297,9 @@ async function truncateEntities(
  */
 function buildPolicyMap(perTool: TruncateOptions['perTool']): Map<string, ToolPolicy> {
   const map = new Map<string, ToolPolicy>()
+
   if (!perTool) return map
+
   for (const entry of perTool) {
     if (typeof entry === 'string') {
       map.set(entry, { preserve: true })
@@ -299,6 +312,7 @@ function buildPolicyMap(perTool: TruncateOptions['perTool']): Map<string, ToolPo
       })
     }
   }
+
   return map
 }
 

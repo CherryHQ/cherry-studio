@@ -23,6 +23,7 @@ export function AppUpdateButton({ placement = 'bottom' }: { placement?: 'top' | 
 
   const handleUpdateClick = () => {
     const releaseInfo = appUpdateState.info
+
     if (!releaseInfo) return
 
     void import('@renderer/components/UpdateDialogPopup')

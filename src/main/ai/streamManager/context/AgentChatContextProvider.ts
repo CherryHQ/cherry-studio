@@ -49,7 +49,9 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       stats: row.stats ?? undefined
     }
   }
+
   if (row.stats?.totalTokens) message.metadata.totalTokens = row.stats.totalTokens
+
   return message
 }
 
@@ -108,14 +110,17 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const sessionId = extractAgentSessionId(req.topicId)
     let session
+
     try {
       session = agentSessionService.getById(sessionId)
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Target Session is unavailable: ${sessionId}`)
       }
+
       throw error
     }
+
     if (!session.agentId) {
       throw new AgentSessionDeliveryRoutingError(
         'TARGET_UNAVAILABLE',
@@ -125,6 +130,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const agentId = session.agentId
     const agent = agentService.getAgent(agentId)
+
     if (!agent) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent not found for Session ${sessionId}`)
     }
@@ -134,6 +140,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // agent default so background tasks stay independent of sibling sessions.
     const candidate = !isHeadless && session.model ? session.model : agent.model
     let uniqueModelId: UniqueModelId | null = null
+
     if (candidate) {
       try {
         parseUniqueModelId(candidate)
@@ -142,6 +149,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         uniqueModelId = null
       }
     }
+
     if (!uniqueModelId) {
       throw new AgentSessionDeliveryRoutingError(
         'TARGET_UNAVAILABLE',
@@ -152,13 +160,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+
     if (!driver) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
+
     const parentMessageId = agentSessionMessageService.captureHead(sessionId)
     await driver.validateSession(session, { headless: isHeadless })
 
     const deliveryMessage = req.agentDeliveryMessage
+
     if (
       deliveryMessage &&
       (deliveryMessage.sessionId !== sessionId || deliveryMessage.role !== 'user' || !deliveryMessage.delivery)
@@ -167,15 +178,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+
     const modelName =
       uniqueModelId === agent.model
         ? (agent.modelName ?? rawModelId)
         : (modelService
             .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [uniqueModelId])
             .get(uniqueModelId) ?? rawModelId)
+
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
+
     const dispatch: Omit<
       ValidatedAgentDispatch,
       'messageSnapshot' | 'userMessageId' | 'userMessageParts' | 'deliveryMessage' | 'shouldAutoNameInitialTurn'
@@ -194,21 +208,27 @@ export class AgentChatContextProvider implements ChatContextProvider {
       fastMode: req.fastMode,
       headless: isHeadless
     }
+
     if (authority.trustedNotifyChannels !== undefined) dispatch.trustedNotifyChannels = authority.trustedNotifyChannels
+
     const identity: Omit<MessageSnapshot, 'model'> = {
       id: agent.id,
       name: agent.name,
       // Match the renderer's normalized effective Agent avatar.
       emoji: agent.configuration?.avatar?.trim() || '🤖'
     }
+
     if (agent.avatarFileId) identity.avatarFileId = agent.avatarFileId
+
     const validated: Omit<ValidatedAgentDispatch, 'shouldAutoNameInitialTurn'> = {
       ...dispatch,
       messageSnapshot: { ...identity, model: { id: rawModelId, name: modelName, provider: providerId } },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? []
     }
+
     if (deliveryMessage) validated.deliveryMessage = deliveryMessage
+
     return { ...validated, shouldAutoNameInitialTurn }
   }
 
@@ -220,6 +240,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   ): PersistedAgentDispatch {
     if (intent === 'append') this.assertAppendable(validated, tx)
     const assistantMessageId = uuidv7()
+
     const savedMessages = agentSessionMessageService.saveMessagesTx(
       tx,
       {
@@ -244,6 +265,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       },
       expectedAgent
     )
+
     return {
       validated,
       assistantMessageId,
@@ -265,6 +287,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
   activateDispatch(persisted: PersistedAgentDispatch, subscriber: StreamListener): PreparedDispatch {
     const { validated, assistantMessageId, traceId, userMessage, savedMessages } = persisted
+
     if (validated.shouldAutoNameInitialTurn) {
       topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(validated.sessionId, userMessage.data)
     }
@@ -294,6 +317,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     })
 
     let runtime
+
     try {
       runtime = application.get('AgentSessionRuntimeService').beginTurn({
         sessionId: validated.sessionId,
@@ -364,16 +388,19 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const validated = await this.validateDispatch(req, authority)
     const runtime = application.get('AgentSessionRuntimeService')
     runtime.assertSessionWritable(validated.sessionId)
+
     if (req.trigger === 'edit-agent-message') {
       if (ctx?.hasLiveStream) throw new AgentSessionEditError('busy')
       runtime.assertSessionEditable(validated.sessionId)
       await validateEditedInput(validated.userMessageParts)
       validated.shouldAutoNameInitialTurn = false
+
       const persisted = await runtime.editSession(
         validated.sessionId,
         req.editTarget,
         (tx, nativeSessionId, nativeContextId) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
+
           const result = this.persistDispatchTx(
             tx,
             validated,
@@ -385,12 +412,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
             },
             'edit'
           )
+
           if (validated.agentType === 'pi')
             reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
           else if (validated.agentType === 'claude-code')
             reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
           else if (validated.agentType === 'pi-durable')
             reserveDurableBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, nativeContextId)
+
           if (validated.agentType !== 'pi-durable' || nativeContextId)
             agentSessionMessageService.setEditRuntimeTx(
               tx,
@@ -398,9 +427,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
               validated.userMessageId,
               nativeSessionId
             )
+
           return result
         }
       )
+
       notifyDataApiDataChange([
         {
           endpoint: '/agent-sessions/:sessionId/messages',
@@ -408,6 +439,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           routeParams: { sessionId: validated.sessionId }
         }
       ])
+
       return this.activateDispatch(persisted, subscriber)
     }
 
@@ -419,7 +451,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
+
       this.assertAppendable(validated)
+
       const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId: validated.sessionId,
         parentId: validated.parentMessageId,
@@ -452,8 +486,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
       ctx?.beforePersist?.()
       const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
+
       return reserved
     })
+
     return this.activateDispatch(persisted, subscriber)
   }
 }

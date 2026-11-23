@@ -13,8 +13,10 @@ import { ModelConfigSchema } from './model'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export { EndpointTypeSchema } from './common'
+
 const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
 export const ProviderEditionSchema = z.enum(['global', 'cn'])
+
 export type ProviderEdition = z.infer<typeof ProviderEditionSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -67,6 +69,7 @@ export const ServiceTierRequestControlSchema = z
         path: ['default']
       })
     }
+
     for (const option of control.options) {
       if (!control.wire.values[option]) {
         context.addIssue({
@@ -122,6 +125,7 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
 /** The discriminator values of {@link ProviderReasoningFormatSchema} — the ONE
  *  source of the format-type list (shared re-derives its zod enum from this). */
 export type ReasoningFormatType = z.infer<typeof ProviderReasoningFormatSchema>['type']
+
 export const REASONING_FORMAT_TYPES = ProviderReasoningFormatSchema.options.map(
   (option) => option.shape.type.value
 ) as [ReasoningFormatType, ...ReasoningFormatType[]]
@@ -282,6 +286,7 @@ export const ProviderConfigSchema = z
       if (data.endpointConfigs && data.defaultChatEndpoint) {
         return data.defaultChatEndpoint in data.endpointConfigs
       }
+
       return true
     },
     {
@@ -295,12 +300,21 @@ export const ProviderListSchema = z.object({
 })
 
 export { ENDPOINT_TYPE } from './enums'
+
 export type ProviderReasoningFormat = z.infer<typeof ProviderReasoningFormatSchema>
+
 export type EndpointDialect = z.infer<typeof EndpointDialectSchema>
+
 export type ServiceTierSelection = z.infer<typeof ServiceTierSelectionSchema>
+
 export type ServiceTierOptions = z.infer<typeof ServiceTierOptionsSchema>
+
 export type ServiceTierDelivery = z.infer<typeof ServiceTierDeliverySchema>
+
 export type ServiceTierRequestControl = z.infer<typeof ServiceTierRequestControlSchema>
+
 export type RegistryEndpointConfig = z.infer<typeof RegistryEndpointConfigSchema>
+
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
+
 export type ProviderList = z.infer<typeof ProviderListSchema>

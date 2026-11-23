@@ -7,6 +7,7 @@ export function mergeMessagesById(...sources: CherryUIMessage[][]): CherryUIMess
   for (const messages of sources) {
     for (const message of messages) {
       const existing = byId.get(message.id)
+
       if (!existing) {
         order.push(message.id)
         byId.set(message.id, message)
@@ -24,6 +25,7 @@ export function mergeMessagesById(...sources: CherryUIMessage[][]): CherryUIMess
 
   return order.flatMap((id) => {
     const message = byId.get(id)
+
     return message ? [message] : []
   })
 }

@@ -19,6 +19,7 @@ import { schemaToJSDoc } from './formatJsDoc'
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Opaque tool definitions also reach this helper; SDK schema conversion may fail and intentionally falls back to description-only output.
 export async function serializeToolSchema(schema: unknown): Promise<JSONSchema7 | undefined> {
   if (!schema) return undefined
+
   try {
     return await asSchema(schema as Parameters<typeof asSchema>[0]).jsonSchema
   } catch {
@@ -29,5 +30,6 @@ export async function serializeToolSchema(schema: unknown): Promise<JSONSchema7 
 /** JSDoc signature for a registered tool — the text `tool_inspect` returns. */
 export async function buildToolStub(entry: ToolEntry): Promise<string> {
   const inputSchema = await serializeToolSchema(entry.tool.inputSchema)
+
   return schemaToJSDoc(entry.name, entry.description, inputSchema)
 }

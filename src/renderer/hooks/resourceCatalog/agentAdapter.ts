@@ -17,7 +17,9 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  */
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
   const params: ListAgentsQueryParams = { limit: query?.limit ?? AGENTS_MAX_LIMIT }
+
   if (query?.search) params.search = query.search
+
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
     enabled: query?.enabled !== false,
     query: params
@@ -48,6 +50,7 @@ export function useAgentMutations() {
   const createAgent = useCallback(
     async (dto: CreateAgentCommand): Promise<AgentDetail> => {
       setIsCreatingAgent(true)
+
       try {
         return await createAgentAndRefresh(dto, () => invalidate('/agents'))
       } finally {
@@ -70,6 +73,7 @@ export function useAgentMutationsById(id: string) {
     refresh: ({ args }) =>
       args?.body?.skillUpdates !== undefined ? ['/agents', '/agents/*', '/skills'] : ['/agents', '/agents/*']
   })
+
   const updateAgent = useCallback(
     (dto: UpdateAgentDto): Promise<AgentDetail> => updateTrigger({ body: dto }),
     [updateTrigger]

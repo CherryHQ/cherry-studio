@@ -148,6 +148,7 @@ const DescriptionSwitch = ({
 }: DescriptionSwitchProps) => {
   const isLeftSide = position === 'left'
   const id = useId()
+
   return (
     <div className={cn('flex w-full justify-between gap-3 p-2', isLeftSide && 'flex-row-reverse')}>
       <label className={cn('flex cursor-pointer flex-col gap-1')} htmlFor={id}>
@@ -198,4 +199,5 @@ const DescriptionSwitch = ({
 Switch.displayName = 'Switch'
 
 export { DescriptionSwitch, Switch }
+
 export type { SwitchProps }

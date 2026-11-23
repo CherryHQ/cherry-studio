@@ -29,24 +29,29 @@ const MessageAttachments: FC<Props> = ({ handle, inputFilePreview, name, ext, cr
   const actions = useOptionalMessageListActions()
   const messageUi = useOptionalMessageListUi()
   const entryId = handle && isFileEntryHandle(handle) ? handle.entryId : undefined
+
   const { data: entry } = useQuery('/files/entries/:id', {
     params: { id: entryId ?? '' },
     enabled: !!entryId
   })
 
   const displayExt = entry?.ext || ext
+
   const fileView = messageUi?.getFileView?.({
     origin_name: entry?.name || name,
     ext: displayExt,
     created_at: createdAt ?? ''
   })
+
   const fileName = fileView?.displayName || entry?.name || name
   const fileSuffix = displayExt.replace('.', '').toUpperCase()
   const sourceName = entry?.name || name
+
   const iconFileName =
     fileSuffix && !sourceName.toLowerCase().endsWith(`.${fileSuffix.toLowerCase()}`)
       ? `${sourceName}.${fileSuffix}`
       : sourceName
+
   const openFile = handle ? actions?.openFile : undefined
   const previewFile = handle ? actions?.previewFile : undefined
   const previewInputFile = inputFilePreview ? actions?.previewInputFile : undefined

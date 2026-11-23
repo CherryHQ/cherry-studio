@@ -90,24 +90,35 @@ const consumers = {
 
 function scopeFor(file) {
   if (file.startsWith('resources/')) return 'all'
+
   if (file.startsWith('docs/website/')) return 'docs'
+
   if (file === 'docs/dev/sources-index.json' || file === '.github/website-docs-sync-plan.json') return 'docs'
+
   if (
     file === 'CONTRIBUTING.i18n.yaml' ||
     ((file.startsWith('docs/') || file.startsWith('.agents/notes/')) && file.endsWith('.i18n.yaml'))
   )
     return 'docs'
+
   if (
     (file.startsWith('docs/') || file.startsWith('.agents/notes/') || file.startsWith('.changeset/')) &&
     file.endsWith('.md')
   )
     return 'docs'
+
   if (/^(?:[^/]+\.md|(?:src|packages|scripts)\/.*\/README(?:\.[\w-]+)?\.md)$/.test(file)) return 'docs'
+
   if (file.startsWith('.agents/skills/') || file.startsWith('.claude/skills/')) return 'skills'
+
   if (file.startsWith('src/preload/')) return 'preload'
+
   if (file.startsWith('migrations/')) return 'main'
+
   if (file.startsWith('tests/e2e/') || /^playwright.*\.config\.ts$/.test(file)) return 'e2e'
+
   if (file === 'tests/file-preview.setup.ts') return 'file-preview'
+
   if (
     file.startsWith('tests/helpers/') ||
     file.startsWith('tests/__mocks__/main/') ||
@@ -115,6 +126,7 @@ function scopeFor(file) {
     file === 'tests/__mocks__/MainLoggerService.ts'
   )
     return 'main'
+
   if (
     file.startsWith('tests/__mocks__/renderer/') ||
     [
@@ -124,12 +136,17 @@ function scopeFor(file) {
     ].includes(file)
   )
     return 'renderer'
+
   if (file.startsWith('scripts/validation/') || file.startsWith('.github/')) return 'all'
+
   if (file.startsWith('scripts/')) return 'scripts'
   const process = /^src\/(main|renderer|shared)\//.exec(file)?.[1]
+
   if (process) return process
+
   if (file.startsWith('native/system-speech/')) return 'system-speech'
   const pkg = /^packages\/([^/]+)\//.exec(file)?.[1]
+
   return pkg && consumers[pkg] ? pkg : 'all'
 }
 
@@ -137,63 +154,97 @@ export function createPlan(files, fullReason) {
   const reasons = {}
   const projects = new Set()
   let platform = false
+
   const add = (task, reason) => {
     const entries = (reasons[task] ??= [])
+
     if (entries.length < 3 && !entries.includes(reason)) entries.push(reason)
   }
+
   const full = (reason) => {
     platform = true
+
     for (const task of Object.keys(checkTasks)) add(task, reason)
+
     for (const project of testProjects) projects.add(project)
   }
+
   if (fullReason) full(fullReason)
+
   for (const file of [...new Set(files)].sort()) {
     const scope = scopeFor(file)
     add('format', file)
     add('docs', file)
+
     if (scope === 'docs') continue
+
     if (scope === 'skills') {
       add('skills', file)
       continue
     }
+
     if (scope === 'all') {
       full(`Conservative fallback: ${file}`)
       continue
     }
+
     add('lint', file)
+
     if (scope === 'e2e') {
       add('types-e2e', file)
       continue
     }
+
     add('knowledge', file)
+
     if (file.startsWith('src/renderer/') && /\.(?:tsx?|css)$/.test(file)) add('theme', file)
     const affected = scope === 'preload' ? ['main', 'preload', 'renderer'] : consumers[scope]
+
     if (affected.includes('main') && !/^packages\/(?:aiCore|ai-sdk-provider|web-search)\/src\/.*\.tsx?$/.test(file))
       platform = true
+
     for (const project of affected) projects.add(project)
+
     if (affected.some((project) => ['main', 'shared', 'scripts', 'provider-registry'].includes(project)))
       add('types-node', file)
+
     if (affected.includes('renderer')) add('types-web', file)
+
     if (affected.includes('aiCore')) add('types-aicore', file)
+
     if (affected.includes('agent-behavior')) add('types-agent-behavior', file)
+
     if (affected.includes('agent-runtime-pi')) add('types-agent-runtime-pi', file)
+
     if (affected.includes('agent-runtime-pi-durable')) add('types-agent-runtime-pi-durable', file)
+
     if (affected.includes('agent-runtime-claude-code')) add('types-agent-runtime-claude-code', file)
+
     if (affected.includes('agent-runtime-acp')) add('types-agent-runtime-acp', file)
+
     if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
+
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
+
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
+
     if (affected.includes('system-speech')) add('types-system-speech', file)
+
     if (affected.includes('web-search')) add('types-web-search', file)
+
     if (affected.includes('file-preview')) add('types-file-preview', file)
+
     if (scope === 'main' || scope === 'shared') add('migrations', file)
     const inTestDirectory = file.split('/').includes('__tests__')
     const testFile = inTestDirectory || /\.(?:test|spec)\.tsx?$/.test(file)
+
     if (!testFile || (file.startsWith('src/main/') && !inTestDirectory)) add('i18n-catalog', file)
     // Renderer unused-key analysis still reads tests, including those under src/main.
     add('i18n-unused', file)
+
     if (!inTestDirectory && !/\.test\.tsx?$/.test(file)) add('i18n-hardcoded', file)
   }
+
   return {
     tasks: Object.keys(checkTasks).filter((task) => reasons[task]),
     projects: testProjects.filter((project) => projects.has(project)),
@@ -208,11 +259,13 @@ export function changedFiles(cwd, base = 'origin/main', head = 'HEAD', local = t
   const headCommit = git('rev-parse', '--verify', '--end-of-options', `${head}^{commit}`).trim()
   const comparison = local ? git('merge-base', baseCommit, headCommit).trim() : baseCommit
   const files = git('diff', '--name-only', '--no-renames', '-z', comparison, headCommit).split('\0')
+
   if (local) {
     files.push(...git('diff', '--cached', '--name-only', '--no-renames', '-z', 'HEAD').split('\0'))
     files.push(...git('diff', '--name-only', '--no-renames', '-z').split('\0'))
     files.push(...git('ls-files', '--others', '--exclude-standard', '-z').split('\0'))
   }
+
   return [...new Set(files.filter(Boolean))]
 }
 
@@ -231,11 +284,14 @@ export function selectedGroups(plan) {
 
 export function verifyResults(plan, results, groups = Object.keys(selectedGroups(plan))) {
   const selected = selectedGroups(plan)
+
   for (const group of groups) {
     if (!Object.hasOwn(selected, group)) throw new Error(`Unknown validation group: ${group}`)
     const required = selected[group]
+
     if (required && results[group] !== 'success')
       throw new Error(`${group}: expected success, received ${results[group] ?? 'missing'}`)
+
     if (!required && results[group] !== 'skipped' && results[group] !== 'success')
       throw new Error(`${group}: unexpected result ${results[group] ?? 'missing'}`)
   }

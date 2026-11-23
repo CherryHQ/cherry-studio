@@ -34,6 +34,7 @@ export function useRichTextEditorKernel({
     const readOnlyStyle = editable
       ? ''
       : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;'
+
     const mergeAttributes = (attributes: Record<string, string> = {}) => {
       const baseStyle = typeof attributes.style === 'string' ? attributes.style : ''
 
@@ -43,6 +44,7 @@ export function useRichTextEditorKernel({
         spellcheck: enableSpellCheck ? 'true' : 'false'
       }
     }
+
     const baseAttributes = editorProps?.attributes
 
     return {

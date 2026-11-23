@@ -44,6 +44,7 @@ const ObsidianSettings: FC = () => {
         if (vaultsData.length === 0) {
           setError(t('settings.data.obsidian.default_vault_no_vaults'))
           setLoading(false)
+
           return
         }
 

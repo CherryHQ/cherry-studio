@@ -1,13 +1,18 @@
 const timestamp = (value) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null)
+
 const seconds = (start, end) => {
   if (!timestamp(start) || !timestamp(end)) return null
   const value = (Date.parse(end) - Date.parse(start)) / 1000
+
   return Number.isFinite(value) && value >= 0 ? value : null
 }
+
 const percentile = (values, fraction) =>
   [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1] ?? null
+
 const distribution = (values) => {
   const known = values.filter(Number.isFinite)
+
   return {
     samples: known.length,
     p50: percentile(known, 0.5),
@@ -19,13 +24,17 @@ const distribution = (values) => {
 export function summarizeRun(run, jobs) {
   const active = jobs.filter((job) => job.conclusion !== 'skipped')
   const scope = jobs.flatMap((job) => job.steps ?? []).find((step) => step.name.startsWith('Validation scope: '))?.name
+
   const measured = active
     .map((job) => {
       const allocated = job.runner_id > 0 || (job.steps ?? []).some((step) => timestamp(step.started_at))
+
       const ordered =
         (!timestamp(run.created_at) || seconds(run.created_at, job.created_at) !== null) &&
         seconds(job.created_at, job.started_at) !== null
+
       const waitsKnown = run.run_attempt === 1 && allocated && ordered
+
       return {
         name: job.name,
         result: job.conclusion,
@@ -51,11 +60,13 @@ export function summarizeRun(run, jobs) {
       }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
+
   const starts = active.map((job) => Date.parse(job.started_at))
   const ends = active.map((job) => Date.parse(job.completed_at))
   const complete = measured.length > 0 && measured.every((job) => job.seconds !== null)
   const firstStart = complete ? new Date(Math.min(...starts)).toISOString() : null
   const lastEnd = complete ? new Date(Math.max(...ends)).toISOString() : null
+
   return {
     id: run.id,
     attempt: run.run_attempt,
@@ -89,6 +100,7 @@ export function compareRuns(current, history) {
       run.conclusion === 'success' &&
       run.id !== current.id
   )
+
   return {
     samples: comparable.length,
     executionP50: percentile(
@@ -111,6 +123,7 @@ export function renderReport(current, baseline) {
   const duration = (value) => (Number.isFinite(value) ? `${value.toFixed(1)} s` : 'Unavailable')
   const escape = (value) => String(value).replaceAll('|', '\\|').replaceAll('\n', ' ').replaceAll('<', '&lt;')
   const time = (value) => (timestamp(value) ? escape(value) : 'Unavailable')
+
   return [
     '# CI performance observation',
     '',
@@ -134,6 +147,7 @@ export function renderReport(current, baseline) {
       ['Execution (job started → completed)', 'execution']
     ].map(([label, key]) => {
       const values = current.jobTimings?.[key] ?? distribution([])
+
       return `| ${label} | ${values.samples}/${current.jobs.length} | ${duration(values.p50)} | ${duration(values.p90)} | ${duration(values.max)} |`
     }),
     '',

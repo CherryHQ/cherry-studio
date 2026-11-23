@@ -19,6 +19,7 @@ import { bindNativeInput } from './nativeSubmission'
 import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
 
 const logger = loggerService.withContext('ChildThreadProjection')
+
 type CommittedHistory = {
   responseIds?: Readonly<Record<string, string>>
   messages: readonly RuntimeMessage[]
@@ -26,6 +27,7 @@ type CommittedHistory = {
   removed?: readonly string[]
   legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
 }
+
 type Composition = NonNullable<NonNullable<AgentSessionCheckpoints['child']>['composition']>
 
 export function savedChildView(context: AgentSessionContextRow): AgentChildView {
@@ -89,6 +91,7 @@ export class ChildThreadProjection {
     this.view = savedChildView(context)
     this.delivery = new MessageProjection<ChildProjectionState>(this.view)
     this.archiveGap = this.view.diagnostic
+
     for (const row of readAgentSessionPath(application.get('DbService').getDb(), context.sessionId))
       this.saved.set(row.id, {
         id: row.id,
@@ -110,39 +113,49 @@ export class ChildThreadProjection {
     this.attaching ??= this.attachSource().finally(() => {
       this.attaching = undefined
     })
+
     return this.attaching
   }
 
   private async attachSource(): Promise<void> {
     if (this.stopped) throw new Error('Child projection is closed')
+
     if (this.source) return this.flush()
     await this.observation?.stop()
     await this.pending
     const source = {}
     this.source = source
+
     const result = await this.handle.observe(async (event) => {
       if (this.stopped || this.source !== source) return
+
       if (event.type === 'context.changed') {
         this.contextVersion++
         application
           .get('CacheService')
           .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: event.result })
+
         return
       }
+
       if (event.type === 'snapshot' && event.contextUsage) {
         this.contextVersion++
         application
           .get('CacheService')
           .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: event.contextUsage })
       }
+
       if (event.type === 'message.remove') this.removed.add(event.ref.id)
+
       if (event.type === 'message.upsert') {
         for (const ref of event.replaces ?? []) {
           const id = this.nativeIds[ref.id] ?? this.productIds.get(ref.id)
+
           if (id) this.productIds.set(event.message.id, id)
           this.removed.add(ref.id)
         }
       }
+
       try {
         await this.projection.accept(event)
       } catch (error) {
@@ -150,6 +163,7 @@ export class ChildThreadProjection {
         this.schedule()
         throw error
       }
+
       if (
         event.type === 'snapshot' ||
         event.type === 'gap' ||
@@ -161,17 +175,22 @@ export class ChildThreadProjection {
         this.needsHistory = true
       this.schedule()
     })
+
     if (this.stopped || this.source !== source) {
       if (result.status === 'confirmed') await result.value.stop()
+
       return
     }
+
     if (result.status !== 'confirmed') {
       this.source = undefined
       throw new Error(result.error.message)
     }
+
     this.observation = result.value
     const contextVersion = this.contextVersion
     const usage = await this.handle.contextUsage()
+
     if (!this.stopped && this.source === source && contextVersion === this.contextVersion)
       application
         .get('CacheService')
@@ -213,18 +232,22 @@ export class ChildThreadProjection {
   flush(): Promise<void> {
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined
+
     const work = this.pending
       .then(() => this.reduce())
       .catch((error) => {
         this.needsHistory = true
         throw error
       })
+
     this.pending = work.catch(() => {})
+
     return work
   }
 
   private async reduce(): Promise<void> {
     await this.projection.drain()
+
     if (this.reloadSaved) {
       for (const row of readAgentSessionPath(application.get('DbService').getDb(), this.context.sessionId))
         this.saved.set(row.id, {
@@ -235,39 +258,52 @@ export class ChildThreadProjection {
         })
       this.reloadSaved = false
     }
+
     const current = this.projection.snapshot()
+
     for (const input of current.inputs) bindNativeInput(this.context.sessionId, this.context.id, input)
     const history = this.needsHistory
     this.needsHistory = false
     const archive = history ? await this.readCommitted() : undefined
+
     if (archive) {
       this.history = archive
       this.canonicalIds = new Map()
+
       for (const [id, live] of Object.entries(archive.aliases))
         if (!this.canonicalIds.has(live)) this.canonicalIds.set(live, id)
     }
+
     const beforeComposition = { ...this.composition }
+
     for (const id of archive?.removed ?? []) this.removed.add(id)
+
     for (const [old, source] of Object.entries(this.history?.legacy ?? {}))
       if (this.removed.has(source.messageId)) this.removed.add(old)
+
     for (const [id, live] of Object.entries(this.history?.aliases ?? {}))
       if (this.removed.has(id)) this.removed.add(live)
+
     for (const item of archive?.messages ?? [])
       if (
         item.metadata?.inputId &&
         messages.inputBinding(this.context.sessionId, item.metadata.inputId)?.contextId === this.context.id
       )
         this.nativeIds[item.id] = item.metadata.inputId
+
     for (const [nativeId, liveId] of Object.entries(archive?.aliases ?? {})) {
       const id = this.nativeIds[nativeId] ?? this.productIds.get(liveId) ?? uuid()
       this.nativeIds[nativeId] = id
       this.productIds.set(liveId, id)
       this.committedLiveIds.add(liveId)
     }
+
     let next = new Map(this.saved)
     const committed = new Set<string>()
+
     if (archive) {
       const recovered = new ThreadMessageProjection(this.handle.thread, this.decorate)
+
       try {
         await recovered.accept({
           type: 'snapshot',
@@ -275,11 +311,14 @@ export class ChildThreadProjection {
           inputs: [],
           activity: current.activity
         })
+
         for (const message of recovered.snapshot().messages) {
           const id = (this.nativeIds[message.id] ??= uuid())
           const rows = this.materialize(message, id)
+
           for (const row of rows) {
             committed.add(row.id)
+
             if (
               row.role === 'user' &&
               next.has(row.id) &&
@@ -301,10 +340,12 @@ export class ChildThreadProjection {
         await recovered.close()
       }
     }
+
     for (const message of current.messages) {
       if (this.removed.has(message.id)) continue
       const id = this.nativeIds[message.id] ?? this.productIds.get(message.id) ?? uuid()
       this.productIds.set(message.id, id)
+
       if (
         ((committed.has(id) || this.committedLiveIds.has(message.id)) &&
           next.get(id)?.metadata?.status !== 'pending') ||
@@ -313,26 +354,35 @@ export class ChildThreadProjection {
           messages.inputBinding(this.context.sessionId, id)?.contextId === this.context.id)
       )
         continue
+
       for (const row of this.materialize(message, id)) next.set(row.id, row)
     }
+
     const mappings = new Map([...Object.entries(this.nativeIds), ...this.productIds])
     const retained = new Set([...mappings].flatMap(([source, id]) => (!this.removed.has(source) ? [id] : [])))
+
     for (const source of this.removed) {
       const id = mappings.get(source)
+
       if (id && !retained.has(id)) next.delete(id)
     }
+
     const sourceOrder = new Set<string>()
+
     for (const message of [...(this.history?.messages ?? []), ...current.messages]) {
       if (this.removed.has(message.id)) continue
+
       for (const row of this.sourceRows.get(this.canonical(message.id)) ?? [])
         if (next.has(row.messageId)) sourceOrder.add(row.messageId)
     }
+
     const ordered = sourceOrder.values()
     // Uncovered archive rows may outlive native coverage; their absence is not a removal.
     const order = [...next.keys()].map((id) => (sourceOrder.has(id) ? ordered.next().value! : id))
     next = new Map(order.map((id) => [id, next.get(id)!]))
     this.composeSources(current.messages)
     const changed = [...next.values()].filter((message) => !isDeepStrictEqual(message, this.saved.get(message.id)))
+
     if (
       changed.length ||
       history ||
@@ -356,6 +406,7 @@ export class ChildThreadProjection {
             ]
           })
         }
+
         if (!isDeepStrictEqual(order, [...this.saved.keys()]))
           messages.orderChildArchiveTx(
             tx,
@@ -374,13 +425,18 @@ export class ChildThreadProjection {
           this.composition
         )
       })
+
       for (const [responseId, nativeId] of Object.entries(archive?.responseIds ?? {})) {
         const messageId = this.nativeIds[nativeId]
+
         if (messageId) this.onResponse?.(responseId, messageId)
       }
+
       this.saved.clear()
+
       for (const [id, message] of next) this.saved.set(id, message)
     }
+
     this.publish({
       ...this.view,
       messages: compose([...next.values()], this.composition),
@@ -398,11 +454,15 @@ export class ChildThreadProjection {
   private materialize(message: CherryUIMessage, id: string): CherryUIMessage[] {
     const nativeId = this.canonical(message.id)
     const assignments = new Map<number, string>()
+
     for (const [old, source] of Object.entries(this.history?.legacy ?? {})) {
       const row = this.nativeIds[old]
+
       if (source.messageId !== nativeId || !row) continue
+
       for (const part of source.parts) assignments.set(part, row)
     }
+
     const rows = new Map<string, CherryUIMessage>()
     const fragments: Composition[string] = []
     message.parts.forEach((part, index) => {
@@ -412,34 +472,43 @@ export class ChildThreadProjection {
       row.parts.push(part)
       rows.set(rowId, row)
     })
+
     if (!rows.size) rows.set(id, { ...message, id })
     this.sourceRows.set(nativeId, [{ messageId: id, parts: [] }, ...fragments])
+
     return [...rows.values()]
   }
 
   private composeSources(current: readonly CherryUIMessage[]): void {
     const sources = new Map<string, { id: string; role: CherryUIMessage['role'] }>()
+
     for (const message of [...(this.history?.messages ?? []), ...current]) {
       const id = this.canonical(message.id)
       sources.set(id, { id, role: message.role })
     }
+
     const groups: Composition = {}
     let placed = false
     let reply: string | undefined
     const covered = new Set<string>()
+
     for (const source of sources.values()) {
       if (this.removed.has(source.id)) continue
       const fragments = this.sourceRows.get(source.id)
+
       if (source.role === 'user') {
         placed = true
         reply = undefined
         continue
       }
+
       if (source.role !== 'assistant' || !fragments?.length) continue
       const owner = placed ? (reply ??= fragments[0].messageId) : fragments[0].messageId
       groups[owner] = [...(groups[owner] ?? []), ...fragments]
+
       for (const fragment of fragments) covered.add(fragment.messageId)
     }
+
     for (const [id, fragments] of Object.entries(this.composition))
       if (fragments.some((fragment) => covered.has(fragment.messageId))) delete this.composition[id]
     Object.assign(this.composition, groups)
@@ -472,15 +541,20 @@ export class ChildThreadProjection {
 
 function compose(messages: readonly CherryUIMessage[], composition: Composition): CherryUIMessage[] {
   const rows = new Map(messages.map((message) => [message.id, message]))
+
   const grouped = new Set(
     Object.values(composition).flatMap((fragments) => fragments.map((fragment) => fragment.messageId))
   )
+
   return messages.flatMap((message) => {
     const fragments = composition[message.id]
+
     if (!fragments) return grouped.has(message.id) ? [] : [message]
+
     const sources = fragments.flatMap((fragment) =>
       rows.has(fragment.messageId) ? [rows.get(fragment.messageId)!] : []
     )
+
     return [
       {
         ...message,

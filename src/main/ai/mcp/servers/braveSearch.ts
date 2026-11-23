@@ -35,13 +35,16 @@ const requestCount = {
 
 function checkRateLimit() {
   const now = Date.now()
+
   if (now - requestCount.lastReset > 1000) {
     requestCount.second = 0
     requestCount.lastReset = now
   }
+
   if (requestCount.second >= RATE_LIMIT.perSecond || requestCount.month >= RATE_LIMIT.perMonth) {
     throw new Error('Rate limit exceeded')
   }
+
   requestCount.second++
   requestCount.month++
 }
@@ -148,6 +151,7 @@ async function performLocalSearch(apiKey: string, query: string, count: number =
   }
 
   const webData = (await webResponse.json()) as BraveWeb
+
   const locationIds =
     webData.locations?.results?.filter((r): r is { id: string; title?: string } => r.id != null).map((r) => r.id) || []
 
@@ -168,6 +172,7 @@ async function getPoisData(apiKey: string, ids: string[]): Promise<BravePoiRespo
   checkRateLimit()
   const url = new URL('https://api.search.brave.com/res/v1/local/pois')
   ids.filter(Boolean).forEach((id) => url.searchParams.append('ids', id))
+
   const response = await net.fetch(url.toString(), {
     headers: {
       Accept: 'application/json',
@@ -187,6 +192,7 @@ async function getDescriptionsData(apiKey: string, ids: string[]): Promise<Brave
   checkRateLimit()
   const url = new URL('https://api.search.brave.com/res/v1/local/descriptions')
   ids.filter(Boolean).forEach((id) => url.searchParams.append('ids', id))
+
   const response = await net.fetch(url.toString(), {
     headers: {
       Accept: 'application/json',
@@ -249,5 +255,6 @@ export function createBraveSearchServer(apiKey: string): McpServer {
       content: [{ type: 'text', text: await performLocalSearch(apiKey, query, count) }]
     })
   )
+
   return server
 }

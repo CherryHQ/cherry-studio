@@ -115,6 +115,7 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
       })
       .catch((error) => {
         logger.error('Failed to load localized emoji data', error)
+
         if (!cancelled) setEmojiData(undefined)
       })
 
@@ -128,6 +129,7 @@ const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
 
     if (!emojiData) {
       setHiddenEmojis([])
+
       return
     }
 

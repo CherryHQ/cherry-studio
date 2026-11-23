@@ -185,6 +185,7 @@ export class WindowManager extends BaseService {
   protected override onInit(): void {
     this.dockVisibilityStopped = false
     this.updateDockVisibility()
+
     if (!this.dockShouldBeVisible) this.hideDockWhenReady()
   }
 
@@ -198,14 +199,18 @@ export class WindowManager extends BaseService {
       if (metadata.lifecycle === 'pooled') {
         this.validatePoolConfig(type as WindowType, metadata.poolConfig)
         const warmup = metadata.poolConfig.warmup ?? defaultWarmup(metadata.poolConfig)
+
         if (warmup !== 'eager') continue
         const state = this.warmupStates.get(type as WindowType)
+
         if (state?.suspended) continue
         this.warmPool(type as WindowType, metadata.poolConfig)
         continue
       }
+
       if (metadata.lifecycle === 'singleton' && metadata.singletonConfig) {
         const validated = this.validateSingletonConfig(type as WindowType, metadata.singletonConfig)
+
         if (validated.warmup === 'eager') {
           this.warmSingleton(type as WindowType, validated)
         }
@@ -217,14 +222,17 @@ export class WindowManager extends BaseService {
   private validatePoolConfig(type: WindowType, cfg: PoolConfig): void {
     const recycleMin = cfg.recycleMinSize ?? 0
     const recycleMax = cfg.recycleMaxSize ?? 0
+
     if (recycleMin > 0 && recycleMax <= 0) {
       logger.warn(
         'Pool config: recycleMinSize is set without recycleMaxSize — recycling is disabled, recycleMinSize has no effect',
         { type, recycleMinSize: recycleMin, recycleMaxSize: recycleMax }
       )
     }
+
     const standby = cfg.standbySize ?? 0
     const initialSize = cfg.initialSize ?? 0
+
     if (standby === 0 && recycleMin === 0 && recycleMax === 0 && initialSize === 0) {
       logger.warn('Pool config: all pool sizes are zero/undefined — consider using lifecycle: "default" instead', {
         type
@@ -249,6 +257,7 @@ export class WindowManager extends BaseService {
     if (normalized !== undefined) {
       const isInvalid =
         !Number.isFinite(normalized) || !Number.isInteger(normalized) || (normalized < 0 && normalized !== -1)
+
       if (isInvalid) {
         logger.warn('Singleton config: invalid retentionTime, falling back to undefined', { type, retentionTime })
         normalized = undefined
@@ -269,6 +278,7 @@ export class WindowManager extends BaseService {
   protected override onStop(): void {
     this.dockVisibilityStopped = true
     this.dockHideTimer?.dispose()
+
     // Persist bounds for any window still alive at shutdown — the SIGINT/SIGTERM
     // path, where neither the native 'close' event nor destroyWindow runs before
     // teardown. onStop executes in the stopAll pass (reverse init order), so
@@ -292,17 +302,20 @@ export class WindowManager extends BaseService {
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.warmupGcTimer = null
     this.activeWarmupTypes.clear()
+
     // Signal any pending setImmediate standby replenish callbacks to bail out.
     // They check `state.suspended` at execution time.
     for (const state of this.warmupStates.values()) {
       state.suspended = true
     }
+
     this.warmupStates.clear()
     this.initDataStore.clear()
 
     for (const managed of this.windows.values()) {
       this.destroyWindow(managed.window)
     }
+
     this.windows.clear()
     this.windowsByType.clear()
   }
@@ -338,10 +351,13 @@ export class WindowManager extends BaseService {
       // Pool reuse resets because it is a multi-consumer resource; singleton is
       // single-consumer.
       const state = this.warmupStates.get(type)
+
       if (state && !state.suspended && state.idle.length > 0) {
         const candidateId = state.idle.shift()!
+
         if (state.idle.length === 0) this.activeWarmupTypes.delete(type)
         const candidate = this.windows.get(candidateId)
+
         if (candidate && !candidate.window.isDestroyed() && !candidate.window.webContents.isCrashed()) {
           // Only call applyReusedInitData when the caller actually provides new
           // initData. `applyReusedInitData(managed, undefined)` deletes the
@@ -351,17 +367,22 @@ export class WindowManager extends BaseService {
           if (args?.initData !== undefined) {
             this.applyReusedInitData(candidate, args.initData)
           }
+
           if (metadata.showMode !== 'manual') {
             candidate.window.show()
             candidate.window.focus()
           }
+
           state.lastActivityAt = Date.now()
           this.logWarmupEvent('singleton-reuse', type, state, { windowId: candidateId })
+
           return candidateId
         }
+
         // Unhealthy idle candidate — mirror openPooled's cleanup so
         // windowsByType index is not leaked.
         state.managed.delete(candidateId)
+
         if (candidate) {
           this.cleanupWindowTracking(candidateId, candidate.type)
         }
@@ -369,6 +390,7 @@ export class WindowManager extends BaseService {
 
       // Step B: already-visible singleton instance.
       const existing = this.findWindowByType(type)
+
       if (existing) {
         // Singleton reuse: push initData to renderer BEFORE show/focus, so the
         // UI updates in the same frame the window is re-activated.
@@ -380,6 +402,7 @@ export class WindowManager extends BaseService {
           existing.window.show()
           existing.window.focus()
         }
+
         return existing.id
       }
 
@@ -389,19 +412,23 @@ export class WindowManager extends BaseService {
         const validated = this.validateSingletonConfig(type, metadata.singletonConfig)
         const st = this.getOrCreateWarmupState(type, this.warmupInitFromSingletonConfig(validated))
         const windowId = this.createWindow(type, args)
+
         if (!st.suspended) {
           st.managed.add(windowId)
           st.lastActivityAt = Date.now()
         }
+
         return windowId
       }
     }
 
     if (metadata.lifecycle === 'pooled') {
       const state = this.warmupStates.get(type)
+
       if (state?.suspended) {
         return this.createWindow(type, args)
       }
+
       return this.openPooled(type, metadata.poolConfig, args)
     }
 
@@ -427,6 +454,7 @@ export class WindowManager extends BaseService {
 
     if (metadata.lifecycle === 'singleton') {
       const existing = this.findWindowByType(type)
+
       if (existing) {
         throw new Error(`Singleton window of type '${type}' already exists (id: ${existing.id})`)
       }
@@ -436,10 +464,13 @@ export class WindowManager extends BaseService {
 
     if (metadata.lifecycle === 'pooled') {
       const state = this.getOrCreateWarmupState(type, this.warmupInitFromPoolConfig(metadata.poolConfig))
+
       if (!state.suspended) {
         state.managed.add(windowId)
       }
+
       const recycleMax = metadata.poolConfig.recycleMaxSize ?? 0
+
       if (!state.suspended && recycleMax > 0 && state.managed.size + state.inflightCreates > recycleMax) {
         logger.warn('Pool managed count exceeds recycleMaxSize via create()', {
           type,
@@ -467,8 +498,10 @@ export class WindowManager extends BaseService {
   private applyReusedInitData<InitData extends object>(managed: ManagedWindow, data: InitData | undefined): void {
     if (data === undefined) {
       this.initDataStore.delete(managed.id)
+
       return
     }
+
     this.setInitData(managed.id, data)
     // No isDestroyed guard needed: IpcApiService.send no-ops on a gone/destroyed window.
     application.get('IpcApiService').send(managed.id, 'window.reused', data)
@@ -482,20 +515,24 @@ export class WindowManager extends BaseService {
    */
   public close(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
 
     for (const [type, state] of this.warmupStates) {
       if (state.managed.has(windowId)) {
         const metadata = getWindowTypeMetadata(type)
+
         if (metadata.lifecycle === 'pooled') {
           if (state.suspended) break
           this.releaseToPool(windowId, managed, state, metadata.poolConfig, type)
+
           return true
         }
       }
     }
 
     this.destroyWindow(managed.window)
+
     return true
   }
 
@@ -507,8 +544,10 @@ export class WindowManager extends BaseService {
    */
   public destroy(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     this.destroyWindow(managed.window)
+
     return true
   }
 
@@ -516,71 +555,91 @@ export class WindowManager extends BaseService {
 
   public show(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     managed.window.show()
     this.updateDockVisibility()
+
     return true
   }
 
   public hide(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     managed.window.hide()
     this.updateDockVisibility()
+
     return true
   }
 
   public minimize(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     managed.window.minimize()
+
     return true
   }
 
   public maximize(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     managed.window.maximize()
+
     return true
   }
 
   public unmaximize(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     managed.window.unmaximize()
+
     return true
   }
 
   public isMaximized(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
+
     return managed.window.isMaximized()
   }
 
   public setFullScreen(windowId: string, value: boolean): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     managed.window.setFullScreen(value)
+
     return true
   }
 
   public isFullScreen(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
+
     return managed.window.isFullScreen()
   }
 
   public restore(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     managed.window.restore()
+
     return true
   }
 
   public focus(windowId: string): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed) return false
     managed.window.focus()
+
     return true
   }
 
@@ -594,7 +653,9 @@ export class WindowManager extends BaseService {
   /** Get window info by window ID */
   public getWindowInfo(windowId: string): WindowInfo | undefined {
     const managed = this.windows.get(windowId)
+
     if (!managed) return undefined
+
     return {
       id: managed.id,
       type: managed.type,
@@ -613,7 +674,9 @@ export class WindowManager extends BaseService {
   /** Get all live BrowserWindow instances of a specific type (skips destroyed) */
   public getWindowsByType(type: WindowType): BrowserWindow[] {
     const windowIds = this.windowsByType.get(type)
+
     if (!windowIds) return []
+
     return Array.from(windowIds)
       .map((id) => this.windows.get(id)?.window)
       .filter((window): window is BrowserWindow => window !== undefined && !window.isDestroyed())
@@ -622,7 +685,9 @@ export class WindowManager extends BaseService {
   /** Get serializable metadata for all windows of a specific type */
   public getWindowInfosByType(type: WindowType): WindowInfo[] {
     const windowIds = this.windowsByType.get(type)
+
     if (!windowIds) return []
+
     return Array.from(windowIds)
       .map((id) => this.getWindowInfo(id))
       .filter((info): info is WindowInfo => info !== undefined)
@@ -633,13 +698,16 @@ export class WindowManager extends BaseService {
     for (const [id, managed] of this.windows.entries()) {
       if (managed.window === window) return id
     }
+
     return undefined
   }
 
   /** Get window ID from WebContents (e.g., from IPC event.sender) */
   public getWindowIdByWebContents(webContents: Electron.WebContents): string | undefined {
     const browserWindow = BrowserWindow.fromWebContents(webContents)
+
     if (!browserWindow) return undefined
+
     return this.getWindowId(browserWindow)
   }
 
@@ -666,6 +734,7 @@ export class WindowManager extends BaseService {
   public broadcast(channel: string, ...args: unknown[]): void {
     for (const [id, managed] of this.windows) {
       if (managed.window.isDestroyed()) continue
+
       try {
         managed.window.webContents.send(channel, ...args)
       } catch (error) {
@@ -679,9 +748,12 @@ export class WindowManager extends BaseService {
    */
   public broadcastToType(type: WindowType, channel: string, ...args: unknown[]): void {
     const windowIds = this.windowsByType.get(type)
+
     if (!windowIds) return
+
     for (const id of windowIds) {
       const managed = this.windows.get(id)
+
       if (managed && !managed.window.isDestroyed()) {
         managed.window.webContents.send(channel, ...args)
       }
@@ -728,9 +800,11 @@ export class WindowManager extends BaseService {
    */
   public pushInitData<T extends object>(windowId: string, data: T): boolean {
     const managed = this.windows.get(windowId)
+
     if (!managed || managed.window.isDestroyed()) return false
     this.setInitData(windowId, data)
     application.get('IpcApiService').send(windowId, 'window.reused', data)
+
     return true
   }
 
@@ -746,11 +820,14 @@ export class WindowManager extends BaseService {
    */
   public pushInitDataToType<T extends object>(type: WindowType, data: T): number {
     const ids = this.windowsByType.get(type)
+
     if (!ids || ids.size === 0) return 0
     let count = 0
+
     for (const id of ids) {
       if (this.pushInitData(id, data)) count++
     }
+
     return count
   }
 
@@ -764,8 +841,10 @@ export class WindowManager extends BaseService {
    */
   public suspendPool(type: WindowType): number {
     const metadata = getWindowTypeMetadata(type)
+
     if (metadata.lifecycle !== 'pooled') {
       logger.warn('suspendPool() called on non-pooled window type', { type, lifecycle: metadata.lifecycle })
+
       return 0
     }
 
@@ -774,13 +853,16 @@ export class WindowManager extends BaseService {
 
     if (state.idle.length === 0) {
       this.activeWarmupTypes.delete(type)
+
       return 0
     }
 
     const toDestroy = state.idle.slice()
     let count = 0
+
     for (const windowId of toDestroy) {
       const managed = this.windows.get(windowId)
+
       if (managed) {
         this.destroyWindow(managed.window)
         count++
@@ -791,6 +873,7 @@ export class WindowManager extends BaseService {
 
     this.logWarmupEvent('pool-suspend', type, state, { count })
     this.updateDockVisibility()
+
     return count
   }
 
@@ -800,18 +883,22 @@ export class WindowManager extends BaseService {
    */
   public resumePool(type: WindowType): void {
     const metadata = getWindowTypeMetadata(type)
+
     if (metadata.lifecycle !== 'pooled') {
       logger.warn('resumePool() called on non-pooled window type', { type, lifecycle: metadata.lifecycle })
+
       return
     }
 
     const state = this.warmupStates.get(type)
+
     if (!state || !state.suspended) return
 
     state.suspended = false
     state.lastActivityAt = Date.now()
 
     const warmup = metadata.poolConfig.warmup ?? defaultWarmup(metadata.poolConfig)
+
     if (warmup === 'eager') {
       this.warmPool(type, metadata.poolConfig)
     } else {
@@ -838,14 +925,17 @@ export class WindowManager extends BaseService {
     // Try to find a healthy idle window
     while (state.idle.length > 0) {
       const candidateId = state.idle.shift()!
+
       if (state.idle.length === 0) this.activeWarmupTypes.delete(type)
       const candidate = this.windows.get(candidateId)
 
       if (!candidate || candidate.window.isDestroyed() || candidate.window.webContents.isCrashed()) {
         state.managed.delete(candidateId)
+
         if (candidate) {
           this.cleanupWindowTracking(candidateId, candidate.type)
         }
+
         logger.warn('Pool idle window unhealthy, skipping', { windowId: candidateId, type })
         continue
       }
@@ -861,6 +951,7 @@ export class WindowManager extends BaseService {
       // both 'auto' and 'immediate' show + focus on recycle (the immediate vs
       // ready-to-show distinction only applies to fresh construction).
       const showMode = getWindowTypeMetadata(type).showMode ?? 'auto'
+
       if (showMode !== 'manual') {
         candidate.window.show()
         candidate.window.focus()
@@ -869,6 +960,7 @@ export class WindowManager extends BaseService {
       state.lastActivityAt = Date.now()
       this.replenishStandby(type, state, poolConfig)
       this.logWarmupEvent('pool-recycle', type, state, { windowId: candidateId })
+
       return candidateId
     }
 
@@ -878,6 +970,7 @@ export class WindowManager extends BaseService {
     state.lastActivityAt = Date.now()
 
     const recycleMax = poolConfig.recycleMaxSize ?? 0
+
     if (recycleMax > 0 && state.managed.size + state.inflightCreates > recycleMax) {
       logger.warn('Pool managed count exceeds recycleMaxSize', {
         type,
@@ -889,6 +982,7 @@ export class WindowManager extends BaseService {
 
     this.replenishStandby(type, state, poolConfig)
     this.logWarmupEvent('pool-create-fresh', type, state, { windowId })
+
     return windowId
   }
 
@@ -908,8 +1002,10 @@ export class WindowManager extends BaseService {
     // would re-trigger the close intercept and stall app.quit().
     if (application.isQuitting) return
     const target = cfg.standbySize ?? 0
+
     if (target <= 0 || state.suspended) return
     const shortfall = target - state.idle.length - state.inflightCreates
+
     for (let i = 0; i < shortfall; i++) {
       state.inflightCreates++
       setImmediate(() => {
@@ -923,6 +1019,7 @@ export class WindowManager extends BaseService {
         }
       })
     }
+
     if (shortfall > 0) {
       this.startWarmupGc()
     }
@@ -935,11 +1032,14 @@ export class WindowManager extends BaseService {
    */
   private resetPooledWindowGeometry(window: BrowserWindow, type: WindowType, options?: Partial<WindowOptions>): void {
     if (window.isFullScreen()) window.setFullScreen(false)
+
     if (window.isMaximized()) window.unmaximize()
+
     if (window.isMinimized()) window.restore()
 
     const config = mergeWindowOptions(type, options)
     const { width, height } = config
+
     const setBoundsMethod = config.useContentSize
       ? (b: Electron.Rectangle) => window.setContentBounds(b)
       : (b: Electron.Rectangle) => window.setBounds(b)
@@ -954,12 +1054,14 @@ export class WindowManager extends BaseService {
       // macOS centers on display.bounds (full screen incl. menu bar);
       // Windows/Linux use display.workArea (excl. taskbar)
       const area = isMac ? display.bounds : display.workArea
+
       const bounds = {
         x: Math.round(area.x + (area.width - width) / 2),
         y: Math.round(area.y + (area.height - height) / 2),
         width,
         height
       }
+
       setBoundsMethod(bounds)
       setBoundsMethod(bounds)
     } else if (config.x !== undefined && config.y !== undefined) {
@@ -980,6 +1082,7 @@ export class WindowManager extends BaseService {
     // Idempotency guard
     if (state.idle.includes(windowId)) {
       this.logWarmupEvent('release-skip', type, state, { windowId })
+
       return
     }
 
@@ -999,6 +1102,7 @@ export class WindowManager extends BaseService {
       this.initDataStore.delete(windowId)
       this.logWarmupEvent('pool-release-destroy-fullscreen', type, state, { windowId })
       this.updateDockVisibility()
+
       return
     }
 
@@ -1012,10 +1116,12 @@ export class WindowManager extends BaseService {
       if (!managed.window.isDestroyed()) {
         managed.window.hide()
       }
+
       this.destroyWindow(managed.window)
       this.initDataStore.delete(windowId)
       this.logWarmupEvent('pool-release-destroy-disabled', type, state, { windowId })
       this.updateDockVisibility()
+
       return
     }
 
@@ -1026,10 +1132,12 @@ export class WindowManager extends BaseService {
       if (!managed.window.isDestroyed()) {
         managed.window.hide()
       }
+
       this.destroyWindow(managed.window)
       this.initDataStore.delete(windowId)
       this.logWarmupEvent('pool-release-destroy-overcap', type, state, { windowId, recycleMaxSize: recycleMax })
       this.updateDockVisibility()
+
       return
     }
 
@@ -1056,11 +1164,14 @@ export class WindowManager extends BaseService {
     // queue populated, and running both paths would double-create.
     if (poolConfig.warmup === 'lazy' && standby === 0) {
       const initialSize = poolConfig.initialSize ?? poolConfig.recycleMinSize ?? 0
+
       if (initialSize > 0 && state.managed.size < initialSize) {
         const deficit = initialSize - state.managed.size
+
         for (let i = 0; i < deficit; i++) {
           this.createIdleWindow(type, state)
         }
+
         this.logWarmupEvent('pool-lazy-backfill', type, state, { deficit })
       }
     }
@@ -1087,6 +1198,7 @@ export class WindowManager extends BaseService {
   ): void {
     if (state.idle.includes(windowId)) {
       this.logWarmupEvent('release-skip', type, state, { windowId })
+
       return
     }
 
@@ -1128,9 +1240,11 @@ export class WindowManager extends BaseService {
     const state = this.getOrCreateWarmupState(type, this.warmupInitFromPoolConfig(poolConfig))
     const target = poolConfig.initialSize ?? Math.max(poolConfig.standbySize ?? 0, poolConfig.recycleMinSize ?? 0)
     const count = target - state.managed.size
+
     for (let i = 0; i < count; i++) {
       this.createIdleWindow(type, state)
     }
+
     if (count > 0) {
       this.startWarmupGc()
       this.logWarmupEvent('warmup', type, state, { count })
@@ -1143,6 +1257,7 @@ export class WindowManager extends BaseService {
    */
   private warmSingleton(type: WindowType, cfg: SingletonConfig): void {
     const state = this.getOrCreateWarmupState(type, this.warmupInitFromSingletonConfig(cfg))
+
     if (state.managed.size > 0 || state.suspended) return
     this.createIdleWindow(type, state)
     this.startWarmupGc()
@@ -1158,6 +1273,7 @@ export class WindowManager extends BaseService {
    */
   private getOrCreateWarmupState(type: WindowType, init: WarmupStateInit): WarmupState {
     const existing = this.warmupStates.get(type)
+
     if (existing) return existing
 
     const state: WarmupState = {
@@ -1173,7 +1289,9 @@ export class WindowManager extends BaseService {
       decayIntervalMs: init.decayIntervalMs,
       gcDisabled: init.inactivityTimeoutMs === 0 && init.decayIntervalMs === 0
     }
+
     this.warmupStates.set(type, state)
+
     return state
   }
 
@@ -1184,6 +1302,7 @@ export class WindowManager extends BaseService {
    */
   private warmupInitFromPoolConfig(cfg: PoolConfig): WarmupStateInit {
     const standbyFloor = cfg.standbySize ?? 0
+
     return {
       standbyFloor,
       decayFloor: Math.max(standbyFloor, cfg.recycleMinSize ?? 0),
@@ -1202,6 +1321,7 @@ export class WindowManager extends BaseService {
     const permanentHidden = cfg.warmup === 'eager' || cfg.retentionTime === -1
     const floor = permanentHidden ? 1 : 0
     const retention = cfg.retentionTime
+
     return {
       standbyFloor: floor,
       decayFloor: floor,
@@ -1257,6 +1377,7 @@ export class WindowManager extends BaseService {
         this.warmupGcTimer = null
         logger.debug('warmup gc-stop', { reason: 'no active warmup states' })
       }
+
       return
     }
 
@@ -1265,13 +1386,16 @@ export class WindowManager extends BaseService {
 
     for (const type of this.activeWarmupTypes) {
       const state = this.warmupStates.get(type)
+
       if (!state || state.suspended) continue
+
       // Entries with no time-driven GC at all (no inactivity, no decay) have
       // nothing to do — drop from active set so the timer can self-stop.
       if (state.gcDisabled) {
         ;(toDeactivate ??= []).push(type)
         continue
       }
+
       // Defense against the brief inconsistency window between destroyWindow()
       // and the async `closed` listener splice — activeWarmupTypes may still
       // point at this type while `state.idle` has already been emptied.
@@ -1316,26 +1440,34 @@ export class WindowManager extends BaseService {
    */
   private trimIdleToFloor(type: WindowType, state: WarmupState, floor: number): void {
     const excess = state.idle.length - Math.max(0, floor)
+
     if (excess <= 0) return
     const toDestroy = state.idle.slice(0, excess)
+
     for (const id of toDestroy) {
       const managed = this.windows.get(id)
+
       if (managed) {
         this.destroyWindow(managed.window)
       }
     }
+
     this.logWarmupEvent('inactivity-trim', type, state, { floor, destroyed: excess })
   }
 
   /** Destroy the oldest idle window for a pool type */
   private destroyOneIdle(type: WindowType, state: WarmupState): void {
     const id = state.idle.shift()
+
     if (!id) return
+
     if (state.idle.length === 0) this.activeWarmupTypes.delete(type)
     const managed = this.windows.get(id)
+
     if (managed) {
       this.destroyWindow(managed.window)
     }
+
     this.logWarmupEvent('pool-decay', type, state, { windowId: id })
   }
 
@@ -1379,6 +1511,7 @@ export class WindowManager extends BaseService {
     const preloadName = metadata.preload ?? 'preload.js'
     const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
     const preloadPreferences: WebPreferences = {}
+
     if (preloadPath) preloadPreferences.preload = preloadPath
 
     // 1. Create BrowserWindow
@@ -1397,6 +1530,7 @@ export class WindowManager extends BaseService {
     window.webContents.on('will-navigate', (event, url) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
         const currentURL = window.webContents.getURL()
+
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
         }
@@ -1413,6 +1547,7 @@ export class WindowManager extends BaseService {
     window.webContents.on('will-frame-navigate', (event) => {
       if (event.isMainFrame) return
       const initiatorId = event.initiator?.frameTreeNodeId
+
       if (initiatorId !== undefined && initiatorId === window.webContents.mainFrame.frameTreeNodeId) return
       event.preventDefault()
       logger.warn(`Blocked subframe navigation to: ${event.url}`)
@@ -1440,11 +1575,13 @@ export class WindowManager extends BaseService {
       metadata,
       createdAt: Date.now()
     }
+
     this.windows.set(windowId, managedWindow)
 
     if (!this.windowsByType.has(type)) {
       this.windowsByType.set(type, new Set())
     }
+
     this.windowsByType.get(type)!.add(windowId)
 
     // 4. Fire event — domain services inject behavior HERE (before content loads)
@@ -1512,6 +1649,7 @@ export class WindowManager extends BaseService {
     }
 
     logger.debug('Window created', { windowId, type })
+
     return windowId
   }
 
@@ -1524,6 +1662,7 @@ export class WindowManager extends BaseService {
     // the window is still alive. Gated, so non-remember windows (pool recycle,
     // trim, etc.) no-op.
     const managed = this.findManagedByWindow(window)
+
     if (managed) this.persistBoundsFor(window, managed.type)
     window.destroy()
   }
@@ -1531,9 +1670,12 @@ export class WindowManager extends BaseService {
   /** Find first window of a specific type */
   private findWindowByType(type: WindowType): ManagedWindow | undefined {
     const windowIds = this.windowsByType.get(type)
+
     if (!windowIds || windowIds.size === 0) return undefined
     const firstId = windowIds.values().next().value
+
     if (!firstId) return undefined
+
     return this.windows.get(firstId)
   }
 
@@ -1550,12 +1692,15 @@ export class WindowManager extends BaseService {
    */
   private shouldRememberBounds(type: WindowType): boolean {
     const metadata = getWindowTypeMetadata(type)
+
     if (metadata.lifecycle !== 'singleton') {
       if (metadata.rememberBounds && isDev) {
         logger.warn(`rememberBounds is singleton-only; ignored for non-singleton window type "${type}"`)
       }
+
       return false
     }
+
     return this.rememberBoundsOverride.get(type) ?? metadata.rememberBounds ?? false
   }
 
@@ -1571,6 +1716,7 @@ export class WindowManager extends BaseService {
     for (const managed of this.windows.values()) {
       if (managed.window === window) return managed
     }
+
     return undefined
   }
 
@@ -1583,6 +1729,7 @@ export class WindowManager extends BaseService {
    */
   public setRememberBounds(type: WindowType, enabled: boolean): void {
     this.rememberBoundsOverride.set(type, enabled)
+
     if (!enabled) {
       clearSavedBounds(type)
     }
@@ -1646,27 +1793,36 @@ export class WindowManager extends BaseService {
       for (const [type, state] of this.warmupStates) {
         if (!state.managed.has(windowId)) continue
         const metadata = getWindowTypeMetadata(type)
+
         if (metadata.lifecycle === 'pooled') {
           if (state.suspended) return // let native close proceed
+
           // A fullscreen window is closed natively, never hidden — the same rule as
           // releaseToPool()'s fullscreen guard; cancelling here would orphan its Space.
           if (window.isFullScreen()) return
           event.preventDefault()
+
           if (state.idle.includes(windowId)) return // already idle
           const managed = this.windows.get(windowId)
+
           if (managed) {
             this.releaseToPool(windowId, managed, state, metadata.poolConfig, type)
           }
+
           return
         }
+
         if (metadata.lifecycle === 'singleton' && metadata.singletonConfig?.retentionTime !== undefined) {
           if (state.suspended) return
           event.preventDefault()
+
           if (state.idle.includes(windowId)) return
           const managed = this.windows.get(windowId)
+
           if (managed) {
             this.releaseSingletonToHidden(windowId, managed, state, metadata.singletonConfig, type)
           }
+
           return
         }
       }
@@ -1677,6 +1833,7 @@ export class WindowManager extends BaseService {
       window.removeAllListeners()
 
       const managed = this.windows.get(windowId)
+
       if (managed) {
         this.cleanupWindowTracking(windowId, managed.type)
         this._onWindowDestroyed.fire(managed)
@@ -1692,7 +1849,9 @@ export class WindowManager extends BaseService {
         if (state.managed.has(windowId)) {
           state.managed.delete(windowId)
           const idx = state.idle.indexOf(windowId)
+
           if (idx !== -1) state.idle.splice(idx, 1)
+
           if (state.idle.length === 0) this.activeWarmupTypes.delete(type)
           break
         }
@@ -1705,12 +1864,15 @@ export class WindowManager extends BaseService {
   /** Remove a window from type tracking and the main window map */
   private cleanupWindowTracking(windowId: string, type: WindowType): void {
     const typeSet = this.windowsByType.get(type)
+
     if (typeSet) {
       typeSet.delete(windowId)
+
       if (typeSet.size === 0) {
         this.windowsByType.delete(type)
       }
     }
+
     this.windows.delete(windowId)
     this.initDataStore.delete(windowId)
     // Hidden runtime state must not survive the underlying BrowserWindow —
@@ -1754,11 +1916,13 @@ export class WindowManager extends BaseService {
   private hideDockWhenReady(): void {
     if (this.dockVisibilityStopped || this.dockShouldBeVisible || this.dockHideTimer) return
     const remaining = DOCK_HIDE_COOLDOWN - (Date.now() - this.lastDockShowAt)
+
     if (remaining > 0) {
       const timer = setTimeout(() => {
         this.dockHideTimer?.dispose()
         this.hideDockWhenReady()
       }, remaining)
+
       timer.unref()
       this.dockHideTimer = this.registerDisposable(() => {
         clearTimeout(timer)
@@ -1784,7 +1948,9 @@ export class WindowManager extends BaseService {
   private windowContributesToDock(managed: ManagedWindow): boolean {
     if (managed.window.isDestroyed()) return false
     const typeOverride = this.behavior.getMacShowInDockOverride(managed.type)
+
     if (typeOverride !== undefined) return typeOverride
+
     return managed.metadata.behavior?.macShowInDock !== false
   }
 

@@ -27,14 +27,18 @@ const STDERR_DRAIN_GRACE_MS = 200
 
 function utf8Tail(text: string): string {
   const bytes = Buffer.from(text)
+
   if (bytes.length <= STDERR_TAIL_LIMIT) return text
 
   let start = bytes.length - STDERR_TAIL_LIMIT
+
   while ((bytes[start] & 0xc0) === 0x80) start++
+
   return bytes.subarray(start).toString()
 }
 
 type TrackedSpawnedProcess = SpawnedProcess & { readonly pid?: number }
+
 type SpawnedChildProcess = TrackedSpawnedProcess & { readonly stderr: Readable }
 
 export type SpawnProcess = (
@@ -51,6 +55,7 @@ export type SpawnProcess = (
 ) => SpawnedChildProcess
 
 type ExitListener = (code: number | null, signal: NodeJS.Signals | null) => void
+
 type ErrorListener = (error: Error) => void
 
 function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics): void {
@@ -73,6 +78,7 @@ function recordSynchronousSpawnFailure(diagnostics: ClaudeCodeProcessDiagnostics
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The Darwin spawn fallback applies only to a caught Error with EBADF; unrelated failures retain their normal handling.
 function macOsForkFallbackUid(error: unknown): number | undefined {
   if (process.platform !== 'darwin' || typeof process.getuid !== 'function') return undefined
+
   if (!(error instanceof Error) || !('code' in error) || error.code !== 'EBADF') return undefined
 
   // Apple posix_spawn rejects pipe fds above 10239 (libuv#5204); same uid selects libuv's fork/exec path.
@@ -103,6 +109,7 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
     })
     child.once('exit', (code, signal) => {
       this.pendingExit = { code, signal }
+
       if (this.stderrClosed) return this.deliverExit()
       this.drainTimer = setTimeout(() => {
         child.stderr.destroy()
@@ -145,8 +152,10 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
     // Windows has no signal-driven process-group cleanup, so a plain kill orphans the CLI's descendants.
     if (process.platform === 'win32' && this.child.pid !== undefined) {
       killProcessTree({ pid: this.child.pid, kill: () => this.child.kill('SIGTERM') })
+
       return true
     }
+
     return this.child.kill(signal)
   }
 
@@ -174,10 +183,13 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
 
   private deliverExit(): void {
     const exit = this.pendingExit
+
     if (!exit) return
     this.pendingExit = undefined
+
     if (this.drainTimer) clearTimeout(this.drainTimer)
     recordClaudeCodeProcessExit(this.diagnostics, exit.code, exit.signal, this.stderrTail)
+
     if (exit.code !== 0) logClaudeCodeProcessFailure(this.diagnostics)
     this.events.emit('exit', exit.code, exit.signal)
   }
@@ -198,6 +210,7 @@ export class ClaudeCodeProcessManager extends BaseService {
 
   spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
     resetClaudeCodeProcessDiagnostics(diagnostics)
+
     const spawnOptions: Parameters<SpawnProcess>[2] = {
       cwd: options.cwd,
       env: options.env,
@@ -206,11 +219,14 @@ export class ClaudeCodeProcessManager extends BaseService {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
     }
+
     let rawChild: SpawnedChildProcess
+
     try {
       rawChild = this.spawnProcess(options.command, options.args, spawnOptions)
     } catch (error) {
       const uid = macOsForkFallbackUid(error)
+
       if (uid === undefined) {
         recordSynchronousSpawnFailure(diagnostics, error)
         throw error
@@ -219,6 +235,7 @@ export class ClaudeCodeProcessManager extends BaseService {
       logger.warn('Retrying Claude Code process spawn through macOS fork fallback', {
         reference: diagnostics.reference
       })
+
       try {
         rawChild = this.spawnProcess(options.command, options.args, { ...spawnOptions, uid })
       } catch (retryError) {
@@ -226,6 +243,7 @@ export class ClaudeCodeProcessManager extends BaseService {
         throw retryError
       }
     }
+
     diagnostics.exited = new Promise<void>((resolve) => {
       rawChild.once('exit', () => resolve())
       rawChild.once('error', () => {
@@ -239,6 +257,7 @@ export class ClaudeCodeProcessManager extends BaseService {
     child.once('error', () => {
       if (child.pid === undefined) this.processes.delete(child)
     })
+
     return child
   }
 
@@ -253,6 +272,7 @@ export class ClaudeCodeProcessManager extends BaseService {
         this.processes.delete(child)
         continue
       }
+
       try {
         child.kill(signal)
       } catch (error) {

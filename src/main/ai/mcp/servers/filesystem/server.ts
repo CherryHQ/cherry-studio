@@ -37,17 +37,22 @@ export function createFileSystemServer(baseDir?: string): McpServer {
   server.registerTool('edit', editToolDefinition, (args) => handleEditTool(args, root))
   server.registerTool('write', writeToolDefinition, (args) => handleWriteTool(args, root))
   server.registerTool('delete', deleteToolDefinition, (args) => handleDeleteTool(args, root))
+
   return server
 }
 
 function resolveBaseDir(baseDir?: string): string {
   const expandedBaseDir = baseDir ? expandHome(baseDir) : undefined
+
   if (expandedBaseDir && path.isAbsolute(expandedBaseDir)) {
     const resolved = normalizePath(path.resolve(expandedBaseDir))
     logger.info(`Using provided baseDir for filesystem MCP: ${resolved}`)
+
     return resolved
   }
+
   const workspace = application.getPath('feature.mcp.workspace')
   logger.info(`Using default workspace for filesystem MCP baseDir: ${workspace}`)
+
   return workspace
 }

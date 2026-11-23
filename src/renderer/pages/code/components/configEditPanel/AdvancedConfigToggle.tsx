@@ -19,6 +19,7 @@ export const AdvancedConfigToggle: FC<{ open: boolean; onToggle: () => void; chi
   children
 }) => {
   const { t } = useTranslation()
+
   return (
     <div data-state={open ? 'open' : 'closed'}>
       <AdvancedSettingsButton onClick={onToggle}>

@@ -18,6 +18,7 @@ import * as z from 'zod'
 // ============================================================================
 
 export const JobStatusAtomSchema = z.enum(['pending', 'delayed', 'running', 'completed', 'failed', 'cancelled'])
+
 export type JobStatus = z.infer<typeof JobStatusAtomSchema>
 
 /** Terminal states: jobs in these states are finished and never resume. */
@@ -31,6 +32,7 @@ export const isTerminalStatus = (status: JobStatus): status is TerminalJobStatus
 
 /** Terminal-only status atom — for payloads that can only carry a finished state. */
 export const TerminalJobStatusSchema = z.enum(TERMINAL_JOB_STATUSES)
+
 export type TerminalJobStatus = z.infer<typeof TerminalJobStatusSchema>
 
 /**
@@ -44,6 +46,7 @@ export const JobErrorSchema = z.strictObject({
   params: z.record(z.string(), z.unknown()).optional(),
   retryable: z.boolean()
 })
+
 export type JobError = z.infer<typeof JobErrorSchema>
 
 // ============================================================================
@@ -71,6 +74,7 @@ export const OnceTriggerSchema = z.strictObject({
 })
 
 export const TriggerSchema = z.discriminatedUnion('kind', [CronTriggerSchema, IntervalTriggerSchema, OnceTriggerSchema])
+
 export type Trigger = z.infer<typeof TriggerSchema>
 
 /**
@@ -84,12 +88,15 @@ export const triggersEqual = (a: Trigger, b: Trigger): boolean => {
   if (a.kind === 'cron' && b.kind === 'cron') {
     return a.expr === b.expr && a.timezone === b.timezone && a.limit === b.limit
   }
+
   if (a.kind === 'interval' && b.kind === 'interval') {
     return a.ms === b.ms && a.anchor === b.anchor
   }
+
   if (a.kind === 'once' && b.kind === 'once') {
     return a.at === b.at
   }
+
   return false
 }
 
@@ -101,6 +108,7 @@ export const CatchUpPolicySchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('skip-missed') }),
   z.strictObject({ kind: z.literal('after-startup'), minutes: z.number().int().min(0) })
 ])
+
 export type CatchUpPolicy = z.infer<typeof CatchUpPolicySchema>
 
 // ============================================================================
@@ -113,6 +121,7 @@ export const RetryPolicySchema = z.strictObject({
   baseDelayMs: z.number().int().min(0),
   maxDelayMs: z.number().int().min(0)
 })
+
 export type RetryPolicy = z.infer<typeof RetryPolicySchema>
 
 // ============================================================================
@@ -143,6 +152,7 @@ export const JobSnapshotSchema = z.strictObject({
   createdAt: z.string(),
   updatedAt: z.string()
 })
+
 export type JobSnapshot = z.infer<typeof JobSnapshotSchema>
 
 // ============================================================================
@@ -163,6 +173,7 @@ export const JobScheduleSnapshotSchema = z.strictObject({
   createdAt: z.string(),
   updatedAt: z.string()
 })
+
 export type JobScheduleSnapshot = z.infer<typeof JobScheduleSnapshotSchema>
 
 // ============================================================================
@@ -173,6 +184,7 @@ export const JobProgressSchema = z.strictObject({
   progress: z.number().min(0).max(100),
   detail: z.unknown().optional()
 })
+
 export type JobProgress = z.infer<typeof JobProgressSchema>
 
 /**
@@ -189,8 +201,10 @@ export const JobScheduleNameAtomSchema = z
     (s) => {
       for (let i = 0; i < s.length; i++) {
         const code = s.charCodeAt(i)
+
         if (code === 0 || code === 9 || code === 10 || code === 13) return false
       }
+
       return true
     },
     { message: 'name cannot contain control characters (NUL/TAB/LF/CR)' }
@@ -206,6 +220,7 @@ export const CreateJobScheduleInputSchema = z.strictObject({
   metadata: z.record(z.string(), z.unknown()).optional(),
   enabled: z.boolean().optional()
 })
+
 export type CreateJobScheduleDto = z.infer<typeof CreateJobScheduleInputSchema>
 
 export const UpdateJobScheduleInputSchema = z.strictObject({
@@ -216,6 +231,7 @@ export const UpdateJobScheduleInputSchema = z.strictObject({
   enabled: z.boolean().optional(),
   metadata: z.record(z.string(), z.unknown()).optional()
 })
+
 export type UpdateJobScheduleDto = z.infer<typeof UpdateJobScheduleInputSchema>
 
 // ============================================================================
@@ -236,6 +252,7 @@ export const JOB_ERROR_CODES = {
   HANDLER_THREW: 'JOB_HANDLER_THREW',
   CANCELLED: 'JOB_CANCELLED'
 } as const
+
 export type JobErrorCode = (typeof JOB_ERROR_CODES)[keyof typeof JOB_ERROR_CODES]
 
 // ============================================================================
@@ -252,20 +269,27 @@ const StatusListQuerySchema = z
   .optional()
   .transform((value, ctx) => {
     if (!value) return undefined
+
     const parts = value
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
+
     if (parts.length === 0) return undefined
     const out: JobStatus[] = []
+
     for (const part of parts) {
       const parsed = JobStatusAtomSchema.safeParse(part)
+
       if (!parsed.success) {
         ctx.addIssue({ code: 'custom', message: `invalid status value: ${part}` })
+
         return z.NEVER
       }
+
       out.push(parsed.data)
     }
+
     return out
   })
 
@@ -278,6 +302,7 @@ export const ListJobsQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(500).optional(),
   offset: z.coerce.number().int().min(0).optional()
 })
+
 /** Input shape (URL query strings). Use {@link ListJobsQuerySchema} to parse. */
 export type ListJobsQueryParams = z.input<typeof ListJobsQuerySchema>
 

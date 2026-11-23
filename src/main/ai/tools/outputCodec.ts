@@ -32,7 +32,9 @@ function acceptsJsonMetadata(value: unknown): value is JSONValue {
 
 function snippet(text: string): string {
   const trimmed = text.trim()
+
   if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+
   return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
@@ -42,24 +44,32 @@ export function makeEntitiesCodec({ contentKey }: { contentKey: string }): ToolO
     deflate(value) {
       if (!Array.isArray(value) || value.length === 0) return null
       const blobs: Array<{ key: string; text: string }> = []
+
       for (let index = 0; index < value.length; index++) {
         const item = value[index]
+
         if (typeof item !== 'object' || item === null || Array.isArray(item)) return null
         // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Probe the configured text field before validating the complete opaque entity as JSON metadata.
         const content = (item as Record<string, unknown>)[contentKey]
+
         if (typeof content !== 'string') return null
         blobs.push({ key: `/${index}/${contentKey}`, text: content })
       }
+
       return acceptsJsonMetadata(value) ? { skeleton: value, blobs } : null
     },
     assemble(skeleton, texts) {
       // SAFETY: assemble consumes the JSON entity array accepted by this codec's deflate.
       const items = skeleton as JSONObject[]
+
       return items.map((item, index) => {
         const key = `/${index}/${contentKey}`
+
         if (!(key in texts) || texts[key] === item[contentKey]) return item
         const clone: JSONObject = {}
+
         for (const k of Object.keys(item)) clone[k] = k === contentKey ? texts[key] : item[k]
+
         return clone
       })
     },
@@ -74,16 +84,21 @@ export function makeTextFieldCodec({ textKey }: { textKey: string }): ToolOutput
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The selected field is checked first; acceptsJsonMetadata establishes the skeleton's JSON contract afterward.
       const text = (value as Record<string, unknown>)[textKey]
+
       if (typeof text !== 'string') return null
+
       return acceptsJsonMetadata(value) ? { skeleton: value, blobs: [{ key: `/${textKey}`, text }] } : null
     },
     assemble(skeleton, texts) {
       // SAFETY: assemble consumes the JSON record accepted by this codec's deflate.
       const record = skeleton as JSONObject
       const key = `/${textKey}`
+
       if (!(key in texts) || texts[key] === record[textKey]) return record
       const clone: JSONObject = {}
+
       for (const k of Object.keys(record)) clone[k] = k === textKey ? texts[key] : record[k]
+
       return clone
     },
     snippet

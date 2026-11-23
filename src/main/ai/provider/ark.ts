@@ -17,6 +17,7 @@ function isJsonObject(value: Serializable): value is JsonObject {
 
 function isResponsesRequest(input: RequestInfo | URL): boolean {
   const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+
   try {
     return new URL(target).pathname.replace(/\/+$/, '').endsWith('/responses')
   } catch {
@@ -28,10 +29,12 @@ function addMissingOutputTextAnnotations(value: Serializable): Serializable {
   if (!isJsonObject(value) || !Array.isArray(value.output)) return value
 
   let outputChanged = false
+
   const output = value.output.map((item) => {
     if (!isJsonObject(item) || item.type !== 'message' || !Array.isArray(item.content)) return item
 
     let contentChanged = false
+
     const content = item.content.map((part) => {
       if (
         !isJsonObject(part) ||
@@ -42,11 +45,13 @@ function addMissingOutputTextAnnotations(value: Serializable): Serializable {
       }
 
       contentChanged = true
+
       return { ...part, annotations: [] }
     })
 
     if (!contentChanged) return item
     outputChanged = true
+
     return { ...item, content }
   })
 
@@ -55,14 +60,19 @@ function addMissingOutputTextAnnotations(value: Serializable): Serializable {
 
 export function stripArkUnsupportedIncludes(body: BodyInit | null | undefined): BodyInit | null | undefined {
   if (typeof body !== 'string') return body
+
   try {
     const json = JSON.parse(body)
+
     if (!Array.isArray(json.include)) return body
+
     const include = json.include.filter(
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The parsed request array is unvalidated; remove only recognized string includes and preserve other entries.
       (entry: unknown) => typeof entry !== 'string' || !ARK_UNSUPPORTED_INCLUDES.has(entry)
     )
+
     if (include.length === json.include.length) return body
+
     return JSON.stringify({ ...json, include: include.length > 0 ? include : undefined })
   } catch {
     return body
@@ -71,12 +81,15 @@ export function stripArkUnsupportedIncludes(body: BodyInit | null | undefined): 
 
 export async function normalizeArkResponsesResponse(input: RequestInfo | URL, response: Response): Promise<Response> {
   const contentType = response.headers.get('content-type')?.toLowerCase()
+
   if (!response.ok || !isResponsesRequest(input) || contentType?.includes('text/event-stream')) return response
 
   try {
     const json: unknown = await response.clone().json()
+
     if (!isSerializable(json)) return response
     const normalized = addMissingOutputTextAnnotations(json)
+
     if (normalized === json) return response
 
     const headers = new Headers(response.headers)

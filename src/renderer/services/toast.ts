@@ -56,10 +56,13 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
   const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
+
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
+
   const billing = provider?.websites?.billing
+
   const actions = {
     configure,
     billing: billing ? () => openExternalWebsite(billing) : configure,
@@ -68,11 +71,13 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       : undefined,
     ...context.actions
   }
+
   const actionKind = presentation.action
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
   let running = false
+
   const key = notifications[presentation.type]({
     key: context.key,
     title: planQuota
@@ -102,20 +107,26 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
               if (running || context.isCurrent?.() === false) return
               running = true
               const tracksCompletion = actionKind === 'retry' || actionKind === 'trimContext'
+
               if (tracksCompletion) notifications.loading({ key })
               const pending = notifications.getToastQueue().toasts.find((item) => item.key === key)
+
               const canUpdate = () =>
                 context.isCurrent?.() !== false &&
                 (!tracksCompletion || notifications.getToastQueue().toasts.find((item) => item.key === key) === pending)
+
               try {
                 const result = await run()
+
                 if (!canUpdate()) return
+
                 if (tracksCompletion) {
                   if (result === false) notifications.closeToast(key)
                   else notifications.success({ key, title: i18n.t('common.success') })
                 }
               } catch (failure) {
                 if (!canUpdate()) return
+
                 if (isAbortError(failure)) notifications.closeToast(key)
                 else
                   errorFromException(failure, {
@@ -131,6 +142,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
           }
         : undefined
   })
+
   return key
 }
 

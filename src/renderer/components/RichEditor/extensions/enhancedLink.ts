@@ -24,11 +24,13 @@ function getMarkRange($pos: ResolvedPos, markType: MarkType, attrs?: any): { fro
           // Check if our target position is within this range
           if ($pos.pos >= from && $pos.pos < to) {
             foundRange = { from, to }
+
             return false // Stop searching
           }
         }
       }
     }
+
     return true // Continue searching
   })
 
@@ -64,8 +66,10 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
         rect.width, // width
         rect.height // height
       )
+
       return adjustedRect
     }
+
     return rect
   }
 
@@ -115,6 +119,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
                   if (linkMark) {
                     // Use ProseMirror's mark range finding
                     const range = getMarkRange($pos, linkMark.type, linkMark.attrs)
+
                     if (range) {
                       linkRange = range
 
@@ -151,8 +156,10 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
                 // Fallback: Use DOM positioning
                 if (!linkRange) {
                   const startPos = view.posAtDOM(linkElement, 0)
+
                   if (startPos >= 0) {
                     const $pos = view.state.doc.resolve(startPos)
+
                     const linkMark = $pos
                       .marks()
                       .find(
@@ -162,6 +169,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
 
                     if (linkMark) {
                       const range = getMarkRange($pos, linkMark.type, linkMark.attrs)
+
                       if (range) {
                         linkRange = range
                       }
@@ -172,6 +180,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
                 // Final fallback
                 if (!linkRange && text) {
                   const pos = view.posAtDOM(linkElement, 0)
+
                   if (pos >= 0) {
                     linkRange = { from: pos, to: pos + text.length }
                   }
@@ -179,6 +188,7 @@ const createLinkHoverPlugin = (options: LinkHoverPluginOptions) => {
               } catch (e) {
                 // Ultimate fallback
                 const pos = view.posAtDOM(linkElement, 0)
+
                 if (pos >= 0 && text) {
                   linkRange = { from: pos, to: pos + text.length }
                 }
@@ -230,6 +240,7 @@ const createLinkAutoUpdatePlugin = () => {
 
       // Only process if there were actual document changes
       const hasDocChanges = transactions.some((transaction) => transaction.docChanged)
+
       if (!hasDocChanges) return null
 
       newState.doc.descendants((node, pos) => {
@@ -242,6 +253,7 @@ const createLinkAutoUpdatePlugin = () => {
               if (text.trim()) {
                 // Determine what the href should be based on the text
                 let expectedHref = text.trim()
+
                 if (
                   !expectedHref.startsWith('http://') &&
                   !expectedHref.startsWith('https://') &&
@@ -395,6 +407,7 @@ export const EnhancedLink = Link.extend<EnhancedLinkOptions>({
           if (!attributes.href) {
             return {}
           }
+
           return {
             href: attributes.href
           }
@@ -407,6 +420,7 @@ export const EnhancedLink = Link.extend<EnhancedLinkOptions>({
           if (!attributes.title) {
             return {}
           }
+
           return {
             title: attributes.title
           }

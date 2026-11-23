@@ -14,6 +14,7 @@ export function useLocalModel(id: LocalModelBundleId) {
 
   const download = useCallback(async () => {
     const result = await ipcApi.request('local_model.download', { id })
+
     return result.result === 'ready'
   }, [id])
 

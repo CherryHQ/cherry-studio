@@ -25,9 +25,11 @@ const DEFAULT_ID_KEY = 'id' as const
 
 function readItemId<T extends Record<string, unknown>>(item: T, idKey: string): string {
   const value = item[idKey]
+
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`reorder utils: item is missing a non-empty string at idKey="${idKey}"`)
   }
+
   return value
 }
 
@@ -49,6 +51,7 @@ export function reorderLocally<T extends Record<string, unknown>>(
   idKey: string = DEFAULT_ID_KEY
 ): T[] {
   const fromIndex = items.findIndex((item) => readItemId(item, idKey) === id)
+
   if (fromIndex === -1) {
     throw new Error(`reorderLocally: target id "${id}" not found in list`)
   }
@@ -60,29 +63,37 @@ export function reorderLocally<T extends Record<string, unknown>>(
   const [target] = next.splice(fromIndex, 1)
 
   let insertIndex: number
+
   if ('position' in anchor) {
     insertIndex = anchor.position === 'first' ? 0 : next.length
   } else if ('before' in anchor) {
     if (anchor.before === id) {
       throw new Error(`reorderLocally: cannot anchor item "${id}" before itself`)
     }
+
     const anchorIndex = next.findIndex((item) => readItemId(item, idKey) === anchor.before)
+
     if (anchorIndex === -1) {
       throw new Error(`reorderLocally: anchor id "${anchor.before}" not found (moving "${id}")`)
     }
+
     insertIndex = anchorIndex
   } else {
     if (anchor.after === id) {
       throw new Error(`reorderLocally: cannot anchor item "${id}" after itself`)
     }
+
     const anchorIndex = next.findIndex((item) => readItemId(item, idKey) === anchor.after)
+
     if (anchorIndex === -1) {
       throw new Error(`reorderLocally: anchor id "${anchor.after}" not found (moving "${id}")`)
     }
+
     insertIndex = anchorIndex + 1
   }
 
   next.splice(insertIndex, 0, target)
+
   return next
 }
 
@@ -121,6 +132,7 @@ export function computeMinimalMoves<T extends Record<string, unknown>>(
   }
 
   const currentIndexById = new Map<string, number>()
+
   for (let i = 0; i < currentList.length; i++) {
     currentIndexById.set(readItemId(currentList[i], idKey), i)
   }
@@ -128,12 +140,15 @@ export function computeMinimalMoves<T extends Record<string, unknown>>(
   // Build the permutation array: position in newList -> index in currentList.
   // Simultaneously validate that every id in newList exists in currentList.
   const perm: number[] = new Array(newList.length)
+
   for (let i = 0; i < newList.length; i++) {
     const newId = readItemId(newList[i], idKey)
     const idx = currentIndexById.get(newId)
+
     if (idx === undefined) {
       throw new Error(`computeMinimalMoves: newList id "${newId}" does not exist in currentList (not a permutation)`)
     }
+
     perm[i] = idx
   }
 
@@ -146,12 +161,14 @@ export function computeMinimalMoves<T extends Record<string, unknown>>(
 
   // Fast path: identity permutation => no moves.
   let isIdentity = true
+
   for (let i = 0; i < perm.length; i++) {
     if (perm[i] !== i) {
       isIdentity = false
       break
     }
   }
+
   if (isIdentity) {
     return []
   }
@@ -159,9 +176,11 @@ export function computeMinimalMoves<T extends Record<string, unknown>>(
   const lisIndexSet = longestIncreasingSubsequenceIndices(perm)
 
   const moves: Array<{ id: string; anchor: OrderRequest }> = []
+
   for (let i = 0; i < newList.length; i++) {
     if (lisIndexSet.has(i)) continue
     const id = readItemId(newList[i], idKey)
+
     if (i === 0) {
       moves.push({ id, anchor: { position: 'first' } })
     } else {
@@ -181,6 +200,7 @@ export function computeMinimalMoves<T extends Record<string, unknown>>(
  */
 function longestIncreasingSubsequenceIndices(values: number[]): Set<number> {
   const n = values.length
+
   if (n === 0) return new Set()
 
   // `tailIndices[k]` = index in `values` of the smallest possible tail of
@@ -195,8 +215,10 @@ function longestIncreasingSubsequenceIndices(values: number[]): Set<number> {
     // Binary search for the first tail whose value is >= v.
     let lo = 0
     let hi = tailIndices.length
+
     while (lo < hi) {
       const mid = (lo + hi) >>> 1
+
       if (values[tailIndices[mid]] < v) {
         lo = mid + 1
       } else {
@@ -207,6 +229,7 @@ function longestIncreasingSubsequenceIndices(values: number[]): Set<number> {
     if (lo > 0) {
       prev[i] = tailIndices[lo - 1]
     }
+
     if (lo === tailIndices.length) {
       tailIndices.push(i)
     } else {
@@ -217,9 +240,11 @@ function longestIncreasingSubsequenceIndices(values: number[]): Set<number> {
   // Reconstruct LIS by walking back from the last tail.
   const result = new Set<number>()
   let cursor: number = tailIndices[tailIndices.length - 1]
+
   while (cursor !== -1) {
     result.add(cursor)
     cursor = prev[cursor]
   }
+
   return result
 }

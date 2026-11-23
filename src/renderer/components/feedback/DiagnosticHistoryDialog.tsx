@@ -39,10 +39,12 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
   const [page, setPage] = useState(1)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState(false)
+
   const { data, error, isLoading, isRefreshing, refetch } = useQuery('/diagnostic-reports', {
     query: { page, limit: PAGE_SIZE },
     enabled: open
   })
+
   const reportIdsKey = JSON.stringify(data?.items.map((item) => item.reportId) ?? [])
   const hasReports = (data?.items.length ?? 0) > 0
   const queryBusy = isLoading || isRefreshing
@@ -51,14 +53,18 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
 
   const refreshPage = useCallback(async () => {
     const reportIds = JSON.parse(reportIdsKey) as string[]
+
     if (reportIds.length === 0) return
     setRefreshing(true)
     setRefreshError(false)
+
     try {
       const results = await Promise.allSettled(
         reportIds.map((reportId) => ipcApi.request('diagnostics.report.refresh', { reportId }))
       )
+
       await refetch()
+
       if (results.some((result) => result.status === 'rejected')) {
         logger.warn('Some diagnostic status lookups failed')
         setRefreshError(true)
@@ -119,6 +125,7 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
               <ul className="divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle">
                 {data?.items.map((report) => {
                   const url = diagnosticReportUrl(report.reportId)
+
                   return (
                     <Item
                       key={report.reportId}

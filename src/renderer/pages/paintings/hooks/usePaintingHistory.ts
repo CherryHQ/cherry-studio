@@ -43,6 +43,7 @@ export function usePaintingHistory() {
     hasNext,
     loadNext
   } = useInfiniteQuery('/paintings', { limit: PAGE_SIZE })
+
   const records = useInfiniteFlatItems(pages)
   const hydrationCacheRef = useRef<Map<string, PaintingHistoryCacheEntry>>(new Map())
 
@@ -53,12 +54,15 @@ export function usePaintingHistory() {
 
   useEffect(() => {
     let cancelled = false
+
     const hydrationPlan: PaintingHistoryHydrationPlanEntry[] = records.map((record) => ({
       record,
       fingerprint: getPaintingHydrationFingerprint(record),
       cached: hydrationCacheRef.current.get(record.id)
     }))
+
     const missingEntries = hydrationPlan.filter((entry) => entry.cached?.fingerprint !== entry.fingerprint)
+
     const missingHydration = missingEntries.length
       ? recordsToPaintingDataList(missingEntries.map((entry) => entry.record))
       : Promise.resolve([])
@@ -68,18 +72,23 @@ export function usePaintingHistory() {
         if (cancelled) return
 
         const freshEntries = new Map<PaintingHistoryHydrationPlanEntry, PaintingHistoryCacheEntry>()
+
         for (const [index, entry] of missingEntries.entries()) {
           const item = mapped[index]
+
           if (!item) throw new Error(`Missing hydrated painting history entry at index ${index}`)
           freshEntries.set(entry, { fingerprint: entry.fingerprint, item })
         }
 
         const nextCache = new Map<string, PaintingHistoryCacheEntry>()
+
         const items = hydrationPlan.map((entry) => {
           const cached = entry.cached?.fingerprint === entry.fingerprint ? entry.cached : undefined
           const result = freshEntries.get(entry) ?? cached
+
           if (!result) throw new Error(`Missing painting history cache entry for ${entry.record.id}`)
           nextCache.set(entry.record.id, result)
+
           return result.item
         })
 
@@ -91,6 +100,7 @@ export function usePaintingHistory() {
         logger.error('Failed to hydrate painting history', error as Error)
         setHydration({ records, items: [] })
       })
+
     return () => {
       cancelled = true
     }

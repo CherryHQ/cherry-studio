@@ -10,6 +10,7 @@ let cmThemesPromise: Promise<typeof CmThemes> | undefined
 // packages it drags in) stays out of every window's first-screen static graph.
 function loadCmThemes(): Promise<Partial<Record<string, (typeof CmThemes)[keyof typeof CmThemes]>>> {
   cmThemesPromise ??= import('@uiw/codemirror-themes-all')
+
   return cmThemesPromise
 }
 
@@ -61,6 +62,7 @@ export { getExtensionByLanguage, getNormalizedExtension } from '../../../code-bl
  */
 export async function getCmThemeNames(): Promise<string[]> {
   const cmThemes = await loadCmThemes()
+
   return ['auto', 'light', 'dark']
     .concat(Object.keys(cmThemes))
     .filter((item) => typeof cmThemes[item] !== 'function')
@@ -82,6 +84,7 @@ export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
 
   // 2. Search for the extension of the corresponding theme in @uiw/codemirror-themes-all
   const candidate = cmThemes[name]
+
   if (
     Object.prototype.hasOwnProperty.call(cmThemes, name) &&
     typeof candidate !== 'function' &&
@@ -98,5 +101,6 @@ export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
 /** The Cherry default CodeMirror theme, loaded on demand like the other themes. */
 export async function getCherryCmTheme(dark: boolean): Promise<Extension> {
   const { createCherryCmTheme } = await import('./cherry-theme')
+
   return createCherryCmTheme(dark)
 }

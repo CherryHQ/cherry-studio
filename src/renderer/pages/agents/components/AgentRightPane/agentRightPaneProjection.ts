@@ -116,9 +116,11 @@ const strippedParentMetadataCache = new WeakMap<object, CherryMessagePart>()
 function getPartWithoutParentMetadata(part: CherryMessagePart): CherryMessagePart {
   if (typeof part !== 'object' || part === null) return stripPartParentToolMetadata(part)
   const cached = strippedParentMetadataCache.get(part)
+
   if (cached) return cached
   const stripped = stripPartParentToolMetadata(part)
   strippedParentMetadataCache.set(part, stripped)
+
   return stripped
 }
 
@@ -129,11 +131,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getToolCallId(part: CherryMessagePart): string | undefined {
   const toolCallId = 'toolCallId' in part ? part.toolCallId : undefined
+
   return typeof toolCallId === 'string' && toolCallId ? toolCallId : undefined
 }
 
 function getToolPartState(part: CherryMessagePart): string | undefined {
   const state = 'state' in part ? part.state : undefined
+
   return typeof state === 'string' ? state : undefined
 }
 
@@ -141,45 +145,56 @@ function getToolPartState(part: CherryMessagePart): string | undefined {
 function getTaskToolResult(part: AgentToolPart): string | Record<string, unknown> | undefined {
   const output = part.output
   const result = isRecord(output) && 'content' in output ? output.content : output
+
   return typeof result === 'string' || isRecord(result) ? result : undefined
 }
 
 function getToolNameFromPart(part: CherryMessagePart): string | undefined {
   if (!isToolUIPart(part)) return undefined
   const toolName = getToolName(part)
+
   return toolName.trim() || undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live, persisted and deferred tool outputs vary by runtime; read checked string/content fields before projecting text into preview or flow messages.
 function textFromContent(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() || undefined
+
   if (Array.isArray(value)) {
     const text = value
       .map((item) => {
         if (typeof item === 'string') return item
+
         if (isRecord(item) && typeof item.text === 'string') return item.text
+
         return undefined
       })
       .filter(Boolean)
       .join('\n')
       .trim()
+
     return text || undefined
   }
+
   if (!isRecord(value)) return undefined
 
   for (const key of ['content', 'result', 'message', 'text', 'prompt']) {
     const text = textFromContent(value[key])
+
     if (text) return text
   }
 
   const json = JSON.stringify(value, null, 2)
+
   return json === '{}' ? undefined : json
 }
 
 function getToolPromptText(part: CherryMessagePart | undefined): string | undefined {
   if (!part || !isToolUIPart(part)) return undefined
   const input = part.input
+
   if (typeof input === 'string') return input.trim() || undefined
+
   if (!isRecord(input)) return undefined
 
   return textFromContent(input.prompt) ?? textFromContent(input.description)
@@ -190,6 +205,7 @@ const LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX = 'Async agent launched successfu
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent flow output may be a launch receipt or a normal result; check the raw object status or recognized legacy text before hiding control receipts.
 function isBackgroundAgentLaunchReceipt(output: unknown, text: string | undefined): boolean {
   const status = isRecord(output) ? output.status : undefined
+
   return (
     status === 'async_launched' ||
     status === 'remote_launched' ||
@@ -204,6 +220,7 @@ function createFlowTextMessage(
   createdAt: string
 ): CherryUIMessage | undefined {
   if (!text?.trim()) return undefined
+
   return {
     id,
     role,
@@ -217,6 +234,7 @@ function createFlowTextMessage(
 
 function getStableMessageCreatedAt(message: CherryUIMessage | undefined): string | null {
   const createdAt = message && 'createdAt' in message ? message.createdAt : undefined
+
   return message?.metadata?.createdAt ?? (typeof createdAt === 'string' ? createdAt : null)
 }
 
@@ -232,6 +250,7 @@ function getOrderedMessageParts(
     message,
     parts: partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
   }))
+
   const seenMessageIds = new Set(messages.map((message) => message.id))
 
   for (const [messageId, parts] of Object.entries(partsByMessageId)) {
@@ -258,9 +277,12 @@ const PREVIEW_URL_TOOL_NAMES = new Set<string>([
   AgentToolsType.BashOutput,
   AgentToolsType.TaskOutput
 ])
+
 const ANSI_ESCAPE_CHARACTER = String.fromCodePoint(27)
+
 const LOCAL_PREVIEW_URL_PATTERN =
   /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])(?::\d{1,5})?(?:[/?#][^\s<>"'`]*)?/gi
+
 const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?]+$/
 
 export interface AgentPreviewUrlSource {
@@ -280,18 +302,23 @@ export type AgentPreviewUrlCandidate = AgentPreviewUrlSource &
 
 function extractLatestLocalPreviewUrl(text: string): string | null {
   const matches = text.match(LOCAL_PREVIEW_URL_PATTERN)
+
   if (!matches?.length) return null
 
   for (let index = matches.length - 1; index >= 0; index -= 1) {
     const candidate = matches[index].split(ANSI_ESCAPE_CHARACTER, 1)[0].replace(TRAILING_URL_PUNCTUATION_PATTERN, '')
+
     try {
       const url = new URL(candidate)
+
       if (url.hostname === '0.0.0.0') url.hostname = 'localhost'
+
       return url.toString()
     } catch {
       // Keep looking in case an earlier match in the same output is valid.
     }
   }
+
   return null
 }
 
@@ -299,6 +326,7 @@ function extractLatestLocalPreviewUrl(text: string): string | null {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Inline and ai.tool.get_result outputs are runtime-defined; textFromContent extracts display text before matching loopback preview URLs.
 export function findAgentPreviewUrlInOutput(output: unknown): string | null {
   const text = textFromContent(output)
+
   return text ? extractLatestLocalPreviewUrl(text) : null
 }
 
@@ -313,15 +341,19 @@ export function findAgentPreviewUrlCandidates(
   for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex -= 1) {
     const { message, parts } = entries[entryIndex]
     const createdAt = getStableMessageCreatedAt(message)
+
     for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
       const part = parts[partIndex]
+
       if (!isToolUIPart(part) || !PREVIEW_URL_TOOL_NAMES.has(getToolName(part))) continue
 
       const rawOutput = part.output
       const output = isRecord(rawOutput) && 'content' in rawOutput ? rawOutput.content : rawOutput
+
       if (isDeferredToolOutput(output)) {
         const excerpt = output.excerpt
         const excerptUrl = excerpt ? findAgentPreviewUrlInOutput(`${excerpt.head}\n${excerpt.tail}`) : null
+
         if (excerptUrl) {
           candidates.push({
             createdAt,
@@ -331,8 +363,10 @@ export function findAgentPreviewUrlCandidates(
             type: 'url',
             url: excerptUrl
           })
+
           return candidates
         }
+
         const ref = output.$deferredToolResult
         candidates.push({
           createdAt,
@@ -346,6 +380,7 @@ export function findAgentPreviewUrlCandidates(
       }
 
       const url = findAgentPreviewUrlInOutput(output)
+
       if (!url) continue
       candidates.push({
         createdAt,
@@ -355,6 +390,7 @@ export function findAgentPreviewUrlCandidates(
         type: 'url',
         url
       })
+
       return candidates
     }
   }
@@ -368,6 +404,7 @@ export function getAgentPreviewUrlFrontier(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): AgentPreviewUrlFrontier | null {
   const entry = getOrderedMessageParts(messages, partsByMessageId).at(-1)
+
   return entry
     ? {
         createdAt: getStableMessageCreatedAt(entry.message),
@@ -388,16 +425,23 @@ export function isAgentPreviewUrlSourceAfterFrontier(
   const entries = getOrderedMessageParts(messages, partsByMessageId)
   const frontierIndex = entries.findIndex(({ message }) => message.id === frontier.messageId)
   const sourceIndex = entries.findIndex(({ message }) => message.id === source.messageId)
+
   if (sourceIndex < 0) return false
+
   if (frontierIndex < 0) {
     if (!source.createdAt || !frontier.createdAt) return false
     const sourceTimestamp = Date.parse(source.createdAt)
     const frontierTimestamp = Date.parse(frontier.createdAt)
+
     if (!Number.isFinite(sourceTimestamp) || !Number.isFinite(frontierTimestamp)) return false
+
     if (sourceTimestamp !== frontierTimestamp) return sourceTimestamp > frontierTimestamp
+
     return source.messageId.localeCompare(frontier.messageId) > 0
   }
+
   if (sourceIndex !== frontierIndex) return sourceIndex > frontierIndex
+
   return source.partIndex >= frontier.partsLength
 }
 
@@ -407,6 +451,7 @@ export function findLatestAgentPreviewUrl(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): string | null {
   const candidate = findAgentPreviewUrlCandidates(messages, partsByMessageId)[0]
+
   return candidate?.type === 'url' ? candidate.url : null
 }
 
@@ -432,17 +477,22 @@ export function buildAgentToolFlowProjection(
     parts.forEach((part, partIndex) => {
       if (!isToolUIPart(part)) return
       const toolCallId = getToolCallId(part)
+
       if (!toolCallId) return
 
       const parentToolCallId = getPartParentToolCallId(part)
       const input = part.input
+
       const title = isRecord(input)
         ? [input.description, input.subject, input.title, input.name].find(
             (value) => typeof value === 'string' && value.trim()
           )
         : undefined
+
       const heading: Pick<AgentToolFlowNode, 'title'> = {}
+
       if (typeof title === 'string') heading.title = title.trim()
+
       const node: AgentToolFlowNode = {
         ...heading,
         toolCallId,
@@ -452,8 +502,10 @@ export function buildAgentToolFlowProjection(
         partIndex,
         state: getToolPartState(part)
       }
+
       toolNodes.push(node)
       toolPartByCallId.set(toolCallId, part)
+
       if (parentToolCallId) {
         const children = childrenByParent.get(parentToolCallId) ?? []
         children.push(toolCallId)
@@ -463,11 +515,14 @@ export function buildAgentToolFlowProjection(
   }
 
   const selectedToolCallIds = new Set<string>()
+
   if (selectedToolCallId) {
     selectedToolCallIds.add(selectedToolCallId)
     const stack = [...(childrenByParent.get(selectedToolCallId) ?? [])]
+
     while (stack.length) {
       const toolCallId = stack.pop()
+
       if (!toolCallId || selectedToolCallIds.has(toolCallId)) continue
       selectedToolCallIds.add(toolCallId)
       stack.push(...(childrenByParent.get(toolCallId) ?? []))
@@ -482,18 +537,21 @@ export function buildAgentToolFlowProjection(
     const selectedToolPart = selectedToolCallId ? toolPartByCallId.get(selectedToolCallId) : undefined
     const selectedMessage = selectedTool ? messageById.get(selectedTool.messageId) : undefined
     const selectedCreatedAt = getMessageCreatedAt(selectedMessage)
+
     const promptMessage = createFlowTextMessage(
       `${selectedToolCallId}:agent-flow-prompt`,
       'user',
       getToolPromptText(selectedToolPart),
       selectedCreatedAt
     )
+
     if (promptMessage) {
       flowMessages.push(promptMessage)
       flowPartsByMessageId[promptMessage.id] = promptMessage.parts
     }
 
     const taskIds = new Set<string>()
+
     for (const { parts } of messageEntries) {
       for (const part of parts) {
         if (
@@ -508,18 +566,23 @@ export function buildAgentToolFlowProjection(
     }
 
     const assistantParts: CherryMessagePart[] = []
+
     for (const { parts } of messageEntries) {
       for (let partIndex = 0; partIndex < parts.length; partIndex++) {
         const part = parts[partIndex]
+
         if (part.type === 'data-agent-task-event') {
           if (taskIds.has(part.data.taskId)) assistantParts.push(part)
           continue
         }
+
         const toolCallId = getToolCallId(part)
+
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
         } else {
           const parentToolCallId = getPartParentToolCallId(part)
+
           if (!parentToolCallId || !selectedToolCallIds.has(parentToolCallId)) continue
         }
 
@@ -533,8 +596,10 @@ export function buildAgentToolFlowProjection(
         : selectedToolPart && 'output' in selectedToolPart
           ? selectedToolPart.output
           : undefined
+
     const selectedOutputText = textFromContent(selectedOutput)
     const details = isRecord(selectedOutput) ? selectedOutput.details : undefined
+
     const isPiSubagentReceipt =
       selectedToolPart &&
       isToolUIPart(selectedToolPart) &&
@@ -542,7 +607,9 @@ export function buildAgentToolFlowProjection(
       isRecord(details) &&
       typeof details.sessionId === 'string' &&
       typeof details.background === 'boolean'
+
     const hasChildText = assistantParts.some((part) => part.type === 'text' && part.text.trim())
+
     // A detached Agent result is only a control receipt and may expose internal ids or paths. Its
     // actual conversation already arrives through the child flow parts collected above.
     const outputText =
@@ -550,10 +617,13 @@ export function buildAgentToolFlowProjection(
       (isPiSubagentReceipt && (details.background || hasChildText))
         ? undefined
         : selectedOutputText
+
     if (outputText) assistantParts.push({ type: 'text', text: outputText })
+
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
+
     if (assistantParts.length || isFlowActive) {
       const assistantMessage = {
         id: `${selectedToolCallId}:agent-flow-assistant`,
@@ -564,6 +634,7 @@ export function buildAgentToolFlowProjection(
           status: isFlowActive ? 'pending' : 'success'
         }
       } as CherryUIMessage
+
       flowMessages.push(assistantMessage)
       flowPartsByMessageId[assistantMessage.id] = assistantParts
     }
@@ -600,13 +671,16 @@ function applyTaskToolPart(
   if (toolName === AgentToolsType.TaskCreate) {
     const currentPlanCompleted =
       taskMap.size > 0 && Array.from(taskMap.values()).every((task) => task.status === 'completed')
+
     const currentPlanFromEarlierMessage =
       state.currentPlanTaskIds !== undefined && state.planMessageId !== undefined && state.planMessageId !== messageId
+
     const listOnlyFromEarlierMessage =
       state.currentPlanTaskIds === undefined &&
       taskMap.size > 0 &&
       state.listSnapshotMessageId !== undefined &&
       state.listSnapshotMessageId !== messageId
+
     if (currentPlanCompleted || currentPlanFromEarlierMessage || listOnlyFromEarlierMessage) {
       taskMap.clear()
       state.currentPlanTaskIds = new Set()
@@ -620,14 +694,18 @@ function applyTaskToolPart(
     const inputRecord = isTaskRecord(input) ? input : {}
     const outputRecord = isTaskRecord(output) ? output : {}
     const outputTask = isTaskRecord(outputRecord.task) ? outputRecord.task : undefined
+
     const outputTextId =
       typeof output === 'string' ? output.match(/^Task #(\S+) created successfully:/)?.[1] : undefined
+
     const id =
       (outputTask ? getTaskId(outputTask) : undefined) ?? outputTextId ?? getNextTaskOrdinalId(taskMap) ?? fallbackId
+
     const title = (outputTask ? getTaskTitle(outputTask) : undefined) ?? getTaskTitle(inputRecord, id) ?? id
     const activeText = getTaskActiveText(inputRecord)
     taskMap.set(id, { id, title, activeText, status: 'pending' })
     state.currentPlanTaskIds?.add(id)
+
     return true
   }
 
@@ -635,15 +713,19 @@ function applyTaskToolPart(
     const inputRecord = isTaskRecord(input) ? input : {}
     const id = getTaskId(inputRecord) ?? (isTaskRecord(output) ? getTaskId(output) : undefined) ?? fallbackId
     const taskStatus = inputRecord.status ?? (isTaskRecord(output) ? output.status : undefined)
+
     if (isDeletedTaskStatus(taskStatus)) {
       if (getToolPartState(part) !== 'output-available') return true
       // oxlint-disable-next-line anti-slop/no-known-value-widening -- Native task results can be text or opaque records; only an explicit success marker confirms a record deletion.
       const deleted = (isRecord(output) && output.success === true) || output === `Updated task #${id} deleted`
+
       if (!deleted) return true
       taskMap.delete(id)
       state.currentPlanTaskIds?.delete(id)
+
       return true
     }
+
     const existing = taskMap.get(id)
     const status = normalizeTaskStatus(inputRecord.status)
     taskMap.set(id, {
@@ -652,14 +734,17 @@ function applyTaskToolPart(
       activeText: getTaskActiveText(inputRecord) ?? existing?.activeText,
       status: status ?? existing?.status ?? 'pending'
     })
+
     return true
   }
 
   if (toolName === AgentToolsType.TaskList) {
     const partState = getToolPartState(part)
+
     if (partState !== 'output-available') return false
 
     let rows: unknown[]
+
     if (isTaskRecord(output) && Array.isArray(output.tasks)) {
       rows = output.tasks
     } else if (typeof output === 'string' && /^no tasks found\b/i.test(output.trim())) {
@@ -671,19 +756,26 @@ function applyTaskToolPart(
     if (state.currentPlanTaskIds === undefined && state.listSnapshotMessageId === undefined) {
       state.listSnapshotMessageId = messageId
     }
+
     const snapshotTaskIds = new Set<string>()
+
     for (const task of rows) {
       if (!isTaskRecord(task)) continue
       const id = getTaskId(task)
+
       if (!id) continue
       snapshotTaskIds.add(id)
+
       if (isDeletedTaskStatus(task.status)) {
         taskMap.delete(id)
         state.currentPlanTaskIds?.delete(id)
         continue
       }
+
       const title = getTaskTitle(task, id)
+
       if (!title) continue
+
       if (state.currentPlanTaskIds && !state.currentPlanTaskIds.has(id)) continue
       taskMap.set(id, {
         id,
@@ -691,12 +783,14 @@ function applyTaskToolPart(
         status: normalizeTaskStatus(task.status) ?? 'pending'
       })
     }
+
     for (const id of taskMap.keys()) {
       if (!snapshotTaskIds.has(id)) {
         taskMap.delete(id)
         state.currentPlanTaskIds?.delete(id)
       }
     }
+
     return true
   }
 
@@ -706,8 +800,10 @@ function applyTaskToolPart(
 function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | undefined {
   for (let index = 1; index <= taskMap.size + 1; index += 1) {
     const id = String(index)
+
     if (!taskMap.has(id)) return id
   }
+
   return undefined
 }
 
@@ -723,11 +819,13 @@ function getTodoSnapshot(part: CherryMessagePart): AgentStatusTask[] | undefined
   }
 
   const input = part.input
+
   if (!isRecord(input) || !Array.isArray(input.todos)) return undefined
 
   return input.todos.flatMap((todo, index) => {
     if (!isRecord(todo) || typeof todo.content !== 'string') return []
     const title = todo.content.trim()
+
     if (!title) return []
 
     return [
@@ -751,11 +849,13 @@ function applyAgentTaskEvent(
   const existing = runTaskMap.get(data.taskId)
   // A completion's summary is prose, not a name — it must never become the row title.
   const title = existing?.title || data.title?.trim() || data.description?.trim()
+
   if (!title) return
 
   // Events reach this map from two orderings (message parts, then the late-event cache), so a stale
   // pre-completion event can apply after the completion did. A settled task never resurrects.
   const incoming = data.status ?? existing?.status ?? 'pending'
+
   const status =
     existing && RUN_TASK_TERMINAL_STATUSES.has(existing.status) && !RUN_TASK_TERMINAL_STATUSES.has(incoming)
       ? existing.status
@@ -775,6 +875,7 @@ function applyAgentTaskEvent(
     outputFile: data.outputFile ?? existing?.outputFile,
     usage: data.usage ?? existing?.usage
   })
+
   if (originMessageId && !originMessageIds?.has(data.taskId)) {
     originMessageIds?.set(data.taskId, originMessageId)
   }
@@ -789,6 +890,7 @@ function getPathBasename(path: string): string {
     .trim()
     .split(/[/\\]+/)
     .filter(Boolean)
+
   return segments.at(-1) ?? path
 }
 
@@ -821,6 +923,7 @@ export function buildAgentRightPaneStatus(
       if (!isToolUIPart(part)) return
       const toolName = getToolNameFromPart(part)
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
+
       // The plan has two writers — the incremental task ledger and full-list todo snapshots —
       // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
       // Both writers are main-agent-only: spawned-run parts are parented under their Task call.
@@ -829,7 +932,9 @@ export function buildAgentRightPaneStatus(
           todoSnapshotTasks = undefined
           taskPlanMessageId = message.id
         }
+
         const todoSnapshot = getTodoSnapshot(part)
+
         if (todoSnapshot !== undefined) {
           todoSnapshotTasks = todoSnapshot
           taskPlanMessageId = message.id
@@ -838,9 +943,11 @@ export function buildAgentRightPaneStatus(
 
       if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(part.input)
+
         if (parsed.success) {
           for (const artifact of parsed.data.artifacts) {
             const path = artifact.path.trim()
+
             if (!path) continue
             artifactByPath.set(path, {
               toolCallId: fallbackId,
@@ -865,12 +972,14 @@ export function buildAgentRightPaneStatus(
     for (const [id, task] of runTaskMap) {
       if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue
       const originMessageId = runTaskOriginMessageIds.get(id)
+
       if (
         (originMessageId && liveness.activeMessageIds.has(originMessageId)) ||
         liveness.liveBackgroundTaskIds.has(id)
       ) {
         continue
       }
+
       runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
     }
   }
@@ -884,10 +993,12 @@ export function buildAgentRightPaneStatus(
 
   const isTaskPlanActive =
     taskPlanMessageId !== undefined && (!liveness || liveness.activeMessageIds.has(taskPlanMessageId))
+
   const tasks = (todoSnapshotTasks ?? Array.from(taskMap.values())).map(
     (task): AgentStatusTask =>
       !isTaskPlanActive && task.status === 'in_progress' ? { ...task, status: 'pending', activeText: undefined } : task
   )
+
   const completedTaskCount = tasks.filter((task) => task.status === 'completed').length
 
   return {

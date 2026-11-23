@@ -4,7 +4,9 @@
  */
 
 export type LocalInferenceProfileId = 'cpu' | 'directml' | 'coreml'
+
 export type LocalInferenceDevice = 'cpu' | 'dml' | 'coreml'
+
 export type LocalInferenceExecutionProvider = 'cpu' | 'dml' | 'coreml' | { name: 'coreml'; coreMlFlags: number }
 
 export interface LocalInferenceSessionOptions {

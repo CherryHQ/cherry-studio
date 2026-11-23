@@ -22,6 +22,7 @@ export function isGenerateImageToolName(toolName: string): boolean {
 export function parseGeneratedImageOutput(response: unknown) {
   const outputParse = generateImageOutputSchema.safeParse(response)
   const mcpOutputParse = CallToolResultSchema.safeParse(Array.isArray(response) ? { content: response } : response)
+
   return {
     items: outputParse.success ? outputParse.data : [],
     inlineUrls:
@@ -39,8 +40,11 @@ export function isGeneratedImageResultPart(part: CherryMessagePart): boolean {
   }
 
   const toolResponse = buildToolResponseFromPart(part)
+
   if (!toolResponse) return false
+
   if (isDeferredToolOutput(toolResponse.response)) return true
   const { inlineUrls, items } = parseGeneratedImageOutput(toolResponse.response)
+
   return inlineUrls.length > 0 || items.length > 0
 }

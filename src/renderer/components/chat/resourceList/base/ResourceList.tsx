@@ -63,7 +63,9 @@ export type {
   ResourceListViewGroup,
   ResourceListViewSection
 } from './ResourceListContext'
+
 export type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from './ResourceListContext'
+
 export type { ResourceListPresentation } from './resourceListLayout'
 
 type FrameProps = ComponentProps<'div'> & {
@@ -80,14 +82,18 @@ function useResourceListPresentation() {
 
 function Frame({ className, presentation = 'left-panel', active = true, ref, ...props }: FrameProps) {
   const rootRef = useRef<HTMLDivElement>(null)
+
   const setRef = useCallback(
     (node: HTMLDivElement | null) => {
       rootRef.current = node
+
       if (typeof ref === 'function') return ref(node)
+
       if (ref) ref.current = node
     },
     [ref]
   )
+
   const meta = useResourceListMeta()
   const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
 
@@ -303,6 +309,7 @@ function SectionToggleMenuItem({
       disabled={isDisabled}
       onClick={(event) => {
         onClick?.(event)
+
         if (event.defaultPrevented || isDisabled) return
 
         if (hasExpandedGroup) {
@@ -347,6 +354,7 @@ function SectionCollapseActionButton({
         onClick={(event) => {
           event.stopPropagation()
           onClick?.(event)
+
           if (event.defaultPrevented || isDisabled) return
           actions.collapseGroups(groupIds)
         }}
@@ -374,6 +382,7 @@ function FilterBar({ className, ref, ...props }: FilterBarProps) {
     <div ref={ref} className={cn('flex flex-wrap items-center gap-1.5 p-2', className)} {...props}>
       {meta.filterOptions.map((option) => {
         const active = state.filters.includes(option.id)
+
         return (
           <Button
             key={option.id}
@@ -388,6 +397,7 @@ function FilterBar({ className, ref, ...props }: FilterBarProps) {
       })}
       {meta.sortOptions.map((option) => {
         const active = state.sort === option.id
+
         return (
           <Button
             key={option.id}
@@ -428,6 +438,7 @@ function Item<T extends ResourceListItemBase>({
   const { getItemId } = useResourceListItemAccessors<T>()
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
+
   const content = (
     <div
       ref={ref}
@@ -456,6 +467,7 @@ function Item<T extends ResourceListItemBase>({
       }}
       onKeyDown={(event) => {
         onKeyDown?.(event)
+
         if (event.defaultPrevented || event.target !== event.currentTarget) return
 
         if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
@@ -503,6 +515,7 @@ function RenameField<T extends ResourceListItemBase>({
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
   const didCommitRef = useRef(false)
+
   const setInputRef = useCallback(
     (node: HTMLInputElement | null) => {
       if (typeof ref === 'function') {
@@ -552,14 +565,17 @@ function RenameField<T extends ResourceListItemBase>({
         // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
         // oxlint-disable-next-line no-deprecated
         if (event.nativeEvent.isComposing || event.keyCode === 229) return
+
         if (event.key === 'Enter') {
           event.preventDefault()
           event.stopPropagation()
           commitRename(event.currentTarget.value)
         }
+
         if (event.key === ' ' || event.key === 'Spacebar') {
           event.stopPropagation()
         }
+
         if (event.key === 'Escape') {
           event.preventDefault()
           event.stopPropagation()
@@ -800,7 +816,9 @@ const ResourceList = {
 }
 
 export type { ResourceListPermanentDeleteProps } from './useResourceListPermanentDelete'
+
 export { useResourceListPermanentDelete } from './useResourceListPermanentDelete'
+
 export {
   ResourceList,
   useResourceList,

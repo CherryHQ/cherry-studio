@@ -24,11 +24,14 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   // legacy '' sentinel; normalize on read (this is the preference's only read
   // choke point) so the next write self-heals. No migration needed.
   const legacyIds = Object.keys(state.providers).filter((id) => (state.providers[id].modelId as string) === '')
+
   if (legacyIds.length === 0) return state
   const providers = { ...state.providers }
+
   for (const id of legacyIds) {
     providers[id] = { ...providers[id], modelId: null }
   }
+
   return { ...state, providers }
 }
 
@@ -57,10 +60,12 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
   const currentToolState = useMemo(() => getToolState(selectedCliTool, configs), [selectedCliTool, configs])
 
   const currentProviderId = currentToolState.current
+
   const currentProviderConfig = useMemo(
     () => (currentProviderId ? (currentToolState.providers[currentProviderId] ?? null) : null),
     [currentToolState, currentProviderId]
   )
+
   const selectedTerminal = currentToolState.terminal
   const directory = currentToolState.directory
   const providerConfigs = currentToolState.providers
@@ -87,7 +92,9 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
       const existing = getToolState(toolId, configsRef.current).providers[providerId]
       const nextConfig = 'config' in partial ? partial.config : existing?.config
       const next: CliProviderConfig = { modelId: partial.modelId }
+
       if (nextConfig !== undefined) next.config = nextConfig
+
       if (partial.sortIndex !== undefined || existing?.sortIndex !== undefined)
         next.sortIndex = partial.sortIndex ?? existing?.sortIndex
       await patchToolState(toolId, (prev) => ({
@@ -95,6 +102,7 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
         providers: { ...prev.providers, [providerId]: next }
       }))
       logger.info('Upserted CLI provider config', { toolId, providerId })
+
       return providerId
     },
     [patchToolState, selectedCliTool]
@@ -106,6 +114,7 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
       await patchToolState(toolId, (prev) => {
         const nextProviders = { ...prev.providers }
         delete nextProviders[providerId]
+
         return {
           ...prev,
           providers: nextProviders,
@@ -129,9 +138,11 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
       const toolId = selectedCliTool as CodeCliId
       await patchToolState(toolId, (prev) => {
         const nextProviders = { ...prev.providers }
+
         for (let i = 0; i < orderedIds.length; i++) {
           const id = orderedIds[i]
           const existing = nextProviders[id]
+
           if (!existing) {
             // The virtual own-login / Cherry-gateway entries have no real config; persist a
             // placeholder so their drag position sticks. Real unconfigured providers are still
@@ -139,10 +150,13 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
             if (id === CLI_OWN_LOGIN_PROVIDER_ID || isApiGatewayProviderId(id)) {
               nextProviders[id] = { modelId: null, sortIndex: i }
             }
+
             continue
           }
+
           nextProviders[id] = { ...existing, sortIndex: i }
         }
+
         return { ...prev, providers: nextProviders }
       })
     },
@@ -166,10 +180,13 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
   const selectFolder = useCallback(async (): Promise<string | null> => {
     try {
       const folderPath = await window.api.file.selectFolder()
+
       if (folderPath) {
         await setDirectory(folderPath)
+
         return folderPath
       }
+
       return null
     } catch (error) {
       logger.error('Failed to select folder:', error as Error)

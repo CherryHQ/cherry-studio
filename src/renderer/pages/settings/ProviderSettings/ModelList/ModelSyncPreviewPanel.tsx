@@ -64,6 +64,7 @@ function modelIdLine(model: Model) {
 
 const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
   const Icon = useIcon(getModelLogoRef(model))
+
   if (Icon) {
     return (
       <span className={modelListClasses.rowAvatar}>
@@ -149,6 +150,7 @@ const ManageModelRow = memo(function ManageModelRow({
   onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+
   const actionTooltip = isAdded
     ? isDefaultModel
       ? t('settings.models.manage.default_model_cannot_remove')
@@ -171,8 +173,10 @@ const ManageModelRow = memo(function ManageModelRow({
               if (isRemovable) {
                 void onRemoveModels([model.id])
               }
+
               return
             }
+
             void onAddModels([model])
           }}>
           {isAdded ? <Minus className="size-4" /> : <Plus className="size-4" />}
@@ -217,6 +221,7 @@ const SelectModelRow = memo(function SelectModelRow({
 
 export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps) {
   const { t } = useTranslation()
+
   const {
     provider,
     modelGroups,
@@ -226,8 +231,10 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
     searchActive = false,
     flattenSingleGroup = false
   } = props
+
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const entries = useMemo(() => Object.entries(modelGroups).filter(([, models]) => models.length > 0), [modelGroups])
+
   const virtualRows = useMemo<ManageVirtualRow[]>(() => {
     if (flattenSingleGroup && entries.length === 1) {
       return entries[0][1].map(
@@ -242,6 +249,7 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
     return entries.flatMap(([groupName, models]) => {
       const collapsed = !searchActive && collapsedGroups.has(groupName)
       const groupLabel = getModelGroupLabel(groupName, t)
+
       const groupRow: ManageVirtualRow = {
         key: `group:${groupName}`,
         type: 'group',
@@ -271,11 +279,13 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
   const toggleGroup = useCallback((groupName: string) => {
     setCollapsedGroups((current) => {
       const next = new Set(current)
+
       if (next.has(groupName)) {
         next.delete(groupName)
       } else {
         next.add(groupName)
       }
+
       return next
     })
   }, [])
@@ -302,9 +312,11 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
     }
 
     const isAllInProvider = models.every((model) => localModelIds.has(model.id))
+
     const removableGroupModelIds = models.flatMap((model) =>
       localModelIds.has(model.id) && props.removableModelIds.has(model.id) ? [model.id] : []
     )
+
     const title = isAllInProvider
       ? t('settings.models.manage.remove_whole_group')
       : t('settings.models.manage.add_whole_group')
@@ -320,10 +332,13 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
           className={modelSyncClasses.manageRowAction}
           onClick={(event) => {
             event.stopPropagation()
+
             if (isAllInProvider) {
               void props.onRemoveModels(removableGroupModelIds)
+
               return
             }
+
             void props.onAddModels(models.filter((model) => !localModelIds.has(model.id)))
           }}>
           {isAllInProvider ? <Minus className="size-4" /> : <Plus className="size-4" />}

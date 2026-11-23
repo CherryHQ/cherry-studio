@@ -76,12 +76,16 @@ export function registerAgentMethods(
     'agent.tasks.runs.get': ({ taskId, runId }) => ({ run: getTaskRun(taskId, runId) }),
     'agent.tasks.content.read': readTaskContent
   }
+
   const registerTask = <M extends TaskMethod>(name: M) => on(name, taskHandlers[name])
+
   for (const name of Object.keys(taskHandlers) as TaskMethod[]) registerTask(name)
 
   const summaryOf = (sessionId: string) => {
     const summary = toSessionSummary(getSession(sessionId), hub.activeExecutionId(sessionId))
+
     if (!summary) throw new RemoteRpcError('NOT_FOUND', 'Session not found')
+
     return summary
   }
 
@@ -89,10 +93,12 @@ export function registerAgentMethods(
     const journal = hub.journal(sessionId)
     const interactions = new Map(journal.interactions().map((item) => [item.interactionId, item]))
     const seen = new Set<string>()
+
     for (const item of listPersistedInteractions(sessionId)) {
       if (seen.has(item.interactionId)) continue
       seen.add(item.interactionId)
       const live = interactions.get(item.interactionId)
+
       if (
         !live ||
         live.executionId !== journal.activeExecutionId ||
@@ -100,6 +106,7 @@ export function registerAgentMethods(
       )
         interactions.set(item.interactionId, item)
     }
+
     return [...interactions.values()]
   }
 
@@ -112,17 +119,22 @@ export function registerAgentMethods(
     run: () => Promise<RemoteCommandOutcome>
   ): Promise<CommandReceipt> => {
     const key = { deviceId: auth.deviceId, grantId: auth.grantId, commandId: params.commandId }
+
     const admission = remoteCommandService.admit(key, {
       method,
       identityDigest: sha256(encodeAgentCommand(method, params)),
       sessionId
     })
+
     if (admission.kind === 'exhausted')
       throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Command receipt capacity reached for this device or desktop')
+
     if (admission.kind === 'conflict')
       throw new RemoteRpcError('IDEMPOTENCY_CONFLICT', 'Command body differs from the recorded command')
+
     if (admission.kind === 'existing') return admission.receipt
     let outcome: RemoteCommandOutcome
+
     try {
       outcome = await run()
     } catch (error) {
@@ -140,6 +152,7 @@ export function registerAgentMethods(
         }
       }
     }
+
     return remoteCommandService.settle(key, outcome)
   }
 
@@ -148,6 +161,7 @@ export function registerAgentMethods(
   on('agent.sessions.list', (params) =>
     queryPage((attemptLimit) => {
       const page = listSessions({ ...params, limit: attemptLimit })
+
       return {
         items: page.items.flatMap((session) => toSessionSummary(session, hub.activeExecutionId(session.id)) ?? []),
         nextCursor: page.nextCursor
@@ -158,6 +172,7 @@ export function registerAgentMethods(
   on('agent.sessions.create', (params, auth) => {
     const method = 'agent.sessions.create'
     let admission
+
     try {
       admission = remoteCommandService.apply(
         { ...auth, commandId: params.commandId },
@@ -168,6 +183,7 @@ export function registerAgentMethods(
         (tx) => {
           const sessionId = randomUUID()
           createSessionTx(tx, sessionId, params)
+
           return { status: 'applied', sessionId, result: { sessionId } }
         }
       )
@@ -176,12 +192,16 @@ export function registerAgentMethods(
         throw error
       })
     }
+
     if (admission.kind === 'exhausted')
       throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Command receipt capacity reached for this device or desktop')
+
     if (admission.kind === 'conflict')
       throw new RemoteRpcError('IDEMPOTENCY_CONFLICT', 'Command body differs from the recorded command')
+
     if (admission.kind === 'accepted' && admission.receipt.sessionId)
       agentSessionService.notifyReadModelChange([admission.receipt.sessionId], 'membership')
+
     return admission.receipt
   })
   on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit, partsMode }) =>
@@ -192,24 +212,31 @@ export function registerAgentMethods(
   )
   on('agent.content.read', async ({ sessionId, contentId, revision, offset, maxBytes }) => {
     getSession(sessionId)
+
     const bytes =
       hub.journal(sessionId).pins.get(`${contentId}:${revision}`) ??
       subscriptions.readContent(sessionId, contentId, revision) ??
       readPersistedContent(sessionId, contentId, revision)
+
     const file = !bytes?.length
       ? await readPersistedFileContent({ sessionId, contentId, revision, offset, maxBytes })
       : undefined
+
     if (file) {
       access.requireAgent()
+
       return file
     }
+
     if (!bytes) throw new RemoteRpcError('NOT_FOUND', 'Content not found')
+
     return { contentId, revision, ...sliceContent(bytes, offset, maxBytes) }
   })
   const presence = application.get('AttachmentPresenceService')
   const generation = presence.connection()
   on('agent.attachments.present', (params, auth) => {
     getSession(params.sessionId)
+
     return presence.present(hub.uploads.scope(auth), auth, generation, params)
   })
   on('agent.uploads.prepare', (params, auth) => hub.uploads.prepare(auth, params))
@@ -225,6 +252,7 @@ export function registerAgentMethods(
         throw new RemoteRpcError('NOT_FOUND', 'Previous attachment draft is no longer available; prepare a new send')
       const scope = hub.uploads.scope(auth)
       presence.submitting(scope, params.selectionId, params.commandId)
+
       try {
         return await hub.uploads.withFiles(auth, params.attachments ?? [], async (attachments) => {
           const started = await hub.journal(params.sessionId).startRun(
@@ -235,11 +263,13 @@ export function registerAgentMethods(
             },
             () => {
               access.requireAgent()
+
               if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
                 throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
             },
             attachments
           )
+
           if (!started.started)
             return {
               status: 'rejected',
@@ -248,6 +278,7 @@ export function registerAgentMethods(
                   ? { reason: 'CONFLICT', message: 'Session is busy' }
                   : { reason: 'NOT_FOUND', message: 'Session is not available' }
             }
+
           return { status: 'applied', executionId: started.executionId }
         })
       } finally {
@@ -257,6 +288,7 @@ export function registerAgentMethods(
   })
   on('agent.executions.cancel', (params, auth) => {
     getSession(params.sessionId)
+
     return command(auth, 'agent.executions.cancel', params, params.sessionId, async () => {
       await application
         .get('AiStreamManager')
@@ -264,6 +296,7 @@ export function registerAgentMethods(
           if (hub.journal(params.sessionId).activeExecutionId !== params.expectedExecutionId)
             throw new RemoteRpcError('CONFLICT', 'Execution is not active')
         })
+
       return {
         status: 'applied',
         executionId: params.expectedExecutionId,
@@ -273,19 +306,24 @@ export function registerAgentMethods(
   })
   on('agent.interactions.list', ({ sessionId, cursor, limit }) => {
     getSession(sessionId)
+
     return pageOf(interactionsOf(sessionId), cursor, limit)
   })
   on('agent.interactions.get', ({ sessionId, interactionId }) => {
     getSession(sessionId)
     const interaction = interactionsOf(sessionId).find((item) => item.interactionId === interactionId)
+
     if (!interaction) throw new RemoteRpcError('NOT_FOUND', 'Interaction not found')
+
     return { interaction }
   })
   on('agent.interactions.respond', (params, auth) => {
     getSession(params.sessionId)
+
     return command(auth, 'agent.interactions.respond', params, params.sessionId, async () => {
       const journal = hub.journal(params.sessionId)
       const interaction = interactionsOf(params.sessionId).find((item) => item.interactionId === params.interactionId)
+
       if (
         !interaction ||
         interaction.status !== 'pending' ||
@@ -295,17 +333,21 @@ export function registerAgentMethods(
       ) {
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Interaction changed since it was read' } }
       }
+
       const anchorId = journal.liveInteraction(params.interactionId)?.messageId ?? interaction.executionId
       const response = 'response' in params ? params.response : { kind: params.decision }
       const approved = response.kind !== 'deny'
+
       let updatedInput:
         | (ReturnType<typeof questionInputSchema.parse> & {
             answers: Extract<typeof response, { kind: 'answer' }>['answers']
           })
         | undefined
+
       if (response.kind === 'answer') {
         if (interaction.kind !== 'question')
           return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Interaction does not accept answers' } }
+
         const bytes =
           'text' in interaction.input
             ? interaction.input.text
@@ -317,7 +359,9 @@ export function registerAgentMethods(
                     interaction.input.ref.revision
                   )
               )
+
         const input = questionInputSchema.safeParse(JSON.parse(bytes))
+
         if (
           !input.success ||
           Object.keys(response.answers).length !== input.data.questions.length ||
@@ -331,14 +375,20 @@ export function registerAgentMethods(
       } else if (response.kind === 'approve' && interaction.kind === 'question') {
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Question requires answers' } }
       }
+
       const runtime = application.get('AgentSessionRuntimeService')
       const decision: Parameters<typeof runtime.respondToolApproval>[1] = { approved }
+
       if (updatedInput) decision.updatedInput = updatedInput
+
       if ('reason' in response) decision.reason = response.reason
+
       if (!runtime.respondToolApproval(params.interactionId, decision, anchorId)) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }
+
       journal.markInteraction(params.interactionId, approved ? 'approved' : 'denied')
+
       return {
         status: 'applied',
         executionId: interaction.executionId,
@@ -348,22 +398,27 @@ export function registerAgentMethods(
   })
   on('agent.commands.get', ({ commandId }, auth) => {
     const receipt = remoteCommandService.get({ deviceId: auth.deviceId, grantId: auth.grantId, commandId })
+
     if (!receipt) throw new RemoteRpcError('NOT_FOUND', 'Command not found')
+
     return receipt
   })
   on('agent.sessions.subscribe', (params) => {
     getSession(params.sessionId)
+
     return subscriptions.subscribe(params)
   })
   on('agent.checkpoints.read', (params) => subscriptions.readCheckpoint(params))
   on('agent.subscriptions.activate', (params) => {
     const activation = subscriptions.activate(params)
     access.afterReply(activation.commit)
+
     return activation.result
   })
   on('agent.subscriptions.ack', (params) => subscriptions.ack(params))
   on('agent.subscriptions.close', ({ subscriptionId }) => {
     subscriptions.close(subscriptionId)
+
     return { closed: true as const }
   })
 }

@@ -7,6 +7,7 @@ const { downloadWithPowerShell } = require('./download')
 // Base URL for downloading OVMS binaries
 const OVMS_RELEASE_BASE_URL =
   'https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/2025.4.1/ovms_windows_python_on.zip'
+
 const OVMS_EX_URL = 'https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/ovms_25.4_ex.zip'
 
 /**
@@ -27,11 +28,13 @@ function cleanOldOvmsInstallation() {
   console.log('Cleaning the existing OVMS installation...')
   const csDir = path.join(os.homedir(), '.cherrystudio')
   const csOvmsDir = path.join(csDir, 'ovms')
+
   if (fs.existsSync(csOvmsDir)) {
     try {
       fs.rmSync(csOvmsDir, { recursive: true })
     } catch (error) {
       console.warn(`Failed to clean up old OVMS installation: ${error.message}`)
+
       return 110
     }
   }
@@ -56,6 +59,7 @@ async function installOvmsBase() {
   } catch (error) {
     console.error(`Download OVMS Base failed: ${error.message}`)
     fs.unlinkSync(tempFilename)
+
     return 103
   }
 
@@ -76,16 +80,19 @@ async function installOvmsBase() {
   } catch (error) {
     console.error(`Error installing OVMS: ${error.message}`)
     fs.unlinkSync(tempFilename)
+
     return 104
   }
 
   const csOvmsBinDir = path.join(csOvmsDir, 'ovms')
+
   // copy ovms.exe to ovdnd.exe
   try {
     fs.copyFileSync(path.join(csOvmsBinDir, 'ovms.exe'), path.join(csOvmsBinDir, 'ovdnd.exe'))
     console.log('Copied ovms.exe to ovdnd.exe')
   } catch (error) {
     console.error(`Error copying ovms.exe to ovdnd.exe: ${error.message}`)
+
     return 105
   }
 
@@ -93,6 +100,7 @@ async function installOvmsBase() {
   // del %USERPROFILE%\.cherrystudio\ovms_log.log
   // ovms.exe --config_path models/config.json --rest_port 8000 --log_level DEBUG --log_path %USERPROFILE%\.cherrystudio\ovms_log.log
   const runBatPath = path.join(csOvmsBinDir, 'run.bat')
+
   try {
     fs.copyFileSync(path.join(csOvmsBinDir, 'setupvars.bat'), runBatPath)
     fs.appendFileSync(runBatPath, '\r\n')
@@ -104,6 +112,7 @@ async function installOvmsBase() {
     console.log(`Created run.bat at: ${runBatPath}`)
   } catch (error) {
     console.error(`Error creating run.bat: ${error.message}`)
+
     return 106
   }
 
@@ -133,6 +142,7 @@ async function installOvmsExtra() {
   } catch (error) {
     console.error(`Download OVMS Extra failed: ${error.message}`)
     fs.unlinkSync(tempFilename)
+
     return 103
   }
 
@@ -152,12 +162,14 @@ async function installOvmsExtra() {
   } catch (error) {
     console.error(`Error installing OVMS Extra: ${error.message}`)
     fs.unlinkSync(tempFilename)
+
     return 104
   }
 
   // apply ovms patch, copy all files in {csOvmsDir}/patch/ovms to {csOvmsDir}/ovms with overwrite mode
   const patchDir = path.join(csOvmsDir, 'patch', 'ovms')
   const csOvmsBinDir = path.join(csOvmsDir, 'ovms')
+
   try {
     const files = fs.readdirSync(patchDir)
     files.forEach((file) => {
@@ -215,32 +227,40 @@ async function installOvms() {
   // Check if CPU name contains "Ultra"
   if (!cpuName.toLowerCase().includes('intel')) {
     console.error('OVMS installation requires an Intel CPU.')
+
     return 101
   }
 
   // only support windows
   if (platform !== 'win32') {
     console.error('OVMS installation is only supported on Windows.')
+
     return 102
   }
 
   // Clean old installation if it exists
   const cleanupCode = cleanOldOvmsInstallation()
+
   if (cleanupCode !== 0) {
     console.error(`OVMS cleanup failed with code: ${cleanupCode}`)
+
     return cleanupCode
   }
 
   const installBaseCode = await installOvmsBase()
+
   if (installBaseCode !== 0) {
     console.error(`OVMS Base installation failed with code: ${installBaseCode}`)
     cleanOldOvmsInstallation()
+
     return installBaseCode
   }
 
   const installExtraCode = await installOvmsExtra()
+
   if (installExtraCode !== 0) {
     console.error(`OVMS Extra installation failed with code: ${installExtraCode}`)
+
     return installExtraCode
   }
 
@@ -255,6 +275,7 @@ installOvms()
     } else {
       console.error('OVMS installation failed')
     }
+
     process.exit(retcode)
   })
   .catch((error) => {

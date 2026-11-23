@@ -4,6 +4,7 @@ import { MorphLight } from './light'
 
 const Morph = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MorphLight {...props} className={className} />
+
   return <MorphLight {...props} className={className} />
 }
 

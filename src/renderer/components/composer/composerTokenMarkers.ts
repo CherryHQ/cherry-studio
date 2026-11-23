@@ -33,6 +33,7 @@ function appendPlainTextContent(content: JSONContent[], text: string) {
   const lines = text.split(LINE_BREAK_PATTERN)
   lines.forEach((line, index) => {
     if (index > 0) content.push({ type: 'hardBreak' })
+
     if (line) content.push({ type: 'text', text: line })
   })
 }
@@ -43,16 +44,19 @@ function appendPlainTextContent(content: JSONContent[], text: string) {
  */
 export function createComposerLineParagraphs(inline: readonly JSONContent[]): JSONContent[] {
   const lines: JSONContent[][] = [[]]
+
   for (const node of inline) {
     if (node.type === 'hardBreak') lines.push([])
     else lines[lines.length - 1].push(node)
   }
+
   return lines.map((content) => ({ type: 'paragraph', ...(content.length > 0 && { content }) }))
 }
 
 export function createComposerPlainTextContent(text: string): JSONContent[] {
   const content: JSONContent[] = []
   appendPlainTextContent(content, text)
+
   return content
 }
 
@@ -62,7 +66,9 @@ function collectLineMarkers(line: string, rules: readonly ComposerTokenMarkerRul
   rules.forEach((rule, ruleIndex) => {
     for (const match of line.matchAll(rule.pattern)) {
       const marker = rule.resolve(match)
+
       if (!marker) continue
+
       if (marker.from < 0 || marker.to <= marker.from || marker.to > line.length) continue
       markers.push({ ...marker, ruleIndex })
     }
@@ -77,13 +83,16 @@ function appendMarkedLineContent(
   rules: readonly ComposerTokenMarkerRule[]
 ): boolean {
   const markers = collectLineMarkers(line, rules)
+
   if (!markers.length) {
     if (line) content.push({ type: 'text', text: line })
+
     return false
   }
 
   let cursor = 0
   let hasMarker = false
+
   for (const marker of markers) {
     if (marker.from < cursor) continue
 
@@ -94,6 +103,7 @@ function appendMarkedLineContent(
   }
 
   if (cursor < line.length) content.push({ type: 'text', text: line.slice(cursor) })
+
   return hasMarker
 }
 
@@ -105,17 +115,23 @@ export function createComposerTokenMarkerInlineContent(
   if (!rules.length) return { content: createComposerPlainTextContent(text), hasToken: false }
 
   const lines = text.split(LINE_BREAK_PATTERN)
+
   // Callers rebuild this on every render, so the whole-draft parse only runs for a draft with a marker.
   const fencedLines =
     options.fencedLines ??
     (options.literalFencedCode && lines.some((line) => rules.some((rule) => line.search(rule.pattern) !== -1))
       ? findFencedCodeLines(lines)
       : undefined)
+
   let hasToken = false
+
   const content = lines.flatMap<JSONContent>((line, index) => {
     const nodes: JSONContent[] = []
+
     if (index > 0) nodes.push({ type: 'hardBreak' })
+
     if (appendMarkedLineContent(nodes, line, fencedLines?.has(index) ? [] : rules)) hasToken = true
+
     return nodes
   })
 

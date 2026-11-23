@@ -39,28 +39,34 @@ function sync(target: I18N, template: I18N, spec: LocaleKeySpec): void {
 
 function syncCatalog(localesDir: string) {
   const baseFilePath = path.join(localesDir, baseFileName)
+
   if (!fs.existsSync(baseFilePath)) {
     console.error(`Base locale file ${baseFileName} does not exist, please check path or filename`)
+
     return
   }
 
   const baseContent = fs.readFileSync(baseFilePath, 'utf-8')
   let baseJson: I18N = {}
+
   try {
     baseJson = JSON.parse(baseContent)
   } catch (error) {
     console.error(`Error parsing ${baseFileName}. ${error}`)
+
     return
   }
 
   // Sort base locale
   const sortedJson = sortedObjectByKeys(baseJson)
+
   if (JSON.stringify(baseJson) !== JSON.stringify(sortedJson)) {
     try {
       fs.writeFileSync(baseFilePath, JSON.stringify(sortedJson, null, 2) + '\n', 'utf-8')
       console.log(`Base locale has been sorted`)
     } catch (error) {
       console.error(`Error writing ${baseFilePath}.`, error)
+
       return
     }
   }
@@ -74,6 +80,7 @@ function syncCatalog(localesDir: string) {
   for (const filePath of files) {
     const filename = path.basename(filePath)
     let targetJson: I18N = {}
+
     try {
       const fileContent = fs.readFileSync(filePath, 'utf-8')
       targetJson = JSON.parse(fileContent)

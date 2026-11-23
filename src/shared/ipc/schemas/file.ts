@@ -26,8 +26,10 @@ import { fileEditRequestSchemas } from './fileEdit'
 
 /** Maximum entry ids accepted by one file batch IPC call. */
 export const FILE_IPC_MAX_BATCH_IDS = 500
+
 /** Maximum items accepted by one internal-entry batch-create IPC call. */
 export const FILE_IPC_MAX_BATCH_CREATE_ITEMS = 100
+
 /** Maximum bytes returned by one range-read IPC call. */
 export const FILE_IPC_MAX_READ_CHUNK_BYTES = 4 * 1024 * 1024
 

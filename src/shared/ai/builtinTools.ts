@@ -130,7 +130,9 @@ export const kbListOutputSchema = z.object({
 })
 
 export type KbListInput = z.infer<typeof kbListInputSchema>
+
 export type KbListOutputItem = z.infer<typeof kbListOutputItemSchema>
+
 export type KbListOutput = z.infer<typeof kbListOutputSchema>
 
 // ── kb_search ────────────────────────────────────────────────────
@@ -179,7 +181,9 @@ export const kbSearchOutputItemSchema = z.object({
 export const kbSearchOutputSchema = z.array(kbSearchOutputItemSchema)
 
 export type KbSearchInput = z.infer<typeof kbSearchInputSchema>
+
 export type KbSearchOutputItem = z.infer<typeof kbSearchOutputItemSchema>
+
 export type KbSearchOutput = z.infer<typeof kbSearchOutputSchema>
 
 // ── fs_read ──────────────────────────────────────────────────────
@@ -268,6 +272,7 @@ export const kbReadOutputSchema = z.object({
 })
 
 export type KbReadInput = z.infer<typeof kbReadInputSchema>
+
 export type KbReadOutput = z.infer<typeof kbReadOutputSchema>
 
 // ── kb_read: grep mode ───────────────────────────────────────────
@@ -294,6 +299,7 @@ export const kbGrepOutputSchema = z.object({
 })
 
 export type KbGrepMatch = z.infer<typeof kbGrepMatchSchema>
+
 export type KbGrepOutput = z.infer<typeof kbGrepOutputSchema>
 
 // ── kb_list: outline mode ────────────────────────────────────────
@@ -319,6 +325,7 @@ export const kbTreeOutputSchema = z.object({
 })
 
 export type KbTreeNode = z.infer<typeof kbTreeNodeSchema>
+
 export type KbTreeOutput = z.infer<typeof kbTreeOutputSchema>
 
 // ── kb_manage ────────────────────────────────────────────────────
@@ -327,6 +334,7 @@ export const KB_MANAGE_TOOL_NAME = 'kb_manage'
 
 export const KB_MANAGE_ACTIONS = ['add', 'delete', 'refresh', 'create'] as const
 export const KB_MANAGE_ADD_TYPES = ['file', 'url', 'note'] as const
+
 // Batch add shares the ingestion pipeline's batch bound (`knowledge.add_items` enforces the same
 // constant), so the tool can never advertise a size the service would reject.
 export const KB_MANAGE_ADD_MAX_ITEMS = KNOWLEDGE_RUNTIME_ITEMS_MAX
@@ -502,9 +510,13 @@ export const webFetchInputSchema = z.object({
 export const webFetchOutputSchema = webSearchOutputSchema
 
 export type WebSearchInput = z.infer<typeof webSearchInputSchema>
+
 export type WebSearchOutputItem = z.infer<typeof webSearchOutputItemSchema>
+
 export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
+
 export type WebFetchInput = z.infer<typeof webFetchInputSchema>
+
 export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
 
 // ── to_markdown ──────────────────────────────────────────────────
@@ -534,6 +546,7 @@ export const TO_MARKDOWN_DESCRIPTION =
   'Convert a local document to Markdown in a temp file; scan-only PDFs need OCR. See path for supported formats.'
 
 export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
+
 export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
 
 // ── report_artifacts ─────────────────────────────────────────────
@@ -564,6 +577,7 @@ export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 // ── generate_image ───────────────────────────────────────────────
 
 export type { GenerateImageOutput, GenerateImageOutputItem } from './generateImageTool'
+
 export { GENERATE_IMAGE_TOOL_NAME, generateImageOutputItemSchema, generateImageOutputSchema } from './generateImageTool'
 
 // ── agent autonomy tools (cron / notify / config) ────────────────
@@ -631,8 +645,11 @@ export const readFileErrorSchema = z.object({ error: z.string() })
 export const readFileResultSchema = z.union([readFileOutputSchema, readFileErrorSchema])
 
 export type ReadFileInput = z.infer<typeof readFileInputSchema>
+
 export type ReadFileOutput = z.infer<typeof readFileOutputSchema>
+
 export type ReadFileError = z.infer<typeof readFileErrorSchema>
+
 export type ReadFileResult = z.infer<typeof readFileResultSchema>
 
 // ── mcp_resource_list / mcp_resource_read ────────────────────────
@@ -715,7 +732,11 @@ export const mcpResourceErrorSchema = z.object({ error: z.string() })
 export const mcpResourceReadResultSchema = z.union([mcpResourceReadOutputSchema, mcpResourceErrorSchema])
 
 export type McpResourceEntry = z.infer<typeof mcpResourceEntrySchema>
+
 export type McpResourceSavedBlob = z.infer<typeof mcpResourceSavedBlobSchema>
+
 export type McpResourceListOutput = z.infer<typeof mcpResourceListOutputSchema>
+
 export type McpResourceReadOutput = z.infer<typeof mcpResourceReadOutputSchema>
+
 export type McpResourceReadResult = z.infer<typeof mcpResourceReadResultSchema>

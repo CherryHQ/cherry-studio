@@ -4,6 +4,7 @@ import { ComfyuiLight } from './light'
 
 const Comfyui = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ComfyuiLight {...props} className={className} />
+
   return <ComfyuiLight {...props} className={className} />
 }
 

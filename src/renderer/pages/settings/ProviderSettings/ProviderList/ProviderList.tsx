@@ -63,6 +63,7 @@ export default function ProviderList({
   const handleProviderCreated = useCallback(
     (providerId: string, context: ProviderCreationContext) => {
       onSelectProvider(providerId)
+
       if (context.kind === 'custom') {
         onCustomProviderCreated?.(providerId, context.hasApiKey)
       }
@@ -80,11 +81,14 @@ export default function ProviderList({
     cancel: cancelEditor,
     submit: submitEditor
   } = useProviderEditor({ onProviderCreated: handleProviderCreated })
+
   const [editorActivated, setEditorActivated] = useState(false)
+
   const openProviderEditor = useCallback(() => {
     setEditorActivated(true)
     startAdd()
   }, [startAdd])
+
   const openProviderEditorFrom = useCallback(
     (provider: Provider) => {
       setEditorActivated(true)
@@ -92,6 +96,7 @@ export default function ProviderList({
     },
     [startAddFrom]
   )
+
   const openProviderEditorForEdit = useCallback(
     (provider: Provider) => {
       setEditorActivated(true)
@@ -127,6 +132,7 @@ export default function ProviderList({
     if (!selectedProviderId) return
     const selected = providers.find((p) => p.id === selectedProviderId)
     const preset = selected?.presetProviderId
+
     if (!preset) return
     setExpandedGroups((prev) => (prev[preset] ? prev : { ...prev, [preset]: true }))
   }, [providers, selectedProviderId])
@@ -140,31 +146,39 @@ export default function ProviderList({
   const providerModelsIndex = useMemo(() => {
     if (!searchText.trim()) return null
     const map = new Map<string, string>()
+
     for (const m of allModels) {
       const prev = map.get(m.providerId)
       const next = `${m.name} ${m.apiModelId ?? ''}`
       map.set(m.providerId, prev ? `${prev} ${next}` : next)
     }
+
     return map
   }, [allModels, searchText])
 
   const filteredProviders = useMemo(() => {
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+
     const matched = providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
         return false
       }
+
       if (provider.id === 'ovms' && !isOvmsSupported) {
         return false
       }
+
       if (filterMode === 'enabled' && !provider.isEnabled) {
         return false
       }
+
       if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
+
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
+
     // Stable partition: enabled providers first, preserving relative order.
     return [...matched.filter((p) => p.isEnabled), ...matched.filter((p) => !p.isEnabled)]
   }, [filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])
@@ -173,12 +187,14 @@ export default function ProviderList({
     () =>
       providers.reduce<Map<string, number>>((counts, provider) => {
         counts.set(provider.id, (counts.get(provider.id) ?? 0) + 1)
+
         return counts
       }, new Map()),
     [providers]
   )
 
   const groupedPresetIds = useMemo(() => getGroupedPresetIds(filteredProviders), [filteredProviders])
+
   const presetSources = useMemo(
     () =>
       providers.filter(
@@ -190,6 +206,7 @@ export default function ProviderList({
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {
     if (element) {
       itemRefs.current.set(providerId, element)
+
       return
     }
 
@@ -216,6 +233,7 @@ export default function ProviderList({
     const wasEmpty = lastProvidersRef.current.length === 0
     lastProvidersRef.current = providers
     lastSelectedProviderIdRef.current = selectedProviderId
+
     if (providersChanged && !selectionChanged && !wasEmpty) {
       return
     }
@@ -244,15 +262,18 @@ export default function ProviderList({
 
     if (typeof window.requestAnimationFrame !== 'function') {
       scrollSelectedItem()
+
       return
     }
 
     const frameId = window.requestAnimationFrame(scrollSelectedItem)
+
     return () => window.cancelAnimationFrame(frameId)
   }, [providers, selectedProviderId])
 
   const handleDragStateChange = useCallback((nextDragging: boolean) => {
     setDragging(nextDragging)
+
     if (nextDragging) {
       setContextProviderId(null)
     }
@@ -310,6 +331,7 @@ export default function ProviderList({
   }
 
   const handleAddAnother = openProviderEditorFrom
+
   const addProviderButton = (
     <button
       type="button"

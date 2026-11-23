@@ -22,7 +22,9 @@ export const AGENT_CONTINUATION_TEXT =
  */
 export function appendInternalAgentContinuation(messages: CherryUIMessage[]): CherryUIMessage[] {
   const last = messages.at(-1)
+
   if (!last || last.role !== 'assistant') return messages
+
   if (
     !last.parts.every(
       (part) =>
@@ -37,6 +39,7 @@ export function appendInternalAgentContinuation(messages: CherryUIMessage[]): Ch
   )
     return messages
   const lastPart = last.parts.at(-1)
+
   if (lastPart && lastPart.type !== 'text' && lastPart.type !== 'reasoning') return messages
 
   return [

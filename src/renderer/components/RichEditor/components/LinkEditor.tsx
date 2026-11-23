@@ -85,6 +85,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
   const handleSave = useCallback(() => {
     const trimmedHref = href.trim()
     const trimmedText = text.trim()
+
     if (trimmedHref && trimmedText) {
       onSave(trimmedHref, trimmedText)
     }
@@ -107,6 +108,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
 
   // Theme-aware styles
   const isDark = theme === 'dark'
+
   const styles: React.CSSProperties = {
     position: 'fixed',
     left: position.x,

@@ -11,6 +11,7 @@ import SelectionCapsuleStack from './SelectionCapsuleStack'
 function SelectionCapsuleRuntime(): null {
   useLanguageSync()
   useCustomCss()
+
   return null
 }
 

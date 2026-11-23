@@ -10,6 +10,7 @@ const logger = loggerService.withContext('useNote')
 
 export function useNote(rootPath: string) {
   const normalizedRootPath = useMemo(() => (rootPath.trim() ? normalizePathValue(rootPath.trim()) : ''), [rootPath])
+
   const { data: notes = [] } = useQuery('/notes', {
     query: { rootPath: normalizedRootPath },
     enabled: !!normalizedRootPath
@@ -18,9 +19,11 @@ export function useNote(rootPath: string) {
   const { trigger: upsertNote } = useMutation('PATCH', '/notes', {
     refresh: ['/notes']
   })
+
   const { trigger: deleteNote } = useMutation('DELETE', '/notes', {
     refresh: ['/notes']
   })
+
   const { trigger: rewriteNotePath } = useMutation('PATCH', '/notes/path', {
     refresh: ['/notes']
   })

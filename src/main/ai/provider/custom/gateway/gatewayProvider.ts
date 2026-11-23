@@ -24,6 +24,7 @@ export function createGatewayWithImageModel(settings: GatewayProviderSettings = 
             specificationVersion: 'v3',
             transformParams: async ({ params }) => {
               const { providerOptions } = params
+
               if (
                 !modelId.startsWith('openai/') ||
                 !isPlainObject(providerOptions) ||
@@ -35,20 +36,25 @@ export function createGatewayWithImageModel(settings: GatewayProviderSettings = 
 
               const gateway = { ...providerOptions.gateway }
               const migrated: typeof gateway = {}
+
               for (const key of ['quality', 'background', 'moderation', 'style', 'outputFormat', 'outputCompression']) {
                 if (Object.hasOwn(providerOptions.gateway, key)) {
                   migrated[key] = providerOptions.gateway[key]
                   delete gateway[key]
                 }
               }
+
               if (Object.keys(migrated).length === 0) return params
 
               const normalized: typeof providerOptions = {
                 ...providerOptions,
                 openai: { ...migrated, ...providerOptions.openai }
               }
+
               delete normalized.gateway
+
               if (Object.keys(gateway).length > 0) normalized.gateway = gateway
+
               return { ...params, providerOptions: normalized }
             }
           }

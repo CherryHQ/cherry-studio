@@ -36,6 +36,7 @@ export async function startAgentSessionRun(input: {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
   }
+
   const [primary, ...extras] = input.listeners
 
   const topicId = buildAgentSessionTopicId(input.sessionId)
@@ -59,24 +60,31 @@ export async function startAgentSessionRun(input: {
         application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)
       ) {
         result = { mode: 'not-started', reason: 'busy' }
+
         return
       }
+
       try {
         const session = agentSessionService.getById(input.sessionId)
+
         if (session.agentId !== input.requireIdle.expectedAgentId) {
           result = { mode: 'not-started', reason: 'session-invalid' }
+
           return
         }
       } catch (error) {
         if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
           result = { mode: 'not-started', reason: 'session-invalid' }
+
           return
         }
+
         throw error
       }
     }
 
     let prepared
+
     try {
       prepared = await agentChatContextProvider.prepareAgentSessionDispatch(
         primary,
@@ -98,12 +106,16 @@ export async function startAgentSessionRun(input: {
     } catch (error) {
       if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {
         result = { mode: 'not-started', reason: 'busy' }
+
         return
       }
+
       if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         result = { mode: 'not-started', reason: 'session-invalid' }
+
         return
       }
+
       throw error
     }
 
@@ -118,5 +130,6 @@ export async function startAgentSessionRun(input: {
     })
     result = { mode: 'started' }
   })
+
   return result
 }

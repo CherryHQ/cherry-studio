@@ -67,6 +67,7 @@ function trimString(value: string): string {
 function trimStringList(values: readonly string[]): string[] {
   return values.flatMap((value) => {
     const text = trimString(value)
+
     return text ? [text] : []
   })
 }
@@ -75,16 +76,20 @@ export const useWebSearchProviders = () => {
   const [providerOverrides, setProviderOverrides] = usePreference('chat.web_search.provider_overrides', {
     optimistic: false
   })
+
   const [defaultSearchKeywordsProviderId, setDefaultSearchKeywordsProviderId] = usePreference(
     'chat.web_search.default_search_keywords_provider'
   )
+
   const [defaultFetchUrlsProviderId, setDefaultFetchUrlsProviderId] = usePreference(
     'chat.web_search.default_fetch_urls_provider'
   )
+
   const { data: zhipuModelApiKeys, isLoading } = useQuery('/providers/:providerId/api-keys', {
     params: { providerId: 'zhipu' },
     query: { enabled: true }
   })
+
   const providers = useMemo<WebSearchProvider[]>(() => {
     if (isLoading) {
       return []
@@ -101,9 +106,11 @@ export const useWebSearchProviders = () => {
           const capabilityOverride = override?.capabilities?.[capability.feature]
 
           const result = { ...capability }
+
           if ('apiHost' in capability && capabilityOverride?.apiHost !== undefined) {
             Object.assign(result, { apiHost: trimString(capabilityOverride.apiHost) })
           }
+
           return result
         }),
         engines: trimStringList(override?.engines ?? []),
@@ -117,6 +124,7 @@ export const useWebSearchProviders = () => {
     () => providers.find((item) => item.id === defaultSearchKeywordsProviderId),
     [defaultSearchKeywordsProviderId, providers]
   )
+
   const defaultFetchUrlsProvider = useMemo(
     () => providers.find((item) => item.id === defaultFetchUrlsProviderId),
     [defaultFetchUrlsProviderId, providers]
@@ -169,8 +177,10 @@ export const useWebSearchProviders = () => {
   const setBasicAuth = useCallback(
     (providerId: WebSearchProviderId, patch: WebSearchBasicAuthPatch) => {
       const currentOverride = providerOverrides[providerId]
+
       const basicAuthUsername =
         patch.username !== undefined ? trimString(patch.username) : trimString(currentOverride?.basicAuthUsername ?? '')
+
       const basicAuthPassword =
         patch.password !== undefined ? trimString(patch.password) : trimString(currentOverride?.basicAuthPassword ?? '')
 
@@ -236,6 +246,7 @@ export const useWebSearchSettings = (): WebSearchSettingsState & {
         ...config,
         cutoffLimit: config.cutoffLimit !== undefined ? config.cutoffLimit : state.compressionConfig.cutoffLimit
       }
+
       return setPreferences({
         compressionMethod: nextConfig.method,
         cutoffLimit: normalizeWebSearchCutoffLimit(nextConfig.cutoffLimit)

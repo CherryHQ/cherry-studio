@@ -19,11 +19,13 @@ const meta: Meta<typeof Dropzone> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
   render: function DefaultExample() {
     const [files, setFiles] = useState<File[] | undefined>(undefined)
+
     return (
       <div className="w-96">
         <Dropzone
@@ -42,6 +44,7 @@ export const Default: Story = {
 export const MultipleFiles: Story = {
   render: function MultipleExample() {
     const [files, setFiles] = useState<File[] | undefined>(undefined)
+
     return (
       <div className="w-96">
         <Dropzone
@@ -72,6 +75,7 @@ export const Disabled: Story = {
 export const CustomContent: Story = {
   render: function CustomExample() {
     const [files, setFiles] = useState<File[] | undefined>(undefined)
+
     return (
       <div className="w-96">
         <Dropzone src={files} onDrop={(accepted) => setFiles(accepted)}>

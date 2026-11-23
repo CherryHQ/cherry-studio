@@ -34,4 +34,5 @@ function PageHeader({ title, titleClassName, action, bordered, className, ...pro
 PageHeader.displayName = 'PageHeader'
 
 export { PageHeader }
+
 export type { PageHeaderProps }

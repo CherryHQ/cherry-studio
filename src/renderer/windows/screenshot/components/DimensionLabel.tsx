@@ -19,6 +19,7 @@ interface DimensionLabelProps {
 
 /** Label height estimate in CSS px, used for the flip decision. */
 const LABEL_HEIGHT = 22
+
 /**
  * Gap between the rect edge and the label, in CSS px.
  *
@@ -28,6 +29,7 @@ const LABEL_HEIGHT = 22
  * logical split is violated — do not "tidy" it without deciding what the gap should be.
  */
 const GAP = BORDER_WIDTH + 2
+
 /** Conservative width estimate in CSS px (the label is never measured), e.g. "99999 × 99999". */
 const LABEL_WIDTH_ESTIMATE = 110
 

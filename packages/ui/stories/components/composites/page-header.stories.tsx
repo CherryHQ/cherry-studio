@@ -13,6 +13,7 @@ const meta: Meta<typeof PageHeader> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // ---------------------------------------------------------------------------

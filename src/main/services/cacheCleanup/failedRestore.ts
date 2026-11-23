@@ -22,12 +22,15 @@ export async function collectFailedRestoreTargets(): Promise<{
   issues: CacheCleanupIssue[]
 }> {
   const item = 'failed_restore_databases'
+
   // Even terminal journals can still be needed by the preboot recovery safety check.
   if (readRestoreJournal().kind !== 'none') {
     return { targets: [], issues: [issue(item, 'inspection_failed')] }
   }
+
   try {
     const names = await fs.readdir(application.getPath('app.userdata'))
+
     return await collectOwnedTargets(
       names
         .filter((name) => FAILED_RESTORE_FILE.test(name))
@@ -39,22 +42,27 @@ export async function collectFailedRestoreTargets(): Promise<{
     )
   } catch (error) {
     logger.warn('Failed to inspect failed restore databases', { error })
+
     return { targets: [], issues: [issue(item, 'inspection_failed')] }
   }
 }
 
 export async function removeFailedRestoreTarget(target: CleanupTarget): Promise<CleanupStepResult> {
   const status = await inspectTarget(target.path, target.item, 'file')
+
   if (status === 'missing') return { state: 'not_found' }
+
   if (status === 'invalid' || readRestoreJournal().kind !== 'none') return { state: 'skipped' }
 
   try {
     // Keep the final journal check and unlink in one turn so restore staging cannot interleave.
     unlinkSync(target.path)
     logger.info('Removed failed restore database', { path: target.path })
+
     return { state: 'cleared' }
   } catch (error) {
     logger.error('Failed to remove failed restore database', { path: target.path, error })
+
     return { state: 'failed' }
   }
 }

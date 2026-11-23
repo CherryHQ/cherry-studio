@@ -31,6 +31,7 @@ export interface DeferredToolOutput {
 export function isDeferredToolOutput(value: unknown): value is DeferredToolOutput {
   if (typeof value !== 'object' || value === null) return false
   const ref = (value as DeferredToolOutput).$deferredToolResult
+
   return (
     typeof ref === 'object' &&
     ref !== null &&

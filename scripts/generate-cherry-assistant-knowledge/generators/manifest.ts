@@ -102,11 +102,13 @@ function readPackageMetadata(): ProductManifest['package'] {
   const { name, version, description, homepage } = JSON.parse(
     fs.readFileSync(PACKAGE_JSON_FILE, 'utf-8')
   ) as PackageJson
+
   return { name, version, description, homepage }
 }
 
 function readProviders(): ProductManifest['providers'] {
   const { version, providers } = JSON.parse(fs.readFileSync(PROVIDERS_FILE, 'utf-8')) as ProviderRegistryFile
+
   return {
     version,
     count: providers.length,
@@ -123,10 +125,13 @@ function readAllRoutes(): string[] {
     ...new Set(
       routeInterface.getProperties().map((property) => {
         const name = property.getNameNode()
+
         if (!Node.isStringLiteral(name)) {
           throw new Error(`FileRoutesByFullPath contains a non-literal route: ${property.getText()}`)
         }
+
         const route = name.getLiteralValue()
+
         return route.length > 1 && route.endsWith('/') ? route.slice(0, -1) : route
       })
     )
@@ -135,13 +140,17 @@ function readAllRoutes(): string[] {
 
 function readStringProperty(object: ObjectLiteralExpression, propertyName: string): string {
   const property = object.getPropertyOrThrow(propertyName)
+
   if (!Node.isPropertyAssignment(property)) {
     throw new Error(`${propertyName} must be a property assignment in SIDEBAR_APP_DEFINITIONS`)
   }
+
   const value = property.getInitializerOrThrow()
+
   if (!Node.isStringLiteral(value)) {
     throw new Error(`${propertyName} must be a string literal in SIDEBAR_APP_DEFINITIONS`)
   }
+
   return value.getLiteralValue()
 }
 
@@ -149,9 +158,11 @@ function readPrimaryRoutes(): ProductManifest['routes']['primary'] {
   const project = new Project({ skipAddingFilesFromTsConfig: true })
   const sourceFile = project.addSourceFileAtPath(SIDEBAR_FILE)
   const publicInitializer = sourceFile.getVariableDeclarationOrThrow('SIDEBAR_APPS').getInitializerOrThrow()
+
   if (!Node.isIdentifier(publicInitializer)) {
     throw new Error('SIDEBAR_APPS must reference the sidebar definition array')
   }
+
   const initializer = sourceFile.getVariableDeclarationOrThrow(publicInitializer.getText()).getInitializerOrThrow()
   const definitions = initializer.getFirstDescendantByKindOrThrow(SyntaxKind.ArrayLiteralExpression)
 
@@ -159,6 +170,7 @@ function readPrimaryRoutes(): ProductManifest['routes']['primary'] {
     if (!Node.isObjectLiteralExpression(element)) {
       throw new Error(`SIDEBAR_APP_DEFINITIONS contains a non-object entry: ${element.getText()}`)
     }
+
     return {
       id: readStringProperty(element, 'id'),
       path: readStringProperty(element, 'routePrefix')
@@ -176,6 +188,7 @@ function readChannelTypes(): string[] {
     if (!Node.isStringLiteral(element)) {
       throw new Error(`AgentChannelTypeSchema contains a non-literal value: ${element.getText()}`)
     }
+
     return element.getLiteralValue()
   })
 }
@@ -190,26 +203,34 @@ function readScheduleTriggerKinds(): string[] {
     if (!Node.isIdentifier(element)) {
       throw new Error(`TriggerSchema contains a non-identifier schema: ${element.getText()}`)
     }
+
     const schemaInitializer = sourceFile.getVariableDeclarationOrThrow(element.getText()).getInitializerOrThrow()
     const schemaShape = schemaInitializer.getFirstDescendantByKindOrThrow(SyntaxKind.ObjectLiteralExpression)
     const kindProperty = schemaShape.getPropertyOrThrow('kind')
+
     if (!Node.isPropertyAssignment(kindProperty)) {
       throw new Error(`${element.getText()}.kind must be a property assignment`)
     }
+
     const literalCall = kindProperty.getInitializerOrThrow()
+
     if (!Node.isCallExpression(literalCall)) {
       throw new Error(`${element.getText()}.kind must be a z.literal call`)
     }
+
     const value = literalCall.getArguments()[0]
+
     if (!Node.isStringLiteral(value)) {
       throw new Error(`${element.getText()}.kind must contain a string literal`)
     }
+
     return value.getLiteralValue()
   })
 }
 
 function readAgentCapabilities(primaryRoutes: ProductManifest['routes']['primary']): ProductManifest['agents'] {
   const codeCliRoute = primaryRoutes.find(({ id }) => id === 'code_tools')?.path
+
   if (!codeCliRoute) {
     throw new Error('SIDEBAR_APP_DEFINITIONS does not contain the code_tools route')
   }
@@ -247,6 +268,7 @@ function readFeatures(): ProductManifest['features'] {
 
 export function generateProductManifest(): ProductManifest {
   const primaryRoutes = readPrimaryRoutes()
+
   return {
     schemaVersion: 1,
     package: readPackageMetadata(),

@@ -15,24 +15,30 @@ import { normalizeSubscriptionUrl, skillInstallIdentity } from '@shared/utils/sk
 import { readGithubSkillCatalog, resolveGithubSkillSourceUrl } from './skillRemoteSource'
 
 const MAX_FEED_BYTES = 16 * 1024 * 1024
+
 // oxlint-disable anti-slop/no-unsafe-dictionary-type -- JSON/RSS container checks leave fields unvalidated; text and URL readers own their decoding.
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON Feed entries and parsed RSS nodes are untyped; accept only object records before reading optional feed fields.
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+
 // oxlint-enable anti-slop/no-unsafe-dictionary-type
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional feed fields may have arbitrary JSON/XML shapes; only actual strings may become labels, URLs or MIME values.
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- RSS uses singleton-or-array nodes while JSON Feed optional arrays remain unvalidated; normalize their containers before per-entry decoding.
 const array = (value: unknown): unknown[] => (Array.isArray(value) ? value : value ? [value] : [])
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Feed titles, descriptions and categories can be non-string values; text rejects those before stripping markup for display.
 const plainText = (value: unknown) =>
   text(value)
     .replace(/<[^>]*>/g, '')
     .trim()
+
 const localized = (value: string) => ({ en: value, zh: null })
 
 function skillItem(sourceId: string, url: string, kind: 'github' | 'zip', name: string): MarketplaceSkillDetail {
   const identity = createHash('sha256').update(skillInstallIdentity(url)).digest('hex')
+
   return {
     id: sourceId + ':' + identity,
     subscription: { sourceId, url, kind },
@@ -62,15 +68,19 @@ function skillItem(sourceId: string, url: string, kind: 'github' | 'zip', name: 
 function installTarget(value: unknown, base: string, mime = '') {
   try {
     const url = normalizeSubscriptionUrl(new URL(text(value), base).href)
+
     if (!text(value) || !url) return null
     const github = buildGithubSkillResult(url)
+
     if (github?.sourceUrl) return { kind: 'github' as const, url: github.sourceUrl }
+
     if (/\.zip$/i.test(new URL(url).pathname) || ['application/zip', 'application/x-zip-compressed'].includes(mime)) {
       return { kind: 'zip' as const, url }
     }
   } catch {
     /* Invalid feed entries are skipped independently. */
   }
+
   return null
 }
 
@@ -82,6 +92,7 @@ async function readFeed(url: string, signal: AbortSignal, byteBudget: { remainin
     byteBudget,
     maxRedirects: 5
   })
+
   return { body: new TextDecoder().decode(response.body), url: response.url }
 }
 
@@ -99,6 +110,7 @@ export async function readSkillSubscription(
   if (new URL(source.url).hostname === 'github.com') {
     const catalog = await readGithubSkillCatalog(source.url)
     signal.throwIfAborted()
+
     return {
       source: { ...source, kind: 'github', name: catalog.name },
       fetchedAt: Date.now(),
@@ -114,6 +126,7 @@ export async function readSkillSubscription(
       }))
     }
   }
+
   const items = new Map<string, MarketplaceSkillDetail>()
   const visited = new Set<string>()
   let next: string | null = source.url
@@ -122,23 +135,28 @@ export async function readSkillSubscription(
   let skipped = 0
   const byteBudget = { remaining: MAX_FEED_BYTES }
   const githubUrls = new Map<string, string>()
+
   while (next) {
     if (visited.has(next) || visited.size >= 100) throw new Error('Invalid subscription pagination')
     visited.add(next)
     const page = await readFeed(next, signal, byteBudget)
     let entries: unknown[]
     const json = page.body.trimStart().startsWith('{')
+
     if (kind && kind !== (json ? 'json' : 'rss')) throw new Error('Subscription format changed between pages')
+
     if (json) {
       const feed = jsonFeedSchema.parse(JSON.parse(page.body))
       kind = 'json'
       sourceName ||= feed.title
       entries = feed.items
       next = feed.next_url ? normalizeSubscriptionUrl(new URL(feed.next_url, page.url).href) : null
+
       if (feed.next_url && !next) throw new Error('Invalid subscription next URL')
     } else {
       if (/<!DOCTYPE|<!ENTITY/i.test(page.body) || XMLValidator.validate(page.body) !== true)
         throw new Error('Invalid RSS feed')
+
       const parsed = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: '',
@@ -146,17 +164,21 @@ export async function readSkillSubscription(
         parseTagValue: false,
         parseAttributeValue: false
       }).parse(page.body)
+
       const rss = record(record(parsed).rss)
       const channel = record(rss.channel)
+
       if (rss.version !== '2.0' || !text(channel.title)) throw new Error('Expected an RSS 2.0 feed')
       kind = 'rss'
       sourceName = plainText(channel.title)
       entries = array(channel.item)
       next = null
     }
+
     for (const value of entries) {
       try {
         const entry = record(value)
+
         const candidates = json
           ? [
               installTarget(entry.external_url, page.url),
@@ -167,20 +189,26 @@ export async function readSkillSubscription(
               installTarget(entry.link, page.url),
               ...array(entry.enclosure).map((a) => installTarget(record(a).url, page.url, text(record(a).type)))
             ]
+
         const target = candidates.find((candidate) => candidate !== null)
+
         if (!target) {
           skipped++
           continue
         }
+
         const name =
           plainText(entry.title) ||
           decodeURIComponent(new URL(target.url).pathname.split('/').filter(Boolean).at(-1) ?? '')
+
         let installUrl = target.url
+
         if (target.kind === 'github') {
           installUrl = githubUrls.get(target.url) ?? (await resolveGithubSkillSourceUrl(target.url))
           githubUrls.set(target.url, installUrl)
           signal.throwIfAborted()
         }
+
         const item = skillItem(source.id, installUrl, target.kind, name)
         item.description = localized(
           plainText(json ? (entry.summary ?? entry.content_text ?? entry.content_html) : entry.description)
@@ -200,6 +228,7 @@ export async function readSkillSubscription(
       }
     }
   }
+
   return {
     source: { ...source, name: sourceName, kind: kind! },
     items: [...items.values()],

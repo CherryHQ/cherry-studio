@@ -6,7 +6,9 @@ import { BflLight } from './light'
 
 const Bfl = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BflLight {...props} className={className} />
+
   if (variant === 'dark') return <BflDark {...props} className={className} />
+
   return (
     <>
       <BflLight className={cn('dark:hidden', className)} {...props} />

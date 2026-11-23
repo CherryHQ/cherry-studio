@@ -23,8 +23,10 @@ function applyNameOverlays<T extends VersionedNamedResource>(
   overlays: ReadonlyMap<string, OptimisticNameOverlay>
 ): readonly T[] {
   if (overlays.size === 0) return items
+
   return items.map((item) => {
     const overlay = overlays.get(item.id)
+
     return overlay === undefined ? item : { ...item, name: overlay.name }
   })
 }
@@ -46,6 +48,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
   nameOverlaysRef.current = nameOverlays
 
   const items = useMemo(() => applyNameOverlays(sourceItems, nameOverlays), [nameOverlays, sourceItems])
+
   const withOptimisticNames = useCallback(
     (source: readonly T[]) => applyNameOverlays(source, nameOverlaysRef.current),
     []
@@ -59,10 +62,12 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
 
       const sourceItemById = new Map(sourceItems.map((item) => [item.id, item]))
       let next: Map<string, OptimisticNameOverlay> | undefined
+
       for (const [id, overlay] of current) {
         if (!overlay.settled) continue
 
         const item = sourceItemById.get(id)
+
         if (
           item === undefined ||
           item.name === overlay.name ||
@@ -88,6 +93,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
     setNameOverlays((current) => {
       const next = new Map(current)
       next.set(item.id, { baseUpdatedAt: item.updatedAt, name, requestId, settled: false })
+
       return next
     })
 
@@ -95,6 +101,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
       const latestItem = sourceItemsRef.current.find((candidate) => candidate.id === item.id)
       setNameOverlays((current) => {
         const overlay = current.get(item.id)
+
         if (
           overlay?.requestId !== requestId ||
           latestItem === undefined ||
@@ -102,29 +109,37 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
         ) {
           return current
         }
+
         const next = new Map(current)
         next.set(item.id, { ...overlay, baseUpdatedAt: latestItem.updatedAt })
+
         return next
       })
+
       try {
         const persisted = await persist()
         setNameOverlays((current) => {
           const overlay = current.get(item.id)
+
           if (overlay?.requestId !== requestId) return current
           const next = new Map(current)
+
           if (persisted) {
             next.set(item.id, { ...overlay, settled: true })
           } else {
             next.delete(item.id)
           }
+
           return next
         })
+
         return persisted
       } catch (error) {
         setNameOverlays((current) => {
           if (current.get(item.id)?.requestId !== requestId) return current
           const next = new Map(current)
           next.delete(item.id)
+
           return next
         })
         throw error

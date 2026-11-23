@@ -22,5 +22,6 @@ export function withPublishLock<T>(appId: string, fn: () => Promise<T>): Promise
     appId,
     next.catch(() => undefined)
   )
+
   return next
 }

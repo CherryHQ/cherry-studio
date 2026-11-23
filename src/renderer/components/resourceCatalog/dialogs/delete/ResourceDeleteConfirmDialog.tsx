@@ -35,7 +35,9 @@ interface Props {
  */
 export const ResourceDeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
   const { value: retainedResource } = useExitPresence(resource)
+
   if (!retainedResource) return null
+
   return (
     <DeleteDialogBody
       key={`${retainedResource.type}:${retainedResource.id}`}
@@ -52,8 +54,11 @@ const DeleteDialogBody: FC<{ resource: ResourceItem; open: boolean; onClose: () 
   onClose
 }) => {
   if (resource.type === 'assistant') return <AssistantDeleteDialog resource={resource} open={open} onClose={onClose} />
+
   if (resource.type === 'agent') return <AgentDeleteDialog resource={resource} open={open} onClose={onClose} />
+
   if (resource.type === 'skill') return <SkillDeleteDialog resource={resource} open={open} onClose={onClose} />
+
   return <PromptDeleteDialog resource={resource} open={open} onClose={onClose} />
 }
 
@@ -66,34 +71,45 @@ const AssistantDeleteDialog: FC<{
   const { deleteAssistant } = useAssistantMutationsById(resource.id)
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
+
   const { trigger: restoreAssistant } = useMutation('POST', '/assistants/:id/restore', {
     refresh: ['/assistants', '/assistants/*']
   })
+
   const { trigger: restoreTopic } = useMutation('POST', '/topics/:id/restore', { refresh: ['/topics'] })
+
   const refreshAffected = useCallback(async () => {
     const outcomes = await Promise.allSettled(['/assistants', '/assistants/*', '/topics'].map((key) => invalidate(key)))
+
     for (const outcome of outcomes) {
       if (outcome.status === 'rejected') {
         logger.warn('Failed to refresh Assistant resources after catalog deletion', { err: outcome.reason })
       }
     }
   }, [invalidate])
+
   const onDelete = useCallback(
     async (deleteTopics: boolean) => {
       let deletedTopicIds: string[] = []
+
       try {
         const result = await deleteAssistant({ deleteTopics })
         await refreshAffected()
+
         if (!result.deleted) {
           toast.info(t('recycle_bin.already_moved'))
+
           return
         }
+
         deletedTopicIds = result.deletedTopicIds ?? []
+
         if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
       } catch (error) {
         if (!isTrashTargetNotFoundError(error)) throw error
         await refreshAffected()
         toast.info(t('recycle_bin.already_moved'))
+
         return
       }
 
@@ -139,31 +155,39 @@ const AgentDeleteDialog: FC<{
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const restoreAgent = useCallback((agentId: string) => ipcApi.request('ai.agent.restore', { agentId }), [])
+
   const restoreSession = useCallback(
     (sessionId: string) => ipcApi.request('ai.agent.session.restore', { sessionId }),
     []
   )
+
   const refreshAffected = useCallback(async () => {
     const outcomes = await Promise.allSettled(['/agents', '/agents/*', '/agent-sessions'].map((key) => invalidate(key)))
+
     for (const outcome of outcomes) {
       if (outcome.status === 'rejected') {
         logger.warn('Failed to refresh Agent resources after catalog deletion', { err: outcome.reason })
       }
     }
   }, [invalidate])
+
   const onDelete = useCallback(
     async (deleteSessions: boolean) => {
       const result = await ipcApi.request('ai.agent.delete', {
         agentId: resource.id,
         deleteSessions
       })
+
       await refreshAffected()
+
       if (!result.deleted) {
         toast.info(t('recycle_bin.already_moved'))
+
         return
       }
 
       const deletedSessionIds = result.deletedSessionIds ?? []
+
       if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
       showRecycleBinUndo({
         itemName: resource.name,
@@ -199,6 +223,7 @@ const SkillDeleteDialog: FC<{
   onClose: () => void
 }> = ({ resource, open, onClose }) => {
   const { uninstallSkill } = useSkillMutationsById(resource.id)
+
   return <DeleteDialogContent resource={resource} open={open} onClose={onClose} onDelete={uninstallSkill} />
 }
 
@@ -208,6 +233,7 @@ const PromptDeleteDialog: FC<{
   onClose: () => void
 }> = ({ resource, open, onClose }) => {
   const { deletePrompt } = usePromptMutationsById(resource.id)
+
   return <DeleteDialogContent resource={resource} open={open} onClose={onClose} onDelete={deletePrompt} />
 }
 
@@ -222,6 +248,7 @@ const DeleteDialogContent: FC<{
 
   const handleConfirm = useCallback(async () => {
     setPending(true)
+
     try {
       await onDelete()
     } catch (error) {
@@ -266,6 +293,7 @@ const ConversationOwnerDeleteDialogContent: FC<{
   const handleConfirm = useCallback(
     async (deleteChildren: boolean) => {
       setPending(true)
+
       try {
         await onDelete(deleteChildren)
         completedRef.current = true

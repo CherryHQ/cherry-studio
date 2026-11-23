@@ -23,6 +23,7 @@ export const ContextSettingsCompressOverrideSchema = z.object({
   /** Compact once the prompt passes this percent of the available input context. */
   thresholdPercent: z.number().int().min(20).max(100).optional()
 })
+
 export type ContextSettingsCompressOverride = z.infer<typeof ContextSettingsCompressOverrideSchema>
 
 export const ContextSettingsOverrideSchema = z.object({
@@ -38,6 +39,7 @@ export const ContextSettingsOverrideSchema = z.object({
   maxMessages: z.number().int().min(1).nullable().optional(),
   compress: ContextSettingsCompressOverrideSchema.partial().optional()
 })
+
 export type ContextSettingsOverride = z.infer<typeof ContextSettingsOverrideSchema>
 
 // Never `.parse()`d in production, so these guards are not enforced at the
@@ -53,6 +55,7 @@ export const EffectiveContextSettingsSchema = z.object({
     thresholdPercent: z.number().int().min(20).max(100)
   })
 })
+
 export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSchema>
 
 /**

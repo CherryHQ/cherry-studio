@@ -47,16 +47,19 @@ import { AsyncInitializer } from '@shared/utils/async'
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
   if (app.kind === 'app') return true
+
   if (region === 'CN') return app.presetMiniAppId !== 'coze'
 
   if (!app.supportedRegions || app.supportedRegions.length === 0) {
     return app.presetMiniAppId === null
   }
+
   return app.supportedRegions.includes('Global')
 }
 
 const isVisibleForEdition = (app: MiniApp, appEdition: AppEdition): boolean => {
   if (appEdition === 'global' || app.kind === 'app' || app.presetMiniAppId === null) return true
+
   return !app.supportedRegions?.length || app.supportedRegions.includes('CN')
 }
 
@@ -80,6 +83,7 @@ const filterByEdition = (apps: MiniApp[], appEdition: AppEdition): MiniApp[] => 
 const loadUserRegion = async (): Promise<MiniAppRegion> => {
   try {
     const country = await ipcApi.request('system.get_ip_country')
+
     return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
   } catch (err) {
     // Default to CN so mainland China users — the primary audience — never
@@ -90,6 +94,7 @@ const loadUserRegion = async (): Promise<MiniAppRegion> => {
       stack: error.stack,
       fallback: 'CN'
     })
+
     return 'CN'
   }
 }
@@ -110,6 +115,7 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => regionDetection.get
  */
 // Module-level logger to avoid recreating on every render (rerender-defer-reads)
 const logger = loggerService.withContext('useMiniApps')
+
 /**
  * Process Promise.allSettled results: throw on partial failures so callers
  * can distinguish "all succeeded" from "partially failed", and invalidate
@@ -126,10 +132,12 @@ async function settleAndInvalidate(
   if (rejected.length > 0) {
     const failures = rejected.map((f) => {
       const err = toDataApiError(f.reason)
+
       return isDataApiError(err)
         ? { code: err.code, message: err.message }
         : { code: 'UNKNOWN', message: String(f.reason) }
     })
+
     logger.error(`${label}: ${rejected.length} of ${results.length} updates failed`, { failures })
     // Resync UI with DB — partial failures leave local state drifting
     await invalidate('/mini-apps')
@@ -148,6 +156,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
   const { i18n: i18nInstance } = useTranslation()
   const language = i18nInstance.language
+
   // Main resolved `name` for the language at query time and the query is cached; a
   // language switch would otherwise leave every installed app under its old name.
   const rawApps: MiniApp[] = useMemo(
@@ -164,12 +173,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     const ena: MiniApp[] = []
     const dis: MiniApp[] = []
     const pin: MiniApp[] = []
+
     for (const app of rawApps) {
       all.push(app)
+
       if (app.status === 'enabled') ena.push(app)
       else if (app.status === 'disabled') dis.push(app)
       else if (app.status === 'pinned') pin.push(app)
     }
+
     return { allApps: all, enabled: ena, disabled: dis, pinned: pin }
   }, [rawApps])
 
@@ -201,8 +213,10 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
           stack: error.stack,
           fallback: 'CN'
         })
+
         if (!cancelled) setDetectedRegion('CN')
       })
+
     return () => {
       cancelled = true
     }
@@ -215,12 +229,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     const visibleApps = [...enabled, ...pinned]
     const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
     const editionFiltered = filterByEdition(regionFiltered, appEdition)
+
     return editionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
   }, [appEdition, enabled, effectiveRegion, pinned])
+
   const disabledApps = useMemo(
     () => filterByEdition(filterByRegion(disabled, effectiveRegion), appEdition),
     [appEdition, disabled, effectiveRegion]
   )
+
   // Global keeps pinned apps across region choices; CN still enforces its edition catalog.
   const pinnedApps = useMemo(() => filterByEdition(pinned, appEdition), [appEdition, pinned])
 
@@ -240,6 +257,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       try {
         const result = await dataApiService.patch(`/mini-apps/${encodeURIComponent(appId)}`, { body })
         await invalidate('/mini-apps')
+
         return result
       } catch (error) {
         logger.error('Failed to patch mini app', { appId, error: toDataApiError(error) })
@@ -262,12 +280,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const { trigger: patchAppTrigger } = useMutation('PATCH', '/mini-apps/:appId', {
     refresh: ['/mini-apps']
   })
+
   const { trigger: patchMiniAppOrderTrigger } = useMutation('PATCH', '/mini-apps/:id/order', {
     refresh: ['/mini-apps']
   })
+
   const { trigger: patchMiniAppOrderBatchTrigger } = useMutation('PATCH', '/mini-apps/order:batch', {
     refresh: ['/mini-apps']
   })
+
   const { trigger: deleteAppTrigger } = useMutation('DELETE', '/mini-apps/:appId', {
     refresh: ['/mini-apps']
   })
@@ -302,6 +323,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     async (appId: string) => {
       const updated = await updateAppStatus(appId, 'disabled')
       closeMiniAppTabs(appId)
+
       return updated
     },
     [closeMiniAppTabs, updateAppStatus]
@@ -322,6 +344,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const setAppStatusBulk = useCallback(
     async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status'] }>) => {
       if (updates.length === 0) return Promise.resolve([] as MiniApp[])
+
       return Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status }))).then((results) =>
         settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
       )
@@ -345,6 +368,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
     // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
     const icon = updated.logoSrc ?? updated.logo
+
     for (const tab of tabsContextRef.current?.tabs ?? []) {
       if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
         tabsContextRef.current?.updateTab(tab.id, { title, icon })
@@ -364,11 +388,13 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     async (appId: string, dto: UpdateMiniAppDto) => {
       try {
         const updated = await patchAppTrigger({ params: { appId }, body: dto })
+
         try {
           syncOpenedCustomMiniApp(updated)
         } catch (syncError) {
           logger.error('Failed to sync opened custom mini app after update', { appId, error: syncError })
         }
+
         return updated
       } catch (error) {
         logger.error('Failed to update custom mini app', { appId, error: toDataApiError(error) })
@@ -400,6 +426,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     async (appId: string) => {
       try {
         const result = await deleteAppTrigger({ params: { appId } })
+
         // The row is already gone; a cleanup failure must not report the
         // delete itself as failed.
         try {
@@ -407,6 +434,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         } catch (syncError) {
           logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
         }
+
         return result
       } catch (error) {
         logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })
@@ -446,6 +474,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       const orderedIds = new Set(orderedPartition.map((app) => app.appId))
       const currentPartition = allApps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
       const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
+
       if (moves.length === 0) return
 
       try {

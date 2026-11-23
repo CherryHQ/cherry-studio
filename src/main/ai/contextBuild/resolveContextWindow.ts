@@ -17,6 +17,7 @@ export function resolveContextWindow(contextWindow: number | undefined): number 
   if (typeof contextWindow !== 'number' || !Number.isFinite(contextWindow) || contextWindow <= 0) {
     return null
   }
+
   return contextWindow
 }
 
@@ -28,7 +29,9 @@ export function resolveContextWindow(contextWindow: number | undefined): number 
 export function resolveMinContextWindow(contextWindows: ReadonlyArray<number | undefined>): number | null {
   const known = contextWindows.flatMap((window) => {
     const resolved = resolveContextWindow(window)
+
     return resolved === null ? [] : [resolved]
   })
+
   return known.length > 0 ? Math.min(...known) : null
 }

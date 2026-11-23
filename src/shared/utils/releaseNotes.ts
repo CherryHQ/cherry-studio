@@ -23,11 +23,13 @@ function hasCompleteLanguageMarkers(releaseNotes: string): boolean {
   const englishMarker = releaseNotes.indexOf(RELEASE_NOTE_MARKERS.english)
   const chineseMarker = releaseNotes.indexOf(RELEASE_NOTE_MARKERS.chinese, englishMarker + 1)
   const endMarker = releaseNotes.indexOf(RELEASE_NOTE_MARKERS.end, chineseMarker + 1)
+
   return englishMarker >= 0 && chineseMarker > englishMarker && endMarker > chineseMarker
 }
 
 export function parseReleaseHistory(source: string): ReleaseNotesEntry[] {
   let value: Serializable
+
   try {
     value = JSON.parse(source)
   } catch {
@@ -39,28 +41,34 @@ export function parseReleaseHistory(source: string): ReleaseNotesEntry[] {
   }
 
   const versions = new Set<string>()
+
   return value.map((entry, index) => {
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
       throw new Error(`release-history.json entry ${index} must be an object`)
     }
 
     const keys = Object.keys(entry).sort()
+
     if (keys.length !== 2 || keys[0] !== 'releaseNotes' || keys[1] !== 'version') {
       throw new Error(`release-history.json entry ${index} must contain only version and releaseNotes`)
     }
 
     const { releaseNotes, version } = entry
+
     if (typeof version !== 'string' || !STABLE_RELEASE_VERSION_PATTERN.test(version)) {
       throw new Error(`release-history.json entry ${index} must have a stable semantic version`)
     }
+
     if (versions.has(version)) {
       throw new Error(`release-history.json contains duplicate version ${version}`)
     }
+
     if (typeof releaseNotes !== 'string' || !releaseNotes.trim() || !hasCompleteLanguageMarkers(releaseNotes)) {
       throw new Error(`release-history.json entry ${index} must have complete bilingual release notes`)
     }
 
     versions.add(version)
+
     return { releaseNotes, version }
   })
 }
@@ -77,6 +85,7 @@ export function mergeReleaseHistory(
   fallback: readonly ReleaseNotesEntry[]
 ): ReleaseNotesEntry[] {
   const preferredVersions = new Set(preferred.map(({ version }) => version))
+
   return [...preferred, ...fallback.filter(({ version }) => !preferredVersions.has(version))].sort((left, right) =>
     compareSemverDescending(left.version, right.version)
   )

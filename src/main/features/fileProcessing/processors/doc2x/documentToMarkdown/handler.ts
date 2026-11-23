@@ -26,6 +26,7 @@ type Doc2xQueryContext = Omit<PreparedDoc2xQueryContext, 'signal'> & {
   mergeCrossPageForms?: boolean
   markdownContent?: string
 }
+
 type Doc2xCapability = Extract<FileProcessorFeatureCapability, { feature: 'document_to_markdown' }>
 
 const markdownParser = unified().use(remarkParse).use(remarkGfm)
@@ -98,7 +99,9 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         if (!persisted.apiHost) {
           throw new Error('doc2x rehydrate: missing apiHost in persisted remote state')
         }
+
         const capability = getDoc2xCapability(restoredConfig)
+
         return {
           providerTaskId: persisted.providerTaskId,
           remoteContext: {
@@ -195,6 +198,7 @@ export async function handleParseStage(
   }
 
   const pages = parseStatus.result?.pages ?? []
+
   const hasStructuredLayout =
     queryContext.modelVersion === 'v3-2026' &&
     (queryContext.formulaLevel ?? 0) === 0 &&
@@ -202,7 +206,9 @@ export async function handleParseStage(
     pages.some((page) => (page.layout?.blocks.length ?? 0) > 0)
 
   const remoteContext: Doc2xQueryContext = { ...queryContext, stage: 'exporting' }
+
   if (hasStructuredLayout) remoteContext.markdownContent = buildDoc2xMarkdown(pages)
+
   return {
     status: 'processing',
     progress: 99,
@@ -263,6 +269,7 @@ export function buildDoc2xMarkdown(pages: readonly Doc2xParsePage[]): string {
 
 function buildDoc2xPageMarkdown(page: Doc2xParsePage): string {
   const blocks = page.layout?.blocks ?? []
+
   if (!blocks.length) {
     return page.md ?? ''
   }
@@ -270,7 +277,9 @@ function buildDoc2xPageMarkdown(page: Doc2xParsePage): string {
   const orderedBlocks = blocks
     .filter((block) => block.attributes?.is_boilerplate !== true)
     .sort((a, b) => a.reading_order - b.reading_order)
+
   const markdown = stripDoc2xBoilerplate(page.md ?? '')
+
   const tableHtml = orderedBlocks
     .filter((block) => block.type === 'Table' && block.table_data?.html)
     .map((block) => block.table_data?.html ?? '')
@@ -286,8 +295,10 @@ function buildStructuredDoc2xMarkdown(blocks: readonly Doc2xLayoutBlock[]): stri
   return blocks
     .flatMap((block) => {
       let text = block.text
+
       if (block.type === 'Table') text = block.table_data?.html ?? block.text
       else if (block.type === 'Figure' && !text.trim() && block.src) text = `![](${block.src})`
+
       return text.trim().length > 0 ? [text] : []
     })
     .join('\n\n')
@@ -310,6 +321,7 @@ function replaceNextMarkdownTable(markdown: string, tableHtml: string): string {
 
     const start = node.position?.start.offset
     const end = node.position?.end.offset
+
     if (start === undefined || end === undefined) return
 
     tableStart = start

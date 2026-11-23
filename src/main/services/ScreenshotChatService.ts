@@ -31,12 +31,16 @@ export class ScreenshotChatService extends BaseService {
   protected onInit(): void {
     const rememberWindow = (_event: Electron.Event, window: BrowserWindow) => {
       const id = application.get('WindowManager').getWindowId(window)
+
       if (id && this.targets.has(id)) this.lastWindowId = id
     }
+
     this.registerDisposable(
       application.get('WindowManager').onWindowDestroyed(({ id }) => {
         this.targets.delete(id)
+
         if (this.lastWindowId === id) this.lastWindowId = null
+
         for (const delivery of this.deliveries.values()) {
           if (delivery.windowId === id) {
             delivery.outcome = false
@@ -59,6 +63,7 @@ export class ScreenshotChatService extends BaseService {
     else {
       this.targets.set(windowId, scopeKey)
       const focused = BrowserWindow.getFocusedWindow()
+
       if (focused && application.get('WindowManager').getWindowId(focused) === windowId) this.lastWindowId = windowId
     }
   }
@@ -69,8 +74,10 @@ export class ScreenshotChatService extends BaseService {
     const windowId = sourceWindowId ?? (focused ? manager.getWindowId(focused) : this.lastWindowId)
     const window = windowId && manager.getWindow(windowId)
     const scopeKey = windowId && this.targets.get(windowId)
+
     if (!windowId || !window || window.isDestroyed() || !scopeKey) {
       await application.get('ScreenshotOverlayService').startCapture(sourceWindowId)
+
       return
     }
 
@@ -80,17 +87,21 @@ export class ScreenshotChatService extends BaseService {
         if (window.isDestroyed() || (!delivery && this.targets.get(windowId) !== scopeKey)) {
           throw new Error('The capture chat is no longer available')
         }
+
         if (delivery?.outcome === false) {
           this.release(delivery)
           delivery = undefined
         }
+
         if (delivery?.settle) throw new Error('Screenshot delivery is already pending')
+
         if (
           delivery &&
           (delivery.payload.text !== result.text || !Buffer.from(delivery.bytes).equals(result.pngBytes))
         ) {
           throw new Error('Retry the original screenshot while its delivery is unconfirmed')
         }
+
         if (!delivery) {
           const media = application.get('MediaProtocolService')
           const bytes = Buffer.from(result.pngBytes)
@@ -110,7 +121,9 @@ export class ScreenshotChatService extends BaseService {
           }
           this.deliveries.set(delivery.payload.deliveryId, delivery)
         }
+
         const current = delivery
+
         const accepted =
           current.outcome ??
           (await new Promise<boolean>((resolve, reject) => {
@@ -118,11 +131,13 @@ export class ScreenshotChatService extends BaseService {
               current.settle = undefined
               reject(new Error('Screenshot delivery has not been confirmed; retry without changing the content'))
             }, 10000)
+
             current.settle = (accepted) => {
               clearTimeout(timer)
               current.settle = undefined
               resolve(accepted)
             }
+
             try {
               application.get('IpcApiService').send(windowId, 'chat.screenshot.attachment', current.payload)
             } catch (error) {
@@ -133,9 +148,12 @@ export class ScreenshotChatService extends BaseService {
               reject(error)
             }
           }))
+
         this.release(current)
         delivery = undefined
+
         if (!accepted) throw new Error('The chat could not accept the complete screenshot and message')
+
         if (!window.isDestroyed()) {
           if (window.isMinimized()) window.restore()
           window.show()
@@ -151,9 +169,11 @@ export class ScreenshotChatService extends BaseService {
 
   receiveResult(windowId: WindowId, deliveryId: string, accepted: boolean): void {
     const delivery = this.deliveries.get(deliveryId)
+
     if (!delivery || delivery.windowId !== windowId) return
     // The receiver owns a Blob before accepting, so release never invalidates its draft.
     delivery.outcome = accepted
+
     if (delivery.settle) delivery.settle(accepted)
     else this.release(delivery)
   }

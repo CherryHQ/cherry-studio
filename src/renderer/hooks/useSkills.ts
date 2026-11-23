@@ -28,8 +28,10 @@ function skillErrorMessage(error: unknown): string {
   try {
     if (error instanceof Error) {
       const message = error.message
+
       return typeof message === 'string' ? message : 'Unknown error'
     }
+
     return String(error ?? 'Unknown error')
   } catch {
     return 'Unknown error'
@@ -46,6 +48,7 @@ function reportSkillMutationError(action: string, error: unknown): string {
   const message = skillErrorMessage(error)
   logger.error(`Failed to ${action}`, { error: message })
   toast.error(message)
+
   return message
 }
 
@@ -62,6 +65,7 @@ const SKILL_CATALOG_KEY = 'skill.list_catalog'
 export function useInvalidateSkills() {
   const invalidate = useInvalidateCache()
   const { mutate } = useSWRConfig()
+
   return useCallback(async () => {
     await Promise.all([invalidate('/skills'), mutate((key) => Array.isArray(key) && key[0] === SKILL_CATALOG_KEY)])
   }, [invalidate, mutate])
@@ -69,16 +73,20 @@ export function useInvalidateSkills() {
 
 export function useSkillCatalog(search?: string, enabled = true) {
   const query = search?.trim() ? { search: search.trim() } : {}
+
   const { data, error, isLoading, isValidating, mutate } = useSWR<SkillCatalogEntry[], Error>(
     enabled ? [SKILL_CATALOG_KEY, query] : null,
     () => ipcApi.request('skill.list_catalog', query),
     { revalidateOnFocus: false, shouldRetryOnError: false, keepPreviousData: true }
   )
+
   useDataChange(enabled ? '/skills' : [], () => void mutate())
   useReconcileSkillsOnOpen(enabled)
+
   const refetch = useCallback(() => {
     void mutate()
   }, [mutate])
+
   return { data: data ?? [], error, isLoading, isRefreshing: isValidating, refetch }
 }
 
@@ -104,8 +112,10 @@ export function useReconcileSkillsOnOpen(enabled: boolean): void {
   useEffect(() => {
     if (!enabled) {
       reconciled.current = false
+
       return
     }
+
     if (reconciled.current) return
     reconciled.current = true
     let cancelled = false
@@ -120,6 +130,7 @@ export function useReconcileSkillsOnOpen(enabled: boolean): void {
         reconciled.current = false
         logger.warn('Failed to reconcile skills on open', { error })
       })
+
     return () => {
       cancelled = true
     }
@@ -141,11 +152,14 @@ export function useReconcileSkillsOnOpen(enabled: boolean): void {
 export function useInstalledSkills(agentId?: string, options: { enabled?: boolean } = {}) {
   const enabled = options.enabled !== false
   const queryOptions = { enabled }
+
   if (agentId) Object.assign(queryOptions, { query: { agentId } })
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', queryOptions)
   useDataChange(enabled ? '/skills' : [], () => refetch())
+
   const refresh = useCallback(async () => {
     await ipcApi.request('skill.reconcile', {})
+
     return refetch()
   }, [refetch])
 
@@ -193,21 +207,26 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
   const [localError, setLocalError] = useState<string | null>(null)
   const [loadedLocalSkillsWorkdir, setLoadedLocalSkillsWorkdir] = useState<string>()
   const localRequestIdRef = useRef(0)
+
   const nextLocalRequestId = useCallback(() => {
     localRequestIdRef.current += 1
+
     return localRequestIdRef.current
   }, [])
+
   const invalidateLocalRequests = useCallback(() => {
     localRequestIdRef.current += 1
   }, [])
 
   const refreshLocalSkills = useCallback(async () => {
     const requestId = nextLocalRequestId()
+
     if (!workdir) {
       setLocalSkills([])
       setLocalError(null)
       setLocalLoading(false)
       setLoadedLocalSkillsWorkdir(undefined)
+
       return
     }
 
@@ -217,6 +236,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
     try {
       const result = await ipcApi.request('skill.list_local', { workdir })
       const data = unwrapSkillResult(result)
+
       if (requestId === localRequestIdRef.current) {
         setLocalSkills(data)
         setLoadedLocalSkillsWorkdir(workdir)
@@ -240,6 +260,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
       setLocalError(null)
       setLocalLoading(false)
       setLoadedLocalSkillsWorkdir(undefined)
+
       return
     }
 
@@ -249,6 +270,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
   }, [enabled, invalidateLocalRequests, refreshLocalSkills])
 
   const refreshInstalledSkills = installed.refresh
+
   const refresh = useCallback(async () => {
     await Promise.all([Promise.resolve(refreshInstalledSkills()), refreshLocalSkills()])
   }, [refreshInstalledSkills, refreshLocalSkills])
@@ -276,17 +298,21 @@ export function useSystemSkills(enabled = true) {
 
   const discover = useCallback(async () => {
     const requestId = ++requestIdRef.current
+
     if (!enabled) {
       setSkills([])
       setError(null)
       setLoading(false)
+
       return
     }
 
     setLoading(true)
     setError(null)
+
     try {
       const discovered = await ipcApi.request('skill.discover_system', {})
+
       if (requestId === requestIdRef.current) setSkills(discovered)
     } catch (cause) {
       if (requestId !== requestIdRef.current) return
@@ -301,6 +327,7 @@ export function useSystemSkills(enabled = true) {
 
   useEffect(() => {
     void discover()
+
     return () => {
       requestIdRef.current += 1
     }
@@ -309,23 +336,28 @@ export function useSystemSkills(enabled = true) {
   const importSkill = useCallback(
     async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
       if (skill.status !== 'available') return null
+
       if (importingRef.current.has(skill.id)) return null
       importingRef.current.add(skill.id)
       setImporting((current) => new Set(current).add(skill.id))
+
       try {
         const installed = await ipcApi.request('skill.import_system', { directoryPath: skill.directoryPath })
         await refreshSkillsBestEffort(invalidate)
         await discover()
+
         return installed
       } catch (cause) {
         await discover()
         reportSkillMutationError('import system skill', cause)
+
         return null
       } finally {
         importingRef.current.delete(skill.id)
         setImporting((current) => {
           const next = new Set(current)
           next.delete(skill.id)
+
           return next
         })
       }
@@ -352,6 +384,7 @@ export function useSkillSearch(source?: SkillSearchSource) {
       if (!query.trim()) {
         setResults([])
         setSearching(false)
+
         return
       }
 
@@ -360,6 +393,7 @@ export function useSkillSearch(source?: SkillSearchSource) {
 
       try {
         const data = await searchSkills(query, source)
+
         if (requestId === abortRef.current) {
           setResults(data)
         }
@@ -398,6 +432,7 @@ export function useSkillInstall() {
     setInstallingCounts((current) => {
       const next = new Map(current)
       next.set(key, (next.get(key) ?? 0) + 1)
+
       return next
     })
   }, [])
@@ -405,14 +440,17 @@ export function useSkillInstall() {
   const finishInstalling = useCallback((key: string) => {
     setInstallingCounts((current) => {
       const count = current.get(key) ?? 0
+
       if (count <= 0) return current
 
       const next = new Map(current)
+
       if (count === 1) {
         next.delete(key)
       } else {
         next.set(key, count - 1)
       }
+
       return next
     })
   }, [])
@@ -420,9 +458,11 @@ export function useSkillInstall() {
   const install = useCallback(
     async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
       beginInstalling(installSource)
+
       try {
         const skill = unwrapSkillResult(await ipcApi.request('skill.install', { installSource }))
         await refreshSkillsBestEffort(invalidate)
+
         return { skill }
       } catch (err) {
         return { skill: null, error: skillErrorMessage(err) }
@@ -436,9 +476,11 @@ export function useSkillInstall() {
   const installFromZip = useCallback(
     async (zipFilePath: string): Promise<InstalledSkill | null> => {
       beginInstalling('zip')
+
       try {
         const skill = unwrapSkillResult(await ipcApi.request('skill.install_from_zip', { zipFilePath }))
         await refreshSkillsBestEffort(invalidate)
+
         return skill
       } catch (error) {
         logAndRethrowSkillMutationError('install skill from zip', error)
@@ -452,9 +494,11 @@ export function useSkillInstall() {
   const installFromDirectory = useCallback(
     async (directoryPath: string): Promise<InstalledSkill | null> => {
       beginInstalling('directory')
+
       try {
         const skill = unwrapSkillResult(await ipcApi.request('skill.install_from_directory', { directoryPath }))
         await refreshSkillsBestEffort(invalidate)
+
         return skill
       } catch (error) {
         logAndRethrowSkillMutationError('install skill from directory', error)
@@ -468,6 +512,7 @@ export function useSkillInstall() {
   const isInstalling = useCallback(
     (key?: string) => {
       if (!key) return installingCounts.size > 0
+
       return installingCounts.has(key)
     },
     [installingCounts]

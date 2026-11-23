@@ -24,6 +24,7 @@ export class UsageBudgetNotificationService extends BaseService {
           ['app.notification.daily_budget.tokens', 'app.notification.daily_budget.threshold'],
           (_key, value, previous) => {
             if (value === previous) return
+
             try {
               this.writeState('notification:daily-budget-cycle', crypto.randomUUID())
             } catch (error) {
@@ -39,6 +40,7 @@ export class UsageBudgetNotificationService extends BaseService {
       const preferences = application.get('PreferenceService')
       const budget = preferences.get('app.notification.daily_budget.tokens')
       const threshold = preferences.get('app.notification.daily_budget.threshold')
+
       if (
         !preferences.get('app.notification.center.usage.enabled') ||
         !Number.isSafeInteger(budget) ||
@@ -54,9 +56,11 @@ export class UsageBudgetNotificationService extends BaseService {
       const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
       const cycle = this.readState<string>('notification:daily-budget-cycle')
       const period = cycle ? `${day}:${cycle}` : day
+
       if (this.completedBudgetPeriod === period) return
       const total = aiUsageRecordService.totalTokens({ from, to })
       const limit = (budget * threshold) / 100
+
       if (total < limit) return
       void application
         .get('NotificationService')

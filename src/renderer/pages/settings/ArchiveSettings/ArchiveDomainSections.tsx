@@ -56,8 +56,10 @@ export const TopicArchiveSection: FC<ArchiveDomainSectionProps> = ({
     query: { domain: 'topics' },
     limit: 50
   })
+
   const entries = useInfiniteFlatItems(pages)
   useDataChange('/topics', () => void refresh())
+
   const items = useMemo<ArchiveItem[]>(
     () =>
       entries.map((entry) => ({
@@ -111,8 +113,10 @@ export const AgentArchiveSection: FC<ArchiveDomainSectionProps> = ({
     prevPage,
     refresh
   } = usePaginatedQuery('/agents', { query: ARCHIVED_ITEMS_QUERY, limit: 50 })
+
   const [iconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
+
   const items = useMemo<ArchiveItem[]>(
     () =>
       agents.map((agent) => ({
@@ -123,6 +127,7 @@ export const AgentArchiveSection: FC<ArchiveDomainSectionProps> = ({
       })),
     [agents, iconType, defaultModelId]
   )
+
   const totalPages = Math.ceil(total / 50)
   useDataChange('/agents', () => void refresh())
 
@@ -169,8 +174,10 @@ export const SessionArchiveSection: FC<ArchiveDomainSectionProps> = ({
     query: { domain: 'sessions' },
     limit: 50
   })
+
   const entries = useInfiniteFlatItems(pages)
   useDataChange('/agent-sessions', () => void refresh())
+
   const items = useMemo<ArchiveItem[]>(
     () =>
       entries.map((entry) => ({
@@ -224,8 +231,10 @@ export const AssistantArchiveSection: FC<ArchiveDomainSectionProps> = ({
     prevPage,
     refresh
   } = usePaginatedQuery('/assistants', { query: ARCHIVED_ITEMS_QUERY, limit: 50 })
+
   const [iconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
+
   const items = useMemo<ArchiveItem[]>(
     () =>
       assistants.map((assistant) => ({
@@ -236,6 +245,7 @@ export const AssistantArchiveSection: FC<ArchiveDomainSectionProps> = ({
       })),
     [assistants, iconType, defaultModelId]
   )
+
   const totalPages = Math.ceil(total / 50)
   useDataChange('/assistants', () => void refresh())
 
@@ -282,24 +292,30 @@ export const PaintingArchiveSection: FC<ArchiveDomainSectionProps> = ({
     query: ARCHIVED_ITEMS_QUERY,
     limit: 50
   })
+
   const paintings = useInfiniteFlatItems(pages)
   useDataChange('/paintings', () => void refresh())
   const previewIds = [...new Set(paintings.flatMap((painting) => painting.files.output.slice(0, 1)))]
+
   const { data: previewPaths } = useSWR(
     previewIds.length > 0 ? (['archive-painting-previews', previewIds] as const) : null,
     async ([, ids]) => {
       const batches = await Promise.all(
         chunk(ids, PREVIEW_BATCH_SIZE).map((batch) => ipcApi.request('file.batch_get_physical_paths', { ids: batch }))
       )
+
       return Object.assign({}, ...batches) as (typeof batches)[number]
     },
     { onError: (error) => logger.warn('Failed to load archived painting previews', error) }
   )
+
   const PaintingIcon = SIDEBAR_ICON_COMPONENTS.paintings
+
   const items = useMemo<ArchiveItem[]>(
     () =>
       paintings.map((painting) => {
         const path = previewPaths?.[painting.files.output[0]]
+
         return {
           id: painting.id,
           name: painting.prompt,
@@ -351,8 +367,10 @@ export const FileArchiveSection: FC<ArchiveDomainSectionProps> = ({
     query: ARCHIVED_ITEMS_QUERY,
     limit: 50
   })
+
   const entries = useInfiniteFlatItems(pages)
   useDataChange('/files/entries', () => void refresh())
+
   const items = useMemo<ArchiveItem[]>(
     () =>
       entries.map((entry) => ({

@@ -20,8 +20,10 @@ export function buildAnnotation(
       const y = Math.min(start.y, end.y)
       const width = Math.abs(end.x - start.x)
       const height = Math.abs(end.y - start.y)
+
       return { type: 'rect', color, strokeWidth, rect: { x, y, width, height } }
     }
+
     case 'arrow':
       return { type: 'arrow', color, strokeWidth, start, end }
     case 'brush':
@@ -43,8 +45,10 @@ export function isSignificantAnnotation(annotation: Annotation): boolean {
     case 'arrow': {
       const dx = annotation.end.x - annotation.start.x
       const dy = annotation.end.y - annotation.start.y
+
       return Math.sqrt(dx * dx + dy * dy) > 3
     }
+
     case 'brush':
     case 'mosaic':
       return annotation.points.length >= 2

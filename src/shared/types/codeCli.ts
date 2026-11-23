@@ -16,9 +16,11 @@ export enum CodeCli {
 }
 
 export const DEEPSEEK_HARNESS_AGENT_PRESETS = ['inherit', 'standard', 'code', 'minimal'] as const
+
 export type DeepSeekHarnessAgentPreset = (typeof DEEPSEEK_HARNESS_AGENT_PRESETS)[number]
 
 export const DEEPSEEK_HARNESS_PERMISSION_MODES = ['read-only', 'workspace-write', 'danger-full-access'] as const
+
 export type DeepSeekHarnessPermissionMode = (typeof DEEPSEEK_HARNESS_PERMISSION_MODES)[number]
 
 export interface DeepSeekHarnessSettings {
@@ -45,6 +47,7 @@ export function isDeepSeekHarnessPermissionMode(value: unknown): value is DeepSe
 export function normalizeDeepSeekHarnessSettings(value: unknown) {
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; each supported preset and permission value is validated before output.
   const settings = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+
   return {
     agentPreset: isDeepSeekHarnessAgentPreset(settings.agentPreset)
       ? settings.agentPreset

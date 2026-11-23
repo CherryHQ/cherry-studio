@@ -46,6 +46,7 @@ export const EnhancedImage = Image.extend<EnhancedImageOptions>({
           if (!attributes.src) {
             return {}
           }
+
           return {
             src: attributes.src
           }
@@ -82,6 +83,7 @@ export const EnhancedImage = Image.extend<EnhancedImageOptions>({
 
   addExtensions() {
     const base = (this.parent?.() as any[]) || []
+
     return [
       ...base,
       Node.create({

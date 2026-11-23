@@ -15,6 +15,7 @@ function resizePromptVariableInput(input: HTMLTextAreaElement | null) {
   if (!input) return
 
   input.style.height = 'auto'
+
   if (input.scrollHeight > 0) input.style.height = `${input.scrollHeight}px`
 }
 
@@ -58,10 +59,12 @@ export function PromptVariableToken({
       activeEditTokenIdRef.current = null
       isDirtyRef.current = false
       hasFinishedCurrentDraftRef.current = false
+
       return
     }
 
     const input = inputRef.current
+
     if (!input) return
 
     const handleCompositionStart = (event: Event) => {
@@ -74,7 +77,9 @@ export function PromptVariableToken({
       isComposingRef.current = false
       const compositionText = (event as CompositionEvent).data
       const nextValue = compositionText && input.value === token.label ? compositionText : input.value
+
       if (input.value !== nextValue) input.value = nextValue
+
       if (nextValue !== token.label) isDirtyRef.current = true
       resizePromptVariableInput(input)
     }
@@ -88,6 +93,7 @@ export function PromptVariableToken({
     const finishEditing = (reason: PromptVariableCommitReason, options: { direction?: 1 | -1 } = {}) => {
       const nextValue = input.value
       const dirty = isDirtyRef.current || nextValue !== token.label
+
       if (!dirty && hasFinishedCurrentDraftRef.current) return
 
       onCommitRef.current?.(nextValue, reason, { dirty, ...options })
@@ -104,6 +110,7 @@ export function PromptVariableToken({
         onSelectAllRef.current?.(input.value, { dirty: isDirtyRef.current })
         isDirtyRef.current = false
         hasFinishedCurrentDraftRef.current = true
+
         return
       }
 
@@ -112,6 +119,7 @@ export function PromptVariableToken({
         event.stopPropagation()
         finishEditing('enter')
         input.blur()
+
         return
       }
 
@@ -134,6 +142,7 @@ export function PromptVariableToken({
     input.addEventListener('blur', handleBlur)
 
     let focusFrame: number | undefined
+
     if (activeEditTokenIdRef.current !== token.id) {
       activeEditTokenIdRef.current = token.id
       isDirtyRef.current = false
@@ -164,6 +173,7 @@ export function PromptVariableToken({
     hasFinishedCurrentDraftRef.current = false
     resizePromptVariableInput(inputRef.current)
   }
+
   const handleTokenMouseDown: MouseEventHandler<HTMLSpanElement> | undefined =
     !isEditing && onEditRequest
       ? (event) => {

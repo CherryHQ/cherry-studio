@@ -12,6 +12,7 @@ function isRelativeImageSrc(src: unknown): src is string {
 
 export function createRelativeImagePreservation() {
   const sources = new WeakMap<Element, string>()
+
   return {
     prepare:
       () =>
@@ -28,6 +29,7 @@ export function createRelativeImagePreservation() {
       (tree: Root): void => {
         visit(tree, 'element', (node) => {
           const src = sources.get(node)
+
           if (src === undefined) return
           node.tagName = 'img'
           node.properties.src = src

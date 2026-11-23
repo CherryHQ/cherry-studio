@@ -2,9 +2,11 @@ import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 /** A tool call's stable identity in the harness: Durable's tool task id; coding-agent's `<sessionId>:<toolCallId>`. */
 export type CallKey = string & { readonly __callKey: true }
+
 /** Restores a call key at the adapter boundary; throws `TypeError` for an empty or blank value. */
 export function callKeyOf(raw: string): CallKey {
   if (!raw.trim()) throw new TypeError('Call keys must not be empty')
+
   return raw as CallKey
 }
 
@@ -16,6 +18,7 @@ export type UsageFact = {
   readonly totalTokens: number
   readonly costUsd: number
 }
+
 /** `callKey` is the call's `CallKey`, the same key the gate and the host's approvals see. */
 export type ToolCallFact = {
   readonly callId: string
@@ -41,9 +44,11 @@ export const ENTRY_KINDS = {
   subagentSteer: 'cherry.subagent-steer',
   subagentUserStop: 'cherry.subagent-user-stop'
 } as const
+
 export type EntryKind = (typeof ENTRY_KINDS)[keyof typeof ENTRY_KINDS]
 
 export type GoalPhase = 'active' | 'paused' | 'blocked' | 'complete'
+
 export type GoalStopCode =
   | 'complete'
   | 'model_blocked'
@@ -59,8 +64,11 @@ export type GoalStopCode =
   | 'paused_each_round'
   | 'continuation_rejected'
   | 'unsupported_model'
+
 export type GoalBudget = { readonly tokens?: number; readonly usd?: number }
+
 export type GoalStop = { readonly code: GoalStopCode; readonly message?: string; readonly at: number }
+
 /** Fields of today's `cherry.goal` data (agent-runtime-pi goalState.ts). */
 export type GoalSnapshot = {
   readonly id: string
@@ -80,13 +88,16 @@ export type GoalSnapshot = {
   readonly createdAt: number
   readonly updatedAt: number
 }
+
 export type GoalCleared = {
   readonly id: string
   readonly revision: number
   readonly cleared: true
   readonly at: number
 }
+
 export type GoalNotice = { readonly text: string; readonly level: 'info' | 'error' }
+
 /** `id` is the deterministic round key from `core/keys.ts` (design §7.3). */
 export type RoundDetails = {
   readonly id: string
@@ -97,14 +108,18 @@ export type RoundDetails = {
 }
 
 export type RunEnd = 'completed' | 'failed' | 'truncated' | 'aborted' | 'limit_reached'
+
 export type SubagentOutcome = RunEnd | 'stopped' | 'interrupted'
+
 export type SubagentStopper = 'model' | 'user' | 'budget'
+
 /** Today's `cherry.subagent-state` data; `usage` is a display cache only, rules read `ChildFacts.runUsage` (R3). */
 export type GoalOwner = {
   readonly goalId: string | null
   /** A reservation is charged only after this round is admitted. */
   readonly goalRoundId?: string
 }
+
 export type SubagentRunRecord = {
   readonly sessionId: ThreadId
   /** Missing only on historical records; null explicitly belongs to no goal. */
@@ -125,12 +140,14 @@ export type SubagentRunRecord = {
   readonly partial?: string
   readonly usage?: JsonValue
 }
+
 export type SubagentOrigin = {
   readonly parentToolCallId: string
   readonly fork: boolean
   readonly description: string
   readonly modelKey: string
 }
+
 /** One run a notification delivered; usage no longer travels with it (R3). */
 export type DeliveredRun = {
   readonly sessionId: ThreadId
@@ -138,6 +155,7 @@ export type DeliveredRun = {
   readonly outcome: SubagentOutcome
   readonly stoppedBy?: SubagentStopper
 }
+
 /** [plan choice] Minimal plan state; PR-3d (plan mode) may add fields. */
 export type PlanState = { readonly active: boolean; readonly at: number }
 
@@ -176,6 +194,7 @@ export type PolicyRecord =
       readonly type: 'subagent-user-stop'
       readonly value: { readonly sessionId: ThreadId; readonly run?: number; readonly at: number }
     }
+
 /** Enters the model context. */
 export type MarkerFact =
   | { readonly type: 'goal-round'; readonly round: RoundDetails }
@@ -235,6 +254,7 @@ export interface ChildFacts {
   /** The child's last history entry, usable as an explicit fork point. */
   readonly lastItem: ItemId
 }
+
 export interface LiveFacts {
   /** No active run and an empty inbox (Durable: no `pi.live.run`, empty `pi.inbox`). */
   readonly idle: boolean
@@ -252,6 +272,7 @@ export interface LiveFacts {
   /** The most recently finished run; absent until a run ends. */
   readonly runEnd?: { readonly outcome: 'completed' | 'error' | 'aborted' }
 }
+
 export interface ConversationFacts {
   readonly thread: ThreadId
   readonly lineage:
@@ -267,8 +288,10 @@ export interface ConversationFacts {
 
 /** How one child run ended, as `Helpers.awaitAnswer` reports it. */
 export type RunEndFacts = { readonly outcome: RunEnd; readonly text: string; readonly error?: string }
+
 /** [plan choice] Text and details only; images and structured content pass through the adapter untouched. */
 export type ToolResultFact = { readonly text: string; readonly isError: boolean; readonly details?: JsonValue }
+
 export type GateCall = {
   readonly key: CallKey
   readonly thread: ThreadId
@@ -277,6 +300,7 @@ export type GateCall = {
   /** Another tool made this call; `before` and `after` see the same value. */
   readonly nested: boolean
 }
+
 export type GateFacts = {
   readonly plan: PlanState | undefined
   readonly goalRound: boolean

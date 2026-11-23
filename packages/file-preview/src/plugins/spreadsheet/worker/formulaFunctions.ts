@@ -19,6 +19,7 @@ const { NUMBER } = FormulaParser.Types
 const FormulaError = FormulaParser.FormulaError
 const IS_GREATER = (value: number, current: number): boolean => value > current
 const IS_LESS = (value: number, current: number): boolean => value < current
+
 const EXCEL_ERROR_CODES: ReadonlySet<string> = new Set([
   '#DIV/0!',
   '#N/A',
@@ -31,14 +32,17 @@ const EXCEL_ERROR_CODES: ReadonlySet<string> = new Set([
 
 function isFormulaCollection(value: FormulaArgumentValue): value is FormulaCollection {
   if (typeof value !== 'object' || value === null) return false
+
   return 'data' in value && 'refs' in value && Array.isArray(value.data) && Array.isArray(value.refs)
 }
 
 function forEachScalar(value: FormulaArgumentValue, visit: (item: FormulaArgumentValue | FunctionArg) => void): void {
   if (!Array.isArray(value)) {
     visit(value)
+
     return
   }
+
   for (let index = 0; index < value.length; index++) {
     if (index in value) forEachScalar(value[index], visit)
   }
@@ -52,10 +56,12 @@ function forEachFlattenedParam(
 ): void {
   if (params.length === 0) {
     H.flattenParams(params, valueType, true, visit)
+
     return
   }
 
   const defaultValue = valueType === NUMBER ? 0 : null
+
   for (const param of params) {
     if (isFormulaCollection(param.value)) {
       forEachScalar(param.value.data, visit)
@@ -80,8 +86,10 @@ function collectNumbers(params: FunctionArg[]): number[] {
   const nums: number[] = []
   forEachFlattenedParam(params, NUMBER, (item) => {
     throwIfErrorValue(item)
+
     if (typeof item === 'number' && !Number.isNaN(item)) nums.push(item)
   })
+
   return nums
 }
 
@@ -91,18 +99,22 @@ function findExtremum(params: FunctionArg[], isBetter: (value: number, current: 
   let result = 0
   forEachFlattenedParam(params, NUMBER, (item) => {
     throwIfErrorValue(item)
+
     if (typeof item !== 'number' || Number.isNaN(item)) return
+
     if (!found || isBetter(item, result)) {
       result = item
       found = true
     }
   })
+
   return found ? result : 0
 }
 
 /** Sum of squared deviations, reused by variance and standard deviation. */
 function sumOfSquares(nums: number[]): number {
   const mean = nums.reduce((sum, x) => sum + x, 0) / nums.length
+
   return nums.reduce((sum, x) => sum + (x - mean) * (x - mean), 0)
 }
 
@@ -110,7 +122,9 @@ function sumOfSquares(nums: number[]): number {
 function nthOrdered(params: FunctionArg[], k: FunctionArg, compare: (a: number, b: number) => number): number {
   const nums = collectNumbers([params[0]]).sort(compare)
   const index = Math.trunc(H.accept(k, NUMBER) as number)
+
   if (nums.length === 0 || index < 1 || index > nums.length) throw FormulaError.NUM
+
   return nums[index - 1]
 }
 
@@ -119,8 +133,10 @@ export const CUSTOM_FORMULA_FUNCTIONS = {
   MIN: (...params) => findExtremum(params, IS_LESS),
   MEDIAN: (...params) => {
     const nums = collectNumbers(params).sort((a, b) => a - b)
+
     if (nums.length === 0) throw FormulaError.NUM
     const mid = Math.floor(nums.length / 2)
+
     return nums.length % 2 === 1 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2
   },
   COUNTA: (...params) => {
@@ -128,6 +144,7 @@ export const CUSTOM_FORMULA_FUNCTIONS = {
     forEachFlattenedParam(params, null, (item) => {
       if (item !== null && item !== undefined) count++
     })
+
     return count
   },
   LARGE: (array, k) => nthOrdered([array], k, (a, b) => b - a),
@@ -137,35 +154,47 @@ export const CUSTOM_FORMULA_FUNCTIONS = {
     const counts = new Map<number, number>()
     let mode = 0
     let modeCount = 0
+
     for (const x of nums) {
       const c = (counts.get(x) ?? 0) + 1
       counts.set(x, c)
+
       if (c > modeCount) {
         modeCount = c
         mode = x
       }
     }
+
     if (modeCount < 2) throw FormulaError.NA
+
     return mode
   },
   'STDEV.S': (...params) => {
     const nums = collectNumbers(params)
+
     if (nums.length < 2) throw FormulaError.DIV0
+
     return Math.sqrt(sumOfSquares(nums) / (nums.length - 1))
   },
   'STDEV.P': (...params) => {
     const nums = collectNumbers(params)
+
     if (nums.length < 1) throw FormulaError.DIV0
+
     return Math.sqrt(sumOfSquares(nums) / nums.length)
   },
   'VAR.S': (...params) => {
     const nums = collectNumbers(params)
+
     if (nums.length < 2) throw FormulaError.DIV0
+
     return sumOfSquares(nums) / (nums.length - 1)
   },
   'VAR.P': (...params) => {
     const nums = collectNumbers(params)
+
     if (nums.length < 1) throw FormulaError.DIV0
+
     return sumOfSquares(nums) / nums.length
   }
 } satisfies Record<string, ParserFunction>

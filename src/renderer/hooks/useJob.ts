@@ -40,6 +40,7 @@ export function useJob(jobId: string): UseJobResult {
   // DataApi fallback below.
   const cacheSnapshot = useSharedCacheValue(`jobs.state.${jobId}` as const)
   const path = `/jobs/${jobId}` as const
+
   const {
     data: apiSnapshot,
     isLoading,
@@ -50,6 +51,7 @@ export function useJob(jobId: string): UseJobResult {
 
   const data = cacheSnapshot ?? apiSnapshot ?? null
   const isTerminal = data ? TERMINAL_STATUSES.has(data.status) : false
+
   return { data, isTerminal, isLoading, error }
 }
 

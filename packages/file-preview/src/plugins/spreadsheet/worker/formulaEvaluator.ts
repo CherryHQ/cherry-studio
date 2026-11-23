@@ -60,9 +60,11 @@ function makeKey(ref: FormulaCellRef): string {
 /** Raw parse() result -> cell scalar value in EvalOutcome.value's range. */
 function normalizeValue(result: FormulaValue): string | number | boolean | null {
   if (result === null || result === undefined) return null
+
   if (typeof result === 'number' || typeof result === 'string' || typeof result === 'boolean') {
     return result
   }
+
   // The parser should already normalize arrays/ranges/unions into scalars or FormulaError.
   // Reaching this branch means an unexpected shape; conservatively treat it as unevaluable through caller fallback.
   return null
@@ -86,6 +88,7 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
 
   function parserAtDepth(depth: number): FormulaParser {
     const existing = parsers[depth]
+
     if (existing) return existing
 
     const parser = new FormulaParser({
@@ -98,25 +101,34 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
         // Throw on area limit or timeout. The outer catch converts to unevaluated and never materializes huge ranges.
         const rangeRows = ref.to.row - ref.from.row + 1
         const rangeCols = ref.to.col - ref.from.col + 1
+
         if (rangeRows * rangeCols > MAX_RANGE_CELLS) {
           throw new Error(`range exceeds ${MAX_RANGE_CELLS} cells`)
         }
+
         let visited = 0
         const rows: Array<Array<ReturnType<EvalContext['getCellValue']>>> = []
+
         for (let row = ref.from.row; row <= ref.to.row; row++) {
           const cols: Array<ReturnType<EvalContext['getCellValue']>> = []
+
           for (let col = ref.from.col; col <= ref.to.col; col++) {
             if (++visited % RANGE_DEADLINE_CHECK_INTERVAL === 0 && Date.now() >= deadline) {
               throw new Error('formula budget exhausted while reading range')
             }
+
             cols.push(ctx.getCellValue({ sheet: ref.sheet, row, col }))
           }
+
           rows.push(cols)
         }
+
         return rows
       }
     })
+
     parsers[depth] = parser
+
     return parser
   }
 
@@ -124,6 +136,7 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
     const stack = [...visiting]
     const idx = stack.indexOf(key)
     const cycleMembers = idx === -1 ? stack : stack.slice(idx)
+
     for (const member of cycleMembers) {
       cyclicKeys.add(member)
     }
@@ -134,8 +147,10 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
       if (UNEVALUATED_ERROR_CODES.has(result.error)) {
         return UNEVALUATED_OUTCOME
       }
+
       return { state: 'evaluated', value: result.error }
     }
+
     return { state: 'evaluated', value: normalizeValue(result) }
   }
 
@@ -143,29 +158,34 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
     const key = makeKey(pos)
 
     const memoized = memo.get(key)
+
     if (memoized) return memoized
 
     if (Date.now() >= deadline) {
       // Budget exhausted: all later unevaluated cells fail fast, with memoization keeping it O(1).
       memo.set(key, UNEVALUATED_OUTCOME)
+
       return UNEVALUATED_OUTCOME
     }
 
     if (visiting.has(key)) {
       // Re-entry means a cycle. Mark active stack frames in the cycle; the owning callers finalize memo entries.
       markCycle(key)
+
       return UNEVALUATED_OUTCOME
     }
 
     if (visiting.size >= MAX_DEPTH) {
       const outcome = UNEVALUATED_OUTCOME
       memo.set(key, outcome)
+
       return outcome
     }
 
     const depth = visiting.size
     visiting.add(key)
     let outcome: EvalOutcome
+
     try {
       const parser = parserAtDepth(depth)
       const result = parser.parse(formula, { sheet: pos.sheet, row: pos.row, col: pos.col })
@@ -184,6 +204,7 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
     }
 
     memo.set(key, outcome)
+
     return outcome
   }
 

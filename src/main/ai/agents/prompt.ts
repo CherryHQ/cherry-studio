@@ -18,11 +18,16 @@ const promptFileCacheKey = (filePath: string) => `agent:prompt-file:${filePath}`
  */
 async function resolveFile(dir: string, name: string, failOnError = false): Promise<string | undefined> {
   const exact = path.join(dir, name)
+
   try {
     const fileStat = await lstat(exact)
+
     if (fileStat.isFile() && !fileStat.isSymbolicLink()) return exact
+
     if (fileStat.isSymbolicLink()) logger.warn('Ignoring symbolic link in agent prompt data', { path: exact })
+
     if (failOnError) throw new Error(`Required agent prompt file is not a regular file: ${exact}`)
+
     return undefined
   } catch (error) {
     if (failOnError && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
@@ -33,15 +38,21 @@ async function resolveFile(dir: string, name: string, failOnError = false): Prom
     const entries = await readdir(dir)
     const target = name.toLowerCase()
     const match = entries.find((e) => e.toLowerCase() === target)
+
     if (!match) return undefined
     const matchedPath = path.join(dir, match)
     const fileStat = await lstat(matchedPath)
+
     if (fileStat.isFile() && !fileStat.isSymbolicLink()) return matchedPath
+
     if (fileStat.isSymbolicLink()) logger.warn('Ignoring symbolic link in agent prompt data', { path: matchedPath })
+
     if (failOnError) throw new Error(`Required agent prompt file is not a regular file: ${matchedPath}`)
+
     return undefined
   } catch (error) {
     if (failOnError) throw error
+
     return undefined
   }
 }
@@ -49,10 +60,13 @@ async function resolveFile(dir: string, name: string, failOnError = false): Prom
 async function isRealDirectory(dir: string): Promise<boolean> {
   try {
     const directoryStat = await lstat(dir)
+
     if (directoryStat.isSymbolicLink()) {
       logger.warn('Ignoring symbolic-link directory in agent prompt data', { path: dir })
+
       return false
     }
+
     return directoryStat.isDirectory()
   } catch {
     return false
@@ -136,12 +150,14 @@ export class PromptBuilder {
     // File presence is the explicit choice: even an empty system.md replaces only
     // the SDK base preset, while Cherry-owned context remains appended separately.
     const systemPath = await resolveFile(workspacePath, 'system.md', true)
+
     const base: AgentPromptBase = systemPath
       ? { kind: 'custom', content: await this.readCachedFile(systemPath, path.dirname(systemPath), true) }
       : { kind: 'native' }
 
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config)
+
     if (needsBootstrap) {
       contextParts.push(
         `${buildBootstrapInstructions(hasUserInstructions)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
@@ -170,11 +186,14 @@ export class PromptBuilder {
    */
   async buildFactsSection(agentDataPath: string): Promise<string | undefined> {
     const memoryDir = path.join(agentDataPath, 'memory')
+
     if (!(await isRealDirectory(memoryDir))) return undefined
     const factPath = await resolveFile(memoryDir, 'FACT.md')
+
     if (!factPath) return undefined
 
     const content = await this.readCachedFile(factPath, agentDataPath)
+
     if (!content) return undefined
 
     return `## Agent Knowledge
@@ -191,16 +210,21 @@ ${content}
     if (config?.bootstrap_completed === true) {
       return false
     }
+
     if (config?.bootstrap_completed === false) {
       return true
     }
+
     // Legacy migration: if SOUL.md already has real content, treat as completed
     const soulPath = await resolveFile(agentDataPath, 'SOUL.md')
+
     if (soulPath) {
       const content = await this.readCachedFile(soulPath, agentDataPath)
+
       if (content && content.length > SOUL_CONTENT_THRESHOLD) {
         // Strip template headings to check for actual user content
         const stripped = content.replace(/^#.*$/gm, '').replace(/^>.*$/gm, '').trim()
+
         if (stripped.length > SOUL_CONTENT_THRESHOLD) {
           return false
         }
@@ -241,6 +265,7 @@ ${content}
     const text = `Current identity from ${agentDataPath}. This complete snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
 
 ${sections}`
+
     const resources = [
       { path: soulPath, content: soulContent, tag: 'soul' },
       { path: userPath, content: userContent, tag: 'user' },
@@ -257,6 +282,7 @@ ${sections}`
           ]
         : []
     )
+
     return { text, resources }
   }
 
@@ -279,14 +305,18 @@ ${sections}`
       if (failOnError) {
         throw new Error(`Failed to read required agent prompt file: ${filePath}`, { cause: error })
       }
+
       return undefined
     }
 
     let fileStat
+
     try {
       fileStat = await lstat(filePath)
+
       if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
         logger.warn('Ignoring non-regular file in agent prompt data', { path: filePath })
+
         return fail(new Error('Path is not a regular file'))
       }
     } catch (error) {
@@ -296,8 +326,10 @@ ${sections}`
     try {
       const [resolvedRoot, resolvedFile] = await Promise.all([realpath(expectedRoot), realpath(filePath)])
       const relative = path.relative(resolvedRoot, resolvedFile)
+
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
         logger.warn('Ignoring agent prompt file outside its expected root', { path: filePath, expectedRoot })
+
         return fail(new Error('Path resolves outside its expected root'))
       }
     } catch (error) {
@@ -306,6 +338,7 @@ ${sections}`
 
     const cacheService = application.get('CacheService')
     const cached = cacheService.get<CacheEntry>(promptFileCacheKey(filePath))
+
     if (
       cached &&
       cached.mtimeMs === fileStat.mtimeMs &&
@@ -317,14 +350,18 @@ ${sections}`
     }
 
     let handle
+
     try {
       const flags = process.platform === 'win32' ? constants.O_RDONLY : constants.O_RDONLY | constants.O_NOFOLLOW
       handle = await open(filePath, flags)
       const openedStat = await handle.stat()
+
       if (!openedStat.isFile()) {
         logger.warn('Ignoring non-regular opened file in agent prompt data', { path: filePath })
+
         return undefined
       }
+
       const content = await handle.readFile('utf-8')
       const trimmed = content.trim()
       cacheService.set(
@@ -339,9 +376,11 @@ ${sections}`
         PROMPT_FILE_CACHE_TTL_MS
       )
       logger.debug(`Loaded ${path.basename(filePath)}`, { path: filePath, length: trimmed.length })
+
       return trimmed
     } catch (error) {
       logger.error(`Failed to read ${filePath}`, error as Error)
+
       return fail(error)
     } finally {
       await handle?.close().catch(() => undefined)

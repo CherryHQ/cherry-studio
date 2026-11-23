@@ -12,6 +12,7 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 
 const logger = loggerService.withContext('ChannelAdapterListener')
 const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?)?)?)?)?$/
+
 // Sanitizing re-scans the whole reply, so coalesce deltas instead of paying that per chunk.
 const LIVE_UPDATE_INTERVAL_MS = 250
 
@@ -53,6 +54,7 @@ export class ChannelAdapterListener implements StreamListener {
   onMessage(message: CherryUIMessage): void {
     if (this.settled) return
     this.accumulatedText = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+
     if (this.adapter.onTextUpdate && !this.liveUpdateTimer) {
       this.liveUpdateTimer = setTimeout(() => this.pushLiveUpdate(), LIVE_UPDATE_INTERVAL_MS)
     }
@@ -60,8 +62,10 @@ export class ChannelAdapterListener implements StreamListener {
 
   private pushLiveUpdate(): void {
     this.liveUpdateTimer = undefined
+
     // The stream manager prunes a retired adapter without a terminal callback, so this timer can outlive it.
     if (!this.isAlive()) return
+
     // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
     // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
     // be redacted before they leave.
@@ -69,6 +73,7 @@ export class ChannelAdapterListener implements StreamListener {
       INCOMPLETE_CITATION_MARKER_PATTERN,
       ''
     )
+
     if (text === this.lastLiveText) return
     this.lastLiveText = text
     void this.adapter.onTextUpdate?.(this.platformChatId, text, this.responseOptions)?.catch(() => {})
@@ -90,12 +95,14 @@ export class ChannelAdapterListener implements StreamListener {
   private async finish(status: 'success' | 'paused', message?: CherryUIMessage): Promise<void> {
     if (this.settled) return
     this.settle()
+
     if (message)
       this.accumulatedText = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
     const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
 
     try {
       const handled = await this.completeStream(text, status)
+
       if (!handled && text) {
         await this.deliver(status === 'paused' ? `${text}\n\n_(${t('common.channel_stopped')})_` : text)
       }
@@ -111,11 +118,14 @@ export class ChannelAdapterListener implements StreamListener {
   async onError(result: StreamErrorResult): Promise<void> {
     if (this.settled) return
     this.settle()
+
     try {
       const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
+
       const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
         suppressDelivery: this.suppressErrorMessage
       })
+
       if (!handled && !this.suppressErrorMessage) {
         await this.deliver(t('common.channel_error', { error }))
       }

@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 
 const nonempty = z.array(z.string().min(1)).min(1)
+
 export const COMMAND_DETECTORS = [
   'builtin-destructive-command',
   'find-deletion',
@@ -18,6 +19,7 @@ export const COMMAND_DETECTORS = [
   'inline-interpreter',
   'git-executable-configuration'
 ] as const
+
 const selector = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('command'),
@@ -29,6 +31,7 @@ const selector = z.discriminatedUnion('kind', [
   }),
   z.strictObject({ kind: z.literal('detector'), name: z.enum(COMMAND_DETECTORS) })
 ])
+
 export const commandPolicySchema = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -58,6 +61,7 @@ export const commandPolicySchema = z
     if (new Set(policy.rules.map(({ id }) => id)).size !== policy.rules.length)
       ctx.addIssue({ code: 'custom', message: 'Command policy rule IDs must be unique' })
     const mandatory = policy.rules.find(({ id }) => id === 'builtin-destructive-command')
+
     if (
       !mandatory ||
       mandatory.effect !== 'deny' ||
@@ -72,5 +76,7 @@ export const commandPolicySchema = z
   })
 
 export type CommandPolicy = z.infer<typeof commandPolicySchema>
+
 export type CommandPolicyRule = CommandPolicy['rules'][number]
+
 export type CommandSelector = Extract<CommandPolicyRule['selector'], { kind: 'command' }>

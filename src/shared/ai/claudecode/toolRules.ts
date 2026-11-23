@@ -50,8 +50,10 @@ export function matchesClaudeToolRule(rule: string, descriptor: ClaudeToolDescri
 
   if (descriptor.origin === 'mcp') {
     if (descriptor.sourceName && rule === buildClaudeMcpWildcard(descriptor.sourceName)) return true
+
     if (descriptor.sourceName && descriptor.sourceToolName) {
       if (rule === rawClaudeMcpToolName(descriptor.sourceName, descriptor.sourceToolName)) return true
+
       if (rule === rawClaudeMcpToolName(descriptor.sourceName, '*')) return true
     }
   }
@@ -63,6 +65,7 @@ function sourceDecision(descriptor: ClaudeToolDescriptor): ClaudeToolDecision | 
   if (descriptor.sourceApproval === 'prompt') {
     return { id: descriptor.id, approval: 'prompt' }
   }
+
   return undefined
 }
 
@@ -71,6 +74,7 @@ export function resolveClaudeToolAccess(
   policy: ClaudeToolPolicy
 ): ClaudeToolDecision {
   const source = sourceDecision(descriptor)
+
   if (source) return source
 
   if (policy.permissionMode === 'bypassPermissions') {

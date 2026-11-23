@@ -2,6 +2,7 @@ import type { JSONObject, LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { SDKResultMessage } from '@anthropic-ai/claude-agent-sdk'
 
 import type { MessageStats } from '@shared/data/types/message'
+
 type BetaUsage = SDKResultMessage['usage']
 
 export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
@@ -25,9 +26,11 @@ export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
 /** Drop `undefined`-valued keys; return `undefined` when nothing is left. */
 function compactDetails<T extends Record<string, number | undefined>>(obj: T): { [K in keyof T]?: number } | undefined {
   const out: Record<string, number> = {}
+
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'number') out[key] = value
   }
+
   return Object.keys(out).length > 0 ? out : undefined
 }
 
@@ -42,21 +45,27 @@ function compactDetails<T extends Record<string, number | undefined>>(obj: T): {
 export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
   const inputTotal = usage.inputTokens.total ?? 0
   const outputTotal = usage.outputTokens.total ?? 0
+
   const inputTokenDetails = compactDetails({
     noCacheTokens: usage.inputTokens.noCache,
     cacheReadTokens: usage.inputTokens.cacheRead,
     cacheWriteTokens: usage.inputTokens.cacheWrite
   })
+
   const outputTokenDetails = compactDetails({
     textTokens: usage.outputTokens.text,
     reasoningTokens: usage.outputTokens.reasoning
   })
+
   const stats: MessageStats = {
     inputTokens: inputTotal,
     outputTokens: outputTotal,
     totalTokens: inputTotal + outputTotal
   }
+
   if (inputTokenDetails) stats.inputTokenDetails = inputTokenDetails
+
   if (outputTokenDetails) stats.outputTokenDetails = outputTokenDetails
+
   return stats
 }

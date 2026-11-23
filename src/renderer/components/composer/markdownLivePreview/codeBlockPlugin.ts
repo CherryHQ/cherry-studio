@@ -18,8 +18,10 @@ let nextOwnerId = 0
 function renderBlock(block: MarkdownCodeBlock, lines: HighlightLines) {
   return lines.flatMap((tokens, lineIndex) => {
     const line = block.codeLines[lineIndex]
+
     if (!line) return []
     const start = line.blockPosition + 1
+
     return tokens.flatMap((token) =>
       token.className && token.content
         ? [
@@ -61,6 +63,7 @@ export function createCodeHighlightPlugin(getBlocks: (state: EditorState) => Mar
         if (destroyed || view.composing || pending.size > 0) return
         const blocks = highlightable()
         const key = blocks.map(blockKey).join('\0\0')
+
         // Mapping drops colors when a replace rewrites identical code, so the count is checked too.
         if (key === appliedKey && highlightKey.getState(view.state)?.find().length === appliedCount) return
 
@@ -86,6 +89,7 @@ export function createCodeHighlightPlugin(getBlocks: (state: EditorState) => Mar
 
       const sync = () => {
         const rawBlocks = getBlocks(view.state)
+
         if (destroyed || view.composing || rawBlocks === lastBlocks) return
         lastBlocks = rawBlocks
 
@@ -93,6 +97,7 @@ export function createCodeHighlightPlugin(getBlocks: (state: EditorState) => Mar
         usedSlots = Math.max(usedSlots, blocks.length)
         blocks.forEach((block, index) => {
           const key = blockKey(block)
+
           if (results.has(key) || pending.has(key)) return
           pending.add(key)
           void codeHighlightService
@@ -109,15 +114,18 @@ export function createCodeHighlightPlugin(getBlocks: (state: EditorState) => Mar
         })
 
         const liveKeys = new Set(blocks.map(blockKey))
+
         for (const key of results.keys()) if (!liveKeys.has(key)) results.delete(key)
         scheduleApply()
       }
 
       sync()
+
       return {
         update: sync,
         destroy: () => {
           destroyed = true
+
           for (let index = 0; index < usedSlots; index += 1) codeHighlightService.cleanupTokenizers(`${owner}:${index}`)
         }
       }

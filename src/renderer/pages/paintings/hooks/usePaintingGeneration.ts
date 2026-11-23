@@ -69,6 +69,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       // current draft inputs — nothing was persisted for them during the draft window.
       const base: PaintingData = { ...painting, inputFiles }
       const shouldCreate = hasOutput(base) || !base.persistedAt
+
       const targetPainting: PaintingData = shouldCreate
         ? { ...base, id: uuid(), files: hasOutput(base) ? [] : base.files }
         : { ...base }
@@ -77,9 +78,11 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         const persisted = shouldCreate
           ? await createPainting(paintingDataToCreateDto(targetPainting))
           : await updatePainting(targetPainting.id, paintingDataToUpdateDto(targetPainting))
+
         targetPainting.persistedAt = persisted.createdAt
       } catch (error) {
         presentPaintingGenerateError(error)
+
         return
       }
 
@@ -89,6 +92,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         generationError: null,
         generationProgress: 0
       }
+
       const controller = new AbortController()
       const cacheKey = `painting.generation.${targetPainting.id}` as const
 
@@ -115,6 +119,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           tab: 'default',
           abortController: controller
         })
+
         await updatePainting(targetPainting.id, {
           files: {
             output: generatedFiles.map((file) => file.id),
@@ -128,13 +133,16 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         await refresh()
       } catch (error) {
         const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
+
         const failedState: PaintingGenerationState = {
           ...generationState,
           generationStatus: isCanceled ? 'canceled' : 'failed',
           generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
         }
+
         cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
         applyIfVisible({ ...targetPainting, ...failedState })
+
         if (!isCanceled) {
           presentPaintingGenerateError(error)
         }

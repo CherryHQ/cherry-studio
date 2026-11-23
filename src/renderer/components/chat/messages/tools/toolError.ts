@@ -5,6 +5,7 @@ function isRecord(value: unknown): value is { text?: unknown; isError?: unknown;
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error envelopes contain text strings or heterogeneous content arrays; include only nonblank string text fields in the displayed explanation.
 function extractTextContent(content: unknown): string | undefined {
   if (typeof content === 'string') return content.trim() || undefined
+
   if (!Array.isArray(content)) return undefined
 
   const text = content
@@ -19,6 +20,7 @@ function extractTextContent(content: unknown): string | undefined {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool cards receive runtime and historical outputs without a common error schema; require isError before reading an object envelope.
 export function extractToolErrorText(response: unknown): string | undefined {
   if (typeof response === 'string') return response.trim() || undefined
+
   if (!isRecord(response) || response.isError !== true) return undefined
 
   return extractTextContent(response.content)

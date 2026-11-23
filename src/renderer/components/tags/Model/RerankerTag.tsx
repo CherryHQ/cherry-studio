@@ -12,6 +12,7 @@ type Props = {
 
 export const RerankerTag = ({ size = 12, showTooltip, showLabel = true, ...restProps }: Props) => {
   const { t } = useTranslation()
+
   return (
     <CustomTag
       size={size}

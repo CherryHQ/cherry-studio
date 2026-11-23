@@ -12,7 +12,9 @@ export const Route = createFileRoute('/settings/shortcut')({
   validateSearch: (search: Record<string, unknown>) => {
     const command = search.command
     const rule = typeof command === 'string' ? findKeybindingRule(command) : undefined
+
     if (!rule) return {}
+
     return { command: rule.command }
   }
 })

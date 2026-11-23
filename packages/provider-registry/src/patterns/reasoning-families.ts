@@ -23,16 +23,20 @@ import type { ReasoningControl, ReasoningFamilyRule, ReasoningWireDialect } from
 /** Lowercase and strip a namespace prefix (`deepseek/deepseek-r1` → `deepseek-r1`). */
 function baseName(rawModelId: string): string {
   const lower = rawModelId.toLowerCase()
+
   return lower.slice(lower.lastIndexOf('/') + 1)
 }
 
 const regexCache = new Map<string, RegExp>()
+
 function ruleRegex(pattern: string): RegExp {
   let regex = regexCache.get(pattern)
+
   if (!regex) {
     regex = new RegExp(pattern, 'i')
     regexCache.set(pattern, regex)
   }
+
   return regex
 }
 
@@ -48,21 +52,29 @@ export function matchReasoningControls(
   const id = baseName(rawModelId)
   let vocabularyRule: ReasoningFamilyRule | undefined
   let budgetRule: ReasoningFamilyRule | undefined
+
   for (const rule of rules) {
     const declaresVocabulary = rule.effort !== undefined || rule.toggle !== undefined
+
     if (!vocabularyRule && declaresVocabulary && ruleRegex(rule.pattern).test(id)) {
       vocabularyRule = rule
     }
+
     if (!budgetRule && rule.budget && ruleRegex(rule.pattern).test(id)) {
       budgetRule = rule
     }
+
     if (vocabularyRule && budgetRule) break
   }
 
   const controls: ReasoningControl[] = []
+
   if (vocabularyRule?.effort) controls.push({ kind: 'effort', values: [...vocabularyRule.effort] })
+
   if (budgetRule?.budget) controls.push({ kind: 'budget', min: budgetRule.budget.min, max: budgetRule.budget.max })
+
   if (vocabularyRule?.toggle) controls.push({ kind: 'toggle' })
+
   return controls.length ? controls : undefined
 }
 
@@ -78,9 +90,11 @@ export function matchWireDialect(
   rules: readonly ReasoningFamilyRule[]
 ): ReasoningWireDialect | undefined {
   const id = baseName(rawModelId)
+
   for (const rule of rules) {
     if (rule.wireDialect && ruleRegex(rule.pattern).test(id)) return rule.wireDialect
   }
+
   return undefined
 }
 
@@ -90,11 +104,13 @@ export function matchReasoningTogglePolicy(
   rules: readonly ReasoningFamilyRule[]
 ): boolean | undefined {
   const id = baseName(rawModelId)
+
   for (const rule of rules) {
     if ((rule.effort !== undefined || rule.toggle !== undefined) && ruleRegex(rule.pattern).test(id)) {
       return rule.toggle
     }
   }
+
   return undefined
 }
 
@@ -111,5 +127,6 @@ export function matchTokenLimits(
       return { min: rule.budget.min, max: rule.budget.max }
     }
   }
+
   return undefined
 }

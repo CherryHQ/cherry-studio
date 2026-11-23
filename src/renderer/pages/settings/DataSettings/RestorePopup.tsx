@@ -54,6 +54,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         progress: Math.floor(progressData.progress)
       })
     }
+
     return t(getRestoreProgressLabelKey(progressData.stage))
   }
 

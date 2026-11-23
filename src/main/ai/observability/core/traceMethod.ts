@@ -16,6 +16,7 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
     if (!descriptor) {
       descriptor = Object.getOwnPropertyDescriptor(target, propertyKey)
     }
+
     if (!descriptor || typeof descriptor.value !== 'function') {
       throw new Error('TraceMethod can only be applied to methods.')
     }
@@ -26,6 +27,7 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
 
     descriptor.value = function (...args: any[]) {
       const name = traced.spanName || propertyKey
+
       return tracer.startActiveSpan(name, async (span) => {
         try {
           span.setAttribute('inputs', convertToString(args))
@@ -33,6 +35,7 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
           const result = await originalMethod.apply(this, args)
           span.setAttribute('outputs', convertToString(result))
           span.setStatus({ code: SpanStatusCode.OK })
+
           return result
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error))
@@ -47,6 +50,7 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
         }
       })
     }
+
     return descriptor
   }
 }
@@ -60,6 +64,7 @@ export function withSpanFunc<F extends (...args: any[]) => any>(
   const traceName = defaultConfig.defaultTracerName || 'default'
   const tracer = trace.getTracer(traceName)
   const _name = name || fn.name || 'anonymousFunction'
+
   return traceContext.with(traceContext.active(), () =>
     tracer.startActiveSpan(
       _name,
@@ -72,11 +77,13 @@ export function withSpanFunc<F extends (...args: any[]) => any>(
       (span) => {
         // 在这里调用原始函数
         const result = fn(...args)
+
         if (result instanceof Promise) {
           return result
             .then((res) => {
               span.setStatus({ code: SpanStatusCode.OK })
               span.setAttribute('outputs', convertToString(res))
+
               return res
             })
             .catch((error) => {
@@ -91,6 +98,7 @@ export function withSpanFunc<F extends (...args: any[]) => any>(
           span.setAttribute('outputs', convertToString(result))
           span.end()
         }
+
         return result
       }
     )
@@ -101,5 +109,6 @@ function convertToString(args: any | any[]): string | boolean | number {
   if (typeof args === 'string' || typeof args === 'boolean' || typeof args === 'number') {
     return args
   }
+
   return JSON.stringify(args)
 }

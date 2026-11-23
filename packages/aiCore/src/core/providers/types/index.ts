@@ -44,7 +44,9 @@ export class ProviderError extends Error {
 }
 
 export type AiSdkModel = LanguageModel | ImageModel | EmbeddingModel | TranscriptionModel | SpeechModel
+
 export type AiSdkProvider = ProviderV2 | ProviderV3
+
 export type AiSdkUsage = LanguageModelUsage | ImageModelUsage | EmbeddingModelUsage
 
 export type AiSdkModelType = 'text' | 'image' | 'embedding' | 'transcription' | 'speech'

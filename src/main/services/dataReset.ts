@@ -92,6 +92,7 @@ const dataResetMarkerSchema = z.discriminatedUnion('status', [
     operation: dataResetOperationSchema.optional()
   })
 ])
+
 type DataResetMarker = z.infer<typeof dataResetMarkerSchema>
 
 /** The marker rename landed, but directory durability is unknown. */
@@ -99,11 +100,13 @@ class MarkerCommitError extends Error {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Directory sync may reject any value after marker rename; diagnostic conversion must preserve the uncertain-commit classification.
   constructor(error: unknown) {
     let message: string
+
     try {
       message = String(error)
     } catch {
       message = 'Unknown marker commit failure'
     }
+
     super(`Data reset marker may have committed: ${message}`, { cause: error })
   }
 }
@@ -119,6 +122,7 @@ function markerPath(): string {
 function readMarker(): DataResetMarker | null {
   const file = markerPath()
   let raw: string
+
   try {
     raw = fs.readFileSync(file, 'utf8')
   } catch (error) {
@@ -127,22 +131,27 @@ function readMarker(): DataResetMarker | null {
   }
 
   let parsed: unknown
+
   try {
     parsed = JSON.parse(raw)
   } catch (error) {
     logger.error('Data reset marker is not valid JSON — renaming aside and ignoring', { error: String(error) })
     renameMarkerAside(file)
+
     return null
   }
 
   const result = dataResetMarkerSchema.safeParse(parsed)
+
   if (!result.success) {
     logger.error('Data reset marker failed schema validation — renaming aside and ignoring', {
       error: result.error.message
     })
     renameMarkerAside(file)
+
     return null
   }
+
   return result.data
 }
 
@@ -159,14 +168,17 @@ function writeMarker(marker: DataResetMarker): void {
   const file = markerPath()
   const tmp = `${file}.tmp-${process.pid}-${randomUUID()}`
   let renamed = false
+
   try {
     const fd = fs.openSync(tmp, 'w')
+
     try {
       fs.writeFileSync(fd, JSON.stringify(marker))
       fs.fsyncSync(fd)
     } finally {
       fs.closeSync(fd)
     }
+
     fs.renameSync(tmp, file)
     renamed = true
     syncParentDirectory(file)
@@ -176,6 +188,7 @@ function writeMarker(marker: DataResetMarker): void {
     } catch {
       // The temp file may not exist.
     }
+
     if (renamed) throw new MarkerCommitError(error)
     throw error
   }
@@ -188,6 +201,7 @@ function writeMarker(marker: DataResetMarker): void {
 function syncParentDirectory(file: string): void {
   if (process.platform === 'win32') return
   const fd = fs.openSync(path.dirname(file), 'r')
+
   try {
     fs.fsyncSync(fd)
   } finally {
@@ -198,11 +212,13 @@ function syncParentDirectory(file: string): void {
 /** Removes the marker durably. Missing is treated as success. */
 function deleteMarker(): void {
   const file = markerPath()
+
   try {
     fs.unlinkSync(file)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
+
   syncParentDirectory(file)
 }
 
@@ -219,6 +235,7 @@ export async function requestDataReset(): Promise<void> {
     defaultId: 0,
     cancelId: 0
   })
+
   if (response !== 1) return
 
   await stageDataReset()
@@ -226,6 +243,7 @@ export async function requestDataReset(): Promise<void> {
 
 async function stageDataReset(): Promise<void> {
   const userDataPath = application.getPath('app.userdata')
+
   // Bind authorization to the physical directory the user confirmed.
   try {
     writeMarker({
@@ -250,6 +268,7 @@ async function stageDataReset(): Promise<void> {
     logger.warn('Shutdown timed out before relaunch — relaunching anyway')
     application.relaunch()
   }, SHUTDOWN_TIMEOUT_MS)
+
   try {
     await application.shutdown()
   } catch (error) {
@@ -268,6 +287,7 @@ async function stageDataReset(): Promise<void> {
 export function runDataReset(): void {
   try {
     const marker = readMarker()
+
     if (!marker) return
 
     // A completed marker never authorizes another wipe.
@@ -277,6 +297,7 @@ export function runDataReset(): void {
       })
       // Re-commit in case the previous directory sync failed.
       writeMarker(marker)
+
       try {
         deleteMarker()
       } catch (error) {
@@ -284,6 +305,7 @@ export function runDataReset(): void {
           error: String(error)
         })
       }
+
       return
     }
 
@@ -291,22 +313,26 @@ export function runDataReset(): void {
 
     // Refuse redirected or relocated targets.
     const actualCanonical = canonicalize(userData)
+
     if (marker.canonicalPath !== actualCanonical) {
       logger.error('Data reset refused: userData resolves to a different physical directory than recorded', {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
       refuseResetForPathMismatch()
+
       return
     }
 
     const attempts = marker.attempts ?? 0
     const operation = marker.operation ?? 'full_reset'
+
     if (attempts >= MAX_WIPE_ATTEMPTS) {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
       abandonIncompleteReset()
+
       return
     }
 
@@ -327,12 +353,14 @@ export function runDataReset(): void {
         error: String(error)
       })
       abandonIncompleteReset()
+
       return
     }
 
     const failures: string[] = []
     wipeDirectoryEntries(userData, shouldWipe, failures)
     wipeNestedUserDataTargets(failures)
+
     try {
       fs.rmSync(application.getPath('app.temp'), RM_OPTIONS)
     } catch (error) {
@@ -343,13 +371,16 @@ export function runDataReset(): void {
       if (attempts + 1 < MAX_WIPE_ATTEMPTS) {
         logger.error('Data reset pass had critical failures — relaunching to retry in preboot', { failures })
         application.relaunch()
+
         return
       }
+
       // Disarm the marker before booting with partial data.
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
       abandonIncompleteReset()
+
       return
     }
 
@@ -370,6 +401,7 @@ export function runDataReset(): void {
           'Starting now could erase anything you create on the next launch, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
+
       return
     }
 
@@ -397,6 +429,7 @@ export function runDataReset(): void {
 /** Wipe feature data nested below a retained top-level runtime directory. */
 function wipeNestedUserDataTargets(failures: string[]): void {
   const targets = [application.getPath('feature.provider_registry.override')]
+
   for (const target of targets) {
     try {
       fs.rmSync(target, RM_OPTIONS)
@@ -429,7 +462,9 @@ function showDataResetError(title: string, message: string): void {
  */
 function showPrebootNotice(title: string, message: string): void {
   logger.error(`[preboot] ${title}: ${message}`)
+
   if (!application.isReady()) return
+
   try {
     dialog.showErrorBox(title, message)
   } catch (error) {
@@ -459,6 +494,7 @@ async function clearChromiumState(): Promise<void> {
       })
     }
   }
+
   const clearSession = (name: string, target: Electron.Session) =>
     Promise.all([
       clearOperation(name, 'data', () => target.clearData()),
@@ -466,6 +502,7 @@ async function clearChromiumState(): Promise<void> {
     ])
 
   let timeout: NodeJS.Timeout | undefined
+
   try {
     await Promise.race([
       Promise.all([
@@ -510,6 +547,7 @@ function showIncompleteResetWarning(): void {
 /** Removes matching children independently and records failures. */
 function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => boolean, failures: string[]): void {
   let entries: string[]
+
   try {
     entries = fs.readdirSync(dir)
   } catch (error) {
@@ -517,11 +555,13 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
       logger.warn('Cannot list directory for data reset', { dir, error: String(error) })
       failures.push(dir)
     }
+
     return
   }
 
   for (const entry of entries) {
     if (!shouldWipeEntry(entry)) continue
+
     try {
       fs.rmSync(path.join(dir, entry), RM_OPTIONS)
     } catch (error) {

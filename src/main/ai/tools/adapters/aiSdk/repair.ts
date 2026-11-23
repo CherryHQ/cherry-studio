@@ -37,6 +37,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
     if (!InvalidToolInputError.isInstance(error)) return null
 
     let schemaJson: JSONSchema7
+
     try {
       schemaJson = await inputSchema({ toolName: toolCall.toolName })
     } catch {
@@ -46,6 +47,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
     const schema = asSchema(tools[toolCall.toolName].inputSchema)
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The selected tool's native or JSON Schema validator determines the repaired input type.
     let validate: (value: unknown) => Promise<ValidationResult<unknown>>
+
     if (schema.validate) {
       validate = (value) => safeValidateTypes({ value, schema })
     } else {
@@ -57,6 +59,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
           toolName: toolCall.toolName,
           toolCallId: toolCall.toolCallId
         })
+
         return null
       }
     }
@@ -65,14 +68,18 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Model output and reparsed JSON remain untrusted until the selected tool's validator accepts a candidate.
     const canonicalize = async (value: unknown) => {
       const candidates = [value]
+
       if (typeof value === 'string') {
         const reparsed = await safeParseJSON({ text: value })
+
         if (reparsed.success) candidates.push(reparsed.value)
       }
 
       for (const candidate of candidates) {
         const direct = await validate(candidate)
+
         if (direct.success && direct.value !== undefined) return direct
+
         if (
           typeof candidate === 'object' &&
           candidate !== null &&
@@ -81,9 +88,11 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
           'arguments' in candidate
         ) {
           const unwrapped = await validate(candidate.arguments)
+
           if (unwrapped.success && unwrapped.value !== undefined) return unwrapped
         }
       }
+
       return undefined
     }
 
@@ -91,11 +100,13 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
 
     const parsedInput = await safeParseJSON({ text: inputStr })
     const canonicalInput = parsedInput.success ? await canonicalize(parsedInput.value) : undefined
+
     if (canonicalInput !== undefined) {
       logger.info('Repaired tool call without AI', {
         toolName: toolCall.toolName,
         toolCallId: toolCall.toolCallId
       })
+
       return { ...toolCall, input: JSON.stringify(canonicalInput.value) }
     }
 
@@ -108,6 +119,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
     ].join('\n')
 
     let repaired: unknown
+
     try {
       const result = await aiCoreGenerateText<AppProviderSettingsMap, T>(
         ctx.providerId,
@@ -120,12 +132,14 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
         },
         ctx.getUsagePlugins?.()
       )
+
       repaired = result.output
     } catch (err) {
       logger.warn('AI repair generateText failed', err as Error, {
         toolName: toolCall.toolName,
         toolCallId: toolCall.toolCallId
       })
+
       return null
     }
 
@@ -134,15 +148,18 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
         toolName: toolCall.toolName,
         toolCallId: toolCall.toolCallId
       })
+
       return null
     }
 
     const validated = await canonicalize(repaired)
+
     if (validated === undefined) {
       logger.warn('AI repair returned invalid structured output', {
         toolName: toolCall.toolName,
         toolCallId: toolCall.toolCallId
       })
+
       return null
     }
 
@@ -150,6 +167,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       toolName: toolCall.toolName,
       toolCallId: toolCall.toolCallId
     })
+
     return { ...toolCall, input: JSON.stringify(validated.value) }
   }
 }

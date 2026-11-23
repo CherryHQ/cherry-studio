@@ -5,7 +5,9 @@ import * as ResizablePrimitive from 'react-resizable-panels'
 import { cn } from '../../lib/utils'
 
 type PrimitiveGroupProps = React.ComponentProps<typeof ResizablePrimitive.Group>
+
 type PrimitivePanelProps = React.ComponentProps<typeof ResizablePrimitive.Panel>
+
 type PrimitiveSeparatorProps = React.ComponentProps<typeof ResizablePrimitive.Separator>
 
 type ResizablePanelGroupProps = Partial<
@@ -93,6 +95,7 @@ function ResizableHandle({ children, className, withHandle, ...props }: Resizabl
 }
 
 export { ResizableHandle, ResizablePanel, ResizablePanelGroup }
+
 type ResizablePanelHandle = ResizablePrimitive.PanelImperativeHandle
 
 export type { ResizableHandleProps, ResizablePanelGroupProps, ResizablePanelHandle, ResizablePanelProps }

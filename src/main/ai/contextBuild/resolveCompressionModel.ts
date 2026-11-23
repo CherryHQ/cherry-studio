@@ -46,6 +46,7 @@ export async function resolveCompressionModel(
 ): Promise<CompressionModelDescriptor | null> {
   if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
     logger.warn('compression modelId is not a valid UniqueModelId', { modelIdRaw })
+
     return null
   }
 
@@ -53,6 +54,7 @@ export async function resolveCompressionModel(
 
   let provider
   let model
+
   try {
     provider = providerService.getByProviderId(providerId)
     model = modelService.getByKey(providerId, modelId)
@@ -62,17 +64,21 @@ export async function resolveCompressionModel(
       modelId,
       error: (error as Error).message
     })
+
     return null
   }
 
   try {
     const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
+
     // App provider extensions are registered beyond the executor's built-in type union.
     const executor = await createExecutor(
       sdkConfig.providerId as Parameters<typeof createExecutor>[0],
       sdkConfig.providerSettings as Parameters<typeof createExecutor>[1]
     )
+
     const languageModel = await executor.languageModel(sdkConfig.modelId)
+
     return {
       languageModel: sdkConfig.conversationHeader
         ? wrapLanguageModel({
@@ -90,6 +96,7 @@ export async function resolveCompressionModel(
       modelId,
       error: (error as Error).message
     })
+
     return null
   }
 }

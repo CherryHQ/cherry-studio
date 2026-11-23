@@ -34,6 +34,7 @@ export function useS3BackupModal() {
 
   const handleBackup = async () => {
     setBackuping(true)
+
     try {
       await backupToS3({ customFileName })
     } finally {
@@ -139,11 +140,13 @@ export function useS3RestoreModal({
   const showRestoreModal = useCallback(async () => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       toast.error(t('settings.data.s3.manager.config.incomplete'))
+
       return
     }
 
     setIsRestoreModalVisible(true)
     setLoadingFiles(true)
+
     try {
       const files = await window.api.backup.listS3Files({
         endpoint,
@@ -156,6 +159,7 @@ export function useS3RestoreModal({
         syncInterval: 0,
         maxBackups: 0
       })
+
       setBackupFiles(files)
     } catch {
       toast.error(t('settings.data.s3.manager.files.fetch.error', { message: t('error.unknown') }))
@@ -169,6 +173,7 @@ export function useS3RestoreModal({
       toast.error(
         !selectedFile ? t('settings.data.s3.restore.file.required') : t('settings.data.s3.restore.config.incomplete')
       )
+
       return
     }
 
@@ -179,9 +184,11 @@ export function useS3RestoreModal({
       cancelText: t('settings.data.s3.restore.confirm.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setRestoring(true)
+
     try {
       await window.api.backup.restoreFromS3({
         endpoint,
@@ -281,6 +288,7 @@ export function S3RestoreModal({
 function formatFileOption(file: BackupFile): ComboboxOption {
   const date = dayjs(file.modifiedTime).format('YYYY-MM-DD HH:mm:ss')
   const size = formatFileSize(file.size)
+
   return {
     label: `${file.fileName} (${date}, ${size})`,
     value: file.fileName

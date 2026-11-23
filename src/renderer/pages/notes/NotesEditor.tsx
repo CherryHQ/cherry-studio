@@ -17,6 +17,7 @@ import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
 import type { EditorView } from '@renderer/types/app'
 
 const logger = loggerService.withContext('NotesEditor')
+
 // Hides the toolbar button and the slash-menu entry only. Image *paste* stays enabled: notes have
 // persisted pasted images into the user's notes folder since the module shipped, and
 // `handleImagePaste` pins those entries with `cleanupPolicy: 'manual'` for exactly this path.
@@ -25,6 +26,7 @@ const DISABLED_RICH_EDITOR_COMMANDS = ['image', 'inlineMath'] as const
 const CodeEditor = lazy(() =>
   import('@renderer/components/LazyCodeEditor').then((module) => ({ default: module.LazyCodeEditor }))
 )
+
 const RichEditor = lazy(() => import('@renderer/components/RichEditor/RichEditor'))
 
 export function NotesEditorLoading({ label }: { label: string }) {
@@ -67,6 +69,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
+
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
         return settings.defaultEditMode
@@ -74,15 +77,18 @@ const NotesEditor: FC<NotesEditorProps> = memo(
         return settings.defaultViewMode
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
+
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
     const binding = useMemo(() => ({ mode: tmpViewMode }), [tmpViewMode])
     const bindingRef = useRef(binding)
     useLayoutEffect(() => {
       bindingRef.current = binding
+
       return () => {
         bindingRef.current = { mode: 'read' }
       }
     }, [binding])
+
     const acceptMarkdown = useCallback(
       (content: string) => {
         if (bindingRef.current === binding && !readOnly) onMarkdownChange(content)
@@ -107,6 +113,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     )
     const voiceTargetId = voiceNoteId ? `notes:${voiceNoteId}:${tmpViewMode}` : ''
     const voiceEditorReady = tmpViewMode === 'source' ? sourceEditorReady : richEditorReady
+
     const setRichEditorRef = useCallback(
       (instance: RichEditorRef | null) => {
         editorRef.current = instance
@@ -114,6 +121,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       },
       [editorRef]
     )
+
     const setSourceEditorRef = useCallback(
       (instance: CodeEditorHandles | null) => {
         codeEditorRef.current = instance
@@ -121,12 +129,15 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       },
       [codeEditorRef]
     )
+
     const markVoiceTargetCurrent = () => {
       if (voiceTargetManager.captureCurrent()?.targetId === voiceTargetId) return
       voiceTargetManager.markCurrent(voiceTargetId)
     }
+
     const focusCurrentEditor = () => {
       if (voiceIdentityRef.current !== voiceNoteId || !readButtonRef.current) return
+
       if (activeViewModeRef.current === 'source' && codeEditorRef.current?.focus) codeEditorRef.current.focus()
       else if (activeViewModeRef.current === 'preview' && editorRef.current) editorRef.current.focus()
       else readButtonRef.current.focus()
@@ -135,18 +146,22 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     useEffect(() => {
       if (!activeNodeId || !voiceNoteId || contentLoadError || tmpViewMode === 'read' || !voiceEditorReady) return
       const isCurrent = () => voiceIdentityRef.current === voiceNoteId && activeViewModeRef.current === tmpViewMode
+
       return voiceTargetManager.bind({
         targetId: voiceTargetId,
         sourceEntityId: voiceNoteId,
         owner: window,
         captureReplaceRange: () => {
           if (!isCurrent()) return null
+
           const selection =
             tmpViewMode === 'source' ? codeEditorRef.current?.getSelection?.() : editorRef.current?.getSelection()
+
           return selection ? { from: selection.from, to: selection.to } : null
         },
         replaceRange: (range, text) => {
           if (!isCurrent()) return false
+
           return tmpViewMode === 'source'
             ? (codeEditorRef.current?.replaceRange?.(range, text) ?? false)
             : (editorRef.current?.replaceRange(range, text) ?? false)
@@ -165,14 +180,19 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     const readCurrentNote = () => {
       if (!voiceNoteId) return
+
       const selection =
         tmpViewMode === 'source' ? codeEditorRef.current?.getSelection?.() : editorRef.current?.getSelection()
+
       const selectedText = selection?.text ?? ''
+
       const draft =
         tmpViewMode === 'source'
           ? (codeEditorRef.current?.getContent?.() ?? currentContent)
           : (editorRef.current?.getMarkdown() ?? currentContent)
+
       const text = selectedText.trim() ? selectedText : draft
+
       if (!text.trim()) return
       const mode = selectedText.trim() ? 'selection' : 'document'
       const isCurrent = () => voiceIdentityRef.current === voiceNoteId && readButtonRef.current !== null
@@ -192,6 +212,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     useEffect(() => {
       currentViewModeRef.current = currentViewMode
+
       if (!userViewModeOverrideRef.current && !composingRef.current && !readOnly) {
         setTmpViewMode(currentViewMode)
       }

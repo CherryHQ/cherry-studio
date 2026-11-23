@@ -20,9 +20,11 @@ export const Route = createFileRoute('/settings/about')({
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Validate the Doctor panel while forwarding unrelated query values unchanged; this does not parse every retained field.
   validateSearch: (search: Record<string, unknown>): AboutSettingsSearch => {
     const validated = { ...search }
+
     if (!isDoctorPanel(validated[DOCTOR_OPEN_QUERY_PARAM])) {
       delete validated[DOCTOR_OPEN_QUERY_PARAM]
     }
+
     return validated
   }
 })

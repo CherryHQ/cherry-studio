@@ -24,6 +24,7 @@ export function useStreamCommands(
   const currentOwner = useRef(owner)
   currentOwner.current = owner
   const target = useMemo(() => ({ kind: 'topic' as const, topicId }), [topicId])
+
   const projection = useSyncExternalStore(
     useCallback(
       (listener) => (topicId ? messageProjectionService.subscribe(target, listener) : () => {}),
@@ -31,6 +32,7 @@ export function useStreamCommands(
     ),
     useCallback(() => messageProjectionService.getSnapshot(target), [target])
   )
+
   const reported = useRef(new Set<number>())
   useEffect(() => {
     setLocal({ topicId, messages: initialRef.current })
@@ -40,7 +42,9 @@ export function useStreamCommands(
 
   useEffect(() => {
     const view = projection.view
+
     if (view?.kind !== 'topic') return
+
     for (const execution of view.executions) {
       if (
         (execution.status !== 'error' && execution.status !== 'unresolved') ||
@@ -50,6 +54,7 @@ export function useStreamCommands(
       reported.current.add(execution.attemptId)
       const message = view.messages.find((item) => item.id === execution.messageId)
       const part = message?.parts.find((item) => item.type === 'data-error')
+
       if (part?.type !== 'data-error') continue
       const failure = new Error(part.data.message ?? 'Stream error')
       setError(failure)
@@ -69,24 +74,30 @@ export function useStreamCommands(
     },
     [topicId]
   )
+
   const dispatch = useCallback(
     async (request: AiStreamOpenRequest) => {
       setError(undefined)
       const result = await streamDispatchService.dispatch(topicId, request)
+
       if (currentOwner.current !== owner || result.ok) return
       setError(result.error)
       errorHandler.current?.(result.error)
     },
     [owner, topicId]
   )
+
   const sendMessage = useCallback(
     async (message?: { text: string; files?: FileUIPart[] }, options?: ChatRequestOptions) => {
       const body = (options?.body ?? {}) as Partial<AiChatRequestBody>
+
       const parts = body.userMessageParts ?? [
         ...(message?.files ?? []),
         ...(message ? [{ type: 'text' as const, text: message.text }] : [])
       ]
+
       setMessages((messages) => [...messages, { id: crypto.randomUUID(), role: 'user', parts }])
+
       const request: AiStreamOpenRequest = {
         trigger: 'submit-message',
         topicId,
@@ -96,14 +107,17 @@ export function useStreamCommands(
         reasoningEffort: body.reasoningEffort,
         serviceTier: body.serviceTier
       }
+
       if (body.fastMode) request.fastMode = true
       await dispatch(request)
     },
     [dispatch, setMessages, topicId]
   )
+
   const regenerate = useCallback(
     async (options?: ChatRequestOptions & { messageId?: string }) => {
       const body = (options?.body ?? {}) as Partial<AiChatRequestBody>
+
       const request: AiStreamOpenRequest = {
         trigger: 'regenerate-message',
         topicId,
@@ -112,14 +126,17 @@ export function useStreamCommands(
         reasoningEffort: body.reasoningEffort,
         serviceTier: body.serviceTier
       }
+
       if (body.fastMode) request.fastMode = true
       await dispatch(request)
     },
     [dispatch, topicId]
   )
+
   const stop = useCallback(async () => {
     if (topicId) await ipcApi.request('ai.stream.abort', { topicId })
   }, [topicId])
+
   return {
     messages: local.topicId === topicId ? local.messages : initialMessages,
     setMessages,

@@ -21,7 +21,9 @@ const CATEGORY_KEYS: Record<ContextCategoryKey | 'buffer' | 'free', string> = {
   buffer: 'compact_buffer',
   free: 'free_space'
 }
+
 const CATEGORY_KIND_ORDER = { used: 0, buffer: 1, free: 2, deferred: 3 }
+
 const RESOURCE_GROUP_ORDER: ContextCategoryKey[] = [
   'mcp-tools',
   'memory-files',
@@ -33,6 +35,7 @@ const RESOURCE_GROUP_ORDER: ContextCategoryKey[] = [
   'messages',
   'other'
 ]
+
 const CATEGORY_COLORS: Partial<Record<ContextCategoryKey, string>> = {
   messages: 'var(--chart-1)',
   'mcp-tools': 'var(--chart-2)',
@@ -46,14 +49,17 @@ function resourceLabel(
   serverNames: ReadonlyMap<string, string>
 ): string {
   const name = resource.name.split(/[\\/]/).at(-1) ?? resource.name
+
   if (resource.category !== 'mcp-tools') return name
   const parsed = parseFunctionCallToolName(name)
   const serverId = resource.source || parsed?.serverPart
   const server = serverId ? (serverNames.get(serverId) ?? serverId) : undefined
+
   const tool = startCase(parsed?.toolPart ?? name.replace(/^mcp__/, '')).replace(
     /\b(Mcp|Js|Cli|Api|Url|Id|Json|Sql|Http)\b/g,
     (word) => word.toUpperCase()
   )
+
   return server ? `${server} · ${tool}` : tool
 }
 
@@ -76,15 +82,20 @@ export function AgentContextUsageSummary({
   showCategories = true
 }: AgentContextUsageSummaryProps) {
   const { t, i18n } = useTranslation()
+
   const { mcpServers } = useMcpServers(undefined, {
     enabled: showCategories && Boolean(usage?.resources?.some((resource) => resource.category === 'mcp-tools'))
   })
+
   const serverNames = new Map(mcpServers.map((server) => [server.id, server.name]))
   const windowTokens = usage?.contextWindow ?? 0
   const label = (id: keyof typeof CATEGORY_KEYS) => t(`agent.right_pane.info.context_categories.${CATEGORY_KEYS[id]}`)
+
   const formatTokens = (tokens: number) =>
     tokens.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+
   const formatExact = (tokens: number) => tokens.toLocaleString(i18n.resolvedLanguage)
+
   const categories = showCategories
     ? [
         ...(usage?.breakdown?.categories ?? []).map((category) => ({
@@ -98,12 +109,14 @@ export function AgentContextUsageSummary({
         ...(['reserved', 'free'] as const).flatMap((key) => {
           const count = usage?.[key]
           const kind = key === 'reserved' ? ('buffer' as const) : ('free' as const)
+
           return count ? [{ id: key, label: label(kind), kind, ...count, color: 'var(--border-strong)' }] : []
         })
       ]
         .filter((category) => category.tokens > 0)
         .sort((a, b) => CATEGORY_KIND_ORDER[a.kind] - CATEGORY_KIND_ORDER[b.kind] || b.tokens - a.tokens)
     : []
+
   const data =
     usage?.used && percentage !== null
       ? {
@@ -115,6 +128,7 @@ export function AgentContextUsageSummary({
           segments: categories.filter((category) => category.kind === 'used' || category.kind === 'buffer')
         }
       : null
+
   const groups = RESOURCE_GROUP_ORDER.map((id) => ({
     id,
     rows: (usage?.resources ?? [])

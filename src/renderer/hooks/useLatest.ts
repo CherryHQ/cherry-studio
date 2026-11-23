@@ -16,5 +16,6 @@ export function useLatest<T>(value: T): RefObject<T> {
   useIsomorphicLayoutEffect(() => {
     ref.current = value
   }, [value])
+
   return ref
 }

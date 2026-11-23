@@ -11,6 +11,7 @@ import { resolveContextSettings } from './resolveContextSettings'
  *  with the persist-time trimmer so both lanes resolve identically. */
 export function resolveGlobalContextSettings(): EffectiveContextSettings {
   const prefs = application.get('PreferenceService')
+
   return {
     enabled: prefs.get('chat.context_settings.enabled'),
     truncateThreshold: prefs.get('chat.context_settings.truncate_threshold'),
@@ -42,6 +43,7 @@ export async function resolveRequestContextSettings(
   })
 
   let compressionModel: CompressionModelDescriptor | null = null
+
   if (contextSettings.enabled && contextSettings.compress.enabled) {
     // Explicit pick, else fall back to the current request model.
     //

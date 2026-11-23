@@ -13,5 +13,6 @@ const MARKETPLACE_CATEGORY_KEYS: ReadonlyMap<string, string> = new Map([
 
 export function getMarketplaceCategoryLabel(category: string, translate: (key: string) => string): string {
   const key = MARKETPLACE_CATEGORY_KEYS.get(category)
+
   return key ? translate(key) : category
 }

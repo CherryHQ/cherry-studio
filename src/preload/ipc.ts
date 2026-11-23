@@ -22,7 +22,9 @@ export const ipcApi = {
     const listener = (_e: IpcRendererEvent, name: string, payload: unknown) => {
       if (name === event) callback(payload)
     }
+
     ipcRenderer.on(IpcChannel.IpcApi_Event, listener)
+
     return () => ipcRenderer.removeListener(IpcChannel.IpcApi_Event, listener)
   }
 }

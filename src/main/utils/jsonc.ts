@@ -16,6 +16,7 @@ export function parseJSONC(content: string): Record<string, Serializable> | Seri
       allowTrailingComma: true,
       disallowComments: false
     })
+
     return result && typeof result === 'object' ? result : null
   } catch {
     return null

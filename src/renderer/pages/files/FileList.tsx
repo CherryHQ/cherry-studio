@@ -11,10 +11,12 @@ import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
 export type SortKey = 'name' | 'size' | 'updatedAt' | 'type'
+
 export type SortDir = 'asc' | 'desc'
 
 const FILE_ROW_HEIGHT_PX = 44
 const FILE_LIST_GRID = 'grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_4rem_7rem_6.5rem] items-center gap-2'
+
 const FILE_LIST_CHECKBOX_CLASS_NAME =
   'inline-flex items-center justify-center align-middle text-foreground hover:bg-accent data-[state=checked]:border-border-selected data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:border-ring'
 
@@ -34,6 +36,7 @@ function SortHeader({
   const active = sortKey === field
   const SortIcon = active ? (sortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
   const iconClass = active ? 'shrink-0 opacity-70' : 'shrink-0 opacity-40'
+
   return (
     <Button
       variant="ghost"
@@ -128,6 +131,7 @@ export const FileList = memo(function FileList({
 }) {
   const { t } = useTranslation()
   const getItemKey = useCallback((index: number) => files[index]?.id ?? index, [files])
+
   const rowVirtualizer = useVirtualizer({
     count: files.length,
     getScrollElement: () => scrollRef.current,
@@ -139,6 +143,7 @@ export const FileList = memo(function FileList({
   useEffect(() => {
     if (!renamingId) return
     const index = files.findIndex((file) => file.id === renamingId)
+
     if (index >= 0) rowVirtualizer.scrollToIndex(index, { align: 'auto' })
   }, [files, renamingId, rowVirtualizer])
 
@@ -146,6 +151,7 @@ export const FileList = memo(function FileList({
     <div className="relative flex flex-col" style={{ height: rowVirtualizer.getTotalSize() }}>
       {rowVirtualizer.getVirtualItems().map((virtualRow) => {
         const file = files[virtualRow.index]
+
         if (!file) return null
         const selected = selectedIds.has(file.id)
         const Icon = typeIcons[file.type]

@@ -4,6 +4,7 @@ import { IbmLight } from './light'
 
 const Ibm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <IbmLight {...props} className={className} />
+
   return <IbmLight {...props} className={className} />
 }
 

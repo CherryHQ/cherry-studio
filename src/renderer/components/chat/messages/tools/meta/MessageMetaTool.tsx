@@ -48,6 +48,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
     const payload = safeToString({ args: toolResponse.arguments, response: toolResponse.response }, 2)
+
     if (!copyText) return
     Promise.resolve(copyText(payload, { successMessage: t('message.copied') }))
       .then(() => {
@@ -105,16 +106,22 @@ function useTitleLabel(toolResponse: NormalToolResponse): string {
       const q = typeof argRecord?.query === 'string' ? argRecord.query : undefined
       const ns = typeof argRecord?.namespace === 'string' ? argRecord.namespace : undefined
       const parts = [q && `"${q}"`, ns && `ns=${ns}`].filter(Boolean)
+
       return `tool_search${parts.length > 0 ? ` · ${parts.join(' · ')}` : ''}`
     }
+
     case 'tool_inspect': {
       const targetName = typeof argRecord?.name === 'string' ? argRecord.name : '?'
+
       return `tool_inspect · ${targetName}`
     }
+
     case 'tool_invoke': {
       const targetName = typeof argRecord?.name === 'string' ? argRecord.name : '?'
+
       return `tool_invoke · ${targetName}`
     }
+
     case 'tool_exec':
     case 'codemode':
       return name
@@ -156,6 +163,7 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const out = (toolResponse.response ?? undefined) as SearchOutput | undefined
+
   const matchedNamespaces =
     out?.matchedNamespaces ??
     (out?.loaded?.length ? [{ namespace: 'pi', tools: out.loaded.map((name) => ({ name })) }] : [])
@@ -188,6 +196,7 @@ const ToolInspectBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolRespons
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const jsDoc = typeof toolResponse.response === 'string' ? toolResponse.response : undefined
+
   return (
     <BodyContainer>
       <ArgsBlock args={args} />
@@ -248,6 +257,7 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const code = typeof args?.code === 'string' ? args.code : ''
+
   const out = (
     typeof toolResponse.response === 'string' ? { result: toolResponse.response } : (toolResponse.response ?? undefined)
   ) as ExecOutput | undefined
@@ -261,6 +271,7 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
   useEffect(() => {
     if (!code) return
     const last = highlightedForRef.current
+
     if (last && last.code === code && last.highlight === highlightCode) return
     let cancelled = false
     void highlightCode(code, 'javascript').then((html) => {
@@ -268,6 +279,7 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
       highlightedForRef.current = { code, highlight: highlightCode }
       setHighlighted(html)
     })
+
     return () => {
       cancelled = true
     }
@@ -307,7 +319,9 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
 const ArgsBlock: FC<{ args?: Record<string, unknown> }> = ({ args }) => {
   const { t } = useTranslation()
   const entries = useMemo(() => (args ? Object.entries(args) : []), [args])
+
   if (entries.length === 0) return null
+
   return (
     <ArgsSection>
       <ArgsSectionTitle>{t('message.tools.sections.args')}</ArgsSectionTitle>

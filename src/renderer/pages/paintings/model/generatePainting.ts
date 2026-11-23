@@ -47,9 +47,11 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
     if (opts.signal.aborted) {
       throw new DOMException('Image generation aborted', 'AbortError')
     }
+
     const requestId = crypto.randomUUID()
     const onAbort = () => void ipcApi.request('ai.image.abort', { requestId })
     opts.signal.addEventListener('abort', onAbort, { once: true })
+
     const result = await ipcApi
       .request('ai.image.generate', {
         requestId,
@@ -76,6 +78,7 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
     if (opts.signal.aborted) {
       throw new DOMException('Image generation aborted', 'AbortError')
     }
+
     if (result.files.length === 0) {
       return undefined
     }
@@ -84,6 +87,7 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
     // returned v2 `FileEntry` rows to the v1 `FileMetadata` the painting state
     // still consumes. No base64 round-trip.
     const files = await Promise.all(result.files.map(fileEntryToMetadata))
+
     return files.length > 0 ? { files } : undefined
   })
 }

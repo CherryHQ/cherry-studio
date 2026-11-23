@@ -31,6 +31,7 @@ import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
 const TopicNamingSettings = lazy(() =>
   import('./TopicNamingSettings').then((module) => ({ default: module.TopicNamingSettings }))
 )
+
 const TranslateSettingsPanelContent = lazy(() =>
   // Preserve the existing cross-page panel ownership while moving its cost behind the activation boundary.
   // eslint-disable-next-line import-x/no-restricted-paths
@@ -143,6 +144,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     setTranslateModel,
     setPaintingModel
   } = useDefaultModel()
+
   const { providers } = useProviders({ enabled: true })
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
@@ -158,14 +160,17 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
+
   const translateModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
+
   const paintingModelFilter = useCallback((model: Model) => isGenerateImageModel(model), [])
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
   const selectableTranslateModel = translateModel && translateModelFilter(translateModel) ? translateModel : undefined
+
   const shouldAutoFillEmptyModels =
     autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
@@ -176,6 +181,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       const updatePromise = shouldAutoFillEmptyModels
         ? setDefaultModel(selected, { forceCascade: true })
         : setDefaultModel(selected)
+
       void updatePromise
         .then(() => onDefaultModelSelected?.(selected))
         .catch((error) => {
@@ -222,6 +228,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     if (compact || !focus) return
 
     const target = focus === 'default' ? defaultRowRef.current : translateRowRef.current
+
     if (!target) return
 
     const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'

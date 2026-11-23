@@ -6,6 +6,7 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
 export type ScheduleKind = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'interval' | 'once' | 'cron'
+
 export type ScheduleFormState = {
   kind: ScheduleKind
   value: string
@@ -32,6 +33,7 @@ export const DEFAULT_SCHEDULE: ScheduleFormState = {
 export const parseScheduleDate = (value: string) => {
   if (!value) return undefined
   const date = new Date(value)
+
   return Number.isNaN(date.getTime()) ? undefined : date
 }
 
@@ -39,15 +41,19 @@ export const parseScheduleDate = (value: string) => {
 // sharing one minute — per-entry minutes would cross-product into extra cron firings.
 export const parseTimes = (value: string): { hours: string[]; minute: string } | null => {
   const matches = value.split(',').map((part) => /^(\d{1,2}):(\d{2})$/.exec(part.trim()))
+
   if (matches.some((match) => match === null)) return null
 
   const minute = matches[0]![2]
+
   if (Number(minute) > 59 || matches.some((match) => match![2] !== minute)) return null
 
   const hours = matches.map((match) => Number(match![1]))
+
   if (hours.some((hour) => hour > 23)) return null
 
   const uniqueSorted = [...new Set(hours)].sort((a, b) => a - b)
+
   return { hours: uniqueSorted.map((hour) => String(hour).padStart(2, '0')), minute }
 }
 
@@ -61,8 +67,10 @@ function isValidCronExpression(value: string): boolean {
   const expression = value.trim()
 
   let cron: Cron | undefined
+
   try {
     cron = new Cron(expression, { paused: true })
+
     return cron.nextRun() !== null
   } catch {
     return false
@@ -89,17 +97,20 @@ export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 't
   }
 
   const parts = trigger.expr.trim().split(/\s+/)
+
   if (parts.length !== 5) {
     return { kind: 'cron', value: trigger.expr, weekday: '1' }
   }
 
   const [minutePart, hourPart, dayOfMonth, month, dayOfWeek] = parts
+
   if (minutePart === '0' && hourPart === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
     return { kind: 'hourly', value: '', weekday: '1' }
   }
 
   const minute = Number(minutePart)
   const hourParts = hourPart.split(',')
+
   const hasValidTime =
     Number.isInteger(minute) &&
     minute >= 0 &&
@@ -116,9 +127,13 @@ export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 't
     hourParts.map((part) => part.padStart(2, '0')),
     String(minute).padStart(2, '0')
   )
+
   if (dayOfWeek === '*') return { kind: 'daily', value, weekday: '1' }
+
   if (dayOfWeek === '1-5') return { kind: 'weekdays', value, weekday: '1' }
+
   if (/^[0-6]$/.test(dayOfWeek)) return { kind: 'weekly', value, weekday: dayOfWeek }
+
   return { kind: 'cron', value: trigger.expr, weekday: '1' }
 }
 
@@ -127,27 +142,35 @@ export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null 
 
   if (schedule.kind === 'interval') {
     const minutes = Number(schedule.value.trim())
+
     if (!Number.isInteger(minutes) || minutes <= 0) return null
+
     return { kind: 'interval', ms: minutes * 60_000 }
   }
 
   if (schedule.kind === 'once') {
     const at = Date.parse(schedule.value.trim())
+
     return Number.isFinite(at) ? { kind: 'once', at } : null
   }
 
   if (schedule.kind === 'cron') {
     const expr = schedule.value.trim()
+
     return isValidCronExpression(expr) ? { kind: 'cron', expr } : null
   }
 
   const times = parseTimes(schedule.value)
+
   if (!times || times.hours.length === 0) return null
   const prefix = `${Number(times.minute)} ${times.hours.map(Number).join(',')} * *`
 
   if (schedule.kind === 'daily') return { kind: 'cron', expr: `${prefix} *` }
+
   if (schedule.kind === 'weekdays') return { kind: 'cron', expr: `${prefix} 1-5` }
+
   if (!/^[0-6]$/.test(schedule.weekday)) return null
+
   return { kind: 'cron', expr: `${prefix} ${schedule.weekday}` }
 }
 
@@ -192,8 +215,11 @@ export function triggersEqual(a: Trigger, b: Trigger): boolean {
   if (a.kind === 'cron' && b.kind === 'cron') {
     return a.expr === b.expr && a.timezone === b.timezone && a.limit === b.limit
   }
+
   if (a.kind === 'interval' && b.kind === 'interval') return a.ms === b.ms && a.anchor === b.anchor
+
   if (a.kind === 'once' && b.kind === 'once') return a.at === b.at
+
   return false
 }
 
@@ -201,9 +227,11 @@ export function preserveCompatibleTriggerMetadata(previous: Trigger, next: Trigg
   if (previous.kind === 'cron' && next.kind === 'cron') {
     return { ...previous, expr: next.expr }
   }
+
   if (previous.kind === 'interval' && next.kind === 'interval') {
     return { ...previous, ms: next.ms }
   }
+
   return next
 }
 
@@ -217,6 +245,7 @@ export function getWeekdayLabel(weekday: string, t: TFunction) {
     ['5', t('agent.tasks.schedule.weekdays.friday')],
     ['6', t('agent.tasks.schedule.weekdays.saturday')]
   ])
+
   return labels.get(weekday) ?? weekday
 }
 
@@ -224,6 +253,7 @@ export function getTriggerSummary(trigger: Trigger, t: TFunction) {
   const schedule = triggerToFormState(trigger)
   // Time presets may hold a comma-joined list; space it out for display.
   const time = schedule.value.split(',').join(', ')
+
   switch (schedule.kind) {
     case 'hourly':
       return t('agent.tasks.schedule.summary.hourly')

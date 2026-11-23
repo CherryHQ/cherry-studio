@@ -75,6 +75,7 @@ function mergeLegacySizes(
 ): CacheCleanupGroupInspection {
   const knownBytes = [mainInspection.size.bytes, browserSize.bytes].filter((bytes): bytes is number => bytes !== null)
   const bytes = knownBytes.length === 0 ? null : knownBytes.reduce((total, value) => total + value, 0)
+
   const completeness =
     mainInspection.size.completeness === 'partial' || browserSize.completeness === 'partial' ? 'partial' : 'complete'
 
@@ -108,15 +109,18 @@ async function inspectCleanupGroup(
     const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: [group] })
     signal.throwIfAborted()
     let inspection = response.results[0]
+
     if (!inspection) throw new Error(`Missing cache cleanup inspection for ${group}`)
 
     if (group === 'legacy_v1') {
       inspection = mergeLegacySizes(inspection, await inspectLegacyV1BrowserData(signal))
     }
+
     return inspection
   } catch (error) {
     if (signal.aborted) throw error
     logger.warn('Failed to inspect cache cleanup group', { group, error })
+
     return {
       group,
       size: {
@@ -131,8 +135,10 @@ async function inspectCleanupGroup(
 export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onClear }) => {
   const { t } = useTranslation()
   const [selected, setSelected] = useState<Set<CacheCleanupGroup>>(() => new Set())
+
   const [optionStates, setOptionStates] =
     useState<Record<CacheCleanupGroup, CleanupOptionState>>(createLoadingOptionStates)
+
   const [visibleGroups, setVisibleGroups] = useState<CacheCleanupGroup[]>(getVisibleCleanupGroups)
   const [cleaning, setCleaning] = useState(false)
   const [hasRunCleanup, setHasRunCleanup] = useState(false)
@@ -154,6 +160,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
       groups.map(async (group) => {
         try {
           const inspection = await inspectCleanupGroup(group, abortController.signal)
+
           if (generation !== inspectionGeneration.current) return
           setOptionStates((current) => ({ ...current, [group]: { loading: false, inspection } }))
         } catch (error) {
@@ -167,11 +174,13 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
 
   useEffect(() => {
     popupOpen.current = open
+
     if (open) {
       void refreshInspections()
     } else {
       inspectionAbortController.current?.abort()
     }
+
     return () => {
       inspectionAbortController.current?.abort()
     }
@@ -181,10 +190,12 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const selectedStates = selectedGroups.map((group) => optionStates[group])
   const totalLoading = selectedStates.some((state) => state.loading)
   const totalBytes = selectedStates.reduce((total, state) => total + (state.inspection?.size.bytes ?? 0), 0)
+
   const totalHasUnknown = selectedStates.some(
     (state) =>
       !state.loading && (state.inspection?.size.bytes === null || state.inspection?.size.completeness === 'partial')
   )
+
   const totalEstimated = selectedStates.some((state) => state.inspection?.size.accuracy === 'estimated')
   const canConfirm = !cleaning && selectedGroups.length > 0 && !totalLoading
 
@@ -210,13 +221,16 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
         maskClosable: false,
         closable: false
       })
+
       if (!confirmed || !popupOpen.current) return
     }
 
     setSelected((current) => {
       const next = new Set(current)
+
       if (checked) next.add(group)
       else next.delete(group)
+
       return next
     })
   }
@@ -232,10 +246,13 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     }
 
     const size = state.inspection?.size
+
     if (!size || size.bytes === null) return t('settings.data.clear_cache.unavailable')
 
     const formatted = formatFileSize(size.bytes)
+
     if (size.completeness === 'partial') return t('settings.data.clear_cache.total_partial', { size: formatted })
+
     return size.accuracy === 'estimated' ? t('settings.data.clear_cache.approximately', { size: formatted }) : formatted
   }
 
@@ -243,12 +260,15 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     if (totalLoading) return t('settings.data.clear_cache.calculating')
 
     const formatted = formatFileSize(totalBytes)
+
     if (totalHasUnknown) {
       return t('settings.data.clear_cache.total_partial', { size: formatted })
     }
+
     if (totalEstimated) {
       return t('settings.data.clear_cache.approximately', { size: formatted })
     }
+
     return formatted
   }
 
@@ -257,11 +277,15 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
 
     setCleaning(true)
     const success = await onClear(selectedGroups)
+
     if (!popupOpen.current) return
+
     if (success) {
       handleClose()
+
       return
     }
+
     setHasRunCleanup(true)
     setCleaning(false)
     void refreshInspections()

@@ -38,15 +38,19 @@ const attachmentTool = defineTool({
           const seen = new Set<string>()
           const next: typeof prev = []
           let changed = false
+
           for (const file of prev) {
             const id = composerFileTokenId(file)
+
             if (!fileTokenIds.has(id) || seen.has(id)) {
               changed = true
               continue
             }
+
             seen.add(id)
             next.push(file)
           }
+
           return changed ? next : prev
         })
       }

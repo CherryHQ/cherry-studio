@@ -11,6 +11,7 @@ const logger = loggerService.withContext('ProfileService')
 function avatarFileId(value: string): FileEntryId | undefined {
   if (!value.startsWith(STORED_FILE_REF_PREFIX)) return undefined
   const parsed = FileEntryIdSchema.safeParse(value.slice(STORED_FILE_REF_PREFIX.length))
+
   return parsed.success ? parsed.data : undefined
 }
 
@@ -34,12 +35,14 @@ class ProfileService {
       } else {
         await preferences.set('app.user.avatar', input.kind === 'emoji' ? input.emoji : '')
       }
+
       await this.retireAvatar(previousId)
     })
   }
 
   private async retireAvatar(previousId: FileEntryId | undefined): Promise<void> {
     if (!previousId || previousId === avatarFileId(application.get('PreferenceService').get('app.user.avatar'))) return
+
     try {
       await application.get('FileManager').deleteUnreferencedInternalEntry(previousId)
     } catch (error) {

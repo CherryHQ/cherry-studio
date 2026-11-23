@@ -15,6 +15,7 @@
  */
 
 export * from './general'
+
 // Provider components live behind the explicit `@cherrystudio/ui/icons/providers`
 // entry. Re-exporting that barrel here would evaluate every provider icon when
 // ordinary key-based consumers import useIcon.
@@ -22,9 +23,13 @@ export * from './general'
 // direct loaders and the model meta catalog stay package-internal until a real
 // consumer shows up.
 export { loadProviderIconCatalog } from './loader'
+
 export type { ModelIconKey } from './models/meta-catalog'
+
 export { getProviderIconAssetMetrics, type ProviderIconAssetMetrics } from './provider-icon-metrics'
+
 export { PROVIDER_ICON_META_CATALOG, type ProviderIconKey } from './providers/meta-catalog'
+
 export {
   type IconRef,
   modelIconRef,
@@ -34,5 +39,7 @@ export {
   resolveModelToProviderIconRef,
   resolveProviderIconRef
 } from './registry'
+
 export * from './types'
+
 export { useIcon } from './use-icon'

@@ -29,6 +29,7 @@ import {
 } from './useCherryCloudModelSelectorData'
 
 type WithoutComposition<T> = T extends unknown ? Omit<T, 'composition'> : never
+
 export type CherryCloudModelSelectorProps = WithoutComposition<ModelSelectorProps> & {
   offerFilter?: CherryCloudOfferFilter
   showSubscriptionOffers?: boolean
@@ -38,11 +39,13 @@ function EntryView({ open, source }: { open: boolean; source: SubscriptionEntryS
   useEffect(() => {
     if (open) trackSubscriptionEntryView(source)
   }, [open, source])
+
   return null
 }
 
 function OfferIcon({ id, name }: { id: string; name: string }) {
   const icon = useIcon(getModelLogoRef({ id, name }, CHERRY_CLOUD_PROVIDER_ID))
+
   return icon ? (
     <icon.Avatar size={24} className="border border-border" />
   ) : (
@@ -64,6 +67,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     if (open) setActivated(true)
   }, [open])
   const { t } = useTranslation()
+
   const { modelFilter, getModelPresentation, availability, prioritizedProviderIds } = useCherryCloudModelSelectorPolicy(
     {
       enabled,
@@ -72,26 +76,32 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
       prioritizedProviderIds: props.prioritizedProviderIds
     }
   )
+
   const { offers, paidPlan, canOfferSubscription, signedOut } = useCherryCloudModelSelectorOffers(
     enabled,
     includeAgentOnlyModels ?? false,
     offerFilter,
     showSubscriptionOffers
   )
+
   const { isAvailabilityReady, isModelHidden } = availability
   const { providers } = useProviders({ enabled: true }, { enabled })
   const { models } = useModels({ enabled: true }, { fetchEnabled: enabled })
+
   const provider =
     providers.find((item) => item.id === CHERRY_CLOUD_PROVIDER_ID) ??
     providers.find((item) => item.id === CHERRYAI_PROVIDER_ID)
+
   const onOpenChange = (next: boolean) => {
     if (props.open === undefined) setInternalOpen(next)
     props.onOpenChange?.(next)
   }
+
   const subscribe = () => {
     onOpenChange(false)
     void startCherryCloudSubscription('selector_header')
   }
+
   const subscribeEntry = canOfferSubscription ? (
     <>
       <EntryView open={open} source="selector_header" />
@@ -106,6 +116,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
       </button>
     </>
   ) : null
+
   const actions = useMemo<ModelSelectorActionItem[]>(
     () =>
       !provider || (!isAvailabilityReady && !signedOut)
@@ -117,7 +128,9 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
                 !isModelHidden(model, includeAgentOnlyModels ?? false) &&
                 (filter?.(model, provider) ?? true)
             )
+
             if (owned) return []
+
             return [
               {
                 key: `offer-${modelId}`,
@@ -160,6 +173,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
           }),
     [isAvailabilityReady, isModelHidden, models, offers, open, signedOut, filter, includeAgentOnlyModels, provider]
   )
+
   const composition = {
     getModelPresentation,
     actions,
@@ -178,6 +192,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     ],
     emptyContent: subscribeEntry
   }
+
   return (
     <ModelSelector
       {...selectorProps}

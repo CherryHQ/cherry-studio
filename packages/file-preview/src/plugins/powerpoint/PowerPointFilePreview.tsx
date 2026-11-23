@@ -36,6 +36,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
   const copy = new Uint8Array(bytes.byteLength)
   copy.set(bytes)
+
   return copy.buffer
 }
 
@@ -116,11 +117,14 @@ export default function PowerPointFilePreview({
   const viewerRef = useRef<PptxViewer | null>(null)
   const restoredViewerRef = useRef<PptxViewer | null>(null)
   const readingPositionRef = useRef<{ zoom: number; page: number; top: number; left: number } | null>(null)
+
   const captureReadingPosition = useCallback(() => {
     const viewer = viewerRef.current
     const container = containerRef.current
+
     if (!viewer || restoredViewerRef.current !== viewer || !container || container.clientHeight === 0) return
     const slide = container.querySelector<HTMLElement>(`[data-slide-index="${viewer.currentSlideIndex}"]`)
+
     if (!slide) return
     readingPositionRef.current = {
       zoom: viewer.zoomPercent,
@@ -129,6 +133,7 @@ export default function PowerPointFilePreview({
       left: container.scrollLeft - slide.offsetLeft
     }
   }, [])
+
   useLayoutEffect(() => captureReadingPosition, [captureReadingPosition])
   // The parsed deck a pick reads its excerpt from — the viewer exposes no text API of its own.
   const presentationRef = useRef<PresentationData | null>(null)
@@ -153,6 +158,7 @@ export default function PowerPointFilePreview({
   const jumpToPage = useCallback(
     (pageNumber: number) => {
       const viewer = viewerRef.current
+
       if (!viewer || pageCount <= 0 || controlsBusyRef.current) return
 
       const nextPage = clamp(pageNumber, 1, pageCount)
@@ -182,6 +188,7 @@ export default function PowerPointFilePreview({
   const setViewerZoom = useCallback(
     (nextZoom: number) => {
       const viewer = viewerRef.current
+
       if (!viewer || controlsBusyRef.current) return
 
       const clampedZoom = clamp(nextZoom, PPTX_PREVIEW_MIN_ZOOM, PPTX_PREVIEW_MAX_ZOOM)
@@ -210,6 +217,7 @@ export default function PowerPointFilePreview({
 
   useEffect(() => {
     const container = containerRef.current
+
     if (!container) return
 
     const controller = new AbortController()
@@ -227,16 +235,20 @@ export default function PowerPointFilePreview({
     void (async () => {
       try {
         const pptxData = await readPreviewDocument(previewDocument, PPTX_PREVIEW_MAX_SOURCE_BYTES, controller.signal)
+
         if (!isCurrent()) return
 
         throwIfAborted(controller.signal)
         const pptxFiles = await parseZipLazyMedia(toArrayBuffer(pptxData), RECOMMENDED_ZIP_LIMITS)
         throwIfAborted(controller.signal)
+
         if (!isCurrent()) return
         const presentation = buildPresentation(pptxFiles, { lazySlides: true })
+
         if (presentation.slides.length === 0) {
           throw new PreviewError('load_error', 'PPTX contains no slides to preview')
         }
+
         stripExternalMediaRelationships(presentation)
         presentationRef.current = presentation
         throwIfAborted(controller.signal)
@@ -258,6 +270,7 @@ export default function PowerPointFilePreview({
           onRenderComplete: () => {
             if (!isCurrent()) return
             const activeViewer = viewerRef.current
+
             if (activeViewer) setZoom(activeViewer.zoomPercent)
             setPreviewControlsBusy(false)
           },
@@ -284,14 +297,18 @@ export default function PowerPointFilePreview({
           overscanViewport: 2
         })
         throwIfAborted(controller.signal)
+
         if (!isCurrent()) return
 
         const nextPageCount = viewer.slideCount
         const position = readingPositionRef.current
+
         if (position && nextPageCount > 0) {
           await viewer.goToSlide(clamp(position.page, 1, nextPageCount) - 1, { block: 'start' })
+
           if (!isCurrent()) return
           const slide = container.querySelector<HTMLElement>(`[data-slide-index="${viewer.currentSlideIndex}"]`)
+
           if (slide) {
             container.scrollTop =
               slide.offsetTop + clamp(position.top, 1 - container.clientHeight, Math.max(0, slide.offsetHeight - 1))
@@ -299,21 +316,26 @@ export default function PowerPointFilePreview({
               slide.offsetLeft + clamp(position.left, 1 - container.clientWidth, Math.max(0, slide.offsetWidth - 1))
           }
         }
+
         restoredViewerRef.current = viewer
         setPageCount(nextPageCount)
         setCurrentPage(nextPageCount > 0 ? viewer.currentSlideIndex + 1 : 0)
         focusContainer()
       } catch (loadError) {
         if (!isCurrent()) return
+
         if (viewerRef.current === viewer) {
           viewerRef.current = null
         }
+
         viewer?.destroy()
         container.innerHTML = ''
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
+
         const reported = isPptxZipLimitError(normalized)
           ? new PreviewError('too_large', normalized.message, { cause: normalized })
           : normalized
+
         failDocument?.(reported)
         setError(reported)
       } finally {
@@ -327,9 +349,11 @@ export default function PowerPointFilePreview({
       controller.abort()
       controlsBusyRef.current = false
       presentationRef.current = null
+
       if (viewerRef.current === viewer) {
         viewerRef.current = null
       }
+
       if (restoredViewerRef.current === viewer) restoredViewerRef.current = null
       viewer?.destroy()
       container.innerHTML = ''
@@ -350,21 +374,26 @@ export default function PowerPointFilePreview({
   const handlePick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (!onSelection || !(event.target instanceof Element)) return
+
       if (event.target.closest('a[href]')) event.preventDefault()
 
       const result = slideToPptxAnchor(event.target)
       const presentation = presentationRef.current
+
       if (!result || !presentation || result.anchor.slide === pickedSlide) {
         setPickedSlide(null)
         onSelection(null)
+
         return
       }
+
       const reference = createPreviewSelection({
         sourceId,
         anchor: result.anchor,
         excerpt: slideExcerpt(presentation, result.anchor.slide, logger.warn),
         revision: previewDocument.revision
       })
+
       setPickedSlide(reference ? result.anchor.slide : null)
       onSelection(reference)
     },
@@ -375,10 +404,12 @@ export default function PowerPointFilePreview({
   // changes, so a childList mutation repaints it. A rebuild is not a pick — report nothing.
   useEffect(() => {
     const container = containerRef.current
+
     if (!container) return
 
     const applyMarker = () => {
       container.querySelectorAll('[data-pptx-picked]').forEach((marked) => marked.removeAttribute('data-pptx-picked'))
+
       if (pickedSlide === null) return
       container.querySelector(`[data-slide-index="${pickedSlide - 1}"]`)?.setAttribute('data-pptx-picked', 'true')
     }
@@ -386,6 +417,7 @@ export default function PowerPointFilePreview({
     applyMarker()
     const observer = new MutationObserver(applyMarker)
     observer.observe(container, { childList: true })
+
     return () => observer.disconnect()
   }, [pickedSlide])
 

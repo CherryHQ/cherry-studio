@@ -27,6 +27,7 @@ export class SidebarShortcutService {
       const stored = await this.preferences.get('ui.sidebar_shortcut')
       const current = Array.isArray(stored) ? stored : []
       const next = transform(current)
+
       if (isEqual(current, next)) return
       await this.preferences.set('ui.sidebar_shortcut', next)
     })
@@ -39,7 +40,9 @@ export class SidebarShortcutService {
   setPinned(target: SidebarShortcutTarget, pinned: boolean, fallbackLabel?: string): Promise<void> {
     return this.enqueue((current) => {
       const isPinned = isSidebarShortcutPinned(current, target)
+
       if (isPinned === pinned) return normalizeSidebarShortcutItems(current)
+
       return pinned ? addSidebarShortcut(current, target, fallbackLabel) : removeSidebarShortcut(current, target)
     })
   }

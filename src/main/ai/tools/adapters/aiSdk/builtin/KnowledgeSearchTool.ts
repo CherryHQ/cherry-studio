@@ -36,6 +36,7 @@ const kbSearchTool = tool({
   outputSchema: knowledgeSearchResultSchema,
   execute: async ({ query, baseIds }, options) => {
     const { request } = getToolCallContext(options)
+
     return searchKnowledge(query, baseIds, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ output }) => knowledgeSearchModelOutput(output)
@@ -58,4 +59,5 @@ export function createKbSearchToolEntry() {
 }
 
 export type KnowledgeSearchToolInput = InferToolInput<typeof kbSearchTool>
+
 export type KnowledgeSearchToolOutput = InferToolOutput<typeof kbSearchTool>

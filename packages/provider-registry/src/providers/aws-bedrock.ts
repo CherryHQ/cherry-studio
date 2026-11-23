@@ -46,6 +46,7 @@ const bedrockEffortWire: ReasoningWireProfile = {
 }
 
 const bedrockBudgetModels = new Set(['claude-haiku-4-5', 'claude-opus-4-1', 'claude-opus-4-5', 'claude-sonnet-4-5'])
+
 const bedrockEffortModels = new Set([
   'claude-fable-5',
   'claude-opus-4-6',
@@ -575,6 +576,7 @@ export default defineProvider({
       : bedrockEffortModels.has(override.modelId)
         ? bedrockEffortWire
         : undefined
+
     return wire
       ? {
           ...override,

@@ -13,8 +13,10 @@ const MODE_STABLE_ATTEMPTS = 3
 async function currentFacts(host: HostPorts, ref: CallRef, tool: ToolCallFact): Promise<ApprovalHostFacts> {
   for (let attempt = 1; ; attempt++) {
     const facts = await host.approvals.facts(ref, tool)
+
     if (facts.permissionMode === undefined || facts.permissionMode === host.settings.permissionMode(ref.thread))
       return facts
+
     // A mode that keeps changing must not let stale facts skip a person.
     if (attempt === MODE_STABLE_ATTEMPTS) return { ...facts, approvalRequired: true }
   }
@@ -25,6 +27,7 @@ export function gateHandlers(host: HostPorts): GateHandlers {
   return {
     async before(call, facts, ports) {
       const repeated = repeatBlock(call, facts)
+
       if (repeated !== undefined) return { block: repeated }
       const ref: CallRef = { thread: call.thread, key: call.key }
       // A gate call carries no provider call id; the host identifies the call by its `CallRef`.
@@ -32,6 +35,7 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       // Hosts may hand over a mutable input object; a change after the card was shown voids the grant.
       const originalArguments = JSON.stringify(call.args)
       const hostFacts = await currentFacts(host, ref, tool)
+
       const decision = decideApproval(
         call,
         hostFacts,
@@ -39,14 +43,19 @@ export function gateHandlers(host: HostPorts): GateHandlers {
         host.settings.attendance(call.thread),
         facts.plan
       )
+
       if (decision.kind === 'block') return { block: decision.reason }
+
       if (decision.kind === 'allow') return decision.args === undefined ? {} : { args: decision.args }
+
       const request = {
         call: ref,
         tool: { ...tool, args: decision.args ?? call.args },
         presentation: decision.presentation
       }
+
       if (decision.details !== undefined) Object.assign(request, { details: decision.details })
+
       const answer = await ports.memory
         .remember(keys.approvalMemo(call.key), () => host.approvals.ask(request, call.signal))
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Approval failures preserve the host's rejection; an aborted call alone withdraws the ask without recording an answer.
@@ -55,12 +64,15 @@ export function gateHandlers(host: HostPorts): GateHandlers {
           if (call.signal.aborted) return undefined
           throw error
         })
+
       if (answer === undefined) return { block: ASK_WITHDRAWN }
       const verdict = answerVerdict(answer, decision.args)
       const policy = hostFacts.commandPolicy
+
       if (answer.kind === 'granted' && policy !== undefined) {
         const args = answer.args ?? decision.args ?? call.args
         const latest = await currentFacts(host, ref, { ...tool, args })
+
         const checked = decideApproval(
           { ...call, args },
           latest,
@@ -68,7 +80,9 @@ export function gateHandlers(host: HostPorts): GateHandlers {
           host.settings.attendance(call.thread),
           facts.plan
         )
+
         if (checked.kind === 'block') return { block: checked.reason }
+
         if (
           latest.commandPolicy?.context !== policy.context ||
           JSON.stringify(call.args) !== originalArguments ||
@@ -76,12 +90,15 @@ export function gateHandlers(host: HostPorts): GateHandlers {
         )
           return { block: policy.changedReason }
       }
+
       return verdict
     },
     async after(call, result) {
       const name = offloadPlan(call, result, host.settings.offloadThreshold())
+
       if (name === undefined) return undefined
       const text = await storedMarker(host, { name, content: result.text, key: call.key, tool: call.tool })
+
       return { ...result, text }
     }
   }

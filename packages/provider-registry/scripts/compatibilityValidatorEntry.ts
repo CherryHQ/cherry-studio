@@ -20,6 +20,7 @@ function formatValidationError(error: unknown): string {
   if (error && typeof error === 'object' && 'issues' in error) {
     return JSON.stringify(error.issues)
   }
+
   return error instanceof Error ? error.message : String(error)
 }
 
@@ -41,8 +42,10 @@ export function validateCatalogDirectory(dataDirectory: string): void {
 }
 
 const isCommandLine = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+
 if (isCommandLine) {
   const dataDirectory = process.argv[2]
+
   if (!dataDirectory) {
     console.error('Usage: node vN-validator.mjs <catalog-data-directory>')
     process.exitCode = 1

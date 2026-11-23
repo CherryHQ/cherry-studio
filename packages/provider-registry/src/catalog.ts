@@ -33,10 +33,12 @@ export const REGISTRY_MIN_APP_VERSION = '2.1.11'
  * app's loader-path resolution and by the remote updater's fetch loop.
  */
 export const REGISTRY_FILES = ['models.json', 'providers.json', 'provider-models.json'] as const
+
 export type RegistryFileName = (typeof REGISTRY_FILES)[number]
 
 /** Unsigned branch data permitted to shadow the bundle. Provider routing stays bundled. */
 export const REMOTE_REGISTRY_FILES = ['models.json', 'provider-models.json'] as const
+
 export type RemoteRegistryFileName = (typeof REMOTE_REGISTRY_FILES)[number]
 
 /**
@@ -57,4 +59,5 @@ export const CatalogManifestSchema = z.object({
   /** filename → content-hash `version`, binding the set to one published snapshot. */
   files: z.record(z.string(), z.string())
 })
+
 export type CatalogManifest = z.infer<typeof CatalogManifestSchema>

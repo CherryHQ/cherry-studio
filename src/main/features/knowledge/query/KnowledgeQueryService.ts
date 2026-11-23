@@ -27,6 +27,7 @@ import { runStoreOperation } from './storeOperation'
 import { deriveConceptId, loadVisibleItems } from './visibility'
 
 const logger = loggerService.withContext('Knowledge:QueryService')
+
 /**
  * Fetch this many × the requested result count as index candidates. The index
  * store only filters by material state; the item-visibility filter (missing /
@@ -34,6 +35,7 @@ const logger = loggerService.withContext('Knowledge:QueryService')
  * so over-fetching keeps the final set from shrinking below topK.
  */
 const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
+
 /** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of topK. */
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 
@@ -41,10 +43,15 @@ const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 export class KnowledgeQueryService {
   listBasesForDiscovery(options: KnowledgeBaseDiscoveryOptions): KnowledgeBaseDiscoveryPage {
     const query: Parameters<typeof knowledgeBaseService.listForDiscovery>[0] = { limit: options.limit }
+
     if (options.cursor) query.cursor = options.cursor
+
     if (options.query) query.query = options.query
+
     if (options.groupId) query.groupId = options.groupId
+
     if (options.scope.kind === 'restricted') query.restrictedIds = options.scope.baseIds
+
     return knowledgeBaseService.listForDiscovery(query)
   }
 
@@ -72,6 +79,7 @@ export class KnowledgeQueryService {
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = vectorStoreService.getIndexStore(base)
+
     const matches = await runStoreOperation(store, baseId, 'search', () =>
       store.search({
         queryText: query,
@@ -88,6 +96,7 @@ export class KnowledgeQueryService {
     // surface the best matches; without a rerank model this is a pass-through.
     const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
     const topResults = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
+
     return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
 
@@ -99,19 +108,23 @@ export class KnowledgeQueryService {
     this.assertCompletedContainerHasNoDeletingChildren(knowledgeBaseId, item)
 
     const base = knowledgeBaseService.getById(knowledgeBaseId)
+
     const leafItems = knowledgeItemService.getSubtreeItems(knowledgeBaseId, [knowledgeItemId], {
       includeRoots: true,
       leafOnly: true
     })
+
     if (leafItems.length === 0) {
       return []
     }
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = vectorStoreService.getIndexStore(base)
+
     const chunkGroups = await runStoreOperation(store, knowledgeBaseId, 'listItemChunks', () =>
       leafItems.map((leafItem) => {
         const units = store.listMaterialUnits(leafItem.id)
+
         return units.map(
           (unit): KnowledgeItemChunk => ({
             id: unit.unitId,
@@ -145,6 +158,7 @@ export class KnowledgeQueryService {
       if (item.status === 'preparing') {
         return AbsoluteFilePathSchema.parse(item.data.source)
       }
+
       return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
     }
 
@@ -182,11 +196,14 @@ export class KnowledgeQueryService {
     )
 
     const results: KnowledgeSearchResult[] = []
+
     for (const match of matches) {
       const item = itemsById.get(match.materialId)
+
       if (!item) {
         continue
       }
+
       results.push({
         pageContent: match.text,
         score: match.score,
@@ -206,6 +223,7 @@ export class KnowledgeQueryService {
         title: getKnowledgeItemDisplayTitle(item)
       })
     }
+
     return results
   }
 
@@ -214,16 +232,19 @@ export class KnowledgeQueryService {
     if (results.length <= topK) {
       return results
     }
+
     logger.debug('Trimmed over-fetched knowledge search results to topK', {
       baseId,
       visibleCandidates: results.length,
       topK
     })
+
     return results.slice(0, topK)
   }
 
   private assertItemCanRunChunkOperation(baseId: string, itemId: string): KnowledgeItem {
     const item = knowledgeItemService.getById(itemId)
+
     if (item.baseId !== baseId) {
       throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
     }
@@ -244,6 +265,7 @@ export class KnowledgeQueryService {
     }
 
     const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, [item.id])
+
     if (subtreeItems.some((item) => item.status === 'deleting')) {
       throw DataApiErrorFactory.validation(
         { item: [`Knowledge item subtree '${item.id}' is being deleted`] },

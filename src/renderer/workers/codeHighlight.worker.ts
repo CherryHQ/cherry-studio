@@ -16,15 +16,20 @@ const documents = new LRUCache<
   max: 50,
   dispose: ({ document }) => document.dispose()
 })
+
 const snapshot = createCodeBlockSnapshotExecutor()
+
 class MissingSession extends Error {}
 
 async function handle(request: HighlightRequest): Promise<HighlightValue> {
   if (request.type === 'snapshot') return snapshot(request.request)
+
   if (request.type === 'close') {
     documents.delete(request.sessionId)
+
     return null
   }
+
   if (request.type === 'open') {
     const document = await createCodeBlockDocument(request.code, request.language)
     documents.set(request.sessionId, {
@@ -32,32 +37,43 @@ async function handle(request: HighlightRequest): Promise<HighlightValue> {
       revision: request.revision,
       configurationRevision: request.configurationRevision
     })
+
     return null
   }
+
   if ('sessionId' in request) {
     const entry = documents.get(request.sessionId)
+
     if (!entry) throw new MissingSession('Highlight session expired')
+
     if (request.type === 'update') {
       if (entry.revision !== request.baseRevision || request.revision <= entry.revision)
         throw new Error('Stale source revision')
       entry.document.update(request.change)
       entry.revision = request.revision
+
       return null
     }
+
     if (request.type === 'configure') {
       if (request.configurationRevision <= entry.configurationRevision) throw new Error('Stale configuration revision')
       const document = await createCodeBlockDocument(entry.document.code, request.language)
       documents.set(request.sessionId, { ...entry, document, configurationRevision: request.configurationRevision })
+
       return null
     }
+
     if (entry.revision !== request.revision || entry.configurationRevision !== request.configurationRevision)
       throw new Error('Stale range read')
+
     return entry.document.read(request.range)
   }
+
   if (request.type === 'html') return codeBlockToHtml(request.code, request.language, request.theme)
   const markdown = new MarkdownIt({ linkify: true, typographer: true })
   const tokens = markdown.parse(request.code, {})
   const codeBlocks = tokens.filter((token) => token.type === 'fence' || token.type === 'code_block')
+
   const highlighted = new Map(
     await Promise.all(
       codeBlocks.map(
@@ -69,15 +85,19 @@ async function handle(request: HighlightRequest): Promise<HighlightValue> {
       )
     )
   )
+
   const render = (items: typeof tokens, index: number) => highlighted.get(items[index]) ?? ''
   markdown.renderer.rules.fence = render
   markdown.renderer.rules.code_block = render
+
   return markdown.renderer.render(tokens, markdown.options, {})
 }
 
 type Job = HighlightRequest & { id: number; generation: number }
+
 const jobs: Job[] = []
 let processing = false
+
 // The response channel can be gone by the time a queued job finishes (worker terminated
 // mid-drain, or the host environment torn down); dropping the reply is all that is left.
 function post(response: HighlightResponse): void {
@@ -87,22 +107,29 @@ function post(response: HighlightResponse): void {
     // Nothing to deliver to.
   }
 }
+
 async function drain() {
   if (processing) return
   processing = true
+
   while (jobs.length) {
     // Snapshot work has no document ordering dependencies; queued viewport work goes first.
     const index = jobs.findIndex((job) => 'sessionId' in job)
     const data = jobs.splice(index < 0 ? 0 : index, 1)[0]
+
     try {
       const result = await handle(data)
+
       const response: HighlightResponse = {
         id: data.id,
         generation: data.generation,
         result
       }
+
       if ('sessionId' in data) response.sessionId = data.sessionId
+
       if ('revision' in data) response.revision = data.revision
+
       if ('configurationRevision' in data) response.configurationRevision = data.configurationRevision
       post(response)
     } catch (error) {
@@ -113,10 +140,13 @@ async function drain() {
         missing: error instanceof MissingSession
       })
     }
+
     await new Promise((resolve) => setTimeout(resolve, 0))
   }
+
   processing = false
 }
+
 self.onmessage = ({ data }: MessageEvent<Job>) => {
   jobs.push(data)
   void drain()

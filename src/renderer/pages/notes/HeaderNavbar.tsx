@@ -56,9 +56,11 @@ const HeaderNavbar = ({
 }: HeaderNavbarProps) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
+
   const [breadcrumbItems, setBreadcrumbItems] = useState<
     Array<{ key: string; title: string; treePath: string; isFolder: boolean }>
   >([])
+
   const [titleValue, setTitleValue] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -80,6 +82,7 @@ const HeaderNavbar = ({
   const handleCopyContent = useCallback(async () => {
     try {
       const content = getCurrentNoteContent?.()
+
       if (content) {
         await navigator.clipboard.writeText(content)
         toast.success(t('common.copied'))
@@ -95,14 +98,19 @@ const HeaderNavbar = ({
   const handleExportToWord = useCallback(async () => {
     try {
       const content = getCurrentNoteContent?.()
+
       if (!content) {
         toast.warning(t('notes.no_content_to_export'))
+
         return
       }
+
       if (!activeNode) {
         toast.warning(t('notes.no_note_selected'))
+
         return
       }
+
       const fileName = activeNode.name.replace('.md', '')
       await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
     } catch (error) {
@@ -113,14 +121,19 @@ const HeaderNavbar = ({
 
   const getPrintableDocumentPayload = useCallback(() => {
     const content = getCurrentNoteContent?.()
+
     if (!content) {
       toast.warning(t('notes.no_content_to_export'))
+
       return null
     }
+
     if (!activeNode) {
       toast.warning(t('notes.no_note_selected'))
+
       return null
     }
+
     return {
       title: activeNode.name.replace('.md', ''),
       markdown: content,
@@ -130,10 +143,12 @@ const HeaderNavbar = ({
 
   const handleExportToPdf = useCallback(async () => {
     const payload = getPrintableDocumentPayload()
+
     if (!payload) return
 
     try {
       const saved = await ipcApi.request('print.export_pdf', payload)
+
       if (saved) {
         toast.success(t('notes.export_to_pdf_success'))
       }
@@ -145,6 +160,7 @@ const HeaderNavbar = ({
 
   const handlePrint = useCallback(async () => {
     const payload = getPrintableDocumentPayload()
+
     if (!payload) return
 
     try {
@@ -201,9 +217,11 @@ const HeaderNavbar = ({
         titleInputRef.current?.blur()
       } else if (e.key === 'Escape') {
         e.preventDefault()
+
         if (activeNode) {
           setTitleValue(activeNode.name.replace('.md', ''))
         }
+
         titleInputRef.current?.blur()
       }
     },
@@ -234,6 +252,7 @@ const HeaderNavbar = ({
     }
 
     const isActive = item.isActive?.(settings)
+
     const suffix =
       item.printAction && printCommand.shortcutLabel ? (
         <span className="text-xs text-muted-foreground">{printCommand.shortcutLabel}</span>
@@ -262,6 +281,7 @@ const HeaderNavbar = ({
           } else if (item.action) {
             item.action(settings, updateSettings)
           }
+
           setMenuOpen(false)
         }}
       />
@@ -279,15 +299,20 @@ const HeaderNavbar = ({
   useEffect(() => {
     if (!activeNode || !notesTree) {
       setBreadcrumbItems([])
+
       return
     }
+
     const node = findNode(notesTree, activeNode.id)
+
     if (!node) return
 
     const pathParts = node.treePath.split('/').filter(Boolean)
+
     const items = pathParts.map((part, index) => {
       const currentPath = '/' + pathParts.slice(0, index + 1).join('/')
       const isLastItem = index === pathParts.length - 1
+
       return {
         key: `path-${index}`,
         title: part,

@@ -7,6 +7,7 @@ import type { CdpEvent } from './cdpAllowList'
 
 const MAX_ENTRIES = 200
 const MAX_TEXT = 2000
+
 export type ConsoleLevel = 'error' | 'warning' | 'all'
 
 export interface ConsoleMessage {
@@ -32,19 +33,24 @@ function sanitizeInspectionUrl(input: string): string {
 
 function remoteText(arg: Protocol.Runtime.RemoteObject): string {
   if (arg.value === null) return 'null'
+
   if (['string', 'number', 'boolean'].includes(typeof arg.value)) return String(arg.value).slice(0, MAX_TEXT)
+
   return (arg.unserializableValue ?? arg.description ?? arg.type).slice(0, MAX_TEXT)
 }
 
 function boundedEntries<T>(entries: T[]) {
   let chars = 2
   let start = entries.length
+
   while (start > 0) {
     const size = JSON.stringify(entries[start - 1]).length + 1
+
     if (chars + size > 40_000) break
     chars += size
     start--
   }
+
   return { entries: entries.slice(start), truncated: start > 0 }
 }
 
@@ -75,10 +81,12 @@ export class BrowserInspection {
       })
     } else if (method === 'Network.requestWillBeSent') {
       const previous = this.requests.findLast((request) => request.requestId === params.requestId)
+
       if (previous && params.redirectResponse) {
         previous.status = params.redirectResponse.status
         previous.state = 'redirected'
       }
+
       this.requests.push({
         requestId: params.requestId,
         method: params.request.method.slice(0, 80),
@@ -86,6 +94,7 @@ export class BrowserInspection {
         type: params.type,
         state: 'pending'
       })
+
       if (this.requests.length > MAX_ENTRIES) this.requests.shift()
     } else if (
       method === 'Network.responseReceived' ||
@@ -93,7 +102,9 @@ export class BrowserInspection {
       method === 'Network.loadingFailed'
     ) {
       const request = this.requests.findLast((entry) => entry.requestId === params.requestId)
+
       if (!request) return
+
       if (method === 'Network.responseReceived') {
         request.status = params.response.status
         request.type = params.type
@@ -107,19 +118,24 @@ export class BrowserInspection {
 
   private addMessage(message: ConsoleMessage) {
     this.messages.push(message)
+
     if (this.messages.length > MAX_ENTRIES) this.messages.shift()
   }
 
   consoleMessages(level: ConsoleLevel = 'all', clear = false) {
     const selected = this.messages.filter((message) => level === 'all' || message.level === level)
     const result = boundedEntries(selected)
+
     if (clear) this.messages = this.messages.filter((message) => level !== 'all' && message.level !== level)
+
     return { messages: result.entries, truncated: result.truncated }
   }
 
   networkRequests(clear = false) {
     const result = boundedEntries(this.requests)
+
     if (clear) this.requests = []
+
     return { requests: result.entries.map((entry) => ({ ...entry })), truncated: result.truncated }
   }
 

@@ -22,6 +22,7 @@ export function projectNestedTool(record: NestedToolRecord): RuntimeMessage['par
       resultOmitted: record.result === undefined
     }
   }
+
   const base = {
     type: 'dynamic-tool' as const,
     toolName: record.name,
@@ -29,6 +30,7 @@ export function projectNestedTool(record: NestedToolRecord): RuntimeMessage['par
     input: record.arguments,
     callProviderMetadata: metadata
   }
+
   return record.status === 'ok'
     ? {
         ...base,

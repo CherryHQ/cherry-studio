@@ -23,6 +23,7 @@ export const CreateTopicSchema = TopicSchema.pick({
   name: true,
   assistantId: true
 }).partial()
+
 export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
 /**
@@ -40,6 +41,7 @@ export const UpdateTopicSchema = TopicSchema.pick({
   .extend({
     assistantId: z.string().nullable().optional()
   })
+
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /** Atomically update a topic's assistant and global order. */
@@ -47,6 +49,7 @@ export const MoveTopicSchema = z.strictObject({
   assistantId: AssistantIdSchema,
   order: OrderRequestSchema
 })
+
 export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
 
 /**
@@ -64,12 +67,14 @@ export const ListTopicsQuerySchema = z.strictObject({
   /** `true` lists only trashed topics; omitted/false lists active topics. */
   inTrash: z.boolean().optional()
 })
+
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
 /** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
 export const LatestTopicQuerySchema = z.strictObject({
   assistantId: z.string().min(1).optional()
 })
+
 export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
 
 /** Exact creation target for atomically reusing or creating an empty topic. */
@@ -77,6 +82,7 @@ export const ReuseOrCreateTopicSchema = z.strictObject({
   assistantId: z.string().min(1).nullable(),
   excludeTopicId: z.string().min(1).optional()
 })
+
 export type ReuseOrCreateTopicDto = z.infer<typeof ReuseOrCreateTopicSchema>
 
 /**
@@ -93,6 +99,7 @@ export const SetActiveNodeSchema = z.strictObject({
   /** Node ID to set as active */
   nodeId: z.string().min(1)
 })
+
 export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
 
 /**
@@ -115,6 +122,7 @@ export const DuplicateTopicSchema = z.strictObject({
   /** Optional localized name for the duplicated topic. */
   name: z.string().trim().pipe(TopicNameSchema).optional()
 })
+
 export type DuplicateTopicDto = z.infer<typeof DuplicateTopicSchema>
 
 /**
@@ -145,6 +153,7 @@ export const DeleteTopicQuerySchema = z.strictObject({
   /** DataApi owns only the DB-only purge path; archiving is an IpcApi lifecycle command. */
   permanent: z.literal(true)
 })
+
 export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
 
 // ============================================================================

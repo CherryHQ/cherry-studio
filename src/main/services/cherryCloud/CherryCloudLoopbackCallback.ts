@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 const LOOPBACK_HOST = '127.0.0.1'
 const CALLBACK_PATH = '/cloud-auth/callback'
 const STARTUP_TIMEOUT_MS = 60_000
+
 type CompletionResult = 'success' | 'failure' | 'invalid'
 
 export class CherryCloudLoopbackCallback {
@@ -35,20 +36,24 @@ export class CherryCloudLoopbackCallback {
     })
 
     const address = server.address()
+
     if (!address || typeof address === 'string') {
       server.close()
       throw new Error('Cherry Cloud loopback callback did not bind a TCP port')
     }
+
     server.unref()
     const receiver = new CherryCloudLoopbackCallback(server, address.port, callback, completionOrigin)
     server.on('request', (request, response) => {
       void receiver.handleRequest(request, response)
     })
+
     return receiver
   }
 
   public setExpiresAt(value: string): void {
     const expiresAt = Date.parse(value)
+
     if (!Number.isFinite(expiresAt)) throw new Error('Cherry Cloud authorization expiry is invalid')
     this.setTimeout(Math.max(0, expiresAt - Date.now()))
   }
@@ -56,6 +61,7 @@ export class CherryCloudLoopbackCallback {
   public dispose(): void {
     if (this.closed) return
     this.closed = true
+
     if (this.timeout) clearTimeout(this.timeout)
     this.timeout = null
     this.server.close()
@@ -69,8 +75,10 @@ export class CherryCloudLoopbackCallback {
 
   private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const target = new URL(request.url ?? '/', `http://${LOOPBACK_HOST}:${this.port}`)
+
     if (this.handled || request.method !== 'GET' || target.pathname !== CALLBACK_PATH) {
       response.writeHead(this.handled ? 410 : 404, { 'Cache-Control': 'no-store' }).end()
+
       return
     }
 

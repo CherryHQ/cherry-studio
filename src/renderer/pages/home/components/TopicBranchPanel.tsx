@@ -46,7 +46,9 @@ const emptyTree: TreeResponse = {
 
 function getMessageIdFromContextMenuEvent(event: MouseEvent): string | null {
   const target = event.target
+
   if (!(target instanceof Element)) return null
+
   return target.closest<HTMLElement>('[data-message-id]')?.dataset.messageId ?? null
 }
 
@@ -61,11 +63,13 @@ const TopicBranchPanel: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const contextMenuMessageIdRef = useRef<string | null>(null)
+
   const [deletionTarget, setDeletionTarget] = useState<{
     topicId: string
     messageId: string
     awaitingInputOnly: boolean
   } | null>(null)
+
   const deletingRef = useRef(false)
   const [isDeleting, setIsDeleting] = useState(false)
   useEffect(() => {
@@ -73,16 +77,19 @@ const TopicBranchPanel: FC<Props> = ({
   }, [open, topicId])
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
+
   const { data, error, isLoading, isRefreshing, refetch } = useQuery('/topics/:topicId/tree', {
     enabled: open,
     params: { topicId }
   })
+
   const refreshCycleRef = useRef<{
     id: number
     topicId: string
     focusKey: Props['focusKey']
     cached: boolean
   } | null>(null)
+
   const [cycleRefresh, setCycleRefresh] = useState<{
     cycle: NonNullable<typeof refreshCycleRef.current>
     settled: boolean
@@ -93,8 +100,10 @@ const TopicBranchPanel: FC<Props> = ({
 
   const refreshTree = useCallback(async () => {
     const cycle = refreshCycleRef.current
+
     if (!cycle) return
     let failed = false
+
     try {
       await refetch()
     } catch {
@@ -103,6 +112,7 @@ const TopicBranchPanel: FC<Props> = ({
       if (refreshCycleRef.current === cycle) {
         setCycleRefresh((previous) => {
           if (!previous || previous.cycle !== cycle || previous.ready) return previous
+
           return { ...previous, settled: true, failed }
         })
       }
@@ -111,22 +121,29 @@ const TopicBranchPanel: FC<Props> = ({
 
   useEffect(() => {
     if (!open) return
+
     if (refreshCycleRef.current?.topicId === topicId && refreshCycleRef.current.focusKey === focusKey) return
     const cycle = { id: (refreshCycleRef.current?.id ?? 0) + 1, topicId, focusKey, cached: data !== undefined }
     refreshCycleRef.current = cycle
     setCycleRefresh({ cycle, settled: false, sawRevalidating: isRefreshing, ready: false })
+
     if (data !== undefined) void refreshTree()
   }, [open, topicId, focusKey, data, isRefreshing, refreshTree])
 
   useEffect(() => {
     if (!cycleRefresh || cycleRefresh.ready || cycleRefresh.cycle !== refreshCycleRef.current) return
+
     if (isRefreshing) {
       if (!cycleRefresh.sawRevalidating) setCycleRefresh({ ...cycleRefresh, sawRevalidating: true })
+
       return
     }
+
     const hasResult = data !== undefined || !!error
+
     const unobservedRevalidation =
       !cycleRefresh.sawRevalidating && (cycleRefresh.settled || (!cycleRefresh.cycle.cached && !isLoading && hasResult))
+
     if (
       (cycleRefresh.sawRevalidating && hasResult) ||
       (!cycleRefresh.sawRevalidating && (cycleRefresh.failed || error)) ||
@@ -151,37 +168,47 @@ const TopicBranchPanel: FC<Props> = ({
     },
     { routeParams: { topicId } }
   )
+
   const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: [messagesCachePath, treeCachePath]
   })
+
   const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
     refresh: ['/topics']
   })
+
   const { reserveBranch, deleteBranch } = useTopicBranchActions(topicId)
 
   const tree = useMemo(
     () => mergeTopicMessageFlowLiveTree(data ?? emptyTree, liveState?.topicId === topicId ? liveState : null),
     [data, liveState, topicId]
   )
+
   const graph = useMemo(() => layoutTopicMessageFlowGraph(buildTopicMessageFlowGraph(tree)), [tree])
 
   const handleNodeSelect = useCallback(
     async (messageId: string) => {
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
+
       if (selectedNode?.data.isAwaitingInput && messageId === graph.activeNodeId) return
+
       if (selectedNode?.data.isOnActivePath) {
         onLocateMessage?.(messageId)
+
         return
       }
 
       let leafId = messageId
+
       try {
         const path = await dataApiService.get(`/topics/${topicId}/path`, {
           query: { nodeId: messageId }
         })
+
         if (path.length > 0) {
           leafId = path[path.length - 1].id
         }
+
         await setActiveNode({
           params: { id: topicId },
           body: { nodeId: leafId }
@@ -189,8 +216,10 @@ const TopicBranchPanel: FC<Props> = ({
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })
+
           return
         }
+
         logger.error('Failed to set active branch from topic flow', err as Error)
         toast.error(t('common.error'))
       }
@@ -201,6 +230,7 @@ const TopicBranchPanel: FC<Props> = ({
   const handleStartNodeBranch = useCallback(
     async (messageId: string) => {
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
+
       if (selectedNode?.data.role !== 'assistant') {
         return
       }
@@ -211,8 +241,10 @@ const TopicBranchPanel: FC<Props> = ({
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('startMessageBranch from topic flow on missing message', { messageId, topicId })
+
           return
         }
+
         logger.error('Failed to start message branch from topic flow', err as Error)
         toast.error(t('common.error'))
       }
@@ -231,8 +263,10 @@ const TopicBranchPanel: FC<Props> = ({
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('copyBranchToNewTopic from topic flow on missing message', { messageId, topicId })
+
           return
         }
+
         logger.error('Failed to copy topic branch from topic flow', err as Error)
         toast.error(t('common.error'))
       }
@@ -245,14 +279,17 @@ const TopicBranchPanel: FC<Props> = ({
     const { messageId, awaitingInputOnly } = deletionTarget
     deletingRef.current = true
     setIsDeleting(true)
+
     try {
       await deleteBranch(messageId, awaitingInputOnly)
       toast.success(t('common.delete_success'))
     } catch (err) {
       if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
         logger.warn('deleteBranch from topic flow on missing message', { messageId, topicId })
+
         return true
       }
+
       logger.error('Failed to delete topic branch from topic flow', err as Error)
       toast.error(t('common.delete_failed'))
     } finally {
@@ -260,6 +297,7 @@ const TopicBranchPanel: FC<Props> = ({
       setIsDeleting(false)
       setDeletionTarget(null)
     }
+
     return true
   }, [deleteBranch, deletionTarget, open, t, topicId])
 
@@ -271,6 +309,7 @@ const TopicBranchPanel: FC<Props> = ({
     (event: MouseEvent) => {
       const messageId = getMessageIdFromContextMenuEvent(event) ?? contextMenuMessageIdRef.current
       contextMenuMessageIdRef.current = null
+
       if (!messageId) return []
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
       const canShowStartBranch = selectedNode?.data.role === 'assistant'
@@ -319,14 +358,19 @@ const TopicBranchPanel: FC<Props> = ({
 
       return actionsToCommandMenuExtraItems(actions, (action) => {
         if (!action.availability.enabled) return
+
         if (action.id === 'topic-flow.start-branch') {
           void handleStartNodeBranch(messageId)
+
           return
         }
+
         if (action.id === 'topic-flow.copy-topic') {
           void handleCopyBranchToNewTopic(messageId)
+
           return
         }
+
         if (action.id === 'topic-flow.delete-branch') {
           setDeletionTarget({ topicId, messageId, awaitingInputOnly: deletionPlan.awaitingInputOnly })
         }

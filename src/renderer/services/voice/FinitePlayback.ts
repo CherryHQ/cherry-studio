@@ -16,6 +16,7 @@ export class FinitePlayback extends EventTarget implements SpeechPlayback {
   async play(): Promise<void> {
     if (this.closing) return
     await this.spectrum?.resume()
+
     if (!this.closing) await this.audio.play()
   }
   async pause(): Promise<void> {
@@ -28,6 +29,7 @@ export class FinitePlayback extends EventTarget implements SpeechPlayback {
     this.audio.removeEventListener('error', this.onError)
     this.audio.removeAttribute('src')
     this.audio.load()
+
     return (this.closing = this.spectrum?.dispose() ?? Promise.resolve())
   }
   private readonly onEnded = (): void => {

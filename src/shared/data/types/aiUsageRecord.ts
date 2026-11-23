@@ -17,12 +17,15 @@ const FiniteNonnegativeIntegerSchema = z.number().int().nonnegative().refine(Num
 const FinitePositiveIntegerSchema = z.number().int().positive().refine(Number.isSafeInteger)
 
 export const AiUsageRecordKindSchema = z.enum(['invocation', 'legacy-aggregate'])
+
 export type AiUsageRecordKind = z.infer<typeof AiUsageRecordKindSchema>
 
 export const AiUsageRecordMessageKindSchema = z.enum(['chat', 'agent-session'])
+
 export type AiUsageRecordMessageKind = z.infer<typeof AiUsageRecordMessageKindSchema>
 
 export const AiUsageRecordCostSourceSchema = z.enum(['provider', 'computed'])
+
 export type AiUsageRecordCostSource = z.infer<typeof AiUsageRecordCostSourceSchema>
 
 export const AiUsageCostBreakdownSchema = z.strictObject({
@@ -32,6 +35,7 @@ export const AiUsageCostBreakdownSchema = z.strictObject({
   cacheWrite: FiniteNonnegativeNumberSchema.optional(),
   image: FiniteNonnegativeNumberSchema.optional()
 })
+
 export type AiUsageCostBreakdown = z.infer<typeof AiUsageCostBreakdownSchema>
 
 export const AiUsagePricingSnapshotSchema = z.strictObject({
@@ -71,6 +75,7 @@ export const AiUsagePricingSnapshotSchema = z.strictObject({
     .optional(),
   capturedAt: z.iso.datetime()
 })
+
 export type AiUsagePricingSnapshot = z.infer<typeof AiUsagePricingSnapshotSchema>
 
 /**
@@ -82,6 +87,7 @@ export type AiUsagePricingSnapshot = z.infer<typeof AiUsagePricingSnapshotSchema
  * - `unknown`: the serving credential cannot be safely identified.
  */
 export const AiUsageRecordAttributionSchema = z.enum(['explicit', 'matched', 'auth', 'unknown'])
+
 export type AiUsageRecordAttribution = z.infer<typeof AiUsageRecordAttributionSchema>
 
 /** Non-secret provider-level authentication mechanism used for `auth` attribution. */
@@ -93,6 +99,7 @@ export const AiUsageRecordAuthMethodSchema = z.enum([
   'iam-gcp',
   'iam-azure'
 ])
+
 export type AiUsageRecordAuthMethod = z.infer<typeof AiUsageRecordAuthMethodSchema>
 
 /**
@@ -102,6 +109,7 @@ export type AiUsageRecordAuthMethod = z.infer<typeof AiUsageRecordAuthMethodSche
  * - `image`: image generation (priced per image via `pricing.perImage`)
  */
 export const AiUsageRecordModalitySchema = z.enum(['language', 'embedding', 'image', 'rerank'])
+
 export type AiUsageRecordModality = z.infer<typeof AiUsageRecordModalitySchema>
 
 /**
@@ -111,6 +119,7 @@ export type AiUsageRecordModality = z.infer<typeof AiUsageRecordModalitySchema>
  * - `mini-app`: locally installed mini app
  */
 export const AiUsageRecordSourceTypeSchema = z.enum(['assistant', 'agent', 'mini-app'])
+
 export type AiUsageRecordSourceType = z.infer<typeof AiUsageRecordSourceTypeSchema>
 
 export const AiUsageRecordEntrySchema = z.strictObject({
@@ -169,6 +178,7 @@ export const AiUsageRecordEntrySchema = z.strictObject({
   /** ISO 8601 datetime */
   createdAt: z.iso.datetime()
 })
+
 /** Best-effort AI usage record entity. */
 export type AiUsageRecordEntry = z.infer<typeof AiUsageRecordEntrySchema>
 
@@ -177,6 +187,8 @@ type AiUsageRecordTokenFields = Pick<AiUsageRecordEntry, 'inputTokens' | 'output
 /** Returns the record's effective total without treating wholly unknown usage as zero. */
 export function getAiUsageRecordTotalTokens(record: AiUsageRecordTokenFields): number | null {
   if (record.totalTokens !== null) return record.totalTokens
+
   if (record.inputTokens === null && record.outputTokens === null) return null
+
   return (record.inputTokens ?? 0) + (record.outputTokens ?? 0)
 }

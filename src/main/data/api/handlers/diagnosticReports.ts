@@ -9,6 +9,7 @@ export const diagnosticReportHandlers: HandlersFor<DiagnosticReportSchemas> = {
   '/diagnostic-reports': {
     GET: async ({ query }) => {
       const { page, limit } = ListDiagnosticReportsQuerySchema.parse(query ?? {})
+
       return diagnosticReportService.list(page, limit)
     }
   }

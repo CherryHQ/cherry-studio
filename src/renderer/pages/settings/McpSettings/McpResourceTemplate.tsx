@@ -9,6 +9,7 @@ import McpResourcePreview from './McpResourcePreview'
 
 export default function McpResourceTemplate({ template }: { template: Template }) {
   const { t } = useTranslation()
+
   const parsed = useMemo(() => {
     try {
       return new UriTemplate(template.uriTemplate)
@@ -16,14 +17,17 @@ export default function McpResourceTemplate({ template }: { template: Template }
       return undefined
     }
   }, [template.uriTemplate])
+
   const [values, setValues] = useState<Record<string, string>>({})
   const [previewUri, setPreviewUri] = useState<string>()
   let uri: string | undefined
+
   try {
     uri = parsed?.expand(values)
   } catch {
     /* Incomplete or invalid Unicode input cannot be expanded. */
   }
+
   return (
     <section className="flex flex-col gap-3 border-b border-border-subtle py-3">
       <h3 className="text-sm font-medium">{template.title ?? template.name}</h3>

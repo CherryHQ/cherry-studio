@@ -4,8 +4,11 @@
  */
 
 export type { Registry, RegistryCatalog, ModelSnapshot } from './registry'
+
 export { createRegistry, parseModelSnapshot } from './registry'
+
 export type { CatalogManifest, RegistryFileName, RemoteRegistryFileName } from './catalog'
+
 export {
   CatalogManifestSchema,
   REGISTRY_FILES,
@@ -13,8 +16,11 @@ export {
   REGISTRY_SCHEMA_VERSION,
   REMOTE_REGISTRY_FILES
 } from './catalog'
+
 export { ModelConfigSchema, ModelListSchema } from './schemas/model'
+
 export { ProviderConfigSchema, ProviderListSchema } from './schemas/provider'
+
 export { ProviderModelOverrideSchema, ProviderModelListSchema } from './schemas/provider-models'
 
 // Enums — const objects (SCREAMING_CASE)
@@ -33,6 +39,7 @@ export {
 
 // Runtime schemas (zod) — needed by shared types that compose them
 export type { ImageParamCatalogEntry, ParamValue, ParamValues } from './schemas/imageParamCatalog'
+
 export {
   IMAGE_PARAM_CATALOG,
   IMAGE_PARAM_CATALOG_KEYS,
@@ -42,7 +49,9 @@ export {
   parseImageParamValue,
   wireName
 } from './schemas/imageParamCatalog'
+
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
+
 export { buildParamsSchema } from './utils/buildParamsSchema'
 
 // Enum types (PascalCase, derived from const objects)
@@ -64,6 +73,7 @@ export {
   REASONING_FORMAT_PROFILES,
   selectFormatWire
 } from './reasoningProfiles'
+
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,
@@ -78,7 +88,9 @@ export type {
   ReasoningWireDialect,
   SupportSpec
 } from './schemas/model'
+
 export { ReasoningControlSchema } from './schemas/model'
+
 export type {
   EndpointDialect,
   ProviderConfig as ProtoProviderConfig,
@@ -94,6 +106,7 @@ export type {
   ServiceTierRequestControl,
   ServiceTierSelection
 } from './schemas/provider'
+
 export {
   FastModeTransportSchema,
   ProviderEditionSchema,
@@ -104,12 +117,15 @@ export {
   ServiceTierRequestControlSchema,
   ServiceTierSelectionSchema
 } from './schemas/provider'
+
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelOverride,
   ProviderModelReasoningContract
 } from './schemas/provider-models'
+
 export { ProviderModelReasoningContractSchema } from './schemas/provider-models'
+
 export type {
   ReasoningFormatWireProfile,
   ReasoningWireMode,
@@ -118,12 +134,15 @@ export type {
   ReasoningWireTarget,
   ReasoningWireValue
 } from './schemas/reasoningWire'
+
 export {
   REASONING_WIRE_TARGETS,
   ReasoningFormatWireProfileSchema,
   ReasoningWireProfileSchema
 } from './schemas/reasoningWire'
+
 export type { DerivedReasoningFields } from './utils/reasoningControls'
+
 export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
 // Model ID normalization utilities
@@ -137,6 +156,7 @@ export {
 
 // Pure lookup and transformation utilities (no fs dependency)
 export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'
+
 export {
   buildPersistedEndpointConfigs,
   endpointImpliedCapability,
@@ -149,6 +169,7 @@ export {
 // and @cherrystudio/ui icon routing. Single source of truth for "which
 // vendor does this raw model ID belong to".
 export type { VendorKey } from './patterns/vendor-patterns'
+
 export { isVendor, matchVendor, VENDOR_PATTERNS } from './patterns/vendor-patterns'
 
 // Reasoning-control heuristics — INGEST-time only (generation enrichment,
@@ -158,5 +179,7 @@ export {
   inferReasoningMembership,
   inferReasoningOwnedBy
 } from './patterns/reasoning-heuristics'
+
 export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
+
 export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'

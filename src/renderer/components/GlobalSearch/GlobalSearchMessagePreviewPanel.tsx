@@ -49,6 +49,7 @@ interface GlobalSearchMessagePreviewPanelProps {
 const PREVIEW_PAGE_SIZE = 50
 const PREVIEW_MESSAGE_ESTIMATED_HEIGHT = 240
 const PREVIEW_MESSAGE_OVERSCAN = 3
+
 // Distance (px) from the top of the scroll container at which scrolling up loads an older page.
 const LOAD_OLDER_SCROLL_THRESHOLD = 200
 const PREVIEW_MATCH_MODE = 'substring'
@@ -102,8 +103,10 @@ function getMessageRoleLabelKey(role: string) {
 
 function unwrapPreviewHighlights(root: HTMLElement) {
   const marks = Array.from(root.querySelectorAll(HIGHLIGHT_MARK_SELECTOR))
+
   for (const mark of marks) {
     const parent = mark.parentNode
+
     if (!parent) continue
 
     mark.replaceWith(document.createTextNode(mark.textContent ?? ''))
@@ -114,6 +117,7 @@ function unwrapPreviewHighlights(root: HTMLElement) {
 function highlightTextNode(textNode: Text, regex: RegExp) {
   const text = textNode.nodeValue ?? ''
   regex.lastIndex = 0
+
   if (!regex.test(text)) return
 
   regex.lastIndex = 0
@@ -150,12 +154,17 @@ function highlightPreviewMatches(root: HTMLElement, regex: RegExp) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement
+
       if (!parent || parent.closest(TEXT_NODE_PARENT_SKIP_SELECTOR)) return NodeFilter.FILTER_REJECT
+
       if (!parent.closest(MESSAGE_BODY_SELECTOR)) return NodeFilter.FILTER_REJECT
+
       if (!node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT
+
       return NodeFilter.FILTER_ACCEPT
     }
   })
+
   const textNodes: Text[] = []
   let node = walker.nextNode()
 
@@ -174,6 +183,7 @@ function buildPreviewHighlightRegex(searchQuery: string): RegExp | undefined {
     matchMode: PREVIEW_MATCH_MODE,
     flags: 'gi'
   })
+
   if (regexes.length === 0) return undefined
 
   return new RegExp(regexes.map((regex) => `(?:${regex.source})`).join('|'), regexes[0].flags)
@@ -192,9 +202,11 @@ function PreviewMessageRow({ message, highlightRegex, isActive, roleLabel, onOpe
 
   useEffect(() => {
     const body = bodyRef.current
+
     if (!body) return
 
     unwrapPreviewHighlights(body)
+
     if (highlightRegex) highlightPreviewMatches(body, highlightRegex)
   }, [highlightRegex, message])
 
@@ -246,6 +258,7 @@ export function GlobalSearchMessagePreviewPanel({
   const [activeMessageId, setActiveMessageId] = useState(target.messageId)
   const topicId = target.sourceType === 'topic' ? target.topicId : ''
   const sessionId = target.sourceType === 'session' ? target.sessionId : ''
+
   const {
     pages: topicPages,
     isLoading: isTopicLoading,
@@ -259,6 +272,7 @@ export function GlobalSearchMessagePreviewPanel({
     limit: PREVIEW_PAGE_SIZE,
     enabled: target.sourceType === 'topic'
   })
+
   const {
     pages: sessionPages,
     isLoading: isSessionLoading,
@@ -278,6 +292,7 @@ export function GlobalSearchMessagePreviewPanel({
 
   const topicBranchItems = useInfiniteFlatItems(topicPages, { reversePages: true })
   const sessionRows = useInfiniteFlatItems(sessionPages, { reversePages: true, reverseItems: true })
+
   const messages = useMemo<CherryUIMessage[]>(() => {
     if (target.sourceType === 'topic') {
       return topicBranchItems.map((item) => sharedMessageToUIMessage(item.message))
@@ -285,8 +300,10 @@ export function GlobalSearchMessagePreviewPanel({
 
     return sessionRows.map(toAgentSessionUIMessage)
   }, [sessionRows, target.sourceType, topicBranchItems])
+
   const partsByMessageId = useMemo(() => uiMessagesToPartsMap(messages), [messages])
   const previewTopic = useMemo(() => getPreviewTopic(target), [target])
+
   const messageItems = useMemo(
     () =>
       messages.map((message) =>
@@ -297,36 +314,46 @@ export function GlobalSearchMessagePreviewPanel({
       ),
     [messages, previewTopic.id, target]
   )
+
   const isLoading = target.sourceType === 'topic' ? isTopicLoading : isSessionLoading
+
   const isLoadingMore =
     target.sourceType === 'topic'
       ? isTopicRefreshing && messages.length > 0
       : isSessionRefreshing && messages.length > 0
+
   const error = target.sourceType === 'topic' ? topicError : sessionError
   const hasMoreOlder = target.sourceType === 'topic' ? hasNextTopicPage : hasNextSessionPage
   const loadOlder = target.sourceType === 'topic' ? loadNextTopicPage : loadNextSessionPage
   const highlightRegex = useMemo(() => buildPreviewHighlightRegex(searchQuery), [searchQuery])
+
   const activeMessageIndex = useMemo(
     () => messageItems.findIndex((message) => message.id === activeMessageId),
     [activeMessageId, messageItems]
   )
+
   const extractPreviewRange = useCallback(
     (range: Range) => {
       const indexes = defaultRangeExtractor(range)
+
       if (activeMessageIndex < 0 || indexes.includes(activeMessageIndex)) return indexes
 
       return [...indexes, activeMessageIndex].sort((left, right) => left - right)
     },
     [activeMessageIndex]
   )
+
   const getMessageKey = useCallback((index: number) => messageItems[index].id, [messageItems])
 
   // Scrolling near the top loads the next (older) page. Topic and session share this path because
   // both endpoints walk newest-first via the same hasNext/loadNext contract.
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current
+
     if (!container || !hasMoreOlder) return
+
     if (pendingOlderAnchorRef.current !== null) return
+
     if (container.scrollTop > LOAD_OLDER_SCROLL_THRESHOLD) return
 
     pendingOlderAnchorRef.current = container.scrollHeight - container.scrollTop
@@ -337,9 +364,11 @@ export function GlobalSearchMessagePreviewPanel({
   useLayoutEffect(() => {
     const container = scrollContainerRef.current
     const previousDistanceFromBottom = pendingOlderAnchorRef.current
+
     if (!container || previousDistanceFromBottom === null) return
 
     container.scrollTop = container.scrollHeight - previousDistanceFromBottom
+
     if (!isLoadingMore) {
       pendingOlderAnchorRef.current = null
     }
@@ -362,14 +391,17 @@ export function GlobalSearchMessagePreviewPanel({
   useEffect(() => {
     // Only auto-scroll once per active message; prepending older pages must not pull the view back.
     if (scrolledActiveMessageIdRef.current === activeMessageId) return
+
     if (activeMessageIndex < 0) return
 
     scrolledActiveMessageIdRef.current = activeMessageId
     virtualListRef.current?.scrollToIndex(activeMessageIndex, { align: 'center' })
+
     const frame = window.requestAnimationFrame(() => {
       const element = document.getElementById(`global-search-preview-message-${activeMessageId}`)
       const highlight = element?.querySelector(`${MESSAGE_BODY_SELECTOR} ${HIGHLIGHT_MARK_SELECTOR}`)
       const scrollTarget = highlight ?? element
+
       if (typeof scrollTarget?.scrollIntoView !== 'function') return
 
       scrollTarget.scrollIntoView({ block: 'center' })

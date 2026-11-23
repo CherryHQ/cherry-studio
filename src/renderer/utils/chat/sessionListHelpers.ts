@@ -60,6 +60,7 @@ export type SessionListItem = AgentSessionEntity & {
 }
 
 type SessionWorkdirSource = Pick<AgentSessionEntity, 'workspace' | 'workspaceId'>
+
 type WorkspaceDisplaySource = Pick<AgentWorkspaceEntity, 'id' | 'name' | 'path' | 'type'>
 
 export type SessionWorkdirDisplayMaps = {
@@ -103,11 +104,13 @@ export function getSessionAgentGroupId(agentId: string) {
 
 export function getAgentIdFromSessionGroupId(groupId: string): string | undefined {
   if (groupId === SESSION_UNKNOWN_AGENT_GROUP_ID || !groupId.startsWith(SESSION_AGENT_GROUP_ID_PREFIX)) return undefined
+
   return groupId.slice(SESSION_AGENT_GROUP_ID_PREFIX.length)
 }
 
 export function getWorkdirPathFromSessionGroupId(groupId: string): string | undefined {
   if (groupId === SESSION_NO_WORKDIR_GROUP_ID || !groupId.startsWith(SESSION_WORKDIR_GROUP_ID_PREFIX)) return undefined
+
   return decodeURIComponent(groupId.slice(SESSION_WORKDIR_GROUP_ID_PREFIX.length))
 }
 
@@ -121,7 +124,9 @@ export function getFallbackWorkdirSessionGroupId(path: string): string {
 
 export function normalizeSessionWorkdirPath(path: string | null | undefined): string | null {
   const trimmed = path?.trim()
+
   if (!trimmed) return null
+
   return trimmed.replace(/[\\/]+$/, '') || trimmed
 }
 
@@ -131,6 +136,7 @@ export function isSystemWorkspaceSession(session: SessionWorkdirSource): boolean
 
 export function getPrimarySessionWorkdir(session: SessionWorkdirSource): string | null {
   if (isSystemWorkspaceSession(session)) return null
+
   return normalizeSessionWorkdirPath(session.workspace?.path)
 }
 
@@ -140,6 +146,7 @@ function getPathSegments(path: string): string[] {
 
 export function getSessionWorkdirFallbackLabel(path: string): string {
   const segments = getPathSegments(path)
+
   return segments.at(-1) ?? path
 }
 
@@ -150,10 +157,12 @@ function getKnownSessionWorkspaceGroupId(
 ) {
   if (session.workspaceId) {
     const groupId = groupIdByWorkspaceId.get(session.workspaceId)
+
     if (groupId) return groupId
   }
 
   const path = getPrimarySessionWorkdir(session)
+
   return path ? groupIdByPath.get(path) : undefined
 }
 
@@ -164,9 +173,11 @@ export function getSessionWorkdirGroupId(
   const knownGroupId = display
     ? getKnownSessionWorkspaceGroupId(session, display.groupIdByWorkspaceId, display.groupIdByPath)
     : undefined
+
   if (knownGroupId) return knownGroupId
 
   const path = getPrimarySessionWorkdir(session)
+
   return path ? getFallbackWorkdirSessionGroupId(path) : SESSION_NO_WORKDIR_GROUP_ID
 }
 
@@ -180,6 +191,7 @@ function getUniqueSessionFallbackWorkdirPaths(
       sessions.flatMap((session) => {
         if (getKnownSessionWorkspaceGroupId(session, groupIdByWorkspaceId, groupIdByPath)) return []
         const path = getPrimarySessionWorkdir(session)
+
         return typeof path === 'string' ? [path] : []
       })
     )
@@ -197,11 +209,13 @@ function createFallbackWorkdirLabelEntries(paths: readonly string[]) {
   return paths.map((path) => {
     const segments = getPathSegments(path)
     const basename = segments.at(-1) ?? path
+
     if ((basenameCounts.get(basename) ?? 0) <= 1) {
       return [path, basename] as const
     }
 
     const parent = segments.at(-2)
+
     return [path, parent ? `${parent}/${basename}` : path] as const
   })
 }
@@ -216,17 +230,21 @@ export function createSessionWorkdirDisplayMaps(
   const pathByGroupId = new Map<string, string>()
   const rankByGroupId = new Map<string, number>()
   const workspaceIdByGroupId = new Map<string, string>()
+
   for (const workspace of workspaces) {
     if (workspace.type === 'system') continue
     const path = normalizeSessionWorkdirPath(workspace.path)
+
     if (!path || groupIdByWorkspaceId.has(workspace.id)) continue
 
     const groupId = getWorkspaceSessionGroupId(workspace.id)
 
     groupIdByWorkspaceId.set(workspace.id, groupId)
+
     if (!groupIdByPath.has(path)) {
       groupIdByPath.set(path, groupId)
     }
+
     labelByGroupId.set(groupId, workspace.name.trim() || getSessionWorkdirFallbackLabel(path))
     pathByGroupId.set(groupId, path)
     workspaceIdByGroupId.set(groupId, workspace.id)
@@ -237,6 +255,7 @@ export function createSessionWorkdirDisplayMaps(
     getUniqueSessionFallbackWorkdirPaths(sessions, groupIdByWorkspaceId, groupIdByPath)
   )) {
     const groupId = getFallbackWorkdirSessionGroupId(path)
+
     if (labelByGroupId.has(groupId)) continue
 
     groupIdByPath.set(path, groupId)
@@ -264,6 +283,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   workdirDisplay
 }: SessionDisplayGroupOptions): ResourceListGroupResolver<T> {
   const pinnedGroupLabel = mode === 'time' || !pinnedAsSection ? labels.pinned : ''
+
   const pinnedResolver = createPinnedGroupResolver<T>({
     isPinned: (session) => session.pinned === true,
     group: {
@@ -289,11 +309,13 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
     return withSessionGroupIdPrefix(
       composeResourceListGroupResolvers(pinnedResolver, (session) => {
         const agentId = session.agentId
+
         if (!agentId) {
           return { id: 'agent:unknown', label: labels.agent.unknown }
         }
 
         const agent = agentById?.get(agentId)
+
         return agent
           ? { id: `agent:${agent.id}`, label: agent.name }
           : { id: 'agent:unknown', label: labels.agent.unknown }
@@ -307,11 +329,13 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
     }
 
     const groupId = getSessionWorkdirGroupId(session, workdirDisplay)
+
     if (groupId === SESSION_NO_WORKDIR_GROUP_ID) {
       return { id: SESSION_NO_WORKDIR_GROUP_ID, label: labels.workdir.none }
     }
 
     const path = getPrimarySessionWorkdir(session)
+
     return {
       id: groupId,
       label: workdirDisplay?.labelByGroupId.get(groupId) ?? (path ? getSessionWorkdirFallbackLabel(path) : groupId)
@@ -326,12 +350,15 @@ function getWorkdirGroupRank(
   if (isSystemWorkspaceSession(session)) return NO_PROJECT_GROUP_RANK
 
   const groupId = getSessionWorkdirGroupId(session, workdirDisplay)
+
   if (groupId === SESSION_NO_WORKDIR_GROUP_ID) return UNKNOWN_GROUP_RANK
+
   return workdirDisplay?.rankByGroupId.get(groupId) ?? UNKNOWN_GROUP_RANK
 }
 
 function getAgentGroupRank(session: Pick<AgentSessionEntity, 'agentId'>, agentRankById?: ReadonlyMap<string, number>) {
   if (!session.agentId) return UNKNOWN_GROUP_RANK
+
   return agentRankById?.get(session.agentId) ?? UNKNOWN_GROUP_RANK
 }
 
@@ -363,8 +390,11 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
         if (a.rank !== b.rank) return a.rank - b.rank
         const aPinned = isPinned(a.session)
         const bPinned = isPinned(b.session)
+
         if (aPinned !== bPinned) return aPinned ? -1 : 1
+
         if (aPinned && bPinned) return a.index - b.index
+
         return compareResourceOrderKey(a.session.orderKey, b.session.orderKey) || a.index - b.index
       })
       .map(({ session }) => session)
@@ -405,13 +435,16 @@ export function deriveSessionListView<T extends SessionListItem>(
   const workdirDisplay = createSessionWorkdirDisplayMaps(items, workspaces)
   const sorted = sortSessionsForDisplayGroups(items, { agentRankById, mode, now, workdirDisplay })
   const ordered = optimisticMove ? applyOptimisticSessionDisplayMove(sorted, optimisticMove) : sorted
+
   const visibleItems =
     visibleAgentId === undefined
       ? ordered
       : visibleAgentId
         ? ordered.filter((session) => session.agentId === visibleAgentId)
         : []
+
   const hasAgentSection = mode === 'agent' && (agentById.size > 0 || visibleItems.some((session) => !session.pinned))
+
   const groupBy = createSessionDisplayGroupResolver<T>({
     agentById,
     labels,
@@ -465,6 +498,7 @@ export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(
   payload: ResourceListItemReorderPayload
 ): T[] {
   const activeIndex = sessions.findIndex((session) => session.id === payload.activeId)
+
   if (activeIndex < 0) return [...sessions]
 
   const next = sessions.filter((session) => session.id !== payload.activeId)
@@ -472,12 +506,14 @@ export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(
 
   if (payload.overType === 'item') {
     const overIndex = next.findIndex((session) => session.id === payload.overId)
+
     if (overIndex >= 0) {
       insertIndex = payload.position === 'before' ? overIndex : overIndex + 1
     }
   }
 
   next.splice(insertIndex, 0, sessions[activeIndex])
+
   return next
 }
 

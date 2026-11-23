@@ -17,7 +17,9 @@ export function nextImageScaleFromWheel(
   if (deltaY === 0 || !Number.isFinite(deltaY) || !Number.isFinite(currentScale)) {
     return Math.min(max, Math.max(min, currentScale))
   }
+
   const direction = deltaY < 0 ? 1 : -1
   const next = currentScale + direction * step
+
   return Math.min(max, Math.max(min, next))
 }

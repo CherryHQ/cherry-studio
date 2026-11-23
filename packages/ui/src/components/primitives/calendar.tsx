@@ -142,8 +142,11 @@ function CalendarChevron({ className, orientation, disabled, ...props }: Chevron
   const iconClassName = cn('size-4', disabled && 'opacity-40', className)
 
   if (orientation === 'left') return <ChevronLeft className={iconClassName} {...props} />
+
   if (orientation === 'right') return <ChevronRight className={iconClassName} {...props} />
+
   if (orientation === 'up') return <ChevronUp className={iconClassName} {...props} />
+
   return <ChevronDown className={iconClassName} {...props} />
 }
 

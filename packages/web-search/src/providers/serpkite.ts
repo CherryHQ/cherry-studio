@@ -20,8 +20,10 @@ export const serpkite: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.serpkite,
   async execute(context) {
     const { call } = context
+
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
     const params = new URLSearchParams({ q: call.input, num: String(call.config.maxResults) })
+
     const payload = await requestJson(
       context,
       {
@@ -31,6 +33,7 @@ export const serpkite: WebSearchProviderModule = {
       },
       SerpKiteSearchResponseSchema
     )
+
     return (payload.results ?? []).slice(0, call.config.maxResults).map((item) => ({
       title: item.title?.trim() || '',
       content: item.snippet?.trim() || '',

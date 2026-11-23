@@ -15,10 +15,12 @@ export function listAgentSessionAttachments(sessionId: string): FileAttachmentRe
       cursor,
       limit: AGENT_SESSION_MESSAGES_MAX_LIMIT
     })
+
     for (const message of page.items) {
       if (message.role !== 'user') continue
       messages.push({ id: message.id, role: 'user', parts: message.data.parts } as CherryUIMessage)
     }
+
     cursor = page.nextCursor
   } while (cursor)
 

@@ -83,6 +83,7 @@ const meta: Meta<typeof DataTable<Task>> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
@@ -104,6 +105,7 @@ export const WithMaxWidth: Story = {
 export const WithToolbar: Story = {
   render: function WithToolbarExample() {
     const [query, setQuery] = useState('')
+
     const filtered = useMemo(
       () => tasks.filter((task) => task.name.toLowerCase().includes(query.toLowerCase())),
       [query]

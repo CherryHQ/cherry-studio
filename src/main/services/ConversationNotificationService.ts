@@ -54,12 +54,16 @@ export class ConversationNotificationService extends BaseService {
     completedTaskCount
   }: ConversationCompletedEvent): void {
     const target = this.resolveConversationTarget(topicId)
+
     const fallbackTitle =
       target.conversationType === 'agent' ? t('notification.completion.agent') : t('notification.completion.assistant')
+
     const conversationName = resolveNotificationConversationName(target, fallbackTitle)
+
     const lastSentence = [...sentenceSegmenter.segment(stripCitationMarkers(responseText ?? '').trim())]
       .at(-1)
       ?.segment.trim()
+
     void application.get('NotificationService').publish(
       {
         eventKey: `task-completion:${topicId}:${turnId}`,
@@ -83,10 +87,12 @@ export class ConversationNotificationService extends BaseService {
 
   private handleApprovalRequested({ topicId, approvalId, requestedAt }: ApprovalRequestedEvent): void {
     const target = this.resolveConversationTarget(topicId)
+
     const title =
       target.conversationType === 'agent'
         ? t('notification.action_required.agent')
         : t('notification.action_required.assistant')
+
     const conversationName = resolveNotificationConversationName(target)
     application.get('NotificationService').deliverConversationNotification({
       id: `approval-request:${approvalId}`,

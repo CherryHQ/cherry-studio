@@ -52,6 +52,7 @@ export class ClaudeCodeBinaryService extends BaseService {
     if (!this.pending && this.status.phase !== 'error') {
       this.status = { ...this.status, phase: this.isInstalled() ? 'ready' : 'missing' }
     }
+
     return { ...this.status }
   }
 
@@ -60,6 +61,7 @@ export class ClaudeCodeBinaryService extends BaseService {
       const installed = JSON.parse(readFileSync(path.join(this.installDir, 'installed.json'), 'utf8'))
       const binary = statSync(this.executable)
       accessSync(this.executable, process.platform === 'win32' ? constants.R_OK : constants.X_OK)
+
       return (
         installed.integrity === manifest.packages[this.target]?.integrity &&
         binary.isFile() &&
@@ -73,29 +75,37 @@ export class ClaudeCodeBinaryService extends BaseService {
 
   requireExecutable(): string {
     if (!this.isInstalled()) throw new Error(t('agent.session.claude.runtime_unavailable'))
+
     return this.executable
   }
 
   async ensureExecutable(): Promise<string> {
     this.ensure()
     await this.pending
+
     return this.requireExecutable()
   }
 
   ensure(retry = false): ClaudeCodeBinaryStatus {
     if (this.pending) return this.getStatus()
     const status = this.getStatus()
+
     if (status.phase === 'ready') {
       this.pending = this.cleanupOtherVersions().finally(() => {
         this.pending = undefined
       })
+
       return status
     }
+
     if (status.phase === 'error' && !retry) return status
+
     if (!manifest.packages[this.target]) {
       this.publish({ phase: 'error', error: 'unsupported', receivedBytes: 0 })
+
       return this.getStatus()
     }
+
     this.controller = new AbortController()
     this.publish({ phase: 'downloading', receivedBytes: 0 })
     this.pending = this.install(this.controller.signal)
@@ -120,6 +130,7 @@ export class ClaudeCodeBinaryService extends BaseService {
         this.pending = undefined
         this.controller = undefined
       })
+
     return this.getStatus()
   }
 
@@ -133,16 +144,21 @@ export class ClaudeCodeBinaryService extends BaseService {
     await mkdir(root, { recursive: true }).catch((error) => {
       throw new BinaryStorageError('Could not create runtime root directory', { cause: error })
     })
+
     const staging = await mkdtemp(path.join(root, '.download-')).catch((error) => {
       throw new BinaryStorageError('Could not create runtime staging directory', { cause: error })
     })
+
     try {
       const pkg = manifest.packages[this.target]
       const china = await regionService.isInChina(signal)
+
       const registries = china
         ? ['https://registry.npmmirror.com', 'https://registry.npmjs.org']
         : ['https://registry.npmjs.org', 'https://registry.npmmirror.com']
+
       const tarball = path.join(staging, 'package.tgz')
+
       for (const [index, registry] of registries.entries()) {
         try {
           const basename = pkg.name.split('/').at(-1)
@@ -155,10 +171,12 @@ export class ClaudeCodeBinaryService extends BaseService {
           break
         } catch (error) {
           signal.throwIfAborted()
+
           if (index === registries.length - 1) throw error
           logger.warn('Claude Code download source failed; trying fallback', { registry, error })
         }
       }
+
       signal.throwIfAborted()
       this.publish({
         phase: 'installing',
@@ -177,11 +195,14 @@ export class ClaudeCodeBinaryService extends BaseService {
       })
       const executable = path.join(unpacked, filename)
       const size = statSync(executable).size
+
       if (!size) throw new Error('Empty Claude binary')
+
       if (process.platform !== 'win32') await chmod(executable, 0o755)
       await writeFile(path.join(unpacked, 'installed.json'), JSON.stringify({ integrity: pkg.integrity, size }))
       signal.throwIfAborted()
       await mkdir(path.dirname(this.installDir), { recursive: true })
+
       if (existsSync(this.installDir)) await rm(this.installDir, { recursive: true, force: true })
       await rename(unpacked, this.installDir)
       this.publish({ phase: 'ready', receivedBytes: this.status.receivedBytes, totalBytes: this.status.totalBytes })
@@ -195,9 +216,11 @@ export class ClaudeCodeBinaryService extends BaseService {
 
   private async cleanupOtherVersions(): Promise<void> {
     const root = application.getPath('feature.claude_code.binary')
+
     try {
       for (const entry of await readdir(root, { withFileTypes: true })) {
         if (!entry.isDirectory() || !semverValid(entry.name) || entry.name === manifest.version) continue
+
         try {
           await rm(path.join(root, entry.name), { recursive: true, force: true })
         } catch (error) {
@@ -216,30 +239,37 @@ export class ClaudeCodeBinaryService extends BaseService {
     let receivedBytes = 0
     let lastPublished = 0
     this.publish({ phase: 'downloading', receivedBytes })
+
     try {
       const response = await net.fetch(url, { signal: combined })
+
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
       const totalBytes = Number(response.headers.get('content-length')) || undefined
       const hash = createHash('sha512')
+
       const meter = new Transform({
         transform: (chunk: Buffer, _encoding, callback) => {
           clearTimeout(timer)
           timer = setTimeout(() => timeout.abort(), STALL_TIMEOUT_MS)
           receivedBytes += chunk.length
           hash.update(chunk)
+
           if (Date.now() - lastPublished >= 100) {
             this.publish({ phase: 'downloading', receivedBytes, totalBytes })
             lastPublished = Date.now()
           }
+
           callback(null, chunk)
         }
       })
+
       await pipeline(
         Readable.fromWeb(response.body as NodeWebReadableStream<Uint8Array>),
         meter,
         createWriteStream(destination),
         { signal: combined }
       )
+
       if (`sha512-${hash.digest('base64')}` !== integrity)
         throw new BinaryIntegrityError('Claude binary integrity mismatch')
       this.publish({ phase: 'downloading', receivedBytes, totalBytes })
@@ -259,4 +289,5 @@ export class ClaudeCodeBinaryService extends BaseService {
 }
 
 class BinaryIntegrityError extends Error {}
+
 class BinaryStorageError extends Error {}

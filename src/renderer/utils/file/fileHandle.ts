@@ -24,9 +24,11 @@ export function fileHandleFromPart(part: CherryMessagePart): FileHandle | undefi
   if (part.type !== 'file') return undefined
 
   const entryId = readCherryMeta(part)?.fileEntryId
+
   if (entryId) return createFileEntryHandle(entryId)
 
   const path = part.url ? tryFileUrlToPath(part.url) : undefined
   const parsed = path === undefined ? undefined : AbsoluteFilePathSchema.safeParse(path)
+
   return parsed?.success ? createFilePathHandle(parsed.data) : undefined
 }

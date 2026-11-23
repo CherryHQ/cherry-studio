@@ -77,18 +77,24 @@ const normalizeKey = (key: DataTableKey) => String(key)
 const toCssSize = (value: number | string | undefined) => (typeof value === 'number' ? `${value}px` : value)
 
 const contentContainmentClassName = 'min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]'
+
 const tableShellClassName =
   'w-full max-w-full overflow-hidden rounded-lg border border-border/70 bg-background-subtle shadow-xs'
+
 const tableScrollAreaClassName = 'w-full max-w-full overflow-x-auto'
 const tableHeaderClassName = 'sticky top-0 z-1 bg-background-subtle/70'
 const tableHeaderRowClassName = 'border-border/70 bg-background-subtle/70 hover:bg-transparent'
+
 const tableHeaderCellClassName =
   'h-10 bg-background-subtle/70 px-3 py-2 font-semibold text-muted-foreground text-xs leading-4'
+
 const tableBodyRowClassName =
   'border-border/60 bg-background-subtle hover:bg-muted/40 data-[state=selected]:bg-muted/60'
+
 const tableBodyCellClassName = 'px-3 py-2.5 text-sm font-medium leading-5 text-foreground'
 const tableExpandedCellClassName = 'bg-muted/20 px-3 py-2.5 text-sm font-medium leading-5 text-foreground'
 const tableEmptyCellClassName = 'h-24 px-3 py-6 text-center text-sm font-medium text-muted-foreground'
+
 const tableExpandButtonClassName =
   'flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground'
 
@@ -102,7 +108,9 @@ function getHeaderMeta<TData>(columnDef: ColumnDef<TData, unknown>): DataTableCo
 
 function getAlignClass(align?: DataTableColumnMeta['align']) {
   if (align === 'center') return 'text-center'
+
   if (align === 'right') return 'text-right'
+
   return undefined
 }
 
@@ -141,6 +149,7 @@ function DataTable<TData>({
       if (typeof rowKey === 'function') {
         return rowKey(record)
       }
+
       return record[rowKey] as DataTableKey
     },
     [rowKey]
@@ -152,6 +161,7 @@ function DataTable<TData>({
       const key = getRecordKey(record)
       map.set(normalizeKey(key), { key, record })
     })
+
     return map
   }, [data, getRecordKey])
 
@@ -169,6 +179,7 @@ function DataTable<TData>({
 
     return selectedRowKeys.reduce<RowSelectionState>((acc, key) => {
       acc[normalizeKey(key)] = true
+
       return acc
     }, {})
   }, [selection])
@@ -189,6 +200,7 @@ function DataTable<TData>({
       if (selection.type === 'single') {
         const selectedEntry = normalizedSelected[0]
         selection.onChange(selectedEntry?.key ?? null, selectedEntry?.record ?? null)
+
         return
       }
 
@@ -222,6 +234,7 @@ function DataTable<TData>({
         header: '',
         cell: ({ row }) => {
           const checkboxProps = selection.getCheckboxProps?.(row.original)
+
           return (
             <div className="flex items-center justify-center">
               <RadioGroupItem
@@ -254,6 +267,7 @@ function DataTable<TData>({
       ),
       cell: ({ row }) => {
         const checkboxProps = selection.getCheckboxProps?.(row.original)
+
         return (
           <div className="flex items-center justify-center">
             <Checkbox
@@ -357,6 +371,7 @@ function DataTable<TData>({
 
   const visibleColumnCount = table.getVisibleFlatColumns().length
   const hasToolbar = Boolean(headerLeft || headerRight)
+
   const tableElement = (
     <div data-slot="data-table-shell" className={cn(tableShellClassName, className)}>
       <div
@@ -392,6 +407,7 @@ function DataTable<TData>({
               table.getRowModel().rows.map((row, index) => {
                 const key = getRecordKey(row.original)
                 const isExpanded = expandedRowIdSet.has(normalizeKey(key))
+
                 const customRowClassName =
                   typeof rowClassName === 'function' ? rowClassName(row.original, index) : rowClassName
 
@@ -480,4 +496,5 @@ function DataTable<TData>({
 }
 
 export { DataTable }
+
 export type { ColumnDef }

@@ -14,6 +14,7 @@ const ROOT_DIR = path.resolve(__dirname, '..')
 const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
 const IGNORED_DIRS = new Set(['.git', '.turbo', 'dist', 'node_modules', 'out', 'release', '.vite'])
+
 const KEY_PROPERTY_NAMES = new Set([
   'descriptionKey',
   'i18nKey',
@@ -24,6 +25,7 @@ const KEY_PROPERTY_NAMES = new Set([
   'titleKey',
   'tooltipKey'
 ])
+
 const COMMENT_T_CALL_RE = /\bt\s*\(\s*['"`]([^'"`]+)['"`]/g
 const DOTTED_KEY_RE = /(?<![\w.-])([A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)+)(?![\w.-])/g
 const DERIVED_KEY_SUFFIXES = ['_one', '_other']
@@ -88,6 +90,7 @@ function writeJsonFile(filePath: string, json: I18N): void {
 
 export function findSourceFiles(dir: string): string[] {
   const files: string[] = []
+
   if (!fs.existsSync(dir)) return files
 
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -107,7 +110,9 @@ export function findSourceFiles(dir: string): string[] {
 
 function getStringValue(node: Node | undefined): string | null {
   if (!node) return null
+
   if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) return node.getLiteralValue()
+
   return null
 }
 
@@ -115,6 +120,7 @@ function collectStringValues(node: Node | undefined): string[] {
   if (!node) return []
 
   const stringValue = getStringValue(node)
+
   if (stringValue) return [stringValue]
 
   if (Node.isConditionalExpression(node)) {
@@ -126,7 +132,9 @@ function collectStringValues(node: Node | undefined): string[] {
 
 function getJsxAttributeStringValue(node: Node): string | null {
   if (Node.isStringLiteral(node)) return node.getLiteralValue()
+
   if (Node.isJsxExpression(node)) return getStringValue(node.getExpression())
+
   return null
 }
 
@@ -134,13 +142,17 @@ function isTranslationCall(node: Node): node is CallExpression {
   if (!Node.isCallExpression(node)) return false
 
   const expression = node.getExpression()
+
   if (Node.isIdentifier(expression)) return expression.getText() === 't'
+
   if (Node.isPropertyAccessExpression(expression)) return expression.getName() === 't'
+
   return false
 }
 
 function getPropertyName(node: Node): string | null {
   if (Node.isIdentifier(node) || Node.isStringLiteral(node)) return node.getText().replace(/^['"]|['"]$/g, '')
+
   return null
 }
 
@@ -157,6 +169,7 @@ function addUsedKey(key: string, localeKeys: Set<string>, usedKeys: Set<string>)
 
   for (const suffix of DERIVED_KEY_SUFFIXES) {
     const derivedKey = `${key}${suffix}`
+
     if (localeKeys.has(derivedKey)) usedKeys.add(derivedKey)
   }
 }
@@ -182,11 +195,14 @@ function collectTemplateExpressionMatches(
     node.getHead().getLiteralText(),
     ...node.getTemplateSpans().map((span) => span.getLiteral().getLiteralText())
   ]
+
   const firstPart = parts[0]
   const namespace = firstPart.split('.')[0]
+
   if (!namespace || !topLevelNamespaces.has(namespace) || !firstPart.includes('.')) return
 
   const pattern = new RegExp(`^${parts.map(escapeRegExp).join('.*')}$`)
+
   for (const key of localeKeys) {
     if (pattern.test(key)) usedKeys.add(key)
   }
@@ -195,8 +211,10 @@ function collectTemplateExpressionMatches(
 function collectCommentReferences(sourceFile: SourceFile, localeKeys: Set<string>, usedKeys: Set<string>): void {
   const fullText = sourceFile.getFullText()
   COMMENT_T_CALL_RE.lastIndex = 0
+
   if (!COMMENT_T_CALL_RE.test(fullText)) return
   const seenPositions = new Set<number>()
+
   const visit = (node: ts.Node) => {
     for (const range of ts.getLeadingCommentRanges(fullText, node.pos) ?? []) {
       if (seenPositions.has(range.pos)) continue
@@ -204,12 +222,15 @@ function collectCommentReferences(sourceFile: SourceFile, localeKeys: Set<string
       const comment = fullText.slice(range.pos, range.end)
       let match: RegExpExecArray | null
       COMMENT_T_CALL_RE.lastIndex = 0
+
       while ((match = COMMENT_T_CALL_RE.exec(comment)) !== null) {
         addUsedKey(match[1], localeKeys, usedKeys)
       }
     }
+
     for (const child of node.getChildren(sourceFile.compilerNode)) visit(child)
   }
+
   for (const child of sourceFile.compilerNode.getChildren()) visit(child)
 }
 
@@ -222,6 +243,7 @@ function collectExactSourceTextReferences(
   let match: RegExpExecArray | null
 
   DOTTED_KEY_RE.lastIndex = 0
+
   while ((match = DOTTED_KEY_RE.exec(fullText)) !== null) {
     addUsedKey(match[1], localeKeys, usedKeys)
   }
@@ -250,34 +272,41 @@ export function collectUsedI18nKeysFromSource(sourceFile: SourceFile, localeKeys
       for (const key of collectStringValues(node.getArguments()[0])) {
         addKnownStringValue(key, localeKeys, usedKeys)
       }
+
       return
     }
 
     if (Node.isJsxAttribute(node) && node.getNameNode().getText() === 'i18nKey') {
       const initializer = node.getInitializer()
       addKnownStringValue(initializer ? getJsxAttributeStringValue(initializer) : null, localeKeys, usedKeys)
+
       return
     }
 
     if (Node.isPropertyAssignment(node)) {
       const propertyName = getPropertyName(node.getNameNode())
       const value = getStringValue(node.getInitializer())
+
       if (propertyName && value && shouldCollectKeyProperty(propertyName) && isKnownLocaleKey(value, localeKeys)) {
         addUsedKey(value, localeKeys, usedKeys)
+
         return
       }
 
       if (isI18nLabelFile && value && isKnownLocaleKey(value, localeKeys)) {
         addUsedKey(value, localeKeys, usedKeys)
+
         return
       }
     }
 
     if (Node.isPropertyAccessExpression(node) && Node.isIdentifier(node.getExpression())) {
       const namespace = node.getExpression().getText()
+
       if (!topLevelNamespaces.has(namespace)) return
 
       const key = `${namespace}.${node.getName()}`
+
       if (localeKeys.has(key)) usedKeys.add(key)
     }
   })
@@ -287,11 +316,13 @@ export function collectUsedI18nKeysFromSource(sourceFile: SourceFile, localeKeys
 
 export function collectUsedMainI18nKeysFromSource(sourceFile: SourceFile, localeKeys: Set<string>): Set<string> {
   const usedKeys = new Set<string>()
+
   const tImport = sourceFile
     .getImportDeclarations()
     .filter((declaration) => declaration.getModuleSpecifierValue() === '@main/i18n')
     .flatMap((declaration) => declaration.getNamedImports())
     .find((specifier) => specifier.getName() === 't')
+
   if (!tImport) return usedKeys
 
   const tName = tImport.getAliasNode()?.getText() ?? 't'
@@ -299,9 +330,11 @@ export function collectUsedMainI18nKeysFromSource(sourceFile: SourceFile, locale
     if (!Node.isCallExpression(node)) return
 
     const expression = node.getExpression()
+
     if (!Node.isIdentifier(expression) || expression.getText() !== tName) return
 
     const key = getStringValue(node.getArguments()[0])
+
     if (key && localeKeys.has(key)) usedKeys.add(key)
   })
 
@@ -319,6 +352,7 @@ function collectUsedKeys(
     skipFileDependencyResolution: true,
     compilerOptions: { jsx: 2 }
   })
+
   const usedKeys = new Set<string>()
 
   if (includeShortcutReferences) collectShortcutReferences(localeKeys, usedKeys)
@@ -326,9 +360,11 @@ function collectUsedKeys(
   for (const filePath of sourceFiles) {
     try {
       const sourceFile = project.addSourceFileAtPath(filePath)
+
       for (const key of collectFromSource(sourceFile, localeKeys)) {
         usedKeys.add(key)
       }
+
       project.removeSourceFile(sourceFile)
     } catch (error) {
       console.error(`Error parsing ${path.relative(ROOT_DIR, filePath)}:`, error)
@@ -345,6 +381,7 @@ export function collectUsedI18nKeys(sourceFiles: string[], localeKeys: Set<strin
 export function collectUsedMainI18nKeys(sourceFiles: string[], localeKeys: Set<string>): Set<string> {
   const productionFiles = sourceFiles.filter((filePath) => {
     const pathParts = path.normalize(filePath).split(path.sep)
+
     return !pathParts.includes('__tests__') && !/\.(?:test|spec)\.tsx?$/.test(path.basename(filePath))
   })
 
@@ -356,6 +393,7 @@ function groupKeys(keys: string[]): Record<string, string[]> {
     const group = key.split('.')[0]
     groups[group] ??= []
     groups[group].push(key)
+
     return groups
   }, {})
 }
@@ -377,17 +415,20 @@ export function createUnusedI18nResult(baseLocale: I18N, usedKeys: Iterable<stri
 export function findUnusedI18nKeys(baseLocale: I18N, sourceFiles: string[]): UnusedI18nResult {
   const allKeys = Object.keys(baseLocale).sort()
   const localeKeys = new Set(allKeys)
+
   return createUnusedI18nResult(baseLocale, collectUsedI18nKeys(sourceFiles, localeKeys))
 }
 
 export function findUnusedMainI18nKeys(baseLocale: I18N, sourceFiles: string[]): UnusedI18nResult {
   const allKeys = Object.keys(baseLocale).sort()
   const localeKeys = new Set(allKeys)
+
   return createUnusedI18nResult(baseLocale, collectUsedMainI18nKeys(sourceFiles, localeKeys))
 }
 
 export function assertNoUnusedI18nKeys(result: UnusedI18nResult, catalogName?: string): void {
   const count = result.unusedKeys.length
+
   if (count === 0) return
 
   const noun = count === 1 ? 'key' : 'keys'
@@ -399,11 +440,14 @@ export function assertNoUnusedI18nKeys(result: UnusedI18nResult, catalogName?: s
 export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
   // oxlint-disable-next-line no-restricted-globals -- Offline cleanup copies one locale before deleting keys; no application runtime cost.
   const next = structuredClone(locale)
+
   for (const key of keys) {
     delete next[key]
+
     // Locale-only plural forms (e.g. Polish `_few`) go with the English `_other` key.
     for (const sibling of localeOnlyPluralSiblings(key)) delete next[sibling]
   }
+
   return sortedObjectByKeys(next) as I18N
 }
 
@@ -429,6 +473,7 @@ function formatGroupSummary(groupedUnusedKeys: Record<string, string[]>): string
     .map(([group, keys]) => {
       const examples = keys.slice(0, 5).join(', ')
       const suffix = keys.length > 5 ? ', ...' : ''
+
       return `- ${group}: ${keys.length} (${examples}${suffix})`
     })
     .join('\n')
@@ -445,6 +490,7 @@ async function promptGroups(catalogName: string, groupedUnusedKeys: Record<strin
     })
 
     const answer = await rl.question('Enter group numbers/names separated by comma, or "all": ')
+
     if (answer.trim().toLowerCase() === 'all') {
       return groups.map(([group]) => group)
     }
@@ -455,9 +501,11 @@ async function promptGroups(catalogName: string, groupedUnusedKeys: Record<strin
       .filter(Boolean)
       .map((item) => {
         const numericIndex = Number(item)
+
         if (Number.isInteger(numericIndex) && numericIndex >= 1 && numericIndex <= groups.length) {
           return groups[numericIndex - 1][0]
         }
+
         return item
       })
   } finally {
@@ -467,6 +515,7 @@ async function promptGroups(catalogName: string, groupedUnusedKeys: Record<strin
 
 export function selectKeysByGroups(groupedUnusedKeys: Record<string, string[]>, groups: string[]): string[] {
   const selectedGroups = new Set(groups)
+
   return Object.entries(groupedUnusedKeys)
     .filter(([group]) => selectedGroups.has(group))
     .flatMap(([, keys]) => keys)
@@ -489,10 +538,12 @@ export async function runCli(options: CliOptions, catalogs = I18N_CATALOGS): Pro
   const analyses = catalogs.map((catalog) => {
     const baseLocale = readJsonFile(path.join(catalog.localesDir, `${BASE_LOCALE}.json`))
     const sourceFiles = catalog.sourceDirs.flatMap(findSourceFiles)
+
     const result =
       catalog.name === 'main'
         ? findUnusedMainI18nKeys(baseLocale, sourceFiles)
         : findUnusedI18nKeys(baseLocale, sourceFiles)
+
     return { catalog, result }
   })
 
@@ -505,6 +556,7 @@ export async function runCli(options: CliOptions, catalogs = I18N_CATALOGS): Pro
       console.log(
         `[${catalog.name}] Found ${result.unusedKeys.length} unused i18n keys out of ${result.allKeys.length} total keys.`
       )
+
       if (result.unusedKeys.length > 0) {
         console.log(formatGroupSummary(result.groupedUnusedKeys))
       }
@@ -520,6 +572,7 @@ export async function runCli(options: CliOptions, catalogs = I18N_CATALOGS): Pro
   if (!options.clean) return
 
   const groups = parseGroups(options.groups)
+
   for (const { catalog, result } of analyses) {
     if (result.unusedKeys.length === 0) continue
 
@@ -528,6 +581,7 @@ export async function runCli(options: CliOptions, catalogs = I18N_CATALOGS): Pro
       : groups.length > 0
         ? groups
         : await promptGroups(catalog.name, result.groupedUnusedKeys)
+
     const keysToRemove = options.all
       ? selectAllKeys(result.groupedUnusedKeys)
       : selectKeysByGroups(result.groupedUnusedKeys, selectedGroups)

@@ -56,10 +56,13 @@ const PLAIN_URL_RE = /https?:\/\/[^\s,'"<>)]+/g
 function extractUrlsFromText(text: string): string[] {
   const urls = new Set<string>()
   let match: RegExpExecArray | null
+
   while ((match = MARKDOWN_IMAGE_RE.exec(text)) !== null) urls.add(match[1])
+
   if (urls.size === 0) {
     while ((match = PLAIN_URL_RE.exec(text)) !== null) urls.add(match[0])
   }
+
   return Array.from(urls)
 }
 
@@ -74,6 +77,7 @@ class DmxapiTransport implements ImageGenerationTransport {
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const params = (input.providerParams ?? {}) as DmxapiProviderParams
+
     const normalized: NormalizedInput = {
       modelId: input.modelId,
       prompt: input.prompt ?? '',
@@ -81,6 +85,7 @@ class DmxapiTransport implements ImageGenerationTransport {
       size: input.size,
       seed: input.seed
     }
+
     switch (resolveDmxapiFamily(input.modelId)) {
       case 'responses-string':
         return this.submitResponsesStringInput(input, normalized, params)
@@ -108,6 +113,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
 
     const data = await this.requestJson(dmxapiAsyncResponseSchema, '/v1/images/generations', body, input.signal)
+
     return { imageUrls: parseDmxapiAsyncResults(data) }
   }
 
@@ -137,6 +143,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
 
     const data = await this.requestJson(responsesApiResponseSchema, '/v1/responses', body, input.signal)
+
     return { imageUrls: parseResponsesApiOutput(data) }
   }
 
@@ -147,7 +154,9 @@ class DmxapiTransport implements ImageGenerationTransport {
     params: DmxapiProviderParams
   ): Promise<{ imageUrls?: string[] }> {
     const content: Array<{ text?: string; image?: string }> = []
+
     if (normalized.prompt) content.push({ text: normalized.prompt })
+
     for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
 
     const parameters = {
@@ -166,6 +175,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
 
     const data = await this.requestJson(responsesApiResponseSchema, '/v1/responses', body, input.signal)
+
     return { imageUrls: parseResponsesApiOutput(data) }
   }
 
@@ -186,6 +196,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
 
     const data = await this.requestJson(openAiFlatResponseSchema, '/v1/images/generations', body, input.signal)
+
     return { imageUrls: parseOpenAIFlatResults(data) }
   }
 
@@ -199,6 +210,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     const url = path.startsWith('http') ? path : `${this.baseURL}${path}`
     const authHeader = opts?.authHeader ?? 'Authorization'
     const authValue = opts?.authValue ?? `Bearer ${this.apiKey}`
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -213,6 +225,7 @@ class DmxapiTransport implements ImageGenerationTransport {
 
     if (!response.ok) {
       if (response.status === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
+
       if (response.status === 403) throw createPaintingGenerateError('REQ_ERROR_NO_BALANCE')
       const message = await readErrorMessage(response, t('paintings.generate_failed'))
       throw createPaintingGenerateError('REMOTE_ERROR', { message })
@@ -233,18 +246,22 @@ const dmxapiAsyncResponseSchema = z.object({
     })
     .nullish()
 })
+
 const responseContentSchema = z.object({
   text: z.string().nullish(),
   image: z.string().nullish(),
   type: z.string().nullish()
 })
+
 const responseOutputSchema = z.object({
   content: z.array(responseContentSchema).nullish(),
   message: z.object({ content: z.array(responseContentSchema).nullish() }).nullish()
 })
+
 const responsesApiResponseSchema = z.object({
   output: z.union([responseOutputSchema, z.array(responseOutputSchema)]).nullish()
 })
+
 const openAiFlatResponseSchema = z.object({
   data: z.array(z.object({ url: z.string().nullish(), b64_json: z.string().nullish() })).nullish()
 })
@@ -257,22 +274,28 @@ function parseResponsesApiOutput(data: z.infer<typeof responsesApiResponseSchema
   const outputs = data.output
   const list = Array.isArray(outputs) ? outputs : outputs ? [outputs] : []
   const urls: string[] = []
+
   for (const entry of list) {
     const parts = entry.content ?? entry.message?.content ?? []
+
     for (const part of parts) {
       if (part.image) urls.push(part.image)
       else if (part.text) urls.push(...extractUrlsFromText(part.text))
     }
   }
+
   return urls
 }
 
 function parseOpenAIFlatResults(data: z.infer<typeof openAiFlatResponseSchema>): string[] {
   const items = data.data ?? []
+
   return items
     .map((item) => {
       if (item.url) return item.url
+
       if (item.b64_json) return `data:image/png;base64,${item.b64_json}`
+
       return ''
     })
     .filter((url) => url.length > 0)

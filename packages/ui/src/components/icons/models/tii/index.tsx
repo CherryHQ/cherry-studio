@@ -4,6 +4,7 @@ import { TiiLight } from './light'
 
 const Tii = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TiiLight {...props} className={className} />
+
   return <TiiLight {...props} className={className} />
 }
 

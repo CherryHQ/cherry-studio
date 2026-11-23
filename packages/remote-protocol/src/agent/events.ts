@@ -12,6 +12,7 @@ import {
 
 const revision = { baseRevision: decimal, revision: decimal }
 const partTarget = { messageId: opaqueId, partId: opaqueId }
+
 const mutation = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('session.updated'), payload: sessionSchema }),
   z.object({ kind: z.literal('execution.updated'), payload: executionSchema }),
@@ -62,12 +63,14 @@ export const agentEventSchema = z.intersection(
   z.strictObject({ seq: decimal, ...{ kind: z.string(), payload: z.unknown() } }),
   mutation
 )
+
 export const agentEventBatchSchema = z.strictObject({
   subscriptionId: opaqueId,
   sessionId: opaqueId,
   streamEpoch: opaqueId,
   events: z.array(agentEventSchema).min(1).max(1024)
 })
+
 export const agentNotificationSchema = z.union([
   z.strictObject({ jsonrpc: z.literal('2.0'), method: z.literal('agent.events'), params: agentEventBatchSchema }),
   z.strictObject({
@@ -79,6 +82,7 @@ export const agentNotificationSchema = z.union([
     })
   })
 ])
+
 export const agentProjectionSchema = z.strictObject({
   cursor: agentCursorSchema,
   session: sessionSchema,
@@ -88,6 +92,9 @@ export const agentProjectionSchema = z.strictObject({
   interactions: z.record(z.string(), interactionSummarySchema),
   tombstones: z.array(opaqueId).max(100_000)
 })
+
 export type AgentEvent = z.infer<typeof agentEventSchema>
+
 export type AgentEventBatch = z.infer<typeof agentEventBatchSchema>
+
 export type AgentProjection = z.infer<typeof agentProjectionSchema>

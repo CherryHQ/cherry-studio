@@ -9,6 +9,7 @@ import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composer
 
 export function createAssistantFileAttachmentHandle(fileEntryId: string): string {
   const digest = createHash('sha256').update(fileEntryId).digest('hex').slice(0, 16)
+
   return `file_${digest}`
 }
 
@@ -17,10 +18,13 @@ export function collectAssistantFileAttachments(messages: UIMessage[] | undefine
 
   for (const message of messages ?? []) {
     const composerFileTokenIds = collectComposerFileTokenIds(message)
+
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const fileEntryId = readCherryMeta(part)?.fileEntryId
+
       if (!fileEntryId || attachments.has(fileEntryId)) continue
+
       if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
 
       attachments.set(fileEntryId, {

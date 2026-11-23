@@ -46,6 +46,7 @@ import { RemoteUploads } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentJournal')
 const integrity = { sha256 }
+
 // Leave room for JSON escaping and event metadata within the 16 KiB batch limit.
 const APPEND_CHARS = 2048
 export const COALESCE_WINDOW_MS = 50
@@ -53,14 +54,18 @@ const PAGE_BYTES = 48_000
 const MAX_JOURNALS = 128
 
 type Distribute<T> = T extends unknown ? Omit<T, 'seq'> : never
+
 type PendingEvent = Distribute<AgentEvent>
+
 type CheckpointItem = AgentCheckpointPage['items'][number]
+
 interface Entry {
   event: AgentEvent
   bytes: number
   at: number
   contentKey?: string
 }
+
 interface LiveExecution {
   executionId: string
   messageId?: string
@@ -85,6 +90,7 @@ export interface Checkpoint {
 
 function textOf(part: AgentPart | undefined): string | undefined {
   const content: unknown = part && 'content' in part ? part.content : undefined
+
   return typeof content === 'object' && content !== null && 'text' in content && typeof content.text === 'string'
     ? content.text
     : undefined
@@ -92,12 +98,14 @@ function textOf(part: AgentPart | undefined): string | undefined {
 
 function safeSlice(text: string, max: number): string {
   const sliced = text.slice(0, max)
+
   return /[\uD800-\uDBFF]$/.test(sliced) ? sliced.slice(0, -1) : sliced
 }
 
 function* pieces(text: string): Generator<string> {
   for (let start = 0; start < text.length;) {
     let end = Math.min(text.length, start + APPEND_CHARS)
+
     if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1])) end += 1
     yield text.slice(start, end)
     start = end
@@ -162,18 +170,22 @@ export class SessionJournal {
   }
   observe(observer: () => void): () => void {
     this.observers.add(observer)
+
     return () => this.observers.delete(observer)
   }
 
   eventsAfter(seq: number, maxBytes: number): AgentEvent[] {
     const events: AgentEvent[] = []
     let bytes = 0
+
     for (const entry of this.entries) {
       if (Number(entry.event.seq) <= seq) continue
+
       if (events.length && bytes + entry.bytes > maxBytes) break
       events.push(entry.event)
       bytes += entry.bytes
     }
+
     return events
   }
 
@@ -181,24 +193,31 @@ export class SessionJournal {
   capture(): Checkpoint {
     const content = new Map<string, Uint8Array>()
     const items: CheckpointItem[] = [{ kind: 'session', value: this.projection.session }]
+
     for (const value of Object.values(this.projection.executions)) items.push({ kind: 'execution', value })
+
     for (const value of Object.values(this.projection.messages)) items.push({ kind: 'message', value })
+
     for (const message of Object.values(this.projection.messages)) {
       for (const partId of message.partIds) {
         let part = this.projection.parts[partId]
         const text = textOf(part)
+
         if (text !== undefined && text.length > INLINE_TEXT_LIMIT) {
           content.set(`${partId}:${part.revision}`, utf8(text))
           part = { ...part, content: contentOf(partId, part.revision, text) }
         }
+
         items.push({ kind: 'part', messageId: message.messageId, value: part })
       }
     }
+
     for (const value of Object.values(this.projection.interactions)) items.push({ kind: 'interaction', value })
     const checkpointId = randomUUID()
     const pages: AgentCheckpointPage[] = []
     const chunks: Uint8Array[] = []
     let current: CheckpointItem[] = []
+
     const flush = (last: boolean) => {
       const page: AgentCheckpointPage = {
         checkpointId,
@@ -207,12 +226,14 @@ export class SessionJournal {
         nextCursor: last ? null : String(pages.length + 1),
         pageDigest: '0'.repeat(64)
       }
+
       const bytes = encodeAgentCheckpointPage(page)
       page.pageDigest = sha256(bytes)
       pages.push(page)
       chunks.push(bytes)
       current = []
     }
+
     for (const item of items) {
       if (
         current.length &&
@@ -228,8 +249,10 @@ export class SessionJournal {
         flush(false)
       current.push(item)
     }
+
     flush(true)
     const all = Buffer.concat(chunks)
+
     const descriptor: AgentCheckpointDescriptor = {
       checkpointId,
       cursor: this.cursor,
@@ -239,6 +262,7 @@ export class SessionJournal {
       sha256: sha256(all),
       expiresAt: new Date(Date.now() + remoteLimits.checkpointMs).toISOString()
     }
+
     return { descriptor, pages, content }
   }
 
@@ -246,10 +270,12 @@ export class SessionJournal {
   poll(): void {
     const manager = application.get('AiStreamManager')
     this.evict()
+
     if (this.listener?.current || !manager.hasLiveStream(this.topicId)) return
     const listener = new RemoteAgentListener(this, randomUUID())
     this.listener = listener
     this.ensureExecution(listener.executionId)
+
     if (!manager.addListener(this.topicId, listener)) listener.current = false
   }
 
@@ -262,6 +288,7 @@ export class SessionJournal {
   ): Promise<{ started: true; executionId: string } | { started: false; reason: 'busy' | 'session-invalid' }> {
     const listener = new RemoteAgentListener(this, randomUUID())
     this.starting += 1
+
     try {
       const result = await startAgentSessionRun({
         sessionId: this.sessionId,
@@ -277,12 +304,17 @@ export class SessionJournal {
           })
         }
       })
+
       if (result.mode !== 'started') {
         listener.current = false
+
         return { started: false, reason: result.reason }
       }
+
       this.listener = listener
+
       if (listener.current) this.ensureExecution(listener.executionId)
+
       return { started: true, executionId: listener.executionId }
     } finally {
       this.starting -= 1
@@ -302,11 +334,13 @@ export class SessionJournal {
     this.commitHistory()
     this.append({ kind: 'execution.updated', payload: { executionId, status: 'running', durable: false } })
     this.publishSession()
+
     return this.execution
   }
 
   liveInteraction(interactionId: string): { messageId: string; executionId: string; toolCallId: string } | undefined {
     const approval = this.execution?.approvals.get(interactionId)
+
     return approval && this.execution?.messageId
       ? {
           messageId: this.execution.messageId,
@@ -320,11 +354,15 @@ export class SessionJournal {
   interactions(): AgentInteraction[] {
     return Object.values(this.projection.interactions).map((summary) => {
       const approval = this.execution?.approvals.get(summary.interactionId)
+
       const input =
         this.interactionInputs.get(summary.interactionId) ??
         JSON.stringify(this.execution?.toolInputs.get(approval?.toolCallId ?? '')?.input ?? null)
+
       const contentId = `${this.execution?.messageId ?? summary.executionId}:approval:${summary.interactionId}`
+
       if (input.length > INLINE_TEXT_LIMIT) this.pins.set(`${contentId}:${summary.revision}`, utf8(input))
+
       return { ...summary, input: contentOf(contentId, summary.revision, input) }
     })
   }
@@ -332,6 +370,7 @@ export class SessionJournal {
   markInteraction(interactionId: string, status: 'approved' | 'denied'): void {
     const approval = this.execution?.approvals.get(interactionId)
     const current = this.projection.interactions[interactionId]
+
     if (!approval || !current || approval.status !== 'pending') return
     approval.status = status
     this.append({ kind: 'interaction.updated', payload: { ...current, revision: this.next(), status } })
@@ -342,11 +381,14 @@ export class SessionJournal {
     const messageId = this.ensureMessage(execution, message.id)
     const parts = projectMessageParts({ ...message, modelId: message.metadata?.modelId }, this.next())
     const keys = new Set(parts.map((value) => value.part.partId))
+
     for (const key of listener.projectedPartIds.keys())
       if (key.startsWith(`${messageId}:`) && !keys.has(key)) listener.projectedPartIds.delete(key)
+
     for (const key of keys)
       if (!listener.projectedPartIds.has(key)) listener.projectedPartIds.set(key, `${messageId}:view:${randomUUID()}`)
     const selected = new Set([...keys].map((key) => listener.projectedPartIds.get(key)!))
+
     for (const partId of this.projection.messages[messageId].partIds) {
       if (selected.has(partId)) continue
       this.append({
@@ -361,13 +403,17 @@ export class SessionJournal {
         }
       })
     }
+
     let after: string | null = null
+
     for (const { part: projected, text } of parts) {
       const index = Number(projected.partId.slice(messageId.length + 1).split(':')[0])
       const source = message.parts[index]
       const partId = listener.projectedPartIds.get(projected.partId)!
       projected.partId = partId
+
       if ('content' in projected) projected.content = contentOf(partId, projected.revision, text)
+
       const part: AgentPart =
         projected.kind === 'text' || projected.kind === 'reasoning'
           ? {
@@ -375,29 +421,39 @@ export class SessionJournal {
               state: source && 'state' in source && source.state === 'streaming' ? 'streaming' : 'completed'
             }
           : projected
+
       const previous = this.projection.parts[part.partId]
+
       if (previous && textOf(previous) === text) {
         const candidate = { ...part, revision: previous.revision }
+
         if ('content' in previous) Object.assign(candidate, { content: previous.content })
+
         if (isDeepStrictEqual(previous, candidate)) {
           after = partId
           continue
         }
       }
+
       if (text.length > INLINE_TEXT_LIMIT) this.pins.set(`${part.partId}:${part.revision}`, utf8(text))
+
       if (previous)
         this.append({ kind: 'part.replaced', payload: { messageId, baseRevision: previous.revision, part } })
       else this.createPart(messageId, part, after)
       after = partId
     }
+
     for (const part of message.parts) {
       if (!isToolUIPart(part)) continue
       execution.toolInputs.set(part.toolCallId, { toolName: getToolName(part), input: part.input })
+
       if (part.state !== 'output-available' && part.state !== 'output-error' && part.state !== 'output-denied') continue
+
       for (const [id, approval] of execution.approvals)
         if (approval.toolCallId === part.toolCallId)
           this.markInteraction(id, part.state === 'output-denied' ? 'denied' : 'approved')
     }
+
     if (
       execution.status === 'awaiting-approval' &&
       ![...execution.approvals.values()].some((approval) => approval.status === 'pending')
@@ -407,10 +463,12 @@ export class SessionJournal {
 
   onChunk(listener: RemoteAgentListener, chunk: UIMessageChunk, anchorMessageId?: string): void {
     const execution = this.ensureExecution(listener.executionId)
+
     const messageId = this.ensureMessage(
       execution,
       anchorMessageId ?? (chunk.type === 'start' ? chunk.messageId : undefined)
     )
+
     switch (chunk.type) {
       case 'text-start':
       case 'reasoning-start':
@@ -422,11 +480,13 @@ export class SessionJournal {
           content: { text: '' },
           state: 'streaming'
         })
+
         return
       case 'text-delta':
       case 'reasoning-delta': {
         const kind = chunk.type === 'text-delta' ? 'text' : 'reasoning'
         const partId = `${messageId}:${kind}:${chunk.id}`
+
         if (!this.projection.parts[partId])
           this.createPart(messageId, {
             partId,
@@ -437,11 +497,14 @@ export class SessionJournal {
             state: 'streaming'
           })
         this.appendText(messageId, partId, chunk.delta)
+
         return
       }
+
       case 'text-end':
       case 'reasoning-end':
         this.completePart(messageId, `${messageId}:${chunk.type === 'text-end' ? 'text' : 'reasoning'}:${chunk.id}`)
+
         return
       case 'tool-input-start':
         this.createPart(messageId, {
@@ -454,9 +517,11 @@ export class SessionJournal {
           content: { text: '' },
           state: 'streaming'
         })
+
         return
       case 'tool-input-delta':
         this.appendText(messageId, `${messageId}:tool:${chunk.toolCallId}:in`, chunk.inputTextDelta)
+
         return
       case 'tool-input-available':
       case 'tool-input-error': {
@@ -470,6 +535,7 @@ export class SessionJournal {
           JSON.stringify(chunk.input ?? null),
           'completed'
         )
+
         if (chunk.type === 'tool-input-error')
           this.replaceTool(
             messageId,
@@ -480,13 +546,16 @@ export class SessionJournal {
             JSON.stringify(chunk.errorText),
             'failed'
           )
+
         return
       }
+
       case 'tool-output-available':
       case 'tool-output-error':
       case 'tool-output-denied': {
         const input = execution.toolInputs.get(chunk.toolCallId)
         const failed = chunk.type !== 'tool-output-available'
+
         const text = JSON.stringify(
           chunk.type === 'tool-output-available'
             ? (chunk.output ?? null)
@@ -494,6 +563,7 @@ export class SessionJournal {
               ? chunk.errorText
               : 'denied'
         )
+
         this.replaceTool(
           messageId,
           `${messageId}:tool:${chunk.toolCallId}:out`,
@@ -503,17 +573,21 @@ export class SessionJournal {
           text,
           failed ? 'failed' : 'completed'
         )
+
         for (const [approvalId, approval] of execution.approvals) {
           if (approval.toolCallId === chunk.toolCallId)
             this.markInteraction(approvalId, chunk.type === 'tool-output-denied' ? 'denied' : 'approved')
         }
+
         if (
           execution.status === 'awaiting-approval' &&
           ![...execution.approvals.values()].some((approval) => approval.status === 'pending')
         )
           this.setStatus(execution, 'running')
+
         return
       }
+
       case 'tool-approval-request': {
         const input = execution.toolInputs.get(chunk.toolCallId)
         this.interactionInputs.set(chunk.approvalId, JSON.stringify(input?.input ?? null))
@@ -532,8 +606,10 @@ export class SessionJournal {
           }
         })
         this.setStatus(execution, 'awaiting-approval')
+
         return
       }
+
       case 'file':
         this.createPart(messageId, {
           partId: `${messageId}:file:${this.next()}`,
@@ -543,6 +619,7 @@ export class SessionJournal {
           name: 'file',
           content: { text: JSON.stringify({ mediaType: chunk.mediaType }) }
         })
+
         return
       case 'source-url':
       case 'source-document':
@@ -554,6 +631,7 @@ export class SessionJournal {
           name: chunk.type,
           content: { text: safeSlice(JSON.stringify(chunk), INLINE_TEXT_LIMIT) }
         })
+
         return
       case 'error':
         return
@@ -573,10 +651,13 @@ export class SessionJournal {
     listener.current = false
     const saved = result.persistence?.status === 'saved' ? result.persistence.message : undefined
     const anchor = saved?.messageId ?? result.finalMessage?.id ?? result.anchorMessageId ?? execution.messageId
+
     if (!anchor) throw new Error('Terminal execution has no assistant message identity')
     const messageId = this.ensureMessage(execution, anchor)
+
     const failure =
       result.status === 'error' ? (result.failure ?? toExecutionFailure(result.error, result.modelId)) : undefined
+
     const persistenceFailure =
       result.persistence?.status === 'failed'
         ? result.persistence.failure
@@ -587,27 +668,36 @@ export class SessionJournal {
               result.modelId,
               'host'
             )
+
     const stored = saved ? agentSessionMessageService.getSessionMessage(this.sessionId, messageId) : undefined
     let stats: MessageStats | null | undefined
+
     if (stored) stats = stored.stats
     else {
       stats = { ...result.finalMessage?.metadata?.stats }
+
       if (result.runtimeTiming) stats.runtimeTiming = result.runtimeTiming
     }
+
     const model = toMessageModel(
       stored ?? {
         modelId: result.modelId ?? result.finalMessage?.metadata?.modelId,
         messageSnapshot: result.finalMessage?.metadata?.messageSnapshot
       }
     )
+
     const usage = toMessageUsage(stats)
     const status = result.status === 'success' ? 'completed' : result.status === 'paused' ? 'cancelled' : 'failed'
     const message = this.projection.messages[messageId]
+
     if (message) {
       const updated = { ...message, revision: this.next() }
+
       if (usage) updated.usage = usage
+
       if (model) updated.model = model
       updated.status = result.status === 'error' ? 'error' : result.status === 'paused' ? 'paused' : 'success'
+
       if (failure) updated.failure = failure
       this.append({
         kind: 'message.updated',
@@ -617,40 +707,51 @@ export class SessionJournal {
         }
       })
     }
+
     const executionUpdate: Extract<AgentEvent, { kind: 'execution.updated' }>['payload'] = {
       executionId: execution.executionId,
       status,
       messageId,
       durable: Boolean(saved)
     }
+
     if (saved)
       executionUpdate.history = { messageRevision: saved.messageRevision, historyRevision: saved.historyRevision }
+
     if (persistenceFailure) executionUpdate.persistenceFailure = persistenceFailure
+
     if (failure) {
       executionUpdate.failure = failure
       executionUpdate.error = { reason: 'INTERNAL', message: safeSlice(failure.message, 512) }
     }
+
     this.append({
       kind: 'execution.updated',
       payload: executionUpdate
     })
     const committed = saved ? this.commitHistory() : new Set<string>()
+
     if (saved) committed.add(saved.messageId)
     this.execution = undefined
+
     for (const [approvalId, approval] of execution.approvals) {
       const current = this.projection.interactions[approvalId]
+
       if (approval.status === 'pending' && current)
         this.append({ kind: 'interaction.updated', payload: { ...current, revision: this.next(), status: 'expired' } })
     }
+
     for (const messageId of execution.messageIds) {
       if (!committed.has(messageId)) continue
       const message = this.projection.messages[messageId]
+
       if (!message) continue
       this.append({
         kind: 'message.removed',
         payload: { messageId, baseRevision: message.revision, revision: this.next() }
       })
     }
+
     this.publishSession()
   }
 
@@ -665,7 +766,9 @@ export class SessionJournal {
 
   private emptyProjection(): AgentProjection {
     const session = toSessionSummary(getSession(this.sessionId), this.execution?.executionId)
+
     if (!session) throw new RemoteRpcError('NOT_FOUND', 'Session has no agent')
+
     return {
       cursor: { sessionId: this.sessionId, streamEpoch: this.epoch, seq: '0' },
       session,
@@ -679,6 +782,7 @@ export class SessionJournal {
 
   publishSession(): void {
     const session = toSessionSummary(getSession(this.sessionId), this.execution?.executionId)
+
     if (session)
       this.append({
         kind: 'session.updated',
@@ -691,11 +795,15 @@ export class SessionJournal {
     const session = getSession(this.sessionId)
     const previous = Number(this.projection.session.historyRevision)
     const historyRevision = revisionOf(session.updatedAt)
+
     if (Number(historyRevision) <= previous) return new Set()
+
     const messages = agentSessionMessageService
       .listSessionMessages(this.sessionId, { limit: 50 })
       .items.filter((message) => Date.parse(message.updatedAt) > previous)
+
     const history: Omit<Extract<AgentEvent, { kind: 'history.committed' }>['payload'], 'messages'> = { historyRevision }
+
     if (this.execution) history.executionId = this.execution.executionId
     this.append({
       kind: 'history.committed',
@@ -704,6 +812,7 @@ export class SessionJournal {
         messages: messages.map((message) => ({ messageId: message.id, revision: revisionOf(message.updatedAt) }))
       }
     })
+
     return new Set(messages.map((message) => message.id))
   }
 
@@ -712,6 +821,7 @@ export class SessionJournal {
     const id = messageId ?? randomUUID()
     execution.messageId = id
     execution.messageIds.add(id)
+
     if (!this.projection.messages[id] && !this.projection.tombstones.includes(id))
       this.append({
         kind: 'message.created',
@@ -721,16 +831,19 @@ export class SessionJournal {
       kind: 'execution.updated',
       payload: { executionId: execution.executionId, status: execution.status, messageId: id, durable: false }
     })
+
     return id
   }
 
   private setStatus(execution: LiveExecution, status: AgentExecution['status']): void {
     execution.status = status
+
     const update: Extract<AgentEvent, { kind: 'execution.updated' }>['payload'] = {
       executionId: execution.executionId,
       status,
       durable: false
     }
+
     if (execution.messageId) update.messageId = execution.messageId
     this.append({
       kind: 'execution.updated',
@@ -740,6 +853,7 @@ export class SessionJournal {
 
   private createPart(messageId: string, part: AgentPart, after?: string | null): void {
     const message = this.projection.messages[messageId]
+
     if (!message || this.projection.parts[part.partId]) return
     this.append({
       kind: 'part.created',
@@ -757,6 +871,7 @@ export class SessionJournal {
     for (const piece of pieces(delta)) {
       const part = this.projection.parts[partId]
       const text = textOf(part)
+
       if (!part || text === undefined || !('state' in part) || part.state !== 'streaming') return
       this.append({
         kind: 'part.append',
@@ -775,6 +890,7 @@ export class SessionJournal {
   private completePart(messageId: string, partId: string): void {
     const part = this.projection.parts[partId]
     const text = textOf(part)
+
     if (!part || text === undefined || !('state' in part) || part.state !== 'streaming') return
     const bytes = utf8(text)
     this.append({
@@ -800,14 +916,18 @@ export class SessionJournal {
     state: 'completed' | 'failed'
   ): void {
     const revision = this.next()
+
     if (text.length > INLINE_TEXT_LIMIT) this.pins.set(`${partId}:${revision}`, utf8(text))
     const content = contentOf(partId, revision, text)
     const executionId = this.execution?.executionId
+
     const part: AgentPart =
       kind === 'tool-input'
         ? { partId, revision, executionId, toolCallId, kind, toolName, content, state: 'completed' }
         : { partId, revision, executionId, toolCallId, kind, toolName, content, state }
+
     const existing = this.projection.parts[partId]
+
     if (existing) this.append({ kind: 'part.replaced', payload: { messageId, baseRevision: existing.revision, part } })
     else this.createPart(messageId, part)
   }
@@ -818,12 +938,14 @@ export class SessionJournal {
     const ref = part && part.kind !== 'file' && 'ref' in part.content ? part.content.ref : undefined
     const key = ref && `${ref.contentId}:${ref.revision}`
     const bytes = key ? this.pins.get(key) : undefined
+
     const result = applyAgentEvents(
       this.projection,
       { subscriptionId: 'journal', sessionId: this.sessionId, streamEpoch: this.epoch, events: [event] },
       key && bytes ? { [key]: bytes } : {},
       integrity
     )
+
     if (!result.ok) {
       logger.error('Remote journal rejected its own event; starting a new epoch', {
         sessionId: this.sessionId,
@@ -831,13 +953,17 @@ export class SessionJournal {
         reason: result.reason
       })
       this.reset()
+
       return
     }
+
     this.projection = result.projection
+
     // The owner retains current values independently of replay pins, including completed tool output.
     if (part && bytes) {
       this.projection.parts[part.partId] = { ...part, content: { text: new TextDecoder().decode(bytes) } }
     }
+
     this.seq += 1
     const eventBytes = utf8(JSON.stringify(event)).length
     this.entries.push({ event, bytes: eventBytes, at: Date.now(), contentKey: key })
@@ -845,6 +971,7 @@ export class SessionJournal {
     this.lastUsedAt = Date.now()
     this.evict()
     this.onAppend()
+
     for (const observer of this.observers) observer()
   }
 
@@ -856,15 +983,18 @@ export class SessionJournal {
     this.pins.clear()
     this.interactionInputs.clear()
     this.projection = this.emptyProjection()
+
     if (this.execution) {
       this.execution.messageId = undefined
       this.execution.messageIds.clear()
     }
+
     for (const observer of this.observers) observer()
   }
 
   private evict(): void {
     const cutoff = Date.now() - remoteLimits.replayMs
+
     while (this.entries.length && (this.retainedBytes > remoteLimits.replayBytes || this.entries[0].at < cutoff)) {
       this.evictFirst()
     }
@@ -873,6 +1003,7 @@ export class SessionJournal {
   private evictFirst(): void {
     const entry = this.entries.shift()!
     this.retainedBytes -= entry.bytes
+
     if (entry.contentKey) {
       this.retainedBytes -= this.pins.get(entry.contentKey)?.byteLength ?? 0
       this.pins.delete(entry.contentKey)
@@ -912,15 +1043,19 @@ class RemoteAgentListener implements StreamListener {
     anchorMessageId?: string
   ): void {
     if (!this.current) return
+
     if (this.projected && chunk.type !== 'tool-approval-request') return
     this.guard(() => {
       if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta' && chunk.type !== 'tool-input-delta') {
         this.flushPending()
         this.journal.onChunk(this, chunk, anchorMessageId)
+
         return
       }
+
       const identifier = chunk.type === 'tool-input-delta' ? chunk.toolCallId : chunk.id
       const text = chunk.type === 'tool-input-delta' ? chunk.inputTextDelta : chunk.delta
+
       if (
         this.pending &&
         (this.pending.type !== chunk.type ||
@@ -929,6 +1064,7 @@ class RemoteAgentListener implements StreamListener {
           this.pending.text.length + text.length > APPEND_CHARS)
       )
         this.flushPending()
+
       if (this.pending) this.pending.text += text
       else {
         this.pending = { type: chunk.type, identifier, anchorMessageId, text }
@@ -936,6 +1072,7 @@ class RemoteAgentListener implements StreamListener {
         this.flushTimer = setTimeout(() => this.guard(() => this.flushPending()), COALESCE_WINDOW_MS)
         this.flushTimer.unref()
       }
+
       if (this.pending.text.length >= APPEND_CHARS || performance.now() - this.pendingStartedAt >= COALESCE_WINDOW_MS)
         this.flushPending()
     })
@@ -952,12 +1089,14 @@ class RemoteAgentListener implements StreamListener {
   dispose(): void {
     this.current = false
     this.pending = undefined
+
     if (this.flushTimer) clearTimeout(this.flushTimer)
     this.flushTimer = undefined
   }
   private onTerminal(result: StreamDoneResult | StreamPausedResult | StreamErrorResult): void {
     this.guard(() => {
       this.flushPending()
+
       if (this.projected && result.finalMessage) this.journal.onMessage(this, result.finalMessage)
       this.journal.onTerminal(this, result)
     })
@@ -967,11 +1106,14 @@ class RemoteAgentListener implements StreamListener {
     this.flushTimer = undefined
     const pending = this.pending
     this.pending = undefined
+
     if (!pending || !this.current) return
+
     const chunk: UIMessageChunk =
       pending.type === 'tool-input-delta'
         ? { type: pending.type, toolCallId: pending.identifier, inputTextDelta: pending.text }
         : { type: pending.type, id: pending.identifier, delta: pending.text }
+
     this.journal.onChunk(this, chunk, pending.anchorMessageId)
   }
   private guard(fn: () => void): void {
@@ -998,29 +1140,37 @@ export class RemoteAgentHub {
 
   journal(sessionId: string): SessionJournal {
     let journal = this.journals.get(sessionId)
+
     if (!journal) {
       if (this.journals.size >= MAX_JOURNALS) {
         const oldest = [...this.journals.values()]
           .filter((value) => value.disposable)
           .sort((a, b) => a.lastUsedAt - b.lastUsedAt)[0]
+
         if (!oldest) throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Too many retained session journals')
         oldest.dispose()
         this.journals.delete(oldest.sessionId)
       }
+
       journal = new SessionJournal(sessionId, () => this.enforceReplayBudget())
       this.journals.set(sessionId, journal)
     }
+
     journal.lastUsedAt = Date.now()
     journal.poll()
+
     return journal
   }
 
   activeExecutionId(sessionId: string): string | undefined {
     const journal = this.journals.get(sessionId)
+
     if (journal) return journal.activeExecutionId
+
     const busy =
       application.get('AiStreamManager').hasLiveStream(buildAgentSessionTopicId(sessionId)) ||
       application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)
+
     return busy ? this.journal(sessionId).activeExecutionId : undefined
   }
 
@@ -1030,6 +1180,7 @@ export class RemoteAgentHub {
 
   sweep(): void {
     this.uploads.sweep()
+
     for (const journal of this.journals.values()) {
       if (journal.disposable && journal.lastUsedAt <= Date.now() - remoteLimits.replayMs) {
         journal.dispose()
@@ -1041,6 +1192,7 @@ export class RemoteAgentHub {
   private enforceReplayBudget(): void {
     const journals = [...this.journals.values()].sort((a, b) => a.oldestReplayAt - b.oldestReplayAt)
     let excess = journals.reduce((bytes, journal) => bytes + journal.replayBytes, 0) - remoteLimits.globalReplayBytes
+
     for (const journal of journals) {
       if (excess <= 0) break
       const before = journal.replayBytes

@@ -33,16 +33,20 @@ function AgentNotificationLabel({
   snapshot?: { name: string; emoji: string }
 }) {
   const { t } = useTranslation()
+
   const { data: session, error: sessionError } = useQuery('/agent-sessions/:sessionId', {
     params: { sessionId },
     swrOptions: { shouldRetryOnError: false }
   })
+
   const { data: agent, error: agentError } = useQuery('/agents/:agentId', {
     params: { agentId: session?.agentId ?? '' },
     enabled: !!session?.agentId && !sessionError,
     swrOptions: { shouldRetryOnError: false }
   })
+
   const current = !sessionError && !agentError ? agent : undefined
+
   return (
     <NotificationIdentity
       name={current?.name?.trim() || snapshot?.name || t('agent.session.display.agent')}
@@ -63,16 +67,20 @@ function AssistantNotificationLabel({
   snapshot?: { name: string; emoji: string }
 }) {
   const { t } = useTranslation()
+
   const { data: topic, error: topicError } = useQuery('/topics/:id', {
     params: { id: topicId },
     swrOptions: { shouldRetryOnError: false }
   })
+
   const { data: assistant, error: assistantError } = useQuery('/assistants/:id', {
     params: { id: topic?.assistantId ?? '' },
     enabled: !!topic?.assistantId && !topicError,
     swrOptions: { shouldRetryOnError: false }
   })
+
   const current = !topicError && !assistantError ? assistant : undefined
+
   return (
     <NotificationIdentity
       name={current?.name?.trim() || snapshot?.name || t('chat.topics.display.assistant')}
@@ -83,10 +91,12 @@ function AssistantNotificationLabel({
 
 function ScheduledNotificationLabel({ taskId, snapshot }: { taskId: string; snapshot?: string }) {
   const { t } = useTranslation()
+
   const { data: task, error } = useQuery('/agent-tasks/:taskId', {
     params: { taskId },
     swrOptions: { shouldRetryOnError: false }
   })
+
   return (
     <NotificationIdentity name={(!error && task?.name?.trim()) || snapshot || t('settings.scheduledTasks.title')} />
   )
@@ -94,9 +104,12 @@ function ScheduledNotificationLabel({ taskId, snapshot }: { taskId: string; snap
 
 export function NotificationTaskIdentity({ record }: { record: NotificationRecord }) {
   const target = record.target
+
   if (target?.kind === 'scheduled-task')
     return <ScheduledNotificationLabel taskId={target.taskId} snapshot={target.result?.name} />
+
   if (target?.kind !== 'conversation') return notificationPreview(record.title, true)
+
   return target.conversationType === 'agent' ? (
     <AgentNotificationLabel sessionId={target.conversationId} snapshot={target.result?.actor} />
   ) : (

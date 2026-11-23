@@ -54,6 +54,7 @@ type LogEntry = { timestamp: number; level: string; message: string; channelId: 
 
 function truncateId(s: string, prefixLen = 7, suffixLen = 3): string {
   if (s.length <= prefixLen + suffixLen + 3) return s
+
   return `${s.slice(0, prefixLen)}...${s.slice(-suffixLen)}`
 }
 
@@ -69,26 +70,33 @@ function getChannelSummary(channel: ChannelData): string {
       parts.push(domain === 'lark' ? 'Lark (International)' : 'Feishu (China)')
       break
     }
+
     case 'telegram':
       if (cfg.bot_token) parts.push(`Token: ${truncateId(cfg.bot_token as string)}`)
+
       if (chatIds.length > 0) parts.push(`${chatIds.length} chat IDs`)
       break
     case 'qq':
       if (cfg.app_id) parts.push(truncateId(cfg.app_id as string))
+
       if (chatIds.length > 0) parts.push(`${chatIds.length} chat IDs`)
       break
     case 'discord': {
       if (cfg.bot_token) parts.push(`Token: ${truncateId(cfg.bot_token as string)}`)
       const channelIds = (cfg.allowed_channel_ids as string[]) ?? []
+
       if (channelIds.length > 0) parts.push(`${channelIds.length} channel IDs`)
       break
     }
+
     case 'slack': {
       if (cfg.bot_token) parts.push(`Token: ${truncateId(cfg.bot_token as string)}`)
       const slackChannelIds = (cfg.allowed_channel_ids as string[]) ?? []
+
       if (slackChannelIds.length > 0) parts.push(`${slackChannelIds.length} channel IDs`)
       break
     }
+
     case 'dingtalk':
       if (cfg.client_id) parts.push(truncateId(cfg.client_id as string))
       break
@@ -98,6 +106,7 @@ function getChannelSummary(channel: ChannelData): string {
     case 'wechat':
       break
   }
+
   return parts.join(' \u00b7 ')
 }
 
@@ -129,6 +138,7 @@ const ChannelLogModal: FC<{
   useEffect(() => {
     if (!open || !channelId) {
       setLogs([])
+
       return
     }
 
@@ -210,6 +220,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   if (channel) {
     lastChannelRef.current = channel
   }
+
   const renderedChannel = channel ?? (!open ? lastChannelRef.current : null)
 
   useEffect(() => {
@@ -230,6 +241,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
     (value: string) => {
       const nextAgentId = value === NO_AGENT_VALUE ? null : value
       setAgentId(nextAgentId)
+
       if (channel) {
         onSave(channel.id, { agentId: nextAgentId })
       }
@@ -240,6 +252,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   const handleWorkspaceChange = useCallback(
     (nextWorkspaceId: string | null) => {
       setWorkspaceId(nextWorkspaceId)
+
       if (channel) {
         onSave(channel.id, {
           workspace:
@@ -253,6 +266,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
   )
 
   const isSystemWorkspace = workspaceId === null
+
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
@@ -356,6 +370,7 @@ const ChannelInstanceRow: FC<{
 
   let statusColor = 'bg-muted-foreground' // inactive or unknown
   let statusTag: React.ReactNode = null
+
   if (channel.isActive) {
     if (isConnected) {
       statusColor = 'bg-success'
@@ -472,20 +487,24 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     setEditingChannelId(channelId)
     setIsEditModalOpen(true)
   }, [])
+
   const closeEditModal = useCallback(() => {
     setIsEditModalOpen(false)
   }, [])
 
   const channelIds = useMemo(() => channelList.map((channel) => channel.id), [channelList])
   const statusKeys = channelIds.map((id) => `channel.status.${id}` as const)
+
   const statuses = useSharedCacheSelector(statusKeys, (values) =>
     Object.fromEntries(
       channelIds.flatMap((id, index): Array<[string, ChannelStatus]> => {
         const status = values[index]
+
         return status ? [[id, status]] : []
       })
     )
   )
+
   const previousStatuses = useRef<Record<string, ChannelStatus>>({})
 
   // Log modal
@@ -495,6 +514,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     for (const status of Object.values(statuses)) {
       if (status.connected && !previousStatuses.current[status.channelId]?.connected) void mutate()
     }
+
     previousStatuses.current = statuses
   }, [mutate, statuses])
 
@@ -506,6 +526,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   const handleAdd = useCallback(async () => {
     const existingCount = channels?.length ?? 0
+
     const newChannel = await createChannel({
       type: channelDef.type,
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
@@ -515,6 +536,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       // starts the adapter flow. Credential-gated channels start inactive.
       isActive: channelDef.type === 'feishu' || channelDef.type === 'wechat'
     } as never)
+
     if (newChannel) {
       openEditModal(newChannel.id)
     }
@@ -526,12 +548,19 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Form drafts can carry legacy config values; channel.update validates this transport object before persistence.
       const apiUpdates: Record<string, unknown> = {}
+
       if (updates.name !== undefined) apiUpdates.name = updates.name
+
       if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
+
       if (updates.workspace !== undefined) apiUpdates.workspace = updates.workspace
+
       if (updates.configPatch !== undefined) apiUpdates.configPatch = updates.configPatch
+
       if (updates.config !== undefined) apiUpdates.config = updates.config
+
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
+
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
 
       await updateChannel(channelId, apiUpdates)
@@ -544,6 +573,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       if (editingChannelId === channelId) {
         closeEditModal()
       }
+
       await deleteChannel(channelId)
     },
     [closeEditModal, deleteChannel, editingChannelId]

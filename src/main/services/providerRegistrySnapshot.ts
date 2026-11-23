@@ -20,6 +20,7 @@ export async function writeProviderRegistrySnapshot(
   for (const [name, body] of Object.entries(files)) {
     await atomicWriteFile(AbsoluteFilePathSchema.parse(application.getPath(directory, name)), body)
   }
+
   await atomicWriteFile(AbsoluteFilePathSchema.parse(application.getPath(directory, OVERRIDE_MANIFEST)), manifestBody)
   providerRegistryService.clearCache()
 }

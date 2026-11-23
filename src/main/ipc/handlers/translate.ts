@@ -5,6 +5,7 @@ import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
 function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
   if (senderId == null) return undefined
+
   return application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
@@ -16,11 +17,14 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
 export const translateHandlers: IpcHandlersFor<typeof translateRequestSchemas> = {
   'translate.open': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
+
     if (!wc) throw new Error('translate.open requires a managed window')
+
     return translateService.open(wc, request)
   },
   'translate.pdf.start': async (request, { senderId }) => {
     if (!senderId) throw new Error('translate.pdf.start requires a managed window')
+
     return application.get('PdfTranslationService').translate(
       request,
       (stage) => {

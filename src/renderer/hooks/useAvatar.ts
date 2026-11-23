@@ -10,6 +10,7 @@ import { toFileUrl } from '@shared/utils/file'
 /** The `file_entry` id of an uploaded avatar (`file:<id>`), or undefined for emoji / default. */
 function avatarStoredId(avatar: string | undefined): FileEntryId | undefined {
   if (!avatar || !avatar.startsWith(STORED_FILE_REF_PREFIX) || avatar.startsWith('file://')) return undefined
+
   return avatar.slice(STORED_FILE_REF_PREFIX.length)
 }
 
@@ -31,8 +32,10 @@ export default function useAvatar(): string {
   useEffect(() => {
     if (!storedId) {
       setResolvedSrc(undefined)
+
       return
     }
+
     let active = true
     ipcApi
       .request('file.batch_get_physical_paths', { ids: [storedId] })
@@ -44,11 +47,13 @@ export default function useAvatar(): string {
       .catch(() => {
         if (active) setResolvedSrc(undefined)
       })
+
     return () => {
       active = false
     }
   }, [storedId])
 
   if (storedId) return resolvedSrc ?? UserAvatar
+
   return avatar || UserAvatar
 }

@@ -34,6 +34,7 @@ export class KnowledgeBaseAdminService {
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const base = knowledgeBaseService.create(dto)
+
     return await this.knowledgeLockManager.runExclusive(base.id, async () => {
       const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
@@ -56,11 +57,13 @@ export class KnowledgeBaseAdminService {
    */
   private async rollbackFailedBaseCreation(baseId: string): Promise<void> {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
+
     try {
       await vectorStoreService.deleteStore(baseId)
     } catch (cleanupError) {
       logger.warn('Failed to remove index store dir during createBase rollback', cleanupError as Error, { baseId })
     }
+
     try {
       knowledgeBaseService.delete(baseId)
     } catch (cleanupError) {
@@ -106,6 +109,7 @@ export class KnowledgeBaseAdminService {
 
       const vectorStoreService = application.get('KnowledgeVectorStoreService')
       await vectorStoreService.deleteStore(baseId)
+
       return true
     })
   }
@@ -141,6 +145,7 @@ export class KnowledgeBaseAdminService {
     // item and roll back the whole batch. An 'unverifiable' source (transient/permission error) is
     // kept, not skipped — like reindex, we never drop a source we could not confirm is gone.
     const restorableRootItems: KnowledgeItem[] = []
+
     for (const item of rootItems) {
       if ((await classifyKnowledgeItemRestoreSource(sourceBase.id, item)) === 'missing') {
         logger.warn('Skipping knowledge item with a missing source during restore', {
@@ -150,9 +155,12 @@ export class KnowledgeBaseAdminService {
         })
         continue
       }
+
       restorableRootItems.push(item)
     }
+
     const skippedMissingSourceCount = rootItems.length - restorableRootItems.length
+
     if (skippedMissingSourceCount > 0) {
       logger.info('Restore skipped knowledge items whose source no longer exists', {
         sourceBaseId: sourceBase.id,
@@ -163,6 +171,7 @@ export class KnowledgeBaseAdminService {
 
     const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
+
     try {
       await this.ingestionService.addItems(restoredBase.id, inputs, undefined, { copyInline: true })
     } catch (error) {
@@ -185,6 +194,7 @@ export class KnowledgeBaseAdminService {
           }. Restored knowledge base '${restoredBase.id}' could not be cleaned up automatically: ${cleanupMessage}. Please delete it manually.`
         )
       }
+
       throw DataApiErrorFactory.invalidOperation(
         'restoreBase',
         `Failed to restore knowledge items: ${error instanceof Error ? error.message : String(error)}`
@@ -197,6 +207,7 @@ export class KnowledgeBaseAdminService {
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */
   hasAnyBase(): boolean {
     const { total } = knowledgeBaseService.list({ page: 1, limit: 1 })
+
     return total > 0
   }
 
@@ -211,10 +222,12 @@ export class KnowledgeBaseAdminService {
               ? item.data.source
               : getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath)
         }
+
         // Reuse the processed artifact instead of re-running the paid file processor.
         if (item.data.indexedRelativePath) {
           Object.assign(data, { indexedPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.indexedRelativePath) })
         }
+
         return KnowledgeAddItemInputSchema.parse({ type: 'file', data })
       }
 
@@ -223,10 +236,12 @@ export class KnowledgeBaseAdminService {
         // schema allows any non-empty string, so the strict add-time URL rule must
         // not reject them here (one malformed record would abort the whole base).
         const data = { source: item.data.source, url: item.data.url }
+
         // Reuse captured pages for offline indexing; uncaptured URLs fetch their first snapshot.
         if (item.data.relativePath) {
           Object.assign(data, { snapshotPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath) })
         }
+
         return KnowledgeRestoreUrlItemInputSchema.parse({ type: 'url', data })
       }
 

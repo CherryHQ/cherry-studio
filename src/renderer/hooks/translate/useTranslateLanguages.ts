@@ -45,21 +45,27 @@ export const useTranslateLanguages = (options?: {
       if (languages === undefined) {
         return undefined
       }
+
       if (isTranslateLangCode(lang)) {
         lang = languages.find((l) => l.langCode === lang) ?? null
       } else if (typeof lang === 'string' || lang === null) {
         if (lang !== null) {
           logger.warn('getLabel received an invalid lang code, falling back to UNKNOWN', { lang })
         }
+
         lang = null
       }
+
       if (lang === null) {
         const text = t('common.unknown')
+
         return withEmoji ? `🏳️ ${text}` : text
       }
+
       const i18nKey = langCodeToI18nKey.get(lang.langCode)
       const text = i18nKey ? t(i18nKey) : lang.value
       const label = withEmoji ? `${lang.emoji} ${text}` : text
+
       return label
     },
     [languages, t]
@@ -70,6 +76,7 @@ export const useTranslateLanguages = (options?: {
       if (languages === undefined) {
         return undefined
       }
+
       return languages.find((l) => l.langCode === langCode) ?? null
     },
     [languages]
@@ -78,9 +85,11 @@ export const useTranslateLanguages = (options?: {
   const { trigger: addTrigger } = useMutation('POST', '/translate/languages', {
     refresh: ['/translate/languages']
   })
+
   const { trigger: updateTrigger } = useMutation('PATCH', '/translate/languages/:langCode', {
     refresh: ['/translate/languages']
   })
+
   const { trigger: removeTrigger } = useMutation('DELETE', '/translate/languages/:langCode', {
     refresh: ['/translate/languages']
   })
@@ -103,6 +112,7 @@ export const useTranslateLanguages = (options?: {
         if (!langCode) {
           throw new Error('useTranslateLanguages.update: langCode must be set when triggering update')
         }
+
         return updateTrigger({ params: { langCode }, body: data })
       },
       [updateTrigger]
@@ -123,6 +133,7 @@ export const useTranslateLanguages = (options?: {
         if (!langCode) {
           throw new Error('useTranslateLanguages.remove: langCode must be non-empty when triggering delete')
         }
+
         return removeTrigger({ params: { langCode } })
       },
       [removeTrigger]

@@ -8,6 +8,7 @@ const K: readonly number[] = [
   0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
   0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 ]
+
 /** FIPS 180-4 §5.3.3: the initial hash value. */
 const H0: readonly number[] = [
   0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
@@ -17,10 +18,12 @@ const rotr = (x: number, n: number): number => (x >>> n) | (x << (32 - n))
 
 function utf8(text: string): number[] {
   const bytes: number[] = []
+
   for (const char of text) {
     const point = char.codePointAt(0) as number
     // A lone surrogate has no UTF-8 form; encode U+FFFD as TextEncoder does.
     const code = point >= 0xd800 && point <= 0xdfff ? 0xfffd : point
+
     if (code < 0x80) bytes.push(code)
     else if (code < 0x800) bytes.push(0xc0 | (code >>> 6), 0x80 | (code & 0x3f))
     else if (code < 0x10000) bytes.push(0xe0 | (code >>> 12), 0x80 | ((code >>> 6) & 0x3f), 0x80 | (code & 0x3f))
@@ -32,6 +35,7 @@ function utf8(text: string): number[] {
         0x80 | (code & 0x3f)
       )
   }
+
   return bytes
 }
 
@@ -40,7 +44,9 @@ export function sha256Hex(text: string): string {
   const bytes = utf8(text)
   const length = bytes.length
   bytes.push(0x80)
+
   while (bytes.length % 64 !== 56) bytes.push(0)
+
   // The message length in bits, as a 64-bit big-endian integer.
   for (const word of [Math.floor(length / 0x20000000), (length * 8) >>> 0]) {
     bytes.push(word >>> 24, (word >>> 16) & 0xff, (word >>> 8) & 0xff, word & 0xff)
@@ -48,17 +54,21 @@ export function sha256Hex(text: string): string {
 
   const hash = [...H0]
   const w: number[] = []
+
   for (let offset = 0; offset < bytes.length; offset += 64) {
     for (let t = 0; t < 16; t++) {
       const i = offset + t * 4
       w[t] = (bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]
     }
+
     for (let t = 16; t < 64; t++) {
       const s0 = rotr(w[t - 15], 7) ^ rotr(w[t - 15], 18) ^ (w[t - 15] >>> 3)
       const s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10)
       w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0
     }
+
     let [a, b, c, d, e, f, g, h] = hash
+
     for (let t = 0; t < 64; t++) {
       const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + w[t]) >>> 0
       const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0
@@ -71,7 +81,9 @@ export function sha256Hex(text: string): string {
       b = a
       a = (t1 + t2) >>> 0
     }
+
     for (const [i, value] of [a, b, c, d, e, f, g, h].entries()) hash[i] = (hash[i] + value) >>> 0
   }
+
   return hash.map((word) => word.toString(16).padStart(8, '0')).join('')
 }

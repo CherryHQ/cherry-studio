@@ -47,6 +47,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     return router.subscribe('onResolved', ({ toLocation }) => {
       const nextHref = toLocation.href
       setTransitionUrl(null)
+
       if (nextHref !== tab.url) {
         onUrlChange(nextHref)
       }
@@ -56,6 +57,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   // Navigate when tab.url changes externally (e.g., from Sidebar)
   useEffect(() => {
     const currentHref = router.state.location.href
+
     if (tab.url !== currentHref) {
       setTransitionUrl(tab.url)
       // Parse the query separately because search validation can lose parameters
@@ -70,6 +72,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
 
   const contentRef = useRef<HTMLElement | null>(null)
   const [tabPortalContainer, setTabPortalContainer] = useState<HTMLElement | null>(null)
+
   // Latch the captured node across Activity hide/show: a hidden tab detaches the ref
   // (node === null) while its DOM node lives on, and clearing the container would
   // un-scope a still-open overlay/PageSidePanel to a full-window document.body portal.

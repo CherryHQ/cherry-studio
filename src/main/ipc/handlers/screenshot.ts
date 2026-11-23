@@ -27,6 +27,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas> = {
   'screenshot.submit_result': async ({ mediaId, ...result }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isActiveCapture(ctx.senderId, mediaId)) return
     await service.submitResult(result)
   },
@@ -39,27 +40,32 @@ export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas>
   },
   'screenshot.commit': async ({ mediaId, ...result }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isActiveCapture(ctx.senderId, mediaId)) return
     await service.commit(result)
   },
   'screenshot.copy': async ({ mediaId, ...result }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isActiveCapture(ctx.senderId, mediaId)) return
     await service.copy(result)
   },
   'screenshot.save': async ({ mediaId, ...result }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isActiveCapture(ctx.senderId, mediaId)) return
     await service.save(result)
   },
   // Session-scoped only: Esc on ANY overlay should cancel the whole capture.
   'screenshot.cancel': async (_input, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isSessionOverlay(ctx.senderId)) return
     service.dismiss()
   },
   'screenshot.overlay_active': async (_input, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isSessionOverlay(ctx.senderId)) return
     service.markOverlayActive(ctx.senderId)
   },
@@ -67,11 +73,13 @@ export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas>
   // produces a result nor disturbs the active overlay's selection.
   'screenshot.overlay_focus': async (_input, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isSessionOverlay(ctx.senderId)) return
     service.focusOverlay(ctx.senderId)
   },
   'screenshot.overlay_ready': async ({ mediaId }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isSessionOverlay(ctx.senderId)) return
     service.markOverlayReady(ctx.senderId, mediaId)
   },
@@ -79,14 +87,17 @@ export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas>
   // stacked, which only the overlay holding the live selection has any business doing.
   'screenshot.text_editing': async ({ editing }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return
     service.setTextEditing(ctx.senderId, editing)
   },
   'screenshot.recognize_text': async ({ mediaId, region }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
+
     // Active, not merely session: OCR is the most expensive thing an overlay can
     // ask for, so it should be no more permissive than commit/save.
     if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return { status: 'rejected' }
+
     return service.recognizeText(ctx.senderId, mediaId, region)
   }
 }

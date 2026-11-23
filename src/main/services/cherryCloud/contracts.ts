@@ -10,8 +10,11 @@ const utcDateTimeSchema = z.iso.datetime()
 
 function isSecureOrLoopbackUrl(value: string): boolean {
   const url = new URL(value)
+
   if (url.username || url.password) return false
+
   if (url.protocol === 'https:') return true
+
   return (
     url.protocol === 'http:' &&
     (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]')
@@ -22,8 +25,10 @@ function isSecureOrLoopbackUrl(value: string): boolean {
 // address; production builds never set it, so only the exact configured origin is exempt.
 function isConfiguredDevelopmentOrigin(value: string): boolean {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+
   if (!configuredOrigin) return false
   const url = new URL(value)
+
   return !url.username && !url.password && url.origin === new URL(configuredOrigin).origin
 }
 
@@ -96,6 +101,7 @@ const cloudModelIdSchema = z
     (modelId) => {
       try {
         createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, modelId)
+
         return true
       } catch {
         return false
@@ -106,6 +112,7 @@ const cloudModelIdSchema = z
 
 const cloudEndpointTypeSchema = z.enum([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
 const KNOWN_MODEL_CAPABILITIES = new Set<string>(objectValues(MODEL_CAPABILITY))
+
 const cloudModelCapabilitiesSchema = z
   .array(z.string())
   .transform((capabilities) =>

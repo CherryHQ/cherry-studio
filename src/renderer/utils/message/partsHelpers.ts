@@ -25,6 +25,7 @@ export function getTextFromParts(parts: CherryMessagePart[]): string {
     .flatMap((part) => {
       if (part.type !== 'text') return []
       const text = part.text
+
       return text.trim().length > 0 ? [text] : []
     })
     .join('\n\n')
@@ -38,6 +39,7 @@ export function getReasoningFromParts(parts: CherryMessagePart[]): string {
     .flatMap((part) => {
       if (part.type !== 'reasoning') return []
       const text = part.text
+
       return text.trim().length > 0 ? [text] : []
     })
     .join('\n\n')
@@ -76,6 +78,7 @@ export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolea
   // Translations are derived and dropped by the same save, so they never displace a file.
   const kept = parts.filter((part) => part.type !== 'data-translation')
   const lastTextIndex = kept.findLastIndex((part) => part.type === 'text')
+
   return kept
     .flatMap((part, index) => (part.type === 'file' ? [index] : []))
     .every((fileIndex, offset) => fileIndex === lastTextIndex + 1 + offset)

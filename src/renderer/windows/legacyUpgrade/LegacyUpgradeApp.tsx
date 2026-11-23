@@ -15,10 +15,13 @@ export default function LegacyUpgradeApp({ screen }: { screen: LegacyUpgradeScre
     if (!install?.enabled) return
     let live = true
     let received = false
+
     const off = window.electron.ipcRenderer.on(LegacyUpgradeChannels.State, (_event, next: LegacyInstallState) => {
       received = true
+
       if (live) setState(next)
     })
+
     void window.electron.ipcRenderer
       .invoke(LegacyUpgradeChannels.GetState)
       .then((next: LegacyInstallState) => {
@@ -27,6 +30,7 @@ export default function LegacyUpgradeApp({ screen }: { screen: LegacyUpgradeScre
       .catch(() => {
         if (live) setState({ phase: 'failed' })
       })
+
     return () => {
       live = false
       off()
@@ -35,6 +39,7 @@ export default function LegacyUpgradeApp({ screen }: { screen: LegacyUpgradeScre
 
   const invoke = async (channel: string, target?: string) => {
     setBusy(true)
+
     try {
       await window.electron.ipcRenderer.invoke(channel, ...(target ? [target] : []))
     } catch {
@@ -43,12 +48,14 @@ export default function LegacyUpgradeApp({ screen }: { screen: LegacyUpgradeScre
       setBusy(false)
     }
   }
+
   const primary = () => {
     if (install?.enabled) {
       setState({ phase: 'preparing' })
       void invoke(LegacyUpgradeChannels.Install)
     } else void invoke(LegacyUpgradeChannels.Download, install?.prerequisite ? 'prerequisite' : 'bridge')
   }
+
   const status =
     install &&
     (state.phase === 'cancelling' ? install.cancel : state.phase === 'idle' ? undefined : install[state.phase])

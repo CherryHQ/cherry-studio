@@ -49,7 +49,9 @@ const logger = loggerService.withContext('McpServersList')
 const mcpServersRouteApi = getRouteApi('/settings/mcp/servers')
 
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
+
 type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'streamableHttp' | 'builtin'
+
 const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: string }[] = [
   { value: 'all', labelKey: 'models.all' },
   { value: 'enabled', labelKey: 'common.enabled' },
@@ -77,9 +79,11 @@ const McpServersList: FC = () => {
   const pendingAutoEnableServerIdRef = useRef<string | null>(null)
   const protocolInstallRequest = protocolInstallQueue[0]
   const [displayedProtocolRequestId, setDisplayedProtocolRequestId] = useState<string | null>(null)
+
   const displayedProtocolRequest = protocolInstallQueue.find(
     (request) => request.requestId === displayedProtocolRequestId
   )
+
   const protocolDialog = useExitPresence(displayedProtocolRequest ?? null)
 
   const [searchText, setSearchText] = useState('')
@@ -91,6 +95,7 @@ const McpServersList: FC = () => {
       const nextQueue = update(protocolInstallQueueRef.current)
       protocolInstallQueueRef.current = nextQueue
       setProtocolInstallQueue(nextQueue)
+
       return nextQueue
     },
     []
@@ -124,6 +129,7 @@ const McpServersList: FC = () => {
   useEffect(() => {
     if (protocolDialog.isPresent) return
     setDisplayedProtocolRequestId(protocolInstallRequest?.requestId ?? null)
+
     if (protocolInstallRequest || !pendingAutoEnableServerIdRef.current) return
     const serverId = pendingAutoEnableServerIdRef.current
     pendingAutoEnableServerIdRef.current = null
@@ -137,6 +143,7 @@ const McpServersList: FC = () => {
       await ipcApi.request('mcp.protocol_install.cancel', { requestId: displayedProtocolRequest.requestId })
     } catch (error) {
       logger.error('Failed to cancel MCP protocol install request', error as Error)
+
       return
     }
 
@@ -148,16 +155,23 @@ const McpServersList: FC = () => {
 
     return mcpServers.filter((server) => {
       if (isBrowserMcpServer(server)) return false
+
       if (filter === 'enabled' && !server.isActive) return false
+
       if (filter === 'disabled' && server.isActive) return false
+
       if (filter === 'stdio' && server.type !== 'stdio') return false
+
       if (filter === 'sse' && server.type !== 'sse') return false
+
       if (filter === 'streamableHttp' && server.type !== 'streamableHttp') return false
+
       if (filter === 'builtin' && server.installSource !== 'builtin') return false
 
       if (keywords.length === 0) return true
 
       const searchTarget = `${server.name} ${server.description} ${server.tags?.join(' ')} ${server.provider ?? ''}`
+
       return matchKeywordsInString(keywords, searchTarget)
     })
   }, [deferredSearchText, filter, mcpServers])
@@ -175,6 +189,7 @@ const McpServersList: FC = () => {
   useEffect(() => {
     // 恢复滚动位置
     const savedScroll = sessionStorage.getItem('mcp-list-scroll')
+
     if (savedScroll && scrollRef.current) {
       scrollRef.current.scrollTop = Number(savedScroll)
     }
@@ -188,6 +203,7 @@ const McpServersList: FC = () => {
 
     const container = scrollRef.current
     container?.addEventListener('scroll', handleScroll)
+
     return () => container?.removeEventListener('scroll', handleScroll)
   }, [])
 
@@ -203,11 +219,14 @@ const McpServersList: FC = () => {
   const handleAddServerSuccess = useCallback(
     async (dtos: CreateMcpServerDto[]): Promise<McpServer[]> => {
       const created: McpServer[] = []
+
       for (const dto of dtos) {
         created.push(await addMcpServer(dto))
       }
+
       setIsAddModalVisible(false)
       toast.success(t('settings.mcp.addSuccess'))
+
       return created
     },
     [addMcpServer, t]
@@ -217,6 +236,7 @@ const McpServersList: FC = () => {
     if (!displayedProtocolRequest) return
 
     let createdServers: McpServer[]
+
     try {
       createdServers = await ipcApi.request('mcp.protocol_install.install', {
         requestId: displayedProtocolRequest.requestId
@@ -224,10 +244,12 @@ const McpServersList: FC = () => {
     } catch (error) {
       logger.error('Failed to install MCP servers from protocol', error as Error)
       toast.error(t('settings.mcp.addError'))
+
       return
     }
 
     const lastCreatedServer = createdServers.at(-1)
+
     if (!lastCreatedServer) return
 
     void refetch().catch((error) =>
@@ -251,8 +273,10 @@ const McpServersList: FC = () => {
 
   const handleExport = useCallback(async () => {
     setIsAddMenuOpen(false)
+
     if (exporting) return
     setExporting(true)
+
     try {
       const content = serializeMcpServersForExport(mcpServers)
       await window.api.file.save('mcp-servers.json', new TextEncoder().encode(content), {

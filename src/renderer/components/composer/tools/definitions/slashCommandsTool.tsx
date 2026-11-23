@@ -32,11 +32,13 @@ export const insertSlashCommand = (
   if (inputAdapter) {
     inputAdapter.insertText(`${command} `)
     inputAdapter.focus()
+
     return
   }
 
   onTextChange((prev: string) => {
     const separator = prev.length > 0 && !/\s$/.test(prev) ? ' ' : ''
+
     return `${prev}${separator}${command} `
   })
 }
@@ -70,6 +72,7 @@ const slashCommandsTool = defineTool({
         // Prefer the live SDK catalog for this session (custom commands included); fall back to the
         // static builtin list before the runtime has reported one (e.g. first paint, no run yet).
         const liveCommands = session?.slashCommands?.length ? session.slashCommands : undefined
+
         const slashCommands: NonNullable<typeof liveCommands> =
           liveCommands ?? getBuiltinSlashCommands(session?.agentType)
 
@@ -80,6 +83,7 @@ const slashCommandsTool = defineTool({
         // Goal is a mode entry; other slash commands remain trailing root suggestions.
         const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => {
           const isGoal = cmd.command === '/goal' && cmd.builtin !== false
+
           const descriptionKey = liveCommands
             ? cmd.builtin === true
               ? SLASH_COMMAND_DESCRIPTION_KEYS.get(cmd.command)
@@ -106,12 +110,15 @@ const slashCommandsTool = defineTool({
                   if (!/^\/goal(?:\s|$)/.test(inputAdapter.getText())) {
                     inputAdapter.insertText('/goal ', { position: 'start' })
                   }
+
                   inputAdapter.focus()
                 } else {
                   actions.onTextChange((prev) => (/^\/goal(?:\s|$)/.test(prev) ? prev : `/goal ${prev}`))
                 }
+
                 return
               }
+
               insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
             }
           }

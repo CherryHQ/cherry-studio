@@ -35,6 +35,7 @@ import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
 
 type DialogView = 'single' | 'all'
+
 type ModelOption = ComboboxOption<{ model: Model }>
 
 const CONNECTION_ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
@@ -42,11 +43,13 @@ const CONNECTION_ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
 function filterModelCheckOption(option: ComboboxOption, search: string) {
   const haystack = [option.label, option.value, option.description].filter(Boolean).join(' ').toLocaleLowerCase()
+
   return haystack.includes(search.trim().toLocaleLowerCase())
 }
 
 function clampTimeout(value: number) {
   if (!Number.isFinite(value)) return 15
+
   return Math.min(60, Math.max(5, Math.round(value)))
 }
 
@@ -57,19 +60,24 @@ function getEffectiveKeySelection(
   if (selection.mode === 'single' && !entries.some((entry) => entry.isEnabled && entry.id === selection.keyId)) {
     return { mode: 'all' }
   }
+
   return selection
 }
 
 function getSkipReasonDescription(model: Model, t: ReturnType<typeof useTranslation>['t']) {
   const reason = getModelHealthCheckSkipReason(model)
+
   if (!reason) return undefined
+
   if (reason.kind === 'unsupported_probe') return t('settings.models.check.skip_reason_unsupported_probe')
+
   const output =
     reason.output === 'image'
       ? t('settings.models.check.generation_output_image')
       : reason.output === 'video'
         ? t('settings.models.check.generation_output_video')
         : t('settings.models.check.generation_output_audio')
+
   return t('settings.models.check.skip_reason_generation_cost', { output })
 }
 
@@ -134,6 +142,7 @@ function ApiKeySelectField({
         renderValue={(nextValue, nextOptions) => {
           const selectedValue = Array.isArray(nextValue) ? nextValue[0] : nextValue
           const option = nextOptions.find((item) => item.value === selectedValue)
+
           return option ? <span className="truncate font-mono text-[12px]">{option.label}</span> : null
         }}
         searchable={entries.length > 5}
@@ -161,6 +170,7 @@ function SingleApiKeyField({
   }
 
   const selectedEntry = entries[0]
+
   return (
     <div className="space-y-1.5">
       <div className="text-[13px] text-muted-foreground">{t('settings.provider.api_key.label')}</div>
@@ -238,14 +248,17 @@ export default function ModelCheckDialog() {
   const [isStarting, setIsStarting] = useState(false)
   const effectiveAllKeySelection = getEffectiveKeySelection(allKeySelection, health.apiKeyEntries)
   const sortedModels = useMemo(() => sortBy(health.models, 'name'), [health.models])
+
   const checkableModels = useMemo(
     () => sortedModels.filter((model) => !getModelHealthCheckSkipReason(model)),
     [sortedModels]
   )
+
   const enabledApiKeyEntries = useMemo(
     () => health.apiKeyEntries.filter((entry) => entry.isEnabled),
     [health.apiKeyEntries]
   )
+
   const modelOptions = useMemo<ModelOption[]>(
     () =>
       sortedModels.map((model) => ({
@@ -257,27 +270,37 @@ export default function ModelCheckDialog() {
       })),
     [sortedModels, t]
   )
+
   const selectedModel = checkableModels.find((model) => model.id === singleModelId) ?? checkableModels[0]
   const selectedKeyEntry = enabledApiKeyEntries.find((entry) => entry.id === singleKeyId) ?? enabledApiKeyEntries[0]
+
   const singleKeySelection: ModelCheckKeySelection =
     health.canSelectApiKey && selectedKeyEntry ? { mode: 'single', keyId: selectedKeyEntry.id } : { mode: 'all' }
+
   const hasEnabledApiKeys = enabledApiKeyEntries.length > 0
   const controlsDisabled = isStarting || health.isSingleModelChecking
   const showKeyScope = health.canSelectApiKey && (health.requiresApiKey || hasEnabledApiKeys)
   const singleModelResult = health.singleModelResult
+
   const showSingleResult =
     singleModelResult != null && selectedModel != null && singleModelResult.model.id === selectedModel.id
+
   const singleError = (() => {
     if (!showSingleResult || singleModelResult?.kind !== 'failed') return undefined
+
     if (singleKeySelection.mode === 'single') {
       const selectedResult = singleModelResult.keyResults.find(
         (result) => result.credential.kind === 'api-key' && result.credential.entry.id === singleKeySelection.keyId
       )
+
       if (selectedResult?.kind === 'failed') return selectedResult.error
     }
+
     const failedResult = singleModelResult.keyResults.find((result) => result.kind === 'failed')
+
     return failedResult?.kind === 'failed' ? failedResult.error : singleModelResult.error
   })()
+
   const singleErrorText = healthCheckErrorToDisplayString(singleError)
 
   useEffect(() => {
@@ -303,10 +326,12 @@ export default function ModelCheckDialog() {
 
   const handleStart = async () => {
     setIsStarting(true)
+
     try {
       if (view === 'single') {
         if (!selectedModel) return
         await health.startSingleModelCheck({ model: selectedModel, keySelection: singleKeySelection })
+
         return
       }
 
@@ -375,6 +400,7 @@ export default function ModelCheckDialog() {
                     renderValue={(value, options) => {
                       const selectedValue = Array.isArray(value) ? value[0] : value
                       const option = options.find((item) => item.value === selectedValue)
+
                       return option
                         ? renderModelOptionContent(option.model)
                         : checkableModels.length === 0

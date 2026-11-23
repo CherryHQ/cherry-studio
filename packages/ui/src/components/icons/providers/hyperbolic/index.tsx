@@ -4,6 +4,7 @@ import { HyperbolicLight } from './light'
 
 const Hyperbolic = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <HyperbolicLight {...props} className={className} />
+
   return <HyperbolicLight {...props} className={className} />
 }
 

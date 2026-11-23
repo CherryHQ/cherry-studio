@@ -45,6 +45,7 @@ export const OgCard = ({ link, show }: Props) => {
   const title = metadata['og:title'] || metadata.title || hostname || link
   const description = metadata['og:description'] || metadata.description || link
   const imageUrl = metadata['og:image'] || metadata.image
+
   const thumbnail = imageUrl ? (
     <img
       src={imageUrl}

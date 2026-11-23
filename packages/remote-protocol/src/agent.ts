@@ -16,6 +16,7 @@ export {
   contentRefSchema,
   commandReceiptSchema
 } from './agent/resources'
+
 export type {
   AgentWorkspaceSelection,
   AgentInteractionResponse,
@@ -32,8 +33,11 @@ export type {
   ContentRef,
   CommandReceipt
 } from './agent/resources'
+
 export { agentMethods } from './agent/methods'
+
 export type { AgentMethod, AgentMutation, AgentParams, AgentResult } from './agent/methods'
+
 export {
   taskMethods,
   taskStatusSchema,
@@ -43,6 +47,7 @@ export {
   taskRunSchema,
   taskResultLocationSchema
 } from './agent/tasks'
+
 export type {
   TaskMethod,
   TaskStatus,
@@ -52,19 +57,27 @@ export type {
   TaskRun,
   TaskResultLocation
 } from './agent/tasks'
+
 export { agentEventSchema, agentEventBatchSchema, agentNotificationSchema, agentProjectionSchema } from './agent/events'
+
 export type { AgentEvent, AgentEventBatch, AgentProjection } from './agent/events'
+
 export {
   agentCheckpointDescriptorSchema,
   agentCheckpointPageSchema,
   encodeAgentCheckpointPage
 } from './agent/checkpoints'
+
 export type { AgentCheckpointDescriptor, AgentCheckpointPage } from './agent/checkpoints'
+
 export { encodeAgentCommand } from './agent/commands'
+
 export { applyAgentEvents, installAgentCheckpoint, textByteLength } from './agent/reducer'
+
 export type { MaterializedContent, ApplyAgentEventsResult, InstallAgentCheckpointResult } from './agent/reducer'
 
 export { agentUploadLimits, uploadMetadataSchema, uploadReferenceSchema, uploadReferencesSchema } from './agent/uploads'
+
 export type {
   AgentUploadComplete,
   AgentUploadMetadata,
@@ -78,4 +91,5 @@ export {
   attachmentDraftManifestSchema,
   attachmentDraftSubmissionSchema
 } from './agent/attachmentDrafts'
+
 export type { AgentAttachmentSelection, AgentAttachmentDraftItem } from './agent/attachmentDrafts'

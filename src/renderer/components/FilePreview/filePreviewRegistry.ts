@@ -25,9 +25,11 @@ export function createFilePreviewRegistry({ extensionPlugins }: CreateFilePrevie
       if (normalizeExt(extension) !== extension) {
         throw new Error(`Invalid file preview extension: ${extension}`)
       }
+
       if (pluginsByExtension.has(extension)) {
         throw new Error(`Duplicate file preview extension: ${extension}`)
       }
+
       pluginsByExtension.set(extension, plugin)
     }
   }
@@ -37,6 +39,7 @@ export function createFilePreviewRegistry({ extensionPlugins }: CreateFilePrevie
 
 export function resolveExtensionPlugin(filePath: string, registry: FilePreviewRegistry): FilePreviewPlugin | null {
   const extension = getFilePreviewExtension(filePath)
+
   return extension ? (registry.extensionPlugins.get(extension) ?? null) : null
 }
 
@@ -59,6 +62,7 @@ export function canProduceSelectionReference(filePath: string): boolean {
 /** Whether `filePath` gets a rendered preview (HTML, Markdown, images, documents) rather than plain text. */
 export function hasRenderedFilePreview(filePath: string): boolean {
   const plugin = resolveExtensionPlugin(filePath, filePreviewRegistry)
+
   return plugin !== null && plugin !== textFilePreviewPlugin
 }
 

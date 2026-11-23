@@ -26,6 +26,7 @@ interface RegisteredVoiceTarget extends VoiceTargetRegistration {
 
 function captureRange(target: RegisteredVoiceTarget): VoiceReplaceRange | null {
   const range = target.captureReplaceRange()
+
   if (
     !range ||
     !Number.isInteger(range.from) ||
@@ -35,6 +36,7 @@ function captureRange(target: RegisteredVoiceTarget): VoiceReplaceRange | null {
   ) {
     return null
   }
+
   return Object.freeze({ from: range.from, to: range.to })
 }
 
@@ -46,6 +48,7 @@ export class VoiceTargetManager {
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
+
     return () => this.listeners.delete(listener)
   }
 
@@ -53,6 +56,7 @@ export class VoiceTargetManager {
 
   bind(registration: VoiceTargetRegistration): () => void {
     const previous = this.targets.get(registration.targetId)
+
     if (this.current === previous) this.current = undefined
 
     const target: RegisteredVoiceTarget = { ...registration, bindingToken: Symbol(registration.targetId) }
@@ -67,20 +71,27 @@ export class VoiceTargetManager {
 
   markCurrent(targetId: string): boolean {
     const target = this.targets.get(targetId)
+
     if (!target || target.owner.closed) {
       if (this.current?.targetId === targetId) this.current = undefined
       this.publish()
+
       return false
     }
+
     this.current = target
     this.publish()
+
     return true
   }
 
   captureCurrent(): CapturedVoiceTarget | null {
     const target = this.current
+
     if (!target || this.targets.get(target.targetId) !== target || target.owner.closed) return null
+
     if (!captureRange(target)) return null
+
     return Object.freeze({
       targetId: target.targetId,
       owner: target.owner,
@@ -91,6 +102,7 @@ export class VoiceTargetManager {
 
   insert(binding: CapturedVoiceTarget, text: string): VoiceTargetInsertResult {
     const target = this.targets.get(binding.targetId)
+
     if (
       !target ||
       target.bindingToken !== binding.bindingToken ||
@@ -100,24 +112,29 @@ export class VoiceTargetManager {
     ) {
       return 'unavailable'
     }
+
     const liveRange = captureRange(target)
+
     return liveRange && target.replaceRange(liveRange, text) ? 'inserted' : 'unavailable'
   }
 
   insertIntoCurrent(text: string, intent: 'user_recovery'): VoiceTargetInsertResult {
     if (intent !== 'user_recovery') return 'unavailable'
     const binding = this.captureCurrent()
+
     return binding ? this.insert(binding, text) : 'unavailable'
   }
 
   private remove(target: RegisteredVoiceTarget): void {
     this.targets.delete(target.targetId)
+
     if (this.current === target) this.current = undefined
     this.publish()
   }
 
   private publish(): void {
     const target = this.current
+
     if (this.snapshot?.bindingToken === target?.bindingToken) return
     this.snapshot = target
       ? Object.freeze({

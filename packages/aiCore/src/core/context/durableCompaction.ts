@@ -94,6 +94,7 @@ export async function compactHistory(
   if (plan.toSummarize.length === 0) return history
 
   const summary = await summarizeHistory(plan.toSummarize, compress, summarizeOptions)
+
   // Summarizer produced nothing usable — leave history intact rather than
   // dropping the old turns behind an empty marker.
   if (!summary.trim()) return history

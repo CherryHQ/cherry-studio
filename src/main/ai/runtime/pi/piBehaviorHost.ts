@@ -23,6 +23,7 @@ import { PI_TRANSPORT } from './PiMessageMetadata'
 import { matchPiSubagentModel } from './piSubagentModelMatch'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
+
 type HostOptions = {
   input: AgentRuntimeConnectInput
   root(): ThreadId
@@ -36,11 +37,14 @@ type HostOptions = {
   emit(event: AgentRuntimeEvent): void
   observe(event: BehaviorEvent): void
 }
+
 const recordSchema = z.record(z.string(), z.json())
+
 const answerSchema = z.object({
   answers: z.record(z.string(), z.string()),
   annotations: z.record(z.string(), z.object({ notes: z.string().optional() })).optional()
 })
+
 const verdictSchema = z.object({ verdict: z.enum(['met', 'not_met', 'impossible']), reason: z.string() })
 const callSchema = z.object({ thread: z.string(), key: z.string() })
 const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
@@ -56,11 +60,14 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   const models = new Map<string, Model>([[rootKey, options.model]])
   const bindings = new Map<string, Binding>([[rootKey, binding]])
   const threads = new Map<ThreadId, string>([[options.root(), rootKey]])
+
   async function complete(thread: ThreadId, system: string, value: JsonValue, signal: AbortSignal) {
     const selected = bindings.get(threads.get(thread) ?? rootKey)!
+
     const usage = application
       .get('ApiGatewayService')
       .captureAgentSessionUsage(input.sessionId, await options.usageSessionId(thread))
+
     const result = await selected.modelRuntime
       .completeSimple(
         selected.model,
@@ -71,9 +78,12 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
         { signal, maxTokens: Math.min(4096, selected.model.maxTokens), headers: usage.headers }
       )
       .finally(usage.release)
+
     signal.throwIfAborted()
+
     if (result.stopReason !== 'stop')
       throw new Error(result.errorMessage ?? `Model request ended: ${result.stopReason}`)
+
     return {
       text: result.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
     }
@@ -87,13 +97,17 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
           .list({ enabled: true })
           .map((model) => ({ model, provider: providerService.getByProviderId(model.providerId) }))
           .filter(({ model, provider }) => provider.isEnabled && isPiCompatibleModel(provider, model))
+
         return candidates.flatMap(({ model, provider }) => {
           const raw = getRawModelId(model)
+
           const key =
             model.id === options.model.id
               ? rootKey
               : `${model.providerId}/${formatGatewayModelId(model.providerId, raw)}`
+
           models.set(key, model)
+
           const match = matchPiSubagentModel(query, {
             key,
             id: model.id,
@@ -101,11 +115,13 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
             modelName: model.name,
             providerName: provider.name
           })
+
           return match ? [{ key, provider: model.providerId, model: raw, exact: match.exact }] : []
         })
       },
       async current(thread) {
         const key = threads.get(thread) ?? rootKey
+
         return {
           parentModelKey: key,
           defaultChildModelKey: key,
@@ -121,8 +137,10 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
           { objective: request.objective, claim: { ...request.claim }, context: [...request.context] },
           signal
         )
+
         // Models often wrap the requested JSON in a markdown fence or a short preamble.
         const json = result.text.slice(result.text.indexOf('{'), result.text.lastIndexOf('}') + 1)
+
         return verdictSchema.parse(JSON.parse(json))
       }
     },
@@ -130,6 +148,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
       async save(file) {
         const path = application.getPath('feature.agents.outputs', file.name)
         await writeFile(path, file.content, 'utf8')
+
         return path
       }
     },
@@ -143,19 +162,24 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
       offloadThreshold: () => 20_000
     }
   }
+
   return {
     host,
     async configureChild({ thread, modelKey }) {
       if (!models.has(modelKey)) await host.models.find('', thread.id)
       const model = models.get(modelKey)
+
       if (!model) throw new Error(`Unknown subagent model: ${modelKey}`)
       let child = bindings.get(modelKey)
+
       if (!child) {
         child = await (options.bindModel?.(model) ??
           createPiGatewayModelBinding(input, providerService.getByProviderId(model.providerId), model))
         bindings.set(modelKey, child)
       }
+
       threads.set(thread.id, modelKey)
+
       return child
     }
   }
@@ -179,8 +203,10 @@ export async function createPiInteractionPorts(
     const { toolCallId, parentToolCallId } = await options.toolCallIdentity(call)
     signal.throwIfAborted()
     const presentation = approval.getInteractionState().userResponse
+
     if (presentation === 'unavailable') return undefined
     const id = approvalId(call)
+
     const decision = await new Promise<DispatchDecision>((resolve) => {
       const pending = toolApprovalRegistry.register({
         approvalId: id,
@@ -192,9 +218,12 @@ export async function createPiInteractionPorts(
         signal,
         resolve
       })
+
       if (pending) {
         const cherry: JSONObject = { transport: PI_TRANSPORT, toolName: name }
+
         if (parentToolCallId) cherry.parentToolCallId = parentToolCallId
+
         if (details !== undefined) cherry.commandPolicy = z.json().parse(details)
         options.emit({
           type: 'tool-approval-request',
@@ -211,7 +240,9 @@ export async function createPiInteractionPorts(
         })
       }
     })
+
     signal.throwIfAborted()
+
     return decision
   }
 
@@ -221,6 +252,7 @@ export async function createPiInteractionPorts(
       async ask({ call, tool, details }, signal) {
         const id = approvalId(call)
         outcomes.set(id, { call, state: 'pending' })
+
         try {
           const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal, details)
           const feedback = decision?.reasonSource === 'user' ? decision.reason : undefined
@@ -229,7 +261,9 @@ export async function createPiInteractionPorts(
             state: decision?.approved ? 'granted' : decision ? 'denied' : 'unavailable',
             feedback
           })
+
           if (!decision) return { kind: 'unavailable' }
+
           return decision.approved
             ? { kind: 'granted', ...(decision.updatedInput && { args: recordSchema.parse(decision.updatedInput) }) }
             : { kind: 'denied', feedback }
@@ -240,18 +274,23 @@ export async function createPiInteractionPorts(
       },
       async outcomes(thread, calls) {
         const persisted = new Map<string, ApprovalOutcome>()
+
         for (const message of agentSessionMessageService.listApprovalMessages(input.sessionId)) {
           for (const part of message.data.parts ?? []) {
             if (!isToolUIPart(part) || !part.approval?.id.startsWith('behavior:')) continue
             const id = part.approval.id
+
             if (persisted.has(id)) continue
             let parsed: unknown
+
             try {
               parsed = JSON.parse(id.slice('behavior:'.length))
             } catch {
               continue
             }
+
             const ref = callSchema.safeParse(parsed)
+
             if (!ref.success || ref.data.thread !== thread) continue
             const answered = 'approved' in part.approval ? part.approval : undefined
             persisted.set(id, {
@@ -261,7 +300,9 @@ export async function createPiInteractionPorts(
             })
           }
         }
+
         for (const [id, outcome] of outcomes) persisted.set(id, outcome)
+
         return [...persisted.values()].filter(
           (outcome) =>
             outcome.call.thread === thread &&
@@ -272,9 +313,12 @@ export async function createPiInteractionPorts(
     questions: {
       async ask({ call, questions }, signal) {
         const decision = await ask(call, 'AskUserQuestion', recordSchema.parse({ questions }), signal)
+
         if (!decision) return { status: 'unavailable' }
+
         if (!decision.approved)
           return { status: 'declined', feedback: decision.reasonSource === 'user' ? decision.reason : undefined }
+
         return { status: 'answered', ...answerSchema.parse(decision.updatedInput) }
       }
     }

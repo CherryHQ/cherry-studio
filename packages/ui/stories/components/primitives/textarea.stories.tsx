@@ -19,6 +19,7 @@ const meta: Meta<typeof Textarea.Input> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Basic Usage
@@ -243,6 +244,7 @@ export const RealWorldExamples: Story = {
     const [message, setMessage] = useState('')
 
     const tweetError = tweet.length > 280 ? 'Tweet is too long' : undefined
+
     const messageError =
       message.length > 0 && message.length < 10 ? 'Message must be at least 10 characters' : undefined
 

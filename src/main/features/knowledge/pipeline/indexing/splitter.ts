@@ -75,6 +75,7 @@ const BREAK_PATTERNS: Array<{ pattern: RegExp; score: number }> = [
 
 /** ~22% of the chunk budget — how far back from the target we hunt for a clean break. */
 const WINDOW_RATIO = 0.22
+
 /** Distance-decay strength: a break at the window edge keeps 30% of its score. */
 const DECAY_FACTOR = 0.7
 
@@ -84,8 +85,10 @@ const DECAY_FACTOR = 0.7
  * is mildly preferred over plain newlines.
  */
 const STRUCTURED_SEPARATOR_SCORE = 30
+
 /** Score for the user separator in pure-delimiter mode — the primary cut. */
 const DELIMITER_SEPARATOR_SCORE = 100
+
 /**
  * Fallback delimiter chain for pure-delimiter mode, tried by descending score
  * when the user separator leaves an oversized segment (paragraph, line,
@@ -105,6 +108,7 @@ const SEPARATOR_ESCAPES = new Map([
   ['r', '\r'],
   ['\\', '\\']
 ])
+
 /** Convert a user-typed escaped delimiter (`"\\n\\n"`, `"\\t"`) into its literal characters. */
 function unescapeSeparator(raw: string): string {
   return raw.replace(/\\([ntr\\])/g, (match, code: string) => SEPARATOR_ESCAPES.get(code) ?? match)
@@ -146,16 +150,20 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
 
   const chunks: TextChunk[] = []
   let cursor = 0
+
   while (cursor < text.length) {
     let endPos = Math.min(cursor + maxChars, text.length)
+
     if (endPos < text.length) {
       const cutoff = findBestCutoff(breakPoints, endPos, windowChars, codeFences)
+
       if (cutoff > cursor && cutoff <= endPos) {
         endPos = cutoff
       }
     }
 
     const chunk = trimToChunk(text, cursor, endPos)
+
     if (chunk) {
       chunks.push(chunk)
     }
@@ -163,6 +171,7 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
     if (endPos >= text.length) {
       break
     }
+
     const nextCursor = endPos - overlapChars
     cursor = nextCursor > cursor ? nextCursor : endPos
   }
@@ -179,8 +188,10 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
  */
 function scanBreakPoints(text: string, options: { strategy: KnowledgeChunkStrategy; separator: string }): BreakPoint[] {
   const best = new Map<number, number>()
+
   const consider = (pos: number, score: number) => {
     const existing = best.get(pos)
+
     if (existing === undefined || score > existing) {
       best.set(pos, score)
     }
@@ -192,9 +203,11 @@ function scanBreakPoints(text: string, options: { strategy: KnowledgeChunkStrate
         consider(match.index, score)
       }
     }
+
     addLiteralBreaks(text, options.separator, STRUCTURED_SEPARATOR_SCORE, consider)
   } else {
     addLiteralBreaks(text, options.separator, DELIMITER_SEPARATOR_SCORE, consider)
+
     for (const { separator, score } of DELIMITER_FALLBACKS) {
       addLiteralBreaks(text, separator, score, consider)
     }
@@ -217,7 +230,9 @@ function addLiteralBreaks(
   if (!separator) {
     return
   }
+
   let index = text.indexOf(separator)
+
   while (index !== -1) {
     consider(index + separator.length, score)
     index = text.indexOf(separator, index + separator.length)
@@ -228,6 +243,7 @@ function addLiteralBreaks(
 function findCodeFences(text: string): CodeFenceRegion[] {
   const regions: CodeFenceRegion[] = []
   let open: number | null = null
+
   for (const match of text.matchAll(/\n```/g)) {
     if (open === null) {
       open = match.index
@@ -236,9 +252,11 @@ function findCodeFences(text: string): CodeFenceRegion[] {
       open = null
     }
   }
+
   if (open !== null) {
     regions.push({ start: open, end: text.length })
   }
+
   return regions
 }
 
@@ -260,18 +278,23 @@ function findBestCutoff(
   const windowStart = target - windowChars
   let bestScore = -1
   let bestPos = target
+
   for (const bp of breakPoints) {
     if (bp.pos < windowStart) continue
+
     if (bp.pos > target) break // sorted by position
+
     if (isInsideCodeFence(bp.pos, codeFences)) continue
 
     const normalizedDistance = (target - bp.pos) / windowChars
     const score = bp.score * (1 - normalizedDistance * normalizedDistance * DECAY_FACTOR)
+
     if (score > bestScore) {
       bestScore = score
       bestPos = bp.pos
     }
   }
+
   return bestPos
 }
 
@@ -282,16 +305,21 @@ function findBestCutoff(
 function trimToChunk(text: string, start: number, end: number): TextChunk | null {
   let trimmedStart = start
   let trimmedEnd = end
+
   while (trimmedStart < trimmedEnd && isWhitespace(text[trimmedStart])) {
     trimmedStart += 1
   }
+
   while (trimmedEnd > trimmedStart && isWhitespace(text[trimmedEnd - 1])) {
     trimmedEnd -= 1
   }
+
   if (trimmedStart >= trimmedEnd) {
     return null
   }
+
   const body = text.slice(trimmedStart, trimmedEnd)
+
   return { text: body, start: trimmedStart, end: trimmedEnd }
 }
 

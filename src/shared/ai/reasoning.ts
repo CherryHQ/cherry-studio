@@ -17,6 +17,7 @@ const EFFORT_RATIO: Record<BudgetEffort, number> = {
 }
 
 const BUDGET_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+
 const EFFORT_ORDER_INDEX = new Map<ReasoningEffortOption, number>(
   REASONING_EFFORT_ORDER.map((effort, index) => [effort, index])
 )
@@ -24,9 +25,11 @@ const EFFORT_ORDER_INDEX = new Map<ReasoningEffortOption, number>(
 export function deriveThinkingOptions(model: Model): ReasoningEffortOption[] | undefined {
   if (!isReasoningModel(model)) return undefined
   const vocabulary = model.reasoning?.selectableEfforts
+
   if (!vocabulary?.length) return undefined
 
   const rest = vocabulary.filter((effort) => effort !== 'none')
+
   return ['default', ...(vocabulary.includes('none') ? (['none'] as const) : []), ...rest]
 }
 
@@ -36,24 +39,30 @@ export function nearestThinkingOption(
   options: readonly ReasoningEffortOption[]
 ): ReasoningEffortOption | undefined {
   const selectable = options.filter((option): option is ReasoningEffortOption => option !== 'default')
+
   if (selectable.includes(target)) return target
 
   const targetIndex = EFFORT_ORDER_INDEX.get(target)
+
   if (targetIndex === undefined) return selectable[0]
 
   let best: ReasoningEffortOption | undefined
   let bestIndex = -1
   let bestDistance = Number.POSITIVE_INFINITY
+
   for (const option of selectable) {
     const index = EFFORT_ORDER_INDEX.get(option)
+
     if (index === undefined) continue
     const distance = Math.abs(index - targetIndex)
+
     if (distance < bestDistance || (distance === bestDistance && index > bestIndex)) {
       best = option
       bestIndex = index
       bestDistance = distance
     }
   }
+
   return best ?? selectable[0]
 }
 
@@ -63,9 +72,13 @@ export function resolveReasoningEffortForModel(
   currentEffort: ReasoningEffortOption | undefined
 ): ReasoningEffortOption | undefined {
   const supportedOptions = deriveThinkingOptions(model)
+
   if (!supportedOptions?.some((option) => option !== 'default')) return undefined
+
   if (currentEffort && supportedOptions.includes(currentEffort)) return currentEffort
+
   if (currentEffort !== undefined) return nearestThinkingOption(currentEffort, supportedOptions) ?? supportedOptions[0]
+
   return supportedOptions[0]
 }
 
@@ -75,6 +88,7 @@ export function computeBudgetTokens(
   maxTokens?: number
 ): number {
   const budget = Math.max(1024, Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min))
+
   return maxTokens === undefined ? budget : Math.min(budget, maxTokens)
 }
 
@@ -84,7 +98,9 @@ function resolveBudgetEffort(
 ): BudgetEffort | undefined {
   if (selection === 'default' || selection === 'none') return undefined
   const effort = selection === 'auto' ? (reasoning?.defaultEffort ?? 'high') : selection
+
   if (effort === 'none' || effort === 'auto') return effort === 'auto' ? 'high' : undefined
+
   return effort
 }
 
@@ -96,7 +112,9 @@ export function resolveBudgetTokens(
 ): number | undefined {
   const limits = reasoning?.thinkingTokenLimits
   const effort = resolveBudgetEffort(selection, reasoning)
+
   if (limits?.min == null || limits.max == null || effort === undefined) return undefined
+
   return computeBudgetTokens({ min: limits.min, max: limits.max }, EFFORT_RATIO[effort], maxTokens)
 }
 
@@ -113,6 +131,7 @@ export function nearestEffortForBudget(
 
   for (const effort of BUDGET_EFFORTS) {
     const distance = Math.abs(budget - computeBudgetTokens(limits, EFFORT_RATIO[effort]))
+
     if (distance <= nearestDistance) {
       nearest = effort
       nearestDistance = distance

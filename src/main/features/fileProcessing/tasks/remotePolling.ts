@@ -23,6 +23,7 @@ export async function executeRemotePolling(
   let remoteContext: FileProcessingRemoteContext
 
   const persisted = ctx.metadata.remoteState as PersistableRemoteState | undefined
+
   if (persisted?.providerTaskId) {
     const rehydrated = prepared.rehydrate(persisted, config)
     providerTaskId = rehydrated.providerTaskId
@@ -50,11 +51,13 @@ export async function executeRemotePolling(
       const message =
         result.error?.trim() ||
         `${config.id} ${ctx.input.feature} failed (no diagnostic, providerTaskId=${providerTaskId})`
+
       throw new Error(message)
     }
 
     if (result.status === 'completed') {
       ctx.signal.throwIfAborted()
+
       return result.output
     }
 
@@ -75,16 +78,19 @@ function sleepWithSignal(ms: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted) {
     return Promise.reject(signal.reason ?? new DOMException('aborted', 'AbortError'))
   }
+
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       signal.removeEventListener('abort', onAbort)
       resolve()
     }, ms)
+
     const onAbort = () => {
       clearTimeout(timeoutId)
       signal.removeEventListener('abort', onAbort)
       reject(signal.reason ?? new DOMException('aborted', 'AbortError'))
     }
+
     signal.addEventListener('abort', onAbort, { once: true })
   })
 }

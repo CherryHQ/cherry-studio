@@ -25,11 +25,14 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
   const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
   const [pathError, setPathError] = useState<Error | null>(null)
   const { notesPath } = useNotesSettings()
+
   const { root, isLoading, error, version } = useDirectoryTree(
     dataRequested ? resolvedNotesPath : undefined,
     NOTES_TREE_OPTIONS
   )
+
   const rootPanelVisible = isVisible && symbol === ComposerPanelSymbol.Root
+
   const selectedFilePaths = useMemo<Set<string | undefined>>(
     () => new Set(state.files.map((file) => file.path)),
     [state.files]
@@ -38,11 +41,15 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
   const noteFiles = useMemo(() => {
     // The directory mirror mutates root in place; reading version keeps this projection synced.
     void version
+
     if (!root || !resolvedNotesPath) return []
+
     return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
   }, [resolvedNotesPath, root, version])
+
   const manageNotesAction = useMemo<ComposerToolFooterAction>(() => {
     const label = t('chat.input.note_reference.manage')
+
     return {
       id: 'note-reference:manage',
       panelSymbol: ComposerPanelSymbol.Notes,
@@ -104,6 +111,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         action: () => {
           actions.setFiles?.((files) => {
             if (files.some((file) => file.path === note.externalPath)) return files
+
             return [...files, noteToComposerAttachment(note)]
           })
         }
@@ -130,6 +138,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
       .catch((nextError) => {
         if (!cancelled) setPathError(nextError instanceof Error ? nextError : new Error(String(nextError)))
       })
+
     return () => {
       cancelled = true
     }

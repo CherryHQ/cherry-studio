@@ -75,15 +75,18 @@ export const resolveKnowledgeFileData = async (
   }
 
   const result = AbsoluteFilePathSchema.safeParse(source)
+
   if (!result.success) {
     throw new KnowledgeFileResolveError(`Failed to resolve an absolute local path for "${displayName}"`)
   }
 
   // file.get_metadata maps ENOENT, EACCES, and other stat failures to null; errno is not exposed.
   const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(result.data))
+
   if (metadata == null) {
     throw new MissingKnowledgeFileError(result.data, displayName)
   }
+
   if (metadata.kind !== 'file') {
     throw new KnowledgeFileNotAFileError(result.data, displayName)
   }
@@ -120,9 +123,12 @@ export const resolveKnowledgeFileBatch = async <T>(
   results.forEach((item, index) => {
     if (item.status === 'fulfilled') {
       resolved.push(item.value)
+
       return
     }
+
     const failure = describeFailure(index, describeItem(items[index]), item.reason)
+
     if (isSkippableKnowledgeFileError(item.reason)) {
       skipped.push(failure)
     } else {
@@ -137,7 +143,9 @@ export const resolveKnowledgeFileBatch = async <T>(
 export const selectKnowledgeFileBatchOutcome = (batch: KnowledgeFileBatchResult) => {
   if (batch.failed.length > 0) {
     const resolved: KnowledgeFileItemData[] = []
+
     return { resolved, skipped: batch.skipped, fatal: batch.failed[0].error }
   }
+
   return { resolved: batch.resolved, skipped: batch.skipped }
 }

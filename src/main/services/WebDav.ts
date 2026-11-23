@@ -35,6 +35,7 @@ export default class WebDav {
       maxBodyLength: Infinity,
       maxContentLength: Infinity
     }
+
     // Node's opt-in skips all certificate checks, including hostname and expiry.
     if (params.allowSelfSignedTls === true) options.httpsAgent = new https.Agent({ rejectUnauthorized: false })
     this.instance = createClient(params.webdavHost, options)
@@ -68,6 +69,7 @@ export default class WebDav {
     }
 
     const remoteFilePath = path.posix.join(this.webdavPath, filename)
+
     // webdav 5.x ignores contentLength for streams, but still honors per-request headers.
     const requestOptions =
       typeof options?.contentLength === 'number'
@@ -87,11 +89,13 @@ export default class WebDav {
         'storage.webdav',
         classifyStorageFailure(error)
       )
+
       if (typeof error === 'object' && error !== null && 'status' in error && error.status === 413) {
         const reported = new Error(`${BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE}: HTTP 413`, { cause: error })
         markReportingHandled(reported)
         throw reported
       }
+
       throw error
     }
   }

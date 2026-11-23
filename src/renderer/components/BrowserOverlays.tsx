@@ -15,6 +15,7 @@ interface Props {
 
 export function BrowserOverlays({ webviewRef, targetId, isReady, isLoading, errorMessage }: Props) {
   const { t } = useTranslation()
+
   return (
     <>
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} targetId={targetId} />

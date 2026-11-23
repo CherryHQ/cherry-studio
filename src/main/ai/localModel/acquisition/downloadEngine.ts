@@ -35,6 +35,7 @@ export async function withMirrorFallback<T>(
   attempt: (url: string) => Promise<T>
 ): Promise<T> {
   let lastError: unknown
+
   for (const url of urls) {
     try {
       return await attempt(url)
@@ -44,6 +45,7 @@ export async function withMirrorFallback<T>(
       logger.warn(`mirror failed for ${label}, trying next`, { url, error: String(error) })
     }
   }
+
   throw lastError instanceof Error ? lastError : new Error(`failed to download ${label} from every mirror`)
 }
 
@@ -63,28 +65,34 @@ export async function streamToFileVerified(
 ): Promise<void> {
   const { sha256, signal, onProgress } = options
   const response = await net.fetch(url, { signal })
+
   if (!response.ok || !response.body) throw new Error(`HTTP ${response.status} for ${url}`)
 
   const total = Number(response.headers.get('content-length')) || 0
   const hash = crypto.createHash('sha256')
   const target = AbsoluteFilePathSchema.parse(dest)
   let received = 0
+
   const meter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
       received += chunk.length
       hash.update(chunk)
+
       if (total > 0) onProgress?.(received / total)
       callback(null, chunk)
     }
   })
 
   await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(dest)))
+
   const writer = createPreparedAtomicWriteStream(target, async (prepared) => {
     const digest = hash.digest('hex')
+
     if (digest !== sha256) {
       await prepared.abort()
       throw new Error(`sha256 mismatch for ${url}: expected ${sha256}, got ${digest}`)
     }
+
     await prepared.commit()
   })
 
@@ -105,12 +113,15 @@ export async function fetchTextVerified(
   options: { sha256: string; signal: AbortSignal }
 ): Promise<string> {
   const response = await net.fetch(url, { signal: options.signal })
+
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`)
   const body = Buffer.from(await response.arrayBuffer())
   const digest = crypto.createHash('sha256').update(body).digest('hex')
+
   if (digest !== options.sha256) {
     throw new Error(`sha256 mismatch for ${url}: expected ${options.sha256}, got ${digest}`)
   }
+
   return body.toString('utf8')
 }
 

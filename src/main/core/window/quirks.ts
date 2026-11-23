@@ -57,12 +57,14 @@ export function applyWindowQuirks(
     window.hide = () => {
       const guard = quirks.macRestoreFocusOnHide ? beginMacFocusGuard() : null
       originalHide()
+
       if (quirks.macClearHoverOnHide && !window.isDestroyed()) {
         // [macOS] hacky way — because the window may not be a FOCUSED window,
         // the hover status remains on next show. Send a synthetic mouseMove
         // at (-1, -1) to force the hover state off.
         window.webContents.sendInputEvent({ type: 'mouseMove', x: -1, y: -1 })
       }
+
       if (guard) endMacFocusGuard(guard)
     }
 
@@ -99,6 +101,7 @@ export function applyWindowQuirks(
     const declaredRelativeLevel = behavior?.alwaysOnTop?.relativeLevel
     const originalShow = window.show.bind(window)
     const originalShowInactive = window.showInactive.bind(window)
+
     const reapply = () => {
       if (window.isDestroyed()) return
       // Read at fire time, not at patch time: the override is set long after this runs.
@@ -106,6 +109,7 @@ export function applyWindowQuirks(
       const level = override ?? declaredLevel
       // An override replaces the declared offset rather than stacking onto it.
       const relativeLevel = override !== undefined ? undefined : declaredRelativeLevel
+
       // Pass relativeLevel only when declared — avoids polluting the call
       // site with a trailing `undefined` that changes spy signatures.
       if (relativeLevel !== undefined) {
@@ -114,10 +118,12 @@ export function applyWindowQuirks(
         window.setAlwaysOnTop(true, level)
       }
     }
+
     window.show = () => {
       originalShow()
       reapply()
     }
+
     window.showInactive = () => {
       originalShowInactive()
       reapply()
@@ -132,6 +138,7 @@ export function applyWindowQuirks(
 // get all focusable windows and set them to not focusable
 function beginMacFocusGuard(): BrowserWindow[] {
   const focusableWindows: BrowserWindow[] = []
+
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed() && window.isVisible()) {
       if (window.isFocusable()) {
@@ -140,6 +147,7 @@ function beginMacFocusGuard(): BrowserWindow[] {
       }
     }
   }
+
   return focusableWindows
 }
 

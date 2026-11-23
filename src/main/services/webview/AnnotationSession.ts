@@ -41,10 +41,12 @@ export class AnnotationSession {
 
   announce() {
     if (this.disposed || this.ready || this.provisionalUrl || this.webContents.isDestroyed()) return
+
     const command: WebviewAnnotationHostCommand = {
       type: 'start_session',
       sessionId: this.documentSessionId
     }
+
     try {
       this.webContents.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command)
       this.ready = true
@@ -61,19 +63,23 @@ export class AnnotationSession {
       .catch(() => undefined)
       .then(async () => {
         this.assertCurrent(documentSessionId, taskController)
+
         try {
           const value = await task(taskController.signal)
           this.assertCurrent(documentSessionId, taskController)
+
           return value
         } catch (error) {
           this.assertCurrent(documentSessionId, taskController)
           throw error
         }
       })
+
     this.queue = result.then(
       () => undefined,
       () => undefined
     )
+
     return result
   }
 
@@ -110,6 +116,7 @@ export class AnnotationSession {
 
   private handleNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
     if (!details.isMainFrame || details.isSameDocument) return
+
     if (!this.provisionalUrl) this.resumeReady = this.ready
     this.provisionalUrl = details.url
     this.ready = false

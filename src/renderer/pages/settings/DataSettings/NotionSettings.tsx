@@ -44,15 +44,19 @@ const NotionSettings: FC = () => {
   const handleNotionConnectionCheck = async () => {
     if (!notionApiKey?.trim()) {
       toast.error(t('settings.data.notion.check.empty_api_key'))
+
       return
     }
+
     if (!notionDatabaseID?.trim()) {
       toast.error(t('settings.data.notion.check.empty_database_id'))
+
       return
     }
 
     try {
       const notion = new Client({ auth: notionApiKey })
+
       const result = await notion.databases.retrieve({
         database_id: notionDatabaseID
       })

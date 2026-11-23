@@ -89,21 +89,27 @@ function newRow(partial?: Partial<Pick<HeaderRow, 'key' | 'value'>>): HeaderRow 
 
 function headersObjectToRows(obj: Record<string, string>): HeaderRow[] {
   const entries = Object.entries(obj)
+
   if (entries.length === 0) {
     return []
   }
+
   return entries.map(([key, value]) => newRow({ key, value }))
 }
 
 function rowsToHeadersObject(rows: HeaderRow[]): Record<string, string> {
   const out = new Map<string, string>()
+
   for (const row of rows) {
     const k = row.key.trim()
+
     if (!k) {
       continue
     }
+
     out.set(k, row.value)
   }
+
   return Object.fromEntries(out)
 }
 
@@ -119,6 +125,7 @@ function buildExtraHeadersReplacementPatch(
   next: Record<string, string>
 ): Record<string, string | null> {
   const removed = Object.keys(previous).filter((key) => !Object.hasOwn(next, key))
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- The provider merge-patch contract needs string values plus null tombstones for removed headers.
   return { ...next, ...Object.fromEntries(removed.map((key) => [key, null])) }
 }
@@ -126,38 +133,50 @@ function buildExtraHeadersReplacementPatch(
 /** Parse JSON object for custom headers; primitive values coerced to strings. */
 function parseHeadersJsonDraft(raw: string): { ok: true; headers: Record<string, string> } | { ok: false } {
   const t = trim(raw)
+
   if (t === '') {
     return { ok: true, headers: {} }
   }
+
   let parsed: unknown
+
   try {
     parsed = JSON.parse(t) as unknown
   } catch {
     return { ok: false }
   }
+
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return { ok: false }
   }
+
   const entries: Array<[string, unknown]> = Object.entries(parsed)
   const out = new Map<string, string>()
+
   for (const [key, val] of entries) {
     const kk = trim(key)
+
     if (!kk) {
       continue
     }
+
     if (val !== null && typeof val === 'object') {
       return { ok: false }
     }
+
     out.set(kk, val === null || val === undefined ? '' : String(val))
   }
+
   return { ok: true, headers: Object.fromEntries(out) }
 }
+
 export function resolveEndpointTypes(
   provider: { endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>> } | null | undefined,
   primary: EndpointType
 ): EndpointType[] {
   const configured = Object.keys(provider?.endpointConfigs ?? {}) as EndpointType[]
   const others = configured.filter((type) => type !== primary && !IMAGE_ENDPOINT_TYPES.has(type)).sort()
+
   return IMAGE_ENDPOINT_TYPES.has(primary) ? others : [primary, ...others]
 }
 
@@ -176,20 +195,24 @@ export function mergeEndpointConfigs(
   drafts: Record<string, EndpointDraft>
 ): Partial<Record<EndpointType, EndpointConfig>> {
   const out: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
+
   for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
     const next: EndpointConfig = { ...out[type] }
     const value = trim(draft.baseUrl)
+
     if (value) {
       next.baseUrl = value
     } else {
       delete next.baseUrl
     }
+
     if (!isEmpty(next)) {
       out[type] = next
     } else {
       delete out[type]
     }
   }
+
   return out
 }
 
@@ -205,10 +228,12 @@ export function findInvalidSecondaryEndpointUrl(
   for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
     if (type === primary) continue
     const value = trim(draft.baseUrl)
+
     if (value && !validateApiHost(value)) {
       return type
     }
   }
+
   return null
 }
 
@@ -229,12 +254,15 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const [rows, setRows] = useState<HeaderRow[]>([])
   const [endpointDrafts, setEndpointDrafts] = useState<Record<string, EndpointDraft>>({})
   const [defaultChatEndpoint, setDefaultChatEndpoint] = useState<EndpointType>(primaryEndpoint)
+
   const [imageEndpointDraft, setImageEndpointDraft] = useState<ProviderImageEndpointDraft>(() =>
     readProviderImageEndpointDraft(undefined)
   )
+
   const [invalidImageEndpointField, setInvalidImageEndpointField] = useState<ProviderImageEndpointDraftField | null>(
     null
   )
+
   const [visibleEndpointTypes, setVisibleEndpointTypes] = useState<EndpointType[]>([])
   const [addEndpointOpen, setAddEndpointOpen] = useState(false)
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
@@ -250,11 +278,13 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     }
 
     const drafts: Record<string, EndpointDraft> = {}
+
     for (const type of endpointTypes) {
       drafts[type] = {
         baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
       }
     }
+
     setEndpointDrafts(drafts)
     setDefaultChatEndpoint(primaryEndpoint)
     setImageEndpointDraft(readProviderImageEndpointDraft(provider?.endpointConfigs))
@@ -272,11 +302,15 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
   const applyJsonToRowsOrToast = useCallback((): boolean => {
     const parsed = parseHeadersJsonDraft(jsonDraft)
+
     if (!parsed.ok) {
       toast.error(t('settings.provider.copilot.invalid_json'))
+
       return false
     }
+
     setRows(headersObjectToRows(parsed.headers))
+
     return true
   }, [jsonDraft, t])
 
@@ -284,11 +318,14 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     if (headersUiMode === 'list') {
       syncListToJson()
       setHeadersUiMode('json')
+
       return
     }
+
     if (!applyJsonToRowsOrToast()) {
       return
     }
+
     setHeadersUiMode('list')
   }, [applyJsonToRowsOrToast, headersUiMode, syncListToJson])
 
@@ -300,12 +337,16 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     // no chat endpoint defaults to its image endpoint, and `resolveEndpointTypes`
     // keeps image endpoints out of `endpointDrafts`, so its host is validated here.
     const defaultEndpointIsImage = IMAGE_ENDPOINT_TYPES.has(defaultChatEndpoint)
+
     const defaultEndpointDraft = defaultEndpointIsImage
       ? trim(imageEndpointDraft[imageDraftFieldFor(defaultChatEndpoint)])
       : trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
+
     const isAccountManagedProvider = provider.authType === 'iam-gcp'
+
     if (!isAccountManagedProvider && (!defaultEndpointDraft || !validateApiHost(defaultEndpointDraft))) {
       toast.error(t('settings.provider.api_host_no_valid'))
+
       return
     }
 
@@ -313,13 +354,16 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     // valid URL — otherwise it surfaces as an opaque chat-traffic failure later.
     if (findInvalidSecondaryEndpointUrl(endpointDrafts, defaultChatEndpoint)) {
       toast.error(t('settings.provider.api_host_no_valid'))
+
       return
     }
 
     const invalidImageEndpoint = findInvalidProviderImageEndpointDraft(imageEndpointDraft)
+
     if (invalidImageEndpoint) {
       setInvalidImageEndpointField(invalidImageEndpoint)
       toast.error(t('settings.provider.api_host_no_valid'))
+
       return
     }
 
@@ -329,12 +373,16 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const defaultEndpointChanged = !defaultEndpointIsImage && defaultChatEndpoint !== primaryEndpoint
 
     let parsedHeaders: Record<string, string>
+
     if (headersUiMode === 'json') {
       const parsed = parseHeadersJsonDraft(jsonDraft)
+
       if (!parsed.ok) {
         toast.error(t('settings.provider.copilot.invalid_json'))
+
         return
       }
+
       parsedHeaders = parsed.headers
     } else {
       parsedHeaders = rowsToHeadersObject(rows)
@@ -356,6 +404,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       // instead of silently losing their edits.
       logger.error('Failed to save provider request config', error as Error, { providerId })
       toast.error(t('settings.provider.save_failed'))
+
       return
     }
 
@@ -428,10 +477,12 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           const labelKey = ENDPOINT_TYPE_LABEL_KEYS[type]
           const label = labelKey ? t(labelKey) : isInitialPrimary ? t('settings.provider.api_host') : type
           const inputId = `provider-request-config-endpoint-${type}`
+
           const isConfiguredDefaultCandidate =
             type === primaryEndpoint ||
             Object.prototype.hasOwnProperty.call(provider?.endpointConfigs ?? {}, type) ||
             Boolean(trim(endpointDrafts[type]?.baseUrl ?? ''))
+
           return (
             <div key={type} className="space-y-1.5">
               <div className="flex min-h-5 items-center gap-2">

@@ -99,6 +99,7 @@ export async function searchFileContent(
 
     if (content.length > maxFileSize) {
       logger.warn(`File too large to search: ${node.externalPath} (${content.length} bytes)`)
+
       return null
     }
 
@@ -113,6 +114,7 @@ export async function searchFileContent(
       pattern.lastIndex = 0
 
       let match: RegExpExecArray | null
+
       while ((match = pattern.exec(line)) !== null) {
         // `exec` does not advance lastIndex on a zero-width match, so a pattern
         // such as `.*` or `^` would fill the result list with the same empty hit
@@ -121,6 +123,7 @@ export async function searchFileContent(
           pattern.lastIndex = match.index + 1
           continue
         }
+
         const matchStart = match.index
         const matchEnd = matchStart + match[0].length
 
@@ -165,6 +168,7 @@ export async function searchFileContent(
     }
   } catch (error) {
     logger.error(`Failed to search file content for ${node.externalPath}:`, error as Error)
+
     return null
   }
 }
@@ -175,6 +179,7 @@ export async function searchFileContent(
 export function matchFileName(node: NotesTreeNode, keyword: string, caseSensitive = false): boolean {
   const name = caseSensitive ? node.name : node.name.toLowerCase()
   const key = caseSensitive ? keyword : keyword.toLowerCase()
+
   return name.includes(key)
 }
 
@@ -206,6 +211,7 @@ export async function searchAllFiles(
       }
 
       const node = queue.shift()
+
       if (!node) break
 
       const nameMatch = matchFileName(node, keyword, options.caseSensitive)

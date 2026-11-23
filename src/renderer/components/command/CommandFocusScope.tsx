@@ -27,6 +27,7 @@ function ScopeProvider({
   const optionsRef = useRef(options)
   optionsRef.current = options
   const scopeRef = useRef<CommandFocusScopeState | null>(null)
+
   if (!scopeRef.current) {
     scopeRef.current = new CommandFocusScopeState(
       boundary ? (host?.rootScope ?? null) : parent,
@@ -39,6 +40,7 @@ function ScopeProvider({
       parent
     )
   }
+
   const scope = scopeRef.current
   const publishedOptions = useRef<{ active: boolean; context: Readonly<Record<string, ContextValue>> } | null>(null)
 
@@ -46,6 +48,7 @@ function ScopeProvider({
 
   useLayoutEffect(() => {
     const element = options.element()
+
     if (attachmentRef.current?.element === element) return
     attachmentRef.current?.dispose()
     attachmentRef.current = registry ? { element, dispose: registry.attach(scope) } : null
@@ -59,21 +62,26 @@ function ScopeProvider({
   )
   useLayoutEffect(() => {
     const next = { active: options.active(), context: { ...options.context() } }
+
     if (isEqual(publishedOptions.current, next)) return
     publishedOptions.current = next
     scope.publish()
   })
   const active = options.active()
+
   if (boundary) registry?.updateBoundaryActivation(scope, active)
   useLayoutEffect(() => {
     if (boundary && active && registry) {
       const dispose = registry.openBoundary(scope)
+
       return () => (releaseAfterFocusRestore ? releaseAfterFocusRestore(dispose) : dispose())
     }
+
     return undefined
   }, [active, boundary, registry, releaseAfterFocusRestore, scope])
 
   const value = useMemo<CommandRuntime | null>(() => host?.forScope(scope) ?? null, [host, scope])
+
   return (
     <CommandFocusScopeContext value={scope}>
       <CommandRuntimeContext value={value}>{children}</CommandRuntimeContext>

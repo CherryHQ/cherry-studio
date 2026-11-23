@@ -11,17 +11,22 @@ export function trackBrowserHistory(
   captureFavicon?: (url: string, candidates: string[], signal: AbortSignal) => void
 ): () => void {
   let faviconRequest = new AbortController()
+
   const favicon = (_event: Electron.Event, candidates: string[]) => {
     faviconRequest.abort()
     faviconRequest = new AbortController()
+
     if (!guest.isDestroyed()) captureFavicon?.(guest.getURL(), candidates, faviconRequest.signal)
   }
+
   let pending = recordInitial
   let visit: { id: string; url: string } | undefined
+
   const record = () => {
     if (!pending || guest.isDestroyed()) return
     pending = false
     const url = guest.getURL()
+
     try {
       const id = browserHistoryService.record({ url, title: guest.getTitle(), visitedAt: Date.now() })
       visit = id ? { id, url } : undefined
@@ -29,38 +34,46 @@ export function trackBrowserHistory(
       logger.warn('Failed to record browser visit', { error })
     }
   }
+
   const navigate = () => {
     faviconRequest.abort()
     pending = true
     visit = undefined
   }
+
   const inPage = (_event: Electron.Event, _url: string, isMainFrame: boolean) => {
     if (isMainFrame) {
       navigate()
       record()
     }
   }
+
   const failed = (_event: Electron.Event, _code: number, _description: string, _url: string, isMainFrame: boolean) => {
     if (isMainFrame) {
       pending = false
       visit = undefined
     }
   }
+
   const title = () => {
     if (!visit || guest.isDestroyed() || guest.getURL() !== visit.url) return
+
     try {
       browserHistoryService.updateTitle(visit.id, guest.getTitle(), visit.url)
     } catch (error) {
       logger.warn('Failed to update browser visit title', { error })
     }
   }
+
   guest.on('did-navigate', navigate)
   guest.on('did-navigate-in-page', inPage)
   guest.on('did-finish-load', record)
   guest.on('did-fail-load', failed)
   guest.on('page-title-updated', title)
   guest.on('page-favicon-updated', favicon)
+
   if (!guest.isLoadingMainFrame()) record()
+
   return () => {
     faviconRequest.abort()
     guest.removeListener('did-navigate', navigate)

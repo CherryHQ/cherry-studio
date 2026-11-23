@@ -75,6 +75,7 @@ function pickFallbackCallOptions(options: AgentOptions): FallbackCallOptions | u
   const entries = FALLBACK_CALL_OPTION_KEYS.flatMap((key) =>
     options[key] === undefined ? [] : ([[key, options[key]]] as const)
   )
+
   return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
@@ -83,37 +84,47 @@ export function buildFallbackModels(args: BuildFallbackModelsArgs): FallbackReso
 
   const seen = new Set<UniqueModelId>()
   const resolvers: FallbackResolver[] = []
+
   for (const configuredId of args.retryPolicy.fallbackModelIds) {
     if (!isUniqueModelId(configuredId)) {
       logger.warn('skipping invalid fallback model id', { configuredId })
       continue
     }
+
     if (configuredId === args.primaryUniqueModelId) {
       logger.info('skipping fallback equal to the active model', { uniqueModelId: configuredId })
       continue
     }
+
     if (seen.has(configuredId)) {
       logger.info('skipping duplicate fallback model', { uniqueModelId: configuredId })
       continue
     }
+
     seen.add(configuredId)
     resolvers.push(() => resolveFallback(configuredId, args))
   }
+
   return resolvers
 }
 
 function resolveConfiguredFallback(uniqueModelId: UniqueModelId) {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+
   try {
     const provider = providerService.getByProviderId(providerId)
     const model = modelService.getByKey(providerId, modelId)
+
     return { provider, model }
   } catch (error) {
     if (isAbortError(error)) throw error
+
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
       logger.error('skipping fallback whose provider or model no longer exists', error, { uniqueModelId })
+
       return null
     }
+
     throw error
   }
 }
@@ -123,6 +134,7 @@ async function resolveFallback(
   args: BuildFallbackModelsArgs
 ): Promise<RetryFallback | null> {
   const configured = resolveConfiguredFallback(uniqueModelId)
+
   if (!configured) return null
   const { provider, model } = configured
 
@@ -130,29 +142,39 @@ async function resolveFallback(
   // buys an opaque 404 instead of advancing to the next fallback (issue #20547).
   if (!provider.isEnabled) {
     logger.info('skipping fallback whose provider is disabled', { uniqueModelId })
+
     return null
   }
 
   const required = args.requiredNativeFileSupport
+
   if (required.image && !isVisionModel(model)) {
     logger.info('skipping fallback without vision for an image request', { uniqueModelId })
+
     return null
   }
+
   if (required.video && !isVideoModel(model)) {
     logger.info('skipping fallback without video input for a video request', { uniqueModelId })
+
     return null
   }
+
   if (required.audio && !isAudioModel(model)) {
     logger.info('skipping fallback without audio input for an audio request', { uniqueModelId })
+
     return null
   }
+
   if (args.primaryHasTools && !isFunctionCallingModel(model)) {
     logger.info('skipping non-function-calling fallback for a tool request', { uniqueModelId })
+
     return null
   }
 
   // eslint-disable-next-line prefer-const -- The callback registered during parameter construction must see undefined until the usage plugin exists.
   let repairUsagePlugins: AiPlugin[] | undefined
+
   const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
     request: args.request,
     signal: args.signal,
@@ -162,24 +184,29 @@ async function resolveFallback(
     extraFeatures: args.extraFeatures,
     getRepairUsagePlugins: () => repairUsagePlugins ?? []
   })
+
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
     (type) => required[type] && !nativeFileSupport[type]
   )
+
   if (unsupportedNativeType) {
     logger.info('skipping fallback without required native file support', {
       uniqueModelId,
       fileType: unsupportedNativeType
     })
+
     return null
   }
 
   const usagePlugin = args.createUsagePlugin({ provider, model, sdkModelId: sdkConfig.modelId, credentialReceipt })
   repairUsagePlugins = [usagePlugin]
+
   const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
     sdkConfig.providerId,
     sdkConfig.providerSettings,
     sdkConfig.modelId,
     [...plugins, usagePlugin]
   )
+
   return { model: resolved, options: pickFallbackCallOptions(options), repairToolCall: options.repairToolCall }
 }

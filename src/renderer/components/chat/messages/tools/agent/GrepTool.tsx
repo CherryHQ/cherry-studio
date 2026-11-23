@@ -31,6 +31,7 @@ export function GrepTool({ input, output }: { input?: GrepToolInput; output?: Gr
         <TerminalContainer>
           {truncatedOutput?.split('\n').map((line, i) => {
             const match = line.match(FILE_PATH_RE)
+
             if (match) {
               return (
                 <div key={i}>
@@ -39,6 +40,7 @@ export function GrepTool({ input, output }: { input?: GrepToolInput; output?: Gr
                 </div>
               )
             }
+
             return <div key={i}>{line}</div>
           })}
         </TerminalContainer>

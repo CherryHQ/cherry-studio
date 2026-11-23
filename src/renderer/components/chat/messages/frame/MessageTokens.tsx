@@ -39,6 +39,7 @@ function AssistantMessageTokens({
   const [isDetailsDismissed, setIsDetailsDismissed] = useState(false)
   const contentId = useId()
   const messageKind = useMessageListMeta().aiUsageMessageKind ?? 'chat'
+
   const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
     enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
     query: {
@@ -49,14 +50,17 @@ function AssistantMessageTokens({
     },
     limit: 200
   })
+
   const records = useInfiniteFlatItems(pages)
   const isDetailsVisible = isDetailsOpen && !isDetailsDismissed
   const requestedPageCountRef = useRef(1)
   const pointerDownPositionRef = useRef<{ x: number; y: number } | undefined>(undefined)
+
   const handleDetailsOpenChange = (open: boolean) => {
     if (open && isDetailsDismissed) return
     setIsDetailsOpen(open)
   }
+
   const handleMouseDown = (event: MouseEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return
 
@@ -64,26 +68,33 @@ function AssistantMessageTokens({
     setIsDetailsDismissed(true)
     setIsDetailsOpen(false)
   }
+
   const handleMouseBoundary = (event: MouseEvent<HTMLButtonElement>) => {
     const pointerDownPosition = pointerDownPositionRef.current
+
     if (!pointerDownPosition) {
       setIsDetailsDismissed(false)
+
       return
     }
 
     const movedDistance = Math.hypot(event.clientX - pointerDownPosition.x, event.clientY - pointerDownPosition.y)
+
     if (movedDistance < 2) return
 
     pointerDownPositionRef.current = undefined
     setIsDetailsDismissed(false)
   }
+
   const handleLocate = (event: MouseEvent<HTMLButtonElement>) => {
     if (event.detail === 0) {
       setIsDetailsDismissed(true)
       setIsDetailsOpen(false)
     }
+
     onLocate()
   }
+
   const handleBlur = () => {
     pointerDownPositionRef.current = undefined
     setIsDetailsDismissed(false)
@@ -92,8 +103,10 @@ function AssistantMessageTokens({
   useEffect(() => {
     if (!showMoreDetails || !isDetailsVisible) {
       requestedPageCountRef.current = pages.length
+
       return
     }
+
     if (isRefreshing || !hasNext || requestedPageCountRef.current > pages.length) return
 
     requestedPageCountRef.current = pages.length + 1
@@ -138,6 +151,7 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
   const { t, i18n } = useTranslation()
   const actions = useMessageListActions()
   const stats = message.stats
+
   const compactFormatter = useMemo(
     () =>
       new Intl.NumberFormat(i18n.resolvedLanguage, {
@@ -146,6 +160,7 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
       }),
     [i18n.resolvedLanguage]
   )
+
   const decimalFormatter = useMemo(
     () => new Intl.NumberFormat(i18n.resolvedLanguage, { maximumFractionDigits: 1 }),
     [i18n.resolvedLanguage]
@@ -156,10 +171,12 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
   }
 
   const totalTokens = getMessageTokenUsage(stats).totalTokens
+
   const tokenLabel = t('chat.message.token_details.tokens', {
     value:
       totalTokens === undefined ? t('chat.message.token_details.unavailable') : compactFormatter.format(totalTokens)
   })
+
   const locateMessage = () => actions.locateMessage?.(message.id, false)
 
   if (message.role === 'user') {
@@ -168,12 +185,14 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
 
   if (message.role === 'assistant') {
     const tokensPerSecond = getMessageModelTokensPerSecond(stats)
+
     const throughputLabel =
       tokensPerSecond === undefined
         ? undefined
         : t('chat.message.token_details.tokens_per_second_value', {
             value: decimalFormatter.format(tokensPerSecond)
           })
+
     const label = throughputLabel ? `${tokenLabel} · ${throughputLabel}` : tokenLabel
 
     return <AssistantMessageTokens label={label} message={message} onLocate={locateMessage} />

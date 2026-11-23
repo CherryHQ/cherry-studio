@@ -13,15 +13,19 @@ async function exposeArchiveError<T>(operation: () => Promise<T>): Promise<T> {
     if (error instanceof TopicArchiveBusyError) {
       throw new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, error.message, { topicIds: error.topicIds })
     }
+
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
       throw new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, error.message)
     }
+
     if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
       const operation = (error.details as { operation?: string } | undefined)?.operation
+
       if (operation === 'delete pinned topic') {
         throw new IpcError(trashErrorCodes.TRASH_TOPIC_PINNED, error.message)
       }
     }
+
     throw error
   }
 }

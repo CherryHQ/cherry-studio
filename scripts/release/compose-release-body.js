@@ -15,17 +15,21 @@ function createDownloadTable({ productName, repository, tag }) {
 
   for (const platform of PLATFORMS) {
     const groups = getReleaseDownloadGroups({ edition: GLOBAL_EDITION, platform: platform.id, productName, version })
+
     if (platform.id === 'mac') groups.reverse()
 
     for (const { architecture, artifacts } of groups) {
       const architectureLabel =
         platform.id === 'mac' ? (architecture === 'arm64' ? 'Apple silicon (arm64)' : 'Intel (x64)') : architecture
+
       const downloads = artifacts
         .map(({ fileName, label }) => {
           const url = `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`
+
           return `[${label}](${url})`
         })
         .join(' · ')
+
       lines.push(`| ${platform.label} | ${architectureLabel} | ${downloads} |`)
     }
   }
@@ -35,6 +39,7 @@ function createDownloadTable({ productName, repository, tag }) {
 
 function createReleaseNotes(curatedNotes) {
   const start = '<!--LANG:en-->'
+
   const content = curatedNotes
     .slice(curatedNotes.indexOf(start) + start.length, curatedNotes.indexOf('<!--LANG:zh-CN-->'))
     .trim()
@@ -48,6 +53,7 @@ function composeReleaseBody({ builderContent, generatedNotes, productName, repos
 
   if (!curatedNotes) throw new Error('electron-builder.yml release notes are empty')
   const body = `${createDownloadTable({ productName, repository, tag })}\n\n${createReleaseNotes(curatedNotes)}`
+
   if (!changes) return `${body}\n`
 
   return `${body}\n\n${changes}\n`
@@ -55,6 +61,7 @@ function composeReleaseBody({ builderContent, generatedNotes, productName, repos
 
 function main() {
   const [builderPath, generatedNotesPath, outputPath, repository, tag, productName] = process.argv.slice(2)
+
   if (!builderPath || !generatedNotesPath || !outputPath || !repository || !tag || !productName) {
     throw new Error(
       'Usage: compose-release-body.js <electron-builder.yml> <generated-notes.md> <output.md> <repository> <tag> <product-name>'
@@ -68,6 +75,7 @@ function main() {
     repository,
     tag
   })
+
   fs.writeFileSync(outputPath, body)
 }
 

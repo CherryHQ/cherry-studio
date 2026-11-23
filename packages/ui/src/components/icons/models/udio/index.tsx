@@ -4,6 +4,7 @@ import { UdioLight } from './light'
 
 const Udio = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <UdioLight {...props} className={className} />
+
   return <UdioLight {...props} className={className} />
 }
 

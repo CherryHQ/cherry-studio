@@ -27,6 +27,7 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
 
   const handleCopyImage = useCallback(async () => {
     const preview = previewRef.current
+
     if (!preview) return
 
     setCopiedImageTemporarily(await preview.copy())

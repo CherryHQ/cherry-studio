@@ -31,9 +31,11 @@ interface CitationSupProps extends React.HTMLAttributes<HTMLElement> {
 const CitationSup: React.FC<CitationSupProps> = (props) => {
   const { t } = useTranslation()
   const raw = props['data-citation']
+
   const citation = useMemo(() => {
     if (!raw) return null
     const number = Number(raw)
+
     return Number.isSafeInteger(number) && number > 0 ? (props.citationRegistry?.get(number) ?? null) : null
   }, [props.citationRegistry, raw])
 

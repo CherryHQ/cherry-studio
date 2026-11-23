@@ -30,7 +30,9 @@ interface QueuedFollowupsDockProps {
 /** Read-only chips for a queued draft's composer tokens (file / skill / knowledge / quote …). */
 function DraftTokenChips({ item, hasText }: { item: FollowupQueueItem; hasText: boolean }) {
   const tokens = (item.draft?.tokens ?? []).filter((token) => isComposerInputTokenKind(token.kind))
+
   if (tokens.length === 0) return null
+
   return (
     <div className={cn('flex flex-wrap gap-1', hasText && 'mt-1')}>
       {tokens.map((token) => (
@@ -70,9 +72,11 @@ function QueuedFollowupRow({
   steerDisabledReason?: string
 }) {
   const { t } = useTranslation()
+
   const previewText = item.draft
     ? excludeComposerDraftTokens(item.draft, (token) => isComposerInputTokenKind(token.kind)).text.trim()
     : item.payload.text
+
   const steerDisabled = isSteerDisabled?.(item) ?? false
 
   return (
@@ -153,11 +157,13 @@ export function QueuedFollowupsDock({
   const [isExpanded, setIsExpanded] = useState(false)
   const [shouldAnimate, setShouldAnimate] = useState(false)
   const listId = useId()
+
   const transition = {
     type: 'tween' as const,
     duration: shouldAnimate ? 0.2 : 0,
     ease: QUEUE_EASE
   }
+
   if (items.length === 0) return null
 
   return (

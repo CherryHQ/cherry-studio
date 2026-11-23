@@ -26,6 +26,7 @@ const logger = loggerService.withContext('MainWebSearchService')
 
 function createWebSearchAggregateError(errors: unknown[], message: string): AggregateError {
   const details = errors.map((error) => (error instanceof Error ? error.message : String(error))).join('; ')
+
   return new AggregateError(errors, `${message}: ${details}`, { cause: errors[0] })
 }
 
@@ -61,6 +62,7 @@ export class WebSearchService extends BaseService {
 
   private async prepareContext(request: RunCapabilityRequest): Promise<PreparedWebSearchContext> {
     const preferenceService = application.get('PreferenceService')
+
     const [provider, runtimeConfig] = await Promise.all([
       getProviderForCapability(request.providerId, request.capability, preferenceService),
       getRuntimeConfig(preferenceService)
@@ -99,6 +101,7 @@ export class WebSearchService extends BaseService {
 
   private getProviderConfigurationError(context: PreparedWebSearchContext): WebSearchConfigError | undefined {
     const readiness = getWebSearchProviderReadiness(context.provider, context.capability)
+
     if (readiness.ready) return undefined
 
     const messages = {
@@ -120,6 +123,7 @@ export class WebSearchService extends BaseService {
     const signal = httpOptions?.signal ?? undefined
     signal?.throwIfAborted()
     const configurationError = this.getProviderConfigurationError(context)
+
     if (configurationError && options.fallback === false) {
       throw configurationError
     }
@@ -127,6 +131,7 @@ export class WebSearchService extends BaseService {
     const primaryResults: PromiseSettledResult<WebSearchResponse>[] = configurationError
       ? context.inputs.map(() => ({ status: 'rejected', reason: configurationError }))
       : await this.executeCapability(context, httpOptions)
+
     signal?.throwIfAborted()
 
     if (options.fallback === false) {
@@ -135,12 +140,15 @@ export class WebSearchService extends BaseService {
 
     const mergedResults = [...primaryResults]
     const errorsByInput = primaryResults.map((result) => (result.status === 'rejected' ? [result.reason] : []))
+
     const failureMessage =
       context.capability === 'fetchUrls' ? 'Web fetch failed after fallback' : 'Web search failed after fallback'
+
     let attemptedFallback = false
 
     for (const fallbackProviderId of getWebSearchFallbackProviderIds(context.provider.id, context.capability)) {
       const failedIndexes = mergedResults.flatMap((result, index) => (result.status === 'rejected' ? [index] : []))
+
       if (failedIndexes.length === 0) break
 
       const fallbackCandidates = (
@@ -156,6 +164,7 @@ export class WebSearchService extends BaseService {
             // app.fetch.allow_private_network. Ceiling: docs/dev/references/security/remote-fetch.md
             try {
               const resolved = await resolveRemoteFetchUrl(input, { allowPrivateNetwork: false, signal })
+
               return { index, input: resolved.url }
             } catch {
               return undefined
@@ -163,6 +172,7 @@ export class WebSearchService extends BaseService {
           })
         )
       ).filter((candidate) => candidate !== undefined)
+
       signal?.throwIfAborted()
 
       if (fallbackCandidates.length === 0) continue
@@ -172,14 +182,18 @@ export class WebSearchService extends BaseService {
         context.capability,
         application.get('PreferenceService')
       )
+
       signal?.throwIfAborted()
+
       const fallbackContext: PreparedWebSearchContext = {
         ...context,
         inputs: fallbackCandidates.map(({ input }) => input),
         provider: fallbackProvider,
         providerDriver: createWebSearchProvider(fallbackProvider, this.apiKeyRotationState)
       }
+
       const fallbackConfigurationError = this.getProviderConfigurationError(fallbackContext)
+
       if (!fallbackConfigurationError) {
         application.get('IpcApiService').broadcast('web_search.fallback', {
           primaryProviderId: context.provider.id,
@@ -187,9 +201,11 @@ export class WebSearchService extends BaseService {
           capability: context.capability
         })
       }
+
       const fallbackResults: PromiseSettledResult<WebSearchResponse>[] = fallbackConfigurationError
         ? fallbackContext.inputs.map(() => ({ status: 'rejected', reason: fallbackConfigurationError }))
         : await this.executeCapability(fallbackContext, httpOptions)
+
       attemptedFallback = true
       signal?.throwIfAborted()
       let recoveredInputs = 0
@@ -208,6 +224,7 @@ export class WebSearchService extends BaseService {
               results: result.value.results.map((item) => ({ ...item, sourceInput: context.inputs[candidate.index] }))
             }
           }
+
           return
         }
 
@@ -236,10 +253,13 @@ export class WebSearchService extends BaseService {
       const errors = mergedResults.flatMap((result) =>
         result.reason instanceof AggregateError ? result.reason.errors : [result.reason]
       )
+
       const configurationError = errors.find(isPermanentWebSearchConfigError)
+
       if (configurationError && errors.every(isPermanentWebSearchConfigError)) {
         throw configurationError
       }
+
       throw createWebSearchAggregateError(errors, failureMessage)
     }
 
@@ -282,17 +302,21 @@ export class WebSearchService extends BaseService {
     }
 
     const successfulProviderIds = new Set(successfulSearches.map((item) => item.value.providerId))
+
     const providerIds = [
       context.provider.id,
       ...getWebSearchFallbackProviderIds(context.provider.id, context.capability)
     ].filter((providerId) => successfulProviderIds.has(providerId))
+
     const providerId = providerIds.at(-1) ?? context.provider.id
 
     const provenance: Pick<WebSearchResponse, 'query' | 'providerId' | 'providerIds'> = {
       query: context.inputs.join(' | '),
       providerId
     }
+
     if (providerIds.length > 1) provenance.providerIds = providerIds
+
     const mergedResponse: WebSearchResponse = {
       ...provenance,
       capability: context.capability,
@@ -322,6 +346,7 @@ export class WebSearchService extends BaseService {
     try {
       context = await this.prepareContext(request)
       const searchResults = await this.executeCapabilityWithFallback(context, httpOptions, executionOptions)
+
       return await this.buildFinalResponse(context, searchResults, httpOptions, postProcessingMode)
     } catch (error) {
       if (!isAbortError(error) || !httpOptions?.signal?.aborted) {
@@ -331,6 +356,7 @@ export class WebSearchService extends BaseService {
           capability: context?.capability ?? request.capability
         })
       }
+
       throw error
     }
   }

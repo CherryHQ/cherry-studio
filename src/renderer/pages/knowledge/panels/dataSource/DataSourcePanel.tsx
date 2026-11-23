@@ -176,10 +176,12 @@ const DataSourcePanelContent = ({
   localEmbeddingState
 }: DataSourcePanelContentProps) => {
   const { t } = useTranslation()
+
   const { invalidatePreviewRequests, previewSource } = usePreviewKnowledgeSource(
     onPreviewFile,
     currentDirectory?.id ?? null
   )
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
@@ -211,12 +213,16 @@ const DataSourcePanelContent = ({
       if (item.type === 'directory') {
         invalidatePreviewRequests()
         onDrillIntoDirectory?.(item)
+
         return
       }
+
       if (item.type === 'file' || item.type === 'url') {
         void previewSource(item)
+
         return
       }
+
       onViewNoteContent?.(item.id)
     },
     [invalidatePreviewRequests, onDrillIntoDirectory, onViewNoteContent, previewSource]
@@ -230,11 +236,13 @@ const DataSourcePanelContent = ({
   const handleToggleOne = useCallback((itemId: string, next: boolean) => {
     setSelectedIds((prev) => {
       const updated = new Set(prev)
+
       if (next) {
         updated.add(itemId)
       } else {
         updated.delete(itemId)
       }
+
       return updated
     })
   }, [])
@@ -256,6 +264,7 @@ const DataSourcePanelContent = ({
 
     if (reindexableItems.length === 0) {
       toast.warning(t('knowledge.data_source.bulk.reindex_none_eligible'))
+
       return
     }
 
@@ -263,22 +272,28 @@ const DataSourcePanelContent = ({
       await onReindexItems(reindexableItems.map((item) => item.id))
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
+
       return
     }
+
     if (skippedCount > 0) {
       toast.warning(t('knowledge.data_source.bulk.reindex_skipped', { count: skippedCount }))
     }
+
     setSelectedIds(new Set())
   }, [items, onReindexItems, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
     const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
+
     try {
       await onDeleteItems(itemIds)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+
       return
     }
+
     setSelectedIds(new Set())
     setIsBulkDeleteOpen(false)
   }, [items, onDeleteItems, selectedIds, t])
@@ -292,6 +307,7 @@ const DataSourcePanelContent = ({
       await onDelete(pendingDeleteItem)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+
       return
     }
 
@@ -299,27 +315,34 @@ const DataSourcePanelContent = ({
   }
 
   const handleAddSource = useCallback((source: KnowledgeItemType) => onAdd(source), [onAdd])
+
   const handleFileDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       const files = Array.from(event.dataTransfer.files)
       const directoryFiles = new Set<File>()
       const directoryPaths: AbsoluteFilePath[] = []
+
       try {
         for (const item of Array.from(event.dataTransfer.items ?? [])) {
           if (item.kind !== 'file' || !item.webkitGetAsEntry?.()?.isDirectory) {
             continue
           }
+
           const file = item.getAsFile()
+
           if (!file) {
             throw new Error('Failed to capture a dropped directory')
           }
+
           directoryPaths.push(AbsoluteFilePathSchema.parse(window.api.file.getPathForFile(file)))
           directoryFiles.add(file)
         }
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
+
         return
       }
+
       if (directoryPaths.length > 0) {
         onAdd(
           'file',
@@ -332,9 +355,12 @@ const DataSourcePanelContent = ({
     },
     [onAdd, t]
   )
+
   const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } =
     useDrag<HTMLDivElement>(handleFileDrop)
+
   const canAddSource = !currentDirectory && !localEmbeddingState
+
   const localModelStatus =
     localEmbeddingState && (items.length > 0 || Boolean(currentDirectory))
       ? {

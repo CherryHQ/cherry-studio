@@ -15,6 +15,7 @@ export async function createFileProcessingJobOutput(
   output: FileProcessingHandlerOutput
 ): Promise<FileProcessingJobOutput> {
   const artifact = await createFileProcessingArtifact(ctx.jobId, ctx.input, output, ctx.signal)
+
   return { artifact }
 }
 

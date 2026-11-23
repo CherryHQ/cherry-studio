@@ -10,6 +10,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CodeCli } from '@shared/types/codeCli'
 
 export type ConfigDraftMode = 'managed' | 'foreign'
+
 export type ClaudeModelMode = 'common' | 'detailed'
 
 export interface ConfigDraft {

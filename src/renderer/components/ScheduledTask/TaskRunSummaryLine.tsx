@@ -36,6 +36,7 @@ export const TaskRunSummaryLine: FC<{ summary: TaskRunSummary }> = ({ summary })
   }
 
   const time = formatTaskCardTime(summary.finishedAt)
+
   if (summary.status === 'completed') {
     return (
       <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -44,6 +45,7 @@ export const TaskRunSummaryLine: FC<{ summary: TaskRunSummary }> = ({ summary })
       </span>
     )
   }
+
   if (summary.status === 'failed') {
     return (
       <span className="flex items-center gap-1.5 text-error-subtle-foreground">
@@ -52,6 +54,7 @@ export const TaskRunSummaryLine: FC<{ summary: TaskRunSummary }> = ({ summary })
       </span>
     )
   }
+
   return (
     <span className="flex items-center gap-1.5 text-muted-foreground">
       <CircleStop aria-hidden className="size-3 shrink-0" />

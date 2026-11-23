@@ -87,6 +87,7 @@ export function CommandTooltip({
 } & Omit<TooltipProps, 'children' | 'content' | 'title'>): React.ReactNode {
   const resolved = useResolvedCommand(command)
   const tooltipLabel = label ?? resolved.label
+
   const content = resolved.shortcutLabel ? (
     <TooltipLabelWithShortcut label={tooltipLabel} shortcutLabel={resolved.shortcutLabel} />
   ) : (

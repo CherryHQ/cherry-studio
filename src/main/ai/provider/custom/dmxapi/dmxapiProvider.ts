@@ -66,9 +66,11 @@ function resolveEmbeddingFamily(modelId: string): DmxapiEmbeddingFamily {
  */
 export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport {
   const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? settings.baseURL
+
   if (!chatBaseURL) {
     throw new Error('DMXAPI provider requires a non-empty `baseURL` to build the image transport.')
   }
+
   return createDmxapiTransport({
     apiKey: settings.apiKey ?? '',
     // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
@@ -79,6 +81,7 @@ export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGen
 
 export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): DmxapiProvider {
   const { baseURL, fetch: customFetch } = settings
+
   if (!baseURL) {
     throw new Error(
       'DMXAPI provider requires a non-empty `baseURL`. An empty value would resolve fetch paths against the renderer process origin (app://, file://) and surface as opaque "Failed to fetch" errors.'
@@ -96,10 +99,13 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? baseURL
   const compatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(chatBaseURL)}${path}`
   const nativeBaseURL = withoutTrailingApiVersion(baseURL)
+
   const anthropicBaseURL =
     settings.endpointBaseURLs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ?? formatApiHost(nativeBaseURL, true)
+
   const geminiBaseURL =
     settings.endpointBaseURLs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] ?? formatApiHost(nativeBaseURL, true, 'v1beta')
+
   const openaiBaseURL =
     settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? formatApiHost(nativeBaseURL, true)
 
@@ -174,6 +180,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       case 'gemini-native':
         return googleImageModel(modelId)
     }
+
     // Bespoke families (Doubao Seedream / Wan / async Qwen-image) — no native
     // AI SDK adapter covers these wire shapes (Responses-API string/messages
     // body, `extra.output.results[].url` async wrapper), so they go through
@@ -181,6 +188,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     if (resolveDmxapiFamily(modelId) !== 'openai-flat') {
       return createImageGenerationModel(modelId, { provider: DMXAPI_PROVIDER_NAME, transport })
     }
+
     // Fallback for unknown models — OpenAI-compat image model is the safest
     // assumption since DMXAPI's gateway translates the rest of its catalog
     // through that wire shape.
@@ -199,6 +207,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     if (resolveEmbeddingFamily(modelId) === 'gemini') {
       return googleEmbeddingModel(modelId)
     }
+
     return new OpenAICompatibleEmbeddingModel(modelId, {
       provider: `${DMXAPI_PROVIDER_NAME}.embedding`,
       url: compatUrl,
@@ -206,6 +215,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       fetch: customFetch
     })
   }
+
   provider.imageModel = createImageModelV3
 
   return provider

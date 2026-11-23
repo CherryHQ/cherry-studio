@@ -12,6 +12,7 @@ const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export function listSkillNames(): string[] {
   const content = readFileSafe(PUBLIC_SKILLS_FILE)
+
   if (content === null) {
     throw new Error('.agents/skills/public-skills.txt is missing')
   }
@@ -22,6 +23,7 @@ export function listSkillNames(): string[] {
 
   for (const [index, rawLine] of lines.entries()) {
     const trimmedLine = rawLine.trim()
+
     if (trimmedLine === '' || trimmedLine.startsWith('#')) {
       continue
     }
@@ -86,18 +88,23 @@ export function buildClaudeSkillsGitignore(skillNames: string[]): string {
 
 export function writeFileIfChanged(filePath: string, content: string): boolean {
   let current = ''
+
   try {
     current = fs.readFileSync(filePath, 'utf-8')
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
+
     if (nodeError.code !== 'ENOENT') {
       throw error
     }
   }
+
   if (current === content) {
     return false
   }
+
   fs.writeFileSync(filePath, content, 'utf-8')
+
   return true
 }
 
@@ -105,5 +112,6 @@ export function readFileSafe(filePath: string): string | null {
   if (!fs.existsSync(filePath)) {
     return null
   }
+
   return fs.readFileSync(filePath, 'utf-8')
 }

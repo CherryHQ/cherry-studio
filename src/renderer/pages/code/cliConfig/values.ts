@@ -71,6 +71,7 @@ export function dropFeatureGoalsIfEmpty(target: Record<string, unknown>): void {
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; spreading retains its unvalidated enumerable values before deleting goals.
   const features = { ...(target.features as Record<string, unknown>) }
   delete features.goals
+
   if (Object.keys(features).length === 0) delete target.features
   else target.features = features
 }
@@ -81,13 +82,16 @@ export function dropSecurityAuthSelectedTypeIfEmpty(target: Record<string, unkno
   if (!target.security || typeof target.security !== 'object') return
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The security container is checked; its other native values are copied without interpretation.
   const security = { ...(target.security as Record<string, unknown>) }
+
   if (security.auth && typeof security.auth === 'object') {
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The auth container is checked; only selectedType is deleted from its copied fields.
     const auth = { ...(security.auth as Record<string, unknown>) }
     delete auth.selectedType
+
     if (Object.keys(auth).length === 0) delete security.auth
     else security.auth = auth
   }
+
   if (Object.keys(security).length === 0) delete target.security
   else target.security = security
 }

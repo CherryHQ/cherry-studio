@@ -78,6 +78,7 @@ const CodePanel = memo<CodePanelProps>(
         options={{ lineNumbers: true }}
       />
     )
+
     if (!editable) {
       return <div className="grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">{viewer}</div>
     }
@@ -154,12 +155,14 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const [splitSizes, setSplitSizes] = useState<[number, number]>([50, 50])
   const [captureOpen, setCaptureOpen] = useState(false)
+
   const [session, setSession] = useState(() => ({
     accepted: html,
     open,
     stateRef: { current: null as EditorState | null },
     epoch: 0
   }))
+
   if (session.accepted !== html || session.open !== open) {
     const echoed = session.open === open && session.stateRef.current?.sliceDoc() === html
     setSession({
@@ -169,6 +172,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
       epoch: session.epoch + Number(!echoed)
     })
   }
+
   const source = session.stateRef.current?.sliceDoc() ?? html
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const previewFrameRef = useRef<HTMLIFrameElement>(null)
@@ -205,6 +209,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
 
         if (to === 'file') {
           const dataUrl = await captureScrollableIframeAsDataUrl(previewFrameRef)
+
           if (dataUrl) {
             await window.api.file.saveImage(fileName, dataUrl)
           }
@@ -247,11 +252,14 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   // Authorization is scoped to the exact content: the stored html must match in the
   // same render, so new bytes never inherit a previous run action — no effect-timing window.
   const interactiveDisclosureId = useId()
+
   const [interactiveAuth, setInteractiveAuth] = useState<{ html: string; authorized: boolean }>({
     html: '',
     authorized: false
   })
+
   const interactiveAuthorized = interactiveAuth.html === html && interactiveAuth.authorized
+
   // The webview tier has no capture iframe; an explicit canCapturePreview={false} wins.
   const effectiveCanCapturePreview = renderPreview
     ? canCapturePreview
@@ -313,6 +321,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         onLayoutChanged={(layout) => {
           const codeSize = layout.code
           const previewSize = layout.preview
+
           if (typeof codeSize === 'number' && typeof previewSize === 'number') {
             setSplitSizes([codeSize, previewSize])
           }

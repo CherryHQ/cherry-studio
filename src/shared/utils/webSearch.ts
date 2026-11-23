@@ -35,14 +35,17 @@ export function getWebSearchProviderReadiness(
   if (!provider) return { ready: false, reason: 'provider_not_configured' }
 
   const capability = provider.capabilities.find((candidate) => candidate.feature === feature)
+
   if (!capability) return { ready: false, reason: 'capability_unsupported' }
 
   if (capability.requiresApiHost) {
     const apiHost = capability.apiHost?.trim()
+
     if (!apiHost) return { ready: false, reason: 'api_host_missing' }
 
     try {
       const protocol = new URL(apiHost).protocol
+
       if (protocol !== 'http:' && protocol !== 'https:') return { ready: false, reason: 'api_host_invalid' }
     } catch {
       return { ready: false, reason: 'api_host_invalid' }
@@ -72,6 +75,7 @@ export function resolveReadyWebSearchProvider(
   if (!primary) return undefined
 
   const candidateIds = [primary.id, ...getWebSearchFallbackProviderIds(primary.id, capability)]
+
   return candidateIds
     .map((providerId) => providers.find((provider) => provider.id === providerId))
     .find((provider) => isWebSearchProviderReady(provider, capability))

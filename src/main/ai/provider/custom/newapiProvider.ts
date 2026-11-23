@@ -73,6 +73,7 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
 
   const createAnthropicModel = (modelId: string) => {
     const headers = authHeaders()
+
     return new AnthropicMessagesLanguageModel(modelId, {
       provider: `${NEWAPI_PROVIDER_NAME}.anthropic`,
       baseURL,
@@ -90,6 +91,7 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
 
   const createGeminiModel = (modelId: string) => {
     const headers = authHeaders()
+
     return new GoogleGenerativeAILanguageModel(modelId, {
       provider: `${NEWAPI_PROVIDER_NAME}.google`,
       baseURL,

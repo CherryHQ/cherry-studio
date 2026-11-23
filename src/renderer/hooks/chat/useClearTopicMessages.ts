@@ -10,6 +10,7 @@ export function useClearTopicMessages() {
   const { trigger } = useMutation('DELETE', '/topics/:topicId/messages', {
     refresh: ({ args }) => {
       const topicId = args!.params.topicId
+
       return [
         '/topics',
         `/topics/${topicId}`,

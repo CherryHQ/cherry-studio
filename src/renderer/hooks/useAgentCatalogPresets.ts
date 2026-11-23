@@ -5,6 +5,7 @@ import type { AgentCatalogPreset } from '@renderer/types/marketplace'
 import { useBundledCatalog } from './useBundledCatalog'
 
 const localizedText = z.object({ en: z.string().min(1), zh: z.string().min(1) })
+
 const catalogSchema = z.object({
   schemaVersion: z.literal(1),
   items: z
@@ -23,6 +24,7 @@ const catalogSchema = z.object({
 
 async function loadAgentCatalog(resourcesPath: string): Promise<AgentCatalogPreset[]> {
   const content = await window.api.fs.read(resourcesPath + '/data/marketplace-agents.json', 'utf-8')
+
   return catalogSchema.parse(JSON.parse(content)).items
 }
 

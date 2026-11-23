@@ -117,11 +117,13 @@ async function prepareNativeModulesForElectron(
     if (context.arch !== Arch.arm64 && context.arch !== Arch.x64) {
       throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
     }
+
     const artifact = ensureLinuxArtifact({ projectRoot, arch })
     process.stdout.write(
       `${artifact.cached ? 'Verified cached' : 'Downloaded'} GLIBC-compatible better-sqlite3 for ` +
         `linux-${arch} (${artifact.inspection.sha256})\n`
     )
+
     return
   }
 
@@ -131,6 +133,7 @@ async function prepareNativeModulesForElectron(
   const forceBuild = process.env.npm_package_config_node_gyp_force_build
   // better-sqlite3's binding.gyp skips compilation when a bundled N-API prebuild exists.
   process.env.npm_package_config_node_gyp_force_build = '1'
+
   try {
     await rebuildFn({
       buildPath: projectRoot,
@@ -148,6 +151,7 @@ async function prepareNativeModulesForElectron(
     else process.env.npm_package_config_node_gyp_force_build = forceBuild
   }
 }
+
 exports.prepareNativeModulesForElectron = prepareNativeModulesForElectron
 
 // Most native packages encode Electron's platform key (win32) in their name, but some
@@ -155,6 +159,7 @@ exports.prepareNativeModulesForElectron = prepareNativeModulesForElectron
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
 const keepPackages = (platform, arch) => {
   const platformTokens = platform === 'win32' ? ['win32', 'windows'] : [platform]
+
   return [
     ...packages.filter((p) => p.includes(arch) && platformTokens.some((t) => p.includes(t))),
     ...(platformOnlyPackages[platform] ?? [])
@@ -170,6 +175,7 @@ const assertPrebuiltPackages = (platform, arch) => {
   const missingPackages = keepPackages(platform, arch)
     .filter((p) => !p.includes('musl'))
     .filter((p) => !fs.existsSync(path.join(__dirname, '../..', 'node_modules', p)))
+
   if (missingPackages.length > 0) {
     throw new Error(
       `Missing prebuilt packages for ${platform}-${arch}: ${missingPackages.join(', ')}\n` +
@@ -178,7 +184,9 @@ const assertPrebuiltPackages = (platform, arch) => {
     )
   }
 }
+
 exports.assertPrebuiltPackages = assertPrebuiltPackages
+
 exports.keepPackages = keepPackages
 
 function prepareSystemSpeechHelper(
@@ -187,12 +195,14 @@ function prepareSystemSpeechHelper(
 ) {
   const platform = platformToArch[context.packager.platform.name]
   const arch = Arch[context.arch]
+
   if (platform === 'darwin') {
     buildNativeHelper(arch, platform)
   } else if (platform === 'win32') {
     const config = context.packager.config.win
     const destination = 'system-speech/cherry-system-speech.exe'
     const resources = (config.extraResources ?? []).filter((resource) => resource.to !== destination)
+
     if (arch === 'x64') {
       buildNativeHelper(arch, platform)
       resources.push({
@@ -200,19 +210,23 @@ function prepareSystemSpeechHelper(
         to: destination
       })
     }
+
     config.extraResources = resources
   }
 }
+
 exports.prepareSystemSpeechHelper = prepareSystemSpeechHelper
 
 const getNativeModuleFilters = (platform, arch) => {
   const keptPackages = keepPackages(platform, arch)
+
   return [
     ...packages.flatMap((name) => (!keptPackages.includes(name) ? [`!**/node_modules/${name}/**`] : [])),
     `!**/node_modules/better-sqlite3/prebuilds/!(${platform}-${arch}.node)`,
     `!**/node_modules/selection-hook/prebuilds/!(${platform}-${arch})/**`
   ]
 }
+
 exports.getNativeModuleFilters = getNativeModuleFilters
 
 exports.default = async function (context) {
@@ -251,6 +265,7 @@ exports.default = async function (context) {
   // @aiany/sqlite-vec fork provides a windows-arm64 vec0.dll, so knowledge-base vector
   // search works on that target too.
   const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']
+
   const excludeBundledBinaryFilters = allBinaryPlatforms.flatMap((p) =>
     p !== currentPlatformKey ? ['!resources/binaries/' + p + '/**'] : []
   )

@@ -17,6 +17,7 @@ export function CherryCloudQuotaUsage({ entitlement }: { entitlement: CherryClou
       {pool.windows.map((window) => {
         const label = getQuotaWindowLabel(window, t)
         const remainingPercent = getQuotaRemainingPercent(window)
+
         return (
           <div key={`${pool.allocation_id}-${window.window_type}-${window.duration_seconds}`}>
             <div className="flex items-baseline justify-between gap-3 text-xs">

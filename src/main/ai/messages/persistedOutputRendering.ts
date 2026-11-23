@@ -51,12 +51,15 @@ const logger = loggerService.withContext('PersistedOutputRendering')
  */
 function resolveOwnedBlobPath(blob: PersistedToolOutputBlobRef): string | null {
   const entry = fileEntryService.findById(blob.fileEntryId)
+
   if (!entry || !isToolOutputBlobEntry(entry)) {
     logger.warn('persisted output entry missing or not a tool-output blob; skipping its path', {
       fileEntryId: blob.fileEntryId
     })
+
     return null
   }
+
   try {
     return application.get('FileManager').getPhysicalPath(blob.fileEntryId)
   } catch (error) {
@@ -64,12 +67,14 @@ function resolveOwnedBlobPath(blob: PersistedToolOutputBlobRef): string | null {
       fileEntryId: blob.fileEntryId,
       error: (error as Error).message
     })
+
     return null
   }
 }
 
 function renderMarkerForBlob(blob: PersistedToolOutputBlobRef): string {
   const physicalPath = resolveOwnedBlobPath(blob)
+
   return ContextPrompts.getVFSOffloadReminder(
     `context://vfs/${blob.vfsFilename}`,
     blob.totalLines,
@@ -83,12 +88,16 @@ function renderMarkerForBlob(blob: PersistedToolOutputBlobRef): string {
 function renderOutput(ref: PersistedToolOutputRef): ReconstructedToolOutput {
   if (ref.shape === 'entities') {
     let value = SerializableSchema.parse(ref.skeleton)
+
     for (const blob of ref.blobRefs) {
       value = spliceTextAtKey(value, blob.key, renderMarkerForBlob(blob))
     }
+
     return value
   }
+
   const marker = renderMarkerForBlob(blobRefsOf(ref)[0])
+
   return reconstructOutput(ref, marker)
 }
 
@@ -100,15 +109,19 @@ function renderOutput(ref: PersistedToolOutputRef): ReconstructedToolOutput {
  */
 export function collectPersistedOutputPaths(messages: UIMessage[]): Set<string> {
   const paths = new Set<string>()
+
   for (const message of messages) {
     for (const part of message.parts) {
       if (!isToolUIPart(part) || part.state !== 'output-available' || !isPersistedToolOutput(part.output)) continue
+
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) {
         const path = resolveOwnedBlobPath(blob)
+
         if (path) paths.add(path)
       }
     }
   }
+
   return paths
 }
 
@@ -123,10 +136,12 @@ export function renderPersistedToolOutputs<T extends UIMessage>(messages: T[]): 
       parts ??= [...message.parts]
       parts[partIndex] = { ...part, output }
     })
+
     if (parts) {
       out ??= [...messages]
       out[messageIndex] = { ...message, parts }
     }
   })
+
   return out ?? messages
 }

@@ -18,6 +18,7 @@ process.env.TZ = 'UTC'
 // Fork workers pipe their output into the runner streams. The full suite can
 // legitimately attach more listeners than Node's default warning threshold.
 process.stdout.setMaxListeners(64)
+
 process.stderr.setMaxListeners(64)
 
 const mainConfig = (electronViteConfig as any).main

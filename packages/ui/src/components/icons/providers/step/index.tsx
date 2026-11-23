@@ -6,7 +6,9 @@ import { StepLight } from './light'
 
 const Step = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <StepLight {...props} className={className} />
+
   if (variant === 'dark') return <StepDark {...props} className={className} />
+
   return (
     <>
       <StepLight className={cn('dark:hidden', className)} {...props} />

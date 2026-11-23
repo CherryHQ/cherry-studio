@@ -42,8 +42,10 @@ export function createDraftSnapshot(draft: ConfigDraft): string {
 export function createInitialConfigDraftState(cliTool: CodeCli, providerConfig: CliProviderConfig | null | undefined) {
   const modelId = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
   const config = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
+
   const claudeModelMode: ClaudeModelMode =
     cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config) ? 'detailed' : 'common'
+
   const draft: ConfigDraft = {
     modelId,
     config,
@@ -52,6 +54,7 @@ export function createInitialConfigDraftState(cliTool: CodeCli, providerConfig: 
     mode: 'managed',
     error: ''
   }
+
   return { modelId, config, claudeModelMode, draft }
 }
 
@@ -69,8 +72,10 @@ export function isConfigDraftDirty({
   nextClaudeModelMode: ClaudeModelMode
 }): boolean {
   const draftChanged = createDraftSnapshot(nextDraft) !== initialDraftSnapshot
+
   const commonModeWillClearDetailedModels =
     cliTool === CodeCli.CLAUDE_CODE && initialClaudeModelMode === 'detailed' && nextClaudeModelMode === 'common'
+
   return draftChanged || commonModeWillClearDetailedModels
 }
 
@@ -88,6 +93,7 @@ export function resolveManagedDraftOptions(
       writePrimaryModel: false
     }
   }
+
   return {
     cliConfigModelId: modelId,
     writePrimaryModel: true
@@ -110,6 +116,7 @@ export async function createManagedConfigDraft({
   gateway?: CliConfigGatewayContext
 }): Promise<ConfigDraft> {
   const cliConfigModelId = options.cliConfigModelId ?? modelId
+
   try {
     const nextFiles = cliConfigModelId
       ? await readCliConfigDraft({
@@ -121,6 +128,7 @@ export async function createManagedConfigDraft({
           gateway
         })
       : updateCliConfigDraftConfig(cliTool, files ?? [], config)
+
     return {
       modelId,
       config,
@@ -172,6 +180,7 @@ export async function loadInitialConfigDraft({
     initialModelId,
     gatewayModels
   )
+
   let rawFiles: CliConfigFileDraft[] = []
 
   try {

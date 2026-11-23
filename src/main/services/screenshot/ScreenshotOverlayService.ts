@@ -133,11 +133,15 @@ export class ScreenshotOverlayService extends BaseService {
   public async submitResult(result: ScreenshotResultData & { text: string }): Promise<void> {
     const consumer = this.resultConsumer
     const generation = this.sessionGeneration
+
     if (!consumer) throw new Error('No result consumer is available')
+
     if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
       throw new Error('The screenshot could not be decoded')
     }
+
     await consumer.submit(result)
+
     if (generation === this.sessionGeneration) this.dismiss()
   }
 
@@ -185,6 +189,7 @@ export class ScreenshotOverlayService extends BaseService {
           logger.error('Overlay renderer went away; aborting the capture session', new Error(reason))
           this.dismiss()
         }
+
         // A dead renderer cannot handle Esc either, so revealing it would leave a
         // full-screen, always-on-top window that swallows clicks and cannot be closed.
         window.webContents.on('render-process-gone', (_event, details) => abortSession(details.reason))
@@ -203,6 +208,7 @@ export class ScreenshotOverlayService extends BaseService {
         // the text annotation the user is typing.
         window.webContents.on('before-input-event', (_event, input) => {
           if (input.type !== 'keyDown' || input.key !== 'Escape') return
+
           if (!this.isSessionOverlay(id) || this.renderersReady.has(id)) return
           logger.warn('Escape closed an overlay whose renderer never reported ready', { windowId: id })
           this.dismiss()
@@ -215,6 +221,7 @@ export class ScreenshotOverlayService extends BaseService {
     this.registerDisposable(
       preferenceService.subscribeChange('feature.screenshot.enabled', (enabled) => {
         this.syncPool(enabled)
+
         // subscribeChange fires only on a real change, so this is the off→on transition.
         if (enabled) this.warmUpCapturePermission()
       })
@@ -246,11 +253,14 @@ export class ScreenshotOverlayService extends BaseService {
 
     try {
       const preferenceService = application.get('PreferenceService')
+
       if (!preferenceService.get('feature.screenshot.enabled')) return
 
       const status = getScreenCapturePermissionStatus()
+
       if (status !== 'authorized') {
         void this.guideToPermission(status)
+
         return
       }
 
@@ -265,6 +275,7 @@ export class ScreenshotOverlayService extends BaseService {
 
       try {
         const sourceWindow = sourceWindowId && manager.getWindow(sourceWindowId)
+
         if (
           sourceWindow &&
           !sourceWindow.isDestroyed() &&
@@ -276,8 +287,10 @@ export class ScreenshotOverlayService extends BaseService {
           sourceWindow.hide()
           // Give the desktop compositor time to remove the source before freezing the display.
           await delay(150)
+
           if (generation !== this.sessionGeneration) return
         }
+
         // Started before the capture so the enumeration — hundreds of milliseconds of
         // native work — overlaps the PNG encode and the window opening rather than
         // following them. It runs off the main thread; see listWindowsOffThread.
@@ -308,6 +321,7 @@ export class ScreenshotOverlayService extends BaseService {
 
         for (const display of displays) {
           const captureResult = matchCapture(display, captures, monitorInfoList, primaryScaleFactor)
+
           if (!captureResult) {
             logger.warn('No capture matched a display; it gets no overlay', {
               displayId: display.id,
@@ -357,6 +371,7 @@ export class ScreenshotOverlayService extends BaseService {
           })
 
           const window = windowManager.getWindow(windowId)
+
           if (!window) {
             // open() already handed out this id; without closing it, the window never
             // returns to the pool and permanently occupies one of its recycle slots.
@@ -370,11 +385,13 @@ export class ScreenshotOverlayService extends BaseService {
 
           // Transparent first so the OS show animation is never visible.
           window.setOpacity(0)
+
           // macOS drops the fullscreen-auxiliary collection behavior on hide(). Reapply it
           // without joining every Space, so a stale capture cannot follow Space switches.
           if (isMac) {
             window.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true, skipTransformProcessType: true })
           }
+
           // showMode 'manual' means nothing else ever shows this window, and setOpacity()
           // on a hidden one is a no-op. Inactive: only the cursor's overlay takes focus.
           window.showInactive()
@@ -407,6 +424,7 @@ export class ScreenshotOverlayService extends BaseService {
         // dismiss(), not cleanup(): overlays already opened must come down too, or a
         // mid-loop failure strands full-screen always-on-top windows that nothing owns.
         this.dismiss()
+
         if (error instanceof ScreenCapturePermissionError) {
           void this.showPermissionDialog()
         } else {
@@ -463,6 +481,7 @@ export class ScreenshotOverlayService extends BaseService {
   public focusOverlay(windowId: WindowId): void {
     if (!this.isSessionOverlay(windowId)) return
     const window = application.get('WindowManager').getWindow(windowId)
+
     if (!window || window.isDestroyed()) return
     makeKeyWindow(window)
   }
@@ -500,6 +519,7 @@ export class ScreenshotOverlayService extends BaseService {
     if (!isScreenshotOcrAvailable()) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
+
     if (!capture) return { status: 'rejected' }
 
     // An origin outside the image is a caller coordinate bug; clamping it would run a
@@ -514,6 +534,7 @@ export class ScreenshotOverlayService extends BaseService {
       width: Math.min(region.width, capture.width - region.x),
       height: Math.min(region.height, capture.height - region.y)
     }
+
     if (clamped.width <= 0 || clamped.height <= 0) return { status: 'rejected' }
 
     try {
@@ -527,6 +548,7 @@ export class ScreenshotOverlayService extends BaseService {
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
+
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
       return result
@@ -549,10 +571,12 @@ export class ScreenshotOverlayService extends BaseService {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return
     this.renderersReady.add(windowId)
     const targets = this.pendingSnapTargets.get(windowId)
+
     if (targets) {
       this.pendingSnapTargets.delete(windowId)
       application.get('IpcApiService').send(windowId, 'screenshot.snap_targets', { windows: targets })
     }
+
     this.pendingReveals.get(windowId)?.reveal()
     this.traceReady()
   }
@@ -567,8 +591,10 @@ export class ScreenshotOverlayService extends BaseService {
    */
   private traceReady(): void {
     const trace = this.trace
+
     if (!trace) return
     trace.ready++
+
     if (trace.ready < trace.expected) return
     this.trace = null
 
@@ -596,6 +622,7 @@ export class ScreenshotOverlayService extends BaseService {
   ): Promise<void> {
     const startedAt = performance.now()
     const snapCandidates = await candidates
+
     // The session may have ended while the enumeration ran; a pooled overlay is only
     // hidden, so its renderer would happily apply targets for a capture it no longer shows.
     if (generation !== this.sessionGeneration) return
@@ -609,9 +636,11 @@ export class ScreenshotOverlayService extends BaseService {
     }
 
     const ipcApiService = application.get('IpcApiService')
+
     for (const { windowId, display } of overlays) {
       const windows = projectSnapCandidates(display, snapCandidates, primaryScaleFactor)
       ipcApiService.send(windowId, 'screenshot.snap_targets', { windows })
+
       // This push is best-effort: an overlay that has not reported ready may not have
       // subscribed yet, or may still clear it as stale. Repeat it once it has.
       if (!this.renderersReady.has(windowId)) this.pendingSnapTargets.set(windowId, windows)
@@ -622,6 +651,7 @@ export class ScreenshotOverlayService extends BaseService {
   public async copy(result: ScreenshotResultData): Promise<void> {
     try {
       const bytes = Buffer.from(result.pngBytes)
+
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
       // writing that wipes the clipboard while the log still claims success.
       if (nativeImage.createFromBuffer(bytes).isEmpty()) throw new Error('the result bytes could not be decoded')
@@ -656,8 +686,10 @@ export class ScreenshotOverlayService extends BaseService {
    */
   public async save(result: ScreenshotResultData): Promise<void> {
     const generation = this.sessionGeneration
+
     if (this.savingGeneration === generation) return
     this.savingGeneration = generation
+
     try {
       const saveOptions: Electron.SaveDialogOptions = {
         // Local time, not an epoch: the name is what the user scans in a file list.
@@ -666,6 +698,7 @@ export class ScreenshotOverlayService extends BaseService {
       }
 
       let dialogResult: Electron.SaveDialogReturnValue
+
       if (isMac) {
         this.hideAllOverlays()
         // `steal: true` is required, or the panel opens behind whatever application
@@ -692,6 +725,7 @@ export class ScreenshotOverlayService extends BaseService {
         if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
           throw new Error('the result bytes could not be decoded')
         }
+
         writeFileSync(dialogResult.filePath, result.pngBytes)
         logger.info('Screenshot saved to file')
       } catch (error) {
@@ -705,10 +739,12 @@ export class ScreenshotOverlayService extends BaseService {
         // app.focus({ steal: true }) left this app activated with nothing to show;
         // hand focus back to whatever the user was capturing.
         const hasVisibleWindows = BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isVisible())
+
         if (!hasVisibleWindows) app.hide()
       }
     } finally {
       if (this.savingGeneration === generation) this.savingGeneration = null
+
       // Restore only the session that opened this dialog; an older completion must
       // not reveal a newer session's overlays over its save panel.
       if (isMac && generation === this.sessionGeneration) this.showAllOverlays()
@@ -752,14 +788,18 @@ export class ScreenshotOverlayService extends BaseService {
       // Release resources BEFORE the staleness check: reversed, a stale call returns
       // early leaving the timer armed, which later warns falsely and leaks the entry.
       const entry = this.pendingReveals.get(windowId)
+
       if (entry) {
         clearTimeout(entry.timer)
         // Deleting the entry is what makes the reveal happen exactly once.
         this.pendingReveals.delete(windowId)
       }
+
       if (generation !== this.sessionGeneration) return
+
       if (window.isDestroyed()) return
       window.setOpacity(1)
+
       if (isCursorDisplay) makeKeyWindow(window)
     }
 
@@ -780,14 +820,17 @@ export class ScreenshotOverlayService extends BaseService {
     this.resultConsumer = null
     const sourceWindow = this.hiddenSourceWindow
     this.hiddenSourceWindow = null
+
     if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.show()
     // Makes any callback still in flight a no-op; it cannot make timers disappear,
     // which is what the loop below is for.
     this.sessionGeneration++
+
     for (const { timer } of this.pendingReveals.values()) clearTimeout(timer)
     this.pendingReveals.clear()
 
     const mediaProtocol = application.get('MediaProtocolService')
+
     // Media entries are never reclaimed automatically; one missed remove() pins a
     // full-screen PNG in memory for the rest of the process's life.
     for (const mediaId of this.mediaIds) mediaProtocol.remove(MediaKind.Image, mediaId)
@@ -804,11 +847,13 @@ export class ScreenshotOverlayService extends BaseService {
     // Only macOS ever steps an overlay down (see setTextEditing), so only macOS restores.
     if (isMac) {
       const windowManager = application.get('WindowManager')
+
       for (const windowId of this.overlayWindowIds) windowManager.behavior.setAlwaysOnTopLevel(windowId, null)
     }
 
     this.overlayWindowIds = []
     this.activeOverlayWindowId = null
+
     if (DIAGNOSTICS_ENABLED && this.trace) {
       // Deliberately no usable= number: every overlay left here was revealed by the
       // fallback timer, so the only timestamp available is that timer's deadline —
@@ -818,6 +863,7 @@ export class ScreenshotOverlayService extends BaseService {
           `${this.trace.ready}/${this.trace.expected} overlays reported ready`
       )
     }
+
     this.trace = null
 
     // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
@@ -828,14 +874,17 @@ export class ScreenshotOverlayService extends BaseService {
   private findActiveOverlay(): BrowserWindow | undefined {
     if (!this.activeOverlayWindowId) return undefined
     const window = application.get('WindowManager').getWindow(this.activeOverlayWindowId)
+
     return window && !window.isDestroyed() ? window : undefined
   }
 
   /** macOS save path: take every overlay out of the compositing stack. */
   private hideAllOverlays(): void {
     const windowManager = application.get('WindowManager')
+
     for (const windowId of this.overlayWindowIds) {
       const window = windowManager.getWindow(windowId)
+
       if (!window || window.isDestroyed()) continue
       window.setOpacity(0)
       // hide(), not opacity alone: an opacity-0 window stays in the stack at
@@ -847,14 +896,17 @@ export class ScreenshotOverlayService extends BaseService {
   /** macOS save path: bring the overlays back after the dialog closes. */
   private showAllOverlays(): void {
     const windowManager = application.get('WindowManager')
+
     for (const windowId of this.overlayWindowIds) {
       const window = windowManager.getWindow(windowId)
+
       if (!window || window.isDestroyed()) continue
       // Restore fullscreen coverage after hide() without making the stale capture
       // follow the user to another Space. The always-on-top level is restored by
       // the window type's reapplyAlwaysOnTop quirk.
       window.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true, skipTransformProcessType: true })
       window.setOpacity(0)
+
       // The active overlay must become the key window again or Esc and the next drag
       // land nowhere; the others stay unfocused, as at session start.
       if (windowId === this.activeOverlayWindowId) makeKeyWindow(window)
@@ -892,6 +944,7 @@ export class ScreenshotOverlayService extends BaseService {
   /** Turning the feature off releases the warm overlay windows, not just the entry points. */
   private syncPool(enabled: boolean): void {
     const windowManager = application.get('WindowManager')
+
     if (enabled) windowManager.resumePool(WindowType.Screenshot)
     else windowManager.suspendPool(WindowType.Screenshot)
   }
@@ -899,6 +952,7 @@ export class ScreenshotOverlayService extends BaseService {
   private async guideToPermission(status: ScreenCapturePermissionStatus): Promise<void> {
     if (status === 'not-determined') {
       await requestScreenCapturePermission()
+
       // In production the OS prompt owns the first ask, so a second dialog would be
       // redundant; a dev run gets no prompt at all and would appear to do nothing.
       if (!isDev) return
@@ -911,6 +965,7 @@ export class ScreenshotOverlayService extends BaseService {
     // The grant attaches to the running binary, which in development is the generic
     // Electron one — naming the product sends the user after a non-existent entry.
     const appName = isDev ? 'Electron' : app.getName()
+
     const { response } = await dialog.showMessageBox({
       type: 'warning',
       title: t('dialog.screen_capture_permission.title'),
@@ -965,10 +1020,12 @@ function matchCapture(
 ): CaptureResult | undefined {
   // 1. Direct id match — exact on macOS, where both sides use CGDirectDisplayID.
   const byId = captures.get(display.id)
+
   if (byId) return byId
 
   for (const [monitorId, result] of captures) {
     const monitorInfo = monitorInfoList.find((m) => m.id === monitorId)
+
     if (!monitorInfo) continue
 
     // 2. Origin match with ±1 slack per axis, absorbing the native side's `as i32`
@@ -980,11 +1037,14 @@ function matchCapture(
     // 3. Windows HiDPI: native origins can follow either the primary or the
     //    monitor's physical-pixel grid, so normalize against both scales.
     const scaleFactors = [primaryScaleFactor]
+
     if (isWin && monitorInfo.scaleFactor !== primaryScaleFactor) scaleFactors.push(monitorInfo.scaleFactor)
+
     for (const scaleFactor of scaleFactors) {
       if (scaleFactor === 1) continue
       const normX = Math.round(monitorInfo.x / scaleFactor)
       const normY = Math.round(monitorInfo.y / scaleFactor)
+
       if (Math.abs(normX - display.bounds.x) <= 1 && Math.abs(normY - display.bounds.y) <= 1) return result
     }
   }
@@ -995,6 +1055,7 @@ function matchCapture(
 /** The windows that may act as hover-to-snap targets, before any per-display work. */
 async function collectSnapCandidates(): Promise<RawWindowInfo[]> {
   const selfPid = process.pid
+
   return (await listWindowsOffThread()).filter(
     (w) =>
       // Filters by pid, so every window of this app is excluded — the main window
@@ -1031,6 +1092,7 @@ function projectSnapCandidates(
   const dh = isWin ? Math.round(display.bounds.height * sf) : display.bounds.height
 
   const projected: DetectedWindow[] = []
+
   for (const w of candidates) {
     const overlapX = Math.max(w.x, dx)
     const overlapY = Math.max(w.y, dy)

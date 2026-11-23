@@ -37,6 +37,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   // `lastSeenCompletion` stays on the writable hook — this window OWNS the
   // read-receipt marker and writes it via markSeen.
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
+
   const [lastSeenCompletion, setLastSeenCompletion] = useSharedCache(
     `topic.stream.last_seen_completion.${topicId}` as const
   )
@@ -61,6 +62,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
 
 export function useTopicAwaitingApproval(topicId: string): boolean {
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
+
   return classifyTurn(entry?.status).isAwaitingApproval
 }
 
@@ -77,6 +79,7 @@ export function useTopicDbRefreshOnAwaitingApproval<TResult>(topicId: string, re
     const previous = prevRef.current
     const prev = previous?.topicId === topicId ? previous.status : undefined
     prevRef.current = { status, topicId }
+
     if (classifyTurn(prev).isStreamLive && classifyTurn(status).isAwaitingApproval) {
       void refreshRef.current().catch(() => {
         // Caller logs; the invalidation signal must not throw out of the effect.
@@ -104,6 +107,7 @@ export function useTopicOverlayHandoffOnTerminal(
     const prev = previous?.topicId === topicId ? previous.status : undefined
     prevRef.current = { status, topicId }
     const next = classifyTurn(status)
+
     if ((classifyTurn(prev).isStreamLive || liveAssistants.length > 0) && next.isTerminal && !next.isAwaitingApproval) {
       void (async () => {
         await onHandoffRef.current()

@@ -32,8 +32,10 @@ export function parsePrepareDiagnosticReportResult(value: unknown): PrepareDiagn
   if (isRecord(value) && value.isError === true) return undefined
 
   let candidate: unknown = value
+
   if (isRecord(value)) {
     candidate = value.structuredContent ?? value
+
     if (candidate === value && Array.isArray(value.content)) candidate = value.content
   }
 
@@ -44,19 +46,24 @@ export function parsePrepareDiagnosticReportResult(value: unknown): PrepareDiagn
         : candidate
             .flatMap((item) => {
               const text = isRecord(item) && typeof item.text === 'string' ? item.text : ''
+
               return text ? [text] : []
             })
             .join('\n')
+
     try {
       candidate = JSON.parse(text)
     } catch {
       return undefined
     }
   }
+
   const parsed = prepareDiagnosticReportResultSchema.safeParse(candidate)
+
   if (!parsed.success || parsed.data.description.trim().length === 0) return undefined
 
   const description = normalizeDiagnosticDescription(parsed.data.description.trim())
+
   if (diagnosticDescriptionByteLength(description) > DIAGNOSTIC_DESCRIPTION_MAX_BYTES) return undefined
 
   return { ok: true, description }
@@ -64,7 +71,9 @@ export function parsePrepareDiagnosticReportResult(value: unknown): PrepareDiagn
 
 function isPrepareDiagnosticReportToolResponse(toolResponse: McpToolResponse | NormalToolResponse): boolean {
   const { tool } = toolResponse
+
   if (tool.name === PREPARE_DIAGNOSTIC_REPORT_TOOL_NAME || tool.id === PREPARE_DIAGNOSTIC_REPORT_TOOL_NAME) return true
+
   return (
     tool.type === 'mcp' &&
     'serverId' in tool &&
@@ -77,6 +86,7 @@ export function getPrepareDiagnosticReportResult(
   toolResponse: McpToolResponse | NormalToolResponse
 ): PrepareDiagnosticReportResult | undefined {
   if (toolResponse.status !== 'done' || !isPrepareDiagnosticReportToolResponse(toolResponse)) return undefined
+
   return parsePrepareDiagnosticReportResult(toolResponse.response)
 }
 
@@ -84,6 +94,8 @@ export function isPrepareDiagnosticReportResultPart(part: CherryMessagePart): bo
   if (!isToolUIPart(part) || part.state !== 'output-available') return false
 
   const toolResponse = buildToolResponseFromPart(part)
+
   if (!toolResponse || !isPrepareDiagnosticReportToolResponse(toolResponse)) return false
+
   return isDeferredToolOutput(toolResponse.response) || getPrepareDiagnosticReportResult(toolResponse) !== undefined
 }

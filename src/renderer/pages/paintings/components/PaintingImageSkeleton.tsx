@@ -51,11 +51,13 @@ const PaintingImageSkeleton: FC<{
 
   useLayoutEffect(() => {
     const el = wrapperRef.current
+
     if (!el) return
     const measure = () => setContainer({ width: el.clientWidth, height: el.clientHeight })
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(el)
+
     return () => observer.disconnect()
   }, [])
 
@@ -69,10 +71,13 @@ const PaintingImageSkeleton: FC<{
   const setTopBarRef = useCallback((el: HTMLDivElement | null) => {
     topBarObserverRef.current?.disconnect()
     topBarObserverRef.current = null
+
     if (!el) {
       setTopBarHeight(0)
+
       return
     }
+
     const measure = () => setTopBarHeight(el.clientHeight)
     measure()
     const observer = new ResizeObserver(measure)
@@ -94,6 +99,7 @@ const PaintingImageSkeleton: FC<{
   // declared-ratio box below when dimensions aren't known yet (`container`
   // unmeasured, or the reveal hasn't decoded the natural size).
   let lockedSize: { width: number; height: number } | null = null
+
   if (naturalWidth && naturalHeight && naturalWidth > 0 && naturalHeight > 0 && container && availableHeight != null) {
     const scale = Math.min(1, container.width / naturalWidth, availableHeight / naturalHeight)
     lockedSize = { width: naturalWidth * scale, height: naturalHeight * scale }
@@ -105,6 +111,7 @@ const PaintingImageSkeleton: FC<{
   // whichever axis is the tighter fit: height when the image is narrower than the
   // container (portrait), width otherwise.
   let boxSize: { width: number; height: number } | null = lockedSize
+
   if (!boxSize && ratio != null && container) {
     if (containerRatio != null && ratio < containerRatio && availableHeight != null) {
       boxSize = { width: availableHeight * ratio, height: availableHeight }

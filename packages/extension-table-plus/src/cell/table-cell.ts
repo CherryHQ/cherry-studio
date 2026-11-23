@@ -24,6 +24,7 @@ const cellSelectionPluginKey = new PluginKey('cellSelectionStyling')
 
 function isTableNode(node: ProseMirrorNode): boolean {
   const spec = node.type.spec as { tableRole?: string } | undefined
+
   return node.type.name === 'table' || spec?.tableRole === 'table'
 }
 
@@ -38,6 +39,7 @@ function createCellSelectionDecorationSet(doc: ProseMirrorNode, selection: Selec
 
   for (let depth = $anchor.depth; depth > 0; depth--) {
     const nodeAtDepth = $anchor.node(depth)
+
     if (isTableNode(nodeAtDepth)) {
       tableNode = nodeAtDepth
       tablePos = $anchor.before(depth)
@@ -53,6 +55,7 @@ function createCellSelectionDecorationSet(doc: ProseMirrorNode, selection: Selec
   const tableStart = tablePos + 1
 
   type Rect = { top: number; bottom: number; left: number; right: number }
+
   type Item = { pos: number; node: ProseMirrorNode; rect: Rect }
 
   const items: Item[] = []
@@ -72,11 +75,16 @@ function createCellSelectionDecorationSet(doc: ProseMirrorNode, selection: Selec
   })
 
   const decorations: Decoration[] = []
+
   for (const { pos, node, rect } of items) {
     const classes: string[] = ['selectedCell']
+
     if (rect.top === minRow) classes.push('selection-top')
+
     if (rect.bottom - 1 === maxRow) classes.push('selection-bottom')
+
     if (rect.left === minCol) classes.push('selection-left')
+
     if (rect.right - 1 === maxCol) classes.push('selection-right')
 
     decorations.push(
@@ -88,6 +96,7 @@ function createCellSelectionDecorationSet(doc: ProseMirrorNode, selection: Selec
 
   return DecorationSet.create(doc, decorations)
 }
+
 /**
  * This extension allows you to create table cells.
  * @see https://www.tiptap.dev/api/nodes/table-cell

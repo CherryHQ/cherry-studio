@@ -6,6 +6,7 @@ import { localeKeySpec } from './i18n-plurals'
 
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
 type I18N = { [key: string]: string }
+
 type Glossary = { doNotTranslate: string[] }
 
 const ROOT = path.resolve(__dirname, '..')
@@ -14,6 +15,7 @@ const CATALOG_DIRECTORIES = ['src/renderer/i18n/locales', 'src/main/i18n/locales
 const ALLOWED_EMPTY_SOURCE_KEYS = new Set(['src/renderer/i18n/locales:settings.provider.oauth.provided_by_suffix'])
 
 const interpolations = (text: string) => (text.match(/{{[^}]*}}/g) ?? []).sort()
+
 // The name stays [\w-]+ so numeric Trans tags like <0> are still compared; [^>]* keeps
 // attribute-bearing tags like <a href="..."> in the comparison too.
 const tagPlaceholders = (text: string) => (text.match(/<\/?[\w-]+(?:\s[^>]*)?\/?>/g) ?? []).sort()
@@ -26,6 +28,7 @@ export const validateSource = (source: string): string | null => {
   const text = source.trim()
 
   if (!text) return 'empty source value'
+
   if (/to be translated/i.test(text)) return 'placeholder marker leaked into the source locale'
 
   return null
@@ -35,29 +38,37 @@ export const validate = (english: string, translation: string, doNotTranslate: s
   const text = translation.trim()
 
   if (!text) return /[\p{L}\p{N}]/u.test(english) ? 'empty' : null
+
   if (/to be translated/i.test(text)) return 'placeholder marker leaked into the translation'
+
   if (text.startsWith('[') && !english.trim().startsWith('[')) {
     return 'starts with a bracketed note instead of the translation'
   }
+
   if (text.length > Math.max(80, english.length * 4)) {
     return 'suspiciously long - likely an explanation, not a translation'
   }
 
   const sameList = (a: string[], b: string[]) => JSON.stringify(a) === JSON.stringify(b)
+
   if (!sameList(interpolations(english), interpolations(translation))) {
     return `interpolation mismatch: expected ${interpolations(english).join(' ') || '(none)'}`
   }
+
   if (!sameList(tagPlaceholders(english), tagPlaceholders(translation))) {
     return `tag placeholder mismatch: expected ${tagPlaceholders(english).join(' ') || '(none)'}`
   }
+
   if (!sameList(nestedKeys(english), nestedKeys(translation))) {
     return `$t() reference mismatch: expected ${nestedKeys(english).join(' ') || '(none)'}`
   }
 
   const foldedEnglish = foldForTermMatch(english)
   const foldedTranslation = foldForTermMatch(text)
+
   for (const term of doNotTranslate) {
     const foldedTerm = foldForTermMatch(term)
+
     if (foldedEnglish.includes(foldedTerm) && !foldedTranslation.includes(foldedTerm)) {
       return `dropped untranslatable term "${term}"`
     }
@@ -82,6 +93,7 @@ export const checkTranslationValues = () => {
       checked++
       const allowedEmpty = !source.trim() && ALLOWED_EMPTY_SOURCE_KEYS.has(`${catalogDirectory}:${key}`)
       const reason = allowedEmpty ? null : validateSource(source)
+
       if (reason) failures.push(`${catalogDirectory}/${BASE_LOCALE}.json ${key}: ${reason}`)
     }
 
@@ -90,13 +102,16 @@ export const checkTranslationValues = () => {
 
       const target = readJson(path.join(catalogPath, filename))
       const { sourceKey } = localeKeySpec(base, filename)
+
       for (const [key, translation] of Object.entries(target)) {
         const source = sourceKey.get(key)
         const english = source === undefined ? undefined : base[source]
+
         if (english === undefined) continue
 
         checked++
         const reason = validate(english, translation, glossary.doNotTranslate)
+
         if (reason) failures.push(`${catalogDirectory}/${filename} ${key}: ${reason}`)
       }
     }

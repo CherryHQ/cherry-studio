@@ -26,10 +26,12 @@ import { visit } from 'unist-util-visit'
  */
 
 const CLOSER = '**'
+
 // Caps the chained-tail recursion on adversarially long chains (each repaired link spends 1);
 // over-budget links keep their GFM shape — content is never dropped. Real citation lists stay
 // far below this.
 const MAX_TAIL_REPAIRS = 50
+
 // Chars after the markers that continue a URL (scheme/port/query/path/extension); anything
 // else — letters, CJK, brackets, whitespace, EOF — is prose resuming.
 const URL_CONTINUATION_REGEX = /^[/:#?&=%@+~.\-_]/
@@ -47,6 +49,7 @@ const tailProcessor = unified().use(remarkParse).use(remarkGfm)
 function stripPositions(nodes: PhrasingContent[]): void {
   for (const node of nodes) {
     delete node.position
+
     if ('children' in node) stripPositions(node.children)
   }
 }
@@ -54,6 +57,7 @@ function stripPositions(nodes: PhrasingContent[]): void {
 function parseInlineTail(value: string): PhrasingContent[] {
   const tree = tailProcessor.parse(value)
   const paragraphs = tree.children.filter((child): child is Paragraph => child.type === 'paragraph')
+
   // Positions are kept for now — the origin gate needs them — and stripped by
   // `repairTailNodes` once the (possibly chained) repairs are done.
   return paragraphs.length === tree.children.length
@@ -67,10 +71,12 @@ function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Tex
   if (node.children.length !== 1 || node.children[0].type !== 'text') return false
   const value = node.children[0].value
   const isWww = node.url === `http://${value}` || node.url === `https://${value}`
+
   if (!node.url.includes(CLOSER) || (value !== node.url && !isWww)) return false
   // Literal autolinks are built from one contiguous slice, so link and label start together;
   // angle (`<...>`) and explicit (`[..](..)`) links carry their delimiter in the link span.
   const linkStart = node.position?.start.offset
+
   return linkStart !== undefined && linkStart === node.children[0].position?.start.offset
 }
 
@@ -78,17 +84,24 @@ function isSwallowedLiteralAutolink(node: Link): node is Link & { children: [Tex
 // tail is repaired recursively by the caller. `indexOf` strictly increases, so no looping.
 function findCloserRun(url: string): { start: number; tailStart: number } | undefined {
   let index = url.indexOf(CLOSER)
+
   while (index >= 0) {
     const after = url[index + CLOSER.length]
+
     if (after === undefined || !URL_CONTINUATION_REGEX.test(after)) {
       let start = index
+
       while (start > 0 && url[start - 1] === '*') start--
       let tailStart = index + CLOSER.length
+
       while (tailStart < url.length && url[tailStart] === '*') tailStart++
+
       return { start, tailStart }
     }
+
     index = url.indexOf(CLOSER, index + 1)
   }
+
   return undefined
 }
 
@@ -101,10 +114,13 @@ interface Cut {
 // Cut href and label with the same scan so they never diverge; also returns the residual tail.
 function computeCut(node: Link & { children: [Text] }): Cut | undefined {
   const closer = findCloserRun(node.url)
+
   if (!closer) return undefined
   const text = node.children[0]
   const textRun = findCloserRun(text.value)
+
   if (!textRun || textRun.start <= 0) return undefined
+
   return {
     url: node.url.slice(0, closer.start),
     text: text.value.slice(0, textRun.start),
@@ -117,12 +133,15 @@ function computeCut(node: Link & { children: [Text] }): Cut | undefined {
 // `budget` spends one per repaired link; over-budget links keep their GFM shape.
 function repairTailNodes(nodes: PhrasingContent[], tailSource: string, budget = MAX_TAIL_REPAIRS): PhrasingContent[] {
   const repaired: PhrasingContent[] = []
+
   for (const node of nodes) {
     if (node.type === 'link' && isSwallowedLiteralAutolink(node)) {
       const prev = repaired[repaired.length - 1]
       const opener = isTextNode(prev) ? prev : undefined
+
       const openerSource =
         opener?.position && tailSource.slice(opener.position.start.offset, opener.position.end.offset)
+
       if (
         budget > 0 &&
         opener &&
@@ -131,6 +150,7 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string, budget = 
         openerHasLiteralMarkers(opener, openerSource)
       ) {
         const cut = computeCut(node)
+
         if (cut) {
           const text = node.children[0]
           node.url = cut.url
@@ -138,11 +158,13 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string, budget = 
           delete node.position
           delete text.position
           const lead = opener.value.replace(/\*{2,}$/, '')
+
           if (lead) {
             opener.value = lead
           } else {
             repaired.pop()
           }
+
           const strong: Strong = { type: 'strong', children: [node] }
           repaired.push(strong)
           repaired.push(...repairTailNodes(parseInlineTail(cut.tail), cut.tail, budget - 1))
@@ -150,10 +172,13 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string, budget = 
         }
       }
     }
+
     repaired.push(node)
   }
+
   // Positions from the sub-parse point into the tail substring, not the source document.
   stripPositions(repaired)
+
   return repaired
 }
 
@@ -166,19 +191,25 @@ function isTextNode(node: Node | undefined): node is Text {
 // stars) and not preceded by an odd backslash run (`\**`). Anything else fails closed.
 function openerHasLiteralMarkers(opener: Text, spanSource: string): boolean {
   let spanStars = 0
+
   while (spanStars < spanSource.length && spanSource[spanSource.length - 1 - spanStars] === '*') {
     spanStars++
   }
+
   let valueStars = 0
+
   while (valueStars < opener.value.length && opener.value[opener.value.length - 1 - valueStars] === '*') {
     valueStars++
   }
+
   if (spanStars < valueStars) return false
   // Count the backslash run immediately before the stars; an odd run escapes them.
   let slashes = 0
+
   while (slashes < spanSource.length - spanStars && spanSource[spanSource.length - spanStars - slashes - 1] === '\\') {
     slashes++
   }
+
   return slashes % 2 === 0
 }
 
@@ -188,13 +219,16 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
   // escaped run (`\**`) must not be consumed even when its rendered value looks like markers.
   const prev = parent.children[index - 1]
   const opener = isTextNode(prev) ? prev : undefined
+
   if (!opener?.value.endsWith(CLOSER)) return undefined
   // Reject a run whose marker is escaped (`\**`, `\*\*`); a backslash or character reference
   // earlier in the span (`\\**`, `\q**`, `&amp;**`) must not disqualify real emphasis.
   const openerSource = opener.position && source.slice(opener.position.start.offset, opener.position.end.offset)
+
   if (!openerSource || !openerHasLiteralMarkers(opener, openerSource)) return undefined
 
   const cut = computeCut(node)
+
   if (!cut) return undefined
 
   const text = node.children[0]
@@ -210,8 +244,10 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
   const head: RootContent[] = []
   // Consume the opener's full run too, so `***url***` does not leave stray stars behind.
   const lead = opener.value.replace(/\*{2,}$/, '')
+
   if (lead) head.push({ type: 'text', value: lead })
   head.push(strong)
+
   // Splice covers the opener too so the trimmed text replaces it in one step.
   return { parent, startIndex: index - 1, removeCount: 2, nodes: [...head, ...tailNodes] }
 }
@@ -219,6 +255,7 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
 export const remarkLiteralAutolinkFix: Plugin<[], Root> = () => (tree, file) => {
   // VFile.frozen may not hold value; read it explicitly rather than relying on toString.
   const source = typeof file.value === 'string' ? file.value : String(file)
+
   if (!source.includes(CLOSER)) return tree
 
   const plans: FixPlan[] = []
@@ -226,6 +263,7 @@ export const remarkLiteralAutolinkFix: Plugin<[], Root> = () => (tree, file) => 
   visit(tree, 'link', (node, index, parent) => {
     if (!parent || typeof index !== 'number') return
     const plan = buildFix(node, index, parent, source)
+
     if (plan) plans.push(plan)
   })
 

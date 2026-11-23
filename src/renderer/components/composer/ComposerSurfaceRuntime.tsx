@@ -112,11 +112,14 @@ import { useComposerEditorFrameSizing } from './useComposerEditorFrameSizing'
  * override is invisible until the rail gutter adds onto it; only applied when
  * the caller wires `railGutterPx`, and replaced by the caller's `sidePaddingPx`. */
 const COMPOSER_SIDE_PADDING_PX = 24
+
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
 ] as const
+
 const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
+
 interface ComposerClipboardCopyView {
   state: {
     selection: {
@@ -346,11 +349,14 @@ function removeComposerTokens(editor: Editor, shouldRemove: (token: ComposerSeri
 
   editor.state.doc.descendants((node, position) => {
     if (node.type.name !== COMPOSER_TOKEN_NODE_NAME) return
+
     const draft = serializeComposerDocument({
       type: 'doc',
       content: [{ type: 'paragraph', content: [{ type: COMPOSER_TOKEN_NODE_NAME, attrs: node.attrs }] }]
     })
+
     const token = draft.tokens[0]
+
     if (token && shouldRemove(token)) {
       ranges.push({ from: position, to: position + node.nodeSize })
     }
@@ -359,9 +365,11 @@ function removeComposerTokens(editor: Editor, shouldRemove: (token: ComposerSeri
   if (!ranges.length) return
 
   const transaction = editor.state.tr
+
   for (const range of ranges.reverse()) {
     transaction.delete(range.from, range.to)
   }
+
   editor.view.dispatch(transaction)
 }
 
@@ -388,7 +396,9 @@ function setComposerEditorContent(
 function hasComposerTokenBeforeSelection(editor: Editor) {
   const selection = editor.state.selection
   const selectedNode = (selection as { node?: { type?: { name?: string } } }).node
+
   if (selectedNode?.type?.name === COMPOSER_TOKEN_NODE_NAME) return true
+
   if (!selection.empty) return false
 
   return selection.$from.nodeBefore?.type.name === COMPOSER_TOKEN_NODE_NAME
@@ -403,6 +413,7 @@ function getComposerUnifiedPanelSearchText(
 
   const text = inputAdapter.getText()
   const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+
   if (cursorOffset <= queryAnchor) return ''
 
   const rawSearchText = text.slice(queryAnchor, cursorOffset)
@@ -411,10 +422,12 @@ function getComposerUnifiedPanelSearchText(
   if (triggerSymbol && rawSearchText.startsWith(triggerSymbol)) {
     return rawSearchText.slice(triggerSymbol.length)
   }
+
   return rawSearchText
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
+
 const getTrackedTokenSignature = (tokens: readonly ComposerSerializedToken[]) =>
   tokens
     .flatMap((token) =>
@@ -457,6 +470,7 @@ function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type -- File-token reconciliation preserves opaque extension fields; only the object container and path are checked here.
 function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
+
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The container guard leaves extension-owned values unknown until their consumers validate them.
   return payload as Record<string, unknown>
 }
@@ -465,6 +479,7 @@ function readComposerPayloadObject(payload: unknown): Record<string, unknown> | 
 function readComposerPayloadPath(payload: unknown): string | undefined {
   const payloadObject = readComposerPayloadObject(payload)
   const path = payloadObject?.path
+
   return typeof path === 'string' ? path : undefined
 }
 
@@ -475,9 +490,11 @@ function mergeLiveFileTokenPayload(
   if (token.kind !== 'file' || readComposerPayloadPath(token.payload)) return token
 
   const liveToken = liveTokenById.get(token.id)
+
   if (liveToken?.kind !== 'file') return token
 
   const livePath = readComposerPayloadPath(liveToken.payload)
+
   if (!livePath) return token
 
   return {
@@ -492,9 +509,11 @@ function mergeLiveFileTokenPayload(
 
 function createComposerDraftFromSelectedContent(view: ComposerClipboardCopyView): ComposerSerializedDraft | null {
   const { selection } = view.state
+
   if (selection.empty) return null
 
   const content = selection.content().content.toJSON()
+
   if (!Array.isArray(content) || content.length === 0) return null
 
   return serializeComposerDocument({ type: 'doc', content })
@@ -508,17 +527,20 @@ function handleComposerCopy(
   if (!event.clipboardData) return false
 
   const draft = createComposerDraftFromSelectedContent(view)
+
   const richContent = draft
     ? createComposerRichClipboardContentFromDraft({
         ...draft,
         tokens: draft.tokens.map((token) => mergeLiveFileTokenPayload(token, liveTokenById))
       })
     : null
+
   if (!richContent) return false
 
   event.preventDefault()
   event.clipboardData.clearData()
   writeComposerClipboardData(event.clipboardData, richContent)
+
   return true
 }
 
@@ -531,6 +553,7 @@ function mergeComposerClipboardFiles(prev: ComposerAttachment[], files: readonly
 
   for (const file of files) {
     const key = `${file.fileTokenSourceId}:${file.path}`
+
     if (existing.has(key)) continue
     existing.add(key)
     next.push(file)
@@ -557,8 +580,10 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
       isCursorAtHistoryBoundary = true
     } else {
       const topLevelBlockIndex = selection.$head.index(0)
+
       const isAtDocumentEdgeBlock =
         key === 'ArrowUp' ? topLevelBlockIndex === 0 : topLevelBlockIndex === doc.childCount - 1
+
       const direction = key === 'ArrowUp' ? 'up' : 'down'
       isCursorAtHistoryBoundary = isAtDocumentEdgeBlock && view.endOfTextblock(direction)
     }
@@ -729,6 +754,7 @@ export default function ComposerSurfaceRuntime({
 
   useLayoutEffect(() => {
     suggestionPanelActiveRef.current = quickPanelEnabled
+
     return () => {
       suggestionPanelActiveRef.current = false
     }
@@ -737,6 +763,7 @@ export default function ComposerSurfaceRuntime({
   useLayoutEffect(() => {
     if (previousLayerActiveRef.current === layerActive) return
     previousLayerActiveRef.current = layerActive
+
     if (quickPanelRef.current.isVisible) quickPanelRef.current.close('composer_override')
   }, [layerActive])
 
@@ -754,12 +781,14 @@ export default function ComposerSurfaceRuntime({
     }
 
     document.addEventListener('pointerdown', handlePointerDown, true)
+
     return () => document.removeEventListener('pointerdown', handlePointerDown, true)
   }, [])
 
   useEffect(() => {
     if (editingHighlightKey === undefined) {
       setEditingBorderHighlighted(false)
+
       return
     }
 
@@ -782,6 +811,7 @@ export default function ComposerSurfaceRuntime({
     (nextText: string) => {
       const editor = editorRef.current
       const currentText = editor && !editor.isDestroyed ? serializeComposerDocument(editor).text : textRef.current
+
       // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update must
       // skip the rebuild or quote/file/knowledge tokens degrade to their serialized text.
       if (nextText === currentText) return
@@ -789,6 +819,7 @@ export default function ComposerSurfaceRuntime({
       pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
       const nextContent = createPromptVariableContent(nextText)
+
       if (editor) setComposerEditorContent(editor, lastSerializedDraftRef, nextContent)
     },
     [onTextChange]
@@ -796,6 +827,7 @@ export default function ComposerSurfaceRuntime({
 
   const insertFolderToken = useCallback((path: string) => {
     const editor = editorRef.current
+
     if (!editor || editor.isDestroyed) return
     insertComposerTokenAtCursor(editor, createComposerFolderToken(path))
   }, [])
@@ -821,6 +853,7 @@ export default function ComposerSurfaceRuntime({
     onFolderPathDropped: insertFolderToken,
     onTextDropped: (droppedText) => {
       const editor = editorRef.current
+
       if (!editor) return
       editor.chain().focus().insertComposerLines(buildInsertedInlineContent(editor, droppedText)).run()
     },
@@ -831,6 +864,7 @@ export default function ComposerSurfaceRuntime({
   const focusEditor = useCallback((position?: 'start' | 'end' | 'all' | number | boolean | null) => {
     editorRef.current?.commands.focus(position)
   }, [])
+
   const isEditorComposing = useCallback(() => editorRef.current?.view.composing ?? false, [])
 
   const {
@@ -857,11 +891,13 @@ export default function ComposerSurfaceRuntime({
     focusEditor,
     setTimeoutTimer
   })
+
   const { isCompact, requestMeasurement: requestCompactMeasurement } = useCompactComposerPresentation({
     enabled: compactWhenSingleLine && !hasCustomHeight,
     frameRef,
     isComposing: isEditorComposing
   })
+
   const createEditorFocusRestoreSnapshot = useCallback<() => ComposerFocusRestoreSnapshot>(
     () => ({
       activeElement: document.activeElement,
@@ -869,11 +905,13 @@ export default function ComposerSurfaceRuntime({
     }),
     []
   )
+
   const shouldRestoreEditorFocus = useCallback(
     (snapshot: ComposerFocusRestoreSnapshot) => {
       if (pointerDownVersionRef.current !== snapshot.pointerDownVersion || !document.hasFocus()) return false
 
       const activeElement = document.activeElement
+
       return (
         activeElement === snapshot.activeElement ||
         activeElement === document.body ||
@@ -882,10 +920,12 @@ export default function ComposerSurfaceRuntime({
     },
     [frameRef]
   )
+
   const submitDraft = useCallback(
     (steer: boolean) => {
       if (sendDisabledRef.current || !editorRef.current) {
         showBlockedSendReason()
+
         return
       }
 
@@ -910,6 +950,7 @@ export default function ComposerSurfaceRuntime({
 
   useEffect(() => {
     const previousInputs = compactMeasurementInputsRef.current
+
     const inputsChanged =
       previousInputs.draftTokens !== draftTokens ||
       previousInputs.fontSize !== fontSize ||
@@ -926,6 +967,7 @@ export default function ComposerSurfaceRuntime({
       text,
       tokens
     }
+
     if (inputsChanged) requestCompactMeasurement()
   }, [draftTokens, fontSize, renderCompactControls, requestCompactMeasurement, sendAccessory, text, tokens])
   const toggleEditorExpandedRef = useRef(toggleEditorExpanded)
@@ -945,6 +987,7 @@ export default function ComposerSurfaceRuntime({
 
   const removeToken = useCallback((tokenId: string) => {
     const editor = editorRef.current
+
     if (!editor || editor.isDestroyed) return
     removeComposerTokens(editor, (token) => token.id === tokenId)
     editor.commands.focus()
@@ -954,6 +997,7 @@ export default function ComposerSurfaceRuntime({
     async (token: ComposerDraftToken, nodeViewProps: NodeViewProps) => {
       const file = isPastedTextFileMetadata(token.payload) ? token.payload : undefined
       const editor = editorRef.current
+
       if (!file || !editor || editor.isDestroyed) return
 
       try {
@@ -966,12 +1010,15 @@ export default function ComposerSurfaceRuntime({
             .chain()
             .focus()
             .deleteRange({ from: position, to: position + nodeViewProps.node.nodeSize })
+
           if (content.length > 0) {
             chain.insertComposerLines(content)
           }
+
           chain.run()
         } else {
           removeComposerTokens(editor, (candidate) => candidate.id === token.id)
+
           if (content.length > 0) {
             editor.chain().focus().insertComposerLines(content).run()
           } else {
@@ -993,6 +1040,7 @@ export default function ComposerSurfaceRuntime({
 
   const insertToken = useCallback((token: ComposerDraftToken, updateOnly = false) => {
     const editor = editorRef.current
+
     if (!editor || editor.isDestroyed) return
 
     if (updateOnly) updateComposerToken(editor, token)
@@ -1001,6 +1049,7 @@ export default function ComposerSurfaceRuntime({
 
   const getDraft = useCallback((): ComposerSerializedDraft => {
     const editor = editorRef.current
+
     if (!editor || editor.isDestroyed) {
       // Callers persist the returned pair verbatim; a fabricated { text, tokens: [] } would strand
       // managed chips' prompt sentences as visible prose on the next restore.
@@ -1012,12 +1061,14 @@ export default function ComposerSurfaceRuntime({
 
   const appendText = useCallback((text: string) => {
     const editor = editorRef.current
+
     return Boolean(editor && appendComposerText(editor, text))
   }, [])
 
   const replaceDraft = useCallback(
     (draft: ComposerSerializedDraft) => {
       const editor = editorRef.current
+
       if (!editor || editor.isDestroyed) return
 
       textRef.current = draft.text
@@ -1057,6 +1108,7 @@ export default function ComposerSurfaceRuntime({
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)
+
   const unifiedPanelListRefreshKeyRef = useRef<
     | {
         signature: string
@@ -1065,6 +1117,7 @@ export default function ComposerSurfaceRuntime({
       }
     | undefined
   >(undefined)
+
   const [unifiedResourceItems, setUnifiedResourceItems] = useState<QuickPanelListItem[]>([])
   // Per-pluginKey record of the last generation the source itself was active at.
   // Read by onExit so a stale exit cannot borrow another source's active generation
@@ -1072,6 +1125,7 @@ export default function ComposerSurfaceRuntime({
   const lastActiveRootSuggestionSessionGenByPluginKeyRef = useRef<Record<string, number>>({})
   const activeRootSuggestionSessionRef = useRef<{ pluginKey: string; generation: number } | null>(null)
   const pendingRootSuggestionExitRef = useRef<{ pluginKey: string; generation: number } | null>(null)
+
   const rootSuggestionStateRef = useRef({
     getToolLaunchers,
     onRootPanelOpen,
@@ -1132,6 +1186,7 @@ export default function ComposerSurfaceRuntime({
         rootPanelAdditionalItems,
         rootPanelLeadingItems
       } = rootSuggestionStateRef.current
+
       const launchers = getToolLaunchers?.() ?? []
       const isButtonRoot = (triggerInfo?.type ?? 'button') === 'button'
 
@@ -1171,10 +1226,12 @@ export default function ComposerSurfaceRuntime({
 
       if (!resourceProvider || trimmedQuery.length === 0) {
         setUnifiedResourceItems([])
+
         return
       }
 
       let resourceItems: QuickPanelListItem[]
+
       try {
         resourceItems = await resourceProvider(trimmedQuery, {
           inputAdapter,
@@ -1185,6 +1242,7 @@ export default function ComposerSurfaceRuntime({
         })
       } catch {
         if (requestId !== unifiedResourceRequestRef.current) return
+
         if (
           quickPanel.getPanelGeneration() !== panelGeneration ||
           !quickPanel.isVisible ||
@@ -1202,9 +1260,12 @@ export default function ComposerSurfaceRuntime({
             triggerInfo
           }).list
         )
+
         return
       }
+
       if (requestId !== unifiedResourceRequestRef.current) return
+
       if (
         quickPanel.getPanelGeneration() !== panelGeneration ||
         !quickPanel.isVisible ||
@@ -1241,9 +1302,11 @@ export default function ComposerSurfaceRuntime({
       triggerInfo?: QuickPanelTriggerInfo
     }) => {
       const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
+
       if (requestRootPanelOpen) {
         onRootPanelOpen?.()
       }
+
       setUnifiedResourceItems([])
       quickPanel.open(
         createUnifiedPanelOptions({
@@ -1273,6 +1336,7 @@ export default function ComposerSurfaceRuntime({
       triggerInfo?: QuickPanelTriggerInfo
     }) => {
       const { quickPanel } = rootSuggestionStateRef.current
+
       // Opening a specific launcher is an explicit request, so it should not be filtered out by
       // the pinned-launcher dedup that applies to the browsable root panel.
       const rootPanelOptions = createUnifiedPanelOptions({
@@ -1283,7 +1347,9 @@ export default function ComposerSurfaceRuntime({
         triggerInfo,
         includePinnedLaunchers: true
       })
+
       const launcherItem = rootPanelOptions.list.find((item) => item.id === launcherId)
+
       if (!launcherItem?.isMenu || launcherItem.disabled) return false
 
       launcherItem.action?.({
@@ -1295,6 +1361,7 @@ export default function ComposerSurfaceRuntime({
         searchText,
         inputAdapter
       })
+
       return true
     },
     [createUnifiedPanelOptions]
@@ -1312,6 +1379,7 @@ export default function ComposerSurfaceRuntime({
         onActiveChange: ({ editor, query, range, text }) => {
           if (!suggestionPanelActiveRef.current) return
           const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
+
           const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
             editor,
             {
@@ -1327,6 +1395,7 @@ export default function ComposerSurfaceRuntime({
             cursorOffset !== queryAnchor + triggerText.length
           ) {
             const activeRootSuggestionSession = activeRootSuggestionSessionRef.current
+
             const canCloseRootPanel =
               !activeRootSuggestionSession || activeRootSuggestionSession.pluginKey === pluginKey
 
@@ -1339,12 +1408,15 @@ export default function ComposerSurfaceRuntime({
                 quickPanel.close('input_prefix_invalid')
               }
             }
+
             return
           }
 
           const lastActiveGenForThisPluginKey =
             (lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] ?? 0) + 1
+
           const pendingRootSuggestionExit = pendingRootSuggestionExitRef.current
+
           // "Restart" means: I exited (pending records that) and no one — including
           // myself — has activated me since. So pending.generation must equal the
           // last active gen I observed before this onActiveChange increments it.
@@ -1352,6 +1424,7 @@ export default function ComposerSurfaceRuntime({
             pendingRootSuggestionExit != null &&
             pendingRootSuggestionExit.pluginKey === pluginKey &&
             pendingRootSuggestionExit.generation === lastActiveGenForThisPluginKey - 1
+
           if (isRestartingExitedRootSource) {
             pendingRootSuggestionExitRef.current = null
           }
@@ -1382,6 +1455,7 @@ export default function ComposerSurfaceRuntime({
         },
         onKeyDown: ({ event }) => {
           if (!suggestionPanelActiveRef.current) return false
+
           return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
         },
         onExit: () => {
@@ -1396,6 +1470,7 @@ export default function ComposerSurfaceRuntime({
 
           window.setTimeout(() => {
             const activeRootSuggestionSession = activeRootSuggestionSessionRef.current
+
             const isExitingSessionStillActive =
               !activeRootSuggestionSession ||
               (activeRootSuggestionSession.pluginKey === exitingRootSuggestionSession.pluginKey &&
@@ -1408,11 +1483,13 @@ export default function ComposerSurfaceRuntime({
               ) {
                 pendingRootSuggestionExitRef.current = null
               }
+
               return
             }
 
             activeRootSuggestionSessionRef.current = null
             rootPanelOpenRefreshRequestedRef.current = false
+
             if (
               pendingRootSuggestionExitRef.current?.pluginKey === exitingRootSuggestionSession.pluginKey &&
               pendingRootSuggestionExitRef.current.generation === exitingRootSuggestionSession.generation
@@ -1421,6 +1498,7 @@ export default function ComposerSurfaceRuntime({
             }
 
             const { quickPanel } = rootSuggestionStateRef.current
+
             if (
               suggestionPanelActiveRef.current &&
               quickPanel.getPanelGeneration() === panelGeneration &&
@@ -1451,6 +1529,7 @@ export default function ComposerSurfaceRuntime({
           source.onActiveChange?.(options)
 
           const { quickPanel } = suggestionPanelStateRef.current
+
           const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
             options.editor,
             {
@@ -1468,6 +1547,7 @@ export default function ComposerSurfaceRuntime({
             if (quickPanel.isVisible && quickPanel.symbol === source.char) {
               quickPanel.close('input_prefix_invalid')
             }
+
             return
           }
 
@@ -1498,7 +1578,9 @@ export default function ComposerSurfaceRuntime({
         onKeyDown: (props) => {
           if (!suggestionPanelActiveRef.current) return false
           const handledByQuickPanel = suggestionPanelStateRef.current.quickPanel.dispatchKeyDown(props.event)
+
           if (handledByQuickPanel) return true
+
           return source.onKeyDown?.(props) ?? false
         },
         onExit: (options) => {
@@ -1507,6 +1589,7 @@ export default function ComposerSurfaceRuntime({
 
           window.setTimeout(() => {
             const { quickPanel } = suggestionPanelStateRef.current
+
             if (
               suggestionPanelActiveRef.current &&
               quickPanel.getPanelGeneration() === panelGeneration &&
@@ -1533,6 +1616,7 @@ export default function ComposerSurfaceRuntime({
   useLayoutEffect(() => {
     previewInputFileRef.current = previewInputFile
   }, [previewInputFile])
+
   const activateFilePreview = useCallback<ComposerInputFilePreviewAction>((input) => {
     return previewInputFileRef.current?.(input)
   }, [])
@@ -1540,10 +1624,12 @@ export default function ComposerSurfaceRuntime({
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
     (token, { selected, nodeViewProps }) => {
       const currentToken = tokenByIdRef.current.get(token.id) ?? token
+
       if (currentToken.kind !== 'file') return undefined
 
       const fileToken = currentToken as ComposerDraftToken & { kind: 'file' }
       const pastedTextToken = isPastedTextFileMetadata(fileToken.payload) ? fileToken : undefined
+
       return (
         <FileComposerToken
           token={fileToken}
@@ -1595,7 +1681,9 @@ export default function ComposerSurfaceRuntime({
       COMPOSITION_END_NOTIFY_TIMER_KEY,
       () => {
         const editor = editorRef.current
+
         if (!editor || editor.isDestroyed) return
+
         // Typing fast enough starts the next composition before this fires; announcing "not composing"
         // then would run the close checks against a half-typed pinyin.
         if (editor.view.composing) return
@@ -1621,15 +1709,19 @@ export default function ComposerSurfaceRuntime({
         const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
         const isNewlinePressed = isEnterPressed && matchesComposerShortcut(event, newlineShortcutRef.current)
         const qp = quickPanelRef.current
+
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
           const handled = qp.dispatchKeyDown(event)
+
           if (handled) return true
+
           // The line-break key falls through to the newline branch below even with the panel open.
           if (qp.isVisible && isEnterPressed && !isNewlinePressed) {
             event.preventDefault()
             event.stopPropagation()
+
             return true
           }
         }
@@ -1650,14 +1742,17 @@ export default function ComposerSurfaceRuntime({
         ) {
           const direction: InputHistoryDirection = event.key === 'ArrowUp' ? 'up' : 'down'
           const handled = onInputHistoryNavigateRef.current?.(direction) ?? false
+
           if (handled) {
             event.preventDefault()
             event.stopPropagation()
+
             return true
           }
         }
 
         const suggestion = promptSuggestionRef.current
+
         if (
           suggestion.text &&
           view.editable &&
@@ -1671,8 +1766,10 @@ export default function ComposerSurfaceRuntime({
             suggestion.dismiss?.()
             event.preventDefault()
             event.stopPropagation()
+
             return true
           }
+
           if (
             (event.key === 'Tab' ||
               event.key === (getComputedStyle(view.dom).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')) &&
@@ -1683,8 +1780,10 @@ export default function ComposerSurfaceRuntime({
           ) {
             event.preventDefault()
             event.stopPropagation()
+
             if (!event.repeat) editorRef.current?.commands.insertContent({ type: 'text', text: suggestion.text })
             suggestion.dismiss?.()
+
             return true
           }
         }
@@ -1692,6 +1791,7 @@ export default function ComposerSurfaceRuntime({
         if (event.key === 'Escape' && isExpandedRef.current) {
           event.stopPropagation()
           toggleEditorExpandedRef.current(false)
+
           return true
         }
 
@@ -1701,6 +1801,7 @@ export default function ComposerSurfaceRuntime({
         ) {
           event.preventDefault()
           event.stopPropagation()
+
           return true
         }
 
@@ -1713,12 +1814,15 @@ export default function ComposerSurfaceRuntime({
             event.preventDefault()
             event.stopPropagation()
             promptVariableEditRef.current = { tokenId: targetToken.id, started: false }
+
             return true
           }
+
           if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && onShiftTabRef.current) {
             if (!event.repeat) onShiftTabRef.current()
             event.preventDefault()
             event.stopPropagation()
+
             return true
           }
         }
@@ -1732,15 +1836,18 @@ export default function ComposerSurfaceRuntime({
           // streaming, so binding both to the same key means "steer the turn, don't queue".
           const steerShortcut = steerShortcutRef.current
           const isSteerPressed = !!steerShortcut && matchesComposerShortcut(event, steerShortcut)
+
           if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcutRef.current)) {
             // Holding the key must not send twice; holding the newline key still repeats.
             if (!event.repeat) submitDraft(isSteerPressed)
+
             return true
           }
 
           if (isNewlinePressed) {
             editorRef.current?.commands.splitComposerLine()
           }
+
           return true
         }
 
@@ -1748,19 +1855,24 @@ export default function ComposerSurfaceRuntime({
           const detach = () => {
             setFilesRef.current((prev) => prev.slice(0, -1))
             event.preventDefault()
+
             return true
           }
+
           const editor = editorRef.current
+
           if (!editor) {
             // Mount-frame window: the view answers keys before the passive effect assigns the
             // ref, and the merge base gated this branch on the prose term too — text present
             // means the keystroke was not aimed at the attachment.
             return textRef.current.trim().length === 0 ? detach() : false
           }
+
           // Emptiness needs both terms: a chip is an atom whose text lives in attributes, so a file
           // chip contributes `''` while still being content — and prose with no chip at all is
           // content too, which the painting composer produces by attaching files it never chips.
           const draft = serializeComposerDocument(editor)
+
           if (!draft.text.trim() && !draft.tokens.length && !hasComposerTokenBeforeSelection(editor)) {
             return detach()
           }
@@ -1770,19 +1882,25 @@ export default function ComposerSurfaceRuntime({
       },
       handleTextInput: (_view, _from, _to, insertedText) => {
         const editor = editorRef.current
+
         if (!editor || editor.isDestroyed) return false
         const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+
         if (!selectedPromptVariable) return false
 
         const composingToken = promptVariableCompositionRef.current
+
         if (editor.view.composing || composingToken?.tokenId === selectedPromptVariable.token.id) {
           if (composingToken) composingToken.text = insertedText || composingToken.text
+
           return true
         }
 
         const skippedTextInput = promptVariableSkipTextInputRef.current
+
         if (skippedTextInput?.tokenId === selectedPromptVariable.token.id && skippedTextInput.text === insertedText) {
           promptVariableSkipTextInputRef.current = null
+
           return true
         }
 
@@ -1792,6 +1910,7 @@ export default function ComposerSurfaceRuntime({
         const nextPromptText = `${baseText}${insertedText}`
         updateSelectedPromptVariableToken(editor, nextPromptText)
         promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
+
         return true
       },
       handleDOMEvents: {
@@ -1800,31 +1919,39 @@ export default function ComposerSurfaceRuntime({
           if (!handleComposerCopy(view, event, tokenByIdRef.current)) return false
 
           const editor = editorRef.current
+
           if (editor && !editor.isDestroyed && editor.isEditable) {
             editor.chain().focus().deleteSelection().run()
           }
+
           return true
         },
         compositionstart: () => {
           promptSuggestionRef.current.dismiss?.()
           const editor = editorRef.current
+
           if (!editor || editor.isDestroyed) return false
           const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+
           if (!selectedPromptVariable) return false
 
           promptVariableCompositionRef.current = { tokenId: selectedPromptVariable.token.id, text: '' }
           promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: false }
+
           return false
         },
         compositionupdate: (_view, event) => {
           const editor = editorRef.current
           const composingToken = promptVariableCompositionRef.current
+
           if (!editor || editor.isDestroyed || !composingToken) return false
           const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+
           if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
 
           const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
           composingToken.text = data || composingToken.text
+
           return true
         },
         compositionend: (_view, event) => {
@@ -1835,15 +1962,18 @@ export default function ComposerSurfaceRuntime({
 
           if (!editor || editor.isDestroyed || !composingToken) return false
           const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+
           if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
 
           const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
           const nextValue = data || composingToken.text
+
           if (!nextValue) return true
 
           updateSelectedPromptVariableToken(editor, nextValue)
           promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
           promptVariableSkipTextInputRef.current = { tokenId: selectedPromptVariable.token.id, text: nextValue }
+
           return true
         }
       }
@@ -1859,10 +1989,12 @@ export default function ComposerSurfaceRuntime({
       const editor = (view.dom as TiptapEditorHTMLElement).editor
       const shouldDelegateToFileHandler = shouldHandleClipboardFiles(event.clipboardData, supportedExts)
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
+
       if (editor && selectedPromptVariable && pastedText && !shouldDelegateToFileHandler) {
         event.preventDefault()
         updateSelectedPromptVariableToken(editor, pastedText)
         promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
+
         return true
       }
 
@@ -1872,9 +2004,11 @@ export default function ComposerSurfaceRuntime({
         pasteLongTextAsFile,
         pasteLongTextThreshold
       )
+
       if (shouldDelegateLongTextPaste) {
         event.preventDefault()
         void handlePaste(event)
+
         return true
       }
 
@@ -1895,6 +2029,7 @@ export default function ComposerSurfaceRuntime({
       ) {
         event.preventDefault()
         insertComposerPastedContent(editor, getComposerPlainTextPasteOverride(pastedText, pasteOptions) ?? [])
+
         return true
       }
 
@@ -1909,9 +2044,11 @@ export default function ComposerSurfaceRuntime({
         if (clipboardPasteOverride !== null) {
           event.preventDefault()
           insertComposerPastedContent(editor, clipboardPasteOverride.content)
+
           if (clipboardPasteOverride.files.length > 0) {
             setFilesRef.current((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
           }
+
           return true
         }
       }
@@ -1919,6 +2056,7 @@ export default function ComposerSurfaceRuntime({
       if (shouldDelegateToFileHandler) {
         event.preventDefault()
         void handlePaste(event)
+
         return true
       }
 
@@ -1927,21 +2065,25 @@ export default function ComposerSurfaceRuntime({
       if (plainTextOverride !== null && editor) {
         event.preventDefault()
         insertComposerPastedContent(editor, plainTextOverride)
+
         return true
       }
 
       if (!pastedText && pastedHtml.includes('data-composer-token')) {
         event.preventDefault()
+
         return true
       }
 
       if (!pastedText && hasClipboardFiles(event.clipboardData)) {
         event.preventDefault()
         void handlePaste(event)
+
         return true
       }
 
       void handlePaste(event)
+
       return false
     },
     [
@@ -1970,6 +2112,7 @@ export default function ComposerSurfaceRuntime({
     handlePaste: memoizedHandlePaste,
     onUpdate: ({ editor: updatedEditor, transaction }) => {
       requestCompactMeasurement()
+
       if (tokenizePromptVariablesInEditor(updatedEditor, transaction)) return
 
       const draft = serializeComposerDocument(updatedEditor)
@@ -1979,14 +2122,17 @@ export default function ComposerSurfaceRuntime({
       pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
       const inputEventCause = isSyncingTokensRef.current ? 'state-sync' : 'user-input'
+
       if (!updatedEditor.view.composing && inputEventCause === 'user-input') {
         clearTimeoutTimer(COMPOSITION_END_NOTIFY_TIMER_KEY)
       }
+
       inputListenersRef.current.forEach((listener) =>
         listener({ isComposing: updatedEditor.view.composing, cause: inputEventCause })
       )
 
       const nextTrackedTokenSignature = getTrackedTokenSignature(draft.tokens)
+
       if (!isSyncingTokensRef.current) {
         if (nextTrackedTokenSignature !== trackedTokenSignatureRef.current) {
           trackedTokenSignatureRef.current = nextTrackedTokenSignature
@@ -2013,11 +2159,15 @@ export default function ComposerSurfaceRuntime({
   const focusHandoffDoneRef = useRef(false)
   useLayoutEffect(() => {
     if (focusHandoffDoneRef.current) return
+
     if (!editor || editor.isDestroyed) return
     focusHandoffDoneRef.current = true
     const active = document.activeElement
+
     if (!document.hasFocus()) return
+
     if (active && active !== document.body && !frameRef.current?.contains(active)) return
+
     // An eagerly mounted runtime (restored draft after a topic/agent switch) must not steal the
     // focus the fallback never held — hand off only after real fallback interaction.
     if (deferredIntent && !deferredIntent.hadFocus) return
@@ -2028,6 +2178,7 @@ export default function ComposerSurfaceRuntime({
           to: getComposerPositionAtTextOffset(editor, initialTextSelection.end)
         }
       : editor.state.doc.content.size
+
     editor.chain().setTextSelection(selection).run()
     editor.view.focus()
     editor.commands.scrollIntoView()
@@ -2036,14 +2187,19 @@ export default function ComposerSurfaceRuntime({
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
     const currentText = serializeComposerDocument(editor).text
+
     if (currentText === text) {
       pendingLocalTextEchoRef.current = null
+
       return
     }
+
     if (pendingLocalTextEchoRef.current === text) {
       pendingLocalTextEchoRef.current = null
+
       return
     }
+
     pendingLocalTextEchoRef.current = null
     setComposerEditorContent(
       editor,
@@ -2086,6 +2242,7 @@ export default function ComposerSurfaceRuntime({
       ...createComposerInputAdapter(editor),
       subscribeInput: (listener) => {
         inputListenersRef.current.add(listener)
+
         return () => {
           inputListenersRef.current.delete(listener)
         }
@@ -2095,11 +2252,13 @@ export default function ComposerSurfaceRuntime({
 
   useLayoutEffect(() => {
     onInputAdapterChange?.(inputAdapter)
+
     return () => onInputAdapterChange?.(undefined)
   }, [inputAdapter, onInputAdapterChange])
 
   const isRootQuickPanelVisible =
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
+
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
   const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
   // Preserve the open-time category seed so a re-list keeps category views (opened via a toolbar
@@ -2108,10 +2267,12 @@ export default function ComposerSurfaceRuntime({
   useEffect(() => {
     if (!isRootQuickPanelVisible) {
       unifiedPanelListRefreshKeyRef.current = undefined
+
       return
     }
 
     const currentQuickPanel = quickPanelRef.current
+
     const nextList = createUnifiedPanelOptions({
       inputAdapter,
       resourceItems: unifiedResourceItems,
@@ -2119,11 +2280,13 @@ export default function ComposerSurfaceRuntime({
       queryAnchor: rootQuickPanelQueryAnchor,
       triggerInfo: rootQuickPanelTriggerInfo
     }).list
+
     // Fold the launcher registry version into the dedup key so a launcher that re-registers with an
     // identical display signature but a different action payload (e.g. the MCP status launcher after a
     // status/scope change) still refreshes the open root panel instead of keeping its stale action closure.
     const nextListSignature = `${toolLaunchersVersion}${getQuickPanelItemsSignature(nextList)}`
     const previous = unifiedPanelListRefreshKeyRef.current
+
     // Display-only signatures cannot see a static root item (e.g. an agent skill row) that is rebuilt with
     // an unchanged display but a new action closure capturing fresh state (selectedSkills, active topic, ...).
     // Also refresh whenever the leading/additional array identity changes so the open panel never keeps a
@@ -2135,6 +2298,7 @@ export default function ComposerSurfaceRuntime({
     ) {
       return
     }
+
     unifiedPanelListRefreshKeyRef.current = {
       signature: nextListSignature,
       leadingItems: rootPanelLeadingItems,
@@ -2161,6 +2325,7 @@ export default function ComposerSurfaceRuntime({
     if (!resourceProvider) {
       unifiedResourceRequestRef.current += 1
       setUnifiedResourceItems((items) => (items.length === 0 ? items : []))
+
       return
     }
 
@@ -2178,6 +2343,7 @@ export default function ComposerSurfaceRuntime({
     }
 
     syncResourceItems()
+
     return inputAdapter.subscribeInput?.((event) => {
       if (event?.isComposing) return
       syncResourceItems()
@@ -2193,15 +2359,19 @@ export default function ComposerSurfaceRuntime({
 
   useEffect(() => {
     pasteHandling.init()
+
     return pasteHandling.registerHandler('inputbar', handlePaste)
   }, [handlePaste])
 
   const sendDraft = useCallback(() => {
     if (!editor) return
+
     if (sendDisabled) {
       showBlockedSendReason()
+
       return
     }
+
     const draft = serializeComposerDocument(editor)
     const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
     void Promise.resolve(onSendDraft(draft)).finally(() => {
@@ -2218,18 +2388,23 @@ export default function ComposerSurfaceRuntime({
   ])
 
   const onSaveEditing = editingState?.onSave
+
   const saveEditingDraft = useCallback(() => {
     if (!editor || !onSaveEditing) return
+
     if (sendDisabled) {
       showBlockedSendReason()
+
       return
     }
+
     void onSaveEditing(serializeComposerDocument(editor))
   }, [editor, onSaveEditing, sendDisabled, showBlockedSendReason])
 
   const handleExpandControlClick = useCallback(() => {
     if (hasCustomHeight) {
       restoreDefaultHeight()
+
       return
     }
 
@@ -2239,6 +2414,7 @@ export default function ComposerSurfaceRuntime({
   const unifiedPanelAvailable = useMemo(() => {
     // Recompute when runtime launchers register or unregister.
     void toolLaunchersVersion
+
     if (!quickPanelReady || !quickPanelEnabled) return false
 
     return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
@@ -2263,28 +2439,34 @@ export default function ComposerSurfaceRuntime({
         const { quickPanel } = rootSuggestionStateRef.current
         const requestedSearchText = options?.searchText ?? ''
         const isButtonPanelVisible = quickPanel.isVisible && quickPanel.triggerInfo?.type === 'button'
+
         // A launcher's action may open a panel whose symbol differs from its id (e.g.
         // Knowledge Base opens '#'); compare against the declared panelSymbol so a second
         // activation of the same pinned launcher toggles its panel closed.
         const targetLauncher = options?.launcherId
           ? getToolLaunchers?.().find((launcher) => launcher.id === options.launcherId)
           : undefined
+
         const expectedPanelSymbol = targetLauncher?.panelSymbol ?? options?.launcherId
         const isSameLauncherPanel = Boolean(options?.launcherId && quickPanel.symbol === expectedPanelSymbol)
+
         const isSameRootPanel =
           quickPanel.symbol === ComposerPanelSymbol.Root && (quickPanel.initialSearchText ?? '') === requestedSearchText
 
         if (isButtonPanelVisible && (isSameLauncherPanel || isSameRootPanel)) {
           quickPanel.close('toggle')
           inputAdapter?.focus()
+
           return
         }
 
         const queryAnchor = inputAdapter?.getCursorOffset?.() ?? textRef.current.length
+
         const triggerInfo = {
           type: 'button',
           position: queryAnchor
         } as const
+
         const didOpenLauncherSubmenu = options?.launcherId
           ? openUnifiedComposerLauncherSubmenu({
               inputAdapter,
@@ -2323,7 +2505,9 @@ export default function ComposerSurfaceRuntime({
   useEffect(() => {
     if (!deferredIntent || !editor) return
     const { transfer, openPanel, insertToken: pendingToken } = deferredIntent
+
     if (!transfer && !openPanel && !pendingToken) return
+
     if (openPanel && !unifiedPanelAvailable) return
 
     return setTimeoutTimer(
@@ -2333,14 +2517,17 @@ export default function ComposerSurfaceRuntime({
         delete deferredIntent.transfer
         delete deferredIntent.openPanel
         delete deferredIntent.insertToken
+
         if (pendingToken) {
           editor.commands.setTextSelection({
             from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
             to: getComposerPositionAtTextOffset(editor, pendingToken.selection.end)
           })
+
           if (pendingToken.updateOnly) updateComposerToken(editor, pendingToken.token)
           else insertComposerTokenAtCursor(editor, pendingToken.token)
         }
+
         if (transfer?.kind === 'paste') {
           // Do not bubble: ProseMirror listens on the view element itself, while the document-level
           // paste handler would route the same payload to this composer a second time whenever the
@@ -2353,6 +2540,7 @@ export default function ComposerSurfaceRuntime({
             new DragEvent('drop', { dataTransfer: transfer.data, bubbles: true, cancelable: true })
           )
         }
+
         if (openPanel) unifiedPanelOpen(openPanel)
       },
       0
@@ -2363,10 +2551,13 @@ export default function ComposerSurfaceRuntime({
   const showPauseButton = isLoading && sendDisabled
   const leftControls = renderLeftControls?.(inputAdapter, unifiedPanelControl)
   const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
+
   const sendAccessoryElement =
     typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
+
   const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
+
   const sendAction = showPauseButton ? (
     <Tooltip content={t('chat.input.pause')} placement="top">
       <button
@@ -2387,6 +2578,7 @@ export default function ComposerSurfaceRuntime({
       label={editingState?.sendLabel}
     />
   )
+
   const editingModeHeader = editingState ? (
     <div
       role="status"
@@ -2440,6 +2632,7 @@ export default function ComposerSurfaceRuntime({
       </div>
     </div>
   ) : null
+
   const inputbarElement = (
     <div
       id="inputbar"
@@ -2571,6 +2764,7 @@ export default function ComposerSurfaceRuntime({
       ) : null}
     </div>
   )
+
   const inputbarStack = (
     <div className="relative">
       {quickPanelElement}
@@ -2579,6 +2773,7 @@ export default function ComposerSurfaceRuntime({
   )
 
   const surfaceStyle: CSSProperties = { width: '100%' }
+
   if (railGutterPx != null) {
     surfaceStyle.paddingLeft = sidePaddingPx + railGutterPx
     surfaceStyle.paddingRight = sidePaddingPx + railGutterPx
@@ -2629,6 +2824,8 @@ export default function ComposerSurfaceRuntime({
 
 function hasClipboardFiles(data: DataTransfer | null | undefined) {
   if (!data) return false
+
   if (data.files?.length > 0) return true
+
   return Array.from(data.items ?? []).some((item) => item.kind === 'file')
 }

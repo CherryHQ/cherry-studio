@@ -14,6 +14,7 @@ export type GlobalSearchFooterPanelItem = {
   id: string
   footer: GlobalSearchPanelGroupFooter
 }
+
 export type GlobalSearchKeyboardItem =
   | Exclude<GlobalSearchPanelItem, { kind: 'message-parent' }>
   | GlobalSearchFooterPanelItem
@@ -31,6 +32,7 @@ export type GlobalMessageSearchLoadMoreItem = {
   kind: 'message-load-more'
   id: typeof GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID
 }
+
 export type GlobalMessageSearchKeyboardItem = GlobalMessageSearchPanelItem | GlobalMessageSearchLoadMoreItem
 
 /** Stable DOM id for a listbox option, so the search input can reference it via `aria-activedescendant`. */
@@ -52,8 +54,10 @@ export function useGlobalSearchKeyboard({
   panelMode: GlobalSearchPanelMode
 }) {
   const [activeItemId, setActiveItemId] = useState<string | undefined>()
+
   const selectableItems = useMemo<GlobalSearchKeyboardItem[]>(() => {
     if (panelMode !== 'search') return []
+
     return groups.flatMap((group) => [
       ...group.items.filter((item) => item.kind !== 'message-parent'),
       ...(group.footer
@@ -67,7 +71,9 @@ export function useGlobalSearchKeyboard({
         : [])
     ])
   }, [groups, panelMode])
+
   const messageSelectableItems = useMemo(() => messageGroups.flatMap((group) => group.items), [messageGroups])
+
   const messageKeyboardItems = useMemo<GlobalMessageSearchKeyboardItem[]>(
     () =>
       hasMoreMessageResults
@@ -75,11 +81,13 @@ export function useGlobalSearchKeyboard({
         : messageSelectableItems,
     [hasMoreMessageResults, messageSelectableItems]
   )
+
   const keyboardItems = isMessageSearchMode ? messageKeyboardItems : selectableItems
 
   useEffect(() => {
     if (keyboardItems.length === 0) {
       setActiveItemId(undefined)
+
       return
     }
 
@@ -96,6 +104,7 @@ export function useGlobalSearchKeyboard({
         0,
         keyboardItems.findIndex((item) => item.id === activeItemId)
       )
+
       const nextIndex = (currentIndex + direction + keyboardItems.length) % keyboardItems.length
       setActiveItemId(keyboardItems[nextIndex].id)
     },

@@ -33,6 +33,7 @@ export function loadNativeCaptureBackend(): typeof NodeScreenshotsModule {
       throw new ScreenCaptureError('Screen capture backend is unavailable', { cause: error })
     }
   }
+
   return cached
 }
 

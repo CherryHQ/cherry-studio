@@ -8,6 +8,7 @@ const CitationsPanel = lazy(() => import('@renderer/components/chat/citations/Ci
 export default function AgentCitationsPanel(props: Omit<ComponentProps<typeof CitationsPanel>, 'openBrowserUrl'>) {
   const { openBrowserUrl } = useAgentRightPaneActions()
   const { onClose } = props
+
   const openCitationInBrowser = useCallback(
     (url: string) => {
       openBrowserUrl?.(url)

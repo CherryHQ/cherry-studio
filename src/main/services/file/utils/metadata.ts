@@ -24,6 +24,7 @@ export async function buildPhysicalFileMetadata(
   if (s.isDirectory) {
     return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
   }
+
   // Extension-derived type, with a content sniff upgrading extension-unknown
   // files to text (see `@main/utils/file/metadata`). Every per-type enrichment
   // field (width/height/pageCount/encoding) is optional, so this base object —

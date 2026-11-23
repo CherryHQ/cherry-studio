@@ -40,18 +40,21 @@ function resolveColor(context: CanvasRenderingContext2D, value: string): string 
   context.fillStyle = value
   context.fillRect(0, 0, 1, 1)
   const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data
+
   return `rgba(${red}, ${green}, ${blue}, ${alpha / 255})`
 }
 
 function readThemeSnapshot(): string {
   const styles = getComputedStyle(document.documentElement)
   const values = Object.fromEntries(THEME_TOKENS.map((token) => [token, styles.getPropertyValue(token).trim()]))
+
   return JSON.stringify(values)
 }
 
 function subscribeToThemeTokens(onStoreChange: () => void): () => void {
   const observer = new MutationObserver(onStoreChange)
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] })
+
   return () => observer.disconnect()
 }
 
@@ -61,6 +64,7 @@ function createChartTheme(snapshot: string): ChartTheme {
   canvas.width = 1
   canvas.height = 1
   const context = canvas.getContext('2d')
+
   const resolveToken = context
     ? (token: ThemeToken) => resolveColor(context, values[token])
     : (token: ThemeToken) => values[token]
@@ -79,5 +83,6 @@ function createChartTheme(snapshot: string): ChartTheme {
 
 export function useChartTheme(): ChartTheme {
   const snapshot = useSyncExternalStore(subscribeToThemeTokens, readThemeSnapshot)
+
   return useMemo(() => createChartTheme(snapshot), [snapshot])
 }

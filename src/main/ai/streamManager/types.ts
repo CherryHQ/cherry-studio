@@ -15,6 +15,7 @@ import type { PersistedAssistant } from './persistence/PersistenceBackend'
 // ── Re-export shared types for consumers ────────────────────────────
 
 export type { CherryUIMessage }
+
 export type {
   AiStreamAbortRequest,
   AiStreamAttachRequest,
@@ -27,6 +28,7 @@ export type {
   StreamErrorPayload,
   TopicStreamStatus
 } from '@shared/ai/transport'
+
 export type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 // ── Timings ─────────────────────────────────────────────────────────

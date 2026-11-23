@@ -10,4 +10,5 @@ export const generateImageOutputItemSchema = z.object({
 export const generateImageOutputSchema = z.array(generateImageOutputItemSchema)
 
 export type GenerateImageOutputItem = z.infer<typeof generateImageOutputItemSchema>
+
 export type GenerateImageOutput = z.infer<typeof generateImageOutputSchema>

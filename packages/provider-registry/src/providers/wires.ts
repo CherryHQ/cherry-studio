@@ -40,8 +40,10 @@ export function modeWire(
   // Object key order is preserved, so a call site's mode order survives into the emitted profile.
   for (const [key, value] of Object.entries(modes) as [ModeKey, ModeValue | undefined][]) {
     if (value === undefined) continue
+
     const wireValue: ReasoningWireValue =
       value === EFFORT ? { source: 'effort' } : { source: 'literal', value: value as string | number | boolean }
+
     const operations = [{ target, value: wireValue }]
     profile[key] =
       key === 'auto' && options.autoEffort ? { operations, effortMap: { auto: options.autoEffort } } : { operations }

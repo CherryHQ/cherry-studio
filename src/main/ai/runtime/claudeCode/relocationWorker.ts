@@ -9,6 +9,7 @@ export interface RelocationWorkerInput {
 
 async function run(input: RelocationWorkerInput) {
   const { getSessionInfo } = await import('@anthropic-ai/claude-agent-sdk')
+
   async function projectKey(dir: string) {
     let result: string | undefined
     await getSessionInfo('00000000-0000-4000-8000-000000000001', {
@@ -16,6 +17,7 @@ async function run(input: RelocationWorkerInput) {
       sessionStore: {
         async load(key) {
           result = key.projectKey
+
           return null
         },
         async append() {
@@ -23,13 +25,17 @@ async function run(input: RelocationWorkerInput) {
         }
       }
     })
+
     if (!result || /[\\/]/.test(result) || result === '.' || result === '..') {
       throw new Error('Invalid Claude project key')
     }
+
     return result
   }
+
   const oldKey = await projectKey(input.oldCwd)
   let newCwd = input.newCwd
+
   // Match the SDK's realpathSync semantics; native/async realpath expands Windows short names.
   for (;;) {
     try {
@@ -37,11 +43,14 @@ async function run(input: RelocationWorkerInput) {
       break
     } catch (error) {
       const parent = path.dirname(newCwd)
+
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || parent === newCwd) throw error
       newCwd = parent
     }
   }
+
   const newKey = await projectKey(newCwd)
+
   return { oldKey, newKey }
 }
 

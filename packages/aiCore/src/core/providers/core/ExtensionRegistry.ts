@@ -64,6 +64,7 @@ export class ExtensionRegistry {
         if (this.aliasMap.has(alias)) {
           throw new Error(`Provider alias "${alias}" is already registered for "${this.aliasMap.get(alias)}"`)
         }
+
         this.aliasMap.set(alias, name)
       }
     }
@@ -71,11 +72,13 @@ export class ExtensionRegistry {
     if (variants) {
       for (const variant of variants) {
         const variantId = `${name}-${variant.suffix}`
+
         if (this.aliasMap.has(variantId)) {
           throw new Error(
             `Provider variant ID "${variantId}" is already registered for "${this.aliasMap.get(variantId)}"`
           )
         }
+
         this.aliasMap.set(variantId, name)
       }
     }
@@ -91,6 +94,7 @@ export class ExtensionRegistry {
     for (const ext of extensions) {
       this.register(ext)
     }
+
     return this
   }
 
@@ -99,6 +103,7 @@ export class ExtensionRegistry {
    */
   unregister(name: string): boolean {
     const extension = this.extensions.get(name)
+
     if (!extension) {
       return false
     }
@@ -130,6 +135,7 @@ export class ExtensionRegistry {
     }
 
     const realName = this.aliasMap.get(id)
+
     if (realName) {
       return this.extensions.get(realName)
     }
@@ -209,11 +215,13 @@ export class ExtensionRegistry {
     // 如果没有 mode，直接返回解析后的 ID
     if (!mode) {
       const extension = this.get(baseId)
+
       return extension ? extension.config.name : null
     }
 
     // 获取 extension（支持别名）
     const extension = this.get(baseId)
+
     if (!extension) {
       return null
     }
@@ -225,6 +233,7 @@ export class ExtensionRegistry {
 
     // 查找匹配的变体
     const variant = extension.config.variants.find((v: { suffix: string }) => v.suffix === mode)
+
     if (!variant) {
       return null
     }
@@ -260,6 +269,7 @@ export class ExtensionRegistry {
       // 检查每个变体
       for (const variant of ext.config.variants) {
         const variantId = `${ext.config.name}-${variant.suffix}`
+
         if (variantId === providerId) {
           return {
             baseId: ext.config.name as RegisteredProviderId,
@@ -272,6 +282,7 @@ export class ExtensionRegistry {
 
     // 再检查是否是已注册的 extension（直接或通过别名）
     const extension = this.get(providerId)
+
     if (extension) {
       // 是基础 ID 或别名，不是变体
       return {
@@ -300,6 +311,7 @@ export class ExtensionRegistry {
    */
   isVariant(id: string): boolean {
     const parsed = this.parseProviderId(id)
+
     return parsed?.isVariant ?? false
   }
 
@@ -324,6 +336,7 @@ export class ExtensionRegistry {
    */
   getBaseProviderId(id: string): RegisteredProviderId | null {
     const parsed = this.parseProviderId(id)
+
     return parsed?.baseId ?? null
   }
 
@@ -343,20 +356,24 @@ export class ExtensionRegistry {
    */
   getVariantMode(variantId: string): string | null {
     const parsed = this.parseProviderId(variantId)
+
     return parsed?.mode ?? null
   }
 
   /** 获取 variant 的 resolveModel 函数（类型安全在 extension 声明处保证） */
   getModelResolver(providerId: string): ((provider: ProviderV3, modelId: string) => any) | undefined {
     const parsed = this.parseProviderId(providerId)
+
     if (!parsed) return undefined
 
     const extension = this.get(parsed.baseId)
+
     if (!extension) return undefined
 
     // Variant resolveModel（类型安全，在 extension 声明处校验）
     if (parsed.isVariant && parsed.mode) {
       const variant = extension.getVariant(parsed.mode)
+
       if (variant?.resolveModel) return variant.resolveModel
     }
 
@@ -380,6 +397,7 @@ export class ExtensionRegistry {
    */
   getVariants(baseId: string): string[] {
     const extension = this.get(baseId)
+
     if (!extension?.config.variants) {
       return []
     }
@@ -390,15 +408,18 @@ export class ExtensionRegistry {
   /** 获取指定 provider 的工具工厂（变体优先，回退到 base） */
   getToolFactory(providerId: string, capability: ToolCapability): ToolFactory | undefined {
     const parsed = this.parseProviderId(providerId)
+
     if (!parsed) return undefined
 
     const { baseId, mode, isVariant } = parsed
     const extension = this.get(baseId)
+
     if (!extension) return undefined
 
     // For variants, check variant-level toolFactories first
     if (isVariant && mode) {
       const variant = extension.getVariant(mode)
+
       if (variant?.toolFactories?.[capability]) {
         return variant.toolFactories[capability]
       }
@@ -421,8 +442,10 @@ export class ExtensionRegistry {
   ): Promise<{ factory: ToolFactory; provider: ProviderV3 } | undefined> {
     // 1. Direct: provider 自己有 toolFactories
     const directFactory = this.getToolFactory(providerId, capability)
+
     if (directFactory) {
       const provider = await this.getToolProvider(providerId)
+
       if (provider) return { factory: directFactory, provider }
     }
 
@@ -431,10 +454,13 @@ export class ExtensionRegistry {
     //    e.g., "cherryin.gemini" → try "gemini" → found via alias → google extension
     if (typeof modelProvider === 'string') {
       const segments = modelProvider.split('.')
+
       for (let i = segments.length - 1; i >= 0; i--) {
         const factory = this.getToolFactory(segments[i], capability)
+
         if (factory) {
           const provider = await this.getToolProvider(segments[i])
+
           if (provider) return { factory, provider }
         }
       }
@@ -446,9 +472,11 @@ export class ExtensionRegistry {
   /** Get provider for .tools extraction (cached or dummy instance) */
   private async getToolProvider(providerId: string): Promise<ProviderV3 | undefined> {
     const parsed = this.parseProviderId(providerId)
+
     if (!parsed) return undefined
 
     const extension = this.get(parsed.baseId)
+
     if (!extension) return undefined
 
     try {
@@ -489,6 +517,7 @@ export class ExtensionRegistry {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- A runtime ID selects the registered extension and its creator's settings contract; the registry cannot assert one common provider configuration.
   async createProvider(id: string, settings?: unknown): Promise<ProviderV3> {
     const parsed = this.parseProviderId(id)
+
     if (!parsed) {
       throw new Error(`Provider extension "${id}" not found. Did you forget to register it?`)
     }
@@ -496,6 +525,7 @@ export class ExtensionRegistry {
     const { baseId, mode: variantSuffix } = parsed
 
     const extension = this.get(baseId)
+
     if (!extension) {
       throw new Error(`Provider extension "${baseId}" not found. Did you forget to register it?`)
     }

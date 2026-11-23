@@ -23,6 +23,7 @@ import {
 } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AssistantSelector')
+
 const ResourceEditDialogHost = lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
     default: module.ResourceEditDialogHost
@@ -96,16 +97,19 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     sideOffset,
     mountStrategy
   } = props
+
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const selectorOpen = open ?? internalOpen
+
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (open === undefined) {
         setInternalOpen(nextOpen)
       }
+
       onOpenChange?.(nextOpen)
     },
     [onOpenChange, open]
@@ -117,10 +121,13 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     enabled: selectorOpen,
     query: { limit: 500 }
   })
+
   const { groups, isLoading: isGroupsLoading } = useGroups('assistant', { enabled: selectorOpen })
+
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
+
   const {
     isLoading: isPinnedLoading,
     isRefreshing: isPinsRefreshing,
@@ -129,9 +136,11 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     refetch: refetchPins,
     togglePin
   } = usePins('assistant', { enabled: selectorOpen })
+
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])
+
   const items: AssistantSelectorItem[] = useMemo(
     () => [
       ...(data?.items ?? []).map((assistant) => ({
@@ -154,15 +163,18 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     const referencedGroupIds = new Set(
       items.flatMap((item) => {
         const id = item.groupId
+
         return id ? [id] : []
       })
     )
+
     return groups.flatMap((group) => (referencedGroupIds.has(group.id) ? [{ id: group.id, name: group.name }] : []))
   }, [groups, items])
 
   const handleTogglePin = useCallback(
     async (id: string) => {
       if (isPinActionDisabled) return
+
       try {
         await togglePin(id)
       } catch (error) {
@@ -194,6 +206,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const handleCreateDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
       setCreateDialogOpen(nextOpen)
+
       if (!nextOpen) {
         onDialogCloseAutoFocus?.()
       }
@@ -204,6 +217,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       let created: Assistant
+
       try {
         created = await createAssistant({
           body: buildCreateAssistantDto(values)
@@ -215,12 +229,14 @@ export function AssistantSelector(props: AssistantSelectorProps) {
 
       setCreateDialogOpen(false)
       onDialogCloseAutoFocus?.()
+
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh assistants after selector create', { error })
         toast.error(t('selector.create_dialog.refresh_failed'))
       }
+
       if (autoSelectOnCreate && props.multi !== true) {
         if (props.selectionType === 'item') {
           props.onChange({
@@ -232,9 +248,12 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         } else {
           props.onChange(created.id)
         }
+
         handleSelectorOpenChange(false)
+
         return
       }
+
       handleSelectorOpenChange(true)
     },
     [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
@@ -308,6 +327,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       </>
     )
   }
+
   if (props.multi === true) {
     return (
       <>
@@ -324,6 +344,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       </>
     )
   }
+
   if (props.selectionType === 'item') {
     return (
       <>
@@ -333,6 +354,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       </>
     )
   }
+
   return (
     <>
       <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />

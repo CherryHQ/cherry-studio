@@ -36,6 +36,7 @@ const logger = loggerService.withContext('SpanDetail')
  * UI (issue #19564). Plain virtualized rows stay smooth.
  */
 export const SPAN_DETAIL_LARGE_CONTENT_CHARS = 100_000
+
 /** Preview length, deliberately tied to the large threshold so the preview itself is never large. */
 export const SPAN_DETAIL_PREVIEW_CHARS = SPAN_DETAIL_LARGE_CONTENT_CHARS
 
@@ -46,11 +47,13 @@ interface SpanDetailProps {
 
 const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   const [activeTab, setActiveTab] = useState<string>('inputs')
+
   const [copiedContent, setCopiedContent] = useTemporaryValue<{
     nodeId: string
     tab: string
     content: string
   } | null>(null)
+
   const { t } = useTranslation()
 
   // Span-type-specific rows and tabs come from the presenter registry.
@@ -70,18 +73,23 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   // Preview slice is cheap; the full string stays in `formatted` for expand/download.
   // Copy always uses the full content so collapsed previews never silently copy partial text.
   const content = isLarge && !showFullLargeContent ? fullContent.slice(0, SPAN_DETAIL_PREVIEW_CHARS) : fullContent
+
   // `formatted.fullLength` is a char count; `formatFileSize` expects bytes, so
   // measure UTF-8 bytes (memoized, large-only) instead of passing chars as bytes.
   const fullSizeLabel = useMemo(() => {
     if (!isLarge) return ''
+
     return formatFileSize(new TextEncoder().encode(fullContent).length)
   }, [isLarge, fullContent])
+
   // Large payloads render as plain virtualized text (no Shiki worker) in both preview and full modes.
   const highlight = !isLarge
+
   const copied =
     copiedContent?.nodeId === node.id && copiedContent.tab === safeTab && copiedContent.content === fullContent
 
   const usedTime = convertTime((node.endTime || Date.now()) - node.startTime)
+
   const rows: SpanDetailRow[] = [
     { label: 'ID', value: node.id },
     { label: t('trace.name'), value: node.name },
@@ -94,6 +102,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
 
   const handleCopy = async () => {
     if (!fullContent) return
+
     try {
       await navigator.clipboard.writeText(fullContent)
       setCopiedContent({ nodeId: node.id, tab: safeTab, content: fullContent })
@@ -105,29 +114,37 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
 
   const handleDownload = () => {
     if (!fullContent) return
+
     const blob = new Blob([fullContent], {
       type: contentLanguage === 'json' ? 'application/json' : 'text/plain'
     })
+
     const url = URL.createObjectURL(blob)
     const filename = `trace-${node.id}-${safeTab}.${contentLanguage === 'json' ? 'json' : 'txt'}`
+
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The download helper may throw or reject any value; cleanup and localized reporting must retain that failure.
     const fail = (error: unknown) => {
       logger.error('Failed to download span detail content', error instanceof Error ? error : { error })
       toast.error(t('common.save_failed'))
       URL.revokeObjectURL(url)
     }
+
     try {
       // Blob URLs take the helper's synchronous anchor-click path; guard the
       // async fetch path it also exposes.
       const result = download(url, filename)
+
       if (result instanceof Promise) {
         result.catch(fail)
+
         return
       }
     } catch (error) {
       fail(error)
+
       return
     }
+
     // Defer revocation so the download isn't aborted in browsers that resolve it asynchronously.
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
@@ -238,6 +255,7 @@ function formatDate(timestamp: number | null): string {
   if (timestamp == null) return ''
   const date = new Date(timestamp)
   const pad = (n: number) => n.toString().padStart(2, '0')
+
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${date.getMilliseconds().toString().padStart(3, '0')}`
 }
 
@@ -252,18 +270,23 @@ export interface FormattedTabData {
 /** Resolve the active tab's payload (with the ERROR-exception override) and format it as JSON or text. */
 export function formatTabData(node: TraceNode, tabs: SpanTab[], activeTab: string): FormattedTabData {
   let data: unknown = tabs.find((tab) => tab.value === activeTab)?.data
+
   if (activeTab === 'outputs' && node.status === 'ERROR') {
     const exception = Array.isArray(node.events) ? node.events.find((e) => e.name === 'exception') : undefined
+
     if (exception) data = exception
   }
+
   let formatted: string
   let contentLanguage: 'json' | 'text' = 'text'
+
   // Fast path: strings already over budget skip JSON.parse + pretty-print — the
   // indented rewrite would only expand them further while blocking the main thread.
   // `looksJson` is a heuristic (no parse validation): it only affects the download
   // file extension, since large payloads always render as plain text.
   if (typeof data === 'string' && data.length > SPAN_DETAIL_LARGE_CONTENT_CHARS) {
     const looksJson = data.startsWith('{') || data.startsWith('[')
+
     return {
       content: data,
       contentLanguage: looksJson ? 'json' : 'text',
@@ -271,6 +294,7 @@ export function formatTabData(node: TraceNode, tabs: SpanTab[], activeTab: strin
       isLarge: true
     }
   }
+
   if (typeof data === 'string' && (data.startsWith('{') || data.startsWith('['))) {
     try {
       formatted = JSON.stringify(JSON.parse(data), null, 2)
@@ -291,6 +315,7 @@ export function formatTabData(node: TraceNode, tabs: SpanTab[], activeTab: strin
   } else {
     formatted = String(data ?? '')
   }
+
   return {
     content: formatted,
     contentLanguage,

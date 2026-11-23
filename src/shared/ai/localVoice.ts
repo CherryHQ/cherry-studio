@@ -10,6 +10,7 @@ export const QWEN3_TTS_MODEL_ID = 'local-voice::qwen3-tts-0.6b-customvoice' as c
 export const QWEN3_TTS_BUNDLE_ID = 'qwen3-tts-0.6b-customvoice-8bit' as const
 export const KOKORO_TTS_MODEL_ID = 'local-voice::kokoro-v1.1' as const
 export const KOKORO_TTS_BUNDLE_ID = 'kokoro-multi-lang-v1.1' as const
+
 export const DOWNLOADABLE_SPEECH_BUNDLES = {
   [QWEN3_TTS_MODEL_ID]: QWEN3_TTS_BUNDLE_ID,
   [KOKORO_TTS_MODEL_ID]: KOKORO_TTS_BUNDLE_ID
@@ -27,10 +28,12 @@ export const QWEN3_ASR_BUNDLE_ID = 'qwen3-asr-1.7b-8bit' as const
 
 export const FUNASR_BUNDLE_ID = 'funasr-nano-int8' as const
 export const FUNASR_MODEL_ID = 'local-voice::funasr-nano' as const
+
 export const DOWNLOADABLE_TRANSCRIPTION_BUNDLES = {
   [FUNASR_MODEL_ID]: FUNASR_BUNDLE_ID,
   [QWEN3_ASR_MODEL_ID]: QWEN3_ASR_BUNDLE_ID
 } as const
+
 export const SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS = [
   'darwin-arm64',
   'darwin-x64',
@@ -39,6 +42,7 @@ export const SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS = [
   'win32-arm64',
   'win32-x64'
 ] as const
+
 export const FUNASR_SUPPORTED_PLATFORM_KEYS = SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS
 
 export const DEFAULT_APPLE_ASR_LOCALE = 'en-US'
@@ -49,9 +53,11 @@ export const MAX_SPEECH_SPEED = 2
 export const DEFAULT_SPEECH_SPEED = 1
 
 export const VOICE_SESSION_SOURCES = ['settings', 'dictation', 'playback', 'automation'] as const
+
 export type VoiceSessionSource = (typeof VOICE_SESSION_SOURCES)[number]
 
 export const VOICE_SESSION_TRIGGERS = ['manual', 'auto_read'] as const
+
 export type VoiceSessionTrigger = (typeof VOICE_SESSION_TRIGGERS)[number]
 
 export const LOCAL_VOICE_MODEL_IDS = [
@@ -64,12 +70,15 @@ export const LOCAL_VOICE_MODEL_IDS = [
   QWEN3_TTS_MODEL_ID,
   KOKORO_TTS_MODEL_ID
 ] as const
+
 export type LocalVoiceModelId = (typeof LOCAL_VOICE_MODEL_IDS)[number]
+
 export type LocalSpeechModelId =
   | typeof APPLE_TTS_MODEL_ID
   | typeof WINDOWS_TTS_MODEL_ID
   | typeof QWEN3_TTS_MODEL_ID
   | typeof KOKORO_TTS_MODEL_ID
+
 export type LocalTranscriptionModelId =
   | typeof APPLE_ASR_MODEL_ID
   | typeof WINDOWS_ASR_MODEL_ID
@@ -173,6 +182,7 @@ export const VoiceResourceOperation = {
   CancelDownload: 'cancel-download',
   Remove: 'remove'
 } as const
+
 export type VoiceResourceOperation = (typeof VoiceResourceOperation)[keyof typeof VoiceResourceOperation]
 
 export const VoiceModelSupport = {
@@ -182,6 +192,7 @@ export const VoiceModelSupport = {
   UnsupportedArchitecture: 'unsupported-architecture',
   UnsupportedVersion: 'unsupported-version'
 } as const
+
 export type VoiceModelSupport = (typeof VoiceModelSupport)[keyof typeof VoiceModelSupport]
 
 export interface LocalVoiceModelDescriptor extends LocalVoiceModelFacts {

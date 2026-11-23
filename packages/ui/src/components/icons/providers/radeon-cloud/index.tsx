@@ -6,7 +6,9 @@ import { RadeonCloudLight } from './light'
 
 const RadeonCloud = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <RadeonCloudLight {...props} className={className} />
+
   if (variant === 'dark') return <RadeonCloudDark {...props} className={className} />
+
   return (
     <>
       <RadeonCloudLight className={cn('dark:hidden', className)} {...props} />

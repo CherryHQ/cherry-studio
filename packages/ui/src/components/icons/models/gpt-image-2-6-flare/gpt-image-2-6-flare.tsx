@@ -4,6 +4,7 @@ import { GptImage26FlareLight } from './light'
 
 const GptImage26Flare = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptImage26FlareLight {...props} className={className} />
+
   return <GptImage26FlareLight {...props} className={className} />
 }
 

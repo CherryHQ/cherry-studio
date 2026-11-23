@@ -6,7 +6,9 @@ import { BytedanceLight } from './light'
 
 const Bytedance = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BytedanceLight {...props} className={className} />
+
   if (variant === 'dark') return <BytedanceDark {...props} className={className} />
+
   return (
     <>
       <BytedanceLight className={cn('dark:hidden', className)} {...props} />

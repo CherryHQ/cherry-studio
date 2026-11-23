@@ -25,6 +25,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/messages/:id/branch': {
     DELETE: async ({ params, query }) => {
       const q = DeleteBranchQuerySchema.parse(query ?? {})
+
       return messageService.deleteBranch(params.id, q.topicId)
     }
   },
@@ -44,6 +45,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/topics/:topicId/messages': {
     GET: async ({ params, query }) => {
       const q = BranchMessagesQuerySchema.parse(query ?? {})
+
       return messageService.getBranchMessages(params.topicId, {
         nodeId: q.nodeId,
         cursor: q.cursor,
@@ -54,6 +56,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
 
     POST: async ({ params, body }) => {
       const parsed = CreateMessageSchema.parse(body)
+
       return messageService.create(params.topicId, parsed)
     },
 
@@ -65,6 +68,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/topics/:topicId/path': {
     GET: async ({ params, query }) => {
       const q = PathThroughQuerySchema.parse(query ?? {})
+
       return messageService.getPathThrough(params.topicId, q.nodeId)
     }
   },
@@ -76,6 +80,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateMessageSchema.parse(body)
+
       return messageService.update(params.id, parsed)
     },
 
@@ -83,6 +88,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
       const q = DeleteMessageQuerySchema.parse(query ?? {})
       const cascade = q.cascade ?? false
       const activeNodeStrategy = q.activeNodeStrategy ?? 'parent'
+
       return messageService.delete(params.id, cascade, activeNodeStrategy, q.awaitingInputOnly ?? false)
     }
   },
@@ -90,6 +96,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/messages/:id/siblings': {
     POST: async ({ params, body }) => {
       const parsed = MessageDataSchema.parse(body)
+
       return messageService.createSibling(params.id, parsed)
     }
   },
@@ -97,6 +104,7 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/messages/:id/branches': {
     POST: async ({ params, body }) => {
       const parsed = ReserveBranchSchema.parse(body)
+
       return messageService.reserveBranch(params.id, parsed.activate ?? true)
     }
   }

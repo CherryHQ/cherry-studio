@@ -24,13 +24,17 @@ class PinnedTabFeedbackService {
     // Only reconciliation the provider still owes is feedback; a value already equal
     // to the prepared one was written by someone else and is not bounded here.
     const changed = !isEqual(value, preparedValue)
+
     if (changed) {
       if (episode.revisions === PINNED_FEEDBACK_BUDGET) {
         episode.closed = true
+
         return 'tripped'
       }
+
       episode.revisions += 1
     }
+
     return 'accepted'
   }
 }

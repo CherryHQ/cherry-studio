@@ -11,6 +11,7 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000
 const FOREGROUND_COOLDOWN_MS = 5 * 60 * 1000
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const PAGE_SIZE = 100
+
 const AnnouncementPageSchema = z.object({
   items: z
     .array(
@@ -67,6 +68,7 @@ export class OfficialAnnouncementService extends BaseService {
 
   private configure(delayMs = 5000): void {
     this.cancel()
+
     if (!this.ready || !application.get('PreferenceService').get('app.notification.center.official.enabled')) return
     this.hasChecked = false
     this.controller = new AbortController()
@@ -78,6 +80,7 @@ export class OfficialAnnouncementService extends BaseService {
     let foreground = BrowserWindow.getFocusedWindow() !== null
     let hasFocused = foreground
     let blurTimer: ReturnType<typeof setTimeout> | undefined
+
     const onBlur = () => {
       if (blurTimer) clearTimeout(blurTimer)
       blurTimer = setTimeout(() => {
@@ -85,16 +88,19 @@ export class OfficialAnnouncementService extends BaseService {
         foreground = BrowserWindow.getFocusedWindow() !== null
       }, 0)
     }
+
     const onFocus = () => {
       if (blurTimer) clearTimeout(blurTimer)
       blurTimer = undefined
       const returned = (hasFocused || this.hasChecked) && !foreground
       foreground = true
       hasFocused = true
+
       if (returned && (this.lastCheckAt === undefined || Date.now() - this.lastCheckAt >= FOREGROUND_COOLDOWN_MS)) {
         void this.check(controller)
       }
     }
+
     app.on('browser-window-blur', onBlur)
     app.on('browser-window-focus', onFocus)
     this.removeFocusListeners = () => {
@@ -118,16 +124,20 @@ export class OfficialAnnouncementService extends BaseService {
     this.runningController = controller
     application.get('SchedulerService').unregister(SCHEDULE_ID)
     const cutoff = Date.now() - RETENTION_MS
+
     try {
       const platform = (
         { win32: 'windows', darwin: 'macos', linux: 'linux' } as Partial<
           Record<NodeJS.Platform, 'windows' | 'macos' | 'linux'>
         >
       )[process.platform]
+
       if (!platform) return
+
       const locale = (application.get('PreferenceService').get('app.language') || app.getLocale())
         .toLowerCase()
         .replaceAll('_', '-')
+
       const language = locale === 'zh' || locale.startsWith('zh-') ? 'zh' : 'en'
       const url = new URL('https://api.cherry-ai.com/api/announcements')
       url.search = new URLSearchParams({
@@ -137,13 +147,17 @@ export class OfficialAnnouncementService extends BaseService {
         limit: String(PAGE_SIZE)
       }).toString()
       let offset = 0
+
       while (!controller.signal.aborted) {
         url.searchParams.set('offset', String(offset))
+
         const response = await net.fetch(url.toString(), {
           signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
         })
+
         if (!response.ok) throw new Error(`Announcement request failed with HTTP ${response.status}`)
         const page = AnnouncementPageSchema.parse(await response.json())
+
         if (
           page.items.some(
             (announcement) => announcement.language !== language || !announcement.platforms.includes(platform)
@@ -151,10 +165,13 @@ export class OfficialAnnouncementService extends BaseService {
         ) {
           throw new Error('Announcement response does not match the requested language or platform')
         }
+
         for (const announcement of page.items) {
           controller.signal.throwIfAborted()
           const createdAt = Date.parse(announcement.published_at)
+
           if (createdAt <= cutoff) return
+
           const consumed = await application.get('NotificationService').publish({
             eventKey: `announcement:api:${JSON.stringify([announcement.id, announcement.published_at])}`,
             category: 'official',
@@ -164,9 +181,12 @@ export class OfficialAnnouncementService extends BaseService {
             createdAt,
             target: { kind: 'announcement', content: announcement.content }
           })
+
           if (!consumed) throw new Error('Failed to persist announcement')
         }
+
         offset += page.items.length
+
         if (page.items.length === 0 || offset >= page.total) return
       }
     } catch (error) {

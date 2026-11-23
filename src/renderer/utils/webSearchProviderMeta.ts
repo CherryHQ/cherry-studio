@@ -188,8 +188,10 @@ export function getWebSearchFeatureSections(
   return WEB_SEARCH_CAPABILITY_ORDER.flatMap((capability) => {
     const entries = providers.flatMap((provider) => {
       const entry = createWebSearchMenuEntry(provider, capability)
+
       return entry ? [entry] : []
     })
+
     return entries.length > 0 ? [{ capability, entries }] : []
   })
 }

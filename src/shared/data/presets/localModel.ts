@@ -11,15 +11,18 @@
  * cards hide rather than offering a download that would fail.
  */
 export const LOCAL_MODEL_STATUSES = ['not_downloaded', 'downloading', 'ready', 'error', 'unsupported'] as const
+
 export type LocalModelStatus = (typeof LOCAL_MODEL_STATUSES)[number]
 
 /** Why a card shows `error`: the last download failed this session, or files on
  * disk exist but cannot form a usable model (e.g. a download interrupted before
  * the last restart). The cards pick their notice text by this code. */
 export const LOCAL_MODEL_ERROR_CODES = ['download_failed', 'incomplete_cache'] as const
+
 export type LocalModelErrorCode = (typeof LOCAL_MODEL_ERROR_CODES)[number]
 
 export const LOCAL_MODEL_STATUS_HINT_CODES = ['missing_shared_runtime'] as const
+
 export type LocalModelStatusHintCode = (typeof LOCAL_MODEL_STATUS_HINT_CODES)[number]
 
 /** Main-owned status projected to every renderer window through Shared Cache. */
@@ -32,6 +35,7 @@ export interface LocalModelStatusSnapshot {
 
 /** Terminal result returned to every caller awaiting the shared download. */
 export const LOCAL_MODEL_DOWNLOAD_RESULTS = ['ready', 'cancelled'] as const
+
 export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[number]
 
 /**
@@ -39,6 +43,7 @@ export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[num
  * address a selected bundle. Multiple bundles may provide the same capability.
  */
 export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr', 'asr', 'tts'] as const
+
 export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
 
 /**
@@ -57,9 +62,11 @@ export const LOCAL_MODEL_BUNDLE_IDS = [
   'qwen3-tts-0.6b-customvoice-8bit',
   'kokoro-multi-lang-v1.1'
 ] as const
+
 export type LocalModelBundleId = (typeof LOCAL_MODEL_BUNDLE_IDS)[number]
 
 export type LocalModelStatusSnapshots = Partial<Record<LocalModelBundleId, LocalModelStatusSnapshot>>
+
 export const LOCAL_MODEL_STATUS_CACHE_KEY = 'local_model.statuses' as const
 
 /**

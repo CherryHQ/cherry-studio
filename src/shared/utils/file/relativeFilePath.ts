@@ -88,15 +88,19 @@ function resolveRelativeSegments(parsed: ParsedPath): string[] | null {
   if (parsed.isAbsolute || parsed.root !== '') return null
 
   const stack: string[] = []
+
   for (const segment of parsed.segments) {
     if (segment === '.') continue
+
     if (segment === '..') {
       if (stack.length === 0) return null
       stack.pop()
       continue
     }
+
     stack.push(segment)
   }
+
   return stack
 }
 
@@ -112,12 +116,14 @@ function resolveRelativeSegments(parsed: ParsedPath): string[] | null {
  */
 export function resolvePosixRelativeSegments(value: string): string[] | null {
   if (value.length === 0 || !isPosixPath(value)) return null
+
   return resolveRelativeSegments(parsePosixPath(value))
 }
 
 /** Windows counterpart of {@link resolvePosixRelativeSegments}. */
 export function resolveWindowsRelativeSegments(value: string): string[] | null {
   if (value.length === 0 || !isWindowsPath(value)) return null
+
   return resolveRelativeSegments(parseWindowsPath(value))
 }
 
@@ -131,6 +137,7 @@ export function resolveWindowsRelativeSegments(value: string): string[] | null {
 const isRelativeUnder = (parse: (value: string) => ParsedPath) => (value: string) => {
   if (value.length === 0) return false
   const parsed = parse(value)
+
   return !parsed.isAbsolute && parsed.root === ''
 }
 

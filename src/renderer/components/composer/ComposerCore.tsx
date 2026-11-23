@@ -22,6 +22,7 @@ export default function ComposerCore({ fallback, className }: ComposerCoreProps)
 
     if (!previousOverrideId && activeOverrideId) {
       const activeElement = document.activeElement
+
       const focusedPrimaryElement =
         activeElement instanceof HTMLElement && primaryLayerRef.current?.contains(activeElement) ? activeElement : null
 
@@ -31,6 +32,7 @@ export default function ComposerCore({ fallback, className }: ComposerCoreProps)
       } else {
         primaryFocusTargetRef.current = null
       }
+
       primaryHadFocusRef.current = false
     } else if (previousOverrideId && !activeOverrideId) {
       const focusTarget = primaryFocusTargetRef.current
@@ -40,6 +42,7 @@ export default function ComposerCore({ fallback, className }: ComposerCoreProps)
       if (focusTarget?.isConnected && canRestoreFocus) {
         focusTarget.focus({ preventScroll: true })
       }
+
       primaryFocusTargetRef.current = null
     }
 
@@ -67,6 +70,7 @@ export default function ComposerCore({ fallback, className }: ComposerCoreProps)
         }}
         onBlurCapture={(event) => {
           if (activeOverride) return
+
           if (!event.currentTarget.contains(event.relatedTarget)) {
             primaryHadFocusRef.current = false
           }

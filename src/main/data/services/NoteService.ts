@@ -27,6 +27,7 @@ function pathCondition(path: string, recursive: boolean = false) {
   }
 
   const prefix = `${path}/`
+
   return sql`(${noteTable.path} = ${path} OR substr(${noteTable.path}, 1, length(${prefix})) = ${prefix})`
 }
 
@@ -46,25 +47,31 @@ export class NoteService {
       .where(eq(noteTable.rootPath, rootPath))
       .orderBy(asc(noteTable.path))
       .all()
+
     return rows.map(rowToNote)
   }
 
   upsert(dto: UpsertNoteDto): Note | null {
     const updateValues: Partial<Pick<NoteRow, 'isStarred' | 'isExpanded'>> = {}
+
     if (dto.isStarred !== undefined) {
       updateValues.isStarred = dto.isStarred
     }
+
     if (dto.isExpanded !== undefined) {
       updateValues.isExpanded = dto.isExpanded
     }
+
     if (Object.keys(updateValues).length === 0) {
       throw DataApiErrorFactory.validation({
         note: ['At least one note field is required']
       })
     }
+
     if (dto.isStarred === false && dto.isExpanded === false) {
       // `null` means the row no longer exists; deleting an already-absent row is still a successful patch.
       this.deleteByPath({ rootPath: dto.rootPath, path: dto.path })
+
       return null
     }
 
@@ -85,6 +92,7 @@ export class NoteService {
             if (existing) {
               tx.delete(noteTable).where(eq(noteTable.id, existing.id)).run()
             }
+
             return null
           }
 
@@ -95,6 +103,7 @@ export class NoteService {
               .where(eq(noteTable.id, existing.id))
               .returning()
               .all()
+
             return updated
           }
 
@@ -147,6 +156,7 @@ export class NoteService {
             id: row.id,
             path: row.path === dto.fromPath ? dto.toPath : `${dto.toPath}${row.path.slice(dto.fromPath.length)}`
           }))
+
           const sourceIds = rewrites.map((rewrite) => rewrite.id)
           const targetPaths = [...new Set(rewrites.map((rewrite) => rewrite.path))]
 

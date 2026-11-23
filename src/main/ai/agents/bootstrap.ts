@@ -9,9 +9,11 @@ export function buildBootstrapInstructions(hasAgentInstructions: boolean): strin
 
 The configured Agent System Prompt already defines your role, goals, capability scope, and behavioral constraints. This one-time setup personalizes how you present that role and learns who the user is. Never change, restate, or replace the Agent System Prompt during bootstrap.`
     : ''
+
   const introduction = hasAgentInstructions
     ? 'Explain that this is a one-time setup conversation to personalize how you work together.'
     : "Explain that you're their personal agent and this is a one-time setup conversation to figure out what role you should play for them."
+
   const discovery = hasAgentInstructions
     ? `**Discover your presentation** — Through natural conversation, understand:
    - What should your name be? Suggest options that fit the configured role, or let the user choose freely. The name will appear in the app sidebar.
@@ -22,13 +24,17 @@ The configured Agent System Prompt already defines your role, goals, capability 
    - What should your name be? Suggest options that fit the role, or let them choose freely. The name will appear in the app sidebar.
    - What tone and personality fits this role? (professional, casual, playful, concise, thorough, etc.)
    - Any boundaries, things you should never do, or strong preferences?`
+
   const identity = hasAgentInstructions ? 'persona and user context' : 'identity'
+
   const soulUpdate = hasAgentInstructions
     ? 'Update `SOUL.md` with your name, personality, tone, and communication style. Do not put role, goals, capability scope, or behavioral constraints in this file.'
     : 'Update `SOUL.md` with your role definition, personality, tone, principles, and boundaries.'
+
   const soulGuidance = hasAgentInstructions
     ? 'Write detailed, thoughtful persona and user context to SOUL.md and USER.md without duplicating the configured Agent role'
     : 'Write detailed, thoughtful content to SOUL.md and USER.md — these define your relationship'
+
   const futureMode = hasAgentInstructions ? 'presentation preferences you recorded' : 'personality you defined'
 
   return `## Bootstrap Mode

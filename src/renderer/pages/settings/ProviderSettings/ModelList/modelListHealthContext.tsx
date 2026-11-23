@@ -67,13 +67,16 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
     resetSingleModelResult()
     setModelCheckOpen(true)
   }, [resetSingleModelResult])
+
   const closeModelCheck = useCallback(() => setModelCheckOpen(false), [])
 
   const startSingleModelCheck = useCallback(
     async (config: { model: Model; keySelection: ModelCheckKeySelection }) => {
       if (isHealthChecking || isSingleModelChecking) return 'failed' as const
       const outcome = await runSingleModel(config)
+
       if (outcome === 'passed') setModelCheckOpen(false)
+
       return outcome
     },
     [isHealthChecking, isSingleModelChecking, runSingleModel]
@@ -83,7 +86,9 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
     async (config: { keySelection: ModelCheckKeySelection; isConcurrent: boolean; timeout: number }) => {
       if (isHealthChecking || isSingleModelChecking) return false
       const started = await runAllModels(config)
+
       if (started) setModelCheckOpen(false)
+
       return started
     },
     [isHealthChecking, isSingleModelChecking, runAllModels]
@@ -93,6 +98,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
     async (keyId: string, enabled: boolean) => {
       if (savingKeyId) return
       setSavingKeyId(keyId)
+
       try {
         await updateApiKey(keyId, { isEnabled: enabled })
       } catch (error) {
@@ -148,11 +154,14 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       toggleApiKey
     ]
   )
+
   return <ModelListHealthRunContext value={runValue}>{children}</ModelListHealthRunContext>
 }
 
 export function useModelListHealthRun() {
   const context = use(ModelListHealthRunContext)
+
   if (!context) throw new Error('useModelListHealthRun must be used within ModelListHealthProvider')
+
   return context
 }

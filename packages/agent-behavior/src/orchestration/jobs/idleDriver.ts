@@ -15,6 +15,7 @@ import { type Context, gatherInputs, step } from '../step'
 async function admit(context: Context, thread: ThreadId, start: { readonly round: RoundDetails; readonly key: Key }) {
   const inputs = await gatherInputs(context, thread)
   const admitted = await step(context, thread, (facts) => admitRound(facts, inputs, start))
+
   if (admitted.retracted === 'already-started')
     await step(context, thread, (facts) => decideRoundWithdrawn(facts, inputs, start))
 }
@@ -29,19 +30,25 @@ export function idleDriver(host: HostPorts): JobHandler {
   return async (ports, job) => {
     const context = { ports, host }
     const thread = job.scope
+
     for (;;) {
       await ports.waits.untilIdle(thread)
       const inputs = await gatherInputs(context, thread)
       const decided = await step(context, thread, (facts) => decideAtIdle(facts, inputs))
       const decision = decided.result
+
       if (decision.kind === 'done') {
         // A permission change can reuse this still-live job before its exit record advances the generation.
         if (decision.reason === 'plan-mode' && host.settings.permissionMode(thread) !== inputs.settings.permissionMode)
           await step(context, thread, decidePermissionModeChanged)
+
         return
       }
+
       const start = decided.effects.find((effect) => effect.type === 'start-turn')
+
       if (start?.type !== 'start-turn' || decided.started === 'busy') continue
+
       if (decision.kind === 'start-round') await admit(context, thread, decision)
       // Queued behind a failed run's leftovers, the input may run much later (G-C3).
       await ports.waits.untilDone(thread, start.key)

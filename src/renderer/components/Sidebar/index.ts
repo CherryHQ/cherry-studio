@@ -8,8 +8,11 @@ export {
   SIDEBAR_ICON_WIDTH,
   SIDEBAR_MAX_WIDTH
 } from './constants'
+
 export { UserAvatar } from './primitives'
+
 export { Sidebar, type SidebarProps } from './Sidebar'
+
 export type {
   ResolvedSidebarEntry,
   SidebarIconPresentation,

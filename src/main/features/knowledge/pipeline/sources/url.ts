@@ -51,11 +51,13 @@ export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): 
       },
       signal ? { signal } : undefined
     )
+
     if (!response) {
       throw new Error(`Knowledge web fetch queue returned no response for ${safeUrl}`)
     }
 
     const result = response.results[0]
+
     if (!result) {
       throw new Error(`Knowledge web fetch returned no result for ${safeUrl}`)
     }

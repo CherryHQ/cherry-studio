@@ -63,6 +63,7 @@ export class LocalModelStorageService {
   private missingFilesIn(bundle: ModelBundle, dir: string): BundleFile[] {
     return bundle.files.filter((file) => {
       const stat = fs.statSync(this.bundleFilePath(bundle, file, dir), { throwIfNoEntry: false })
+
       return !stat?.isFile() || stat.size < file.minBytes
     })
   }
@@ -72,6 +73,7 @@ export class LocalModelStorageService {
    * re-fetch hundreds of MB that are already there. */
   pendingBundleFiles(bundle: ModelBundle): BundleFile[] {
     if (this.resolveInstalledDir(bundle)) return []
+
     return this.missingFilesIn(bundle, this.bundleInstallDir(bundle))
   }
 
@@ -87,7 +89,9 @@ export class LocalModelStorageService {
     if (this.resolveInstalledDir(bundle)) return { status: 'installed' }
 
     const missing = this.missingFilesIn(bundle, this.bundleInstallDir(bundle))
+
     if (missing.length === bundle.files.length) return { status: 'not_installed' }
+
     return { status: 'incomplete', missingFiles: missing.map((file) => file.relPath) }
   }
 
@@ -102,16 +106,20 @@ export class LocalModelStorageService {
    */
   resolveInstalledDir(bundle: ModelBundle): string | null {
     const installDir = this.bundleInstallDir(bundle)
+
     if (this.missingFilesIn(bundle, installDir).length === 0) return installDir
 
     if (!bundle.legacyInstallSubdir) return null
     const legacyDir = path.join(this.bundleRootDir(bundle), bundle.legacyInstallSubdir)
+
     if (this.missingFilesIn(bundle, legacyDir).length > 0) return null
 
     this.liftLegacyInstall(bundle, legacyDir, installDir)
+
     // Re-read both layouts rather than trust the attempt's own verdict, so a directory
     // that lost files to a lift whose rollback also failed can never be handed out.
     if (this.missingFilesIn(bundle, installDir).length === 0) return installDir
+
     return this.missingFilesIn(bundle, legacyDir).length === 0 ? legacyDir : null
   }
 
@@ -121,6 +129,7 @@ export class LocalModelStorageService {
    * neither complete and re-downloads a model that is entirely on disk. */
   private liftLegacyInstall(bundle: ModelBundle, legacyDir: string, installDir: string): void {
     const moved: Array<{ from: string; to: string }> = []
+
     try {
       for (const file of bundle.files) {
         const from = this.bundleFilePath(bundle, file, legacyDir)
@@ -134,6 +143,7 @@ export class LocalModelStorageService {
         bundle: bundle.id,
         error: String(error)
       })
+
       for (const { from, to } of moved) {
         try {
           fs.renameSync(to, from)
@@ -145,6 +155,7 @@ export class LocalModelStorageService {
           })
         }
       }
+
       return
     }
 
@@ -158,6 +169,7 @@ export class LocalModelStorageService {
         error: String(error)
       })
     }
+
     logger.info('lifted a legacy local model install into the current layout', { bundle: bundle.id })
   }
 
@@ -174,21 +186,25 @@ export class LocalModelStorageService {
    */
   async sweepStaleDownloads(bundle: ModelBundle): Promise<void> {
     const installDir = this.bundleInstallDir(bundle)
+
     for (const file of bundle.files) {
       const target = this.bundleFilePath(bundle, file, installDir)
       const dir = path.dirname(target)
       const prefix = `${path.basename(target)}.tmp-`
       let entries: string[]
+
       try {
         entries = await fs.promises.readdir(dir)
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
         throw error
       }
+
       for (const entry of entries) {
         if (entry.startsWith(prefix)) await fs.promises.rm(path.join(dir, entry), { force: true })
       }
     }
+
     for (const id of new Set(bundle.requires)) {
       await fs.promises.rm(artifactStagingDir(getSharedArtifact(id)), { recursive: true, force: true })
     }
@@ -217,18 +233,24 @@ export class LocalModelStorageService {
   ): Promise<void> {
     for (;;) {
       if (signal.aborted) throw this.abortError(signal)
+
       const admission = await this.artifactLifecycleGate.runExclusive(id, () => {
         if (signal.aborted) return { kind: 'aborted' as const }
         const removal = this.artifactRemovals.get(id)
+
         if (removal) return { kind: 'removing' as const, removal }
+
         if (this.isArtifactReady(id)) return { kind: 'ready' as const }
 
         let install = this.artifactInstalls.get(id)
+
         if (install?.controller.signal.aborted) return { kind: 'draining' as const, install }
+
         if (!install) {
           install = this.createArtifactInstall(id, registryOrder)
           this.artifactInstalls.set(id, install)
         }
+
         return { kind: 'installing' as const, install }
       })
 
@@ -243,6 +265,7 @@ export class LocalModelStorageService {
           } catch (error) {
             if (signal.aborted) throw error
           }
+
           break
         case 'draining':
           try {
@@ -250,9 +273,11 @@ export class LocalModelStorageService {
           } catch (error) {
             if (signal.aborted) throw error
           }
+
           break
         case 'installing':
           admission.install.start()
+
           return this.awaitArtifactInstall(admission.install, signal, onProgress)
       }
     }
@@ -260,18 +285,23 @@ export class LocalModelStorageService {
 
   async reserveArtifacts(ids: readonly SharedArtifactId[], signal: AbortSignal): Promise<() => void> {
     const acquired: SharedArtifactId[] = []
+
     try {
       for (const id of new Set(ids)) {
         for (;;) {
           if (signal.aborted) throw this.abortError(signal)
+
           const admission = await this.artifactLifecycleGate.runExclusive(id, () => {
             if (signal.aborted) return { kind: 'aborted' as const }
             const removal = this.artifactRemovals.get(id)
+
             if (removal) return { kind: 'removing' as const, removal }
 
             this.artifactReservations.set(id, (this.artifactReservations.get(id) ?? 0) + 1)
+
             return { kind: 'acquired' as const }
           })
+
           switch (admission.kind) {
             case 'aborted':
               throw this.abortError(signal)
@@ -284,8 +314,10 @@ export class LocalModelStorageService {
               } catch (error) {
                 if (signal.aborted) throw error
               }
+
               continue
           }
+
           break
         }
       }
@@ -295,6 +327,7 @@ export class LocalModelStorageService {
     }
 
     let released = false
+
     return () => {
       if (released) return
       released = true
@@ -308,10 +341,12 @@ export class LocalModelStorageService {
       if ((this.artifactReservations.get(id) ?? 0) > 0) return { kind: 'reserved' as const }
 
       const existing = this.artifactRemovals.get(id)
+
       if (existing) return { kind: 'removing' as const, removal: existing }
 
       let start!: () => void
       let started = false
+
       const operation = new Promise<void>((resolve, reject) => {
         start = () => {
           if (started) return
@@ -319,16 +354,21 @@ export class LocalModelStorageService {
           void this.performArtifactRemoval(id).then(resolve, reject)
         }
       })
+
       const removal = operation.finally(() => {
         if (this.artifactRemovals.get(id) === removal) this.artifactRemovals.delete(id)
       })
+
       this.artifactRemovals.set(id, removal)
+
       return { kind: 'removing' as const, removal, start }
     })
+
     if (admission.kind === 'reserved') return false
 
     admission.start?.()
     await admission.removal
+
     return true
   }
 
@@ -337,6 +377,7 @@ export class LocalModelStorageService {
     registryOrder: readonly [ArtifactRegistryId, ...ArtifactRegistryId[]]
   ): ArtifactInstall {
     const controller = new AbortController()
+
     const install: ArtifactInstall = {
       controller,
       listeners: new Set(),
@@ -345,13 +386,16 @@ export class LocalModelStorageService {
       start: () => {},
       waiters: 0
     }
+
     let resolveInstall!: () => void
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This native Promise reject preserves acquisition, installation, and cancellation failures for all waiting callers.
     let rejectInstall!: (error: unknown) => void
+
     const operation = new Promise<void>((resolve, reject) => {
       resolveInstall = resolve
       rejectInstall = reject
     })
+
     install.promise = operation.finally(() => {
       if (this.artifactInstalls.get(id) === install) this.artifactInstalls.delete(id)
     })
@@ -364,11 +408,13 @@ export class LocalModelStorageService {
         controller.signal,
         (fraction) => {
           install.progress = fraction
+
           for (const listener of install.listeners) listener(fraction)
         },
         registryOrder
       ).then(resolveInstall, rejectInstall)
     }
+
     return install
   }
 
@@ -381,20 +427,25 @@ export class LocalModelStorageService {
 
     const listener = onProgress ? (fraction: number) => onProgress(fraction) : undefined
     install.waiters += 1
+
     if (listener) {
       install.listeners.add(listener)
+
       if (install.progress > 0) listener(install.progress)
     }
 
     return new Promise<void>((resolve, reject) => {
       let settled = false
+
       const cleanup = () => {
         if (settled) return
         settled = true
         install.waiters -= 1
+
         if (listener) install.listeners.delete(listener)
         signal.removeEventListener('abort', onAbort)
       }
+
       const onAbort = () => {
         cleanup()
         this.abandonArtifactInstall(install, signal).catch(reject)
@@ -421,6 +472,7 @@ export class LocalModelStorageService {
       install.controller.abort(this.abortError(signal))
       await install.promise.catch(() => {})
     }
+
     throw this.abortError(signal)
   }
 
@@ -431,6 +483,7 @@ export class LocalModelStorageService {
   private releaseArtifactReservations(ids: readonly SharedArtifactId[]): void {
     for (const id of ids) {
       const remaining = (this.artifactReservations.get(id) ?? 1) - 1
+
       if (remaining === 0) this.artifactReservations.delete(id)
       else this.artifactReservations.set(id, remaining)
     }
@@ -438,10 +491,12 @@ export class LocalModelStorageService {
 
   private async performArtifactRemoval(id: SharedArtifactId): Promise<void> {
     const install = this.artifactInstalls.get(id)
+
     if (install) {
       install.controller.abort(new Error('shared artifact removed'))
       await install.promise.catch(() => {})
     }
+
     await removeArtifact(getSharedArtifact(id))
   }
 
@@ -453,6 +508,7 @@ export class LocalModelStorageService {
         cleanup()
         reject(this.abortError(signal))
       }
+
       const cleanup = () => signal.removeEventListener('abort', onAbort)
 
       signal.addEventListener('abort', onAbort, { once: true })

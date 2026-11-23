@@ -4,6 +4,7 @@ import { NovaLight } from './light'
 
 const Nova = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <NovaLight {...props} className={className} />
+
   return <NovaLight {...props} className={className} />
 }
 

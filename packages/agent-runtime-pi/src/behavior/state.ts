@@ -29,14 +29,17 @@ import { restoredRunUsage } from './history'
 
 /** The parent run whose tool call owns the child's first run; the ownership ends with that child run. */
 export type Owner = { readonly thread: ThreadId; readonly run: number }
+
 /** What a call's ports are bound to: the run of a tool call that owns its foreground children, and its abort signal. */
 export type CallScope = {
   readonly owner?: Owner
   readonly signal?: AbortSignal
   readonly input?: { readonly thread: ThreadId; readonly id: InputId }
 }
+
 /** How a run ended: what the conversation reports as `live.runEnd`, and what `awaitAnswer` answers. */
 export type RunEnding = { readonly live: 'completed' | 'error' | 'aborted'; readonly answer: RunEndFacts }
+
 export type Submission = {
   /** A person's text, or the turn input of a key. */
   readonly input: TurnInput | string
@@ -46,6 +49,7 @@ export type Submission = {
   run?: number
   readonly inputId?: InputId
 }
+
 /** One run: from the input that starts it to Pi's `agent_settled`. */
 export type RunState = {
   readonly run: number
@@ -68,6 +72,7 @@ export type RunState = {
   readonly done: Promise<void>
   readonly end: () => void
 }
+
 /** One conversation in this process: its native session plus what Pi does not keep (admissions, run ends, usage). */
 export type Conversation = {
   readonly callIds: Map<string, string>
@@ -102,6 +107,7 @@ export type Conversation = {
   compacted: Promise<void>
   summary?: { readonly owner: GoalOwner; readonly key: string; readonly run?: number; requests: number }
 }
+
 export type JobRecord = {
   readonly key: Key
   readonly spec: JobSpec
@@ -109,6 +115,7 @@ export type JobRecord = {
   readonly thread: ThreadId
   state: 'live' | 'done' | 'failed'
 }
+
 /** What `install` registered. */
 export type Installation = {
   readonly tools: Map<string, ToolDefinition>
@@ -118,6 +125,7 @@ export type Installation = {
   meter?: RequestMeterHandler
   lifecycle?: LifecycleHandlers
 }
+
 /** What the port modules share with the harness that owns them. */
 export interface Adapter {
   readonly conversations: Map<ThreadId, Conversation>
@@ -143,6 +151,7 @@ export function newConversation(
   reopened: boolean
 ): Conversation {
   const runUsage = reopened ? restoredRunUsage(manager.getBranch(), thread) : []
+
   return {
     thread,
     manager,
@@ -172,24 +181,29 @@ export const markerMessage = (input: TurnInput, key: string) => {
   const customType = input.kind
   const content = input.text
   let details: Record<string, JsonValue> = {}
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Turn data has dynamic JSON keys; append the marker without dropping unrelated payload fields.
   if (isFields(input.data)) details = { ...input.data }
   details.key = key
+
   return { customType, content, display: false, details }
 }
 
 /** Pi runs nothing and compacts nothing on this conversation. */
 export const piIdle = (conv: Conversation): boolean => conv.native !== undefined && conv.native.session.isIdle
+
 /** `LiveFacts.idle`: no run, nothing queued, Pi idle. */
 export const isIdle = (conv: Conversation): boolean =>
   conv.active === undefined && conv.inbox.length === 0 && piIdle(conv)
 
 export function waitFor(conv: Conversation, ready: () => boolean): Promise<void> {
   if (ready()) return Promise.resolve()
+
   return new Promise((resolve) => {
     conv.waiters.push(() => {
       if (!ready()) return false
       resolve()
+
       return true
     })
   })

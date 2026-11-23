@@ -138,6 +138,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
     if (!apiKeysDirty) {
       setApiKeysInput(savedApiKeysInput)
     }
+
     setApiKeysBaseline(savedApiKeysSignature)
   }, [apiKeysDirty, savedApiKeysInput, savedApiKeysSignature])
 
@@ -145,6 +146,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
     if (!apiHostDirty) {
       setApiHostInput(savedApiHost)
     }
+
     setApiHostBaseline(savedApiHost)
   }, [apiHostDirty, savedApiHost])
 
@@ -152,6 +154,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
     if (!basicAuthUsernameDirty) {
       setBasicAuthUsernameInput(savedBasicAuthUsername)
     }
+
     setBasicAuthUsernameBaseline(savedBasicAuthUsername)
   }, [basicAuthUsernameDirty, savedBasicAuthUsername])
 
@@ -159,6 +162,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
     if (!basicAuthPasswordDirty) {
       setBasicAuthPasswordInput(savedBasicAuthPassword)
     }
+
     setBasicAuthPasswordBaseline(savedBasicAuthPassword)
   }, [basicAuthPasswordDirty, savedBasicAuthPassword])
 
@@ -166,21 +170,26 @@ export const WebSearchProviderSetting: FC<Props> = ({
     provider,
     capability
   })
+
   const apiKeyWebsite = getWebSearchProviderApiKeyWebsite(provider.id)
   const officialWebsite = getWebSearchProviderOfficialWebsite(provider.id)
   const usesLlmProviderApiKey = provider.id === 'zhipu'
   const syncsLlmProviderApiKey = provider.id === 'deepseek'
+
   const { data: llmProviderApiKeyEntries } = useQuery('/providers/:providerId/api-keys', {
     params: { providerId: provider.id },
     query: { enabled: true },
     enabled: syncsLlmProviderApiKey
   })
+
   const llmProviderApiKeys = useMemo(
     () => llmProviderApiKeyEntries?.keys.map(({ key }) => key) ?? [],
     [llmProviderApiKeyEntries]
   )
+
   const showApiKeySettings =
     provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng' && provider.id !== 'duckduckgo'
+
   const showInlineApiKeySettings = showApiKeySettings && !usesLlmProviderApiKey
   const supportsBasicAuth = provider.id === 'searxng'
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)
@@ -263,10 +272,12 @@ export const WebSearchProviderSetting: FC<Props> = ({
       setApiKeysInput(apiKeysToInput(apiKeysDraft))
       setApiKeysBaseline(apiKeysDraftSignature)
     }
+
     if (showApiHostSetting && apiHostDirty) {
       setApiHostInput(normalizedApiHostInput)
       setApiHostBaseline(normalizedApiHostInput)
     }
+
     if (basicAuthUsernameDirty || basicAuthPasswordDirty) {
       setBasicAuthUsernameInput(normalizedBasicAuthUsernameInput)
       setBasicAuthPasswordInput(normalizedBasicAuthPasswordInput)
@@ -292,6 +303,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
 
   const openApiKeyList = async () => {
     const saved = await persist(commitApiKeysDraft, 'Failed to save web search API keys before opening list')
+
     if (!saved.ok) {
       return
     }
@@ -304,6 +316,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
       () => onSetApiKeys(provider.id, llmProviderApiKeys),
       'Failed to sync web search API keys from model provider'
     )
+
     if (!saved.ok) {
       return
     }
@@ -319,6 +332,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
 
   const checkProvider = async () => {
     const saved = await persist(commitDirtyDrafts, 'Failed to save web search provider before check')
+
     if (saved.ok) {
       await providerCheck.checkProvider()
     }
@@ -326,6 +340,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
 
   const setBasicAuthUsernameDraft = (value: string) => {
     setBasicAuthUsernameInput(value)
+
     if (!value.trim()) {
       setBasicAuthPasswordInput('')
     }

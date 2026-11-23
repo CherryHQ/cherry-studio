@@ -6,7 +6,9 @@ import { ZaiLight } from './light'
 
 const Zai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ZaiLight {...props} className={className} />
+
   if (variant === 'dark') return <ZaiDark {...props} className={className} />
+
   return (
     <>
       <ZaiLight className={cn('dark:hidden', className)} {...props} />

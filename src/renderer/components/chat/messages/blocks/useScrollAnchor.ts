@@ -38,8 +38,10 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
 
   useEffect(() => {
     isMountedRef.current = true
+
     return () => {
       isMountedRef.current = false
+
       if (settleTimerRef.current !== null) clearTimeout(settleTimerRef.current)
     }
   }, [])
@@ -52,12 +54,15 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
       }
 
       const anchor = anchorRef.current
+
       if (!anchor) {
         update()
+
         return
       }
 
       const scrollContainer = findScrollParent(anchor)
+
       if (!scrollContainer) {
         // Nothing scrollable yet — this update may create the first overflow
         // (short conversation, disclosure expand). Reading ownership must not
@@ -65,6 +70,7 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
         // runtime before bottom-follow can push the new overflow past it.
         if (options?.enterReadingMode) requestReadingControl()
         update()
+
         return
       }
 
@@ -74,6 +80,7 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
       if (isRuntimeManaged(scrollContainer)) {
         if (options?.enterReadingMode) requestReadingControl()
         update()
+
         return
       }
 
@@ -97,9 +104,11 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
         if (!options?.settleAfterMs) return
         settleTimerRef.current = setTimeout(() => {
           settleTimerRef.current = null
+
           if (!isMountedRef.current || scrollContainer.scrollTop !== restoredScrollTop) return
 
           const finalDrift = anchor.getBoundingClientRect().top - rectBefore.top
+
           if (finalDrift !== 0) scrollContainer.scrollTop += finalDrift
         }, options.settleAfterMs)
       })

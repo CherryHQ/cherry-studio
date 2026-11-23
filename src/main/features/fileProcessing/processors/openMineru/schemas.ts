@@ -19,6 +19,7 @@ export const TasksHealthSchema = z.object({
 })
 
 const taskFileStatus = z.enum(['waiting-file', 'pending', 'running', 'completed', 'failed', 'canceled'])
+
 export const TasksResponseSchema = z.object({
   task_id: z.string().min(1),
   status: z.enum(['waiting-file', 'pending', 'running', 'completed', 'partial', 'failed', 'canceled']),

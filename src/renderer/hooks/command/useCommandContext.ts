@@ -37,6 +37,7 @@ export function useCommandContextReader(): ContextReader {
   const scope = use(CommandFocusScopeContext)
   const base = useCommandContextSnapshot()
   useSyncExternalStore(scope?.subscribe ?? noSubscription, scope?.getVersion ?? zeroVersion)
+
   return readScopeContext(scope, base)
 }
 

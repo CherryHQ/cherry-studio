@@ -29,6 +29,7 @@ let SelectionHook: SelectionHookConstructor | null = null
 
 // Type definitions
 type Point = { x: number; y: number }
+
 type RelativeOrientation =
   | 'topLeft'
   | 'topRight'
@@ -142,12 +143,15 @@ export class SelectionService extends BaseService implements Activatable {
 
       if (!SelectionHook) {
         this.logError('Failed to load selection-hook module')
+
         return false
       }
 
       this.selectionHook = new SelectionHook()
+
       if (!this.selectionHook) {
         this.logError('Failed to create SelectionHook instance')
+
         return false
       }
 
@@ -180,9 +184,11 @@ export class SelectionService extends BaseService implements Activatable {
 
       this.initStatus = true
       this.logInfo('selection-hook module loaded and instance created successfully')
+
       return true
     } catch (error) {
       this.logError('Failed to load selection-hook:', error as Error)
+
       return false
     }
   }
@@ -273,22 +279,27 @@ export class SelectionService extends BaseService implements Activatable {
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
         if (isMac) this.getNativePanel().configurePanel(mw.window.getNativeWindowHandle())
+
         const onHide = () => {
           const session = wm.getInitData(mw.id) as SelectionActionSession | null
+
           if (session) {
             application.get('IpcApiService').send(mw.id, 'selection.action_dismissed', { sessionId: session.sessionId })
           }
         }
+
         const dispose = () => {
           mw.window.removeListener('hide', onHide)
           mw.window.removeListener('closed', dispose)
           actionWindowListeners.delete(mw.id)
         }
+
         actionWindowListeners.set(mw.id, dispose)
         mw.window.on('hide', onHide)
         mw.window.once('closed', dispose)
         mw.window.on('resized', () => {
           if (mw.window.isDestroyed()) return
+
           if (this.isRemeberWinSize) {
             this.lastActionWindowSize = {
               width: mw.window.getBounds().width,
@@ -315,6 +326,7 @@ export class SelectionService extends BaseService implements Activatable {
     this.registerDisposable({
       dispose: preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean) => {
         this.desiredEnabled = enabled
+
         // The reconciler can settle without running deactivate()/onActivate() (disable while
         // never activated; rapid false→true), so keep the pool in sync directly here.
         // Both calls are idempotent.
@@ -325,6 +337,7 @@ export class SelectionService extends BaseService implements Activatable {
           wm.resumePool(WindowType.SelectionAction)
           wm.resumePool(WindowType.SelectionAgent)
         }
+
         this.reconciler.request()
       })
     })
@@ -339,8 +352,10 @@ export class SelectionService extends BaseService implements Activatable {
 
   protected onAllReady(): void {
     const preferenceService = application.get('PreferenceService')
+
     if (!preferenceService.get('feature.selection.enabled')) {
       this.logInfo('Selection feature disabled, skipping selection-hook module loading')
+
       return
     }
 
@@ -366,6 +381,7 @@ export class SelectionService extends BaseService implements Activatable {
     if (this.selectionHook) {
       this.selectionHook.cleanup()
     }
+
     this.selectionHook = null
     this.initStatus = false
     this.logInfo('SelectionService stopped via lifecycle', true)
@@ -383,6 +399,7 @@ export class SelectionService extends BaseService implements Activatable {
     // The env is only read when the native module loads (normally on activation); load it now so
     // the settings page sees the real env even while the feature is still disabled.
     if (isLinux && !this.initStatus) this.loadModuleAndCreateInstance()
+
     return {
       isLinuxWaylandDisplay: this.isLinuxWaylandDisplay,
       isLinuxXWaylandMode: this.isLinuxXWaylandMode,
@@ -423,6 +440,7 @@ export class SelectionService extends BaseService implements Activatable {
     this.unsubscriberForChangeListeners.push(
       preferenceService.subscribeChange('feature.selection.remember_win_size', (rememberWinSize: boolean) => {
         this.isRemeberWinSize = rememberWinSize
+
         //when off, reset the last action window size to default
         if (!this.isRemeberWinSize) {
           this.lastActionWindowSize = {
@@ -495,6 +513,7 @@ export class SelectionService extends BaseService implements Activatable {
     const excludeClipboardCursorDetectList = isWin
       ? SELECTION_FINETUNED_LIST.EXCLUDE_CLIPBOARD_CURSOR_DETECT.WINDOWS
       : SELECTION_FINETUNED_LIST.EXCLUDE_CLIPBOARD_CURSOR_DETECT.MAC
+
     const includeClipboardDelayReadList = isWin
       ? SELECTION_FINETUNED_LIST.INCLUDE_CLIPBOARD_DELAY_READ.WINDOWS
       : SELECTION_FINETUNED_LIST.INCLUDE_CLIPBOARD_DELAY_READ.MAC
@@ -549,6 +568,7 @@ export class SelectionService extends BaseService implements Activatable {
       if (this.toolbarWindowId) {
         application.get('IpcApiService').send(this.toolbarWindowId, 'selection.toolbar_visibility_change', true)
       }
+
       // Mouse-key hook start tied to visibility rather than to specific call
       // sites: normal show path, crash-recovery re-open, and any future
       // caller all inherit this for free.
@@ -559,6 +579,7 @@ export class SelectionService extends BaseService implements Activatable {
       if (this.toolbarWindowId) {
         application.get('IpcApiService').send(this.toolbarWindowId, 'selection.toolbar_visibility_change', false)
       }
+
       // Symmetric to the show listener — any path to hidden (business
       // `hideToolbar()`, WM blur-driven `window.hide()`, quirk-wrapped hide)
       // triggers cleanup. `stopHideByMouseKeyListener` is idempotent.
@@ -590,11 +611,13 @@ export class SelectionService extends BaseService implements Activatable {
       const wm = application.get('WindowManager')
       this.toolbarWindowId = wm.open(WindowType.SelectionToolbar)
       const newToolbar = wm.getWindow(this.toolbarWindowId)
+
       if (newToolbar) {
         newToolbar.once('ready-to-show', () => {
           this.showToolbarAtPosition(point, orientation, programName)
         })
       }
+
       return
     }
 
@@ -618,6 +641,7 @@ export class SelectionService extends BaseService implements Activatable {
 
     if (!isMac) {
       this.toolbarWindow!.show()
+
       /**
        * [Windows]
        *   In Windows 10, setOpacity(1) will make the window completely transparent
@@ -714,6 +738,7 @@ export class SelectionService extends BaseService implements Activatable {
   private getToolbarRealSize(): SelectionToolbarSize {
     const webContents = this.isToolbarAlive() ? this.toolbarWindow?.webContents : undefined
     const zoomFactor = webContents && !webContents.isDestroyed() ? webContents.getZoomFactor() : 1
+
     return getSelectionToolbarSize(this.TOOLBAR_WIDTH, this.TOOLBAR_HEIGHT, zoomFactor)
   }
 
@@ -796,6 +821,7 @@ export class SelectionService extends BaseService implements Activatable {
     if (exceedsTop) {
       posPoint.y = posPoint.y + 32
     }
+
     if (exceedsBottom) {
       posPoint.y = posPoint.y - 32
     }
@@ -892,6 +918,7 @@ export class SelectionService extends BaseService implements Activatable {
           refOrientation = 'bottomMiddle'
           isLogical = true
         }
+
         break
       case SelectionHook?.PositionLevel.MOUSE_SINGLE:
         {
@@ -906,6 +933,7 @@ export class SelectionService extends BaseService implements Activatable {
             refPoint = { x: selectionData.mousePosEnd.x, y: selectionData.mousePosEnd.y + 16 }
           }
         }
+
         break
       case SelectionHook?.PositionLevel.MOUSE_DUAL:
         {
@@ -944,6 +972,7 @@ export class SelectionService extends BaseService implements Activatable {
             }
           }
         }
+
         break
       case SelectionHook?.PositionLevel.SEL_FULL:
       case SelectionHook?.PositionLevel.SEL_DETAILED:
@@ -990,6 +1019,7 @@ export class SelectionService extends BaseService implements Activatable {
               refOrientation = 'bottomRight'
               refPoint = { x: selectionData.startBottom.x, y: selectionData.startBottom.y + 4 }
             }
+
             break
           }
 
@@ -1004,6 +1034,7 @@ export class SelectionService extends BaseService implements Activatable {
             refPoint = { x: selectionData.startTop.x, y: selectionData.startTop.y - 4 }
           }
         }
+
         break
     }
 
@@ -1012,12 +1043,14 @@ export class SelectionService extends BaseService implements Activatable {
       if (isWin || isLinux) {
         refPoint = screen.screenToDipPoint(refPoint)
       }
+
       //screenToDipPoint can be float, so we need to round it
       refPoint = { x: Math.round(refPoint.x), y: Math.round(refPoint.y) }
     }
 
     // [macOS] isFullscreen is only available on macOS
     this.showToolbarAtPosition(refPoint, refOrientation, selectionData.programName)
+
     if (this.toolbarWindowId) {
       application.get('IpcApiService').send(this.toolbarWindowId, 'selection.text_selected', selectionData)
     }
@@ -1037,6 +1070,7 @@ export class SelectionService extends BaseService implements Activatable {
       if (!this.isLinuxWaylandDisplay) {
         this.selectionHook!.on('mouse-down', this.handleMouseDownHide)
       }
+
       this.selectionHook!.on('mouse-wheel', this.handleMouseWheelHide)
       this.selectionHook!.on('key-down', this.handleKeyDownHide)
       this.isHideByMouseKeyListenerActive = true
@@ -1053,6 +1087,7 @@ export class SelectionService extends BaseService implements Activatable {
       if (!this.isLinuxWaylandDisplay) {
         this.selectionHook!.off('mouse-down', this.handleMouseDownHide)
       }
+
       this.selectionHook!.off('mouse-wheel', this.handleMouseWheelHide)
       this.selectionHook!.off('key-down', this.handleKeyDownHide)
       this.isHideByMouseKeyListenerActive = false
@@ -1107,6 +1142,7 @@ export class SelectionService extends BaseService implements Activatable {
     if (this.triggerMode === SelectionTriggerMode.Ctrlkey && this.isCtrlkey(data)) {
       return
     }
+
     //dont hide toolbar when shiftkey or altkey is pressed, because it's used for selection
     if (this.isShiftkey(data.vkCode) || this.isAltkey(data.vkCode)) {
       return
@@ -1126,6 +1162,7 @@ export class SelectionService extends BaseService implements Activatable {
       if (this.lastCtrlkeyDownTime > 0) {
         this.lastCtrlkeyDownTime = -1
       }
+
       return
     }
 
@@ -1139,6 +1176,7 @@ export class SelectionService extends BaseService implements Activatable {
       //add the mouse-wheel&mouse-down listener, detect if user is zooming in/out or multi-selecting
       this.selectionHook!.on('mouse-wheel', this.handleMouseWheelCtrlkeyMode)
       this.selectionHook!.on('mouse-down', this.handleMouseDownCtrlkeyMode)
+
       return
     }
 
@@ -1149,6 +1187,7 @@ export class SelectionService extends BaseService implements Activatable {
     this.lastCtrlkeyDownTime = -1
 
     const selectionData = this.selectionHook!.getCurrentSelection()
+
     if (selectionData) {
       this.processTextSelection(selectionData)
     }
@@ -1198,6 +1237,7 @@ export class SelectionService extends BaseService implements Activatable {
     if (isMac) {
       return vkCode === 59 || vkCode === 62
     }
+
     return vkCode === 162 || vkCode === 163
   }
 
@@ -1208,6 +1248,7 @@ export class SelectionService extends BaseService implements Activatable {
     if (isMac) {
       return vkCode === 56 || vkCode === 60
     }
+
     return vkCode === 160 || vkCode === 161
   }
 
@@ -1218,6 +1259,7 @@ export class SelectionService extends BaseService implements Activatable {
     if (isMac) {
       return vkCode === 58 || vkCode === 61
     }
+
     return vkCode === 164 || vkCode === 165
   }
 
@@ -1244,6 +1286,7 @@ export class SelectionService extends BaseService implements Activatable {
     for (const unsub of this.unsubscriberForChangeListeners) {
       unsub()
     }
+
     this.unsubscriberForChangeListeners = []
 
     this.isCtrlkeyListenerActive = false
@@ -1276,6 +1319,7 @@ export class SelectionService extends BaseService implements Activatable {
         anchor: this.isFollowToolbar && this.toolbarWindow ? this.toolbarWindow.getBounds() : null,
         isFullScreen
       })
+
       return
     }
 
@@ -1298,8 +1342,10 @@ export class SelectionService extends BaseService implements Activatable {
     })
 
     const actionWindow = wm.getWindow(windowId)
+
     if (!actionWindow) {
       this.logError(`Failed to get action window ${windowId}`)
+
       return
     }
 
@@ -1364,6 +1410,7 @@ export class SelectionService extends BaseService implements Activatable {
       } else if (posX < workArea.x) {
         posX = workArea.x + GAP
       }
+
       if (posY + actionWindowHeight > workArea.y + workArea.height) {
         // If window would go below screen, try to position it above toolbar
         posY = workArea.y + workArea.height - actionWindowHeight - GAP
@@ -1383,6 +1430,7 @@ export class SelectionService extends BaseService implements Activatable {
 
     if (!isMac) {
       actionWindow.show()
+
       return
     }
 
@@ -1402,7 +1450,9 @@ export class SelectionService extends BaseService implements Activatable {
       // Move before showing: a recycled panel may still belong to another Space.
       this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
       actionWindow.show()
+
       if (!pinned) actionWindow.setAlwaysOnTop(false)
+
       return
     }
 
@@ -1475,13 +1525,17 @@ export class SelectionService extends BaseService implements Activatable {
     if (isLinux) {
       try {
         await clipboard.writeText(text)
+
         return true
       } catch (error) {
         logger.error('Failed to write to clipboard on Linux:', error as Error)
+
         return false
       }
     }
+
     if (!this.selectionHook || !this.isActivated) return false
+
     return this.selectionHook.writeToClipboard(text)
   }
 

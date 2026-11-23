@@ -28,14 +28,18 @@ export class AutomationOutput {
       images,
       imagesOmitted: false
     })
+
     if (this.observations.length > 32) {
       this.observations.shift()
       this.omitted++
     }
+
     let count = 0
     let bytes = 0
+
     for (const observation of this.observations.toReversed()) {
       const size = observation.images.reduce((sum, image) => sum + image.data.length, 0)
+
       if (count + observation.images.length > 4 || bytes + size > 16_000_000) {
         observation.imagesOmitted = observation.images.length > 0 || observation.imagesOmitted
         observation.images = []
@@ -49,12 +53,15 @@ export class AutomationOutput {
   content(): OutputPart[] {
     let textChars = 0
     const groups: OutputPart[][] = []
+
     for (const observation of this.observations.toReversed()) {
       const parts: OutputPart[] = []
+
       if (textChars + observation.text.length <= 48_000) {
         parts.push({ type: 'text', text: `OBSERVATION ${observation.id}\n${observation.text}` })
         textChars += observation.text.length
         parts.push(...observation.images.map((image) => ({ type: 'image' as const, ...image })))
+
         if (observation.imagesOmitted)
           parts.push({
             type: 'text',
@@ -63,12 +70,14 @@ export class AutomationOutput {
       } else {
         parts.push({ type: 'text', text: `Observation ${observation.id} was OMITTED due to the output budget.` })
       }
+
       groups.push(
         observation.images.length > 0 || observation.imagesOmitted
           ? parts.map((part) => ({ ...part, annotations: { audience: ['assistant'] } }))
           : parts
       )
     }
+
     return [
       ...(this.omitted
         ? [

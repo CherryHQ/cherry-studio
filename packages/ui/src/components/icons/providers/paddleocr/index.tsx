@@ -4,6 +4,7 @@ import { PaddleocrLight } from './light'
 
 const Paddleocr = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <PaddleocrLight {...props} className={className} />
+
   return <PaddleocrLight {...props} className={className} />
 }
 

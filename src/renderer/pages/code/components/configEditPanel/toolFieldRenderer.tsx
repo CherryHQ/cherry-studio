@@ -32,6 +32,7 @@ export function renderToolFields({
   switch (cliTool) {
     case CodeCli.CLAUDE_CODE:
       if (section === 'advanced') return null
+
       return (
         <ClaudeConfigFields
           config={config}
@@ -53,6 +54,7 @@ export function renderToolFields({
       return <KimiConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.DEEPSEEK_HARNESS:
       if (section === 'advanced') return null
+
       return <DeepSeekHarnessConfigFields config={config} onChange={onChange} section={section} />
     default:
       return null

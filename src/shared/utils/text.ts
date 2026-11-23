@@ -13,10 +13,12 @@ export function clampSurrogateBoundary(text: string, index: number): number {
   if (index <= 0 || index >= text.length) return index
   const high = text.charCodeAt(index - 1)
   const low = text.charCodeAt(index)
+
   // A high surrogate at index-1 paired with a low surrogate at index means the
   // boundary cuts a code point in half; step back so the pair stays together.
   if (high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff) {
     return index - 1
   }
+
   return index
 }

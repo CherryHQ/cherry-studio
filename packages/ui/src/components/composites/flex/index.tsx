@@ -37,6 +37,7 @@ export const SpaceBetweenRowFlex = ({ children, className, ...props }: FlexProps
     </RowFlex>
   )
 }
+
 export const ColFlex = ({ children, className, ...props }: FlexProps & { children?: React.ReactNode }) => {
   return (
     <Flex className={cn('flex-col', className)} {...props}>

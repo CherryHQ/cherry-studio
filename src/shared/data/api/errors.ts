@@ -463,7 +463,9 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
       details: this.details as SerializedDataApiError['details'],
       requestContext: this.requestContext
     }
+
     if (this.reportingHandled) serialized.reportingHandled = true
+
     return serialized
   }
 
@@ -480,7 +482,9 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
       error.details,
       error.requestContext
     )
+
     if (hasReportingOwner(error)) result.reportingHandled = true
+
     return result
   }
 
@@ -503,7 +507,9 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
       { originalError: error.message, context: error.name },
       requestContext
     )
+
     if (hasReportingOwner(error)) result.reportingHandled = true
+
     return result
   }
 }
@@ -583,6 +589,7 @@ export class DataApiErrorFactory {
    */
   static notFound(resource: string, id?: string, requestContext?: RequestContext): DataApiError<ErrorCode.NOT_FOUND> {
     const message = id ? `${resource} with id '${id}' not found` : `${resource} not found`
+
     return new DataApiError(
       ErrorCode.NOT_FOUND,
       message,
@@ -628,6 +635,7 @@ export class DataApiErrorFactory {
     const message = context
       ? `Internal error in ${context}: ${originalError.message}`
       : `Internal error: ${originalError.message}`
+
     const result = new DataApiError(
       ErrorCode.INTERNAL_SERVER_ERROR,
       message,
@@ -635,7 +643,9 @@ export class DataApiErrorFactory {
       { originalError: originalError.message, context },
       requestContext
     )
+
     if (hasReportingOwner(originalError)) result.reportingHandled = true
+
     return result
   }
 
@@ -652,6 +662,7 @@ export class DataApiErrorFactory {
     requestContext?: RequestContext
   ): DataApiError<ErrorCode.PERMISSION_DENIED> {
     const message = resource ? `Permission denied: Cannot ${action} ${resource}` : `Permission denied: Cannot ${action}`
+
     return new DataApiError(
       ErrorCode.PERMISSION_DENIED,
       message,
@@ -676,6 +687,7 @@ export class DataApiErrorFactory {
     const message = operation
       ? `Request timeout: ${operation}${timeoutMs ? ` (${timeoutMs}ms)` : ''}`
       : `Request timeout${timeoutMs ? ` (${timeoutMs}ms)` : ''}`
+
     return new DataApiError(
       ErrorCode.TIMEOUT,
       message,
@@ -699,6 +711,7 @@ export class DataApiErrorFactory {
     requestContext?: RequestContext
   ): DataApiError<ErrorCode.INVALID_OPERATION> {
     const message = reason ? `Invalid operation: ${operation} - ${reason}` : `Invalid operation: ${operation}`
+
     return new DataApiError(
       ErrorCode.INVALID_OPERATION,
       message,
@@ -746,6 +759,7 @@ export class DataApiErrorFactory {
     const message = description
       ? `Data inconsistent in ${resource}: ${description}`
       : `Data inconsistent in ${resource}`
+
     return new DataApiError(
       ErrorCode.DATA_INCONSISTENT,
       message,
@@ -777,6 +791,7 @@ export class DataApiErrorFactory {
     const message = lockedBy
       ? `${resource} '${id}' is locked by ${lockedBy}`
       : `${resource} '${id}' is currently locked`
+
     return new DataApiError(
       ErrorCode.RESOURCE_LOCKED,
       message,
@@ -892,14 +907,18 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
     (error instanceof z.ZodError || (error instanceof Error && error.name === 'ZodError')) && 'issues' in error
       ? validationIssuesSchema.safeParse(error.issues)
       : undefined
+
   if (validationIssues?.success) {
     const fieldErrors = new Map<string, string[]>()
+
     for (const issue of validationIssues.data) {
       const path = issue.path.length > 0 ? issue.path.join('.') : '_root'
       const messages = fieldErrors.get(path)
+
       if (messages) messages.push(issue.message)
       else fieldErrors.set(path, [issue.message])
     }
+
     return DataApiErrorFactory.validation(
       Object.fromEntries(fieldErrors),
       `Validation failed${context ? ` in ${context}` : ''}`
@@ -911,11 +930,13 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
   }
 
   let description: string
+
   try {
     description = String(error)
   } catch {
     description = '[Unserializable]'
   }
+
   return DataApiErrorFactory.create(
     ErrorCode.INTERNAL_SERVER_ERROR,
     `Unknown error${context ? ` in ${context}` : ''}: ${description}`,

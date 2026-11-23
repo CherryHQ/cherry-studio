@@ -49,6 +49,7 @@ interface Props {
 function compactAddress(value: string): string {
   try {
     const url = new URL(value)
+
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.host : value
   } catch {
     return value
@@ -72,6 +73,7 @@ export function WebviewNavigation({
   toolbarActions
 }: Props) {
   const { t } = useTranslation()
+
   const {
     canGoBack,
     canGoForward,
@@ -88,6 +90,7 @@ export function WebviewNavigation({
     targetId: target.id,
     url: currentUrl || initialUrl
   })
+
   const addressInputRef = useRef<HTMLInputElement | null>(null)
   useEffect(() => {
     if (autoFocusAddress && isWebviewReady && isHostActive) addressInputRef.current?.focus()
@@ -103,8 +106,10 @@ export function WebviewNavigation({
   useEffect(() => {
     if (!showHistory) return
     const timer = setTimeout(() => setDebouncedSearch(search), 200)
+
     return () => clearTimeout(timer)
   }, [search, showHistory])
+
   const {
     data: history,
     isLoading: historyLoading,
@@ -115,12 +120,14 @@ export function WebviewNavigation({
     // Hold the last list while the closing popover animates out; while open, never show another search's results.
     swrOptions: { keepPreviousData: !showHistory }
   })
+
   const suggestions =
     search === debouncedSearch
       ? (history?.items ?? [])
           .filter((visit, index, visits) => visits.findIndex((item) => item.url === visit.url) === index)
           .slice(0, 8)
       : []
+
   const selectedSuggestion = showHistory ? suggestions[activeSuggestion] : undefined
 
   useEffect(() => {
@@ -131,8 +138,10 @@ export function WebviewNavigation({
   const handleReload = useCallback(() => {
     if (onReload) {
       onReload()
+
       return
     }
+
     try {
       webviewRef.current?.reload()
     } catch {
@@ -147,16 +156,20 @@ export function WebviewNavigation({
   const navigateToAddress = useCallback(
     (address: string) => {
       const normalizedAddress = normalizeWebviewAddress(address)
+
       if (!normalizedAddress) {
         toast.error(t('webview.navigation.invalid_address'))
         restoreCurrentPageUrl()
+
         return
       }
 
       const webview = webviewRef.current
+
       if (!webview) {
         toast.error(t('webview.navigation.load_failed'))
         restoreCurrentPageUrl()
+
         return
       }
 
@@ -168,8 +181,10 @@ export function WebviewNavigation({
       try {
         if (onNavigate) {
           onNavigate(normalizedAddress)
+
           return
         }
+
         void webview.loadURL(normalizedAddress).catch((error) => {
           logger.error('Failed to navigate WebView from address bar', error as Error, { targetId: target.id })
           restoreCurrentPageUrl()
@@ -199,6 +214,7 @@ export function WebviewNavigation({
   const handleAddressBlur = useCallback(() => {
     setIsAddressFocused(false)
     setHistoryOpen(false)
+
     if (!isAddressEditingRef.current) return
     isAddressEditingRef.current = false
     restoreCurrentPageUrl()
@@ -208,8 +224,10 @@ export function WebviewNavigation({
     (event: React.KeyboardEvent<HTMLInputElement>) => {
       if (event.nativeEvent.isComposing) {
         if (event.key === 'Enter') event.preventDefault()
+
         return
       }
+
       if (showHistory && suggestions.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
         event.preventDefault()
         setActiveSuggestion((current) =>
@@ -219,13 +237,17 @@ export function WebviewNavigation({
               ? suggestions.length - 1
               : (current - 1 + suggestions.length) % suggestions.length
         )
+
         return
       }
+
       if (event.key === 'Enter' && selectedSuggestion) {
         event.preventDefault()
         navigateToAddress(selectedSuggestion.url)
+
         return
       }
+
       if (event.key !== 'Escape') return
       setHistoryOpen(false)
       event.preventDefault()
@@ -238,8 +260,10 @@ export function WebviewNavigation({
 
   const canOpenExternal = isHttpUrl(currentPageUrl)
   const addressHost = compactAddress(addressValue)
+
   const addressTitle =
     addressValue === currentPageUrl && pageTitle !== addressValue && pageTitle !== addressHost ? pageTitle : undefined
+
   const addressDisplay = addressTitle ? `${addressHost} / ${addressTitle}` : addressHost
 
   return (

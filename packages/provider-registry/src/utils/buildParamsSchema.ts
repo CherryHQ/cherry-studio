@@ -21,10 +21,12 @@ function resolveModeSupports(
   mode: ImageGenerationMode
 ): Partial<Record<CanonicalParamKey, SupportSpec>> | undefined {
   const modes = support?.modes
+
   if (!modes) return undefined
   // Prefer the requested mode; fall back to the first declared mode (mirrors
   // the form's `imageGenerationToFields` resolution).
   const def = modes[mode] ?? Object.values(modes)[0]
+
   return def?.supports
 }
 
@@ -58,16 +60,19 @@ export function buildParamsSchema(
   // (`imageParamsSchema`, no `.catch`), which would reject the whole submit. The
   // supported branch below overlays per-model constraints on this base.
   const shape: Record<string, z.ZodTypeAny> = {}
+
   for (const [key, entry] of Object.entries(IMAGE_PARAM_CATALOG)) {
     shape[key] = (entry.schema as z.ZodTypeAny).catch(undefined)
   }
 
   const supports = resolveModeSupports(support, mode)
+
   if (!supports) return z.object(shape).loose()
 
   // Overlay this model's per-param constraints (options / range) on the base.
   for (const [key, spec] of Object.entries(supports) as [CanonicalParamKey, SupportSpec][]) {
     const entry = IMAGE_PARAM_CATALOG[key]
+
     if (!entry) continue
     shape[key] = applyConstraints(entry.schema as z.ZodTypeAny, spec).catch(undefined)
 
@@ -78,9 +83,11 @@ export function buildParamsSchema(
         normalizeImageParamNumber,
         z.number().finite().min(spec.minSide).max(spec.maxSide).optional()
       )
+
       shape[`${key}_width`] = side.catch(undefined)
       shape[`${key}_height`] = side.catch(undefined)
     }
   }
+
   return z.object(shape).loose()
 }

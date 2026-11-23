@@ -22,6 +22,7 @@ const TEMPORARY_LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/utils/
  */
 function extractAllLanguageData(): Record<string, LanguageData> {
   console.log('🔍 Extracting language data from linguist-languages...')
+
   const languages = Object.entries(linguistLanguages).reduce(
     (acc, [name, langData]) => {
       const { type, extensions, aliases } = langData as any
@@ -34,11 +35,14 @@ function extractAllLanguageData(): Record<string, LanguageData> {
           ...(aliases && { aliases })
         }
       }
+
       return acc
     },
     {} as Record<string, LanguageData>
   )
+
   console.log(`✅ Extracted ${Object.keys(languages).length} languages.`)
+
   return languages
 }
 
@@ -72,7 +76,9 @@ type LanguageData = {
 
 export const codeLanguages: ReadonlyMap<string, LanguageData> = new Map(Object.entries(${languagesObjectString}));
 `
+
   console.log('✅ File content generated.')
+
   return content
 }
 
@@ -82,6 +88,7 @@ export const codeLanguages: ReadonlyMap<string, LanguageData> = new Map(Object.e
  */
 async function format(filePath: string): Promise<void> {
   console.log('🎨 Formatting file with Oxfmt...')
+
   try {
     await execAsync(`pnpm oxfmt --write ${filePath}`)
     console.log('✅ Oxfmt formatting complete.')
@@ -97,6 +104,7 @@ async function format(filePath: string): Promise<void> {
  */
 async function checkTypeScript(filePath: string): Promise<void> {
   console.log('🧐 Checking file with TypeScript compiler...')
+
   try {
     await execAsync(`pnpm tsc --noEmit --skipLibCheck --ignoreConfig ${filePath}`)
     console.log('✅ TypeScript check passed.')
@@ -111,6 +119,7 @@ async function checkTypeScript(filePath: string): Promise<void> {
  */
 async function updateLanguagesFile(): Promise<void> {
   console.log('🚀 Starting to update codeLanguages.ts...')
+
   try {
     const extractedLanguages = extractAllLanguageData()
     const fileContent = generateLanguagesFileContent(extractedLanguages)

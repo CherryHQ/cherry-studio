@@ -133,6 +133,7 @@ function mergeSecondaryEndpoints(
   for (const type of CUSTOM_PROVIDER_ENDPOINTS) {
     if (type === primary) continue
     const value = secondaryUrls[type]?.trim()
+
     if (value) {
       target[type] = { baseUrl: value }
     }
@@ -157,9 +158,11 @@ export default function ProviderEditorDrawer({
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
   const [moreEndpointsOpen, setMoreEndpointsOpen] = useState(false)
   const [endpointUrls, setEndpointUrls] = useState<CustomProviderEndpointUrls>({})
+
   const [preferredChatEndpoint, setPreferredChatEndpoint] = useState<CustomProviderTextEndpoint>(
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   )
+
   const [invalidCreationUrl, setInvalidCreationUrl] = useState<CustomProviderCreationInvalidUrl | null>(null)
   // `logo` is the preview value only (a preset id / url / object URL for a
   // staged upload). When the user uploads, `stagedFile` holds the raw file whose
@@ -190,34 +193,43 @@ export default function ProviderEditorDrawer({
 
   const urlForm: { primary: EndpointType; requireBaseUrl: boolean } | null = (() => {
     if (!mode || mode.kind === 'edit' || mode.kind === 'create-custom') return null
+
     if (!duplicateNeedsBaseUrl(mode.source.authType)) return null
+
     return {
       primary: mode.source.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       requireBaseUrl: false
     }
   })()
+
   const duplicateUsesEndpointFields = Boolean(
     duplicateSource &&
     urlForm &&
     (duplicateSource.presetProviderId === 'new-api' || isCustomProviderTextEndpoint(urlForm.primary))
   )
+
   const duplicateDefaultTextEndpoint =
     urlForm && isCustomProviderTextEndpoint(urlForm.primary) ? urlForm.primary : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+
   const duplicatePrimaryEndpoints = [
     duplicateDefaultTextEndpoint,
     ...COMMON_CUSTOM_PROVIDER_ENDPOINTS.filter((endpointType) => endpointType !== duplicateDefaultTextEndpoint)
   ].slice(0, 2)
+
   const duplicateAdditionalEndpoints = CUSTOM_PROVIDER_ENDPOINTS.filter(
     (endpointType) => !duplicatePrimaryEndpoints.some((primaryEndpoint) => primaryEndpoint === endpointType)
   )
+
   const duplicateEndpointUrls = useMemo<CustomProviderEndpointUrls>(() => {
     if (!duplicateUsesEndpointFields || !urlForm) {
       return {}
     }
 
     const values: CustomProviderEndpointUrls = {}
+
     for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
       const override = secondaryUrls[endpointType]
+
       if (override?.trim()) {
         values[endpointType] = override
       }
@@ -261,10 +273,12 @@ export default function ProviderEditorDrawer({
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
     setEndpointUrls({})
+
     const initialDefaultEndpoint =
       duplicateSource?.defaultChatEndpoint && isCustomProviderTextEndpoint(duplicateSource.defaultChatEndpoint)
         ? duplicateSource.defaultChatEndpoint
         : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+
     setPreferredChatEndpoint(initialDefaultEndpoint)
     setInvalidCreationUrl(null)
     setLogoDirty(false)
@@ -282,10 +296,12 @@ export default function ProviderEditorDrawer({
   }, [initialLogo, logoDirty, open])
 
   const previewName = name.trim()
+
   const avatarBackgroundColor = useMemo(
     () => (previewName ? generateColorFromChar(previewName) : undefined),
     [previewName]
   )
+
   const avatarForegroundColor = useMemo(
     () => (avatarBackgroundColor ? getForegroundColor(avatarBackgroundColor) : undefined),
     [avatarBackgroundColor]
@@ -300,8 +316,10 @@ export default function ProviderEditorDrawer({
     }
 
     const sizeError = checkEntityImageSize(file)
+
     if (sizeError) {
       toast.error(sizeError)
+
       return
     }
 
@@ -318,15 +336,18 @@ export default function ProviderEditorDrawer({
   const handleEndpointUrlChange = (endpointType: CustomProviderEndpoint, value: string) => {
     const nextEndpointUrls = { ...endpointUrls, [endpointType]: value }
     setEndpointUrls(nextEndpointUrls)
+
     if (CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)) {
       const textEndpoint = endpointType as CustomProviderTextEndpoint
       const configuredTextEndpoints = CUSTOM_PROVIDER_TEXT_ENDPOINTS.filter((type) => nextEndpointUrls[type]?.trim())
+
       if (configuredTextEndpoints.length === 1 && configuredTextEndpoints[0] === textEndpoint) {
         setPreferredChatEndpoint(textEndpoint)
       } else if (!nextEndpointUrls[preferredChatEndpoint]?.trim()) {
         setPreferredChatEndpoint(configuredTextEndpoints[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
       }
     }
+
     setInvalidCreationUrl(null)
   }
 
@@ -336,9 +357,11 @@ export default function ProviderEditorDrawer({
     // drafts into the duplicate flow.
     const defaultEndpoint = getCustomProviderDefaultChatEndpoint(endpointUrls, preferredChatEndpoint)
     const defaultEndpointUrl = endpointUrls[defaultEndpoint]?.trim()
+
     if (defaultEndpointUrl) {
       setBaseUrl(defaultEndpointUrl)
     }
+
     setPreferredChatEndpoint(
       source.defaultChatEndpoint && isCustomProviderTextEndpoint(source.defaultChatEndpoint)
         ? source.defaultChatEndpoint
@@ -352,6 +375,7 @@ export default function ProviderEditorDrawer({
 
   const buildSubmit = (): ProviderEditorSubmit | null => {
     const trimmedName = name.trim()
+
     if (!trimmedName || !mode) return null
 
     // A staged upload sends its bytes via `provider.set_logo`; a picked icon is a
@@ -363,6 +387,7 @@ export default function ProviderEditorDrawer({
           ? { kind: 'key', key: logo }
           : { kind: 'default' }
         : undefined
+
     const logoField = logoEdit ? { logo: logoEdit } : {}
 
     if (mode.kind === 'edit') {
@@ -375,6 +400,7 @@ export default function ProviderEditorDrawer({
     }
 
     const trimmedApiKey = apiKey.trim()
+
     const apiKeysPayload: ApiKeyEntry[] | undefined = trimmedApiKey
       ? [{ id: uuid(), key: trimmedApiKey, isEnabled: true }]
       : undefined
@@ -384,6 +410,7 @@ export default function ProviderEditorDrawer({
         endpointUrls,
         preferredChatEndpoint
       })
+
       return {
         mode: 'create',
         name: trimmedName,
@@ -398,8 +425,10 @@ export default function ProviderEditorDrawer({
       const { source } = mode
       const defaultChatEndpoint = source.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       const copiedBilling: Pick<Extract<ProviderEditorSubmit, { mode: 'create' }>, 'billing'> = {}
+
       // oxlint-disable-next-line no-restricted-globals -- Duplicate nested billing settings once without sharing the source provider config.
       if (source.settings?.billing) copiedBilling.billing = structuredClone(source.settings.billing)
+
       const submit: Extract<ProviderEditorSubmit, { mode: 'create' }> = {
         mode: 'create',
         name: trimmedName,
@@ -409,24 +438,31 @@ export default function ProviderEditorDrawer({
         ...copiedBilling,
         ...logoField
       }
+
       if (duplicateNeedsBaseUrl(source.authType)) {
         const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
         const trimmedBaseUrl = baseUrl.trim()
+
         if (trimmedBaseUrl) {
           const primaryEndpoints =
             source.presetProviderId === 'new-api' ? CUSTOM_PROVIDER_TEXT_ENDPOINTS : [defaultChatEndpoint]
+
           for (const endpointType of primaryEndpoints) {
             endpointConfigs[endpointType] = { baseUrl: trimmedBaseUrl }
           }
         }
+
         mergeSecondaryEndpoints(endpointConfigs, secondaryUrls, defaultChatEndpoint)
+
         if (!isEmpty(endpointConfigs)) {
           submit.endpointConfigs = endpointConfigs
         }
+
         if (apiKeysPayload) {
           submit.apiKeys = apiKeysPayload
         }
       }
+
       return submit
     }
 
@@ -447,27 +483,33 @@ export default function ProviderEditorDrawer({
   const handleSubmit = async () => {
     setNameTouched(true)
     setBaseUrlTouched(true)
+
     if (mode?.kind === 'create-custom') {
       const invalidUrl = findInvalidCustomProviderCreationUrl({
         endpointUrls,
         preferredChatEndpoint
       })
+
       setInvalidCreationUrl(invalidUrl)
+
       if (invalidUrl) {
         if (invalidUrl.field === 'textEndpointRequired') {
           firstTextEndpointRef.current?.focus()
         }
+
         if (
           invalidUrl.field === 'endpointUrl' &&
           duplicateAdditionalEndpoints.some((endpointType) => endpointType === invalidUrl.endpointType)
         ) {
           setMoreEndpointsOpen(true)
         }
+
         return
       }
     } else if (mode?.kind === 'duplicate' && duplicateUsesEndpointFields) {
       const invalidUrl = findInvalidCustomProviderEndpointUrl(duplicateEndpointUrls)
       setInvalidCreationUrl(invalidUrl)
+
       if (invalidUrl) {
         if (
           invalidUrl.field === 'endpointUrl' &&
@@ -475,13 +517,17 @@ export default function ProviderEditorDrawer({
         ) {
           setMoreEndpointsOpen(true)
         }
+
         return
       }
     }
+
     const payload = buildSubmit()
+
     if (!payload) return
 
     setIsSubmitting(true)
+
     try {
       await onSubmit(payload)
     } catch (error) {
@@ -494,19 +540,25 @@ export default function ProviderEditorDrawer({
 
   const title = (() => {
     if (!mode) return t('settings.provider.add.title')
+
     if (mode.kind === 'edit') return t('common.edit')
+
     if (mode.kind === 'duplicate') {
       const presetLabel = mode.source.presetProviderId
         ? t(getProviderLabelKey(mode.source.presetProviderId))
         : mode.source.name
+
       return t('settings.provider.duplicate.drawer_title', { name: presetLabel })
     }
+
     return t('settings.provider.create_custom.title')
   })()
 
   const submitLabel = (() => {
     if (mode?.kind === 'edit') return t('common.save')
+
     if (mode?.kind === 'duplicate') return t('settings.provider.duplicate.menu_label')
+
     return t('button.add')
   })()
 
@@ -559,12 +611,15 @@ export default function ProviderEditorDrawer({
       disableEnter={isSubmitting}
     />
   )
+
   const customAdditionalConfiguredCount = ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.filter((endpointType) =>
     endpointUrls[endpointType]?.trim()
   ).length
+
   const duplicateAdditionalConfiguredCount = duplicateAdditionalEndpoints.filter((endpointType) =>
     secondaryUrls[endpointType]?.trim()
   ).length
+
   const presetPicker =
     onSelectPreset && presetSources.length > 0 ? (
       <PresetInstancePicker sources={presetSources} value={duplicateSource?.id ?? ''} onSelect={handleSelectPreset} />
@@ -616,6 +671,7 @@ export default function ProviderEditorDrawer({
                     } else {
                       setSecondaryUrls((prev) => ({ ...prev, [endpointType]: value }))
                     }
+
                     setInvalidCreationUrl(null)
                   }}
                 />
@@ -740,6 +796,7 @@ function CustomProviderEndpointFields({
     const invalidEndpoint = invalidUrl?.field === 'endpointUrl' && invalidUrl.endpointType === endpointType
     const missingTextEndpoint = textEndpointRequired && endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType)
+
     const emptyValueHelp = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
       ? t('settings.provider.create_custom.endpoint_fields.url_help')
       : t(
@@ -776,6 +833,7 @@ function CustomProviderEndpointFields({
     const isTextEndpoint = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
     const isConfiguredTextEndpoint = Boolean(isTextEndpoint && endpointUrls[endpointType]?.trim())
     const isPreferredEndpoint = preferredChatEndpoint === endpointType
+
     const labelAccessory =
       isTextEndpoint && isPreferredEndpoint && (isConfiguredTextEndpoint || showPreferredEndpointAsDefault) ? (
         <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 text-xs font-normal text-foreground-tertiary">
@@ -848,11 +906,13 @@ function PresetInstancePicker({
   onSelect: (source: Provider) => void
 }) {
   const { t } = useTranslation()
+
   const options = useMemo<PresetProviderOption[]>(
     () =>
       sources.map((source) => {
         const presetId = source.presetProviderId ?? source.id
         const label = t(getProviderLabelKey(presetId))
+
         return {
           value: source.id,
           label,
@@ -879,6 +939,7 @@ function PresetInstancePicker({
         onChange={(value) => {
           const selectedValue = Array.isArray(value) ? value[0] : value
           const selected = options.find((option) => option.value === selectedValue)
+
           if (selected) {
             onSelect(selected.source)
           }
@@ -887,6 +948,7 @@ function PresetInstancePicker({
         emptyText={t('settings.provider.create_custom.preset_instance.empty')}
         filterOption={(option, search) => {
           const haystack = `${option.label} ${option.value} ${option.source.name}`.toLocaleLowerCase()
+
           return haystack.includes(search.trim().toLocaleLowerCase())
         }}
         placeholder={t('settings.provider.create_custom.preset_instance.placeholder')}
@@ -902,6 +964,7 @@ function DuplicateHeader({ source }: { source: Provider }) {
   const { t } = useTranslation()
   const presetId = source.presetProviderId
   const label = presetId ? t(getProviderLabelKey(presetId)) : source.name
+
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
@@ -940,6 +1003,7 @@ function AvatarSection({
   onLogoPickerOpenChange
 }: AvatarSectionProps) {
   const { t } = useTranslation()
+
   return (
     <div className="flex flex-col items-center gap-3">
       <div
@@ -999,6 +1063,7 @@ function NameField({ name, showError, onNameChange, onBlur, onEnter, disableEnte
   const uid = useId()
   const inputId = `${uid}-name-input`
   const errorId = `${uid}-name-error`
+
   return (
     <Field className="gap-2">
       <FieldLabel required htmlFor={inputId} className="text-[13px] text-foreground">
@@ -1041,6 +1106,7 @@ function MoreEndpointsDisclosure({ open, onToggle, primary, values, onChange }: 
   const uid = useId()
   const contentId = `${uid}-more-endpoints`
   const entries = SECONDARY_ENDPOINT_LABELS.filter((entry) => entry.type !== primary)
+
   if (entries.length === 0) return null
 
   return (
@@ -1102,6 +1168,7 @@ function BaseUrlField({
   const inputId = `${uid}-url-input`
   const errorId = `${uid}-url-error`
   const descriptionId = `${uid}-url-description`
+
   return (
     <Field className="gap-2">
       <div className="flex min-h-5 items-center gap-2">

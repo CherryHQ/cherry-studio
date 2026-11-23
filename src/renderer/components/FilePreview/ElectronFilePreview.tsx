@@ -15,12 +15,15 @@ import { createSelectionReference } from './selectionReference'
 import type { FilePreviewPluginProps } from './types'
 
 const logger = loggerService.withContext('FilePreview')
+
 const resources: PreviewResources = {
   async readPdfResource(kind, name) {
     const { content } = await ipcApi.request('pdfjs.resource.read', { kind, name })
+
     return content
   }
 }
+
 /**
  * Word previews fit the pane instead of a fixed page width. A page rendered at actual size is wider
  * than a docked pane, so the pane has to grow to the paper and the leftover width shows as gutters.
@@ -37,10 +40,12 @@ export default function ElectronFilePreview({
 }: FilePreviewPluginProps) {
   const { i18n, t } = useTranslation()
   const sourceMetadata = metadataRequest ?? metadata
+
   const source = useMemo(
     () => createElectronPreviewSource(filePath, fileName, sourceMetadata),
     [filePath, fileName, sourceMetadata]
   )
+
   const onSelection = useCallback(
     (selection: PreviewSelection | null) => {
       if (!selection) {
@@ -60,6 +65,7 @@ export default function ElectronFilePreview({
     },
     [filePath, sourceMetadata, onSelectionReference]
   )
+
   const onDiagnostic = useCallback(
     (diagnostic: PreviewDiagnostic) => {
       const contextualLogger = loggerService.withContext(diagnostic.context)
@@ -67,12 +73,14 @@ export default function ElectronFilePreview({
         diagnostic.message,
         diagnostic.detail instanceof Error ? diagnostic.detail : { detail: diagnostic.detail }
       )
+
       if (diagnostic.code === 'navigation_error') {
         toast.error(t('file_preview.pdf.navigation_error'))
       }
     },
     [t]
   )
+
   const onRequestOpen = useCallback(() => {
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- External preview opening can reject arbitrary values; preserve native error reporting and show localized guidance.
     void safeOpen(createFilePathHandle(filePath)).catch((error: unknown) => {

@@ -60,6 +60,7 @@ export function useMessageListAdapterCapabilities({
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const errorActions = useMessageErrorActions({ diagnosticReport, getDoctorSubject })
+
   const selectionController = useMessageSelectionController({
     topicId,
     exportMessages: exportActions.exportMessages,

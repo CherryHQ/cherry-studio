@@ -15,6 +15,7 @@ export function useOverflowIconOnly() {
       if (!container) return
 
       const clientWidth = container.clientWidth || measuredWidth || container.getBoundingClientRect().width
+
       if (clientWidth <= 0) return
 
       const scrollWidth = container.scrollWidth || clientWidth
@@ -33,10 +34,12 @@ export function useOverflowIconOnly() {
       }
 
       const overflowActivationWidth = overflowActivationWidthRef.current
+
       const shouldKeepOverflowCompact =
         currentIconOnly &&
         overflowActivationWidth != null &&
         clientWidth <= overflowActivationWidth + OVERFLOW_RELEASE_WIDTH_BUFFER
+
       const nextIconOnly = hasOverflow || shouldKeepOverflowCompact
 
       if (!nextIconOnly) {
@@ -65,15 +68,19 @@ export function useOverflowIconOnly() {
       const containerEntry = entries.find((entry) => entry.target === container)
       update(containerEntry?.contentRect.width)
     })
+
     const observedChildren = new Set<Element>()
+
     const observeChildren = () => {
       const nextChildren = new Set(Array.from(container.children))
+
       for (const child of observedChildren) {
         if (!nextChildren.has(child)) {
           observer.unobserve(child)
           observedChildren.delete(child)
         }
       }
+
       for (const child of nextChildren) {
         if (!observedChildren.has(child)) {
           observer.observe(child)
@@ -92,6 +99,7 @@ export function useOverflowIconOnly() {
             observeChildren()
             update()
           })
+
     mutationObserver?.observe(container, { childList: true })
 
     return () => {

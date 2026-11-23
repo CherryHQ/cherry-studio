@@ -12,27 +12,34 @@ export function useWebviewDebugging(webview: WebviewTag | null): boolean {
   useEffect(() => {
     if (!webview) {
       setState(null)
+
       return
     }
+
     let webviewId: number | undefined
     let disposed = false
     let generation = 0
     let latestRevision = -1
+
     const apply = (value: { attached: boolean; revision: number }) => {
       if (disposed || value.revision < latestRevision) return
       latestRevision = value.revision
       setState({ webview, attached: value.attached })
     }
+
     const unsubscribe = ipcApi.on('webview.debugging.changed', (value) => {
       if (value.webviewId === webviewId) apply(value)
     })
+
     const bind = () => {
       let id: number
+
       try {
         id = webview.getWebContentsId()
       } catch {
         return
       }
+
       if (id === webviewId) return
       webviewId = id
       const currentGeneration = ++generation
@@ -47,8 +54,10 @@ export function useWebviewDebugging(webview: WebviewTag | null): boolean {
           if (!disposed) logger.debug('Unable to read webview debugging state', { error })
         })
     }
+
     webview.addEventListener('dom-ready', bind)
     bind()
+
     return () => {
       disposed = true
       unsubscribe()

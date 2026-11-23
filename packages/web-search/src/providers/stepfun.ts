@@ -19,9 +19,11 @@ export const stepfun: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.stepfun,
   async execute(context) {
     const { call } = context
+
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
     const url = new URL(apiUrl(context.apiHost, 'search'))
     url.pathname = url.pathname.replace(/\/(?:v1\/)?search$/, '/v1/search')
+
     const payload = await requestJson(
       context,
       {
@@ -32,6 +34,7 @@ export const stepfun: WebSearchProviderModule = {
       },
       searchSchema
     )
+
     return payload.results.slice(0, call.config.maxResults).map((item) => ({
       title: item.title,
       url: item.url,

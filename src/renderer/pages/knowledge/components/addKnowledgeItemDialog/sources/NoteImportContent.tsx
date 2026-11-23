@@ -25,6 +25,7 @@ const NoteImportContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteI
     if (!root || !notesPath) {
       return []
     }
+
     return flattenTreeToFiles(projectNotesTree(root, notesPath))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Directory mutations retain root identity and increment version.
   }, [root, version, notesPath])

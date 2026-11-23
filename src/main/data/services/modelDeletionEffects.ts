@@ -12,8 +12,10 @@ const SQLITE_INARRAY_CHUNK = 500
  */
 export function selectSessionsUsingModelsTx(tx: Pick<DbType, 'select'>, uniqueModelIds: readonly string[]): string[] {
   const sessionIds: string[] = []
+
   for (let i = 0; i < uniqueModelIds.length; i += SQLITE_INARRAY_CHUNK) {
     const chunk = uniqueModelIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+
     for (const row of tx
       .select({ id: agentSessionTable.id })
       .from(agentSessionTable)
@@ -22,6 +24,7 @@ export function selectSessionsUsingModelsTx(tx: Pick<DbType, 'select'>, uniqueMo
       sessionIds.push(row.id)
     }
   }
+
   return sessionIds
 }
 

@@ -41,6 +41,7 @@ export type TopicExportMenuOptions = Record<
 >
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
+
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
 
 export interface TopicMoveAssistantTarget {
@@ -576,11 +577,15 @@ export async function executeTopicMenuAction(
   context: TopicActionContext
 ): Promise<boolean> {
   const targetAssistantId = getMoveToAssistantTargetId(action.id)
+
   if (targetAssistantId) {
     if (!context.onMoveToAssistant) return false
+
     if (context.topic.assistantId === targetAssistantId) return false
+
     if (!context.assistantMoveTargets.some((target) => target.id === targetAssistantId)) return false
     await context.onMoveToAssistant(context.topic, targetAssistantId)
+
     return true
   }
 

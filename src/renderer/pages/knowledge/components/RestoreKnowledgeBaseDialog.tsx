@@ -50,9 +50,11 @@ const RestoreKnowledgeBaseDialog = ({
   const { t } = useTranslation()
   const defaultName = t('knowledge.restore.default_name', { name: base.name })
   const failureReason = base.status === 'failed' ? getKnowledgeBaseFailureReason(base, t) : null
+
   const [values, setValues] = useState<RestoreKnowledgeBaseFormValues>(() =>
     createInitialValues(defaultName, initialEmbeddingModelId)
   )
+
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
@@ -86,6 +88,7 @@ const RestoreKnowledgeBaseDialog = ({
         dimensions = await fetchDimensions(values.embeddingModelId)
       } catch (error) {
         setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+
         return
       }
     }
@@ -101,6 +104,7 @@ const RestoreKnowledgeBaseDialog = ({
       })
     } catch (error) {
       setSubmitError(formatErrorMessageWithPrefix(error, t('knowledge.restore.failed_to_restore')))
+
       return
     }
 

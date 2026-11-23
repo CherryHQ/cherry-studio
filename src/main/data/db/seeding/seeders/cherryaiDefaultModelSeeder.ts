@@ -26,6 +26,7 @@ import { hashObject } from '../hashObject'
 const logger = loggerService.withContext('CherryAiDefaultModelSeeder')
 
 const DEFAULT_MODEL_PREFERENCE_SCOPE = 'default' as const
+
 export const DEFAULT_MODEL_PREFERENCE_KEYS = [
   'chat.default_model_id',
   'feature.quick_assistant.model_id',
@@ -33,8 +34,11 @@ export const DEFAULT_MODEL_PREFERENCE_KEYS = [
 ] as const
 
 type TxLike = Pick<DbType, 'select' | 'insert' | 'update'>
+
 type ManagedCherryProviderRow = Omit<InsertUserProviderRow, 'orderKey'>
+
 type CherryAiDefaultModelRow = Omit<InsertUserModelRow, 'orderKey'>
+
 type DefaultModelPreferenceRow = {
   scope: typeof DEFAULT_MODEL_PREFERENCE_SCOPE
   key: (typeof DEFAULT_MODEL_PREFERENCE_KEYS)[number]
@@ -101,11 +105,13 @@ function createCherryAiDefaultModelRow(): CherryAiDefaultModelRow {
 // Exported solely for v1->v2 migration reuse; make private when migration support is dropped.
 export function ensureCherryAiDefaultProviderAndModelTx(tx: TxLike): void {
   const insertedProviderCount = providerService.batchUpsertTx(tx, [createCherryAiProviderRow()])
+
   if (insertedProviderCount > 0) {
     logger.warn('Self-healed missing CherryAI default provider', { providerId: CHERRYAI_PROVIDER_ID })
   }
 
   const insertedCloudProviderCount = providerService.batchUpsertTx(tx, [createCherryCloudProviderRow()])
+
   if (insertedCloudProviderCount > 0) {
     logger.warn('Self-healed missing Cherry Cloud provider', { providerId: CHERRY_CLOUD_PROVIDER_ID })
   }

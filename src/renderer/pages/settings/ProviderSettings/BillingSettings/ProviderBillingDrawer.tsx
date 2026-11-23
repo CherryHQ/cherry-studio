@@ -44,6 +44,7 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
   const [resetRequested, setResetRequested] = useState(!provider.settings.billing)
   const defaults = models.map((model) => getDefaultProviderBilling(provider, model)).find(Boolean) ?? defaultBilling()
   const billing = resetRequested ? defaults : (provider.settings.billing ?? defaults)
+
   const draft: BillingDraft = editedDraft ?? {
     ...billing,
     timeZone: billingUtcOffset(billing.timeZone),
@@ -56,6 +57,7 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
       multiplier: rule.mode === 'multiplier' ? rule.multiplier : billing.defaultMultiplier
     }))
   }
+
   const setDraft = (value: SetStateAction<BillingDraft>) => {
     setResetRequested(false)
     const next = typeof value === 'function' ? value(draft) : value
@@ -63,15 +65,18 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
     delete custom.source
     setDraftValue(custom)
   }
+
   const [saving, setSaving] = useState(false)
   const parsed = ProviderBillingSchema.safeParse(draft)
   const errors: Record<string, string> = {}
+
   const errorMessages = {
     overlap: t('settings.provider.billing.overlap'),
     same_time: t('settings.provider.billing.same_time'),
     invalid_zone: t('settings.provider.billing.invalid_zone'),
     invalid: t('settings.provider.billing.invalid')
   }
+
   if (!parsed.success)
     for (const issue of parsed.error.issues) {
       const key =
@@ -82,18 +87,25 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
             : issue.message === 'time_zone'
               ? 'invalid_zone'
               : 'invalid'
+
       errors[issue.path.join('.')] = errorMessages[key]
     }
+
   const save = async () => {
     if (!parsed.success) return
     setSaving(true)
+
     try {
       let billing: NonNullable<Parameters<typeof updateProvider>[0]['providerSettings']>['billing'] = null
+
       if (!resetRequested) {
         billing = { ...parsed.data }
+
         if (provider.settings.billing?.calendar && !parsed.data.calendar) billing.calendar = null
+
         if (provider.settings.billing?.source && !parsed.data.source) billing.source = null
       }
+
       await updateProvider({
         providerSettings: { billing }
       })
@@ -104,6 +116,7 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
       setSaving(false)
     }
   }
+
   return (
     <ProviderSettingsDrawer
       open

@@ -37,6 +37,7 @@ export function isReportArtifactsToolResponse(toolResponse: ReportArtifactsToolR
   )
     return false
   const toolName = toolResponse.tool.name
+
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
 }
 
@@ -50,11 +51,14 @@ export function getReportArtifactsViewModel(
     if (!isReportArtifactsToolResponse(toolResponse) || toolResponse.status !== 'done') continue
 
     const parsed = reportArtifactsInputSchema.safeParse(toolResponse.arguments)
+
     if (!parsed.success) continue
 
     if (parsed.data.summary) summary = parsed.data.summary
+
     for (const artifact of parsed.data.artifacts) {
       const path = artifact.path.trim()
+
       if (!path) continue
       artifactByPath.set(path, {
         path,
@@ -64,12 +68,14 @@ export function getReportArtifactsViewModel(
   }
 
   const artifacts = Array.from(artifactByPath.values())
+
   return artifacts.length > 0 ? { artifacts, summary } : null
 }
 
 function getArtifactFileName(path: string): string {
   const normalized = path.trim().replace(/[\\/]+$/g, '')
   const segments = normalized.split(/[\\/]+/).filter(Boolean)
+
   return segments.at(-1) ?? path
 }
 
@@ -98,16 +104,23 @@ const artifactDocumentFormats: ReadonlyMap<string, readonly [string, string]> = 
 function getArtifactFileTypeLabel(fileName: string, t: TFunction): string {
   const dot = fileName.lastIndexOf('.')
   const extension = dot > 0 ? fileName.slice(dot + 1).toLowerCase() : ''
+
   if (!extension) return t('chat.input.tools.file_type.file')
 
   const format = artifactDocumentFormats.get(extension)
+
   if (format) return t(format[0], { format: format[1] })
+
   if (archiveExts.some((ext) => ext === `.${extension}`)) return t('chat.input.tools.file_type.archive')
 
   const type = getFileTypeByExt(extension)
+
   if (type === 'image') return t('files.image')
+
   if (type === 'audio') return t('files.audio')
+
   if (type === 'video') return t('files.video')
+
   return t('chat.input.tools.file_type.extension', { format: extension.toUpperCase() })
 }
 
@@ -120,18 +133,22 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   const resolvePath = actions?.resolvePath
   const displayPath = useMemo(() => normalizeInlineFilePath(artifact.path), [artifact.path])
   const unresolvedTargetPath = useMemo(() => resolveInlineFilePath(artifact.path), [artifact.path])
+
   const targetPath = useMemo(
     () => resolvePath?.(unresolvedTargetPath) ?? unresolvedTargetPath,
     [resolvePath, unresolvedTargetPath]
   )
+
   const fileName = useMemo(() => getArtifactFileName(displayPath), [displayPath])
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const [popupMenuOpen, setPopupMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
+
   const { data, error, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
     enabled: hasAbsoluteTargetPath && (popupMenuOpen || contextMenuOpen)
   })
+
   const hasOpenActions = Boolean(openArtifactFile || hasAbsoluteTargetPath)
 
   const handlePreview = useCallback(() => {
@@ -159,6 +176,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
 
   const contextMenuItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
     const items: CommandContextMenuExtraItem[] = []
+
     if (openArtifactFile) {
       items.push({
         type: 'item',
@@ -167,6 +185,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onSelect: handlePreview
       })
     }
+
     if (hasAbsoluteTargetPath && targets.length === 0 && !data && !error) {
       items.push({
         type: 'item',
@@ -176,6 +195,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onSelect: () => undefined
       })
     }
+
     for (const target of targets) {
       items.push({
         type: 'item',
@@ -186,6 +206,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onSelect: () => handleOpenTarget(target)
       })
     }
+
     if (copyText) {
       if (items.length > 0) items.push({ type: 'separator' })
       items.push({
@@ -195,6 +216,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onSelect: handleCopyPath
       })
     }
+
     return items
   }, [
     copyText,
@@ -292,6 +314,7 @@ export const MessageReportArtifacts = ({
   const [expanded, setExpanded] = useState(false)
   const listId = useId()
   const viewModel = useMemo(() => getReportArtifactsViewModel(toolResponses), [toolResponses])
+
   if (!viewModel) return null
 
   const hiddenCount = viewModel.artifacts.length - COLLAPSED_ARTIFACT_LIMIT

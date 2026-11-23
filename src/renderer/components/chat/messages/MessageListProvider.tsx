@@ -87,6 +87,7 @@ type MessageListActivityValue = Pick<MessageListState, 'getMessageActivityState'
 type MessageListUiValue = MessageListUiStaticValue &
   MessageListUiSelectorsValue &
   Pick<MessageListActivityValue, 'getMessageActivityState'>
+
 type MessageListDataLegacyValue = MessageListDataValue & { messages: MessageListItem[] }
 
 const MessageListDataContext = createContext<MessageListDataValue | null>(null)
@@ -110,9 +111,11 @@ function useCitationPartsRegistry(state: MessageListState): CitationPartsRegistr
   const messageIds = useStableStringArray(useMemo(() => state.messages.map((message) => message.id), [state.messages]))
   const partsSource = state.streamingLayers?.historyPartsByMessageId ?? state.partsByMessageId
   const previousRef = useRef(EMPTY_CITATION_PARTS_REGISTRY)
+
   return useMemo(() => {
     const next = buildCitationPartsRegistry(messageIds, partsSource, previousRef.current)
     previousRef.current = next
+
     return next
   }, [messageIds, partsSource])
 }
@@ -225,9 +228,11 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
 
 const useRequiredContext = <T,>(context: Context<T | null>, name: string): T => {
   const value = use(context)
+
   if (value === null) {
     throw new Error(`${name} must be used within MessageListProvider`)
   }
+
   return value
 }
 
@@ -251,8 +256,10 @@ export const useOptionalMessageListUi = (): MessageListUiValue | undefined => {
   const stat = use(MessageListUiStaticContext)
   const sel = use(MessageListUiSelectorsContext)
   const activity = use(MessageListActivityContext)
+
   return useMemo<MessageListUiValue | undefined>(() => {
     if (stat === null || sel === null || activity === null) return undefined
+
     return { ...stat, ...sel, getMessageActivityState: activity.getMessageActivityState }
   }, [activity, stat, sel])
 }
@@ -276,14 +283,17 @@ const INACTIVE_MESSAGE_ACTIVITY_STATE = Object.freeze({
 export const useMessageListItemActivityState = (message: MessageListItem) => {
   const activity = useRequiredContext(MessageListActivityContext, 'useMessageListItemActivityState')
   const store = activity.messageActivityStore
+
   const subscribe = useCallback(
     (listener: () => void) => store?.subscribe(message, listener) ?? (() => {}),
     [message, store]
   )
+
   const getSnapshot = useCallback(
     () => store?.getSnapshot(message) ?? INACTIVE_MESSAGE_ACTIVITY_STATE,
     [message, store]
   )
+
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
   return store ? snapshot : (activity.getMessageActivityState?.(message) ?? INACTIVE_MESSAGE_ACTIVITY_STATE)
@@ -292,18 +302,23 @@ export const useMessageListItemActivityState = (message: MessageListItem) => {
 export const useAnyMessageListItemProcessing = (messages: readonly MessageListItem[]) => {
   const activity = useRequiredContext(MessageListActivityContext, 'useAnyMessageListItemProcessing')
   const store = activity.messageActivityStore
+
   const subscribe = useCallback(
     (listener: () => void) => {
       if (!store) return () => {}
+
       const unsubscribes = messages.map((message) => store.subscribe(message, listener))
+
       return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
     },
     [messages, store]
   )
+
   const getSnapshot = useCallback(
     () =>
       messages.some((message) => {
         const state = store?.getSnapshot(message) ?? activity.getMessageActivityState?.(message)
+
         return state?.isProcessing ?? message.status === 'pending'
       }),
     [activity, messages, store]
@@ -321,6 +336,7 @@ export const useAnyMessageListItemProcessing = (messages: readonly MessageListIt
 export const useMessageListData = (): MessageListDataLegacyValue => {
   const data = useRequiredContext(MessageListDataContext, 'useMessageListData')
   const messages = useRequiredContext(MessageListMessagesContext, 'useMessageListData')
+
   return useMemo(() => ({ ...data, messages }), [data, messages])
 }
 
@@ -351,9 +367,11 @@ export const useMessageRenderConfig = (): MessageRenderConfig => {
 
 export const useMessageListSelection = (): MessageListSelectionState | undefined => {
   const value = use(MessageListSelectionContext)
+
   if (value === null) {
     throw new Error('useMessageListSelection must be used within MessageListProvider')
   }
+
   return value
 }
 
@@ -364,6 +382,7 @@ export const useMessageListEditingId = (): string | null => use(MessageListEditi
 /** Citable tool parts of every message before `messageId` in list order; empty outside a provider. */
 export const useMessagePriorCitationParts = (messageId: string): readonly CherryMessagePart[] => {
   const registry = use(MessageListCitationRegistryContext) ?? EMPTY_CITATION_PARTS_REGISTRY
+
   return useMemo(() => getPriorCitationParts(registry, messageId), [registry, messageId])
 }
 
@@ -376,6 +395,7 @@ export const useMessageListUi = (): MessageListUiValue => {
   const stat = useRequiredContext(MessageListUiStaticContext, 'useMessageListUi')
   const sel = useRequiredContext(MessageListUiSelectorsContext, 'useMessageListUi')
   const activity = useRequiredContext(MessageListActivityContext, 'useMessageListUi')
+
   return useMemo(
     () => ({ ...stat, ...sel, getMessageActivityState: activity.getMessageActivityState }),
     [activity, stat, sel]

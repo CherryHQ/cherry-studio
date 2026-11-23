@@ -14,6 +14,7 @@ export function getFeedbackIntentGuardCacheKey(tabId: string): string {
 
 function createFeedbackComposerDraft(skillDescription: string): AgentComposerLaunchOptions['initialDraft'] {
   const skillToken = agentSkillToComposerToken({ ...FEEDBACK_SKILL, description: skillDescription })
+
   return {
     text: FEEDBACK_DRAFT_TEXT,
     tokens: [{ ...skillToken, index: 0, textOffset: 0 }]

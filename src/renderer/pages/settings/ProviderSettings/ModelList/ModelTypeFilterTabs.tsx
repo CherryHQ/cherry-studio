@@ -127,6 +127,7 @@ export function ModelTypeFilterTabs({
           {MODEL_TYPE_FILTERS.flatMap((filter) => {
             if (!(!hideEmptyFilters || counts[filter] > 0 || value === filter)) return []
             const Icon = CAPABILITY_FILTER_ICONS[filter]
+
             return [
               <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
                 <Icon className="size-3.5 shrink-0" aria-hidden />

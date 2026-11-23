@@ -93,10 +93,13 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const canEditMessage = !!actions.editMessage
   const isAssistantMessage = message.role === 'assistant'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
+
   const canStartEditing =
     actions.canEditMessage?.(message) ??
     (canEditMessage && (!isAssistantMessage || (canEditAssistantMessageParts(messageParts) && !isTranslating)))
+
   const isEditing = editingMessageId === message.id
+
   const handleStartEditing = useCallback(
     (messageId: string) => {
       if (canStartEditing && messageId === message.id) {
@@ -120,6 +123,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
+
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
     : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
@@ -127,10 +131,12 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
       const messageContainer = messageContainerRef.current
+
       if (messageContainer) {
         if (!navigateWithScrollRuntime(messageContainer, 'center')) {
           scrollIntoView(messageContainer, { behavior: 'smooth', block: 'center', container: 'nearest' })
         }
+
         if (highlight) {
           setTimeoutTimer(
             'messageHighlightHandler',
@@ -166,7 +172,9 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     if (isMultiSelectMode || !actions.startNewContext) return
     actions.startNewContext?.()
   }, [actions, isMultiSelectMode])
+
   const canStartNewContext = !isMultiSelectMode && Boolean(actions.startNewContext)
+
   const handleStartNewContextKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.key !== 'Enter' && event.key !== ' ') return
@@ -179,6 +187,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const handleMessageSelectClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (!isMultiSelectMode) return
+
       if ((event.target as HTMLElement | null)?.closest('[role="checkbox"]')) return
 
       event.preventDefault()
@@ -208,15 +217,18 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   }
 
   const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full'
+
   const messageContentStyle = {
     fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
     fontSize
   }
+
   const messageBody = (
     <MessageErrorBoundary>
       <MessageContent message={message} />
     </MessageErrorBoundary>
   )
+
   const plainMessageContent = (
     <>
       {isHorizontalMultiModelLayout ? (
@@ -330,6 +342,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 
 const MessageItem: FC<Props> = ({ message, messageParts, ...props }) => {
   const content = <MessageItemContent message={message} {...props} />
+
   if (!messageParts) return content
 
   return (

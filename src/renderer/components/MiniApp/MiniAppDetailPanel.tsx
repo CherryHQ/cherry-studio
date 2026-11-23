@@ -67,8 +67,10 @@ function describeActivity(t: TFunction, entry: MiniAppActivityEntry): string {
       const facet = Object.entries(entry.facet ?? {})
         .map(([key, value]) => `${key}=${value}`)
         .join(' ')
+
       return `${entry.name} → ${entry.outcome}${facet ? ` · ${facet}` : ''}`
     }
+
     case 'grant': {
       const parts = [
         t(GRANT_ACTIVITY_KEYS[entry.name], {
@@ -76,15 +78,19 @@ function describeActivity(t: TFunction, entry: MiniAppActivityEntry): string {
           permissions: (entry.permissions ?? []).join(', ')
         })
       ]
+
       // Versioned entries name what changed only when something did: no dangling "granted ".
       if (VERSIONED_GRANTS.has(entry.name)) {
         if (entry.permissions?.length)
           parts.push(t('miniApp.activity.grant.granted', { permissions: entry.permissions.join(', ') }))
+
         if (entry.removed?.length)
           parts.push(t('miniApp.activity.grant.revoked', { permissions: entry.removed.join(', ') }))
       }
+
       return parts.join(', ')
     }
+
     case 'count':
       return t('miniApp.activity.count', {
         name: entry.name,
@@ -120,6 +126,7 @@ const Usage: FC<{ label: string; usage: QuotaUsageWithLimits; testId: string }> 
   // Two axes, and the quota is exhausted when EITHER fills: the bar shows the fuller one.
   const fraction = (used: number, limit: number) => (limit > 0 ? Math.min(1, used / limit) : 0)
   const ratio = Math.max(fraction(usage.bytes, usage.bytesLimit), fraction(usage.count, usage.countLimit))
+
   return (
     <div data-testid={testId} className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-xs">
@@ -157,11 +164,13 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const chatModelFilter = useCallback((model: Model) => !isNonChatModel(model), [])
   // A plain column write: DataApi, not a command. The panel's own state still comes from `mini_app.detail`.
   const { trigger: patchMiniApp } = useMutation('PATCH', '/mini-apps/:appId')
+
   const patchModels = (body: { aiModelId?: UniqueModelId | null; aiQuickModelId?: UniqueModelId | null }) =>
     patchMiniApp({ params: { appId }, body })
 
   const [activity, setActivity] = useState<MiniAppActivityListing>({ entries: [], bytes: 0, days: 0 })
   const [deniedOnly, setDeniedOnly] = useState(false)
+
   const loadActivity = useCallback(async () => {
     try {
       setActivity(await ipcApi.request('mini_app.activity.list', { appId, limit: 100, deniedOnly }))
@@ -172,11 +181,13 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       setError(t('miniApp.activity.load_error', { message: readErrorMessage(e) }))
     }
   }, [appId, deniedOnly, t])
+
   // Pulled on open, on the filter, and on the user's refresh — never pushed: a log that
   // grows all day would broadcast to every window for a panel that is rarely open.
   useEffect(() => {
     void loadActivity()
   }, [loadActivity])
+
   // Built once per language, not once per row: constructing a formatter with an options
   // object misses V8's default-format cache, and the activity list renders up to 100 of them
   // on every `busy` flip, filter toggle and attention broadcast.
@@ -191,6 +202,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       }),
     [i18n.language]
   )
+
   const timeOf = (ts: number) => timeFormat.format(ts)
 
   const reload = useCallback(async () => {
@@ -210,13 +222,17 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const run = async <TResult,>(action: () => Promise<TResult>, { reloadAfter = true } = {}) => {
     setBusy(true)
     setError(null)
+
     try {
       await action()
+
       if (reloadAfter) await reload()
+
       return true
     } catch (e) {
       logger.error('Mini app action failed', e as Error)
       setError(t('miniApp.detail.action_error', { message: readErrorMessage(e) }))
+
       return false
     } finally {
       setBusy(false)
@@ -225,12 +241,14 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
 
   // Live, from the same broadcast the tile draws its wedge from — not the one-shot detail read.
   const updating = useMiniAppAttentionFor(appId)?.updating ?? null
+
   // Check → review dialog → apply: the same three steps the tile's menu runs.
   const update = useMiniAppUpdate(appId, {
     name: detail?.name ?? appId,
     onApplied: () => void reload(),
     onChecked: () => void reload()
   })
+
   /**
    * Nothing that changes the package may run while an update is landing — `update.busy`
    * included: a check is the one package operation on this screen that does NOT go through
@@ -247,16 +265,19 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   useEffect(() => {
     if (replaceError) toast.error(t(replaceError.key, replaceError.params))
   }, [replaceError, t])
+
   const handlePickReplacement = () =>
     replace.settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')
 
   const handleConfirmDestructive = async () => {
     if (!pendingAction) return
     const action = pendingAction
+
     // Nothing to reload after an uninstall: the row is gone, and the panel closes with it.
     const ok = await run(() => ipcApi.request(`mini_app.${action}`, { appId }), {
       reloadAfter: action !== 'uninstall'
     })
+
     if (ok && action === 'uninstall') {
       toast.success(t('miniApp.detail.uninstall_success', { name: detail?.name ?? appId }))
       onClose?.()
@@ -276,7 +297,9 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
 
   const sourceLine = (d: MiniAppDetail): string => {
     if (d.source === 'url') return t('miniApp.detail.source.url', { host: hostOf(d.sourceUrl ?? '') })
+
     if (d.source === 'builtin') return t('miniApp.detail.source.builtin')
+
     return t('miniApp.detail.source.file')
   }
 

@@ -7,6 +7,7 @@ function findLast(tokens: string[], predicate: (token: string) => boolean): stri
   for (let index = tokens.length - 1; index >= 0; index -= 1) {
     if (predicate(tokens[index])) return tokens[index]
   }
+
   return undefined
 }
 
@@ -17,8 +18,10 @@ function findLast(tokens: string[], predicate: (token: string) => boolean): stri
 export function mergeDataUi(contract: string, ...forwardedValues: unknown[]): string {
   const contractTokens = tokens(contract)
   const forwardedTokens = forwardedValues.flatMap(tokens)
+
   const semantic =
     findLast(forwardedTokens, (token) => !token.includes(':')) ?? contractTokens.find((token) => !token.includes(':'))
+
   const parts = [...contractTokens, ...forwardedTokens].filter((token) => token.startsWith('part:'))
 
   return [...new Set([semantic, ...parts].filter((token): token is string => Boolean(token)))].join(' ')
@@ -27,6 +30,7 @@ export function mergeDataUi(contract: string, ...forwardedValues: unknown[]): st
 /** Preserve normal JSX spread behavior while composing a spread-owned data-ui value. */
 export function mergeUiProps<T>(props: T, contract: string): T {
   if ((typeof props !== 'object' && typeof props !== 'function') || props === null) return props
+
   if (!Object.prototype.hasOwnProperty.call(props, 'data-ui')) return props
 
   return {

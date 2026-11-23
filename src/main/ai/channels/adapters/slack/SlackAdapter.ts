@@ -30,6 +30,7 @@ const SlackApiResponseSchema = z.looseObject({ ok: z.boolean(), error: z.string(
 const SlackAcknowledgementSchema = z.object({}).transform(() => undefined)
 const SlackMessageResponseSchema = z.object({ ts: z.string().optional() })
 const SlackIdentityResponseSchema = z.object({ user_id: z.string().optional() })
+
 const SlackUserResponseSchema = z.object({
   user: z.object({ real_name: z.string().optional(), name: z.string().optional() }).optional()
 })
@@ -100,6 +101,7 @@ class SlackStreamingController {
     if (this._completed || (!text && !this.messageTs && !this.messageCreationPromise)) return
     this.currentText = text
     await this.ensureMessageCreated()
+
     if (this.messageTs) {
       await this.flush.throttledUpdate(SLACK_STREAM_THROTTLE_MS)
     }
@@ -111,6 +113,7 @@ class SlackStreamingController {
     this.flush.complete()
 
     if (this.messageCreationPromise) await this.messageCreationPromise
+
     if (!this.messageTs) return false
 
     await this.flush.waitForFlush()
@@ -118,11 +121,13 @@ class SlackStreamingController {
     try {
       this.currentText = finalText
       await this.editMessage(finalText)
+
       return true
     } catch (error) {
       this.log.warn('Failed to finalize Slack stream', {
         error: error instanceof Error ? error.message : String(error)
       })
+
       return false
     }
   }
@@ -133,6 +138,7 @@ class SlackStreamingController {
     this.flush.complete()
 
     if (this.messageCreationPromise) await this.messageCreationPromise
+
     if (!this.messageTs) return
 
     await this.flush.waitForFlush()
@@ -141,6 +147,7 @@ class SlackStreamingController {
       const displayText = this.currentText
         ? `${this.currentText}\n\n---\n**Error**: ${errorMessage}`
         : `**Error**: ${errorMessage}`
+
       await this.editMessage(displayText)
     } catch {
       // Best-effort error update
@@ -157,10 +164,13 @@ class SlackStreamingController {
 
   private async ensureMessageCreated(): Promise<void> {
     if (this.messageTs) return
+
     if (this.messageCreationPromise) {
       await this.messageCreationPromise
+
       return
     }
+
     this.messageCreationPromise = this.createMessage()
     await this.messageCreationPromise
   }
@@ -171,6 +181,7 @@ class SlackStreamingController {
         channel: this.channelId,
         text: toSlackMarkdown(this.currentText) || '...'
       })
+
       this.messageTs = data.ts ?? null
     } catch (error) {
       this.log.warn('Failed to create Slack streaming message', {
@@ -182,11 +193,13 @@ class SlackStreamingController {
   private async editMessage(text: string): Promise<void> {
     if (!this.messageTs) return
     const converted = toSlackMarkdown(text)
+
     // Keep a surrogate pair at the cut whole so we never send a lone surrogate.
     const content =
       converted.length > SLACK_MAX_LENGTH
         ? converted.slice(0, clampSurrogateBoundary(converted, SLACK_MAX_LENGTH - 3)) + '...'
         : converted
+
     await this.apiRequest(SlackAcknowledgementSchema, 'chat.update', {
       channel: this.channelId,
       ts: this.messageTs,
@@ -196,6 +209,7 @@ class SlackStreamingController {
 
   private async performFlush(): Promise<void> {
     if (!this.messageTs) return
+
     try {
       await this.editMessage(this.currentText || t('common.channel_processing'))
     } catch {
@@ -241,9 +255,11 @@ class SlackAdapter extends ChannelAdapter {
 
   protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.botToken) throw new Error('Slack bot token (xoxb-...) is required')
+
     if (!this.appToken) throw new Error('Slack app-level token (xapp-...) is required for Socket Mode')
     this.shouldStop = false
     await this.fetchBotUserId(signal)
+
     if (signal.aborted || this.shouldStop) return
     await this.startSocketMode(signal)
     this.log.info('Slack bot started')
@@ -251,9 +267,11 @@ class SlackAdapter extends ChannelAdapter {
 
   protected override async performDisconnect(): Promise<void> {
     this.shouldStop = true
+
     for (const controller of this.streamingControllers.values()) {
       controller.dispose()
     }
+
     this.streamingControllers.clear()
     this.pendingReactions.clear()
     this.cleanup()
@@ -290,6 +308,7 @@ class SlackAdapter extends ChannelAdapter {
     }
 
     const data = (await response.json()) as { ok: boolean; url?: string; error?: string }
+
     if (!data.ok || !data.url) {
       throw new Error(`Socket Mode connection failed: ${data.error ?? 'no URL returned'}`)
     }
@@ -304,6 +323,7 @@ class SlackAdapter extends ChannelAdapter {
       this.cleanup()
 
       const wsUrl = await this.getSocketModeUrl(signal)
+
       if (signal?.aborted || this.shouldStop) return
       this.log.info('Connecting to Slack Socket Mode')
 
@@ -350,6 +370,7 @@ class SlackAdapter extends ChannelAdapter {
 
   private async handleSocketMessage(data: Buffer): Promise<void> {
     let envelope: SlackSocketEnvelope
+
     try {
       envelope = JSON.parse(data.toString())
     } catch {
@@ -375,23 +396,28 @@ class SlackAdapter extends ChannelAdapter {
         if (envelope.payload?.event) {
           await this.handleEvent(envelope.payload.event)
         }
+
         break
       case 'slash_commands':
         if (envelope.payload) {
           await this.handleSlashCommand(envelope.payload)
         }
+
         break
     }
   }
 
   private async handleEvent(event: SlackMessageEvent): Promise<void> {
     if (event.type !== 'message') return
+
     // Ignore subtypes (edits, deletes, bot_message, etc.) but allow file_share
     if (event.subtype && event.subtype !== 'file_share') return
+
     // Ignore bot's own messages
     if (event.user && this.botUserId && event.user === this.botUserId) return
 
     const chatId = event.channel
+
     if (!this.isAllowed(chatId)) return
 
     // Add 👀 reaction to acknowledge receipt
@@ -423,25 +449,32 @@ class SlackAdapter extends ChannelAdapter {
     if (isSlashCommand(text)) {
       if (text.startsWith('/whoami')) {
         await this.sendWhoami(chatId)
+
         return
       }
+
       const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
       this.emit('command', { chatId, userId, userName, command: cmd })
     } else {
       // Download images (with bot token auth for private files)
       let images: ImageAttachment[] | undefined
+
       if (imageUrls.length > 0) {
         const results = await Promise.all(imageUrls.map((url) => this.downloadSlackFile(url)))
         const downloaded = results.filter((r): r is ImageAttachment => r !== null)
+
         if (downloaded.length > 0) images = downloaded
       }
 
       let files: FileAttachment[] | undefined
+
       if (fileAttachments.length > 0) {
         const results = await Promise.all(
           fileAttachments.map((att) => this.downloadSlackFileAsAttachment(att.url, att.filename))
         )
+
         const downloaded = results.filter((r): r is FileAttachment => r !== null)
+
         if (downloaded.length > 0) files = downloaded
       }
 
@@ -456,10 +489,12 @@ class SlackAdapter extends ChannelAdapter {
     const userName = payload.user_name ?? ''
 
     if (!chatId) return
+
     if (!this.isAllowed(chatId)) return
 
     if (command === 'whoami') {
       await this.sendWhoami(chatId)
+
       return
     }
 
@@ -477,18 +512,21 @@ class SlackAdapter extends ChannelAdapter {
 
   private isAllowed(chatId: string): boolean {
     if (this.allowedChannelIds.length === 0) return true
+
     return this.allowedChannelIds.includes(chatId)
   }
 
   private async resolveUserName(userId: string): Promise<string> {
     if (!userId) return ''
     const cached = this.userNameCache.get(userId)
+
     if (cached) return cached
 
     try {
       const data = await this.apiRequest(SlackUserResponseSchema, 'users.info', { user: userId })
       const name = data.user?.real_name || data.user?.name || userId
       this.userNameCache.set(userId, name)
+
       return name
     } catch {
       return userId
@@ -504,13 +542,17 @@ class SlackAdapter extends ChannelAdapter {
       const response = await net.fetch(url, {
         headers: { Authorization: `Bearer ${this.botToken}` }
       })
+
       if (!response.ok) return null
       const contentLength = response.headers.get('content-length')
+
       if (contentLength && Number.parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) return null
       const contentType = response.headers.get('content-type') || 'image/png'
       const mediaType = contentType.split(';')[0].trim()
       const buffer = Buffer.from(await response.arrayBuffer())
+
       if (buffer.length > MAX_FILE_SIZE_BYTES) return null
+
       return { data: buffer.toString('base64'), media_type: mediaType }
     } catch {
       return null
@@ -522,11 +564,14 @@ class SlackAdapter extends ChannelAdapter {
       const response = await net.fetch(url, {
         headers: { Authorization: `Bearer ${this.botToken}` }
       })
+
       if (!response.ok) return null
       const buffer = Buffer.from(await response.arrayBuffer())
+
       if (buffer.length > MAX_FILE_SIZE_BYTES) return null
       const contentType = response.headers.get('content-type') || 'application/octet-stream'
       const mediaType = contentType.split(';')[0].trim()
+
       return { filename, data: buffer.toString('base64'), media_type: mediaType, size: buffer.length }
     } catch {
       return null
@@ -588,18 +633,23 @@ class SlackAdapter extends ChannelAdapter {
 
   override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
     let controller = this.streamingControllers.get(chatId)
+
     if (!controller || controller.completed) {
       controller = new SlackStreamingController(chatId, this.apiRequest.bind(this), this.log)
       this.streamingControllers.set(chatId, controller)
     }
+
     await controller.onText(fullText)
   }
 
   override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
     const controller = this.streamingControllers.get(chatId)
+
     if (!controller) return false
+
     try {
       await this.removeReaction(chatId)
+
       return await controller.complete(finalText)
     } finally {
       this.streamingControllers.delete(chatId)
@@ -613,11 +663,15 @@ class SlackAdapter extends ChannelAdapter {
     options?: ChannelStreamErrorOptions
   ): Promise<boolean> {
     const controller = this.streamingControllers.get(chatId)
+
     if (!controller) return false
+
     try {
       await this.removeReaction(chatId)
+
       if (options?.suppressDelivery) controller.dispose()
       else await controller.error(error)
+
       return true
     } finally {
       this.streamingControllers.delete(chatId)
@@ -641,8 +695,10 @@ class SlackAdapter extends ChannelAdapter {
 
   private async removeReaction(chatId: string): Promise<void> {
     const ts = this.pendingReactions.get(chatId)
+
     if (!ts) return
     this.pendingReactions.delete(chatId)
+
     try {
       await this.apiRequest(SlackAcknowledgementSchema, 'reactions.remove', {
         channel: chatId,
@@ -678,6 +734,7 @@ class SlackAdapter extends ChannelAdapter {
     }
 
     const data = SlackApiResponseSchema.parse(await response.json())
+
     if (!data.ok) {
       throw new Error(`Slack API error ${method}: ${data.error ?? 'unknown error'}`)
     }
@@ -700,14 +757,17 @@ class SlackAdapter extends ChannelAdapter {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
+
     if (this.pingTimer) {
       clearInterval(this.pingTimer)
       this.pingTimer = null
     }
+
     if (this.ws) {
       if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
         this.ws.close()
       }
+
       this.ws = null
     }
   }
@@ -718,6 +778,7 @@ class SlackAdapter extends ChannelAdapter {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.markDisconnected('Max reconnect attempts reached')
       this.log.error('Max reconnect attempts reached, giving up')
+
       return
     }
 
@@ -728,6 +789,7 @@ class SlackAdapter extends ChannelAdapter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
+
       if (!this.shouldStop) {
         this.startSocketMode().catch((err) => {
           this.log.error('Reconnect failed', {

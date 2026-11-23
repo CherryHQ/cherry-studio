@@ -21,5 +21,6 @@ export function isWebSearchEffortUnsupported(rawModelId: string, effort: string)
   const efforts =
     WEB_SEARCH_UNSUPPORTED_EFFORTS.get(normalizeModelId(rawModelId, { keepParameterSize: true })) ??
     WEB_SEARCH_UNSUPPORTED_EFFORTS.get(normalizeModelId(rawModelId))
+
   return efforts?.includes(effort) ?? false
 }

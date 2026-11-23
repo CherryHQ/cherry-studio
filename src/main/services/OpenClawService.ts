@@ -38,8 +38,10 @@ import { vertexAiService } from './VertexAiService'
 const logger = loggerService.withContext('OpenClawService')
 
 const openclawConfigDir = () => application.getPath('external.openclaw.config')
+
 const openclawConfigPath = (): AbsoluteFilePath =>
   AbsoluteFilePathSchema.parse(path.join(openclawConfigDir(), 'openclaw.json'))
+
 const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.json.bak')
 const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18790
@@ -47,11 +49,14 @@ const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_SCHEMA_TIMEOUT_MS = 30000
 const OPENCLAW_VERSION_TIMEOUT_MS = 5000
+
 // These messages indicate that the CLI does not recognize the subcommand.
 const OPENCLAW_UNSUPPORTED_SCHEMA_COMMAND =
   /(?:unknown|unrecognized|invalid) (?:command|subcommand)\b|too many arguments for ['"]config['"]|not a command/i
+
 const OPENCLAW_WARNING_LINE =
   /^\s*(?:(?:\(node:\d+\)\s+)?(?:\[DEP\d+\]\s+)?(?:ExperimentalWarning|DeprecationWarning|Warning|TimeoutOverflowWarning):|\(Use `node --trace-(?:warnings|deprecation) .*\))/
+
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
 const OPENCLAW_DIAGNOSTIC_LIMIT = 2000
@@ -122,11 +127,13 @@ const PERMISSIVE_CONFIG_SCHEMA: OpenClawConfigSchemaNode = {}
 
 function schemaIncludesType(schema: OpenClawConfigSchemaNode, type: string): boolean {
   if (schema.type === undefined) return true
+
   return Array.isArray(schema.type) ? schema.type.includes(type) : schema.type === type
 }
 
 function combineSchemaConstraints(schemas: OpenClawConfigSchemaNode[]): OpenClawConfigSchemaNode {
   if (schemas.length === 1) return schemas[0]
+
   return { allOf: schemas }
 }
 
@@ -137,13 +144,16 @@ function findSchemaAtPath(
   if (segment === undefined) return schema
 
   let directChild: OpenClawConfigSchemaNode | undefined
+
   if (segment === '[]') {
     if (!schemaIncludesType(schema, 'array')) return undefined
+
     if (Array.isArray(schema.items)) directChild = { anyOf: schema.items }
     else directChild = schema.items ?? PERMISSIVE_CONFIG_SCHEMA
   } else {
     if (!schemaIncludesType(schema, 'object')) return undefined
     const property = segment === '*' ? undefined : schema.properties?.[segment]
+
     if (property) directChild = property
     else if (typeof schema.additionalProperties === 'object') directChild = schema.additionalProperties
     else if (schema.additionalProperties !== false) directChild = PERMISSIVE_CONFIG_SCHEMA
@@ -152,21 +162,26 @@ function findSchemaAtPath(
 
   const constraints: OpenClawConfigSchemaNode[] = []
   const directConstraint = findSchemaAtPath(directChild, remaining)
+
   if (!directConstraint) return undefined
   constraints.push(directConstraint)
 
   for (const branch of schema.allOf ?? []) {
     const branchConstraint = findSchemaAtPath(branch, [segment, ...remaining])
+
     if (!branchConstraint) return undefined
     constraints.push(branchConstraint)
   }
 
   for (const alternatives of [schema.anyOf, schema.oneOf]) {
     if (!alternatives) continue
+
     const branchConstraints = alternatives.flatMap((branch) => {
       const branchConstraint = findSchemaAtPath(branch, [segment, ...remaining])
+
       return branchConstraint ? [branchConstraint] : []
     })
+
     if (branchConstraints.length === 0) return undefined
     constraints.push(branchConstraints.length === 1 ? branchConstraints[0] : { anyOf: branchConstraints })
   }
@@ -181,22 +196,33 @@ function schemaSupportsPath(schema: OpenClawConfigSchemaNode, pathSegments: stri
 function schemaTypeMatches(type: string | string[] | undefined, value: Serializable): boolean {
   if (type === undefined) return true
   const types = Array.isArray(type) ? type : [type]
+
   return types.some((candidate) => {
     if (candidate === 'null') return value === null
+
     if (candidate === 'array') return Array.isArray(value)
+
     if (candidate === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value)
+
     if (candidate === 'integer') return typeof value === 'number' && Number.isInteger(value)
+
     return typeof value === candidate
   })
 }
 
 function schemaValueMatches(schema: OpenClawConfigSchemaNode, value: Serializable): boolean {
   if (!schemaTypeMatches(schema.type, value)) return false
+
   if (schema.const !== undefined && !Object.is(schema.const, value)) return false
+
   if (schema.enum !== undefined && !schema.enum.some((candidate) => Object.is(candidate, value))) return false
+
   if (schema.anyOf !== undefined && !schema.anyOf.some((branch) => schemaValueMatches(branch, value))) return false
+
   if (schema.oneOf !== undefined && !schema.oneOf.some((branch) => schemaValueMatches(branch, value))) return false
+
   if (schema.allOf !== undefined && !schema.allOf.every((branch) => schemaValueMatches(branch, value))) return false
+
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return true
 
   return Object.entries(schema.properties ?? {}).every(
@@ -207,22 +233,28 @@ function schemaValueMatches(schema: OpenClawConfigSchemaNode, value: Serializabl
 function projectDirectSchemaValue(schema: OpenClawConfigSchemaNode, value: Serializable): Serializable {
   if (Array.isArray(value)) {
     if (schema.items === undefined) return value
+
     return value.map((item, index) => {
       const itemSchema = Array.isArray(schema.items) ? schema.items[index] : schema.items
+
       return itemSchema ? projectSchemaSupportedValue(itemSchema, item) : item
     })
   }
 
   if (value === null || typeof value !== 'object') return value
+
   if (schema.properties === undefined && schema.additionalProperties === undefined) return value
 
   return Object.fromEntries(
     Object.entries(value).flatMap(([key, childValue]) => {
       const property = schema.properties && Object.hasOwn(schema.properties, key) ? schema.properties[key] : undefined
+
       if (property) return [[key, projectSchemaSupportedValue(property, childValue)]]
+
       if (typeof schema.additionalProperties === 'object') {
         return [[key, projectSchemaSupportedValue(schema.additionalProperties, childValue)]]
       }
+
       return schema.additionalProperties === false ? [] : [[key, childValue]]
     })
   )
@@ -230,12 +262,15 @@ function projectDirectSchemaValue(schema: OpenClawConfigSchemaNode, value: Seria
 
 function mergeAlternativeProjections(values: Serializable[]): Serializable {
   if (values.length === 1) return values[0]
+
   if (values.every(Array.isArray)) {
     const arrays: Serializable[][] = values
+
     return Array.from({ length: Math.max(...arrays.map((value) => value.length)) }, (_, index) =>
       mergeAlternativeProjections(arrays.flatMap((value) => (Object.hasOwn(value, index) ? [value[index]] : [])))
     )
   }
+
   if (
     values.every(
       (value): value is Record<string, Serializable> =>
@@ -243,6 +278,7 @@ function mergeAlternativeProjections(values: Serializable[]): Serializable {
     )
   ) {
     const objects = values
+
     return Object.fromEntries(
       [...new Set(objects.flatMap((value) => Object.keys(value)))].map((key) => [
         key,
@@ -250,6 +286,7 @@ function mergeAlternativeProjections(values: Serializable[]): Serializable {
       ])
     )
   }
+
   return values[0]
 }
 
@@ -284,12 +321,16 @@ function pickSchemaSupportedProperties(
   value: unknown
 ): Record<string, Serializable> {
   const parsed = SerializableSchema.safeParse(value)
+
   if (!parsed.success) return {}
   const config = parsed.data
+
   if (config === null || typeof config !== 'object' || Array.isArray(config)) return {}
 
   const schemaNode = findSchemaAtPath(schema, basePath)
+
   if (!schemaNode) return {}
+
   return projectSchemaSupportedValue(schemaNode, config)
 }
 
@@ -369,6 +410,7 @@ export interface OpenClawProviderConfig {
 
 type OpenClawSyncModel = Model &
   Pick<OpenClawModelConfig, 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
+
 type OpenClawSyncProvider = Provider & { headers?: Record<string, string> }
 
 /**
@@ -411,6 +453,7 @@ const ANTHROPIC_ENDPOINT_TYPES = ['anthropic']
  */
 function isAnthropicEndpointType(model: Model): boolean {
   const endpointType = model.endpoint_type
+
   return endpointType ? ANTHROPIC_ENDPOINT_TYPES.includes(endpointType) : false
 }
 
@@ -454,6 +497,7 @@ export class OpenClawService extends BaseService {
 
   private syncGatewayPortFromPreference(): void {
     const port = application.get('PreferenceService').get('feature.openclaw.gateway_port')
+
     if (Number.isInteger(port) && port >= 1 && port <= 65535) this.gatewayPort = port
   }
 
@@ -465,6 +509,7 @@ export class OpenClawService extends BaseService {
 
   protected async onStop(): Promise<void> {
     const owned = this.gatewayProcess
+
     if (owned && owned.child.exitCode === null && owned.child.signalCode === null) {
       await terminateProcessTree(owned.child, true, 'OpenClaw gateway')
     }
@@ -475,6 +520,7 @@ export class OpenClawService extends BaseService {
     if (!options?.force && this.gatewayStatus === status) return
     this.gatewayStatus = status
     this.gatewayTransitionId++
+
     // Becoming idle is the moment a port preference change deferred during a run takes effect.
     if (status === 'stopped' || status === 'error') this.syncGatewayPortFromPreference()
     application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
@@ -514,8 +560,10 @@ export class OpenClawService extends BaseService {
     if (this.gatewayStatus !== 'running') return
     const generationBefore = this.gatewayGeneration()
     const statusBefore = this.gatewayStatus
+
     try {
       const { status } = await this.checkGatewayHealth()
+
       // Any transition or port change that completed mid-probe invalidates its result.
       if (this.gatewayGenerationChanged(generationBefore)) return
       this.reconcileGatewayStatus(status, statusBefore)
@@ -529,18 +577,22 @@ export class OpenClawService extends BaseService {
   /** Resolve the same live executable path the management UI reports. */
   private async findOpenClawBinary(): Promise<Exclude<BinaryAvailability, { source: 'none' }> | null> {
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['openclaw'])).openclaw
+
     return snapshot.availability.source === 'none' ? null : snapshot.availability
   }
 
   private async resolveOpenClawRuntime(): Promise<OpenClawRuntime> {
     const managedShellEnv = await refreshShellEnv()
     const openclaw = await this.findOpenClawBinary()
+
     if (!openclaw) {
       throw new Error('OpenClaw binary not found. Please install OpenClaw first.')
     }
 
     const runtime: Omit<OpenClawRuntime, 'env'> = { path: AbsoluteFilePathSchema.parse(openclaw.path) }
+
     if (openclaw.source !== 'system') runtime.version = openclaw.version
+
     return {
       ...runtime,
       env: openclaw.source === 'system' ? await getRawShellEnv() : managedShellEnv
@@ -555,6 +607,7 @@ export class OpenClawService extends BaseService {
   ): Promise<OpenClawCommandResult> {
     return new Promise((resolve, reject) => {
       let proc: ReturnType<typeof crossPlatformSpawn>
+
       try {
         proc = crossPlatformSpawn(openclawPath, args, {
           env,
@@ -564,6 +617,7 @@ export class OpenClawService extends BaseService {
         const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
         logger.warn('OpenClaw preflight command could not start', { summary })
         reject(new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed')))
+
         return
       }
 
@@ -586,10 +640,12 @@ export class OpenClawService extends BaseService {
         proc.kill('SIGKILL')
         settled = true
         logger.warn('OpenClaw preflight command timed out', { timeoutMs })
+
         const message =
           timeoutFailureKind === 'preflight_timeout'
             ? t('openclaw.errors.preflight_timeout', { seconds: timeoutMs / 1000 })
             : t('openclaw.errors.preflight_failed')
+
         reject(new OpenClawPreflightError(timeoutFailureKind, message))
       }, timeoutMs)
 
@@ -624,10 +680,12 @@ export class OpenClawService extends BaseService {
         const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
         const remaining = Math.max(0, limitBytes - capturedBytes)
         const retainedBytes = Math.min(bytes.length, remaining)
+
         if (retainedBytes > 0) {
           chunks.push(bytes.subarray(0, retainedBytes))
           capturedBytes += retainedBytes
         }
+
         return bytes.length > retainedBytes
       },
       read: (): string => Buffer.concat(chunks).toString('utf8')
@@ -646,17 +704,21 @@ export class OpenClawService extends BaseService {
     if (result.outputTruncated) fail()
 
     let parsed: unknown
+
     try {
       parsed = JSON.parse(result.stdout)
     } catch {
       fail()
     }
+
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) fail()
 
     const report = parsed as { valid?: unknown; path?: unknown; issues?: unknown; warnings?: unknown }
+
     const isIssue = (issue: unknown): issue is OpenClawValidationIssue => {
       if (issue === null || typeof issue !== 'object' || Array.isArray(issue)) return false
       const candidate = issue as { path?: unknown; message?: unknown; allowedValues?: unknown }
+
       return (
         typeof candidate.path === 'string' &&
         typeof candidate.message === 'string' &&
@@ -665,18 +727,25 @@ export class OpenClawService extends BaseService {
     }
 
     if (typeof report.valid !== 'boolean') fail()
+
     if (report.path !== undefined && typeof report.path !== 'string') fail()
+
     if (report.issues !== undefined && (!Array.isArray(report.issues) || !report.issues.every(isIssue))) fail()
+
     if (report.warnings !== undefined && (!Array.isArray(report.warnings) || !report.warnings.every(isIssue))) fail()
     const valid = report.valid as boolean
     const reportPath = report.path as string | undefined
     const issues = (report.issues ?? []) as OpenClawValidationIssue[]
     const warnings = (report.warnings ?? []) as OpenClawValidationIssue[]
+
     if (!valid && issues.length === 0) fail()
+
     if ((valid && result.exitCode !== 0) || (!valid && result.exitCode !== 1)) fail()
 
     const validation: Omit<OpenClawValidationReport, 'issues' | 'warnings'> = { valid }
+
     if (reportPath !== undefined) validation.path = reportPath
+
     return {
       ...validation,
       issues,
@@ -688,10 +757,13 @@ export class OpenClawService extends BaseService {
     const visible = issues
       .slice(0, OPENCLAW_VISIBLE_ISSUE_LIMIT)
       .map((issue) => this.sanitizeDiagnostic(`${issue.path}: ${issue.message}`))
+
     const remaining = issues.length - visible.length
+
     if (remaining > 0) {
       visible.push(t('openclaw.errors.more_issues', { count: remaining }))
     }
+
     return visible.length > 0 ? `\n${visible.join('\n')}` : ''
   }
 
@@ -704,7 +776,9 @@ export class OpenClawService extends BaseService {
         ...runtime.env,
         OPENCLAW_CONFIG_PATH: configPath
       })
+
       const report = this.parseValidationResult(result)
+
       if (report.path === undefined || path.resolve(report.path) !== path.resolve(configPath)) {
         logger.warn('OpenClaw config validation used an unexpected config path', {
           expectedPath: configPath,
@@ -715,41 +789,50 @@ export class OpenClawService extends BaseService {
           t('openclaw.errors.binary_incompatible', { details: '' })
         )
       }
+
       return report
     } catch (error) {
       const summary = this.sanitizeDiagnostic(error instanceof Error ? error.message : String(error))
       logger.warn('OpenClaw config validation failed', { summary })
+
       if (error instanceof OpenClawPreflightError) {
         throw error
       }
+
       throw new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed'))
     }
   }
 
   private async assertConfigValid(runtime: OpenClawRuntime, configPath: AbsoluteFilePath): Promise<void> {
     const report = await this.validateConfig(runtime, configPath)
+
     if (report.valid) {
       for (const warning of report.warnings) {
         logger.warn('OpenClaw config validation warning', {
           summary: this.sanitizeDiagnostic(`${warning.path}: ${warning.message}`)
         })
       }
+
       return
     }
 
     const kind = report.issues.some((issue) => isCherryManagedConfigPath(issue.path))
       ? 'binary_incompatible'
       : 'external_config_invalid'
+
     const details = this.formatValidationDetails(report.issues)
+
     const message =
       kind === 'binary_incompatible'
         ? t('openclaw.errors.binary_incompatible', { details })
         : t('openclaw.errors.external_config_invalid', { details })
+
     throw new OpenClawPreflightError(kind, message)
   }
 
   private async assertSchemaCapability(runtime: OpenClawRuntime): Promise<OpenClawConfigSchemaNode> {
     let result: OpenClawCommandResult
+
     try {
       result = await this.runOpenClawCommand(
         runtime.path,
@@ -768,6 +851,7 @@ export class OpenClawService extends BaseService {
       if (error instanceof OpenClawPreflightError && error.kind === 'preflight_timeout') {
         throw error
       }
+
       this.throwSchemaCapabilityError(error instanceof Error ? error.message : String(error))
     }
 
@@ -777,17 +861,21 @@ export class OpenClawService extends BaseService {
 
     let schema: unknown
     let validJson = true
+
     try {
       schema = JSON.parse(result.stdout)
     } catch {
       validJson = false
     }
+
     if (schema !== null && typeof schema === 'object' && !Array.isArray(schema)) {
       if (result.stderr.trim()) {
         logger.warn('OpenClaw schema capability check warning', { summary: this.sanitizeDiagnostic(result.stderr) })
       }
+
       return schema
     }
+
     if (result.exitCode === 0) {
       this.throwSchemaCapabilityError(
         validJson ? 'config schema did not return a top-level object' : 'config schema did not return valid JSON'
@@ -795,10 +883,13 @@ export class OpenClawService extends BaseService {
     }
 
     const stderrSummary = this.firstMeaningfulStderrLine(result.stderr)
+
     const stderrDetails = stderrSummary
       ? `: ${stderrSummary.kind === 'warnings-only' ? 'stderr carried only warnings: ' : ''}${stderrSummary.line}`
       : ''
+
     const diagnostic = `config schema exited with code ${result.exitCode}${stderrDetails}`
+
     if (
       stderrSummary &&
       stderrSummary.kind !== 'warnings-only' &&
@@ -806,9 +897,11 @@ export class OpenClawService extends BaseService {
     ) {
       this.throwSchemaCapabilityError(diagnostic)
     }
+
     const summary = this.sanitizeDiagnostic(
       `config schema check failed with exit code ${result.exitCode}${stderrDetails}`
     )
+
     const version = this.sanitizeDiagnostic(runtime.version ?? (await this.detectOpenClawVersion(runtime)))
     logger.warn('OpenClaw schema capability check failed', { summary })
     throw new OpenClawPreflightError(
@@ -823,15 +916,19 @@ export class OpenClawService extends BaseService {
     let warning: string | undefined
     let inWarning = false
     let other: string | undefined
+
     for (const line of stderr.split(/\r?\n/).filter((line) => line.trim())) {
       if (OPENCLAW_WARNING_LINE.test(line)) {
         warning ??= line.trim()
         inWarning = true
         continue
       }
+
       const isStackFrame = /^\s+at\s|^\s*node:internal\//.test(line)
+
       if (inWarning && /^\s/.test(line) && !isStackFrame) continue
       inWarning = false
+
       if (
         /^\s*(?:Error(?: \[[A-Z0-9_]+\])?:|TypeError:|RangeError:|SyntaxError:|ReferenceError:|ERR_[A-Z0-9_]+|error:|error |[A-Z][A-Z0-9_]{2,}:)/.test(
           line
@@ -842,8 +939,11 @@ export class OpenClawService extends BaseService {
         other ??= line.trim()
       }
     }
+
     if (other) return { kind: 'other', line: other }
+
     if (warning) return { kind: 'warnings-only', line: warning }
+
     return undefined
   }
 
@@ -852,8 +952,10 @@ export class OpenClawService extends BaseService {
       const result = await this.runOpenClawCommand(runtime.path, ['--version'], runtime.env, {
         timeoutMs: OPENCLAW_VERSION_TIMEOUT_MS
       })
+
       if (result.exitCode !== 0) return 'unknown'
       const versionPattern = /\d+\.\d+\.\d+(?:[-+][\w.]+)?/
+
       for (const [output, isStderr] of [
         [result.stdout, false],
         [result.stderr, true]
@@ -866,9 +968,12 @@ export class OpenClawService extends BaseService {
               !OPENCLAW_WARNING_LINE.test(item) &&
               (!isStderr || !/^\s*Node\.js\b|^\s*node:|^\s+at\s/.test(item))
           )
+
         const version = line?.match(versionPattern)?.[0]
+
         if (version) return version
       }
+
       return 'unknown'
     } catch {
       return 'unknown'
@@ -891,6 +996,7 @@ export class OpenClawService extends BaseService {
     if (this.gatewayStatus === 'starting') {
       return { success: false, message: 'Gateway is already starting' }
     }
+
     if (port !== undefined) this.gatewayPort = port
 
     try {
@@ -899,9 +1005,11 @@ export class OpenClawService extends BaseService {
 
       // Check if the port is already in use
       const isPortOpen = await this.checkPortOpen(this.gatewayPort)
+
       if (isPortOpen) {
         // Check if this is our gateway already running on this port
         const { status } = await this.checkGatewayHealth()
+
         if (status === 'healthy') {
           // Stop the stale gateway (e.g. respawned orphan from a previous session)
           logger.info('Detected stale gateway on port, stopping before restart...')
@@ -909,6 +1017,7 @@ export class OpenClawService extends BaseService {
 
           // Verify port is now free
           const stillOpen = await this.checkPortOpen(this.gatewayPort)
+
           if (stillOpen) {
             return {
               success: false,
@@ -928,11 +1037,13 @@ export class OpenClawService extends BaseService {
       await this.startAndWaitForGateway(runtime.path, runtime.env)
       this.setGatewayStatus('running')
       logger.info(`Gateway started on port ${this.gatewayPort}`)
+
       return { success: true }
     } catch (error) {
       this.setGatewayStatus('error')
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to start gateway:', error as Error)
+
       return { success: false, message: errorMessage }
     }
   }
@@ -955,6 +1066,7 @@ export class OpenClawService extends BaseService {
     // for other OpenClaw commands. OpenClaw's undici EnvHttpProxyAgent rejects socks5://.
     const env = { ...shellEnv }
     removeEnvProxy(env)
+
     const proc = crossPlatformSpawn(openclawPath, args, {
       // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
       // version BinaryManager installed and reports. This is OpenClaw's documented kill
@@ -968,6 +1080,7 @@ export class OpenClawService extends BaseService {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
+
     this.gatewayProcess = { child: proc, port: this.gatewayPort }
     proc.unref()
 
@@ -989,6 +1102,7 @@ export class OpenClawService extends BaseService {
       // Capture output from both streams for diagnostics
       const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
       const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
+
       if (code !== 0) {
         earlyExitError = detail || `gateway exited with code ${code}`
       } else {
@@ -1017,10 +1131,13 @@ export class OpenClawService extends BaseService {
 
       logger.debug(`Polling gateway health (attempt ${pollCount})...`)
       const healthResult = await this.checkGatewayHealthWithError()
+
       if (healthResult.status === 'healthy') {
         logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
+
         return
       }
+
       lastError = healthResult.error
     }
 
@@ -1032,6 +1149,7 @@ export class OpenClawService extends BaseService {
     ]
       .filter(Boolean)
       .join('\n')
+
     const detail = diagnostics ? `\n${diagnostics}` : ''
     throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
@@ -1042,8 +1160,10 @@ export class OpenClawService extends BaseService {
    */
   public async stopGateway(): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
+
     try {
       const owned = this.gatewayProcess
+
       if (owned?.port === this.gatewayPort && owned.child.exitCode === null && owned.child.signalCode === null) {
         await terminateProcessTree(owned.child, true, 'OpenClaw gateway')
       } else {
@@ -1051,20 +1171,25 @@ export class OpenClawService extends BaseService {
       }
 
       const stillRunning = await this.waitForGatewayStop()
+
       if (stillRunning) {
         this.setGatewayStatus('error')
+
         return { success: false, message: 'Failed to stop gateway' }
       }
 
       this.setGatewayStatus('stopped')
+
       // A no-op stop (already stopped) still confirms the terminal state to the renderer.
       if (this.gatewayTransitionId === transitionBefore) this.setGatewayStatus('stopped', { force: true })
       logger.info('Gateway stopped')
+
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to stop gateway:', error as Error)
       this.setGatewayStatus('error')
+
       return { success: false, message: errorMessage }
     }
   }
@@ -1074,19 +1199,25 @@ export class OpenClawService extends BaseService {
       const output = isWin
         ? execFileSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true })
         : execFileSync('lsof', ['-t', `-iTCP:${this.gatewayPort}`, '-sTCP:LISTEN'], { encoding: 'utf8' })
+
       const candidates = isWin
         ? output.split(/\r?\n/).flatMap((line) => {
             const [protocol, local, , state, pid] = line.trim().split(/\s+/)
+
             return protocol === 'TCP' && local.endsWith(`:${this.gatewayPort}`) && state === 'LISTENING' ? [pid] : []
           })
         : output.trim().split(/\s+/)
+
       const pids = new Set(candidates.filter((value) => /^\d+$/.test(value)).map(Number))
+
       for (const pid of pids) {
         if (pid <= 0 || pid === process.pid) continue
+
         if (!this.isOpenClawGatewayProcess(pid)) {
           logger.debug('Preserving an unverified gateway-port listener', { pid, port: this.gatewayPort })
           continue
         }
+
         try {
           if (isWin) execFileSync('taskkill', ['/PID', String(pid), '/F'], { stdio: 'ignore', windowsHide: true })
           else process.kill(pid, 'SIGKILL')
@@ -1116,16 +1247,21 @@ export class OpenClawService extends BaseService {
             )
           : execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000 })
       ).trim()
+
       // OpenClaw sets this title after entering its gateway command on POSIX.
       if (!isWin && command === 'openclaw-gateway') return true
+
       const args = (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((arg) =>
         arg.replace(/^["']|["']$/g, '').replaceAll('\\', '/')
       )
+
       const executable = path.posix
         .basename(args[0] ?? '')
         .toLowerCase()
         .replace(/\.exe$/, '')
+
       if (executable === 'openclaw') return args[1] === 'gateway'
+
       return (
         (executable === 'node' || executable === 'bun') &&
         /\/openclaw\/(?:openclaw\.mjs|dist\/(?:index|entry)\.js)$/.test(args[1] ?? '') &&
@@ -1143,14 +1279,17 @@ export class OpenClawService extends BaseService {
   private async waitForGatewayStop(maxRetries = 3, intervalMs = 1000): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
       const stillRunning = await this.checkPortOpen(this.gatewayPort)
+
       if (!stillRunning) {
         return false
       }
+
       if (i < maxRetries - 1) {
         logger.debug(`Gateway still running after stop, retrying check (${i + 1}/${maxRetries})...`)
         await new Promise((r) => setTimeout(r, intervalMs))
       }
     }
+
     return true
   }
 
@@ -1165,6 +1304,7 @@ export class OpenClawService extends BaseService {
     const generationBefore = this.gatewayGeneration()
     const statusBefore = this.gatewayStatus
     const { status } = await this.checkGatewayHealth()
+
     // Any transition or port change that completed mid-probe invalidates its result.
     if (!this.gatewayGenerationChanged(generationBefore)) {
       this.reconcileGatewayStatus(status, statusBefore)
@@ -1185,9 +1325,11 @@ export class OpenClawService extends BaseService {
    */
   private async checkGatewayHealth(): Promise<HealthInfo> {
     const result = await this.probeGatewayHealth()
+
     if (result.status === 'unhealthy') {
       logger.debug('Health probe failed:', new Error(result.error))
     }
+
     return { status: result.status, gatewayPort: this.gatewayPort }
   }
 
@@ -1231,12 +1373,15 @@ export class OpenClawService extends BaseService {
     if (!this.gatewayAuthToken) {
       this.loadAuthTokenFromConfig()
     }
+
     let url = `http://127.0.0.1:${this.gatewayPort}`
+
     if (this.gatewayAuthToken) {
       // Use query string (not URL fragment) so dashboard app state can persist correctly.
       // Fragment (#...) is often used by SPAs for transient client-side state.
       url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
+
     return url
   }
 
@@ -1249,6 +1394,7 @@ export class OpenClawService extends BaseService {
         const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
         const config = JSON.parse(content) as OpenClawConfig
         const token = config.gateway?.auth?.token
+
         if (token) {
           this.gatewayAuthToken = token
           logger.info('Recovered auth token from config file')
@@ -1278,11 +1424,14 @@ export class OpenClawService extends BaseService {
       if (port !== undefined) {
         this.gatewayPort = port
       }
+
       const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
+
       return await this.syncProviderConfig(provider, primaryModel)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to resolve OpenClaw sync config:', error as Error)
+
       return { success: false, message: errorMessage }
     }
   }
@@ -1292,6 +1441,7 @@ export class OpenClawService extends BaseService {
     uniqueModelId: unknown
   ): Promise<{ provider: OpenClawSyncProvider; primaryModel: OpenClawSyncModel }> {
     const parsed = UniqueModelIdSchema.safeParse(uniqueModelId)
+
     if (!parsed.success) {
       throw new Error('Invalid OpenClaw model selection')
     }
@@ -1303,6 +1453,7 @@ export class OpenClawService extends BaseService {
     const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
+
     if (isNonChatModel(primaryModel)) {
       throw new Error('Selected OpenClaw model must support chat')
     }
@@ -1346,6 +1497,7 @@ export class OpenClawService extends BaseService {
     }
 
     const noKeyPlaceholder = this.getNoKeyPlaceholder(provider)
+
     if (provider.authType === 'api-key' && !noKeyPlaceholder && provider.authOptional !== true) {
       throw new Error(`Provider ${provider.id} has no enabled API key configured`)
     }
@@ -1361,6 +1513,7 @@ export class OpenClawService extends BaseService {
 
   private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {
     const providerKey = provider.presetProviderId ?? provider.id
+
     return (
       NO_KEY_PLACEHOLDERS.get(providerKey) ??
       NO_KEY_PLACEHOLDERS.get(provider.id) ??
@@ -1372,17 +1525,21 @@ export class OpenClawService extends BaseService {
     if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
       return 'openai-response'
     }
+
     if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
       return 'anthropic'
     }
+
     if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
       return 'gemini'
     }
+
     return providerType as Provider['type']
   }
 
   private ensureSyncProviderSupported(provider: DataProvider): void {
     const providerKey = provider.presetProviderId ?? provider.id
+
     if (UNSUPPORTED_SYNC_PROVIDER_IDS.has(providerKey)) {
       throw new Error(`OpenClaw sync does not support ${provider.name} providers yet`)
     }
@@ -1392,6 +1549,7 @@ export class OpenClawService extends BaseService {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
+
     const synced: OpenClawSyncModel = {
       id: model.apiModelId ?? modelId,
       provider: model.providerId,
@@ -1399,31 +1557,43 @@ export class OpenClawService extends BaseService {
       group: model.group ?? '',
       endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0])
     }
+
     if (model.contextWindow) synced.contextWindow = model.contextWindow
+
     if (model.maxOutputTokens) synced.maxTokens = model.maxOutputTokens
+
     if (model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING)) synced.reasoning = true
+
     if (input?.length) synced.input = input
+
     if (cost) synced.cost = cost
+
     return synced
   }
 
   private toOpenClawCost(model: DataModel): OpenClawModelConfig['cost'] | undefined {
     const pricing = model.pricing
+
     if (!pricing) return undefined
     const isUsd = (currency?: string) => currency === undefined || currency === CURRENCY.USD
+
     if (!isUsd(pricing.input.currency) || !isUsd(pricing.output.currency)) return undefined
+
     if (pricing.input.perMillionTokens === null || pricing.output.perMillionTokens === null) return undefined
 
     const cost: NonNullable<OpenClawModelConfig['cost']> = {
       input: pricing.input.perMillionTokens,
       output: pricing.output.perMillionTokens
     }
+
     if (pricing.cacheRead?.perMillionTokens != null && isUsd(pricing.cacheRead.currency)) {
       cost.cacheRead = pricing.cacheRead.perMillionTokens
     }
+
     if (pricing.cacheWrite?.perMillionTokens != null && isUsd(pricing.cacheWrite.currency)) {
       cost.cacheWrite = pricing.cacheWrite.perMillionTokens
     }
+
     if (pricing.inputTokenTiers?.length) {
       const baseRates = {
         input: cost.input,
@@ -1431,6 +1601,7 @@ export class OpenClawService extends BaseService {
         cacheRead: cost.cacheRead ?? cost.input,
         cacheWrite: cost.cacheWrite ?? cost.input
       }
+
       const tieredPricing: NonNullable<NonNullable<OpenClawModelConfig['cost']>['tieredPricing']> = [
         { ...baseRates, range: [0, pricing.inputTokenTiers[0].minInputTokens] }
       ]
@@ -1446,6 +1617,7 @@ export class OpenClawService extends BaseService {
         ) {
           return cost
         }
+
         const nextTier = pricing.inputTokenTiers[index + 1]
         tieredPricing.push({
           input: tier.input.perMillionTokens,
@@ -1455,8 +1627,10 @@ export class OpenClawService extends BaseService {
           range: nextTier ? [tier.minInputTokens, nextTier.minInputTokens] : [tier.minInputTokens]
         })
       }
+
       cost.tieredPricing = tieredPricing
     }
+
     return cost
   }
 
@@ -1464,12 +1638,15 @@ export class OpenClawService extends BaseService {
     if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
       return 'anthropic'
     }
+
     if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
       return 'openai-response'
     }
+
     if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
       return 'gemini'
     }
+
     return 'openai'
   }
 
@@ -1489,6 +1666,7 @@ export class OpenClawService extends BaseService {
           fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
           logger.info('Migrated openclaw.json → openclaw.json.bak')
         }
+
         fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
         logger.info('Migrated openclaw.cherry.json → openclaw.json')
       }
@@ -1497,8 +1675,10 @@ export class OpenClawService extends BaseService {
       // being rebuilt from scratch — silently replacing it would destroy any
       // hand-edited OpenClaw config the user could otherwise repair.
       let config: OpenClawConfig = {}
+
       if (fs.existsSync(openclawConfigPath())) {
         const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
+
         try {
           config = JSON.parse(content)
         } catch {
@@ -1518,6 +1698,7 @@ export class OpenClawService extends BaseService {
       // If multiple API keys are configured (comma-separated), use the first one
       // Some providers like Ollama and LM Studio don't require API keys
       let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
+
       if (isVertexProvider(provider)) {
         try {
           const vertexService = vertexAiService
@@ -1545,18 +1726,22 @@ export class OpenClawService extends BaseService {
       const providerSchemaPath = ['models', 'providers', '*']
       const modelSchemaPath = [...providerSchemaPath, 'models', '[]']
       const providers = config.models?.providers ?? {}
+
       const externalProviders = Object.fromEntries(
         Object.entries(providers).filter(([key]) => !key.startsWith('cherry-'))
       )
+
       const existingProvider = providers[providerKey]
       const existingModelMap = new Map((existingProvider?.models ?? []).map((model) => [model.id, model]))
       config.models = config.models || { mode: 'merge', providers: {} }
       const providerHeaders = (provider as OpenClawSyncProvider).headers
+
       const existingProviderOverrides = pickSchemaSupportedProperties(
         configSchema,
         providerSchemaPath,
         existingProvider
       )
+
       const supportsProviderField = (field: string) => schemaSupportsPath(configSchema, [...providerSchemaPath, field])
       const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
       const supportsTieredPricing = schemaSupportsPath(configSchema, [...modelSchemaPath, 'cost', 'tieredPricing'])
@@ -1570,16 +1755,24 @@ export class OpenClawService extends BaseService {
           const synced = m as OpenClawSyncModel
           const existing = existingModelMap.get(m.id)
           let cost = synced.cost
+
           if (cost && !supportsTieredPricing) {
             cost = { ...cost }
             delete cost.tieredPricing
           }
+
           const defaults: Pick<OpenClawModelConfig, 'maxTokens' | 'reasoning' | 'input' | 'cost' | 'contextWindow'> = {}
+
           if (supportsModelField('maxTokens') && synced.maxTokens !== undefined) defaults.maxTokens = synced.maxTokens
+
           if (supportsModelField('reasoning') && synced.reasoning !== undefined) defaults.reasoning = synced.reasoning
+
           if (supportsModelField('input') && synced.input) defaults.input = synced.input
+
           if (supportsModelField('cost') && cost) defaults.cost = cost
+
           if (supportsModelField('contextWindow')) defaults.contextWindow = synced.contextWindow ?? 128000
+
           return {
             ...defaults,
             ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
@@ -1588,9 +1781,11 @@ export class OpenClawService extends BaseService {
           }
         })
       }
+
       if (supportsProviderField('headers')) {
         const existingHeaders = existingProviderOverrides.headers as Record<string, string> | undefined
         const headers = { ...providerHeaders, ...existingHeaders }
+
         if (Object.keys(headers).length > 0) openclawProvider.headers = headers
       } else {
         delete openclawProvider.headers
@@ -1626,9 +1821,11 @@ export class OpenClawService extends BaseService {
       }
 
       const serialized = JSON.stringify(config, null, 2)
+
       const candidatePath = AbsoluteFilePathSchema.parse(
         path.join(openclawConfigDir(), `openclaw.json.cherry-candidate-${crypto.randomUUID()}`)
       )
+
       try {
         await atomicWriteFile(candidatePath, serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
         await this.assertConfigValid(runtime, candidatePath)
@@ -1641,10 +1838,12 @@ export class OpenClawService extends BaseService {
       }
 
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
+
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to sync provider config:', error as Error)
+
       return { success: false, message: errorMessage }
     }
   }
@@ -1663,22 +1862,26 @@ export class OpenClawService extends BaseService {
       const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/healthz`, {
         signal: AbortSignal.timeout(3000)
       })
+
       if (!response.ok) {
         return { status: 'unhealthy', error: `HTTP ${response.status}: ${response.statusText}` }
       }
 
       const body = await response.text()
       let data: { ok?: boolean; status?: string }
+
       try {
         data = JSON.parse(body) as { ok?: boolean; status?: string }
       } catch {
         const contentType = response.headers.get('content-type')?.split(';', 1)[0] || 'unknown content type'
+
         return { status: 'unhealthy', error: `Invalid JSON from /healthz (${contentType})` }
       }
 
       if (data.ok && data.status === 'live') {
         return { status: 'healthy' }
       }
+
       return { status: 'unhealthy', error: `Gateway not live: ${JSON.stringify(data)}` }
     } catch (error) {
       return { status: 'unhealthy', error: error instanceof Error ? error.message : String(error) }
@@ -1705,6 +1908,7 @@ export class OpenClawService extends BaseService {
     if (isAnthropicEndpointType(model)) {
       return OPENCLAW_API_TYPES.ANTHROPIC
     }
+
     if (model.endpoint_type === 'openai-response') {
       return OPENCLAW_API_TYPES.OPENAI_RESPOSNE
     }
@@ -1731,8 +1935,10 @@ export class OpenClawService extends BaseService {
     if (apiType === OPENCLAW_API_TYPES.ANTHROPIC) {
       // For Anthropic API type, prefer anthropicApiHost if available
       const host = provider.anthropicApiHost || provider.apiHost
+
       return this.formatAnthropicUrl(host)
     }
+
     // For OpenAI-compatible API type
     return this.formatOpenAIUrl(provider)
   }
@@ -1761,6 +1967,7 @@ export class OpenClawService extends BaseService {
     // https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/call-gemini-using-openai-library
     if (isVertexProvider(provider)) {
       const location = provider.location || 'us-central1'
+
       return `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${provider.project}/locations/${location}/endpoints/openapi`
     }
 

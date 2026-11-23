@@ -32,6 +32,7 @@ function responseHeaders(response: Response) {
 
 function parseSize(size: `${number}x${number}` | undefined): { width?: number; height?: number } {
   const match = size?.match(/^(\d+)x(\d+)$/)
+
   return match ? { width: Number(match[1]), height: Number(match[2]) } : {}
 }
 
@@ -51,6 +52,7 @@ export class MinimaxImageModel implements ImageModelV3 {
   async doGenerate(options: ImageModelV3CallOptions): Promise<Awaited<ReturnType<ImageModelV3['doGenerate']>>> {
     const { prompt, n, size, seed, aspectRatio, files, providerOptions, headers, abortSignal } = options
     const bag = providerOptions?.minimax ?? {}
+
     const body: JSONObject = {
       model: this.modelId,
       prompt: prompt ?? '',
@@ -59,7 +61,9 @@ export class MinimaxImageModel implements ImageModelV3 {
     }
 
     if (aspectRatio) body.aspect_ratio = aspectRatio
+
     if (typeof seed === 'number') body.seed = seed
+
     if (files?.length) {
       body.subject_reference = files.map((file) => ({
         type: 'character',
@@ -69,17 +73,20 @@ export class MinimaxImageModel implements ImageModelV3 {
 
     for (const key of ['aigc_watermark', 'prompt_optimizer', 'response_format'] as const) {
       const value = bag[key]
+
       if (value !== undefined && value !== '' && value !== null) body[key] = value
     }
 
     const url = this.config.url({ path: '/image_generation', modelId: this.modelId })
     const fetchFn = this.config.fetch ?? globalThis.fetch
+
     const response = await fetchFn(url, {
       method: 'POST',
       headers: mergeHeaders(this.config.headers(), headers, { 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
       signal: abortSignal
     })
+
     const headersRecord = responseHeaders(response)
     const responseBody = await response.text()
 
@@ -95,6 +102,7 @@ export class MinimaxImageModel implements ImageModelV3 {
     }
 
     let parsed: MinimaxImageResponse
+
     try {
       parsed = JSON.parse(responseBody) as MinimaxImageResponse
     } catch (cause) {

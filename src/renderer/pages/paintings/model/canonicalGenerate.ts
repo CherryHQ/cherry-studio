@@ -13,9 +13,11 @@ import type { PaintingData, PaintingParams } from './types/paintingData'
 function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
   let binary = ''
   const chunkSize = 0x8000
+
   for (let offset = 0; offset < bytes.length; offset += chunkSize) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize))
   }
+
   return `data:${mime || 'image/png'};base64,${btoa(binary)}`
 }
 
@@ -70,11 +72,14 @@ export async function canonicalGenerate<T extends PaintingData>(
   const inputImageFiles = (painting.inputFiles ?? []).filter(
     (entry) => getFileTypeByExt(entry.ext ?? '') === FILE_TYPE.IMAGE
   )
+
   const mode = options.mode ?? (inputImageFiles.length > 0 ? 'edit' : 'generate')
   const maxInputImages = options.support?.modes?.[mode]?.maxInputImages
+
   if (maxInputImages !== undefined && inputImageFiles.length > maxInputImages) {
     throw createPaintingGenerateError('INPUT_IMAGE_LIMIT_EXCEEDED')
   }
+
   // Edit-only modes (anything but the text→image `generate` mode) can't run without an
   // input image. Enforce here — on the authoritative prefetched mode + the real input
   // files — so the model never receives invalid input, independent of transient UI state.
@@ -84,23 +89,28 @@ export async function canonicalGenerate<T extends PaintingData>(
 
   await checkProviderEnabled(provider)
   const modelId = painting.model
+
   if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
 
   const prompt = (painting.prompt ?? '').trim()
+
   const promptRequired =
     typeof options.requirePrompt === 'function' ? options.requirePrompt(painting) : (options.requirePrompt ?? true)
+
   if (promptRequired && !prompt) throw createPaintingGenerateError('PROMPT_REQUIRED')
 
   // 1. Validate / coerce raw form params through the central catalog. Soft-fail:
   //    a bad / legacy value must never break submit, so fall back to raw params.
   const rawParams = { ...painting.params }
   const outputFormat = options.support?.modes?.[mode]?.supports?.outputFormat
+
   // A generation draft can retain GIF after references select a static-only edit adapter.
   if (rawParams.outputFormat === 'gif' && outputFormat?.type === 'enum' && !outputFormat.options.includes('gif')) {
     delete rawParams.outputFormat
     delete rawParams.frameCount
     delete rawParams.frameDurationMs
   }
+
   const validated = buildParamsSchema(options.support, mode).safeParse(rawParams)
   const source: PaintingParams = validated.success ? validated.data : rawParams
 
@@ -108,8 +118,10 @@ export async function canonicalGenerate<T extends PaintingData>(
   //    `splitParamValues` guard — the byte-identical-wire invariant) and the
   //    UI-only `customSize_width`/`customSize_height` companions.
   const paramValues: GeneratePaintingOptions['paramValues'] = {}
+
   for (const [key, value] of Object.entries(source)) {
     if (key === 'customSize_width' || key === 'customSize_height') continue
+
     if (value === undefined || value === '' || value === null) continue
     paramValues[key] = value
   }
@@ -126,6 +138,7 @@ export async function canonicalGenerate<T extends PaintingData>(
   if (paramValues.size === 'custom') {
     const width = source.customSize_width
     const height = source.customSize_height
+
     if (typeof width === 'number' && typeof height === 'number') {
       paramValues.size = `${width}x${height}`
     } else {
@@ -142,6 +155,7 @@ export async function canonicalGenerate<T extends PaintingData>(
           inputImageFiles.map(async (entry) => {
             const onDiskName = `${entry.id}${entry.ext ? `.${entry.ext}` : ''}`
             const { data, mime } = await window.api.file.binaryImage(onDiskName)
+
             return bytesToDataUrl(new Uint8Array(data), mime)
           })
         )

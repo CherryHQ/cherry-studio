@@ -58,6 +58,7 @@ const REGISTRY_DATA_CHANGE_EFFECTS = [
 ] satisfies DataApiDataChangeEffect[]
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
+
 // Short delay before the first check, letting boot I/O settle. registerInterval
 // only fires after one full interval, so the initial pull is scheduled separately.
 const INITIAL_CHECK_DELAY_MS = 30_000
@@ -96,13 +97,17 @@ export class ProviderRegistryUpdaterService extends BaseService {
   public async check(): Promise<void> {
     try {
       const result = await this.fetchAndValidate()
+
       if (!result) return
       const { staged, manifest, manifestBody } = result
       const currentManifest = readActiveOverrideManifest()
+
       if (!this.hasChanges(staged) && (!currentManifest || currentManifest.revision === manifest.revision)) {
         logger.debug('registry update: catalog already current')
+
         return
       }
+
       const files = Object.fromEntries(staged.map((s) => [s.file, s.body])) as Record<RemoteRegistryFileName, string>
       await writeProviderRegistrySnapshot(files, manifestBody)
       notifyDataApiDataChange(REGISTRY_DATA_CHANGE_EFFECTS)
@@ -122,49 +127,66 @@ export class ProviderRegistryUpdaterService extends BaseService {
     manifestBody: string
   } | null> {
     const baseUrl = await resolveRegistryBaseUrl()
+
     const headers = {
       'User-Agent': generateUserAgent(),
       'Cache-Control': 'no-cache',
       Accept: 'application/json'
     }
+
     const fetchText = async (name: string): Promise<string | null> => {
       try {
         const response = await net.fetch(`${baseUrl}/${name}`, { headers })
+
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
         return await response.text()
       } catch (error) {
         logger.warn(`registry update: fetch failed for ${name}, skipping cycle`, error as Error)
+
         return null
       }
     }
 
     const manifestBody = await fetchText(MANIFEST_FILE)
+
     if (manifestBody === null) return null
     const manifest = this.parseManifest(manifestBody)
+
     if (!manifest) return null
+
     if (!isCatalogManifestCompatible(manifest, app.getVersion())) {
       logger.warn('registry update: manifest is not compatible with this application version, skipping')
+
       return null
     }
+
     const activeManifest = readActiveOverrideManifest()
+
     if (activeManifest && manifest.revision <= activeManifest.revision) {
       logger.debug(
         `registry update: remote revision ${manifest.revision} is not newer than active revision ${activeManifest.revision}, skipping`
       )
+
       return null
     }
 
     const staged: StagedFile[] = []
+
     for (const file of REMOTE_REGISTRY_FILES) {
       const body = await fetchText(file)
+
       if (body === null) return null
       let version: string
+
       try {
         version = this.parseVersion(file, body)
       } catch (error) {
         logger.warn(`registry update: ${file} failed validation, keeping current data`, error as Error)
+
         return null
       }
+
       // Bind the set to ONE published snapshot: the manifest records each file's
       // content-hash version. A mismatch means the movable `registry-data` branch
       // advanced mid-fetch and we pulled a cross-commit mixture — abort the cycle.
@@ -172,10 +194,13 @@ export class ProviderRegistryUpdaterService extends BaseService {
         logger.warn(
           `registry update: ${file} digest mismatch (manifest ${manifest.files[file]} vs fetched ${version}) — cross-commit fetch, skipping`
         )
+
         return null
       }
+
       staged.push({ file, body, version })
     }
+
     return { staged, manifest, manifestBody }
   }
 
@@ -184,6 +209,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
       return CatalogManifestSchema.parse(JSON.parse(manifestBody))
     } catch {
       logger.warn('registry update: manifest malformed, skipping')
+
       return null
     }
   }

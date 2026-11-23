@@ -17,12 +17,15 @@ async function runCloudCommand<T>(command: () => Promise<T>): Promise<T> {
     if (error instanceof CherryCloudUpgradeRequiredError) {
       throw new IpcError(cherryCloudErrorCodes.UPGRADE_REQUIRED, error.message)
     }
+
     if (error instanceof CherryCloudLoginUnavailableError) {
       throw new IpcError(cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE, error.message)
     }
+
     if (error instanceof CherryCloudPortalOpenError) {
       throw new IpcError(cherryCloudErrorCodes.PORTAL_OPEN_FAILED, error.message)
     }
+
     throw error
   }
 }
@@ -39,6 +42,7 @@ export const cherryCloudHandlers: IpcHandlersFor<typeof cherryCloudRequestSchema
   'cherry_cloud.account.get': async () => {
     const service = application.get('CherryCloudService')
     await service.getStatus()
+
     return service.getAccountReceipt()
   },
   'cherry_cloud.account.refresh': async (input) => application.get('CherryCloudService').refreshAccount(input),

@@ -19,6 +19,7 @@ export async function withScratch<T>(
   const directory = join(application.getPath('feature.voice.temp'), randomUUID())
   let result!: T
   let failure: VoiceRuntimeError | undefined
+
   try {
     await mkdir(directory, { mode: 0o700 })
     checkAbort(signal)
@@ -26,12 +27,15 @@ export async function withScratch<T>(
   } catch (error) {
     failure = mapFailure(error, signal)
   }
+
   try {
     await rm(directory, { recursive: true, force: true })
   } catch {
     logger.warn('Voice scratch cleanup failed')
     failure = new VoiceCleanupError(failure?.reason)
   }
+
   if (failure) throw failure
+
   return result
 }

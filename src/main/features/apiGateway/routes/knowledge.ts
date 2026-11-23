@@ -39,6 +39,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       const offset = query.offset ?? 0
 
       const { items, total } = knowledgeBaseService.list({ page: 1, limit: offset + limit })
+
       return { knowledge_bases: items.slice(offset, offset + limit), total }
     },
     {
@@ -58,10 +59,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
 
       // Resolve target bases: the requested ids (must exist) or every base.
       let targetBases: { id: string; name: string }[]
+
       if (knowledge_base_ids?.length) {
         const resolved = knowledge_base_ids.map((id) => {
           try {
             const base = knowledgeBaseService.getById(id)
+
             return { id: base.id, name: base.name }
           } catch (error: unknown) {
             // Only a genuine "not found" maps to null (→ filtered out); real
@@ -69,16 +72,20 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
             if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
               return null
             }
+
             throw error
           }
         })
+
         targetBases = resolved.filter((base): base is { id: string; name: string } => base !== null)
+
         if (targetBases.length === 0) {
           throw DataApiErrorFactory.notFound('KnowledgeBase', knowledge_base_ids.join(', '))
         }
       } else {
         const { items } = knowledgeBaseService.list({ page: 1, limit: 1000 })
         targetBases = items.map((base) => ({ id: base.id, name: base.name }))
+
         if (targetBases.length === 0) {
           return {
             query,
@@ -91,10 +98,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       }
 
       const orchestrator = application.get('KnowledgeService')
+
       const resultsPerBase = await Promise.all(
         targetBases.map(async (base) => {
           try {
             const searchResults = await orchestrator.search(base.id, query)
+
             return {
               base,
               results: searchResults.map((result) => ({
@@ -106,6 +115,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
             }
           } catch (error) {
             logger.error(`Error searching knowledge base ${base.id}`, error as Error)
+
             return { base, results: [], error: (error as Error).message }
           }
         })
@@ -126,6 +136,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       const warnings = resultsPerBase
         .filter((r) => r.error)
         .map((r) => `Knowledge base "${r.base.name}" search failed: ${r.error}`)
+
       const sortedResults = resultsPerBase
         .flatMap((r) => r.results)
         .sort((a, b) => b.score - a.score)

@@ -20,8 +20,10 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
   const handleClick = () => {
     if (disabled) {
       onDisabledClick?.()
+
       return
     }
+
     sendMessage()
   }
 
@@ -29,8 +31,10 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
     if (e.key !== 'Enter' && e.key !== ' ') return
 
     e.preventDefault()
+
     if (disabled) {
       onDisabledClick?.()
+
       return
     }
 

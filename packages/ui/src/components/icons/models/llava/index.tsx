@@ -4,6 +4,7 @@ import { LlavaLight } from './light'
 
 const Llava = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LlavaLight {...props} className={className} />
+
   return <LlavaLight {...props} className={className} />
 }
 

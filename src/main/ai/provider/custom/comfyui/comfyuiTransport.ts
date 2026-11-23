@@ -36,6 +36,7 @@ const POLL_INTERVAL_MS = 1500
 const POLL_TIMEOUT_MS = 10 * 60 * 1000
 const IMAGE_TIMEOUT_MS = 60 * 1000
 const CAPABILITY_TIMEOUT_MS = 5000
+
 /** `/object_info` and the `/prompt` submit on an install with many custom nodes. */
 const SUBMIT_TIMEOUT_MS = 60 * 1000
 
@@ -52,7 +53,9 @@ const MIN_TARGETED_INTERRUPT_VERSION = [0, 3, 57] as const
  *  safety gate must fail-closed, not guess. */
 export function parseVersion(v: string): [number, number, number] | null {
   const m = v.match(/^(\d+)\.(\d+)\.(\d+)$/)
+
   if (!m) return null
+
   return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)]
 }
 
@@ -60,8 +63,10 @@ export function parseVersion(v: string): [number, number, number] | null {
 function isAtLeastVersion(a: [number, number, number], b: readonly [number, number, number]): boolean {
   for (let i = 0; i < 3; i++) {
     if (a[i] > b[i]) return true
+
     if (a[i] < b[i]) return false
   }
+
   return true
 }
 
@@ -99,6 +104,7 @@ const CANCEL_QUEUE_TIMEOUT_MS = 5000
 async function describePromptError(response: Response, signal?: AbortSignal): Promise<string> {
   const fallback = t('paintings.comfyui.workflow_rejected', { status: response.status })
   let bodyText = ''
+
   try {
     bodyText = await response.text()
   } catch (error) {
@@ -108,24 +114,32 @@ async function describePromptError(response: Response, signal?: AbortSignal): Pr
       throw createAbortError('Prompt response aborted')
     }
   }
+
   if (!bodyText) return fallback
+
   let payload: {
     error?: { message?: string; details?: string }
     node_errors?: Record<string, { errors?: Array<{ message?: string; details?: string }> }>
   }
+
   try {
     payload = JSON.parse(bodyText)
   } catch {
     return bodyText.slice(0, 300) || fallback
   }
+
   const parts: string[] = []
+
   if (payload?.error?.message) parts.push(payload.error.message)
+
   if (payload?.error?.details) parts.push(payload.error.details)
+
   for (const [nodeId, entry] of Object.entries(payload?.node_errors ?? {})) {
     for (const error of entry?.errors ?? []) {
       parts.push(`node ${nodeId}: ${error.message ?? ''} ${error.details ?? ''}`.trim())
     }
   }
+
   return parts.length > 0 ? parts.join('; ') : fallback
 }
 
@@ -149,6 +163,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const workflowPath = `${WORKFLOW_DIR}/${input.modelId}${WORKFLOW_FILE_EXTENSION}`
     const requestOptions = { headers: this.headers, fetch: this.doFetch }
+
     const [workflow, objectInfo] = await Promise.all([
       // `/userdata/{file}` matches a single path segment, so the separator has to be
       // percent-encoded — `/userdata/workflows/x.json` is a 404, `%2F` is not. The
@@ -173,9 +188,11 @@ class ComfyuiTransport implements ImageGenerationTransport {
     // does per queue; a seed the user typed still wins below.
     const conversion = convertUiWorkflowToPrompt(workflow, objectInfo, { random: Math.random })
     const { prompt: graph, warnings, promotedText } = conversion
+
     for (const warning of warnings) logger.warn(`workflow conversion: ${warning}`)
 
     const target = findPromptTarget(graph, { promotedText, objectInfo })
+
     // A workflow that holds no text at all — an upscaler, a background remover,
     // a depth estimator — takes no prompt and runs as it was saved. One that
     // holds text we could not place is still an error: generating with the
@@ -185,6 +202,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
         message: t('paintings.comfyui.no_prompt_node', { workflow: input.modelId })
       })
     }
+
     if (target) {
       graph[target.nodeId].inputs[target.input] = input.prompt ?? ''
       applySeed(graph, input.seed, target.samplerId)
@@ -195,8 +213,10 @@ class ComfyuiTransport implements ImageGenerationTransport {
     }
 
     const loadImageNodes = Object.values(graph).filter((node) => node.class_type === 'LoadImage')
+
     for (const [index, file] of (input.files ?? []).entries()) {
       const image = await this.uploadImage(file, input.signal)
+
       if (loadImageNodes[index]) loadImageNodes[index].inputs.image = image
     }
 
@@ -205,6 +225,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
     // `prompt_id` that is not a canonical UUID before it queues anything.
     const requestedPromptId = randomUUID()
     let promptId: string | undefined
+
     try {
       promptId = await this.withDeadline(
         input.signal,
@@ -223,12 +244,15 @@ class ComfyuiTransport implements ImageGenerationTransport {
             }),
             signal: deadlineSignal
           })
+
           if (!response.ok) {
             throw createPaintingGenerateError('REMOTE_ERROR', {
               message: await describePromptError(response, input.signal)
             })
           }
+
           const { prompt_id } = (await response.json()) as { prompt_id?: string }
+
           return prompt_id
         }
       )
@@ -240,9 +264,11 @@ class ComfyuiTransport implements ImageGenerationTransport {
       void this.cancel(requestedPromptId).catch(() => undefined)
       throw error
     }
+
     if (!promptId) {
       throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_prompt_id') })
     }
+
     return { taskId: promptId }
   }
 
@@ -270,21 +296,26 @@ class ComfyuiTransport implements ImageGenerationTransport {
         const headers = Object.fromEntries(
           Object.entries(this.headers).filter(([name]) => name.toLowerCase() !== 'content-type')
         )
+
         const response = await this.doFetch(`${this.baseURL}/upload/image`, {
           method: 'POST',
           headers,
           body: formData,
           signal: deadlineSignal
         })
+
         if (!response.ok) {
           throw createPaintingGenerateError('REMOTE_ERROR', {
             message: await readErrorMessage(response, t('paintings.comfyui.request_failed'))
           })
         }
+
         const result = (await response.json()) as { name?: unknown; subfolder?: unknown }
+
         if (typeof result.name !== 'string' || result.name.length === 0) {
           throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.request_failed') })
         }
+
         return typeof result.subfolder === 'string' && result.subfolder.length > 0
           ? `${result.subfolder}/${result.name}`
           : result.name
@@ -302,6 +333,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
   ): Promise<string[]> {
     const deadline = Date.now() + POLL_TIMEOUT_MS
     let ticks = 0
+
     while (Date.now() < deadline) {
       // Every cancellation path exits as the repo's AbortError convention
       // (`error.name === 'AbortError'`): the pre-flight check, an abort raised
@@ -309,9 +341,11 @@ class ComfyuiTransport implements ImageGenerationTransport {
       // the response. Otherwise a user cancel is rethrown from the generic
       // catch below as a failed generation.
       if (options.signal?.aborted) throw createAbortError('Task polling aborted')
+
       try {
         const history = await this.fetchHistory(taskId, options.signal, deadline - Date.now())
         const entry = history[taskId]
+
         // A failed run can still carry the outputs of the nodes that finished
         // before it: the error status is the answer, whatever sits beside it.
         if (entry?.status?.status_str === 'error') {
@@ -320,17 +354,21 @@ class ComfyuiTransport implements ImageGenerationTransport {
               `${t('paintings.comfyui.workflow_failed')} ${JSON.stringify(entry.status.messages ?? {}).slice(0, 500)}`.trim()
           })
         }
+
         if (entry?.outputs && Object.keys(entry.outputs).length > 0) {
           const images = Object.values(entry.outputs).flatMap((output) => output.images ?? [])
+
           if (images.length === 0) {
             throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_image') })
           }
+
           return await Promise.all(images.map((image) => this.fetchImage(image, options.signal)))
         }
       } catch (error) {
         if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
           throw createAbortError('Task polling aborted')
         }
+
         // Structured failures (workflow error, no image, a terminal 4xx history
         // response, or the history read hanging past the deadline) end the poll
         // loop; anything else — a network blip, a 5xx or a 429 on the history
@@ -344,10 +382,12 @@ class ComfyuiTransport implements ImageGenerationTransport {
           throw error
         }
       }
+
       ticks += 1
       options.onProgress?.(Math.min(0.9, ticks * 0.05))
       await waitWithSignal(POLL_INTERVAL_MS, options.signal)
     }
+
     // A generation the caller has stopped waiting for is work the server does
     // not have to finish: this is the same best-effort cancel a user gets when
     // they press Cancel, and it is not awaited — the timeout is the answer, and
@@ -390,6 +430,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
               headers: this.headers,
               signal: deadlineSignal
             })
+
             if (!response.ok) {
               // A non-OK probe is transient in practice — the server may be
               // starting up or restarting — so it is not cached either: caching
@@ -397,11 +438,14 @@ class ComfyuiTransport implements ImageGenerationTransport {
               // transport's life.
               throw new Error(`ComfyUI /system_stats answered ${response.status}`)
             }
+
             const stats = (await response.json()) as JSONObject
             const verStr = (stats.system as JSONObject)?.comfyui_version as string | undefined
+
             if (!verStr) return { targetedInterrupt: false }
 
             const ver = parseVersion(verStr)
+
             return {
               targetedInterrupt: ver ? isAtLeastVersion(ver, MIN_TARGETED_INTERRUPT_VERSION) : false
             }
@@ -411,6 +455,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
         // Any failure — timeout, network error, JSON parse — is NOT cached.
         // Clear so the next cancel() retries instead of reusing a stale false.
         this.capabilitiesPromise = undefined
+
         return { targetedInterrupt: false }
       }
     })()
@@ -450,6 +495,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
     // pre-0.3.57 server `/interrupt` ignores `prompt_id` and stops whatever is
     // running, so it is never sent there.
     const caps = await this.getCancelCapabilities()
+
     if (caps.targetedInterrupt) {
       writes.push(this.cancelWrite(`${this.baseURL}/interrupt`, { prompt_id: taskId }, headers))
     } else {
@@ -502,15 +548,20 @@ class ComfyuiTransport implements ImageGenerationTransport {
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), CANCEL_QUEUE_TIMEOUT_MS)
+
       try {
         const response = await this.doFetch(`${this.baseURL}/queue`, {
           headers: this.headers,
           signal: controller.signal
         })
+
         if (!response.ok) return 'none'
         const queue = (await response.json()) as { queue_running?: unknown[][]; queue_pending?: unknown[][] }
+
         if (queue.queue_running?.some((item) => item[1] === taskId)) return 'running'
+
         if (queue.queue_pending?.some((item) => item[1] === taskId)) return 'pending'
+
         return 'none'
       } finally {
         clearTimeout(timer)
@@ -558,14 +609,18 @@ class ComfyuiTransport implements ImageGenerationTransport {
           headers: this.headers,
           signal: deadlineSignal
         })
+
         if (!response.ok) {
           const message = await readErrorMessage(response, t('paintings.comfyui.request_failed'))
+
           if (isTerminalHttpStatus(response.status)) {
             throw createPaintingGenerateError('REMOTE_ERROR', { message })
           }
+
           // A plain error, not a structured one: the poll loop retries it.
           throw new Error(message)
         }
+
         return (await response.json()) as Record<string, HistoryEntry>
       }
     )
@@ -581,6 +636,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
       subfolder: image.subfolder ?? '',
       type: image.type ?? 'output'
     })
+
     try {
       // One budget covers the headers, the error body and the image bytes: the
       // deadline aborts the read, so a `/view` that answers and then stalls
@@ -594,13 +650,16 @@ class ComfyuiTransport implements ImageGenerationTransport {
             headers: this.headers,
             signal: deadlineSignal
           })
+
           if (!response.ok) {
             throw createPaintingGenerateError('REMOTE_ERROR', {
               message: await readErrorMessage(response, t('paintings.comfyui.image_fetch_failed'))
             })
           }
+
           const buffer = Buffer.from(await response.arrayBuffer())
           const contentType = response.headers.get('content-type') || 'image/png'
+
           return `data:${contentType};base64,${buffer.toString('base64')}`
         }
       )
@@ -611,6 +670,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
       if (signal?.aborted && error instanceof Error && error.name === 'AbortError') {
         throw createAbortError('Task polling aborted')
       }
+
       throw error
     }
   }

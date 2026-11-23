@@ -47,11 +47,13 @@ export function useSessionMenuPreset<TItem>({
     }),
     [getActionContext]
   )
+
   const getActions = useCallback(
     (item: TItem, contextOverride?: SessionMenuActionContextOverride) =>
       getSessionMenuActions(getActionContextWithOverride(item, contextOverride)) as ResolvedAction[],
     [getActionContextWithOverride]
   )
+
   const onAction = useCallback(
     async (item: TItem, action: ResolvedAction, contextOverride?: SessionMenuActionContextOverride) => {
       await runSessionMenuAction(action, getActionContextWithOverride(item, contextOverride))
@@ -64,6 +66,7 @@ export function useSessionMenuPreset<TItem>({
 
 export function useSessionMenuActions(actionContext: SessionActionContext) {
   const getActions = useCallback(() => getSessionMenuActions(actionContext), [actionContext])
+
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<SessionActionContext>) => {
       await runSessionMenuAction(action, actionContext)

@@ -99,14 +99,18 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   // Keep the last opened model around so `PageSidePanel`'s exit animation has stable content
   // after the parent clears its `editingModel` selection on close.
   const previousModelRef = useRef<Model | null>(modelProp)
+
   if (modelProp) {
     previousModelRef.current = modelProp
   }
+
   const model = modelProp ?? previousModelRef.current
   const [defaultEffort, setDefaultEffort] = useState<Model['userDefaultReasoningEffort']>()
+
   const effortOptions = (model?.reasoning?.selectableEfforts ?? []).filter(
     (effort) => effort !== 'none' && effort !== 'auto'
   )
+
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
@@ -184,14 +188,17 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextClassification = overrides?.classification
       const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
       const effectiveClassification = nextClassification ?? classification
+
       const classifiedCapabilities =
         shouldApplyPurpose || nextClassification
           ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
           : undefined
+
       const classifiedInputModalities =
         shouldApplyPurpose || nextClassification
           ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
           : undefined
+
       const resolvedPurposeFields =
         shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
           ? applyModelPurpose(
@@ -209,14 +216,17 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           : null
 
       const patch: UpdateModelDto = {}
+
       if (overrides?.reasoning) patch.reasoning = overrides.reasoning
       patch.name = nextName || model.name
       patch.group = nextGroup || model.group
+
       if (hasPurposeFieldsOverride && resolvedPurposeFields) {
         patch.endpointTypes = [...resolvedPurposeFields.endpointTypes]
       } else if (hasEndpointTypesOverride) {
         patch.endpointTypes = mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
       }
+
       if (resolvedPurposeFields) {
         patch.capabilities = resolvedPurposeFields.capabilities
         patch.inputModalities = resolvedPurposeFields.inputModalities
@@ -224,13 +234,19 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         patch.capabilities = classifiedCapabilities
         patch.inputModalities = classifiedInputModalities
       }
+
       if (hasPurposeFieldsOverride && resolvedPurposeFields)
         patch.outputModalities = resolvedPurposeFields.outputModalities
       patch.supportsStreaming = overrides?.supportsStreaming ?? supportsStreaming
+
       if (hasContextWindowOverride && nextContextWindow !== undefined) patch.contextWindow = nextContextWindow
+
       if (hasMaxInputTokensOverride && nextMaxInputTokens !== undefined) patch.maxInputTokens = nextMaxInputTokens
+
       if (hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined) patch.maxOutputTokens = nextMaxOutputTokens
+
       if (hasPricingOverride) patch.pricing = overrides.pricing
+
       return patch
     },
     [
@@ -254,6 +270,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     }
 
     autoSaveRunningRef.current = true
+
     try {
       while (autoSavePendingItemsRef.current.size > 0) {
         const [key, item] = autoSavePendingItemsRef.current.entries().next().value!
@@ -277,11 +294,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       }
 
       const { modelId } = parseUniqueModelId(model.id)
+
       const item: AutoSaveQueueItem = {
         providerId: model.providerId ?? providerId,
         modelId,
         patch: buildPatch(overrides)
       }
+
       const queueKey = `${item.providerId}/${item.modelId}`
       const pendingItem = autoSavePendingItemsRef.current.get(queueKey)
       autoSavePendingItemsRef.current.set(
@@ -319,11 +338,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const handleToggleCapability = useCallback(
     (capability: ModelCapabilityToggle) => {
       const capabilities = new Set(classification.capabilities)
+
       if (capabilities.has(capability)) {
         capabilities.delete(capability)
       } else {
         capabilities.add(capability)
       }
+
       commitClassification({ ...classification, capabilities })
     },
     [classification, commitClassification]
@@ -332,11 +353,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const handleToggleInputModality = useCallback(
     (modality: ModelInputModality) => {
       const inputModalities = new Set(classification.inputModalities)
+
       if (inputModalities.has(modality)) {
         inputModalities.delete(modality)
       } else {
         inputModalities.add(modality)
       }
+
       commitClassification({ ...classification, inputModalities })
     },
     [classification, commitClassification]
@@ -348,6 +371,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       capabilities: new Set(savedClassification.capabilities),
       inputModalities: new Set(savedClassification.inputModalities)
     }
+
     setClassification(nextClassification)
     autoSave({ classification: nextClassification })
   }, [autoSave, savedClassification])
@@ -417,6 +441,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     previousPurpose: modelPurpose,
                     chatEndpointType
                   })
+
                   const nextClassification = {
                     ...classification,
                     primaryType:
@@ -426,6 +451,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                           : classification.primaryType
                         : ('image' as const)
                   }
+
                   setPurposeFields(nextPurposeFields)
                   setEndpointTypes(nextPurposeFields.endpointTypes)
                   setClassification(nextClassification)
@@ -436,6 +462,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     previousPurpose: modelPurpose,
                     chatEndpointType: nextEndpointType
                   })
+
                   setPurposeFields(nextPurposeFields)
                   setEndpointTypes(nextPurposeFields.endpointTypes)
                   autoSave({ purposeFields: nextPurposeFields })
@@ -498,6 +525,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     value={defaultEffort}
                     onValueChange={(value) => {
                       const effort = effortOptions.find((effort) => effort === value)
+
                       if (!effort) return
                       setDefaultEffort(effort)
                       autoSave({ reasoning: { defaultEffort: effort } })

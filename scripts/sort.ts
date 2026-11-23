@@ -1,4 +1,5 @@
 type CatalogValue = string | number | boolean | null | undefined | CatalogValue[] | Catalog
+
 type Catalog = { [key: string]: CatalogValue }
 
 // https://github.com/Gudahtt/prettier-plugin-sort-json/blob/main/src/index.ts
@@ -14,9 +15,11 @@ function lexicalSort(a: string, b: string): number {
   if (a > b) {
     return 1
   }
+
   if (a < b) {
     return -1
   }
+
   return 0
 }
 
@@ -32,6 +35,7 @@ export function sortedObjectByKeys(obj: Catalog): Catalog {
       .sort(lexicalSort)
       .map((key): [string, CatalogValue] => {
         const value = obj[key]
+
         return [
           key,
           typeof value === 'object' && value !== null && !Array.isArray(value) ? sortedObjectByKeys(value) : value

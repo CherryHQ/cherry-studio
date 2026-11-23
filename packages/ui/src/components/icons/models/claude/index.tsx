@@ -4,6 +4,7 @@ import { ClaudeLight } from './light'
 
 const Claude = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ClaudeLight {...props} className={className} />
+
   return <ClaudeLight {...props} className={className} />
 }
 

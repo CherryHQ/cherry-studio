@@ -68,6 +68,7 @@ export interface ProxyInUse {
 }
 
 export const NETWORK_ENDPOINT_IDS = ['update', 'registry', 'cloud', 'diagnostics'] as const
+
 export type NetworkEndpointId = (typeof NETWORK_ENDPOINT_IDS)[number]
 
 /** Built-in ids plus ad-hoc targets (a provider's API host, a user-supplied URL). */

@@ -15,8 +15,10 @@ import { createHash } from 'node:crypto'
 
 /** Identical-output runs at which the next identical call is allowed with a soft warning. */
 export const BASH_NO_PROGRESS_THRESHOLD = 3
+
 /** Identical-output runs at which the next identical call is denied outright. */
 export const BASH_NO_PROGRESS_HARD_THRESHOLD = 5
+
 /** Per-session ring size; only the tail matters, so old entries are dropped. */
 export const BASH_HISTORY_LIMIT = 16
 
@@ -49,6 +51,7 @@ export function normalizeBashCommand(command: string): string {
 export function fingerprintBashOutput(output: unknown, failed: boolean): string {
   const text = typeof output === 'string' ? output : (JSON.stringify(output) ?? '')
   const hash = createHash('sha256').update(text).digest('hex').slice(0, 16)
+
   return `${failed ? 'err' : 'ok'}:${hash}`
 }
 
@@ -58,17 +61,22 @@ export function fingerprintBashOutput(output: unknown, failed: boolean): string 
  */
 export function bashNoProgressRunLength(history: readonly BashOutcome[], command: string): number | undefined {
   const normalized = normalizeBashCommand(command)
+
   if (!normalized) return undefined
 
   let run = 0
   let fingerprint: string | undefined
+
   for (let i = history.length - 1; i >= 0; i--) {
     const entry = history[i]
+
     if (entry.command !== normalized) break
     fingerprint ??= entry.fingerprint
+
     // An older differing fingerprint ends the trailing run; it does not abort the scan.
     if (entry.fingerprint !== fingerprint) break
     run++
   }
+
   return run >= BASH_NO_PROGRESS_THRESHOLD ? run : undefined
 }

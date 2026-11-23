@@ -22,6 +22,7 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
     isResultPart: isAgentNavigateResultPart,
     renderResult: (toolResponse) => {
       const result = getAgentNavigateResult(toolResponse)
+
       return result ? <NavigateToolInline input={result.input} output={result.output} /> : undefined
     }
   },
@@ -29,6 +30,7 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
     isResultPart: isPrepareDiagnosticReportResultPart,
     renderResult: (toolResponse) => {
       const result = getPrepareDiagnosticReportResult(toolResponse)
+
       return result ? <PrepareDiagnosticReportTool result={result} /> : undefined
     }
   },
@@ -36,6 +38,7 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
     isResultPart: isCreateAgentResultPart,
     renderResult: (toolResponse) => {
       const result = getCreateAgentResult(toolResponse)
+
       return result ? <CreateAgentToolInline result={result} /> : undefined
     }
   },
@@ -43,6 +46,7 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
     isResultPart: isScheduledTaskResultPart,
     renderResult: (toolResponse) => {
       const result = getScheduledTaskResult(toolResponse)
+
       return result ? <ScheduledTaskToolInline result={result} /> : undefined
     }
   }
@@ -55,8 +59,10 @@ export const agentInlineResultPresentationRegistry = {
   renderResult(toolResponse: McpToolResponse | NormalToolResponse): ReactElement | undefined {
     for (const presentation of AGENT_INLINE_RESULT_PRESENTATIONS) {
       const result = presentation.renderResult(toolResponse)
+
       if (result) return result
     }
+
     return undefined
   }
 }

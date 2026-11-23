@@ -49,10 +49,13 @@ export type CherryMeta = Partial<
     | 'reasoning'
   >
 >
+
 type Caps = NonNullable<CherryMeta['capabilities']>[number]
+
 type Effort = NonNullable<NonNullable<CherryMeta['reasoning']>['supportedEfforts']>[number]
 
 const usd = (n?: number) => (n == null ? undefined : { currency: 'USD' as const, perMillionTokens: n })
+
 const dropUndef = <T extends Record<string, unknown>>(o: T): T =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T
 
@@ -92,20 +95,32 @@ const MdEntry = z
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Cached or fetched models.dev entries pass only a container schema upstream; MdEntry validates each model and skips malformed entries.
 export function parseMdEntry(raw: unknown): CherryMeta | null {
   const p = MdEntry.safeParse(raw)
+
   if (!p.success) return null
   const m = p.data
   const caps = new Set<Caps>()
+
   if (m.tool_call) caps.add('function-call')
+
   if (m.reasoning) caps.add('reasoning')
+
   if (m.structured_output) caps.add('structured-output')
+
   if (m.attachment) caps.add('file-input')
+
   const inp = m.modalities?.input ?? [],
     out = m.modalities?.output ?? []
+
   if (inp.includes('image')) caps.add('image-recognition')
+
   if (inp.includes('audio')) caps.add('audio-recognition')
+
   if (inp.includes('video')) caps.add('video-recognition')
+
   if (out.includes('image')) caps.add('image-generation')
+
   if (out.includes('audio')) caps.add('audio-generation')
+
   if (out.includes('video')) caps.add('video-generation')
 
   // Lossless controls declaration (the source of truth); the legacy pair
@@ -113,9 +128,11 @@ export function parseMdEntry(raw: unknown): CherryMeta | null {
   // buildModels normalization pass via deriveLegacyReasoningFields.
   const reasoning: NonNullable<CherryMeta['reasoning']> = {}
   const controls: NonNullable<NonNullable<CherryMeta['reasoning']>['controls']> = []
+
   for (const op of m.reasoning && m.reasoning_options ? m.reasoning_options : []) {
     if (op.type === 'effort' && op.values) {
       const values = op.values.filter((v): v is Effort => VALID_EFFORTS.has(v))
+
       if (values.length) controls.push({ kind: 'effort', values })
     } else if (
       op.type === 'budget_tokens' &&
@@ -130,7 +147,9 @@ export function parseMdEntry(raw: unknown): CherryMeta | null {
       controls.push({ kind: 'toggle' })
     }
   }
+
   if (controls.length) reasoning.controls = controls
+
   const pricing =
     m.cost?.input != null && m.cost?.output != null
       ? dropUndef({
@@ -181,20 +200,24 @@ const OrEntry = z
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- OpenRouter's loaded catalog validates identity only; OrEntry validates the raw reasoning descriptor before deriving endpoint controls.
 export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null {
   const parsed = OrEntry.safeParse(raw)
+
   if (!parsed.success || !parsed.data.reasoning) return null
 
   const descriptor = parsed.data.reasoning
+
   const hasPublishedCapability =
     descriptor.supported_efforts !== undefined ||
     descriptor.default_effort !== undefined ||
     descriptor.default_enabled !== undefined ||
     descriptor.supports_max_tokens !== undefined ||
     descriptor.mandatory !== undefined
+
   if (!hasPublishedCapability) return null
 
   const efforts = (descriptor.supported_efforts ?? []).filter((value): value is Effort => VALID_EFFORTS.has(value))
   const selectableEfforts = descriptor.mandatory ? efforts.filter((value) => value !== 'none') : efforts
   const controls: NonNullable<ReasoningSupport['controls']> = []
+
   const defaultEffort = VALID_EFFORTS.has(descriptor.default_effort ?? '')
     ? (descriptor.default_effort as Effort)
     : undefined
@@ -204,11 +227,14 @@ export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null 
       kind: 'effort',
       values: selectableEfforts
     }
+
     if (defaultEffort && selectableEfforts.includes(defaultEffort)) control.default = defaultEffort
     controls.push(control)
   }
+
   if (!descriptor.mandatory) {
     const control: Extract<NonNullable<ReasoningSupport['controls']>[number], { kind: 'toggle' }> = { kind: 'toggle' }
+
     if (descriptor.default_enabled !== undefined) control.default = descriptor.default_enabled
     controls.push(control)
   }
@@ -222,6 +248,7 @@ export function mergeOpenRouterReasoningContracts(
   handwritten: ProviderModelOverride['reasoningContracts']
 ): NonNullable<ProviderModelOverride['reasoningContracts']> {
   const endpoint = 'openai-chat-completions'
+
   return {
     ...handwritten,
     [endpoint]: {
@@ -234,20 +261,31 @@ export function mergeOpenRouterReasoningContracts(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- OpenRouter text/image catalogs contain unvalidated model metadata; OrEntry checks each entry before mapping capabilities and pricing.
 export function parseOrEntry(raw: unknown): CherryMeta | null {
   const p = OrEntry.safeParse(raw)
+
   if (!p.success) return null
   const m = p.data
   const caps = new Set<Caps>()
   const sp = Array.isArray(m.supported_parameters) ? m.supported_parameters : []
+
   if (sp.includes('tools')) caps.add('function-call')
+
   if (sp.includes('reasoning')) caps.add('reasoning')
+
   if (sp.includes('structured_outputs') || sp.includes('response_format')) caps.add('structured-output')
+
   const inp = m.architecture?.input_modalities ?? [],
     out = m.architecture?.output_modalities ?? []
+
   if (inp.includes('image')) caps.add('image-recognition')
+
   if (inp.includes('audio')) caps.add('audio-recognition')
+
   if (inp.includes('video')) caps.add('video-recognition')
+
   if (inp.includes('file')) caps.add('file-input')
+
   if (out.includes('image')) caps.add('image-generation')
+
   if (out.includes('audio')) caps.add('audio-generation')
 
   return dropUndef({
@@ -283,7 +321,9 @@ type OrParamDescriptor = z.infer<typeof OrParamDescriptor>
 
 function toSupportSpec(key: keyof typeof OR_IMAGE_PARAM_KEYS, descriptor: OrParamDescriptor): SupportSpec {
   if (descriptor.type === 'enum') return { type: 'enum', options: descriptor.values }
+
   if (descriptor.type === 'range') return { type: 'range', min: descriptor.min, max: descriptor.max, step: 1 }
+
   // OpenRouter uses a boolean descriptor to mean that an otherwise scalar parameter is supported
   // (currently `seed`), not that the request value itself is boolean. A text field preserves the
   // unbounded integer input; imageParamsSchema performs the integer coercion at the IPC boundary.
@@ -294,37 +334,46 @@ function toSupportSpec(key: keyof typeof OR_IMAGE_PARAM_KEYS, descriptor: OrPara
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- OpenRouter image entries contain raw supported_parameters; OrEntry and OrParamDescriptor validate the envelope and each advertised control.
 export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | null {
   const p = OrEntry.safeParse(raw)
+
   if (!p.success || Array.isArray(p.data.supported_parameters) || !p.data.supported_parameters) return null
 
   const supports: NonNullable<ImageGenerationSupport['modes']['generate']>['supports'] = {}
+
   for (const [wireKey, canonicalKey] of Object.entries(OR_IMAGE_PARAM_KEYS)) {
     const parsed = OrParamDescriptor.safeParse(p.data.supported_parameters[wireKey])
+
     if (parsed.success) supports[canonicalKey] = toSupportSpec(wireKey as keyof typeof OR_IMAGE_PARAM_KEYS, parsed.data)
   }
+
   // OpenRouter rejects output_compression unless output_format is explicitly jpeg/webp. Some
   // OpenAI image entries currently advertise compression without advertising output_format; exposing
   // that orphaned slider makes its default `0` produce an invalid request, so omit the unusable knob.
   const outputFormat = supports.outputFormat
+
   if (
     supports.outputCompression &&
     (outputFormat?.type !== 'enum' || !outputFormat.options.some((value) => value === 'jpeg' || value === 'webp'))
   ) {
     delete supports.outputCompression
   }
+
   // Transparent output requires an alpha-capable format. If a model explicitly limits output to
   // non-alpha formats, do not expose an option that OpenRouter will reject when both are selected.
   const background = supports.background
+
   if (
     background?.type === 'enum' &&
     outputFormat?.type === 'enum' &&
     !outputFormat.options.some((value) => value === 'png' || value === 'webp')
   ) {
     const options = background.options.filter((value) => value !== 'transparent')
+
     if (options.length) supports.background = { ...background, options }
     else delete supports.background
   }
 
   const inputReferences = OrParamDescriptor.safeParse(p.data.supported_parameters.input_references)
+
   const maxInputImages =
     inputReferences.success &&
     inputReferences.data.type === 'range' &&
@@ -334,7 +383,9 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
       : undefined
 
   const modes: NonNullable<ImageGenerationSupport['modes']> = { generate: { supports } }
+
   if (maxInputImages !== undefined) modes.edit = { supports, maxInputImages }
+
   return { modes }
 }
 
@@ -346,25 +397,37 @@ const uniqOrdered = (arr: string[]) => [
 
 export function mergeMeta(a: CherryMeta, b: CherryMeta): CherryMeta {
   const out: CherryMeta = { ...a }
+
   if (b.capabilities)
     out.capabilities = uniqOrdered([...new Set([...(a.capabilities ?? []), ...b.capabilities])]) as Caps[]
+
   for (const k of ['inputModalities', 'outputModalities'] as const)
     if (b[k]?.length) out[k] = [...new Set([...(a[k] ?? []), ...b[k]])]
+
   if (b.contextWindow) out.contextWindow = Math.max(a.contextWindow ?? 0, b.contextWindow)
+
   if (b.maxOutputTokens) out.maxOutputTokens = Math.max(a.maxOutputTokens ?? 0, b.maxOutputTokens)
+
   // Per-field union — never overwrite wholesale (a `{cacheRead}`-only source must not drop a's input/output).
   // `a` (the earlier/curated source) wins per-field conflicts; `b` only fills fields `a` is missing.
   if (b.pricing) out.pricing = { ...b.pricing, ...a.pricing }
+
   if (b.reasoning) {
     out.reasoning = { ...b.reasoning, ...a.reasoning }
     const controls = mergeReasoningControls(a.reasoning?.controls, b.reasoning.controls)
+
     if (controls.length) out.reasoning.controls = controls
     const efforts = a.reasoning?.supportedEfforts ?? b.reasoning.supportedEfforts
+
     if (efforts?.length) out.reasoning.supportedEfforts = efforts
   }
+
   if (b.openWeights) out.openWeights = true
+
   if (b.family && !a.family) out.family = b.family
+
   if (b.name && !a.name) out.name = b.name
+
   return out
 }
 
@@ -377,13 +440,18 @@ type Controls = NonNullable<NonNullable<CherryMeta['reasoning']>['controls']>
 function mergeReasoningControls(a: Controls | undefined, b: Controls | undefined): Controls {
   const pick = <K extends Controls[number]['kind']>(list: Controls | undefined, kind: K) =>
     list?.find((c): c is Extract<Controls[number], { kind: K }> => c.kind === kind)
+
   const out: Controls = []
   const [ea, eb] = [pick(a, 'effort'), pick(b, 'effort')]
+
   if (ea || eb) out.push(ea ?? eb!)
   const [ba, bb] = [pick(a, 'budget'), pick(b, 'budget')]
+
   if (ba || bb) out.push(ba ?? bb!)
   const toggle = pick(a, 'toggle') ?? pick(b, 'toggle')
+
   if (toggle) out.push(toggle)
+
   return out
 }
 
@@ -392,8 +460,10 @@ export function finalizeMeta(m: CherryMeta): CherryMeta {
   if (m.contextWindow && m.maxOutputTokens && m.maxOutputTokens > m.contextWindow) {
     // oxlint-disable-next-line no-unused-vars
     const { maxOutputTokens, ...rest } = m
+
     return rest
   }
+
   return m
 }
 
@@ -407,10 +477,12 @@ export const ModelsDevApiSchema = z.record(
   z.string(),
   z.object({ models: z.record(z.string(), z.unknown()).optional() }).loose()
 )
+
 export type ModelsDevApi = z.infer<typeof ModelsDevApiSchema>
 
 /** OpenRouter `/api/v1/models`: `{ data: [{ id, … }] }`. */
 export const OpenRouterApiSchema = z
   .object({ data: z.array(z.object({ id: z.string(), name: z.string().optional() }).loose()).optional() })
   .loose()
+
 export type OpenRouterApi = z.infer<typeof OpenRouterApiSchema>

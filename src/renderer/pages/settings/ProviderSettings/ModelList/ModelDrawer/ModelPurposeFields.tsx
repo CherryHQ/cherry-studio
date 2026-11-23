@@ -76,6 +76,7 @@ export function ModelPurposeFields({
         {PURPOSES.map((option) => {
           const optionId = `${uid}-${option}`
           const label = PURPOSE_LABEL_KEYS[option]
+
           return (
             <Label
               key={option}

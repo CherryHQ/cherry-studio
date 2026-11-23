@@ -9,15 +9,19 @@ import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/compone
 import { ipcApi } from '@renderer/ipc'
 
 const logger = loggerService.withContext('ErrorBoundary')
+
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
   const { t } = useTranslation()
   const { error } = props
+
   const debug = async () => {
     await ipcApi.request('system.toggle_dev_tools')
   }
+
   const reload = async () => {
     await ipcApi.request('window.main.reload')
   }
+
   return (
     <div className="flex min-w-0 w-full justify-center overflow-auto p-3">
       <Alert className="min-w-0 max-w-xl bg-background-subtle text-foreground shadow-none" showIcon type="error">
@@ -56,6 +60,7 @@ const ErrorBoundaryCustomized = ({
     })
     onError?.(error, info)
   }
+
   return (
     <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback} onError={handleError}>
       {children}

@@ -41,19 +41,24 @@ const renderTextContent = (content: ReactNode) =>
 
 const getOptionSearchText = (label: ReactNode, value: TranslateSourceLanguage) => {
   if (typeof label === 'string') return label
+
   if (typeof label === 'number') return String(label)
+
   return value
 }
 
 const toComboboxSize = (size?: Props['size']) => {
   if (size === 'small') return 'sm'
+
   if (size === 'large') return 'lg'
+
   return 'default'
 }
 
 const LanguageSelect = (props: Props) => {
   const { languages, getLabel } = useLanguages()
   const { t } = useTranslation()
+
   const {
     className,
     defaultValue,
@@ -103,6 +108,7 @@ const LanguageSelect = (props: Props) => {
 
     const before = extraOptionsBefore ?? []
     const after = extraOptionsAfter ?? []
+
     const languageOptions = languages.map((lang) => {
       const content = languageRenderer ? languageRenderer(lang) : defaultLanguageRenderer(lang)
       const label = getLabel(lang, false) ?? lang.value
@@ -137,6 +143,7 @@ const LanguageSelect = (props: Props) => {
   const renderValue = useCallback(
     (selectedValue: string | string[], options: ComboboxOption[]) => {
       const currentValue = Array.isArray(selectedValue) ? selectedValue[0] : selectedValue
+
       const selectedOption = options.find((option) => option.value === currentValue) as
         | LanguageComboboxOption
         | undefined
@@ -153,6 +160,7 @@ const LanguageSelect = (props: Props) => {
   const filterOption = useCallback((option: ComboboxOption, search: string) => {
     const normalizedSearch = search.trim().toLowerCase()
     const languageOption = option as LanguageComboboxOption
+
     return [languageOption.searchText, option.value].filter(Boolean).join(' ').toLowerCase().includes(normalizedSearch)
   }, [])
 

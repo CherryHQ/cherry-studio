@@ -4,6 +4,7 @@ import { DeepseekLight } from './light'
 
 const Deepseek = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DeepseekLight {...props} className={className} />
+
   return <DeepseekLight {...props} className={className} />
 }
 

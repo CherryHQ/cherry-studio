@@ -23,6 +23,7 @@ const StandaloneHtmlArtifactRenderer = lazy(() => import('./StandaloneHtmlArtifa
 
 const ChatMarkdown: FC<ChatMarkdownProps> = (props) => {
   const { block, inlineHtmlPreviewMode } = props
+
   const standaloneHtmlArtifact = useMemo(
     () => (inlineHtmlPreviewMode ? scanStandaloneHtmlArtifact(block.content, block.status === 'streaming') : undefined),
     [block.content, block.status, inlineHtmlPreviewMode]

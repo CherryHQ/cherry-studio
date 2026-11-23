@@ -65,6 +65,7 @@ export function useFileProcessingApiKeyList({
 
       await updateKeys([...keys, key])
       setPendingNewKey(null)
+
       return { isValid: true }
     },
     [keys, t, updateKeys]
@@ -73,6 +74,7 @@ export function useFileProcessingApiKeyList({
   const updateKey = useCallback(
     async (index: number, key: string): Promise<ApiKeyValidity> => {
       const otherKeys = keys.filter((_, itemIndex) => itemIndex !== index)
+
       const result = validateFileProcessingApiKey(
         key,
         otherKeys,
@@ -85,11 +87,13 @@ export function useFileProcessingApiKeyList({
       }
 
       const nextKeys = replaceFileProcessingApiKey(keys, index, key)
+
       if (!nextKeys) {
         return { isValid: false, error: 'Invalid index' }
       }
 
       await updateKeys(nextKeys)
+
       return { isValid: true }
     },
     [keys, t, updateKeys]
@@ -98,6 +102,7 @@ export function useFileProcessingApiKeyList({
   const removeKey = useCallback(
     async (index: number) => {
       const nextKeys = removeFileProcessingApiKey(keys, index)
+
       if (nextKeys) {
         await updateKeys(nextKeys)
       }
@@ -116,6 +121,7 @@ export function useFileProcessingApiKeyList({
     async (item: FileProcessingApiKeyListItem) => {
       if (item.isNew) {
         setPendingNewKey(null)
+
         return
       }
 

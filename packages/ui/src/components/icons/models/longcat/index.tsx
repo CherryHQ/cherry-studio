@@ -6,7 +6,9 @@ import { LongcatLight } from './light'
 
 const Longcat = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LongcatLight {...props} className={className} />
+
   if (variant === 'dark') return <LongcatDark {...props} className={className} />
+
   return (
     <>
       <LongcatLight className={cn('dark:hidden', className)} {...props} />

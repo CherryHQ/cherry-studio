@@ -43,6 +43,7 @@ export interface SerializedError {
   stack: string | null
   [key: string]: Serializable
 }
+
 export interface SerializedAiSdkError extends SerializedError {
   readonly cause: string | null
 }
@@ -264,6 +265,7 @@ export const isSerializedAiSdkToolCallRepairError = (
 ): error is SerializedAiSdkToolCallRepairError => {
   return isSerializedAiSdkError(error) && 'originalError' in error
 }
+
 export interface SerializedAiSdkTypeValidationError extends SerializedAiSdkError {
   readonly value: Serializable
 }

@@ -60,21 +60,27 @@ export function resolveDisallowedTools(
       blocked.add(def.name)
       continue
     }
+
     if (def.exposure === 'user' && userDisabled.has(def.name)) {
       blocked.add(def.name)
       continue
     }
+
     const predicate = TOOL_ENABLE_PREDICATES.get(def.name)
+
     if (predicate && ctx && !predicate(ctx)) blocked.add(def.name)
   }
 
   // Propagate dependencies: a tool whose dependency is blocked is blocked too. Loop to a fixpoint
   // so transitive chains resolve (cheap — the dependency graph is tiny).
   let changed = true
+
   while (changed) {
     changed = false
+
     for (const def of CLAUDE_TOOL_DEFS) {
       if (blocked.has(def.name)) continue
+
       if (def.dependsOn?.some((dep) => blocked.has(dep))) {
         blocked.add(def.name)
         changed = true

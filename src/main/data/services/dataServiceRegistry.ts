@@ -53,11 +53,13 @@ export function registerDataService<K extends keyof DataServiceMap>(name: K, ins
 
 export function getDataService<K extends keyof DataServiceMap>(name: K): DataServiceMap[K] {
   const instance = registry.get(name)
+
   if (!instance) {
     throw DataApiErrorFactory.internal(
       new Error(`Data service "${name}" is not registered yet`),
       'data service registry'
     )
   }
+
   return instance as DataServiceMap[K]
 }

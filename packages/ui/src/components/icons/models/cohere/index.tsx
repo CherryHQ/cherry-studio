@@ -4,6 +4,7 @@ import { CohereLight } from './light'
 
 const Cohere = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <CohereLight {...props} className={className} />
+
   return <CohereLight {...props} className={className} />
 }
 

@@ -8,12 +8,14 @@ import * as z from 'zod'
  * from the user's current draft mode, not from a frozen historical mode.
  */
 export const PaintingModeSchema = z.string().trim().min(1)
+
 export type PaintingMode = z.infer<typeof PaintingModeSchema>
 
 export const PaintingFilesSchema = z.strictObject({
   output: z.array(z.string()),
   input: z.array(z.string())
 })
+
 export type PaintingFiles = z.infer<typeof PaintingFilesSchema>
 
 export const PaintingSchema = z.strictObject({

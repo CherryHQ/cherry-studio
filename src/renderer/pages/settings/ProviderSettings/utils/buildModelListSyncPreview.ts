@@ -18,20 +18,24 @@ export async function buildModelListSyncPreview(params: { providerId: string }):
     dataApiService.get('/models' as const, { query: { providerId } }),
     fetchResolvedProviderModels(providerId)
   ])
+
   const remoteModels = listing.models
 
   const localIds = new Set(localModels.map((m) => m.id))
   const remoteIds = new Set(remoteModels.map((m) => m.id))
 
   const added = remoteModels.filter((m) => !localIds.has(m.id))
+
   /** Purely user-defined rows (no preset trace) are out of upstream removal diff. */
   const missingModels = localModels.filter((m) => {
     if (remoteIds.has(m.id)) {
       return false
     }
+
     if (m.presetModelId == null || m.presetModelId === '') {
       return false
     }
+
     return true
   })
 

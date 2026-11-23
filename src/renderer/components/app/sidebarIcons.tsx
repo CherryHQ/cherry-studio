@@ -55,6 +55,7 @@ const RESOURCE_ICON_COMPONENTS = {
 }
 
 const NAVIGATION_ICON_COMPONENTS = { ...SIDEBAR_ICON_COMPONENTS, ...RESOURCE_ICON_COMPONENTS }
+
 type SidebarGlyph = keyof typeof NAVIGATION_ICON_COMPONENTS
 
 // Interior details are transparent cutouts so filled glyphs work on translucent sidebars too.
@@ -87,8 +88,11 @@ export function SidebarIcon({
   ...props
 }: LucideProps & { icon: SidebarGlyph; active?: boolean }) {
   const Outline = NAVIGATION_ICON_COMPONENTS[icon]
+
   if (!active) return <Outline {...props} />
+
   if (icon === 'marketplace') return <Outline {...props} fill="currentColor" stroke="var(--sidebar)" />
+
   if (icon === 'scheduled_tasks') {
     return (
       <Icon
@@ -101,7 +105,9 @@ export function SidebarIcon({
       />
     )
   }
+
   const filledPath = FILLED_PATHS[icon]
+
   if (filledPath) {
     return (
       <Icon
@@ -114,5 +120,6 @@ export function SidebarIcon({
       />
     )
   }
+
   return <Outline {...props} viewBox="-1 -1 26 26" fill="currentColor" />
 }

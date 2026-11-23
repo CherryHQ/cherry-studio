@@ -60,12 +60,14 @@ export function computeCatchUpAction(schedule: JobScheduleSnapshot, handler: Job
 
   if (schedule.catchUpPolicy.kind === 'skip-missed') {
     logger.debug('Catch-up: skip-missed', { scheduleId: schedule.id, type: schedule.type })
+
     return { scheduleId: schedule.id, type: schedule.type, shouldEnqueue: false, enqueueDelayMs: 0, missEvent }
   }
 
   // after-startup
   const delayMs = schedule.catchUpPolicy.minutes * 60_000
   logger.debug('Catch-up: after-startup', { scheduleId: schedule.id, type: schedule.type, delayMs })
+
   return { scheduleId: schedule.id, type: schedule.type, shouldEnqueue: true, enqueueDelayMs: delayMs, missEvent }
 }
 
@@ -75,17 +77,23 @@ export function computeCatchUpAction(schedule: JobScheduleSnapshot, handler: Job
  */
 function isScheduleOverdue(schedule: JobScheduleSnapshot, lastRunMs: number | null, nowMs: number): boolean {
   const trigger = schedule.trigger
+
   if (trigger.kind === 'cron') {
     const nextRunMs = schedule.nextRun ? Date.parse(schedule.nextRun) : null
+
     return nextRunMs !== null && nextRunMs <= nowMs
   }
+
   if (trigger.kind === 'interval') {
     const nextRunMs = schedule.nextRun ? Date.parse(schedule.nextRun) : null
+
     if (nextRunMs !== null) return nextRunMs <= nowMs
     // Compatibility for rows written before interval nextRun was persisted.
     const anchorMs = lastRunMs ?? Date.parse(schedule.createdAt)
+
     return anchorMs + trigger.ms <= nowMs
   }
+
   // once: armed in SchedulerService via setTimeout. If it hasn't fired by now,
   // the timer is still pending — not overdue from catch-up's perspective.
   return false

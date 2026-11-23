@@ -24,10 +24,12 @@ export function useResolvedCommandMenu(location: MenuLocation): ResolvedMenuMode
           const definition = findCommandDefinition(command)
           const rule = findKeybindingRule(command)
           const preference = rule ? shortcutPreferences[command] : undefined
+
           const keybinding = resolveCommandPresentationKeybinding(command, preference, {
             context,
             platform: platform as SupportedPlatform
           })
+
           const state = resolveCommandDisplayState(command, {
             definition,
             preference,

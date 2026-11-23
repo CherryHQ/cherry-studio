@@ -53,6 +53,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     }
 
     setLoading(true)
+
     try {
       const files = await window.api.backup.listLocalBackupFiles(localBackupDir)
       setBackupFiles(files)
@@ -80,6 +81,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
   const paginatedBackupFiles = useMemo(() => {
     const start = (safeCurrentPage - 1) * PAGE_SIZE
+
     return backupFiles.slice(start, start + PAGE_SIZE)
   }, [backupFiles, safeCurrentPage])
 
@@ -92,6 +94,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     (nextSelectedRowKeys: Key[]) => {
       setSelectedRowKeys((previousKeys) => {
         const preservedKeys = previousKeys.filter((key) => !currentPageKeys.has(key.toString()))
+
         return Array.from(new Set([...preservedKeys, ...nextSelectedRowKeys]))
       })
     },
@@ -101,6 +104,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
       toast.warning(t('settings.data.local.backup.manager.select.files.delete'))
+
       return
     }
 
@@ -116,14 +120,17 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setDeleting(true)
+
     try {
       // Delete selected files one by one
       for (const key of selectedRowKeys) {
         await window.api.backup.deleteLocalBackupFile(key.toString(), localBackupDir)
       }
+
       toast.success(t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
@@ -147,9 +154,11 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setDeleting(true)
+
     try {
       await window.api.backup.deleteLocalBackupFile(fileName, localBackupDir)
       toast.success(t('settings.data.local.backup.manager.delete.success.single'))
@@ -174,9 +183,11 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setRestoring(true)
+
     try {
       await (restoreMethod || restoreFromLocal)(fileName)
       toast.success(t('settings.data.local.backup.manager.restore.success'))
@@ -195,6 +206,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
       cell: ({ getValue }) => {
         const fileName = getValue() as string
+
         return (
           <Tooltip content={fileName} placement="top-start" fullWidthTrigger>
             <span className="block w-full min-w-0 truncate">{fileName}</span>
@@ -220,6 +232,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       meta: { width: 160 },
       cell: ({ row }) => {
         const record = row.original
+
         return (
           <Flex className="items-center gap-1">
             <Button

@@ -51,6 +51,7 @@ export function resolvePaintingApiHost(
   }
 
   const configured = baseUrlFromEndpointConfigs(provider.endpointConfigs, provider.defaultChatEndpoint)
+
   if (configured) {
     return configured
   }
@@ -67,11 +68,14 @@ export function pickFirstEnabledApiKey(apiKeys: ApiKeyEntry[] | undefined): stri
   if (!apiKeys) {
     return ''
   }
+
   for (const entry of apiKeys) {
     if (!entry.isEnabled) continue
     const trimmed = entry.key.trim()
+
     if (trimmed) return trimmed
   }
+
   return ''
 }
 

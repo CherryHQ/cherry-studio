@@ -25,11 +25,13 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   '/assistants': {
     GET: async ({ query }) => {
       const parsed = ListAssistantsQuerySchema.parse(query ?? {})
+
       return assistantDataService.list(parsed)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateAssistantSchema.parse(body)
+
       return assistantDataService.create(parsed)
     }
   },
@@ -37,6 +39,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   '/assistants:import': {
     POST: async ({ body }) => {
       const parsed = ImportAssistantSchema.parse(body)
+
       return assistantDataService.createFromImport(parsed)
     }
   },
@@ -44,6 +47,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   '/assistants/:id/duplicate': {
     POST: async ({ params, body }) => {
       const parsed = DuplicateAssistantSchema.parse(body)
+
       return assistantDataService.duplicate(params.id, parsed)
     }
   },
@@ -61,11 +65,13 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
       // Keep only keys actually present in the request body so PATCH stays partial.
       const bodyKeys = body && typeof body === 'object' ? new Set(Object.keys(body)) : new Set<string>()
       const patch = Object.fromEntries(Object.entries(parsed).filter(([key]) => bodyKeys.has(key)))
+
       return assistantDataService.update(params.id, patch)
     },
 
     DELETE: async ({ params, query }) => {
       DeleteAssistantQuerySchema.parse(query)
+
       return assistantDataService.delete(params.id, { permanent: true })
     }
   },
@@ -78,6 +84,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
       assistantDataService.reorder(params.id, parsed)
+
       return undefined
     }
   },
@@ -86,6 +93,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       assistantDataService.reorderBatch(parsed.moves)
+
       return undefined
     }
   }

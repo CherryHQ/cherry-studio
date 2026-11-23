@@ -29,10 +29,13 @@ interface Args {
 
 function parseArgs(argv: string[]): Args {
   const args: Args = { headers: {} }
+
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i]
     const value = argv[++i]
+
     if (value === undefined) throw new Error(`Missing value for ${flag}`)
+
     switch (flag) {
       case '--url':
         args.url = value
@@ -48,24 +51,29 @@ function parseArgs(argv: string[]): Args {
         break
       case '--header': {
         const idx = value.indexOf(':')
+
         if (idx === -1) throw new Error(`Invalid --header (expected "Name: value"): ${value}`)
         args.headers[value.slice(0, idx).trim()] = value.slice(idx + 1).trim()
         break
       }
+
       default:
         throw new Error(`Unknown flag: ${flag}`)
     }
   }
+
   return args
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
+
   if (!args.url) throw new Error('--url is required')
 
   const method = args.method ?? (args.body ? 'POST' : 'GET')
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- CLI headers have arbitrary HTTP field names; retain their string-valued bag while adding a missing Content-Type before fetch validates it.
   const headers: Record<string, string> = { Accept: 'application/json', ...args.headers }
+
   if (args.body && !Object.keys(headers).some((h) => h.toLowerCase() === 'content-type')) {
     headers['Content-Type'] = 'application/json'
   }
@@ -74,6 +82,7 @@ async function main() {
   const safeHeaders = Object.fromEntries(
     Object.entries(headers).map(([k, v]) => [k, /authorization|api-key|x-api-key|token/i.test(k) ? '<redacted>' : v])
   )
+
   process.stderr.write(`→ ${method} ${args.url}\n  headers: ${JSON.stringify(safeHeaders)}\n`)
 
   const res = await fetch(args.url, { method, headers, body: args.body })
@@ -81,16 +90,20 @@ async function main() {
   process.stderr.write(`← ${res.status} ${res.statusText}\n`)
 
   let pretty = text
+
   try {
     pretty = JSON.stringify(JSON.parse(text), null, 2)
   } catch {
     // not JSON — print as-is
   }
+
   process.stdout.write(pretty + '\n')
+
   if (args.out) {
     writeFileSync(args.out, pretty + '\n')
     process.stderr.write(`(written to ${args.out})\n`)
   }
+
   if (!res.ok) process.exitCode = 1
 }
 

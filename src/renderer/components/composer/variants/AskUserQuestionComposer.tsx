@@ -46,9 +46,11 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   // Answers are restored from the cache so a remount (switching conversations and
   // coming back) does not discard what the user already answered but not submitted.
   const [restoredDraft] = useState(() => readAskUserQuestionDraftCache(request.approvalId))
+
   const [currentIndex, setCurrentIndex] = useState(() =>
     Math.min(Math.max(restoredDraft.currentIndex, 0), Math.max(questions.length - 1, 0))
   )
+
   const [selectedAnswers, setSelectedAnswers] = useState<AnswersByIndex>(restoredDraft.selectedAnswers)
   const [customAnswers, setCustomAnswers] = useState<Record<number, string>>(restoredDraft.customAnswers)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -57,26 +59,32 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   useLayoutEffect(() => {
     const stage = rootRef.current?.closest<HTMLElement>('[data-composer-stage]')
+
     if (!stage) return
 
     const update = () => {
       const height = stage.clientHeight
       const styles = rootRef.current ? getComputedStyle(rootRef.current) : null
+
       const chrome = styles
         ? (Number.parseFloat(styles.paddingTop) || 0) + (Number.parseFloat(styles.paddingBottom) || 0)
         : 0
+
       const available = height - chrome
       setPanelMaxHeight(available > 0 ? available : null)
     }
+
     update()
 
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', update)
+
       return () => window.removeEventListener('resize', update)
     }
 
     const observer = new ResizeObserver(update)
     observer.observe(stage)
+
     return () => observer.disconnect()
   }, [])
 
@@ -135,6 +143,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
       questions.forEach((question, index) => {
         const notes = customAnswers[index]?.trim()
+
         if (!notes || (answersByIndex[index] ?? []).length === 0) return
 
         // The typed text supplements a selected option, so it goes out as the
@@ -150,6 +159,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const respond = useCallback(
     async (input: MessageToolApprovalInput) => {
       setIsSubmitting(true)
+
       try {
         await onRespond(input)
       } catch (error) {
@@ -196,6 +206,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
     (answersByIndex: AnswersByIndex) => {
       if (isLastQuestion) {
         void submitAnswers(answersByIndex)
+
         return
       }
 
@@ -207,9 +218,11 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const handleSelectOption = useCallback(
     (label: string) => {
       const isMultiSelect = currentQuestion?.multiSelect
+
       if (!currentQuestion || isSubmitting) return
 
       const current = selectedAnswers[currentIndex] ?? []
+
       const nextForCurrent = isMultiSelect
         ? current.includes(label)
           ? current.filter((value) => value !== label)
@@ -217,9 +230,11 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         : current.includes(label)
           ? []
           : [label]
+
       const nextSelectedAnswers = { ...selectedAnswers, [currentIndex]: nextForCurrent }
 
       setSelectedAnswers(nextSelectedAnswers)
+
       if (!isMultiSelect && nextForCurrent.length > 0) completeCurrentQuestion(nextSelectedAnswers)
     },
     [completeCurrentQuestion, currentIndex, currentQuestion, isSubmitting, selectedAnswers]
@@ -230,6 +245,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
     if (customActionSubmitsAll) {
       await submitAnswers(selectedAnswers)
+
       return
     }
 

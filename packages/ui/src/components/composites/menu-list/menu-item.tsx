@@ -72,6 +72,7 @@ function MenuItem({
   ...props
 }: MenuItemProps) {
   const Comp = asChild ? Slot : 'button'
+
   const descriptionStyle =
     descriptionLines && descriptionLines > 0
       ? ({
@@ -149,4 +150,5 @@ MenuDivider.displayName = 'MenuDivider'
 // ---------------------------------------------------------------------------
 
 export { MenuDivider, MenuItem, menuItemVariants, MenuList }
+
 export type { MenuDividerProps, MenuItemProps, MenuListProps }

@@ -32,6 +32,7 @@ function safeText(value: SerializedError[string] | undefined, limit: number): st
     /(?:\/(?:Users|home|private|tmp|var|Volumes)\/|[A-Za-z]:\\)[^\s"']+/g,
     '<path>'
   )
+
   return text ? Array.from(text).slice(0, limit).join('') : undefined
 }
 
@@ -41,14 +42,17 @@ export function toExecutionFailure(
   layer?: ExecutionFailure['failure']['source']['layer']
 ): ExecutionFailure {
   const stored = executionFailureSchema.safeParse(error.executionFailure)
+
   if (stored.success && !layer) return stored.data
   const raw = typeof error.message === 'string' ? error.message : ''
   const status = typeof error.statusCode === 'number' ? error.statusCode : extractHttpStatus(raw)
+
   const category = isErrorCategory(error.providerErrorCategory)
     ? error.providerErrorCategory
     : isErrorCategory(error.claudeCodeExitCategory)
       ? error.claudeCodeExitCategory
       : classifyErrorCategory({ text: raw, status })
+
   const message =
     safeText(
       getSafeProviderErrorMessage({
@@ -58,10 +62,12 @@ export function toExecutionFailure(
       }),
       500
     ) ?? 'Execution failed'
+
   const reasonCode = layer === 'host' ? 'internal' : (reasons[category] ?? 'unknown')
   const providerId = safeText(error.providerId ?? modelId?.split('::')[0], 128)
   const model = safeText(modelId ?? error.modelId, 128)
   const context: NonNullable<ExecutionFailure['failure']['context']> = {}
+
   const value: ExecutionFailure = {
     message,
     retryable: error.isRetryable === true && !['auth', 'permission', 'quota', 'internal'].includes(reasonCode),
@@ -72,12 +78,17 @@ export function toExecutionFailure(
       context
     }
   }
+
   if (status && status >= 100 && status <= 599) context.statusCode = status
+
   if (providerId) context.providerId = providerId
+
   if (model) context.modelId = model
+
   while (new TextEncoder().encode(JSON.stringify(value)).length > 4096)
     value.message = Array.from(value.message)
       .slice(0, Math.floor(Array.from(value.message).length / 2))
       .join('')
+
   return value
 }

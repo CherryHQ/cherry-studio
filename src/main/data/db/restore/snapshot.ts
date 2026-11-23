@@ -17,6 +17,7 @@ export function snapshotTo(sqlite: Database.Database, targetPath: string): void 
   if (fs.existsSync(targetPath)) {
     throw new Error(`snapshotTo: target already exists: ${targetPath}`)
   }
+
   fs.mkdirSync(path.dirname(targetPath), { recursive: true })
   sqlite.prepare('VACUUM INTO ?').run(targetPath)
 }

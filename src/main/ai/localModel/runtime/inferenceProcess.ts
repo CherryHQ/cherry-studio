@@ -91,6 +91,7 @@ export function defineInferenceProcess<Contract extends UtilityProcessContract>(
     idleTimeoutMs: INFERENCE_IDLE_TIMEOUT_MS,
     createInitData: () => createInferenceInitData(artifacts, resolveRuntimeProfile)
   })
+
   return Object.freeze({ ...definition, resolveRuntimeProfile })
 }
 

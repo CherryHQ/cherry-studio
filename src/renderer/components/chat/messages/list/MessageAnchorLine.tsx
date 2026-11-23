@@ -51,24 +51,32 @@ interface AnchorTurn {
 }
 
 const TICK_BASE_WIDTH = 6
+
 /** The hovered tick leads the wave without towering over it. */
 const TICK_PEAK_WIDTH = 20
+
 /** Neighbouring ticks swell towards the peak so the wave reads as one shape. */
 const TICK_WAVE_BONUS = 10
 const HOVER_FALLOFF_DISTANCE = 56
+
 /** Beyond this distance from the nearest tick, nothing is focused and no card shows. */
 const FOCUS_MAX_DISTANCE = 24
+
 /** Keep the preview card's center away from the rail's vertical edges. */
 const PREVIEW_EDGE_INSET = 56
 const PREVIEW_MAX_CHARS = 240
+
 /** Below this usable height the rail is cramped, so hide it. */
 const RAIL_MIN_HEIGHT_PX = 220
+
 /** Fixed minimum gap kept above the first and below the last tick — the ticks
  * never enter this zone, and it stays put while the strip scrolls. */
 const RAIL_MIN_EDGE_MARGIN_PX = 24
+
 /** Constant spacing between ticks. It never varies with the turn count (few → a
  * centred cluster); once the ticks outgrow the rail it scrolls instead. */
 const RAIL_TICK_PITCH_PX = 10
+
 /** Length of the fade applied to whichever end still has ticks scrolled past it. */
 const RAIL_FADE_PX = 44
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
@@ -117,20 +125,25 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     let current: AnchorTurn | null = null
     /** Whether the current turn's preview assistant sits on the active branch. */
     let assistantOnActiveBranch = false
+
     for (const message of messages) {
       if (message.isContextBoundary) continue
+
       if (message.role === 'user') {
         current = { anchorId: message.id, userMessageId: message.id, memberIds: [message.id] }
         assistantOnActiveBranch = false
         result.push(current)
         continue
       }
+
       if (!current) {
         current = { anchorId: message.id, memberIds: [] }
         assistantOnActiveBranch = false
         result.push(current)
       }
+
       current.memberIds.push(message.id)
+
       // Preview the reply the body actually renders: regenerated/multi-model
       // turns carry off-path siblings (isActiveBranch false), so prefer the
       // first active-branch assistant and fall back to the first one only when
@@ -144,6 +157,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
         }
       }
     }
+
     return result
   }, [messages])
 
@@ -153,12 +167,14 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const keyboardIndex = useMemo(() => {
     if (keyboardAnchorId === null) return null
     const index = turns.findIndex((turn) => turn.anchorId === keyboardAnchorId)
+
     return index >= 0 ? index : null
   }, [keyboardAnchorId, turns])
 
   const turnIndexByMessageId = useMemo(() => {
     const map = new Map<string, number>()
     turns.forEach((turn, index) => turn.memberIds.forEach((id) => map.set(id, index)))
+
     return map
   }, [turns])
 
@@ -178,10 +194,12 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     const free = Math.max(0, viewport - content)
     const padTop = free / 2
     const padBottom = free - padTop
+
     // Center of tick `index` in rail coordinates: fixed margin + top pad +
     // its slot, projected into the viewport by the strip's own scroll offset.
     const centerOf = (index: number) =>
       RAIL_MIN_EDGE_MARGIN_PX + padTop + index * RAIL_TICK_PITCH_PX + RAIL_TICK_PITCH_PX / 2 - scrollTop
+
     return { padTop, padBottom, centerOf }
   }, [turns.length, railHeight, scrollTop])
 
@@ -190,14 +208,17 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     if (mouseY === null || turns.length === 0 || railHeight === 0) return null
     const raw = Math.round((mouseY - geometry.centerOf(0)) / RAIL_TICK_PITCH_PX)
     const index = Math.min(Math.max(raw, 0), turns.length - 1)
+
     return Math.abs(mouseY - geometry.centerOf(index)) <= FOCUS_MAX_DISTANCE ? index : null
   }, [mouseY, turns.length, railHeight, geometry])
+
   const focusedIndex = pointerFocusedIndex ?? keyboardIndex
 
   const flushMouseMove = useCallback(() => {
     animationFrameRef.current = null
     const wrapper = wrapperRef.current
     const clientY = latestClientYRef.current
+
     if (!wrapper || clientY === null) return
     setMouseY(clientY - wrapper.getBoundingClientRect().top)
   }, [])
@@ -208,6 +229,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const handleMouseMove = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       latestClientYRef.current = event.clientY
+
       if (animationFrameRef.current !== null) return
       animationFrameRef.current = requestAnimationFrame(flushMouseMove)
     },
@@ -216,10 +238,12 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   const clearPointerState = useCallback(() => {
     latestClientYRef.current = null
+
     if (animationFrameRef.current !== null) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
     }
+
     setMouseY(null)
   }, [])
 
@@ -229,7 +253,9 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const ticks = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-message-anchor-tick]'))
     const current = ticks.indexOf(document.activeElement as HTMLElement)
+
     if (current < 0) return
+
     const next =
       event.key === 'ArrowUp'
         ? current - 1
@@ -240,6 +266,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
             : event.key === 'End'
               ? ticks.length - 1
               : null
+
     if (next === null) return
     event.preventDefault()
     ticks[Math.min(Math.max(next, 0), ticks.length - 1)]?.focus()
@@ -271,13 +298,16 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     count: 0,
     entered: false
   })
+
   useLayoutEffect(() => {
     const el = railScrollRef.current
     const anchor = scrollAnchorRef.current
     const firstId = turns[0]?.anchorId ?? null
+
     if (el) {
       const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
       const added = turns.length - anchor.count
+
       if (!anchor.entered) {
         el.scrollTop = maxScroll
         anchor.entered = true
@@ -286,8 +316,10 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
       } else if (added > 0 && maxScroll - el.scrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
         el.scrollTop = maxScroll
       }
+
       setScrollTop(el.scrollTop)
     }
+
     anchor.firstId = firstId
     anchor.count = turns.length
   }, [turns, railHeight])
@@ -300,11 +332,13 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   useLayoutEffect(() => {
     if (!hasRail) return
     const wrapper = wrapperRef.current
+
     if (!wrapper || typeof ResizeObserver === 'undefined') return
     const update = () => setRailHeight(wrapper.getBoundingClientRect().height)
     update()
     const observer = new ResizeObserver(update)
     observer.observe(wrapper)
+
     return () => observer.disconnect()
   }, [hasRail])
 
@@ -312,6 +346,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   const isHovering = mouseY !== null
   const focusedTurn = focusedIndex !== null ? turns[focusedIndex] : null
+
   const cardTop =
     focusedIndex !== null
       ? Math.min(
@@ -323,6 +358,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   const waveBonus = (index: number) => {
     if (mouseY === null) return 0
     const falloff = Math.max(0, 1 - Math.abs(geometry.centerOf(index) - mouseY) / HOVER_FALLOFF_DISTANCE)
+
     return TICK_WAVE_BONUS * falloff ** 1.5
   }
 
@@ -333,6 +369,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // hasOlder keeps the top fade on as a "more above" hint even at rest.
   const fadeTop = scrollTop > 1 || hasOlder
   const fadeBottom = scrollTop < maxScroll - 1
+
   const railMask =
     fadeTop || fadeBottom
       ? `linear-gradient(to bottom, ${fadeTop ? 'transparent' : 'black'} 0%, black ${fadeTop ? RAIL_FADE_PX : 0}px, black calc(100% - ${fadeBottom ? RAIL_FADE_PX : 0}px), ${fadeBottom ? 'transparent' : 'black'} 100%)`
@@ -379,6 +416,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
           {turns.map((turn, index) => {
             const isActive = index === activeTurnIndex
             const isFocused = index === focusedIndex
+
             // The active turn is marked by color only — every tick keeps the same
             // length at rest; length changes belong to the hover wave.
             const width = isHovering
@@ -386,7 +424,9 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
                 ? TICK_PEAK_WIDTH
                 : TICK_BASE_WIDTH + waveBonus(index)
               : TICK_BASE_WIDTH
+
             const emphasized = focusedIndex !== null ? isFocused : isActive
+
             return (
               <button
                 key={turn.anchorId}
@@ -467,12 +507,15 @@ const AnchorPreviewLine: FC<AnchorPreviewLineProps> = ({
   className
 }) => {
   if (!messageId) return null
+
   if (liveMessageIdSet.has(messageId)) return <LiveMessagePreview messageId={messageId} className={className} />
+
   return <MessagePreview parts={historyPartsByMessageId[messageId] ?? EMPTY_MESSAGE_PARTS} className={className} />
 }
 
 const LiveMessagePreview: FC<{ messageId: string; className: string }> = ({ messageId, className }) => {
   const parts = useMessageParts(messageId)
+
   return <MessagePreview parts={parts} className={className} />
 }
 
@@ -484,7 +527,9 @@ const MessagePreview = memo(function MessagePreview({
   className: string
 }) {
   const preview = getTextPreview(parts)
+
   if (!preview) return null
+
   return <div className={className}>{preview}</div>
 })
 
@@ -495,14 +540,17 @@ function getTextPreview(parts: CherryMessagePart[]): string {
     if (part.type !== 'text') continue
 
     const text = part.text
+
     if (!/\S/.test(text)) continue
 
     if (preview.length > 0) {
       preview += '\n\n'
+
       if (preview.length >= PREVIEW_MAX_CHARS) return preview.slice(0, PREVIEW_MAX_CHARS)
     }
 
     preview += text.slice(0, PREVIEW_MAX_CHARS - preview.length)
+
     if (preview.length >= PREVIEW_MAX_CHARS) return preview
   }
 

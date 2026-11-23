@@ -25,13 +25,16 @@ import { isBlankToolName } from './toolName'
 const logger = loggerService.withContext('OpenAiResponsesMessageConverter')
 
 let uiMessageSeq = 0
+
 function nextUIMessageId(): string {
   return `gateway-msg-${Date.now()}-${uiMessageSeq++}`
 }
 
 // SDK types
 type ResponseCreateParams = OpenAI.Responses.ResponseCreateParams
+
 type EasyInputMessage = OpenAI.Responses.EasyInputMessage
+
 type FunctionCallOutput = OpenAI.Responses.ResponseInputItem.FunctionCallOutput
 
 /** A function_call_output split into the model-visible string output and relocated user parts. */
@@ -60,12 +63,14 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
   const lines: string[] = []
   const relocatedParts: Array<TextUIPart | FileUIPart> = []
   let attachmentIndex = 0
+
   const attach = (kind: string, file: FileUIPart) => {
     const anchor = functionOutputAttachmentAnchor(callId, kind, ++attachmentIndex)
     const name = file.filename ? `, ${file.filename}` : ''
     lines.push(`${anchor} (${file.mediaType}${name}): attached in the following user message`)
     relocatedParts.push({ type: 'text', text: anchor }, file)
   }
+
   for (const item of output) {
     if (item.type === 'input_text') {
       lines.push(item.text)
@@ -77,6 +82,7 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
       const mediaType = dataUrlType ?? mime.getType(item.filename ?? item.file_url ?? '') ?? 'application/octet-stream'
       const url = item.file_url ?? (dataUrlType ? item.file_data! : `data:${mediaType};base64,${item.file_data}`)
       const file: FileUIPart = { type: 'file', mediaType, url }
+
       if (item.filename) file.filename = item.filename
       attach('file', file)
     } else {
@@ -84,6 +90,7 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
       lines.push(`[unsupported ${item.type} tool output item omitted]`)
     }
   }
+
   return { output: lines.join('\n'), relocatedParts }
 }
 
@@ -93,6 +100,7 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
  */
 function reasoningItemText(item: OpenAI.Responses.ResponseReasoningItem): string {
   const content = item.content?.map((part) => part.text).join('') ?? ''
+
   return content || (item.summary?.map((part) => part.text).join('') ?? '')
 }
 
@@ -127,6 +135,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
     if (typeof params.input === 'string') {
       messages.push({ id: nextUIMessageId(), role: 'user', parts: [{ type: 'text', text: params.input }] })
+
       return messages
     }
 
@@ -135,16 +144,19 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     // function_call items (callId → name + raw arguments) and their outputs.
     const functionCalls = new Map<string, { name: string; input: unknown }>()
     const functionOutputs = new Map<string, FunctionOutputConversion>()
+
     for (const item of inputArray) {
       if ('type' in item && item.type === 'function_call' && 'call_id' in item && 'name' in item) {
         const funcCall = item
         let input: unknown
+
         try {
           input = funcCall.arguments ? JSON.parse(funcCall.arguments) : {}
         } catch {
           // oxlint-disable-next-line anti-slop/no-known-value-widening -- The raw fallback shares the SDK's unknown input contract with arbitrary parsed JSON; tool validation happens later.
           input = { raw: funcCall.arguments }
         }
+
         functionCalls.set(funcCall.call_id, { name: funcCall.name, input })
       } else if ('type' in item && item.type === 'function_call_output') {
         functionOutputs.set(item.call_id, functionOutputToConversion(item.call_id, item.output))
@@ -156,43 +168,55 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
       // function_call it belongs to, and `coalesceConsecutiveSameRole` merges the two.
       if ('type' in item && item.type === 'reasoning') {
         const text = reasoningItemText(item)
+
         if (text || item.id || item.encrypted_content) {
           const metadata = {
             itemId: item.id,
             ...(item.encrypted_content != null && { reasoningEncryptedContent: item.encrypted_content })
           }
+
           const part: ReasoningUIPart = {
             type: 'reasoning',
             text,
             providerMetadata: { openai: metadata, azure: metadata }
           }
+
           messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
         }
+
         continue
       }
+
       // Input or replayed output message (role + content)
       if ('role' in item && 'content' in item) {
         const converted = this.convertMessage(item)
+
         if (converted) messages.push(converted)
         continue
       }
+
       // function_call → assistant dynamic-tool part (pair with output if present)
       if ('type' in item && item.type === 'function_call' && 'call_id' in item) {
         const funcCall = item
         const call = functionCalls.get(funcCall.call_id)
+
         if (!call) continue
         const result = functionOutputs.get(funcCall.call_id)
         const base = { type: 'dynamic-tool' as const, toolName: call.name, toolCallId: funcCall.call_id }
+
         const part: DynamicToolUIPart = result
           ? { ...base, state: 'output-available', input: call.input, output: result.output }
           : { ...base, state: 'input-available', input: call.input }
+
         messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
         continue
       }
+
       // function_call_output: the string output is folded into its function_call
       // above; relocated tool-output media surface here as a user message.
       if ('type' in item && item.type === 'function_call_output') {
         const relocatedParts = functionOutputs.get(item.call_id)?.relocatedParts
+
         if (relocatedParts?.length) {
           messages.push({ id: nextUIMessageId(), role: 'user', parts: [...relocatedParts] })
         }
@@ -221,6 +245,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
   private convertSystemMessage(content: EasyInputMessage['content']): CherryUIMessage | null {
     let text = ''
+
     if (typeof content === 'string') {
       text = content
     } else {
@@ -229,23 +254,28 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         .map((part) => part.text)
         .join('\n')
     }
+
     if (!text) return null
+
     return { id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] }
   }
 
   private convertUserMessage(content: EasyInputMessage['content']): CherryUIMessage | null {
     if (typeof content === 'string') {
       if (!content) return null
+
       return { id: nextUIMessageId(), role: 'user', parts: [{ type: 'text', text: content }] }
     }
 
     const parts: CherryUIMessage['parts'] = []
+
     for (const part of content) {
       if (part.type === 'input_text') {
         const p: TextUIPart = { type: 'text', text: part.text }
         parts.push(p)
       } else if (part.type === 'input_image') {
         const img = part
+
         if (img.image_url) {
           const mediaType = parseDataUrl(img.image_url)?.mediaType ?? 'image/*'
           const p: FileUIPart = { type: 'file', mediaType, url: img.image_url }
@@ -255,6 +285,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     }
 
     if (parts.length > 0) return { id: nextUIMessageId(), role: 'user', parts }
+
     return null
   }
 
@@ -272,6 +303,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     }
 
     if (parts.length > 0) return { id: nextUIMessageId(), role: 'assistant', parts }
+
     return null
   }
 
@@ -280,6 +312,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
    */
   toAiSdkTools(params: ResponsesCreateParams): ToolSet | undefined {
     const tools = params.tools
+
     if (!tools || tools.length === 0) return undefined
 
     const aiSdkTools: ToolSet = {}
@@ -287,6 +320,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
     for (const [index, toolDef] of tools.entries()) {
       if (toolDef.type !== 'function') continue
+
       if (isBlankToolName(toolDef.name)) {
         droppedTools.push({
           index,
@@ -305,6 +339,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         description: funcTool.description || '',
         inputSchema: jsonSchema(schema)
       })
+
       if (typeof funcTool.strict === 'boolean') aiTool.strict = funcTool.strict
 
       aiSdkTools[funcTool.name] = aiTool
@@ -343,6 +378,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     overrideReasoning = false
   ): ProviderOptions | undefined {
     if (overrideReasoning) return undefined
+
     return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }

@@ -15,14 +15,17 @@ export function findElementByLine(editor: Editor, lineNumber: number, lineConten
   editor.state.doc.forEach((_node, position, index) => {
     const source = editor.markdown!.renderNodeToMarkdown(doc.content[index], doc, index)
     const start = markdown.indexOf(source, cursor)
+
     if (!source || start < 0) return
 
     currentLine += markdown.slice(cursor, start).split('\n').length - 1
     const lines = source.split('\n')
     const endLine = currentLine + lines.length - 1
     const element = editor.view.nodeDOM(position)
+
     if (element instanceof HTMLElement) {
       const distance = Math.max(currentLine - lineNumber, lineNumber - endLine, 0)
+
       if (distance < nearestDistance) {
         nearest = element
         nearestDistance = distance
@@ -32,6 +35,7 @@ export function findElementByLine(editor: Editor, lineNumber: number, lineConten
       if (needle) {
         lines.forEach((line, offset) => {
           const distance = Math.abs(currentLine + offset - lineNumber)
+
           if (line.trim() === needle && distance < matchDistance) {
             match = element
             matchDistance = distance
@@ -39,6 +43,7 @@ export function findElementByLine(editor: Editor, lineNumber: number, lineConten
         })
       }
     }
+
     cursor = start + source.length
     currentLine = endLine
   })

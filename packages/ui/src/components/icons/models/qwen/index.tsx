@@ -4,6 +4,7 @@ import { QwenLight } from './light'
 
 const Qwen = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <QwenLight {...props} className={className} />
+
   return <QwenLight {...props} className={className} />
 }
 

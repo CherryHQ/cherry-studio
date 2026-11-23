@@ -69,6 +69,7 @@ function clampInto(rect: Rectangle, area: Rectangle): Rectangle {
   const height = Math.min(rect.height, area.height)
   const x = Math.min(Math.max(rect.x, area.x), area.x + area.width - width)
   const y = Math.min(Math.max(rect.y, area.y), area.y + area.height - height)
+
   return { x, y, width, height }
 }
 
@@ -80,6 +81,7 @@ function clampInto(rect: Rectangle, area: Rectangle): Rectangle {
  */
 export function peekSavedState(type: WindowType): WindowBoundsState | undefined {
   const saved = application.get('CacheService').getPersist(PERSIST_KEY)[type]
+
   return isValidBounds(saved) ? saved : undefined
 }
 
@@ -95,6 +97,7 @@ export function peekSavedState(type: WindowType): WindowBoundsState | undefined 
  */
 export function injectSavedBounds(type: WindowType, config: WindowOptions): void {
   const saved = peekSavedState(type)
+
   if (!saved) return
 
   const target = screen.getDisplayMatching(saved.displayBounds)
@@ -120,6 +123,7 @@ export function persistNow(window: BrowserWindow, type: WindowType): void {
 
   const normal = window.getNormalBounds()
   const display = screen.getDisplayMatching(normal)
+
   const state: WindowBoundsState = {
     x: normal.x,
     y: normal.y,
@@ -147,6 +151,7 @@ export function persistNow(window: BrowserWindow, type: WindowType): void {
 export function clearSavedBounds(type: WindowType): void {
   const cache = application.get('CacheService')
   const current = cache.getPersist(PERSIST_KEY)
+
   if (!(type in current)) return
 
   const next = { ...current }

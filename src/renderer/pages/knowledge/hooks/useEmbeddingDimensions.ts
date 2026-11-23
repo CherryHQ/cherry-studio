@@ -53,6 +53,7 @@ export const useEmbeddingDimensions = () => {
     return fetchEmbeddingDimensions(uniqueModelId).then(
       (dimensions) => {
         setIsFetchingDimensions(false)
+
         return dimensions
       },
       (error) => {

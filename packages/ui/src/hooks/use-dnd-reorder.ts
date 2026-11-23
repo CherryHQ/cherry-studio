@@ -38,6 +38,7 @@ export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey
     originalList.forEach((item, index) => {
       map.set(getId(item), index)
     })
+
     return map
   }, [originalList, getId])
 
@@ -45,9 +46,11 @@ export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey
   const getItemKey = useCallback(
     (index: number): Key => {
       const item = filteredList[index]
+
       if (!item) return index
 
       const originalIndex = itemIndexMap.get(getId(item))
+
       return originalIndex ?? index
     },
     [filteredList, itemIndexMap, getId]

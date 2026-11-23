@@ -21,6 +21,7 @@ function SelectionActionRuntime(): null {
   useLanguageSync()
   useCustomCss()
   useWebSearchFallbackNotice()
+
   return null
 }
 

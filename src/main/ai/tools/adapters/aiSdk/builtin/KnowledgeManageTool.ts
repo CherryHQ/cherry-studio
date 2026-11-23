@@ -49,6 +49,7 @@ const kbManageTool = tool({
   needsApproval: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
+
     return manageKnowledge(input, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ output }) => knowledgeManageModelOutput(output)
@@ -66,4 +67,5 @@ export function createKbManageToolEntry() {
 }
 
 export type KnowledgeManageToolInput = InferToolInput<typeof kbManageTool>
+
 export type KnowledgeManageToolOutput = InferToolOutput<typeof kbManageTool>

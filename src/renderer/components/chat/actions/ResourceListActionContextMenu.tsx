@@ -42,6 +42,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
     async (action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled) return
       const confirm = action.confirm
+
       if (confirm) {
         // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
         // surfaces failures (toast + retry), so a rejected action is never silent.
@@ -53,8 +54,10 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
           danger: confirm.destructive,
           action: () => onAction(action)
         })
+
         return
       }
+
       await onAction(action)
     },
     [onAction]
@@ -68,6 +71,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
       ),
     [actions, runAction]
   )
+
   const getExtraItems = useCallback(
     () => (getActions ? actionsToCommandMenuExtraItems(getActions(), runAction) : extraItems),
     [extraItems, getActions, runAction]

@@ -14,10 +14,13 @@ const PROVIDER_SETTINGS_ACTION = [{ kind: 'navigate', target: '/settings/provide
 function modelTarget(ctx: DoctorContext) {
   return ctx.share('provider:model-check', async () => {
     const { providerId, modelId } = ctx.subject ?? {}
+
     const uniqueModelId =
       providerId && modelId ? createUniqueModelId(providerId, modelId) : await defaultChatModelId(ctx)
+
     if (!uniqueModelId) throw new Error('No model is configured for this subject')
     const target = application.get('AiService').prepareModelCheck(UniqueModelIdSchema.parse(uniqueModelId))
+
     return {
       ...target,
       isCurrent: () =>
@@ -33,9 +36,11 @@ function requestFailure<Id extends 'provider-model-list' | 'provider-model-conve
 ): DoctorProbeOutcome<Id> {
   const serialized = serializeError(error)
   const status = typeof serialized.statusCode === 'number' ? serialized.statusCode : undefined
+
   const category = isErrorCategory(serialized.providerErrorCategory)
     ? serialized.providerErrorCategory
     : classifyErrorCategory({ text: serialized.message ?? '', status })
+
   return {
     status: 'fail',
     attribution: ['auth', 'permission', 'region', 'model', 'quota'].includes(category) ? 'user-fixable' : 'transient',
@@ -52,10 +57,13 @@ export const modelEndpoint = defineDoctorCheck({
   id: 'network-model-endpoint',
   async run(ctx) {
     const target = await modelTarget(ctx)
+
     if (!target.baseUrl) return { status: 'skip', detail: { variant: 'no_base_url' } }
+
     const diagnosis = await application
       .get('NetworkService')
       .diagnoseEndpoint({ id: 'custom', url: target.baseUrl }, ctx.signal)
+
     if (diagnosis.http.status !== 'ok') {
       return {
         status: 'fail',
@@ -64,6 +72,7 @@ export const modelEndpoint = defineDoctorCheck({
         actions: PROVIDER_SETTINGS_ACTION
       }
     }
+
     return {
       status: 'pass',
       evidence: diagnosis.http.data
@@ -78,9 +87,12 @@ export const modelList = defineDoctorCheck({
   id: 'provider-model-list',
   async run(ctx) {
     const target = await modelTarget(ctx)
+
     if (!target.supportsModelListing) return { status: 'skip', detail: { variant: 'unsupported' } }
+
     try {
       const models = await target.listModels(ctx.signal)
+
       return models.includes(target.modelId)
         ? { status: 'pass' }
         : {
@@ -91,9 +103,11 @@ export const modelList = defineDoctorCheck({
           }
     } catch (error) {
       ctx.signal.throwIfAborted()
+
       if (APICallError.isInstance(error) && [404, 405, 501].includes(error.statusCode ?? 0)) {
         return { status: 'skip', detail: { variant: 'endpoint_unavailable' } }
       }
+
       return requestFailure<'provider-model-list'>(error)
     }
   },
@@ -104,8 +118,11 @@ export const modelConversation = defineDoctorCheck({
   id: 'provider-model-conversation',
   async getConfirmation(ctx) {
     const target = await modelTarget(ctx)
+
     if (target.isExternalCli) return { status: 'skip', detail: { variant: 'external_cli' } }
+
     if (!target.supportsChat) return { status: 'skip', detail: { variant: 'not_chat_model' } }
+
     return {
       confirmation: {
         messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
@@ -116,11 +133,14 @@ export const modelConversation = defineDoctorCheck({
   },
   async run(ctx) {
     const target = await modelTarget(ctx)
+
     try {
       await target.checkConversation(ctx.signal)
+
       return { status: 'pass' }
     } catch (error) {
       ctx.signal.throwIfAborted()
+
       return requestFailure<'provider-model-conversation'>(error)
     }
   },

@@ -27,10 +27,15 @@ function toReceipt(row: RemoteCommandRow): CommandReceipt {
     status: row.status,
     admittedAt: new Date(row.admittedAt).toISOString()
   }
+
   if (row.sessionId) receipt.sessionId = row.sessionId
+
   if (row.executionId) receipt.executionId = row.executionId
+
   if (row.result !== null && row.result !== undefined) receipt.result = row.result as CommandReceipt['result']
+
   if (row.error) receipt.error = row.error
+
   return receipt
 }
 
@@ -49,6 +54,7 @@ export class RemoteCommandService {
 
   get(key: RemoteCommandKey): CommandReceipt | undefined {
     const row = this.db.select().from(remoteCommandTable).where(this.where(key)).get()
+
     return row ? toReceipt(row) : undefined
   }
 
@@ -59,7 +65,9 @@ export class RemoteCommandService {
   ) {
     return application.get('DbService').withWriteTx((tx) => {
       const admission = this.admit(key, input)
+
       if (admission.kind !== 'accepted') return admission
+
       return { kind: 'accepted' as const, receipt: this.settle(key, write(tx)) }
     })
   }
@@ -75,6 +83,7 @@ export class RemoteCommandService {
       .where(and(this.where(key), eq(remoteCommandTable.status, 'accepted')))
       .returning()
       .get()
+
     if (!row) throw new Error('Remote command is no longer accepted')
   }
 
@@ -89,22 +98,26 @@ export class RemoteCommandService {
     | { kind: 'accepted'; receipt: CommandReceipt } {
     return application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(remoteCommandTable).where(this.where(key)).get()
+
       if (existing) {
         return existing.identityDigest === input.identityDigest
           ? { kind: 'existing', receipt: toReceipt(existing) }
           : { kind: 'conflict' }
       }
+
       // Keep deduplication receipts for the grant lifetime; reject new work instead of replaying expired commands.
       const deviceCount = tx
         .select({ count: count() })
         .from(remoteCommandTable)
         .where(eq(remoteCommandTable.deviceId, key.deviceId))
         .get()!.count
+
       if (
         deviceCount >= DEVICE_RECEIPTS ||
         tx.select({ count: count() }).from(remoteCommandTable).get()!.count >= GLOBAL_RECEIPTS
       )
         return { kind: 'exhausted' }
+
       const row = tx
         .insert(remoteCommandTable)
         .values({
@@ -117,6 +130,7 @@ export class RemoteCommandService {
         })
         .returning()
         .get()
+
       return { kind: 'accepted', receipt: toReceipt(row) }
     })
   }
@@ -124,21 +138,27 @@ export class RemoteCommandService {
   /** Moves an `accepted` receipt to its terminal state; a settled receipt is never overwritten. */
   settle(key: RemoteCommandKey, outcome: RemoteCommandOutcome): CommandReceipt {
     const values: Partial<typeof remoteCommandTable.$inferInsert> = { status: outcome.status }
+
     if (outcome.status === 'applied') {
       if (outcome.sessionId) values.sessionId = outcome.sessionId
       values.executionId = outcome.executionId ?? null
+
       if (outcome.result !== undefined) values.result = outcome.result
     } else {
       values.error = outcome.error
     }
+
     const row = this.db
       .update(remoteCommandTable)
       .set(values)
       .where(and(this.where(key), eq(remoteCommandTable.status, 'accepted')))
       .returning()
       .get()
+
     const current = row ?? this.db.select().from(remoteCommandTable).where(this.where(key)).get()
+
     if (!current) throw new Error('Remote command receipt missing')
+
     return toReceipt(current)
   }
 

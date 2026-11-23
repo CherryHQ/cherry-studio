@@ -34,6 +34,7 @@ const ROUNDED_RECT_PATTERNS = [
 
 function isRoundedRectPath(d: string): boolean {
   const trimmed = d.trim()
+
   return ROUNDED_RECT_PATTERNS.some((p) => p.test(trimmed))
 }
 
@@ -68,12 +69,14 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
     fn: (root: XastRoot) => {
       // Pre-scan: find <svg> element and extract viewBox
       let svgNode: XastElement | null = null
+
       for (const child of root.children) {
         if (child.type === 'element' && child.name === 'svg') {
           svgNode = child
           break
         }
       }
+
       if (!svgNode) return {}
 
       const vb = parseViewBox(svgNode.attributes)
@@ -81,34 +84,44 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
       // Collect gradient definitions for resolving url(#id) fills
       const gradients = new Map<string, string>()
+
       function collectGradients(node: XastElement) {
         const children = node.children
+
         for (const child of children) {
           if (child.type !== 'element') continue
+
           if (child.name === 'linearGradient' || child.name === 'radialGradient') {
             const id = child.attributes.id
+
             if (id) {
               const stops = child.children.filter((s): s is XastElement => s.type === 'element' && s.name === 'stop')
+
               if (stops.length > 0) {
                 // Use first stop color as representative brand color
                 const color = stops[0].attributes['stop-color']
+
                 if (color) gradients.set(id, color)
               }
             }
           }
+
           if (child.children.length > 0) collectGradients(child)
         }
       }
+
       collectGradients(svgNode)
 
       function resolveGradientFill(fill: string): string {
         if (!fill || !fill.startsWith('url(')) return fill
         const m = fill.match(/url\(#([^)]+)\)/)
+
         return m ? gradients.get(m[1]) || '' : ''
       }
 
       // Collect all <path> and <rect> info in document order
       const paths: PathInfo[] = []
+
       const rects: {
         node: XastElement
         parent: XastElement
@@ -120,6 +133,7 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
       function collectElements(node: XastElement) {
         const children = node.children
+
         for (const child of children) {
           if (child.type !== 'element') continue
 
@@ -136,15 +150,18 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
           if (child.name === 'path') {
             const d = child.attributes.d || ''
+
             if (!d) continue
 
             const fill = child.attributes.fill || ''
             const bounds = parseSvgPathBounds(d)
             let area = 0
+
             if (isFinite(bounds.minX)) {
               // Account for transform="translate(x,y)"
               const transformAttr = child.attributes.transform || ''
               const tx = transformAttr.match(/translate\((-?[\d.]+)[,\s]+(-?[\d.]+)\)/)
+
               if (tx) {
                 const dx = parseFloat(tx[1]) || 0
                 const dy = parseFloat(tx[2]) || 0
@@ -153,6 +170,7 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
                 bounds.minY += dy
                 bounds.maxY += dy
               }
+
               area = (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)
             }
 
@@ -185,6 +203,7 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
       // since they are never brand elements and break dark mode rendering.
       function markBackground(node: XastElement, parent: XastElement, fill: string | null) {
         if (fill) backgroundFill = fill
+
         if (!detectOnly || !fill) detachNodeFromParent(node, parent)
         removed = true
       }
@@ -223,6 +242,7 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
           // --- Rule 3: Largest <path> covering >= 90% viewBox AND dark (lum < 0.15) → remove ---
           const sorted = [...largeNonWhitePaths].sort((a, b) => b.area - a.area)
+
           if (sorted.length >= 1 && sorted[0].area >= vbArea * 0.9 && sorted[0].lum >= 0 && sorted[0].lum < 0.15) {
             markBackground(sorted[0].node, sorted[0].parent, sorted[0].resolvedFill || sorted[0].fill || '#000000')
           }
@@ -256,10 +276,13 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
           // path is likely part of the icon design (e.g. aihubmix circle + white cutout + blue smile),
           // not a background.
           const remainingPaths = paths.slice(1)
+
           const hasColoredForeground = remainingPaths.some((p) => {
             const fill = p.resolvedFill || p.fill
+
             if (!fill || fill === 'none' || isWhiteFill(fill)) return false
             const lum = colorToLuminance(fill)
+
             return lum >= 0 && lum < 0.7
           })
 

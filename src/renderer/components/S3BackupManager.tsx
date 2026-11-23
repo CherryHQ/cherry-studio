@@ -52,10 +52,12 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   const fetchBackupFiles = useCallback(async () => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       toast.error(t('settings.data.s3.manager.config.incomplete'))
+
       return
     }
 
     setLoading(true)
+
     try {
       const files = await window.api.backup.listS3Files({
         ...s3Config,
@@ -68,6 +70,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         syncInterval: 0,
         maxBackups: 0
       })
+
       setBackupFiles(files)
     } catch {
       toast.error(t('settings.data.s3.manager.files.fetch.error', { message: t('error.unknown') }))
@@ -93,6 +96,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const paginatedBackupFiles = useMemo(() => {
     const start = (safeCurrentPage - 1) * PAGE_SIZE
+
     return backupFiles.slice(start, start + PAGE_SIZE)
   }, [backupFiles, safeCurrentPage])
 
@@ -105,6 +109,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
     (nextSelectedRowKeys: Key[]) => {
       setSelectedRowKeys((previousKeys) => {
         const preservedKeys = previousKeys.filter((key) => !currentPageKeys.has(key.toString()))
+
         return Array.from(new Set([...preservedKeys, ...nextSelectedRowKeys]))
       })
     },
@@ -114,11 +119,13 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
       toast.warning(t('settings.data.s3.manager.select.warning'))
+
       return
     }
 
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       toast.error(t('settings.data.s3.manager.config.incomplete'))
+
       return
     }
 
@@ -130,9 +137,11 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setDeleting(true)
+
     try {
       // 依次删除选中的文件
       for (const key of selectedRowKeys) {
@@ -148,6 +157,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
           maxBackups: 0
         })
       }
+
       toast.success(t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length }))
       setSelectedRowKeys([])
       await fetchBackupFiles()
@@ -161,6 +171,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   const handleDeleteSingle = async (fileName: string) => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       toast.error(t('settings.data.s3.manager.config.incomplete'))
+
       return
     }
 
@@ -172,9 +183,11 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setDeleting(true)
+
     try {
       await window.api.backup.deleteS3File(fileName, {
         ...s3Config,
@@ -199,6 +212,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
   const handleRestore = async (fileName: string) => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
       toast.error(t('settings.data.s3.manager.config.incomplete'))
+
       return
     }
 
@@ -210,9 +224,11 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       cancelText: t('settings.data.s3.restore.confirm.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     setRestoring(true)
+
     try {
       await (restoreMethod || restoreFromS3)(fileName)
       toast.success(t('settings.data.s3.restore.success'))
@@ -231,6 +247,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
       cell: ({ getValue }) => {
         const fileName = getValue() as string
+
         return (
           <Tooltip placement="top-start" content={fileName} fullWidthTrigger>
             <span className="block w-full min-w-0 truncate">{fileName}</span>
@@ -256,6 +273,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       meta: { width: 160 },
       cell: ({ row }) => {
         const record = row.original
+
         return (
           <div className="flex items-center gap-1">
             <Button variant="ghost" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>

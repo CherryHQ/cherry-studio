@@ -98,6 +98,7 @@ export const OPENROUTER_WIRE_PROFILE: WireProfile = {
         if (all.outputFormat === 'jpeg' || all.outputFormat === 'webp') {
           return { output_compression: value }
         }
+
         return {}
       }
     }
@@ -139,6 +140,7 @@ export const DOUBAO_WIRE_PROFILE: WireProfile = {
 const aspectRatioImageConfigRule: WireRule = {
   contribute: (v) => {
     const normalized = normalizeAspectRatio(String(v))
+
     return normalized ? { imageConfig: { aspectRatio: normalized } } : {}
   }
 }

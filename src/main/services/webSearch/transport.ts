@@ -10,8 +10,10 @@ export const electronWebSearchTransport: WebSearchTransport = {
     const controller = new AbortController()
     const forwardAbort = () => controller.abort(request.signal?.reason)
     request.signal?.addEventListener('abort', forwardAbort, { once: true })
+
     if (request.signal?.aborted) forwardAbort()
     let timedOut = false
+
     const timeout =
       request.timeoutMs === undefined
         ? undefined
@@ -19,6 +21,7 @@ export const electronWebSearchTransport: WebSearchTransport = {
             timedOut = true
             controller.abort()
           }, request.timeoutMs)
+
     try {
       const response = await net.fetch(request.url, {
         method: request.method,
@@ -26,12 +29,15 @@ export const electronWebSearchTransport: WebSearchTransport = {
         body: request.body,
         signal: request.timeoutMs === undefined ? request.signal : controller.signal
       })
+
       const bodyText = await response.text()
+
       if (controller.signal.aborted) throw controller.signal.reason
       const headers: Record<string, string> = {}
       response.headers.forEach((value, key) => {
         headers[key.toLowerCase()] = value
       })
+
       return { status: response.status, headers, bodyText }
     } catch (cause) {
       const kind = request.signal?.aborted ? 'cancelled' : timedOut ? 'timeout' : 'network'

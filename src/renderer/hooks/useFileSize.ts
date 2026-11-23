@@ -20,6 +20,7 @@ export function useFileSize(
 ): FileSizeState {
   const fileKey = workspacePath && filePath ? `${workspacePath}\0${filePath}` : null
   const requestKey = fileKey ? `${fileKey}\0${refreshKey ?? ''}` : null
+
   const [result, setResult] = useState<{ fileKey: string | null; requestKey: string | null; state: FileSizeState }>({
     fileKey: null,
     requestKey: null,
@@ -29,6 +30,7 @@ export function useFileSize(
   useEffect(() => {
     if (!requestKey || !workspacePath || !filePath) {
       setResult({ fileKey: null, requestKey: null, state: PENDING_FILE_SIZE_STATE })
+
       return
     }
 
@@ -47,6 +49,7 @@ export function useFileSize(
           'file.get_metadata',
           createFilePathHandle(AbsoluteFilePathSchema.parse(absPath))
         )
+
         if (!cancelled) {
           setResult({
             fileKey,
@@ -68,13 +71,17 @@ export function useFileSize(
   }, [fileKey, filePath, requestKey, workspacePath])
 
   if (result.fileKey !== fileKey) return PENDING_FILE_SIZE_STATE
+
   if (result.requestKey === requestKey) return result.state
+
   if (knownSizeBytes !== undefined) {
     // A successful snapshot read/write is at least as fresh as the previous
     // metadata result. Prefer the larger value until revalidation settles so
     // neither a saved growth nor an external growth can slip under a size cap.
     const size = result.state.status === 'ok' ? Math.max(result.state.size, knownSizeBytes) : knownSizeBytes
+
     return { status: 'ok', size }
   }
+
   return result.state
 }

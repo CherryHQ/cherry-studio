@@ -7,6 +7,7 @@ import { TOKEN_PLACEHOLDER } from './markdownSession'
 type CodeLineMatch = NonNullable<ReturnType<typeof findMarkdownCodeLine>>
 
 const CODE_INDENT = '  '
+
 const CLOSING_BRACKETS: ReadonlyMap<string, string> = new Map([
   ['{', '}'],
   ['[', ']'],
@@ -23,6 +24,7 @@ function insertCodeNewline(view: EditorView, { block, line }: CodeLineMatch) {
     const below = line.blockPosition + line.blockSize
     transaction.insert(below, paragraph.create())
     view.dispatch(transaction.setSelection(TextSelection.create(transaction.doc, below + 1)).scrollIntoView())
+
     return
   }
 
@@ -31,39 +33,48 @@ function insertCodeNewline(view: EditorView, { block, line }: CodeLineMatch) {
   const $open = state.doc.resolve(block.reveal.from)
   const container = $open.parent.textBetween(0, $open.parentOffset).replace(/[^ \t>]/g, ' ')
   const isAtLineEnd = $from.parentOffset === $from.parent.content.size
+
   if (!empty) transaction.deleteSelection()
   transaction.split(transaction.selection.from)
   const nextLineStart = transaction.selection.from
 
   if (line === block.open) {
     const fence = /^(`{3,}|~{3,})/.exec(before.slice($open.parentOffset))?.[1]
+
     if (fence && isAtLineEnd && !block.close && block.codeLines.length === 0) {
       transaction.insert(nextLineStart + 1, paragraph.create(null, state.schema.text(container + fence)))
       transaction.setSelection(TextSelection.create(transaction.doc, nextLineStart))
     }
+
     if (container) transaction.insertText(container, nextLineStart)
   } else if (line !== block.close) {
     const quoteDepth = container.match(/>/g)?.length ?? 0
     const baseIndent = new RegExp(`^(?:[ \t]*>){${quoteDepth}}[ \t]*`).exec(before)?.[0] ?? container
+
     if (after && after[0] === CLOSING_BRACKETS.get(before.at(-1) ?? '')) {
       transaction.insertText(baseIndent + CODE_INDENT, nextLineStart)
       const middleLineEnd = transaction.selection.from
       transaction.split(middleLineEnd)
+
       if (baseIndent) transaction.insertText(baseIndent, middleLineEnd + 2)
       transaction.setSelection(TextSelection.create(transaction.doc, middleLineEnd))
     } else {
       const indent = baseIndent + (/[{[(]\s*$/.test(before) ? CODE_INDENT : '')
+
       if (indent) transaction.insertText(indent, nextLineStart)
     }
   }
+
   view.dispatch(transaction.scrollIntoView())
 }
 
 function indentCodeSelection(view: EditorView, { block }: CodeLineMatch, outdent: boolean) {
   const { state } = view
   const { from, to, empty } = state.selection
+
   if (empty && !outdent) {
     view.dispatch(state.tr.insertText(CODE_INDENT, from).scrollIntoView())
+
     return
   }
 
@@ -73,6 +84,7 @@ function indentCodeSelection(view: EditorView, { block }: CodeLineMatch, outdent
   state.doc.nodesBetween(from, Math.min(to, blockEnd), (node, position) => {
     if (!node.isTextblock) return true
     lineStarts.push(position + 1)
+
     return false
   })
 
@@ -80,12 +92,16 @@ function indentCodeSelection(view: EditorView, { block }: CodeLineMatch, outdent
   lineStarts.reverse().forEach((start) => {
     if (!outdent) {
       transaction.insertText(CODE_INDENT, start)
+
       return
     }
+
     const leading = /^ */.exec(state.doc.resolve(start).parent.textContent)?.[0].length ?? 0
     const width = Math.min(CODE_INDENT.length, leading)
+
     if (width > 0) transaction.delete(start, start + width)
   })
+
   if (transaction.docChanged) view.dispatch(transaction.scrollIntoView())
 }
 
@@ -93,12 +109,15 @@ function indentCodeSelection(view: EditorView, { block }: CodeLineMatch, outdent
 export function handleMarkdownCodeKey(view: EditorView, event: KeyboardEvent): boolean {
   if (event.isComposing) return false
   const isEnter = event.key === 'Enter' || event.key === 'NumpadEnter'
+
   if (!isEnter && event.key !== 'Tab') return false
 
   const match = findMarkdownCodeLine(view.state, view.state.selection.from)
+
   if (!match) return false
 
   if (isEnter) insertCodeNewline(view, match)
   else indentCodeSelection(view, match, event.shiftKey)
+
   return true
 }

@@ -4,6 +4,7 @@ import { PulseLight } from './light'
 
 const Pulse = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <PulseLight {...props} className={className} />
+
   return <PulseLight {...props} className={className} />
 }
 

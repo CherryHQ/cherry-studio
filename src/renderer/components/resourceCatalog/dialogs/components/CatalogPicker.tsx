@@ -37,6 +37,7 @@ export interface CatalogItem {
 
 function CatalogBadges({ item }: { item: CatalogItem }) {
   if (!item.inactiveBadge && !item.statusBadge) return null
+
   return (
     <span className="flex shrink-0 items-center gap-1">
       {item.inactiveBadge ? (
@@ -87,6 +88,7 @@ export const CatalogToggleGrid: FC<{
   if (loading) {
     return <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
   }
+
   if (items.length === 0 && !trailingItem) {
     return <CatalogEmptyPlaceholder>{emptyLabel}</CatalogEmptyPlaceholder>
   }
@@ -102,6 +104,7 @@ export const CatalogToggleGrid: FC<{
       {items.map((item) => {
         const checked = enabledIds.has(item.id)
         const toggleDisabled = Boolean(disabled || item.disableToggle || (item.pickable === false && !checked))
+
         const disabledReason =
           item.disabledReason ?? (toggleDisabled && item.inactiveBadge ? item.inactiveBadge : undefined)
 
@@ -236,10 +239,12 @@ export const AddCatalogPopover: FC<{
 
   const filteredOptions = useMemo(() => {
     const q = search.trim().toLowerCase()
+
     if (!q) return options
 
     return options.filter((option) => {
       const item = option.item
+
       return item.name.toLowerCase().includes(q) || (item.description ?? '').toLowerCase().includes(q)
     })
   }, [options, search])
@@ -247,6 +252,7 @@ export const AddCatalogPopover: FC<{
   const handleOpenChange = (nextOpen: boolean) => {
     if (disabled && nextOpen) return
     setOpen(nextOpen)
+
     if (!nextOpen) setSearch('')
   }
 

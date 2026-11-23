@@ -41,20 +41,25 @@ export function useSessionCreation({
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const [creatingSession, setCreatingSession] = useState(false)
+
   const findOrCreateWorkspace = useCallback(
     async (workspacePath: string) => {
       const workspace = await ipcApi.request('ai.agent.workspace.register', {
         path: AbsoluteFilePathSchema.parse(workspacePath)
       })
+
       await invalidate('/agent-workspaces')
+
       return workspace
     },
     [invalidate]
   )
+
   const createSessionFromSeed = useCallback(
     async (seed: CreateSessionSeed | null | undefined) => {
       if (creatingSession) return null
       setCreatingSession(true)
+
       try {
         const workspace =
           seed?.workspace ??
@@ -64,7 +69,9 @@ export function useSessionCreation({
                 workspaceId: (await findOrCreateWorkspace(seed.workspacePath)).id
               } satisfies AgentSessionWorkspaceSource)
             : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
+
         const requestedAgentId = seed?.agentId
+
         const agentId =
           (requestedAgentId && agentById.has(requestedAgentId) ? requestedAgentId : undefined) ??
           agentsForDisplay[0]?.id ??
@@ -72,6 +79,7 @@ export function useSessionCreation({
 
         if (!onCreateSession) {
           await onShowMissingAgentSelection?.()
+
           return null
         }
 
@@ -84,6 +92,7 @@ export function useSessionCreation({
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId: seed?.agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+
         return null
       } finally {
         setCreatingSession(false)
@@ -105,17 +114,23 @@ export function useSessionCreation({
       const transition = () => {
         void createSessionFromSeed(seed)
       }
+
       const activeSession = activeSessionIdRef.current
         ? sessionItemsRef.current.find((session) => session.id === activeSessionIdRef.current)
         : undefined
+
       if (seed && activeSession && createSessionSeedPreservesFileWorkspace(seed, activeSession)) {
         transition()
+
         return
       }
+
       if (requestFileNavigation) {
         requestFileNavigation(transition)
+
         return
       }
+
       transition()
     },
     [activeSessionIdRef, createSessionFromSeed, requestFileNavigation, sessionItemsRef]

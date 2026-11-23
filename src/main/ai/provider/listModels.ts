@@ -137,6 +137,7 @@ function recoverOptionalModelListFailure<T>(error: unknown, context: Record<stri
     errorType: getErrorType(error)
   })
   const data: T[] = []
+
   return { data }
 }
 
@@ -145,6 +146,7 @@ function warnSkippedOpenAIModelEntries(
   ...responses: Array<{ data: unknown[]; skippedModelCount?: number }>
 ): void {
   const skippedModelCount = responses.reduce((total, response) => total + (response.skippedModelCount ?? 0), 0)
+
   if (skippedModelCount > 0) {
     logger.warn('Skipped malformed OpenAI-compatible model entries', { providerId, skippedModelCount })
   }
@@ -163,6 +165,7 @@ const ApiErrorSchema = z.object({
 })
 
 type ApiError = z.infer<typeof ApiErrorSchema>
+
 type OpenAIModelResponseItem = z.infer<typeof OpenAIModelsResponseSchema>['data'][number]
 
 async function getFromApi<T>({
@@ -201,6 +204,7 @@ function defaultGroup(modelId: string, providerId: string): string {
  * verbatim (it is the provider's own handle), so `id` strips them. */
 function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
   const safeModelId = apiModelId.replace(/[?#]/g, '')
+
   return {
     id: createUniqueModelId(provider.id, safeModelId),
     providerId: provider.id,
@@ -219,10 +223,13 @@ function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>)
 
 function dedup<T>(items: T[], getId: (item: T) => string | undefined): T[] {
   const seen = new Set<string>()
+
   return items.filter((item) => {
     const id = getId(item)?.trim()
+
     if (!id || seen.has(id)) return false
     seen.add(id)
+
     return true
   })
 }
@@ -231,9 +238,11 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   for (const value of values) {
     if (typeof value === 'string') {
       const trimmed = value.trim()
+
       if (trimmed.length > 0) return trimmed
     }
   }
+
   return undefined
 }
 
@@ -242,8 +251,10 @@ function readOllamaContextLength(
   modelInfo: z.infer<typeof OllamaShowResponseSchema>['model_info']
 ): number | undefined {
   const architecture = modelInfo?.['general.architecture']
+
   if (typeof architecture !== 'string') return undefined
   const contextLength = modelInfo?.[`${architecture}.context_length`]
+
   return typeof contextLength === 'number' && contextLength > 0 ? contextLength : undefined
 }
 
@@ -272,10 +283,12 @@ async function fetchOllamaContextWindow(
       abortSignal: signal,
       fetch: modelListFetch
     })
+
     return readOllamaContextLength(value.model_info)
   } catch (error) {
     // A model that cannot be inspected still belongs in the list; it falls back to the default window.
     logger.warn('failed to read Ollama context length', { model, error })
+
     return undefined
   }
 }
@@ -286,24 +299,33 @@ const ollamaFetcher: ModelFetcher = {
     const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
       .replace(/\/v1$/, '')
       .replace(/\/api$/, '')
+
     const response = await getFromApi({
       url: `${baseUrl}/api/tags`,
       headers: defaultHeaders(provider),
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
+
     const models = dedup(response.models, (m) => m.name)
+
     const contextWindows = await Promise.all(
       models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
     )
+
     return listing(
       models.map((m, index) => {
         const capabilities: Model['capabilities'] = []
+
         if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
+
         if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+
         if (m.capabilities?.includes('embedding')) capabilities.push(MODEL_CAPABILITY.EMBEDDING)
         const extra: Partial<Model> = { ownedBy: 'ollama', capabilities }
+
         if (contextWindows[index]) extra.contextWindow = contextWindows[index]
+
         return toModel(m.name, provider, extra)
       })
     )
@@ -337,10 +359,13 @@ function getGeminiModelMetadata(
   model: z.infer<typeof GeminiModelsResponseSchema>['models'][number]
 ): Partial<Model> | null {
   const id = (model.name.startsWith('models/') ? model.name.slice(7) : model.name).toLowerCase()
+
   if (EXCLUDED_GEMINI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))) return null
 
   const methods = model.supportedGenerationMethods ?? []
+
   if (methods.length === 0) return {}
+
   return GEMINI_MODEL_TYPES.find((type) => type.methods.some((method) => methods.includes(method)))?.metadata ?? null
 }
 
@@ -350,6 +375,7 @@ const geminiFetcher: ModelFetcher = {
     let baseUrl = withoutTrailingSlash(getBaseUrl(provider))
     baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')
     const apiKey = providerService.getRotatedApiKey(provider.id)
+
     // Pass the key via the `x-goog-api-key` header (same as `@ai-sdk/google`'s chat path)
     // instead of the `?key=` query param: on failure `APICallError.url` is logged, which
     // would persist the key into local logs users attach to bug reports.
@@ -363,11 +389,14 @@ const geminiFetcher: ModelFetcher = {
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
+
     return listing(
       dedup(response.models, (m) => m.name).flatMap((m) => {
         const metadata = getGeminiModelMetadata(m)
+
         if (!metadata) return []
         const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
+
         return [
           toModel(id, provider, {
             name: m.displayName || id,
@@ -389,40 +418,50 @@ const vertexFetcher: ModelFetcher = {
   match: (p) => isVertexProvider(p),
   fetch: async (provider, signal, options) => {
     const request = await createVertexModelListRequest(provider, { throwOnError: options?.throwOnError })
+
     if (!request) return listing([])
 
     type PublisherGroup = z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] | null
+
     let firstPublisherError: unknown
+
     const publisherModelGroups = await Promise.all(
       DEFAULT_VERTEX_MODEL_PUBLISHERS.map(async (publisher): Promise<PublisherGroup> => {
         try {
           const publisherModels: z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] = []
           let pageToken: string | undefined
+
           do {
             const searchParams = new URLSearchParams({
               pageSize: '100',
               listAllVersions: 'true'
             })
+
             if (pageToken) searchParams.set('pageToken', pageToken)
+
             const response = await getFromApi({
               url: `${request.baseUrl}/v1beta1/publishers/${publisher}/models?${searchParams.toString()}`,
               headers: request.headers,
               responseSchema: VertexPublisherModelsResponseSchema,
               abortSignal: signal
             })
+
             publisherModels.push(...response.publisherModels)
             pageToken = response.nextPageToken
           } while (pageToken)
+
           return publisherModels
         } catch (error) {
           if (firstPublisherError === undefined) {
             firstPublisherError = error
           }
+
           logger.warn('Skipping Vertex publisher model listing after request failure', {
             providerId: provider.id,
             publisher,
             error: error instanceof Error ? error.message : String(error)
           })
+
           return null
         }
       })
@@ -432,9 +471,11 @@ const vertexFetcher: ModelFetcher = {
       if (firstPublisherError instanceof Error) {
         throw firstPublisherError
       }
+
       if (firstPublisherError !== undefined) {
         throw new Error(String(firstPublisherError))
       }
+
       throw new Error('One or more Vertex AI publisher requests failed')
     }
 
@@ -448,6 +489,7 @@ const vertexFetcher: ModelFetcher = {
       // models (Gemini/Gemma/embeddings) keep their bare id.
       const publisherModelId = `${ownedBy}/${bareId}`
       const apiModelId = isVertexMaasModelId(publisherModelId) ? publisherModelId : bareId
+
       return toModel(apiModelId, provider, {
         name: pickPreferredString([model.displayName, bareId]) || bareId,
         description: model.description,
@@ -460,6 +502,7 @@ const vertexFetcher: ModelFetcher = {
     // patterns are anchored to the model name and would reject either prefixed form.
     const filteredModels = listedModels.filter((model) => {
       const modelId = model.apiModelId ?? ''
+
       return isSupportedVertexPublisherModel(modelId) && (model.ownedBy === 'google' || isVertexMaasModelId(modelId))
     })
 
@@ -483,6 +526,7 @@ const copilotFetcher: ModelFetcher = {
     // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
     // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
     const { token } = await copilotService.getToken(null as any, copilotHeaders)
+
     const response = await getFromApi({
       url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
       headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
@@ -492,6 +536,7 @@ const copilotFetcher: ModelFetcher = {
 
     const filtered = response.data.filter((m) => {
       const modelId = m.id.toLowerCase()
+
       return (
         m.policy?.state !== 'disabled' &&
         !/^accounts\/[^/]+\/routers\//.test(modelId) &&
@@ -510,12 +555,14 @@ const ovmsFetcher: ModelFetcher = {
     // the OpenAI-compatible /v3 namespace, which has no GET /config. Strip whatever version the
     // host carries so the version below is always the one OVMS actually serves this on.
     const baseUrl = formatApiHost(withoutTrailingApiVersion(getBaseUrl(provider)), true, 'v1')
+
     const response = await getFromApi({
       url: `${baseUrl}/config`,
       headers: defaultHeaders(provider),
       responseSchema: OVMSConfigResponseSchema,
       abortSignal: signal
     })
+
     // List every model registered in OVMS config regardless of its server-side
     // loading state (AVAILABLE, LOADING, FAILED_PRECONDITION, etc.).  Users
     // expect downloaded models to appear in the model manager even when OVMS
@@ -537,13 +584,16 @@ const comfyuiFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
   fetch: async (provider, signal) => {
     const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+
     // The ComfyUI server takes no credentials, and the stored key belongs to
     // some other provider's host: `defaultHeaders` would hand it to this one.
     const workflows = await listWorkflows(baseUrl, signal, {
       headers: headersWithoutCredentials(provider),
       fetch: modelListFetch
     })
+
     const { listed, skipped } = partitionListableWorkflows(provider.id, workflows)
+
     const models = dedup(listed, (workflow) => workflow).map((workflow) =>
       toModel(workflow, provider, {
         name: workflow.split('/').pop() ?? workflow,
@@ -555,6 +605,7 @@ const comfyuiFetcher: ModelFetcher = {
         outputModalities: [MODALITY.IMAGE]
       })
     )
+
     // A skip the user cannot see reads as a workflow that vanished: the names travel
     // with the list so the model manager can say which files to rename.
     return skipped.length > 0 ? { models, skippedModels: skipped } : listing(models)
@@ -565,12 +616,14 @@ const togetherFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.together,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
+
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: TogetherModelsResponseSchema,
       abortSignal: signal
     })
+
     return listing(
       dedup(response, (m) => m.id).map((m) =>
         toModel(m.id, provider, {
@@ -605,6 +658,7 @@ const ENDPOINT_TYPE_ALIASES: ReadonlyMap<string, EndpointType> = new Map(
     'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
   })
 )
+
 const ENDPOINT_TYPE_VALUES = new Set<string>(Object.values(ENDPOINT_TYPE))
 
 function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
@@ -616,6 +670,7 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
     values
       .map((value) => {
         const normalized = value.trim().toLowerCase()
+
         return (
           ENDPOINT_TYPE_ALIASES.get(normalized) ??
           (ENDPOINT_TYPE_VALUES.has(normalized) ? (normalized as EndpointType) : undefined)
@@ -627,6 +682,7 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
 
   if (endpointTypes[0] === ENDPOINT_TYPE.OPENAI_EMBEDDINGS) {
     const chatEndpoint = endpointTypes.find((endpointType) => endpointImpliedCapability(endpointType) === undefined)
+
     if (chatEndpoint) {
       return [chatEndpoint, ...endpointTypes.filter((endpointType) => endpointType !== chatEndpoint)]
     }
@@ -643,19 +699,23 @@ const newApiFetcher: ModelFetcher = {
     p.id === SystemProviderIds.aionly,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
+
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: NewApiModelsResponseSchema,
       abortSignal: signal
     })
+
     return listing(
       dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
         const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
         const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
 
         const extra: Partial<Model> = { ownedBy: m.owned_by, endpointTypes }
+
         if (impliedCapability) extra.capabilities = [impliedCapability]
+
         return toModel(m.id, provider, extra)
       })
     )
@@ -668,6 +728,7 @@ const tokenDanceFetcher: ModelFetcher = {
     const modelsUrl =
       provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls?.default ??
       `${formatApiHost(getBaseUrl(provider))}/models`
+
     const response = await getFromApi({
       url: modelsUrl,
       headers: defaultHeaders(provider),
@@ -679,6 +740,7 @@ const tokenDanceFetcher: ModelFetcher = {
       dedup(response.data, (m) => m.id)
         .map((m) => {
           const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
+
           if (!endpointTypes) return undefined
 
           const impliedCapability = endpointImpliedCapability(endpointTypes[0])
@@ -689,7 +751,9 @@ const tokenDanceFetcher: ModelFetcher = {
             contextWindow: m.context_length,
             endpointTypes
           }
+
           if (impliedCapability) extra.capabilities = [impliedCapability]
+
           return toModel(m.id, provider, extra)
         })
         .filter((model): model is Partial<Model> => Boolean(model))
@@ -702,6 +766,7 @@ const openRouterFetcher: ModelFetcher = {
   fetch: async (provider, signal, options) => {
     const headers = defaultHeaders(provider)
     const modelsApiUrls = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls
+
     const [modelsResponse, embedModelsResponse, imageModelsResponse, rerankModelsResponse] = await Promise.all([
       getFromApi({
         url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
@@ -743,6 +808,7 @@ const openRouterFetcher: ModelFetcher = {
         })
       )
     ])
+
     warnSkippedOpenAIModelEntries(
       provider.id,
       modelsResponse,
@@ -752,24 +818,30 @@ const openRouterFetcher: ModelFetcher = {
     )
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
     const rerankModelIds = new Set(rerankModelsResponse.data.map((model) => model.id.trim()))
+
     const all = [
       ...modelsResponse.data,
       ...embedModelsResponse.data,
       ...imageModelsResponse.data,
       ...rerankModelsResponse.data
     ]
+
     return listing(
       dedup(all, (m) => m.id).map((m) => {
         const imageModel = imageModelsById.get(m.id)
         const extra: Partial<Model> = { name: imageModel?.name ?? m.name, ownedBy: m.owned_by }
+
         if (imageModel) {
           extra.capabilities = [MODEL_CAPABILITY.IMAGE_GENERATION]
           extra.endpointTypes = [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
         }
+
         const model = toModel(m.id, provider, extra)
+
         if (rerankModelIds.has(m.id.trim())) {
           model.capabilities = Array.from(new Set([...(model.capabilities ?? []), MODEL_CAPABILITY.RERANK]))
         }
+
         return model
       })
     )
@@ -781,6 +853,7 @@ const ppioFetcher: ModelFetcher = {
   fetch: async (provider, signal, options) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const headers = defaultHeaders(provider)
+
     const [chat, embed, reranker] = await Promise.all([
       getFromApi({
         url: `${baseUrl}/models`,
@@ -811,15 +884,20 @@ const ppioFetcher: ModelFetcher = {
         })
       )
     ])
+
     warnSkippedOpenAIModelEntries(provider.id, chat, embed, reranker)
     const modelsById = new Map<string, Partial<Model>>()
+
     const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
       const id = model.id?.trim()
+
       if (!id) return
 
       const existing = modelsById.get(id)
+
       if (!existing) {
         modelsById.set(id, toModel(id, provider, { ownedBy: model.owned_by, capabilities: capability ?? [] }))
+
         return
       }
 
@@ -829,7 +907,9 @@ const ppioFetcher: ModelFetcher = {
     }
 
     for (const model of chat.data) mergeModel(model)
+
     for (const model of embed.data) mergeModel(model)
+
     for (const model of reranker.data) mergeModel(model, [MODEL_CAPABILITY.RERANK])
 
     return listing(Array.from(modelsById.values()))
@@ -845,6 +925,7 @@ const aiHubMixFetcher: ModelFetcher = {
       responseSchema: AIHubMixModelsResponseSchema,
       abortSignal: signal
     })
+
     return listing(
       dedup(response.data, (m) => m.model_id).map((m) =>
         toModel(m.model_id, provider, {
@@ -872,6 +953,7 @@ const gatewayFetcher: ModelFetcher = {
       responseSchema: VercelGatewayModelsResponseSchema,
       abortSignal: signal
     })
+
     return listing(
       dedup(response.models, (m) => m.id).map((m) =>
         toModel(m.id, provider, {
@@ -888,6 +970,7 @@ const EXCLUDED_OPENAI_MODEL_KEYWORDS = ['tts', 'whisper', 'transcribe', 'speech'
 
 function isSupportedOpenAIModel(modelId: string): boolean {
   const id = modelId.toLowerCase()
+
   return !EXCLUDED_OPENAI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
 }
 
@@ -902,6 +985,7 @@ const anthropicFetcher: ModelFetcher = {
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const apiKey = providerService.getRotatedApiKey(provider.id)
+
     const response = await getFromApi({
       url: `${baseUrl}/models?limit=1000`,
       headers: mergeHeaders(
@@ -912,6 +996,7 @@ const anthropicFetcher: ModelFetcher = {
       responseSchema: AnthropicModelsResponseSchema,
       abortSignal: signal
     })
+
     return listing(
       dedup(response.data, (m) => m.id).map((m) =>
         toModel(m.id, provider, { name: m.display_name || m.id, ownedBy: 'anthropic' })
@@ -924,16 +1009,20 @@ const jinaFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.jina),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
+
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+
     warnSkippedOpenAIModelEntries(provider.id, response)
+
     return listing(
       dedup(response.data, (m) => m.id).map((m) => {
         const apiModelId = m.id.replace(/^jina-ai\//, '')
+
         return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
       })
     )
@@ -945,18 +1034,23 @@ const huggingFaceFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.huggingface),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
+
     const routerBaseUrl = providerRegistryService.getProviderPreset(SystemProviderIds.huggingface, ['endpointConfigs'])
       .endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl
+
     if (!routerBaseUrl || baseUrl !== formatApiHost(routerBaseUrl)) {
       return listOpenAICompatibleModels(provider, baseUrl, signal)
     }
+
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+
     warnSkippedOpenAIModelEntries(provider.id, response)
+
     return listing(
       dedup(response.data, (m) => m.id).map((m) =>
         toModel(m.id, provider, {
@@ -972,13 +1066,16 @@ const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
+
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+
     warnSkippedOpenAIModelEntries(provider.id, response)
+
     return listing(
       dedup(response.data, (m) => m.id)
         .filter((m) => isSupportedOpenAIModel(m.id))
@@ -998,7 +1095,9 @@ async function listOpenAICompatibleModels(
     responseSchema: OpenAIModelsResponseSchema,
     abortSignal: signal
   })
+
   warnSkippedOpenAIModelEntries(provider.id, response)
+
   return listing(
     dedup(response.data, (m) => m.id).map((m) =>
       toModel(m.id, provider, {
@@ -1022,10 +1121,13 @@ function resolvePoeChatEndpointTypes(
     ['/v1/responses', ENDPOINT_TYPE.OPENAI_RESPONSES],
     ['/v1/chat/completions', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
   ] as const
+
   const declared = chatPaths.flatMap(([path, endpoint]) => (supportedEndpoints.includes(path) ? [endpoint] : []))
+
   if (!declared.length) return undefined
 
   const preferred = registryEndpointTypes?.filter((endpoint) => declared.some((type) => type === endpoint))
+
   return preferred?.length ? [...new Set(preferred)] : declared
 }
 
@@ -1038,10 +1140,13 @@ const poeFetcher: ModelFetcher = {
       responseSchema: PoeModelsResponseSchema,
       abortSignal: signal
     })
+
     warnSkippedOpenAIModelEntries(provider.id, response)
+
     return listing(
       dedup(response.data, (m) => m.id).map((m) => {
         const { registryOverride } = providerRegistryService.resolveModel(provider, m.id)
+
         return toModel(m.id, provider, {
           name: m.name || m.id,
           ownedBy: m.owned_by,
@@ -1068,12 +1173,14 @@ const omlxFetcher: ModelFetcher = {
     // root, and a configured host may already carry an API version other than
     // v1, so strip any trailing version segment rather than only /v1.
     const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false))
+
     const response = await getFromApi({
       url: `${root}/v1/models/status`,
       headers: defaultHeaders(provider),
       responseSchema: OmlxModelStatusResponseSchema,
       abortSignal: signal
     })
+
     return listing(
       dedup(
         // The markitdown virtual model rides the same chat completions endpoint,
@@ -1116,16 +1223,21 @@ const omlxFetcher: ModelFetcher = {
                 ]
 
           const extra: Partial<Model> = { ownedBy: 'omlx' }
+
           // An alias changes only the display name; omitting it preserves toModel's ID fallback.
           if (m.model_alias) extra.name = m.model_alias
           extra.endpointTypes = endpointTypes
+
           if (m.max_context_window) extra.contextWindow = m.max_context_window
+
           if (m.max_tokens) extra.maxOutputTokens = m.max_tokens
+
           // Exported VLM configurations need explicit image inputs as well as the capability.
           if (m.model_type === 'vlm') {
             extra.capabilities = [MODEL_CAPABILITY.IMAGE_RECOGNITION]
             extra.inputModalities = [MODALITY.TEXT, MODALITY.IMAGE]
           }
+
           return toModel(m.id, provider, extra)
         })
     )
@@ -1139,6 +1251,7 @@ const lmStudioFetcher: ModelFetcher = {
     // Both native and OpenAI-compatible endpoints must resolve from the server root.
     const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v[01]$/, ''))
     let response: z.infer<typeof LMStudioModelsResponseSchema>
+
     try {
       response = await getFromApi({
         url: `${root}/api/v1/models`,
@@ -1153,6 +1266,7 @@ const lmStudioFetcher: ModelFetcher = {
         providerId: provider.id,
         errorType: getErrorType(error)
       })
+
       return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
     }
 
@@ -1161,17 +1275,22 @@ const lmStudioFetcher: ModelFetcher = {
         const endpointTypes = m.type === 'embedding' ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
         const implied = endpointImpliedCapability(endpointTypes?.[0])
         const capabilities: Model['capabilities'] = []
+
         if (implied) {
           capabilities.push(implied)
         } else {
           if (m.capabilities?.trained_for_tool_use) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+
           if (m.capabilities?.vision) capabilities.push(MODEL_CAPABILITY.IMAGE_RECOGNITION)
         }
 
         const extra: Partial<Model> = { name: m.display_name || m.key, ownedBy: m.publisher }
+
         if (endpointTypes) extra.endpointTypes = endpointTypes
         extra.capabilities = capabilities
+
         if (m.max_context_length) extra.contextWindow = m.max_context_length
+
         return toModel(m.key, provider, extra)
       })
     )
@@ -1192,20 +1311,25 @@ export async function probeOllamaModel(
   const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
   const appHeaders = getProviderAppHeaders(provider)
   const extraHeaders = getExtraHeaders(provider)
+
   const credentialHeaders = resolved.value
     ? { 'Content-Type': 'application/json', Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value }
     : { 'Content-Type': 'application/json' }
+
   const headers = mergeHeaders(appHeaders, extraHeaders, credentialHeaders)
+
   const response = await fetch(`${baseUrl}/show`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ model: modelApiId ?? '' }),
     signal
   })
+
   if (!response.ok) {
     const body = (await response.json().catch(() => undefined)) as { error?: string; message?: string } | undefined
     throw new Error(body?.error ?? body?.message ?? `Ollama /api/show returned ${response.status}`)
   }
+
   return { latency: performance.now() - start }
 }
 
@@ -1244,12 +1368,15 @@ export async function listModels(
 ): Promise<ListedModels> {
   try {
     const fetcher = fetchers.find((f) => f.match(provider))!
+
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {
     logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
+
     if (options?.throwOnError) {
       throw error
     }
+
     return listing([])
   }
 }

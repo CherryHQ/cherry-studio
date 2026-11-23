@@ -22,4 +22,5 @@ export const groupTable = sqliteTable(
 )
 
 export type InsertGroupRow = typeof groupTable.$inferInsert
+
 export type GroupRow = typeof groupTable.$inferSelect

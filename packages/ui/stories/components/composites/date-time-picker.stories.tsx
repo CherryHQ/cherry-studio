@@ -32,6 +32,7 @@ const meta: Meta<typeof DateTimePicker> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const DateOnly: Story = {

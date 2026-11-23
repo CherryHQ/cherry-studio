@@ -42,11 +42,13 @@ const listeners = new Set<() => void>()
 
 function setState(patch: Partial<SettingsSearchKeyboardState>) {
   state = { ...state, ...patch }
+
   for (const listener of listeners) listener()
 }
 
 const subscribe = (listener: () => void) => {
   listeners.add(listener)
+
   return () => listeners.delete(listener)
 }
 
@@ -79,6 +81,7 @@ let jumpToIndex: ((index: number) => void) | undefined
 /** Results page registers the jump executor (owns navigation); returns unregister */
 export function registerJumpHandler(handler: (index: number) => void) {
   jumpToIndex = handler
+
   return () => {
     if (jumpToIndex === handler) jumpToIndex = undefined
   }

@@ -6,7 +6,9 @@ import { ZhipuLight } from './light'
 
 const Zhipu = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ZhipuLight {...props} className={className} />
+
   if (variant === 'dark') return <ZhipuDark {...props} className={className} />
+
   return (
     <>
       <ZhipuLight className={cn('dark:hidden', className)} {...props} />

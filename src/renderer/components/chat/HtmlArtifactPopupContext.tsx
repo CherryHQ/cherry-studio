@@ -35,26 +35,32 @@ export function useOptionalHtmlArtifactPopupContext(): HtmlArtifactPopupContextV
 
 export function useHtmlArtifactPopupContext(): HtmlArtifactPopupContextValue {
   const popupContext = useOptionalHtmlArtifactPopupContext()
+
   if (!popupContext) {
     throw new Error('HTML artifact popup components must be rendered within HtmlArtifactPopupHost')
   }
+
   return popupContext
 }
 
 export function HtmlArtifactPopupHost({ children }: { children: ReactNode }) {
   const [approvedInteractiveHtmlById, setApprovedInteractiveHtmlById] = useState<Record<string, string>>({})
   const [popupSession, setPopupSession] = useState<HtmlArtifactPopupSession | null>(null)
+
   const approveInteractiveHtml = useCallback((artifactId: string, html: string) => {
     setApprovedInteractiveHtmlById((current) =>
       current[artifactId] === html ? current : { ...current, [artifactId]: html }
     )
   }, [])
+
   const openPopup = useCallback((session: HtmlArtifactPopupSession) => {
     setPopupSession(session)
   }, [])
+
   const syncPopup = useCallback((update: HtmlArtifactPopupUpdate) => {
     setPopupSession((current) => {
       if (!current || current.artifactId !== update.artifactId) return current
+
       if (
         current.html === update.html &&
         current.title === update.title &&
@@ -64,12 +70,15 @@ export function HtmlArtifactPopupHost({ children }: { children: ReactNode }) {
       ) {
         return current
       }
+
       return { ...current, ...update }
     })
   }, [])
+
   const closePopup = useCallback(() => {
     setPopupSession(null)
   }, [])
+
   const contextValue = useMemo<HtmlArtifactPopupContextValue>(
     () => ({
       approvedInteractiveHtmlById,

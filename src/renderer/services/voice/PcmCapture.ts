@@ -31,18 +31,25 @@ export class PcmCapture {
   async start(mediaDevices: Pick<MediaDevices, 'getUserMedia'>, deviceId: string | null): Promise<void> {
     await this.context.suspend()
     const { default: processorUrl } = await import('./pcmCaptureProcessor.ts?worker&url')
+
     if (this.closed) return
     await this.context.audioWorklet.addModule(processorUrl)
+
     if (this.closed) return
+
     if (this.context.sampleRate !== 16000) throw new VoiceDomainError('invalid_audio')
+
     const stream = await mediaDevices.getUserMedia({
       audio: deviceId ? { deviceId: { exact: deviceId } } : true,
       video: false
     })
+
     if (this.closed) {
       stream.getTracks().forEach((track) => track.stop())
+
       return
     }
+
     this.stream = stream
     stream.getTracks().forEach((track) => {
       track.onended = () => this.fail(new VoiceDomainError('microphone_unavailable'))
@@ -64,16 +71,22 @@ export class PcmCapture {
       | { type: 'limit'; frames: number }
     >) => {
       if (this.closed) return
+
       if (data.type === 'limit') {
         this.limitFrames = data.frames
         this.onLimit()
+
         return
       }
+
       if (data.type === 'overflow') return this.fail(new VoiceDomainError('recording_failed'))
+
       if (data.type === 'stopped') {
         this.resolveTail?.(data.frames)
+
         return
       }
+
       this.sending = this.sending.then(async () => {
         if (this.closed) return
         await this.write({ startFrame: data.startFrame, samples: data.samples })
@@ -82,6 +95,7 @@ export class PcmCapture {
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The injected PCM write promise can reject arbitrary values; this observer forwards the failure into capture teardown.
       void this.sending.catch((error: unknown) => this.fail(error))
     }
+
     this.source = this.context.createMediaStreamSource(stream)
     this.source.connect(this.analyser)
     this.source.connect(this.node)
@@ -96,21 +110,27 @@ export class PcmCapture {
   private async drain(): Promise<number> {
     if (this.closed) throw this.failure ?? new VoiceDomainError('aborted')
     let timer: ReturnType<typeof setTimeout> | undefined
+
     try {
       const tail = new Promise<number>((resolve, reject) => {
         if (this.limitFrames !== undefined) {
           resolve(this.limitFrames)
+
           return
         }
+
         this.resolveTail = resolve
         this.rejectTail = reject
         timer = setTimeout(() => reject(new VoiceDomainError('timeout')), 5000)
       })
+
       this.stopTracks()
       this.node?.port.postMessage({ type: 'stop' })
       const frames = await tail
       await this.sending
+
       if (this.failure) throw this.failure
+
       return frames
     } finally {
       clearTimeout(timer)
@@ -126,6 +146,7 @@ export class PcmCapture {
     this.analyser.disconnect()
     this.node?.disconnect()
     this.node?.port.close()
+
     return (this.closing ??= this.context.close())
   }
 

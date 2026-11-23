@@ -4,6 +4,7 @@ import { NeteaseYoudaoLight } from './light'
 
 const NeteaseYoudao = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <NeteaseYoudaoLight {...props} className={className} />
+
   return <NeteaseYoudaoLight {...props} className={className} />
 }
 

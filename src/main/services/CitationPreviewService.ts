@@ -14,6 +14,7 @@ const logger = loggerService.withContext('CitationPreview')
 const FETCH_TIMEOUT_MS = 8000
 const MAX_RESPONSE_BYTES = 1024 * 1024
 const MAX_PREVIEW_LENGTH = 100
+
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
@@ -36,6 +37,7 @@ type PreviewJob = {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Citation requests can reject arbitrary values; logs expose only the validated origin and an error name, not response bodies or full URLs.
 function createErrorLogContext(safeUrl: string, error: unknown) {
   let errorName = 'UnknownError'
+
   try {
     if (error instanceof Error) {
       const name = error.name
@@ -44,6 +46,7 @@ function createErrorLogContext(safeUrl: string, error: unknown) {
   } catch {
     // Unreadable error metadata cannot supply a safe log name.
   }
+
   return {
     origin: new URL(safeUrl).origin,
     errorName
@@ -53,6 +56,7 @@ function createErrorLogContext(safeUrl: string, error: unknown) {
 function createAbortError(message: string): Error {
   const error = new Error(message)
   error.name = 'AbortError'
+
   return error
 }
 
@@ -83,6 +87,7 @@ async function fetchQueuedPreview(safeUrl: string, signal: AbortSignal): Promise
     if (!isAbortError(error)) {
       logger.error('Failed to fetch citation preview', createErrorLogContext(safeUrl, error))
     }
+
     return ''
   }
 }
@@ -102,6 +107,7 @@ export class CitationPreviewService extends BaseService {
     }
 
     let safeUrl: string
+
     try {
       const allowPrivateNetwork = application.get('PreferenceService').get('app.fetch.allow_private_network')
       const parsedUrl = new URL(sanitizeRemoteUrl(url, undefined, allowPrivateNetwork))
@@ -150,11 +156,13 @@ export class CitationPreviewService extends BaseService {
     for (const request of this.requests.values()) {
       request.controller.abort(error)
     }
+
     for (const job of this.jobs.values()) {
       job.controller.abort(error)
     }
 
     this.teardownPromise = this.finishTeardown()
+
     return this.teardownPromise
   }
 
@@ -166,22 +174,26 @@ export class CitationPreviewService extends BaseService {
 
   private getOrCreateRequest(requestKey: string): PreviewRequestState {
     const existing = this.requests.get(requestKey)
+
     if (existing) {
       return existing
     }
 
     const request = { controller: new AbortController(), urls: new Set<string>() }
     this.requests.set(requestKey, request)
+
     return request
   }
 
   private getOrCreateJob(safeUrl: string): PreviewJob {
     const existing = this.jobs.get(safeUrl)
+
     if (existing && !existing.controller.signal.aborted) {
       return existing
     }
 
     const controller = new AbortController()
+
     const promise = this.queue
       .add(() => fetchQueuedPreview(safeUrl, controller.signal))
       .then((preview) => preview ?? '')
@@ -189,8 +201,10 @@ export class CitationPreviewService extends BaseService {
         if (!isAbortError(error)) {
           logger.error('Failed to queue citation preview', createErrorLogContext(safeUrl, error))
         }
+
         return ''
       })
+
     const job = { consumers: new Set<string>(), controller, promise }
     this.jobs.set(safeUrl, job)
 
@@ -213,6 +227,7 @@ export class CitationPreviewService extends BaseService {
         cleanup()
         resolve('')
       }
+
       const cleanup = (): void => signal.removeEventListener('abort', handleAbort)
 
       signal.addEventListener('abort', handleAbort, { once: true })
@@ -231,6 +246,7 @@ export class CitationPreviewService extends BaseService {
 
   private cancelRequest(requestKey: string, error: Error): void {
     const request = this.requests.get(requestKey)
+
     if (!request) {
       return
     }
@@ -246,6 +262,7 @@ export class CitationPreviewService extends BaseService {
   private detachRequest(requestKey: string, safeUrl: string, request: PreviewRequestState): void {
     if (this.requests.get(requestKey) === request) {
       request.urls.delete(safeUrl)
+
       if (request.urls.size === 0) {
         this.requests.delete(requestKey)
       }
@@ -256,11 +273,13 @@ export class CitationPreviewService extends BaseService {
 
   private detachConsumer(requestKey: string, safeUrl: string, error: Error): void {
     const job = this.jobs.get(safeUrl)
+
     if (!job) {
       return
     }
 
     job.consumers.delete(requestKey)
+
     if (job.consumers.size === 0) {
       job.controller.abort(error)
     }

@@ -9,12 +9,14 @@
 export async function readErrorMessage(response: Response, fallback?: string): Promise<string> {
   const fallbackMessage = fallback ?? `HTTP ${response.status}`
   const text = await response.text().catch(() => '')
+
   if (!text) {
     return fallbackMessage
   }
 
   try {
     const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string }
+
     return parsed.error?.message || parsed.message || fallbackMessage
   } catch {
     return text.slice(0, 300) || fallbackMessage

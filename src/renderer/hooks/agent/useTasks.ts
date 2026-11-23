@@ -35,13 +35,16 @@ const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: s
   if (error instanceof IpcError && error.code === aiErrorCodes.AI_AGENT_TASK_TRIGGER_INVALID) {
     return t('agent.tasks.error.triggerInvalid')
   }
+
   return formatErrorMessageWithPrefix(error, fallbackPrefix)
 }
 
 /** All scheduled tasks across every agent, optionally filtered by status. */
 export const useAllTasks = (status?: ListTasksQuery['status']) => {
   const swrOptions = { keepPreviousData: false }
+
   if (status) Object.assign(swrOptions, { dedupingInterval: 0 })
+
   const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh, goToPage } =
     usePaginatedQuery('/agent-tasks', {
       limit: TASKS_PAGE_LIMIT,
@@ -50,11 +53,14 @@ export const useAllTasks = (status?: ListTasksQuery['status']) => {
         ...swrOptions,
         onSuccess: (response: ResponseForPath<'/agent-tasks', 'GET'>) => {
           const lastPage = Math.max(1, Math.ceil(response.total / TASKS_PAGE_LIMIT))
+
           if (status && response.page === page && page > lastPage) goToPage(lastPage)
         }
       }
     })
+
   useDataChange('/agent-tasks', () => refresh())
+
   return {
     tasks: items,
     total,
@@ -72,11 +78,13 @@ export const useAllTasks = (status?: ListTasksQuery['status']) => {
 
 export const useTask = (taskId: string | null) => {
   const activated = useRef(false)
+
   const { data, error, isLoading, refetch } = useQuery('/agent-tasks/:taskId', {
     params: { taskId: taskId! },
     enabled: !!taskId,
     swrOptions: { keepPreviousData: false }
   })
+
   useEffect(() => {
     // Activity hides unsubscribe from changes; refresh when the conversation becomes visible again.
     if (activated.current && taskId) void refetch()
@@ -87,6 +95,7 @@ export const useTask = (taskId: string | null) => {
       void refetch()
     }
   })
+
   return {
     task: data,
     error,
@@ -98,40 +107,48 @@ export const useTask = (taskId: string | null) => {
 export const useCreateTask = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
+
   const createTask = useCallback(
     async (agentId: string, form: AgentTaskForm): Promise<ScheduledTaskEntity | undefined> => {
       try {
         const task = await ipcApi.request('ai.agent.task.create', { agentId, ...form })
         toast.success({ key: 'create-task', title: t('common.create_success') })
         await invalidate(taskReadKeys(agentId))
+
         return task
       } catch (error) {
         toast.error(taskCommandErrorMessage(error, t, t('agent.tasks.error.createFailed', 'Failed to create task')))
+
         return undefined
       }
     },
     [invalidate, t]
   )
+
   return { createTask }
 }
 
 export const useUpdateTask = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
+
   const updateTask = useCallback(
     async (agentId: string, taskId: string, patch: AgentTaskPatch): Promise<ScheduledTaskEntity | undefined> => {
       try {
         const task = await ipcApi.request('ai.agent.task.update', { agentId, taskId, patch })
         toast.success({ key: 'update-task', title: t('common.update_success') })
         await invalidate(taskReadKeys(agentId))
+
         return task
       } catch (error) {
         toast.error(taskCommandErrorMessage(error, t, t('agent.tasks.error.updateFailed', 'Failed to update task')))
+
         return undefined
       }
     },
     [invalidate, t]
   )
+
   return { updateTask }
 }
 
@@ -139,28 +156,34 @@ export const useUpdateTask = () => {
 export const useSetTaskEnabled = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
+
   const setTaskEnabled = useCallback(
     async (agentId: string, taskId: string, enabled: boolean): Promise<ScheduledTaskEntity | undefined> => {
       try {
         const task = enabled
           ? await ipcApi.request('ai.agent.task.resume', { agentId, taskId })
           : await ipcApi.request('ai.agent.task.pause', { agentId, taskId })
+
         toast.success({ key: 'update-task', title: t('common.update_success') })
         await invalidate(taskReadKeys(agentId))
+
         return task
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.updateFailed', 'Failed to update task')))
+
         return undefined
       }
     },
     [invalidate, t]
   )
+
   return { setTaskEnabled }
 }
 
 export const useRunTask = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
+
   const runTask = useCallback(
     async (agentId: string, taskId: string): Promise<boolean> => {
       try {
@@ -169,31 +192,37 @@ export const useRunTask = () => {
         // The triggered job row is persisted before the command resolves, so
         // the logs key (under `/tasks/*`) picks up the pending run right away.
         await invalidate(taskReadKeys(agentId))
+
         return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.runFailed', 'Failed to run task')))
+
         return false
       }
     },
     [invalidate, t]
   )
+
   return { runTask }
 }
 
 export const useDeleteTask = () => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
+
   const deleteTask = useCallback(
     async (agentId: string, taskId: string, options?: { onDeleted?: () => void | Promise<void> }): Promise<boolean> => {
       try {
         await ipcApi.request('ai.agent.task.delete', { agentId, taskId })
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.deleteFailed', 'Failed to delete task')))
+
         return false
       }
 
       toast.success({ key: 'delete-task', title: t('common.delete_success') })
       let shouldInvalidateTaskDetails = true
+
       try {
         await options?.onDeleted?.()
       } catch (error) {
@@ -206,9 +235,11 @@ export const useDeleteTask = () => {
       } catch (error) {
         logger.warn('Failed to refresh task data after deletion', error as Error)
       }
+
       return true
     },
     [invalidate, t]
   )
+
   return { deleteTask }
 }

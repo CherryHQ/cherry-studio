@@ -52,6 +52,7 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
           apiKey: task.remoteContext.apiKey,
           signal: pollSignal
         }
+
         const batchResult = await getBatchResult(task.providerTaskId, context)
 
         return buildPollResult(batchResult.extract_result[0], context.apiHost)
@@ -66,6 +67,7 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         if (!persisted.apiHost) {
           throw new Error('mineru rehydrate: missing apiHost in persisted remote state')
         }
+
         return {
           providerTaskId: persisted.providerTaskId,
           remoteContext: {
@@ -85,6 +87,7 @@ function prepareStartContext(
   signal?: AbortSignal
 ): PreparedMineruStartContext {
   signal?.throwIfAborted()
+
   if (!dataId) {
     throw new Error('mineru prepare: missing dataId')
   }

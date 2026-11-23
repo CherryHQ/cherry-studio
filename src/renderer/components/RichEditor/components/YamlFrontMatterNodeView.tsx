@@ -37,6 +37,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
       if (!yamlContent.trim()) return []
 
       const parsed: unknown = parse(yamlContent)
+
       if (!parsed || typeof parsed !== 'object') return []
 
       return Object.entries(parsed).map(([key, value]): ParsedProperty => {
@@ -56,6 +57,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
       })
     } catch (error) {
       logger.warn('Failed to parse YAML front matter:', error as Error)
+
       return []
     }
   }, [node.attrs.content])
@@ -119,9 +121,11 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
         const contentWithFence = yamlContent + '\n---'
         editor.commands.command(({ tr }) => {
           const position = getPos()
+
           if (typeof position !== 'number') return false
           tr.setMeta(RICH_EDITOR_USER_COMMAND_META, true)
           tr.setNodeAttribute(position, 'content', contentWithFence)
+
           return true
         })
       } catch (error) {
@@ -145,6 +149,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
   const handleRemoveArrayItem = useCallback(
     (key: string, index: number) => {
       const property = parsedProperties.find((p) => p.key === key)
+
       if (property && Array.isArray(property.value)) {
         const newArray = property.value.filter((_, i) => i !== index)
         handlePropertyChange(key, newArray)
@@ -159,6 +164,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
       if (!value.trim()) return
 
       const property = parsedProperties.find((p) => p.key === key)
+
       if (property && Array.isArray(property.value)) {
         const newArray = [...property.value, value.trim()]
         handlePropertyChange(key, newArray)
@@ -180,6 +186,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
           type: 'string' as const
         }
       ]
+
       updateYamlFromProperties(updatedProperties)
       setNewPropertyName('')
       setShowAddProperty(false)
@@ -201,6 +208,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
       const updatedProperties = parsedProperties.map((prop) => {
         if (prop.key === propertyKey) {
           let newValue = prop.value
+
           // Convert value based on new type
           switch (newType) {
             case 'array':
@@ -219,10 +227,13 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
               newValue = prop.value instanceof Date ? prop.value.toISOString().split('T')[0] : String(prop.value)
               break
           }
+
           return { ...prop, type: newType, value: newValue }
         }
+
         return prop
       })
+
       updateYamlFromProperties(updatedProperties)
     },
     [parsedProperties, updateYamlFromProperties]
@@ -342,6 +353,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
               }}
               onBlur={() => {
                 const value = inputValue
+
                 if (value.trim()) {
                   handleAddArrayItem(property.key, value)
                 } else {
@@ -379,11 +391,13 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
           defaultValue={String(property.value)}
           onBlur={(e) => {
             let newValue: any = e.target.value
+
             if (property.type === 'number') {
               newValue = Number(newValue) || 0
             } else if (property.type === 'boolean') {
               newValue = newValue.toLowerCase() === 'true'
             }
+
             handlePropertyChange(property.key, newValue)
           }}
           onKeyDown={(e) => {

@@ -8,16 +8,19 @@ export function toAsarUnpackedPath(filePath: string): string {
   }
 
   const appPath = app.getAppPath()
+
   if (!appPath.endsWith('.asar')) {
     return filePath
   }
 
   const unpackedAppPath = appPath.replace(/\.asar$/, '.asar.unpacked')
+
   if (filePath === appPath) {
     return unpackedAppPath
   }
 
   const appPathPrefix = `${appPath}${path.sep}`
+
   if (!filePath.startsWith(appPathPrefix)) {
     return filePath
   }

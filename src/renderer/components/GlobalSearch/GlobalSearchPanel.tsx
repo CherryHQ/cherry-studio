@@ -96,11 +96,14 @@ const GLOBAL_SEARCH_LISTBOX_ID = 'global-search-listbox'
 
 const SEARCH_FILTERS: Exclude<GlobalSearchFilter, 'all'>[] = ['topic', 'session', 'assistant', 'agent', 'knowledge']
 const MESSAGE_SOURCE_FILTER_BUTTONS: Exclude<GlobalMessageSearchSourceFilter, 'all'>[] = ['topic', 'session']
+
 const SEARCH_SCOPE_CONTROL_CLASS_NAME =
   'h-7 shrink-0 border-border-subtle bg-muted/40 p-0.5 [&_[role=radio]]:h-6 [&_[role=radio]]:px-2 [&_[role=radio]]:text-xs [&_[role=radio]]:leading-none'
+
 const logger = loggerService.withContext('GlobalSearchPanel')
 const RECENT_ITEMS_REFRESH_THROTTLE_MS = 60 * 1000 // 1 minute throttle
 const recentRefreshCacheKey = (id: string) => `global-search:recent-refresh:${id}`
+
 const FILTER_LABEL_KEYS: Record<GlobalSearchFilter, string> = {
   all: 'globalSearch.filters.all',
   topic: 'globalSearch.filters.topic',
@@ -109,12 +112,15 @@ const FILTER_LABEL_KEYS: Record<GlobalSearchFilter, string> = {
   agent: 'globalSearch.filters.agent',
   knowledge: 'globalSearch.filters.knowledge'
 }
+
 const MESSAGE_SOURCE_FILTER_LABEL_KEYS: Record<GlobalMessageSearchSourceFilter, string> = {
   all: 'globalSearch.messageSearch.sources.all',
   topic: 'globalSearch.messageSearch.sources.topic',
   session: 'globalSearch.messageSearch.sources.session'
 }
+
 const TIME_FILTERS: GlobalSearchTimeFilter[] = ['any', 'today', 'week', 'month', 'quarter']
+
 const TIME_FILTER_LABEL_KEYS: Record<GlobalSearchTimeFilter, string> = {
   any: 'globalSearch.timeFilters.any',
   today: 'globalSearch.timeFilters.today',
@@ -322,26 +328,32 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
   const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
+
   const [expandedSearchGroupIds, setExpandedSearchGroupIds] = useState<ReadonlySet<GlobalSearchPanelGroup['id']>>(
     () => new Set()
   )
+
   const [expandedMessageParentIds, setExpandedMessageParentIds] = useState<ReadonlySet<string>>(() => new Set())
   const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+
   const commitQueryValue = useCallback((rawValue: string) => {
     const nextQuery = rawValue.trimStart()
     setQuery(nextQuery)
     setPanelMode((current) => (!nextQuery ? 'search' : current))
     setMessagePreviewTarget(null)
   }, [])
+
   // Debounce the backend query, freezing it during IME composition;
   // `useDeferredValue` stays downstream to schedule heavy result renders.
   const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
     useImeAwareDebouncedValue(query.trim(), GLOBAL_SEARCH_QUERY_DEBOUNCE_MS, commitQueryValue)
+
   const deferredQuery = useDeferredValue(debouncedQuery)
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const sanitizedRecentItems = useMemo(() => sanitizeGlobalSearchRecentEntries(recentItems ?? []), [recentItems])
   const [userName] = usePreference('app.user.name')
+
   const {
     error,
     groups,
@@ -370,6 +382,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     recentItems: sanitizedRecentItems,
     timeFilter
   })
+
   const { activeItemId, keyboardItems, messageSelectableItems, moveActiveItem, selectableItems, setActiveItemId } =
     useGlobalSearchKeyboard({
       groups,
@@ -378,8 +391,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       messageGroups,
       panelMode
     })
+
   const shouldShowRecentHint =
     !hasQuery && !isLoading && !error && selectableItems.length > 0 && selectableItems.length < 3
+
   const messageVirtualGroupsWithLoadMore = useMemo(() => {
     if (!hasMoreMessageResults || messageVirtualGroups.length === 0) {
       return messageVirtualGroups
@@ -410,14 +425,18 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   // latest snapshot when the fetch resolves, so the effect doesn't re-run.
   useEffect(() => {
     const display = getDisplayGlobalSearchRecentEntries(sanitizedRecentItems)
+
     type Refreshable = Extract<GlobalSearchRecentEntry, { kind: 'topic' | 'session' }>
+
     const refreshable: Refreshable[] = display.flatMap((entry): Refreshable[] => {
       if (entry.kind === 'route') return []
+
       return [entry]
     })
 
     const due = refreshable.filter((entry) => {
       if (entry.title.trim() === '') return true
+
       return !cacheService.hasCasual(recentRefreshCacheKey(getGlobalSearchRecentEntryId(entry)))
     })
 
@@ -427,6 +446,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     void Promise.all(
       due.map(async (entry) => {
         const refreshKey = getGlobalSearchRecentEntryId(entry)
+
         // Don't poison the cooldown on failure: only mark the throttle slot
         // after a fetch resolves (success or empty-name) so retries aren't
         // blocked for an entry we never actually refreshed.
@@ -434,39 +454,50 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           const fetched = await dataApiService.get(
             entry.kind === 'topic' ? `/topics/${entry.topicId}` : `/agent-sessions/${entry.sessionId}`
           )
+
           const name = (fetched as { name?: string })?.name?.trim()
+
           if (name) {
             cacheService.setCasual(recentRefreshCacheKey(refreshKey), true, RECENT_ITEMS_REFRESH_THROTTLE_MS)
+
             return { id: refreshKey, name }
           }
+
           cacheService.setCasual(recentRefreshCacheKey(refreshKey), true, RECENT_ITEMS_REFRESH_THROTTLE_MS)
+
           return null
         } catch (error) {
           logger.warn('Failed to refresh recent title', { entryKind: entry.kind, id: refreshKey, error })
+
           return null
         }
       })
     ).then((results) => {
       if (cancelled) return
       const updates = new Map<string, string>()
+
       for (const result of results) {
         if (!result) continue
         updates.set(result.id, result.name)
       }
+
       if (updates.size === 0) return
       // Functional update resolves against the latest persisted value (the list
       // may have changed during the fetch). Returning `current` unchanged lets
       // the CacheService isEqual short-circuit drop the write.
       setRecentItems((prev) => {
         const current = [...(prev ?? [])]
+
         const next = current.map((entry) => {
           if (entry.kind === 'route') return entry
           const updateName = updates.get(getGlobalSearchRecentEntryId(entry))
+
           // Compare against the trimmed name so a fetch returning "" or " "
           // never overwrites a non-empty cached title; the empty-title bypass
           // above keeps refetching until the server actually returns one.
           return updateName && entry.title.trim() !== updateName ? { ...entry, title: updateName } : entry
         })
+
         return next.every((entry, index) => areGlobalSearchRecentEntriesEqual(entry, current[index])) ? current : next
       })
     })
@@ -495,11 +526,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       const apiTopic = await dataApiService.get(`/topics/${topicId}`)
       const topic = mapApiTopicToRendererTopic(apiTopic)
       const targetTabId = chatNav.openConversationTab(topic.id)
+
       if (!targetTabId) {
         logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topicId })
         onClose()
+
         return
       }
+
       emitResourceListReveal({ source: 'assistants', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         reportGlobalSearchSelectionFailure(
@@ -522,11 +556,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const openSession = useCallback(
     (sessionId: string) => {
       const targetTabId = agentNav.openConversationTab(sessionId)
+
       if (!targetTabId) {
         logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId })
         onClose()
+
         return
       }
+
       emitResourceListReveal({ source: 'agents', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         reportGlobalSearchSelectionFailure(
@@ -549,13 +586,16 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const openTopicMessageById = useCallback(
     async (topicId: string, messageId: string) => {
       const messagePathEndpoint = `/topics/${topicId}/path` as const
+
       const [apiTopic, messagePath] = await Promise.all([
         dataApiService.get(`/topics/${topicId}`),
         dataApiService.get(messagePathEndpoint, { query: { nodeId: messageId } })
       ])
+
       const activeNodeId = Array.isArray(messagePath)
         ? (messagePath[messagePath.length - 1]?.id ?? messageId)
         : messageId
+
       const topic = {
         ...mapApiTopicToRendererTopic(apiTopic),
         activeNodeId
@@ -564,11 +604,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
       await invalidateCache([`/topics/${topicId}/messages`, `/topics/${topicId}/tree`])
       const targetTabId = chatNav.openConversationTab(topic.id)
+
       if (!targetTabId) {
         logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, messageId, topicId })
         onClose()
+
         return
       }
+
       emitResourceListReveal({ source: 'assistants', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         reportGlobalSearchSelectionFailure(
@@ -598,6 +641,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         `/agent-sessions/${sessionId}/messages`
       ])
       const targetTabId = agentNav.openConversationTab(sessionId)
+
       if (!targetTabId) {
         logMissingSelectionTarget({
           eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
@@ -605,8 +649,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           sessionId
         })
         onClose()
+
         return
       }
+
       emitResourceListReveal({ source: 'agents', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         reportGlobalSearchSelectionFailure(
@@ -649,6 +695,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           logOpenFailure(error, target)
           toast.error(t('globalSearch.open_failed'))
         })
+
         return
       }
 
@@ -665,8 +712,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       setExpandedMessageParentIds((current) => {
         const next = new Set(current)
         next.add(item.parentId)
+
         return next
       })
+
       return
     }
 
@@ -680,6 +729,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         createdAt: item.result.topicCreatedAt,
         updatedAt: item.result.topicUpdatedAt
       })
+
       return
     }
 
@@ -697,6 +747,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     (item: GlobalMessageSearchPanelItem) => {
       if (item.kind === 'more') {
         openMessagePanelItem(item)
+
         return
       }
 
@@ -719,8 +770,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       setExpandedSearchGroupIds((current) => {
         const next = new Set(current)
         next.add(footer.groupId)
+
         return next
       })
+
       return
     }
 
@@ -739,6 +792,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       try {
         if (item.kind === 'footer') {
           openGlobalSearchFooter(item.footer)
+
           return
         }
 
@@ -746,6 +800,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           setMessageSourceFilter('all')
           setPanelMode('message-search')
           openMessagePanelItem(item)
+
           return
         }
 
@@ -754,12 +809,15 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             case 'route':
               openTab(item.recent.url, { title: item.recent.title, icon: item.recent.icon })
               onClose()
+
               return
             case 'topic':
               await openTopic(item.recent.topicId)
+
               return
             case 'session':
               openSession(item.recent.sessionId)
+
               return
           }
         }
@@ -769,34 +827,49 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         switch (result.type) {
           case 'assistant': {
             const assistantId = getAssistantTargetId(result.target)
+
             if (!assistantId) return
             setEditDialogTarget({ kind: 'assistant', id: assistantId })
+
             return
           }
+
           case 'agent': {
             const agentId = getAgentTargetId(result.target)
+
             if (!agentId) return
             setEditDialogTarget({ kind: 'agent', id: agentId })
+
             return
           }
+
           case 'topic': {
             const topicId = getTopicTargetId(result.target)
+
             if (!topicId) return
             await openTopic(topicId)
+
             return
           }
+
           case 'session': {
             const sessionId = getSessionTargetId(result.target)
+
             if (!sessionId) return
             openSession(sessionId)
+
             return
           }
+
           case 'knowledge-base': {
             const knowledgeBaseId = getKnowledgeBaseTargetId(result.target)
+
             if (!knowledgeBaseId) return
             openKnowledgeBase(knowledgeBaseId)
+
             return
           }
+
           default:
             return
         }
@@ -817,18 +890,21 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       if (event.key === 'Escape') {
         event.preventDefault()
         onClose()
+
         return
       }
 
       if (event.key === 'ArrowDown') {
         event.preventDefault()
         moveActiveItem(1)
+
         return
       }
 
       if (event.key === 'ArrowUp') {
         event.preventDefault()
         moveActiveItem(-1)
+
         return
       }
 
@@ -841,21 +917,30 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         const inputValue = event.currentTarget.value.trim()
         const resultsInFlight = isMessageSearchMode ? isMessageSearchFetching : isEntitySearchRefreshing
         const resultsErrored = isMessageSearchMode ? messageError != null : error != null
+
         if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery || resultsInFlight || resultsErrored) {
           event.preventDefault()
+
           return
         }
+
         const item = keyboardItems.find((candidate) => candidate.id === activeItemId)
+
         if (!item) return
         event.preventDefault()
+
         if (isMessageSearchMode) {
           if (item.kind === 'message-load-more') {
             handleLoadMoreMessageResults()
+
             return
           }
+
           openMessagePanelItem(item as GlobalMessageSearchPanelItem)
+
           return
         }
+
         void openPanelItem(item as GlobalSearchKeyboardItem)
       }
     },
@@ -893,17 +978,22 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   }, [])
 
   const showEmptyState = !isLoading && !error && selectableItems.length === 0
+
   const showMessageEmptyState =
     !isMessageLoading && !messageError && (hasQuery ? messageSelectableItems.length === 0 : true)
+
   const showSearchControls = hasQuery || isMessageSearchMode
   const isSearchListboxVisible = !isMessageSearchMode && !(isLoading && hasQuery) && !error && !showEmptyState
+
   const isMessageListboxVisible =
     isMessageSearchMode &&
     !messagePreviewTarget &&
     !(isMessageLoading && hasQuery) &&
     !messageError &&
     !showMessageEmptyState
+
   const isListboxVisible = isSearchListboxVisible || isMessageListboxVisible
+
   const activeMessageRowIndex = useMemo(() => {
     if (!isMessageListboxVisible || !activeItemId) return undefined
 
@@ -914,6 +1004,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       () => GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID
     )
   }, [activeItemId, isMessageListboxVisible, messageVirtualGroupsWithLoadMore])
+
   const activeSearchRowIndex = useMemo(() => {
     if (!isSearchListboxVisible || !activeItemId) return undefined
 
@@ -955,6 +1046,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             estimateGroupHeaderSize={() => 32}
             estimateItemSize={(item) => {
               if (item.kind === 'more') return 36
+
               return 44
             }}
             estimateGroupFooterSize={() => 48}
@@ -1128,7 +1220,9 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               estimateGroupHeaderSize={() => 28}
               estimateItemSize={(item) => {
                 if (item.kind === 'message-parent') return 32
+
                 if (item.kind === 'message') return 44
+
                 return 52
               }}
               estimateGroupFooterSize={() => 36}
@@ -1136,6 +1230,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               renderGroupHeader={(group) => <GlobalSearchGroupHeader group={group} />}
               renderGroupFooter={(footer, group) => {
                 const footerId = getGlobalSearchFooterItemId(group.id, footer)
+
                 return (
                   <GlobalSearchGroupFooter
                     footer={footer}

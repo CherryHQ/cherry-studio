@@ -5,6 +5,7 @@ export const videoExts = ['.mp4', '.webm', '.ogv', '.mov', '.m4v', '.avi', '.mkv
 export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.odt', '.odp', '.ods']
 export const archiveExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz'] as const
+
 export const knowledgeSupportedFileExts = [
   '.txt',
   '.markdown',
@@ -27,6 +28,7 @@ export const knowledgeSupportedFileExts = [
   '.epub',
   '.draftsexport'
 ] as const
+
 /**
  * The extensions a knowledge base routes through a `document_to_markdown` processor.
  *
@@ -53,6 +55,7 @@ export const knowledgeFileProcessingExts = ['.pdf'] as const
  * This is the primary source for identifying code files.
  */
 const linguistExtSet = new Set<string>()
+
 for (const lang of codeLanguages.values()) {
   if (lang.extensions) {
     for (const ext of lang.extensions) {
@@ -60,6 +63,7 @@ for (const lang of codeLanguages.values()) {
     }
   }
 }
+
 export const codeLangExts = Array.from(linguistExtSet)
 
 /**

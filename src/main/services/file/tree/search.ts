@@ -85,6 +85,7 @@ const EXCLUDED_DIRS = new Set([
 // fails the existsSync check below, surfacing as "binary not available".
 async function resolveRipgrepBinary(): Promise<string | null> {
   const binaryPath = await getBinaryPath('rg')
+
   return fs.existsSync(binaryPath) ? binaryPath : null
 }
 
@@ -96,6 +97,7 @@ interface RipgrepResult {
 
 async function executeRipgrep(args: string[], rootPath: string): Promise<RipgrepResult> {
   const ripgrepBinaryPath = await resolveRipgrepBinary()
+
   if (!ripgrepBinaryPath) {
     throw new Error('Ripgrep binary not available')
   }
@@ -126,8 +128,10 @@ async function executeRipgrep(args: string[], rootPath: string): Promise<Ripgrep
       // empty result. Reject explicitly so callers can decide.
       if (code === null && signal !== null) {
         reject(new Error(`Ripgrep terminated by signal ${signal}: ${stderr || stdout}`))
+
         return
       }
+
       resolve({
         exitCode: code ?? 0,
         stdout,
@@ -145,6 +149,7 @@ function getUsableRipgrepOutput(result: RipgrepResult): string {
   if (result.exitCode < 2) return result.stdout
 
   const stderr = result.stderr.trim()
+
   if (!result.stdout.trim()) {
     throw new Error(`Ripgrep failed with exit code ${result.exitCode}: ${stderr || 'No output available'}`)
   }
@@ -188,7 +193,9 @@ async function searchDirectories(
   currentDepth: number = 0
 ): Promise<string[]> {
   if (!options.includeDirectories) return []
+
   if (!options.recursive && currentDepth > 0) return []
+
   if (options.maxDepth > 0 && currentDepth >= options.maxDepth) return []
 
   const directories: string[] = []
@@ -199,7 +206,9 @@ async function searchDirectories(
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
+
       if (!options.includeHidden && entry.name.startsWith('.')) continue
+
       if (EXCLUDED_DIRS.has(entry.name)) continue
 
       const fullPath = path.join(resolvedPath, entry.name).replace(/\\/g, '/')
@@ -215,6 +224,7 @@ async function searchDirectories(
     }
   } catch (error) {
     logger.warn(`Failed to search directories in: ${resolvedPath}`, error as Error)
+
     if (currentDepth === 0) throw error
   }
 
@@ -277,10 +287,12 @@ function isFuzzyMatch(text: string, query: string): boolean {
 
   let i = 0
   let j = 0
+
   while (i < textLower.length && j < queryLower.length) {
     if (textLower[i] === queryLower[j]) j++
     i++
   }
+
   return j === queryLower.length
 }
 
@@ -299,9 +311,11 @@ function getFuzzyMatchScore(filePath: string, query: string): number {
 
   const pathSegments = pathLower.split(/[/\\]/)
   let segmentMatchCount = 0
+
   for (const segment of pathSegments) {
     if (isFuzzyMatch(segment, queryLower)) segmentMatchCount++
   }
+
   score += segmentMatchCount * SCORE_SEGMENT_MATCH
 
   if (fileNameLower.startsWith(queryLower)) {
@@ -314,6 +328,7 @@ function getFuzzyMatchScore(filePath: string, query: string): number {
   let j = 0
   let consecutiveCount = 0
   let maxConsecutive = 0
+
   while (i < pathLower.length && j < queryLower.length) {
     if (pathLower[i] === queryLower[j]) {
       consecutiveCount++
@@ -322,13 +337,16 @@ function getFuzzyMatchScore(filePath: string, query: string): number {
     } else {
       consecutiveCount = 0
     }
+
     i++
   }
+
   score += maxConsecutive * SCORE_CONSECUTIVE_CHAR
 
   // Word-boundary bonus — only credit once to avoid inflating repeated patterns.
   const boundaryPrefix = queryLower.slice(0, Math.min(3, queryLower.length))
   const words = pathLower.split(/[/\\._-]/)
+
   for (const word of words) {
     if (word.startsWith(boundaryPrefix)) {
       score += SCORE_WORD_BOUNDARY
@@ -362,6 +380,7 @@ function scoreFuzzyPaths(
 ): ScoredSearchEntry[] {
   return paths.flatMap((entryPath) => {
     const relativePath = path.relative(resolvedPath, entryPath).replace(/\\/g, '/')
+
     return isFuzzyMatch(relativePath, query)
       ? [{ path: entryPath, isDirectory, score: getFuzzyMatchScore(relativePath, query) }]
       : []
@@ -370,7 +389,9 @@ function scoreFuzzyPaths(
 
 function compareScoredSearchEntries(a: ScoredSearchEntry, b: ScoredSearchEntry): number {
   if (a.score !== b.score) return b.score - a.score
+
   if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+
   return a.path.localeCompare(b.path)
 }
 
@@ -378,12 +399,14 @@ async function searchFuzzyFiles(resolvedPath: string, options: ResolvedOptions):
   if (!options.includeFiles) return []
   const args = ['--no-require-git', ...buildRipgrepBaseArgs(options)]
   const output = getUsableRipgrepOutput(await executeRipgrep(args, resolvedPath))
+
   return scoreFuzzyPaths(parseRipgrepPaths(output, resolvedPath), resolvedPath, options.searchPattern, false)
 }
 
 async function searchFuzzyDirectories(resolvedPath: string, options: ResolvedOptions): Promise<ScoredSearchEntry[]> {
   if (!options.includeDirectories) return []
   const directories = await searchDirectories(resolvedPath, { ...options, searchPattern: '.' })
+
   return scoreFuzzyPaths(directories, resolvedPath, options.searchPattern, true)
 }
 
@@ -396,6 +419,7 @@ async function listDirectoryWithRipgrep(resolvedPath: string, options: ResolvedO
       searchFuzzyFiles(resolvedPath, options),
       searchFuzzyDirectories(resolvedPath, options)
     ])
+
     return [...files, ...directories]
       .sort(compareScoredSearchEntries)
       .slice(0, options.maxEntries)
@@ -406,6 +430,7 @@ async function listDirectoryWithRipgrep(resolvedPath: string, options: ResolvedO
   logger.debug('Searching by filename pattern', { pattern: options.searchPattern, path: resolvedPath })
   const filenameResults = await searchByFilename(resolvedPath, options)
   logger.debug('Found matches by filename', { count: filenameResults.length })
+
   return filenameResults.slice(0, options.maxEntries)
 }
 
@@ -454,10 +479,12 @@ export async function listDirectoryEntries(
   options?: DirectoryListOptions
 ): Promise<DirectoryEntry[]> {
   const paths = await listDirectory(dirPath, options)
+
   const entries = await Promise.all(
     paths.map(async (entryPath) => {
       try {
         const stat = await fs.promises.stat(entryPath)
+
         return { path: entryPath as AbsoluteFilePath, isDirectory: stat.isDirectory() }
       } catch {
         // Entry vanished between listing and stat — drop it (matches the
@@ -466,5 +493,6 @@ export async function listDirectoryEntries(
       }
     })
   )
+
   return entries.filter((entry): entry is DirectoryEntry => entry !== null)
 }

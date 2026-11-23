@@ -28,6 +28,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
     t,
     i18n: { language }
   } = useTranslation()
+
   const {
     data: item,
     isLoading,
@@ -36,6 +37,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
     params: { id: itemId },
     enabled: Boolean(itemId)
   })
+
   const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
   const Icon = viewModel?.icon.icon
   const content = item?.type === 'note' ? item.data.content : ''

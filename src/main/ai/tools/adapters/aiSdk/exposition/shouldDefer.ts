@@ -51,6 +51,7 @@ async function resolveAutoDeferred(
 ): Promise<readonly ToolEntry[]> {
   if (autoCandidates.length < MIN_AUTO_DEFER_COUNT) return []
   const autoCost = await estimateAutoTokens(autoCandidates)
+
   return autoCost > threshold && autoCost > META_TOOLS_OVERHEAD_TOKENS ? autoCandidates : []
 }
 
@@ -67,8 +68,10 @@ async function estimateAutoTokens(entries: readonly ToolEntry[]): Promise<number
     entries.map(async (entry) => {
       const tool = entry.tool as { description?: string; inputSchema?: unknown }
       const schema = await serializeToolSchema(tool.inputSchema)
+
       return countToolTokens({ name: entry.name, description: tool.description, schema }, tokenxTokenizer)
     })
   )
+
   return perEntry.reduce((sum, tokens) => sum + tokens, 0)
 }

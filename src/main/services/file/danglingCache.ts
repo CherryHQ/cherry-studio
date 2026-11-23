@@ -141,11 +141,14 @@ const DEFAULT_TTL_MS = 30 * 60 * 1000
 const defaultStatProbe = async (path: AbsoluteFilePath): Promise<DanglingState> => {
   try {
     await stat(path)
+
     return 'present'
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
+
     if (code === 'ENOENT' || code === 'ENOTDIR') return 'missing'
     logger.warn('statProbe failed; reporting unknown', { path, code, err })
+
     return 'unknown'
   }
 }
@@ -172,7 +175,9 @@ class DanglingCacheImpl implements DanglingCache {
   async check(entry: FileEntry): Promise<DanglingState> {
     if (entry.origin === 'internal') return 'present'
     const cached = this.byEntryId.get(entry.id)
+
     if (cached && this.now() - cached.observedAt < this.ttlMs) return cached.state
+
     return this.doStatAndUpdate(entry)
   }
 
@@ -192,11 +197,15 @@ class DanglingCacheImpl implements DanglingCache {
     const path = entry.externalPath
     const probe = Symbol()
     this.pendingProbes.set(entry.id, probe)
+
     try {
       const state = await this.statProbe(path)
+
       if (this.pendingProbes.get(entry.id) !== probe) return this.byEntryId.get(entry.id)?.state ?? 'unknown'
+
       if (state === 'unknown') return 'unknown'
       this.commit(entry.id, state, 'stat')
+
       return state
     } finally {
       if (this.pendingProbes.get(entry.id) === probe) this.pendingProbes.delete(entry.id)
@@ -213,12 +222,15 @@ class DanglingCacheImpl implements DanglingCache {
     this.pendingProbes.delete(id)
     const prev = this.byEntryId.get(id)?.state
     this.byEntryId.set(id, { state: next, observedAt: this.now(), source })
+
     if (prev !== next) this._emitter.fire({ id, state: next })
   }
 
   onFsEvent(path: AbsoluteFilePath, state: ObservedPresence, source: CachedState['source'] = 'watcher'): void {
     const ids = this.pathToEntryIds.get(path)
+
     if (!ids || ids.size === 0) return
+
     for (const id of ids) {
       this.commit(id, state, source)
     }
@@ -226,10 +238,12 @@ class DanglingCacheImpl implements DanglingCache {
 
   addEntry(entryId: FileEntryId, externalPath: AbsoluteFilePath): void {
     let set = this.pathToEntryIds.get(externalPath)
+
     if (!set) {
       set = new Set()
       this.pathToEntryIds.set(externalPath, set)
     }
+
     if (!set.has(entryId)) this.pendingProbes.delete(entryId)
     set.add(entryId)
   }
@@ -237,20 +251,25 @@ class DanglingCacheImpl implements DanglingCache {
   removeEntry(entryId: FileEntryId, externalPath: AbsoluteFilePath): void {
     this.pendingProbes.delete(entryId)
     const set = this.pathToEntryIds.get(externalPath)
+
     if (!set) return
     set.delete(entryId)
+
     if (set.size === 0) this.pathToEntryIds.delete(externalPath)
     this.byEntryId.delete(entryId)
   }
 
   async initFromDb(): Promise<void> {
     let service = this.fileEntryService
+
     if (!service) {
       const { fileEntryService } = await import('@data/services/FileEntryService')
       service = fileEntryService
       this.fileEntryService = service
     }
+
     const rows = service.findMany({ origin: 'external' })
+
     for (const row of rows) {
       if (row.origin !== 'external') continue
       this.addEntry(row.id, row.externalPath)
@@ -261,6 +280,7 @@ class DanglingCacheImpl implements DanglingCache {
     const subscription = this._emitter.event((e) => {
       if (e.id === entryId) listener(e.id, e.state)
     })
+
     return () => subscription.dispose()
   }
 

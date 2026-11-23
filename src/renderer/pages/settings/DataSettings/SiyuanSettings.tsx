@@ -55,6 +55,7 @@ const SiyuanSettings: FC = () => {
     try {
       if (!siyuanApiUrl || !siyuanToken) {
         toast.error(t('settings.data.siyuan.check.empty_config'))
+
         return
       }
 
@@ -68,12 +69,15 @@ const SiyuanSettings: FC = () => {
 
       if (!response.ok) {
         toast.error(t('settings.data.siyuan.check.fail'))
+
         return
       }
 
       const data = await response.json()
+
       if (data.code !== 0) {
         toast.error(t('settings.data.siyuan.check.fail'))
+
         return
       }
 

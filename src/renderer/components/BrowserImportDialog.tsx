@@ -33,6 +33,7 @@ const browserNameKeys = {
   opera: 'settings.browser.names.opera',
   chromium: 'settings.browser.names.chromium'
 } satisfies Record<BrowserImportSource['browser'], string>
+
 const reasonKeys = {
   expired: 'settings.browser.cookieExpired',
   partitioned: 'settings.browser.cookiePartitioned',
@@ -52,6 +53,7 @@ function profileLabel(source: BrowserImportSource): string {
 export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
+
   return (
     <DialogContent
       closeLabel={t('common.close')}
@@ -95,6 +97,7 @@ function BrowserImportContent({
     setSiteData(!item || item.cookies !== 'unavailable')
     setError(false)
   }
+
   useEffect(() => {
     let active = true
     setLoading(true)
@@ -112,6 +115,7 @@ function BrowserImportContent({
       .finally(() => {
         if (active) setLoading(false)
       })
+
     return () => {
       active = false
     }
@@ -120,6 +124,7 @@ function BrowserImportContent({
   const importData = async () => {
     setBusy(true)
     setError(false)
+
     try {
       const imported = await ipcApi.request('browser.import.run', {
         sourceId: file ? undefined : sourceId,
@@ -128,8 +133,10 @@ function BrowserImportContent({
         localStorage: file && siteData,
         domains: []
       })
+
       if ([imported.history, imported.cookies, imported.localStorage].some((item) => item.imported > 0))
         cacheService.setPersist('ui.browser.import_prompt_hidden', true)
+
       if (
         !imported.cancelled ||
         [imported.history, imported.cookies, imported.localStorage].some(
@@ -143,6 +150,7 @@ function BrowserImportContent({
       setBusy(false)
     }
   }
+
   const results = result
     ? [
         { label: t('settings.browser.history'), ...result.history },
@@ -156,6 +164,7 @@ function BrowserImportContent({
         }
       ].filter((item) => item.imported || item.skipped || item.failed || item.unsupported)
     : []
+
   const incomplete = result?.cancelled || results.some((item) => item.failed || item.unsupported)
 
   return (
@@ -190,6 +199,7 @@ function BrowserImportContent({
                 <p className="text-muted-foreground tabular-nums">{t('settings.browser.result', item)}</p>
                 {(Object.keys(reasonKeys) as BrowserImportReason[]).map((reason) => {
                   const count = item.reasons?.[reason]
+
                   return count ? (
                     <p key={reason} className="text-muted-foreground leading-relaxed">
                       {t(reasonKeys[reason], { count })}
@@ -241,9 +251,11 @@ function BrowserImportContent({
                     <SelectContent>
                       {profiles.map((item) => {
                         const label = profileLabel(item)
+
                         const duplicate = profiles.some(
                           (other) => other.id !== item.id && profileLabel(other) === label
                         )
+
                         return (
                           <SelectItem key={item.id} value={item.id}>
                             {label}

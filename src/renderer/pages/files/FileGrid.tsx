@@ -17,6 +17,7 @@ const GRID_ROW_ESTIMATE_PX = 220
 
 function getGridColumnCount(width: number) {
   const innerWidth = Math.max(0, width - GRID_PADDING_PX * 2)
+
   return Math.max(1, Math.floor((innerWidth + GRID_GAP_PX) / (GRID_MIN_CARD_WIDTH_PX + GRID_GAP_PX)))
 }
 
@@ -25,6 +26,7 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
 
   useEffect(() => {
     const element = scrollRef.current
+
     if (!element) return
 
     const update = () => setColumnCount(getGridColumnCount(element.clientWidth))
@@ -32,11 +34,13 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
 
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', update)
+
       return () => window.removeEventListener('resize', update)
     }
 
     const observer = new ResizeObserver(update)
     observer.observe(element)
+
     return () => observer.disconnect()
   }, [scrollRef])
 
@@ -68,14 +72,19 @@ export const FileGrid = memo(function FileGrid({
 }) {
   const { t } = useTranslation()
   const columnCount = useGridColumnCount(scrollRef)
+
   const rows = useMemo(() => {
     const nextRows: FileItem[][] = []
+
     for (let index = 0; index < files.length; index += columnCount) {
       nextRows.push(files.slice(index, index + columnCount))
     }
+
     return nextRows
   }, [columnCount, files])
+
   const getRowKey = useCallback((index: number) => rows[index]?.[0]?.id ?? index, [rows])
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
@@ -83,6 +92,7 @@ export const FileGrid = memo(function FileGrid({
     getItemKey: getRowKey,
     overscan: 4
   })
+
   const totalSize = rowVirtualizer.getTotalSize()
 
   useEffect(() => {
@@ -93,6 +103,7 @@ export const FileGrid = memo(function FileGrid({
     <div className="relative p-3" style={{ height: totalSize + GRID_PADDING_PX * 2 }}>
       {rowVirtualizer.getVirtualItems().map((virtualRow) => {
         const row = rows[virtualRow.index] ?? []
+
         return (
           <div
             key={row[0]?.id ?? virtualRow.key}
@@ -109,6 +120,7 @@ export const FileGrid = memo(function FileGrid({
               const isImage = file.type === 'image'
               const previewUrl = isImage && !file.isMissing ? file.previewUrl : undefined
               const shapeClass = isImage ? 'aspect-square' : 'h-24'
+
               return (
                 <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
                   <div

@@ -53,12 +53,15 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
     // the model also serves the web-extractor (url-context) tool, `agent_max` upgrades the strategy to
     // fetch full page content (help.aliyun.com/zh/model-studio/web-extractor); thinking mode is required.
     const apiModelId = getRawModelId(model)
+
     const searchStrategy = isBuiltinWebFetchAvailable(model, provider)
       ? 'agent_max'
       : /qwen3-max|omni|qwen3-vl/.test(apiModelId)
         ? 'agent'
         : undefined
+
     const searchOptions = { forced_search: true, ...(searchStrategy && { search_strategy: searchStrategy }) }
+
     return { enable_search: true, search_options: searchOptions }
   }
 
@@ -66,23 +69,28 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
     // Qwen3.8 text models reject agent search on Chat; Omni Flash requires it.
     // https://docs.qwencloud.com/developer-guides/tool-calling/web-search
     const apiModelId = getRawModelId(model)
+
     // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only ("Responses API only"
     // in the table) — Chat's enable_search is not served for them, so inject nothing on this path.
     if (qwencloudResponsesOnlySearch.test(apiModelId)) {
       return {}
     }
+
     // Unlike mainland Bailian, the international table is a closed list with no qwen-plus/flash/turbo
     // rows, so chat injects enable_search only for lines the registry declared eligible.
     if (!isBuiltinWebSearchAvailable(model, provider)) {
       return {}
     }
+
     const searchStrategy =
       /qwen3[.-]8-omni-flash|qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(
         apiModelId
       )
         ? 'agent'
         : undefined
+
     const searchOptions = { forced_search: true, ...(searchStrategy && { search_strategy: searchStrategy }) }
+
     return { enable_search: true, search_options: searchOptions }
   }
 
@@ -100,6 +108,7 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
       web_search_options: {}
     }
   }
+
   return {}
 }
 
@@ -109,6 +118,7 @@ function servesResponsesWebSearch(model: Model): boolean {
   // Use shared wire-id resolution: runtime Model.apiModelId is optional; reading it directly can
   // return false while the route stays `server`, leaving the request with neither server nor client tools.
   const rawId = getRawModelId(model)
+
   return (
     /^qwen3[.-]/.test(rawId) ||
     DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.some((row) => row.wireIds.some((wireId) => wireId === rawId))
@@ -123,7 +133,9 @@ function mapMaxResultToOpenAIContextSize(
   maxResults: number
 ): NonNullable<WebSearchToolConfigMap['openai']>['searchContextSize'] {
   if (maxResults <= 33) return 'low'
+
   if (maxResults <= 66) return 'medium'
+
   return 'high'
 }
 
@@ -154,62 +166,76 @@ export function buildProviderBuiltinWebSearchConfig(
       if (provider && matchesPreset(provider, 'doubao')) {
         return { openai: {} }
       }
+
       // DeepSeek implements the bare Responses web_search tool and ignores OpenAI-only options such
       // as search_context_size and user_location (api-docs.deepseek.com/guides/responses_api).
       if (provider && matchesPreset(provider, 'deepseek')) {
         return { openai: {} }
       }
+
       if (model && provider && matchesPreset(provider, 'dashscope')) {
         // `undefined` (not `{}`) is what suppresses the tool: `providerWebSearchFeature` applies on a
         // truthy config, so an empty object would still attach it.
         return servesResponsesWebSearch(model) ? { openai: {} } : undefined
       }
+
       if (model && provider && matchesPreset(provider, 'qwencloud')) {
         // Only the DeepSeek-V4/GLM-5.2/Kimi-K3 lines take the Responses web_search tool
         // (docs.qwencloud.com web-search); Qwen lines search via Chat's enable_search — `undefined`
         // keeps the tool off.
         return qwencloudResponsesOnlySearch.test(getRawModelId(model)) ? { openai: {} } : undefined
       }
+
       const searchContextSize =
         model && isOpenAIDeepResearchModel(model)
           ? 'medium'
           : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)
+
       return {
         openai: {
           searchContextSize
         }
       }
     }
+
     case 'openai-chat': {
       const searchContextSize =
         model && isOpenAIDeepResearchModel(model)
           ? 'medium'
           : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)
+
       return {
         'openai-chat': {
           searchContextSize
         }
       }
     }
+
     case 'anthropic': {
       const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+
       const anthropicSearchOptions: NonNullable<WebSearchToolConfigMap['anthropic']> = {
         maxUses: webSearchConfig.maxResults,
         blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }
+
       return {
         anthropic: anthropicSearchOptions
       }
     }
+
     case 'xai':
     case 'xai-responses': {
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+
       const xaiWebConfig: NonNullable<NonNullable<WebSearchToolConfigMap['xai-responses']>['webSearch']> = {
         enableImageUnderstanding: true
       }
+
       if (excludeDomains.length > 0) {
         xaiWebConfig.excludedDomains = excludeDomains.slice(0, 5)
       }
+
       return {
         'xai-responses': {
           webSearch: xaiWebConfig,
@@ -217,20 +243,26 @@ export function buildProviderBuiltinWebSearchConfig(
         }
       }
     }
+
     case 'openrouter': {
       const excludedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+
       const openrouterWebConfig: NonNullable<WebSearchToolConfigMap['openrouter']> = {
         maxResults: webSearchConfig.maxResults
       }
+
       if (excludedDomains.length > 0) {
         openrouterWebConfig.excludedDomains = excludedDomains
       }
+
       return { openrouter: openrouterWebConfig }
     }
+
     case 'cherryin': {
       // cherryin proxies to a real endpoint forced via model.endpointTypes[0];
       // map it to the AppProviderId whose web-search case applies.
       const endpoint = model?.endpointTypes?.[0]
+
       const proxied: AppProviderId | undefined =
         endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
           ? 'openai'
@@ -239,8 +271,10 @@ export function buildProviderBuiltinWebSearchConfig(
             : endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
               ? 'anthropic'
               : endpoint
+
       return proxied ? buildProviderBuiltinWebSearchConfig(proxied, webSearchConfig, model, provider, serving) : {}
     }
+
     default: {
       return {}
     }

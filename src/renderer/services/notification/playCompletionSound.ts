@@ -6,12 +6,15 @@ const logger = loggerService.withContext('CompletionSound')
 export function playCompletionSound(): void {
   let context: AudioContext | undefined
   let closeTimer: ReturnType<typeof setTimeout> | undefined
+
   const close = () => {
     clearTimeout(closeTimer)
+
     if (context && context.state !== 'closed') {
       void context.close().catch((error) => logger.error('Failed to close completion audio', error as Error))
     }
   }
+
   try {
     context = new AudioContext()
     const oscillator = context.createOscillator()

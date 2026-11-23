@@ -14,6 +14,7 @@ export function MobileAppDownload() {
   const { t } = useTranslation()
   const edition = getAppEdition()
   const [platform, setPlatform] = useState('ios')
+
   const {
     data: androidUrl,
     error,
@@ -24,6 +25,7 @@ export function MobileAppDownload() {
     () => ipcApi.request('app.mobile.get_android_download_url'),
     { shouldRetryOnError: false }
   )
+
   const mobileDownloads = [
     {
       platform: 'ios',

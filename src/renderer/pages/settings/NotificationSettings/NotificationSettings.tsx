@@ -20,11 +20,13 @@ const logger = loggerService.withContext('NotificationSettings')
 
 const NotificationSettings: FC = () => {
   const { t } = useTranslation()
+
   const categoryLabels = {
     system: t('notification.center.system'),
     usage: t('notification.center.usage'),
     official: t('notification.center.official')
   }
+
   const { theme } = useTheme()
 
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
@@ -97,7 +99,9 @@ const NotificationSettings: FC = () => {
               step={0.1}
               onBlur={(value) => {
                 const budget = Math.round((value ?? 0) * 1000)
+
                 if (!Number.isSafeInteger(budget) || budget < 0) return
+
                 return saveSettings({ budget })
               }}
             />
@@ -120,7 +124,9 @@ const NotificationSettings: FC = () => {
             step={1}
             onBlur={(value) => {
               const threshold = value ?? 80
+
               if (!Number.isInteger(threshold) || threshold < 1 || threshold > 100) return
+
               return saveSettings({ threshold })
             }}
           />

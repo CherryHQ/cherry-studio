@@ -138,6 +138,7 @@ interface SendOptions {
 function generateSignature(secret: string, timestamp: number): string {
   const stringToSign = `${timestamp}\n${secret}`
   const hmac = crypto.createHmac('sha256', stringToSign)
+
   return hmac.digest('base64')
 }
 
@@ -303,6 +304,7 @@ function getCredentials() {
     console.error('Error: FEISHU_WEBHOOK_URL environment variable is required')
     process.exit(1)
   }
+
   if (!secret) {
     console.error('Error: FEISHU_WEBHOOK_SECRET environment variable is required')
     process.exit(1)
@@ -321,6 +323,7 @@ async function handleSendCommand(options: SendOptions): Promise<void> {
 
   // Validate color parameter
   const colorValidation = FeishuHeaderTemplateSchema.safeParse(color)
+
   if (!colorValidation.success) {
     console.error(`Error: Invalid color "${color}". Valid colors: ${FeishuHeaderTemplateSchema.options.join(', ')}`)
     process.exit(1)

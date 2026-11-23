@@ -38,6 +38,7 @@ export async function toFileInfo(entry: FileEntry): Promise<FileInfo> {
   const s = await fsStat(physicalPath)
   const ext = entry.ext
   const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'
+
   // `FileInfoSchema.parse` validates the shape and returns the exact `FileInfo`
   // type (including the branded `AbsoluteFilePath` on `path`) — no `as FileInfo` cast
   // needed.

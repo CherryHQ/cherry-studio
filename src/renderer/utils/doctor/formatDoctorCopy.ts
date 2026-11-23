@@ -28,11 +28,13 @@ function formatBasics(basics: DoctorBasics, labels: DoctorCopyLabels): readonly 
   for (const [name, value] of Object.entries(basics.runtime)) {
     if (value) lines.push(`${labels.runtime[name as keyof DoctorBasics['runtime']]}: ${value}`)
   }
+
   return lines
 }
 
 export function formatDoctorReportForCopy(report: DoctorReport, labels: DoctorCopyLabels): string {
   const publicReport = projectDoctorReport(report, 'copy')
+
   const lines = [
     labels.heading,
     '',
@@ -44,6 +46,7 @@ export function formatDoctorReportForCopy(report: DoctorReport, labels: DoctorCo
 
   for (const result of publicReport.results) {
     lines.push(`${labels.title(result.id)} [${result.id}]: ${labels.status(result.status)}`)
+
     for (const evidence of result.evidence ?? []) {
       if (evidence.dataClass === 'public') lines.push(`  ${evidence.key}: ${String(evidence.value)}`)
     }

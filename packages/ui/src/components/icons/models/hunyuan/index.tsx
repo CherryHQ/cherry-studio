@@ -4,6 +4,7 @@ import { HunyuanLight } from './light'
 
 const Hunyuan = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <HunyuanLight {...props} className={className} />
+
   return <HunyuanLight {...props} className={className} />
 }
 

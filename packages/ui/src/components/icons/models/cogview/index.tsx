@@ -4,6 +4,7 @@ import { CogviewLight } from './light'
 
 const Cogview = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <CogviewLight {...props} className={className} />
+
   return <CogviewLight {...props} className={className} />
 }
 

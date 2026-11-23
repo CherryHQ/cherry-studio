@@ -12,6 +12,7 @@ const ASK_DESCRIPTION = [
   '- Set multiSelect to true to allow several answers to one question.',
   '- If you recommend an option, list it first and add "(Recommended)" to its label.'
 ].join('\n')
+
 const OPTION_SCHEMA = {
   type: 'object',
   properties: {
@@ -24,6 +25,7 @@ const OPTION_SCHEMA = {
   },
   required: ['label', 'description']
 }
+
 const ASK_SCHEMA = {
   type: 'object',
   properties: {
@@ -59,10 +61,12 @@ const ASK_SCHEMA = {
   },
   required: ['questions']
 }
+
 const TODO_DESCRIPTION =
   'Record and update a task list to plan multi-step work and show progress; skip it for trivial single-step tasks. ' +
   'Add one todo per concrete step before you start. While work remains, keep exactly one todo `in_progress`. ' +
   'Mark each todo `completed` as soon as it is done.'
+
 const TODO_SCHEMA = {
   type: 'object',
   properties: {
@@ -91,8 +95,10 @@ const TODO_SCHEMA = {
 /** D28, D29: the questions go to a person once per call (memoized); an abort while waiting answers `aborted`. */
 async function askUser(context: Context, call: ToolCall): Promise<ToolOutcome> {
   const decision = decideAskUser((await context.ports.ledger.read(call.thread)).lineage, call.args)
+
   if (decision.kind === 'answered') return decision.result
   const { questions } = decision
+
   const answer = await context.ports.memory
     .remember(keys.askMemo(call.key), () =>
       context.host.questions.ask({ call: { thread: call.thread, key: call.key }, questions }, call.signal)
@@ -102,6 +108,7 @@ async function askUser(context: Context, call: ToolCall): Promise<ToolOutcome> {
       if (call.signal.aborted) return undefined
       throw error
     })
+
   return askUserResult(questions, answer)
 }
 

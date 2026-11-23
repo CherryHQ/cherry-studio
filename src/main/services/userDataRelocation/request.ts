@@ -19,11 +19,13 @@ const logger = loggerService.withContext('UserDataRelocation')
 export function inspectUserDataRelocationTarget(targetPath: string): UserDataRelocationInspection {
   try {
     const { targetEmpty } = assertRelocationPaths(application.getPath('app.userdata'), targetPath)
+
     return { valid: true, targetEmpty }
   } catch (error) {
     if (error instanceof RelocationValidationError) {
       return { valid: false, reason: error.reason }
     }
+
     throw error
   }
 }
@@ -41,12 +43,14 @@ export function requestUserDataRelocation(targetPath: string, copy: boolean): vo
     to: canonicalizeUserDataPath(targetPath),
     copy
   }
+
   assertUserDataRelocationRequest(pending)
 
   // Temporary BootConfig values bypass PreferenceService. Persist immediately
   // because the request must be durable before Electron relaunches.
   const previous = bootConfigService.get('temp.user_data_relocation')
   bootConfigService.set('temp.user_data_relocation', pending)
+
   try {
     bootConfigService.persist()
   } catch (error) {
@@ -55,5 +59,6 @@ export function requestUserDataRelocation(targetPath: string, copy: boolean): vo
     bootConfigService.set('temp.user_data_relocation', previous)
     throw error
   }
+
   logger.info('userData relocation requested; relaunch required', pending)
 }

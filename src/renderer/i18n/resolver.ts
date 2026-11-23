@@ -96,6 +96,7 @@ const doInit = async (): Promise<void> => {
     .use(
       resourcesToBackend((language: string) => {
         const loader = localeLoaders[language as LanguageVarious]
+
         return loader ? loader() : Promise.reject(new Error(`No locale pack for "${language}"`))
       })
     )

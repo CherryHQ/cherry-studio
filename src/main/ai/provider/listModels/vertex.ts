@@ -26,6 +26,7 @@ export type VertexModelListRequest = {
 
 function getVertexServiceEndpoint(provider: Provider, location: string): string {
   const apiHost = withoutTrailingSlash(getBaseUrl(provider))
+
   const defaultHost =
     location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
 
@@ -34,6 +35,7 @@ function getVertexServiceEndpoint(provider: Provider, location: string): string 
   }
 
   const vertexResourcePath = /\/v1(?:beta1)?\/projects\/[^/]+\/locations\/[^/]+$/
+
   if (vertexResourcePath.test(apiHost)) {
     return apiHost.replace(vertexResourcePath, '')
   }
@@ -67,11 +69,14 @@ export async function createVertexModelListRequest(
     if (options?.throwOnError) {
       throw new Error(`Vertex AI model listing failed: ${reason}`)
     }
+
     logger.warn(`Vertex AI model listing skipped — ${reason}`, context)
+
     return undefined
   }
 
   const authConfig = providerService.getAuthConfig(provider.id)
+
   if (authConfig?.type !== 'iam-gcp') {
     return failOrSkip('provider is not configured with iam-gcp auth', {
       providerId: provider.id,
@@ -83,9 +88,13 @@ export async function createVertexModelListRequest(
   const { privateKey, clientEmail } = normalizeVertexCredentials(credentials)
 
   const missing: string[] = []
+
   if (!project) missing.push('project')
+
   if (!location) missing.push('location')
+
   if (!privateKey) missing.push('privateKey')
+
   if (!clientEmail) missing.push('clientEmail')
 
   if (missing.length > 0) {
@@ -96,6 +105,7 @@ export async function createVertexModelListRequest(
   }
 
   let authHeaders: Record<string, string>
+
   try {
     authHeaders = await vertexAiService.getAuthHeaders({
       projectId: project,
@@ -105,10 +115,12 @@ export async function createVertexModelListRequest(
     if (options?.throwOnError) {
       throw error
     }
+
     logger.warn('Vertex AI model listing skipped — authentication failed', {
       providerId: provider.id,
       error: error instanceof Error ? error.message : String(error)
     })
+
     return undefined
   }
 
@@ -142,6 +154,7 @@ export function getVertexModelPublisher(name: string): string {
   }
 
   const publisher = name.slice(markerIndex + marker.length).split('/')[0]
+
   return publisher || 'google'
 }
 

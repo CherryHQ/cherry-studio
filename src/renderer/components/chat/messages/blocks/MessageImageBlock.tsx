@@ -35,12 +35,14 @@ function useImageSourceUrls(sources: readonly MessageImageSource[]): string[] {
         ...new Set(
           sources.flatMap((source) => {
             const id = entryIdOf(source)
+
             return id ? [id] : []
           })
         )
       ].join(','),
     [sources]
   )
+
   const [resolved, setResolved] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -51,12 +53,15 @@ function useImageSourceUrls(sources: readonly MessageImageSource[]): string[] {
       .then((paths) => {
         if (cancelled) return
         const urls: Record<string, string> = {}
+
         for (const [id, path] of Object.entries(paths)) {
           if (path) urls[id] = toFileUrl(path)
         }
+
         setResolved((current) => ({ ...current, ...urls }))
       })
       .catch(() => {})
+
     return () => {
       cancelled = true
     }
@@ -66,6 +71,7 @@ function useImageSourceUrls(sources: readonly MessageImageSource[]): string[] {
     () =>
       sources.map((source) => {
         const entryId = entryIdOf(source)
+
         return (entryId && resolved[entryId]) || source.url
       }),
     [sources, resolved]
@@ -74,6 +80,7 @@ function useImageSourceUrls(sources: readonly MessageImageSource[]): string[] {
 
 const MessageImageBlock: React.FC<Props> = ({ sources, isSingle, thumbnail, className }) => {
   const images = useImageSourceUrls(sources)
+
   return <ImageBlock images={images} isSingle={isSingle} thumbnail={thumbnail} className={className} />
 }
 

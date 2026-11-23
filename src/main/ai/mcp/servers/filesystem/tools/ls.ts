@@ -29,6 +29,7 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
   // the real error. Same contract `glob` and `read` apply to their targets.
   try {
     const stats = await fs.stat(validPath)
+
     if (!stats.isDirectory()) {
       throw new Error(`Path is not a directory: ${validPath}`)
     }
@@ -36,6 +37,7 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       throw new Error(`Directory not found: ${validPath}`)
     }
+
     throw error
   }
 
@@ -53,6 +55,7 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
   async function buildTree(dirPath: string, depth: number = 0): Promise<TreeNode[]> {
     if (fileCount >= MAX_FILES_LIMIT) {
       truncated = true
+
       return []
     }
 
@@ -63,7 +66,9 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
       // Sort entries: directories first, then files, alphabetically
       entries.sort((a, b) => {
         if (a.isDirectory() && !b.isDirectory()) return -1
+
         if (!a.isDirectory() && b.isDirectory()) return 1
+
         return a.name.localeCompare(b.name)
       })
 
@@ -77,11 +82,13 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
         if (entry.name.startsWith('.') && entry.name !== '.env.example') {
           continue
         }
+
         if (['node_modules', 'dist', 'build', '__pycache__'].includes(entry.name)) {
           continue
         }
 
         fileCount++
+
         const node: TreeNode = {
           name: entry.name,
           type: entry.isDirectory() ? 'directory' : 'file'
@@ -89,6 +96,7 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
 
         if (entry.isDirectory() && recursive && depth < 5) {
           const childPath = path.join(dirPath, entry.name)
+
           // Validate symlinked directories to prevent escaping the workspace root
           try {
             await validatePath(childPath, baseDir)
@@ -110,7 +118,9 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
       if (depth === 0) {
         throw error
       }
+
       logger.debug('Skipping unreadable directory', { path: dirPath })
+
       return []
     }
   }

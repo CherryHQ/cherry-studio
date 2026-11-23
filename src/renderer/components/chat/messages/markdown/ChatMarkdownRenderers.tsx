@@ -17,17 +17,20 @@ type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.Intrin
 
 function ChatLinkRenderer(props: MarkdownRendererProps<'a'>) {
   const { citationRegistry, openFilePath } = useChatMarkdownRenderContext()
+
   return <Link {...props} citationRegistry={citationRegistry} openFilePath={openFilePath} />
 }
 
 function ChatCitationSupRenderer(props: MarkdownRendererProps<'sup'>) {
   const { citationRegistry } = useChatMarkdownRenderContext()
+
   return <CitationSup {...props} citationRegistry={citationRegistry} />
 }
 
 function getCodeFilePath({ text, language, isIncomplete }: ReturnType<typeof useMarkdownCode>) {
   if (isIncomplete || (language !== null && language !== 'text')) return null
   const path = normalizeInlineFilePath(text)
+
   return path && (isKnownNavigationPath(path) || (!isWin && isInlineFilePath(text))) ? path : null
 }
 
@@ -37,7 +40,9 @@ function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
 
   // Keep growing fences as code until Streamdown finishes rebuilding their animated spans.
   const path = getCodeFilePath(code)
+
   if (path && isKnownNavigationPath(path)) return <NavigateToolInline input={{ path }} />
+
   if (path) return <ClickableFilePath path={path} />
 
   return (
@@ -50,8 +55,10 @@ function ChatPreRenderer({ node, children, ...props }: MarkdownRendererProps<'pr
   const codeChild = child?.type === 'element' && child.tagName === 'code' ? child : undefined
   const className = codeChild?.properties.className
   const code = useMarkdownCode(children, Array.isArray(className) ? className.join(' ') : String(className ?? ''))
+
   // Ordinary code and raw HTML retain the pre surface's typography, whitespace and spacing.
   if (codeChild && getCodeFilePath(code)) return <>{children}</>
+
   return (
     <pre style={{ overflow: 'visible' }} {...props}>
       {children}
@@ -61,10 +68,13 @@ function ChatPreRenderer({ node, children, ...props }: MarkdownRendererProps<'pr
 
 function ChatSpanRenderer({ node, children, ...props }: MarkdownRendererProps<'span'>) {
   const path = node?.properties?.[BARE_FILE_PATH_PROPERTY]
+
   if (typeof path === 'string') {
     if (isKnownNavigationPath(path)) return <NavigateToolInline input={{ path }} />
+
     return <ClickableFilePath path={path} displayName={path} preserveWrappingPunctuation />
   }
+
   return <span {...props}>{children}</span>
 }
 

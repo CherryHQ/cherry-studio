@@ -39,6 +39,7 @@ const LANGUAGES: ReadonlyMap<string, string> = new Map([
   ['es-ES', 'spanish'],
   ['it-IT', 'italian']
 ])
+
 const VOICES: LocalSpeechVoice[] = [
   ['vivian', 'Vivian', 'zh-CN'],
   ['serena', 'Serena', 'zh-CN'],
@@ -54,6 +55,7 @@ const VOICES: LocalSpeechVoice[] = [
 export function getQwen3TtsStatus(signal?: AbortSignal): LocalVoiceStatus {
   checkAbort(signal)
   const { status } = application.get('LocalModelService').refreshStatus(QWEN3_TTS_BUNDLE_ID)
+
   switch (status) {
     case 'ready':
       return { status: 'ready' }
@@ -76,17 +78,23 @@ export function getQwen3TtsStatus(signal?: AbortSignal): LocalVoiceStatus {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native inference, filesystem and utility-process failures have heterogeneous shapes; convert verified model/process codes into bounded voice reasons.
 function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
+
   if (error instanceof VoiceRuntimeError) return error
+
   if (error instanceof UtilityProcessError) {
     if (error.code === 'PROCESS_BLOCKED') return new VoiceRuntimeError('busy')
+
     if (error.remote?.code === 'TTS_MODEL_LOAD_FAILED') return new VoiceRuntimeError('model_load_failed')
+
     if (
       ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(error.code)
     )
       return new VoiceRuntimeError('worker_crashed')
   }
+
   if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'TTS_MODEL_LOAD_FAILED')
     return new VoiceRuntimeError('model_load_failed')
+
   return new VoiceRuntimeError('operation_failed')
 }
 
@@ -100,6 +108,7 @@ export function createQwen3SpeechModel(options: SpeechOptions): SpeechModelV3 {
       const voice = VOICES.find((voice) => voice.id === options.voice)
       const language = LANGUAGES.get(options.language ?? voice?.locale ?? '')
       const speed = options.speed ?? DEFAULT_SPEECH_SPEED
+
       if (
         !voice ||
         !language ||
@@ -110,12 +119,15 @@ export function createQwen3SpeechModel(options: SpeechOptions): SpeechModelV3 {
       )
         throw new VoiceRuntimeError('invalid_request')
       const status = getQwen3TtsStatus(input.abortSignal)
+
       if (status.status !== 'ready') throw new VoiceRuntimeError(status.reason ?? 'model_required')
+
       return withScratch(
         async (directory) => {
           const outputPath = join(directory, 'speech.wav')
           const timeout = AbortSignal.timeout(120_000)
           const signal = input.abortSignal ? AbortSignal.any([timeout, input.abortSignal]) : timeout
+
           try {
             await application
               .get('TtsInferenceService')
@@ -128,9 +140,11 @@ export function createQwen3SpeechModel(options: SpeechOptions): SpeechModelV3 {
             if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
             throw error
           }
+
           checkAbort(input.abortSignal)
           const audio = new Uint8Array(await readFile(outputPath))
           checkAbort(input.abortSignal)
+
           return { audio, warnings: [], response: { timestamp: new Date(), modelId: QWEN3_TTS_MODEL_ID } }
         },
         input.abortSignal,
@@ -149,13 +163,16 @@ function startPcmSpeech(
   const loadingTimeout = setTimeout(() => controller.abort(new VoiceRuntimeError('timeout')), 120_000)
   loadingTimeout.unref()
   const lifetime = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+
   const opened = Promise.resolve().then(() => {
     checkAbort(lifetime)
     const voice = VOICES.find((voice) => voice.id === options.voice)
     const language = LANGUAGES.get(options.language ?? voice?.locale ?? '')
     const speed = options.speed ?? DEFAULT_SPEECH_SPEED
+
     if (!voice || !language || !Number.isFinite(speed) || speed < MIN_SPEECH_SPEED || speed > MAX_SPEECH_SPEED)
       throw new VoiceRuntimeError('invalid_request')
+
     return application.get('TtsInferenceService').stream(
       QWEN3_TTS_BUNDLE_ID,
       {
@@ -167,6 +184,7 @@ function startPcmSpeech(
       lifetime
     )
   })
+
   const feeding = opened
     .then(async (stream) => {
       if (input.kind === SpeechInputKind.TextStream) {
@@ -175,17 +193,21 @@ function startPcmSpeech(
           await stream.write({ metadata: event })
         }
       }
+
       await stream.finishInput()
     })
     .catch((error) => {
       controller.abort(error)
       throw error
     })
+
   void feeding.catch(() => undefined)
+
   const closed = opened.then(
     (stream) => stream.closed,
     () => undefined
   )
+
   const completed = opened
     .then(async (stream) => {
       await Promise.all([feeding, stream.completed])
@@ -194,12 +216,15 @@ function startPcmSpeech(
     .catch((error) => {
       throw lifetime.reason instanceof VoiceRuntimeError ? lifetime.reason : normalizeFailure(error, lifetime)
     })
+
   const output: Promise<Extract<SpeechSource, { kind: typeof SpeechOutputKind.PcmStream }>> = opened
     .then(async (stream) => {
       const iterator = stream.output[Symbol.asyncIterator]()
       const first = await iterator.next()
+
       if (first.done || first.value.metadata.type !== 'format') throw new VoiceRuntimeError('invalid_audio')
       const { sampleRate, channels } = first.value.metadata
+
       return {
         kind: SpeechOutputKind.PcmStream,
         format: { sampleRate, channels },
@@ -207,10 +232,13 @@ function startPcmSpeech(
           async *[Symbol.asyncIterator]() {
             while (true) {
               const item = await iterator.next()
+
               if (item.done) return
+
               if (item.value.metadata.type !== 'pcm' || !('payload' in item.value))
                 throw new VoiceRuntimeError('invalid_audio')
               const bytes = item.value.payload
+
               if (bytes.byteLength % 4) throw new VoiceRuntimeError('invalid_audio')
               yield {
                 startFrame: item.value.metadata.startFrame,
@@ -228,9 +256,11 @@ function startPcmSpeech(
       throw failure
     })
     .finally(() => clearTimeout(loadingTimeout))
+
   void completed.catch(() => undefined)
   void output.catch(() => undefined)
   let cancellation: Promise<void> | undefined
+
   return {
     output,
     completed,
@@ -264,11 +294,14 @@ export const qwen3SpeechDefinition: SpeechModelDefinition = {
   ],
   voices: async (signal) => {
     checkAbort(signal)
+
     return VOICES
   },
   getDefaultVoice: async (language, signal) => {
     checkAbort(signal)
+
     if (language && !LANGUAGES.has(language)) return null
+
     return VOICES.find((voice) => voice.locale === language) ?? VOICES[0]
   },
   download: () =>

@@ -21,6 +21,7 @@ export async function extractLegacyDocText(source: Buffer | string): Promise<str
   return [extracted.getBody(), extracted.getTextboxes(), extracted.getFootnotes(), extracted.getEndnotes()]
     .flatMap((part) => {
       const text = part?.trim() ?? ''
+
       return text ? [text] : []
     })
     .join('\n\n')

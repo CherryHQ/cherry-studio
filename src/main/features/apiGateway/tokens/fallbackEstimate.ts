@@ -2,8 +2,10 @@ import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 
 /** Depth cap — a legitimately deep (~10k) JSON must not blow the stack or `JSON.stringify`. */
 const MAX_DEPTH = 8
+
 /** Tokenize long strings from a sample this size and extrapolate — bounded work on multi-MB text. */
 const TEXT_SAMPLE_CHARS = 8_192
+
 /** Flat cost for one inline media payload — never its base64 length. */
 const MEDIA_PAYLOAD_TOKENS = 1_500
 
@@ -38,7 +40,9 @@ interface InlineMediaFields {
  */
 function isMediaPayload(value: string, key: string | undefined, parent: InlineMediaFields | undefined): boolean {
   if (value.startsWith('data:') && value.includes(';base64,')) return true
+
   if (key !== 'data' || !parent) return false
+
   return (
     parent.type === 'base64' ||
     typeof parent.media_type === 'string' ||
@@ -49,6 +53,7 @@ function isMediaPayload(value: string, key: string | undefined, parent: InlineMe
 
 function stringTokens(value: string, tokenizer: TextTokenizer): number {
   if (value.length <= TEXT_SAMPLE_CHARS) return tokenizer.count(value)
+
   return Math.round((tokenizer.count(value.slice(0, TEXT_SAMPLE_CHARS)) * value.length) / TEXT_SAMPLE_CHARS)
 }
 
@@ -61,20 +66,28 @@ function walk(
   parent: InlineMediaFields | undefined
 ): number {
   if (depth > MAX_DEPTH) return 0
+
   if (typeof value === 'string') {
     return isMediaPayload(value, key, parent) ? MEDIA_PAYLOAD_TOKENS : stringTokens(value, tokenizer)
   }
+
   if (Array.isArray(value)) {
     let total = 0
+
     // Array items lose the object context on purpose: `{data: ['…']}` is not a media carrier.
     for (const item of value) total += walk(item, tokenizer, depth + 1, undefined, undefined)
+
     return total
   }
+
   if (value && typeof value === 'object') {
     const entries: [string, unknown][] = Object.entries(value)
     let total = 0
+
     for (const [childKey, item] of entries) total += walk(item, tokenizer, depth + 1, childKey, value)
+
     return total
   }
+
   return 0
 }

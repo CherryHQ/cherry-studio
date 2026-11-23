@@ -20,27 +20,33 @@ function Drawer({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>)
       </NonModalDirectionContext>
     )
   }
+
   return <DrawerPrimitive.Root data-slot="drawer" {...props} />
 }
 
 function DrawerTrigger({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Trigger>) {
   const Trigger = React.use(NonModalDirectionContext) ? DialogPrimitive.Trigger : DrawerPrimitive.Trigger
+
   return <Trigger data-slot="drawer-trigger" {...props} />
 }
 
 function DrawerPortal({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Portal>) {
   const Portal = React.use(NonModalDirectionContext) ? DialogPrimitive.Portal : DrawerPrimitive.Portal
+
   return <Portal data-slot="drawer-portal" {...props} />
 }
 
 function DrawerClose({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Close>) {
   const Close = React.use(NonModalDirectionContext) ? DialogPrimitive.Close : DrawerPrimitive.Close
+
   return <Close data-slot="drawer-close" {...props} />
 }
 
 function DrawerOverlay({ className, ...props }: React.ComponentProps<typeof DrawerPrimitive.Overlay>) {
   const direction = React.use(NonModalDirectionContext)
+
   if (direction) return null
+
   return (
     <DrawerPrimitive.Overlay
       data-slot="drawer-overlay"
@@ -66,7 +72,9 @@ function DrawerContent({
   const direction = React.use(NonModalDirectionContext)
   const Content = direction ? DialogPrimitive.Content : DrawerPrimitive.Content
   const directionProps = {}
+
   if (direction) Object.assign(directionProps, { 'data-vaul-drawer-direction': direction })
+
   return (
     <DrawerPortal data-slot="drawer-portal" container={portalContainer}>
       {showOverlay && <DrawerOverlay />}

@@ -19,5 +19,6 @@ for (const extension of extensions) {
  */
 export function getAiSdkProviderId(provider: Provider, model: Model): AppProviderId {
   const endpointType = resolveEffectiveEndpoint(provider, model).endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+
   return resolveAiSdkProviderId(provider, endpointType)
 }

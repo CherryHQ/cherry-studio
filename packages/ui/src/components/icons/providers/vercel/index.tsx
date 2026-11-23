@@ -6,7 +6,9 @@ import { VercelLight } from './light'
 
 const Vercel = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <VercelLight {...props} className={className} />
+
   if (variant === 'dark') return <VercelDark {...props} className={className} />
+
   return (
     <>
       <VercelLight className={cn('dark:hidden', className)} {...props} />

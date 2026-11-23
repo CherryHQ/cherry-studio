@@ -30,6 +30,7 @@ const McpProtocolInstallDialog = ({ open = true, servers, onClose, onInstall }: 
   const handleInstall = async () => {
     if (!open || installing) return
     setInstalling(true)
+
     try {
       await onInstall()
     } finally {

@@ -14,6 +14,7 @@ const unquote = (family: string) => family.trim().replace(/^["']|["']$/g, '')
 export function collectFontFaces(fontFamily: string): FontFaceSource[] {
   const families = new Set(fontFamily.split(',').map(unquote))
   const faces: FontFaceSource[] = []
+
   // Production bundles wrap rules in `@layer`, so walk grouping rules and imported sheets, not just the top level.
   const collect = (sheet: CSSStyleSheet, rules: CSSRuleList) => {
     for (const rule of rules) {
@@ -21,10 +22,12 @@ export function collectFontFaces(fontFamily: string): FontFaceSource[] {
       else if (rule instanceof CSSGroupingRule) collect(sheet, rule.cssRules)
       else if (rule instanceof CSSFontFaceRule) {
         const family = unquote(rule.style.getPropertyValue('font-family'))
+
         if (families.has(family)) faces.push(toSource(rule, family, sheet.href ?? document.baseURI))
       }
     }
   }
+
   const visit = (sheet: CSSStyleSheet) => {
     try {
       collect(sheet, sheet.cssRules)
@@ -32,7 +35,9 @@ export function collectFontFaces(fontFamily: string): FontFaceSource[] {
       // Cross-origin sheets are unreadable; the app ships its fonts locally.
     }
   }
+
   for (const sheet of document.styleSheets) visit(sheet)
+
   return faces
 }
 
@@ -43,6 +48,7 @@ function toSource(rule: CSSFontFaceRule, family: string, base: string): FontFace
       /url\((["']?)([^"')]+)\1\)/g,
       (_, quote: string, url: string) => `url(${quote}${new URL(url, base).href}${quote})`
     )
+
   return {
     family,
     source,
@@ -62,12 +68,14 @@ export async function ensureFontFaces(faces: readonly FontFaceSource[], fontSet:
     faces.map((face) => {
       const key = `${face.family}|${face.source}|${face.descriptors.weight}|${face.descriptors.style}`
       let loading = registered.get(key)
+
       if (!loading) {
         const fontFace = new FontFace(face.family, face.source, face.descriptors)
         fontSet.add(fontFace)
         loading = fontFace.load().catch(() => undefined) // A missing face falls back like it would on the page.
         registered.set(key, loading)
       }
+
       return loading
     })
   )

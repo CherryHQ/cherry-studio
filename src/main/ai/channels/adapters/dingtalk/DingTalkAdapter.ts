@@ -38,7 +38,9 @@ const IdentitySchema = z.object({
   text: z.unknown().optional(),
   content: z.unknown().optional()
 })
+
 type IncomingMessage = z.infer<typeof IdentitySchema>
+
 type ReplyContext = {
   webhook?: DingTalkWebhook
   expiresAt: number
@@ -80,6 +82,7 @@ export class DingTalkAdapter extends ChannelAdapter {
     setMaxListeners(256, this.lifetime.signal)
     this.api = new DingTalkApi(this.cfg, this.lifetime.signal)
     this.alive = true
+
     const client = new DWClient({
       clientId: this.cfg.client_id,
       clientSecret: this.cfg.client_secret,
@@ -95,9 +98,11 @@ export class DingTalkAdapter extends ChannelAdapter {
         error: () => this.log.error('DingTalk transport error')
       }
     })
+
     this.client = client
     client.on('connectionState', (connected: boolean) => {
       if (!this.alive || this.client !== client) return
+
       if (connected) {
         clearTimeout(this.reconnectTimer)
         this.reconnectTimer = undefined
@@ -115,6 +120,7 @@ export class DingTalkAdapter extends ChannelAdapter {
     const abort = () => this.retire()
     signal.addEventListener('abort', abort, { once: true })
     this.stopConnectWatch = () => signal.removeEventListener('abort', abort)
+
     try {
       await new Promise<void>((resolve, reject) => {
         const cleanup = () => {
@@ -122,16 +128,19 @@ export class DingTalkAdapter extends ChannelAdapter {
           this.off('statusChange', changed)
           this.lifetime.signal.removeEventListener('abort', failed)
         }
+
         const failed = () => {
           cleanup()
           reject(new Error(t('common.dingtalk_connection_failed')))
         }
+
         const changed = () => {
           if (this.connected) {
             cleanup()
             resolve()
           }
         }
+
         const timer = setTimeout(failed, 30_000)
         timer.unref()
         this.on('statusChange', changed)
@@ -154,6 +163,7 @@ export class DingTalkAdapter extends ChannelAdapter {
     this.client?.disconnect()
     this.client?.removeAllListeners()
     this.client = undefined
+
     for (const context of this.replies.values()) this.closeContext(context)
     this.replies.clear()
     this.seen.clear()
@@ -166,8 +176,10 @@ export class DingTalkAdapter extends ChannelAdapter {
 
   private allowed(chatId: string, userId?: string): boolean {
     if (!/^(dm|group):\S+$/.test(chatId)) return false
+
     if (this.cfg.allowed_chat_ids.length && !this.cfg.allowed_chat_ids.includes(chatId)) return false
     const user = userId ?? (chatId.startsWith('dm:') ? chatId.slice(3) : undefined)
+
     return !user || !this.cfg.allowed_user_ids.length || this.cfg.allowed_user_ids.includes(user)
   }
 
@@ -179,38 +191,52 @@ export class DingTalkAdapter extends ChannelAdapter {
     if (!this.alive || this.client !== client || frame.headers.topic !== TOPIC_ROBOT) return
     const ack = () => client.socketCallBackResponse(frame.headers.messageId, { errcode: 0, errmsg: 'ok' })
     let parsed: ReturnType<typeof IdentitySchema.safeParse>
+
     try {
       if (frame.data.length > 256 * 1024) {
         ack()
+
         return
       }
+
       parsed = IdentitySchema.safeParse(JSON.parse(frame.data))
     } catch {
       ack()
+
       return
     }
+
     if (!parsed.success) {
       ack()
+
       return
     }
+
     const message = parsed.data
     const chatId = message.conversationType === '1' ? `dm:${message.senderStaffId}` : `group:${message.conversationId}`
+
     if (
       message.robotCode !== this.cfg.robot_code ||
       !this.allowed(chatId, message.senderStaffId) ||
       (message.conversationType === '2' && !message.isInAtList)
     ) {
       ack()
+
       return
     }
+
     const key = this.key(chatId, message.msgId)
+
     if (this.seen.has(key) || this.replies.has(key)) {
       ack()
+
       return
     }
+
     for (const [id, context] of this.replies) {
       if (!context.active && context.expiresAt <= Date.now()) this.replies.delete(id)
     }
+
     if (this.pending >= 32 || this.replies.size >= 1000) return
     this.replies.set(key, {
       webhook:
@@ -244,6 +270,7 @@ export class DingTalkAdapter extends ChannelAdapter {
     const files: FileAttachment[] = []
     const media: { downloadCode: string; image: boolean; filename?: string }[] = []
     const codeSchema = z.object({ downloadCode: z.string().min(1), fileName: z.string().optional() })
+
     try {
       switch (message.msgtype) {
         case 'text':
@@ -251,13 +278,17 @@ export class DingTalkAdapter extends ChannelAdapter {
           break
         case 'audio': {
           const content = z.object({ recognition: z.string().trim().min(1) }).safeParse(message.content)
+
           if (!content.success) {
             await this.sendMessage(chatId, t('common.channel_voice_transcription_missing'), options)
+
             return
           }
+
           text = content.data.recognition
           break
         }
+
         case 'picture':
         case 'video':
         case 'file': {
@@ -265,6 +296,7 @@ export class DingTalkAdapter extends ChannelAdapter {
           media.push({ downloadCode: item.downloadCode, image: message.msgtype === 'picture', filename: item.fileName })
           break
         }
+
         case 'richText': {
           const content = z
             .object({
@@ -278,31 +310,42 @@ export class DingTalkAdapter extends ChannelAdapter {
                 .max(100)
             })
             .parse(message.content)
+
           for (const item of content.richText) {
             if ('text' in item) text += item.text
             else media.push({ downloadCode: item.downloadCode, image: true })
           }
+
           break
         }
+
         default:
           await this.sendMessage(chatId, t('common.dingtalk_unsupported_message'), options)
+
           return
       }
+
       if (media.length > 20) throw new Error('Too many attachments')
       let bytes = 0
+
       for (const item of media) {
         signal.throwIfAborted()
         const url = await this.api.downloadUrl(item.downloadCode)
+
         const result = await fetchRemoteBytes(url, {
           signal,
           timeoutMs: 30_000,
           maxBytes: Math.min(DINGTALK_FILE_BYTES, DINGTALK_FILE_BYTES * 2 - bytes),
           maxRedirects: 3
         })
+
         bytes += result.body.length
+
         if (!result.body.length) throw new Error('Empty attachment')
         const detected = await fileTypeFromBuffer(result.body)
+
         if (message.msgtype === 'video' && !detected?.mime.startsWith('video/')) throw new Error('Invalid video')
+
         if (item.image) {
           if (!detected?.mime.startsWith('image/')) throw new Error('Invalid image')
           images.push({ data: result.body.toString('base64'), media_type: detected.mime })
@@ -319,10 +362,13 @@ export class DingTalkAdapter extends ChannelAdapter {
       }
     } catch {
       if (!signal.aborted) await this.sendMessage(chatId, t('common.dingtalk_attachment_failed'), options)
+
       return
     }
+
     if (signal.aborted || !this.alive) return
     text = text.trim()
+
     const identity = {
       chatId,
       conversationId: chatId,
@@ -330,9 +376,12 @@ export class DingTalkAdapter extends ChannelAdapter {
       userName: message.senderNick,
       messageId: message.msgId
     }
+
     const command = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text)
+
     if (command && message.msgtype !== 'audio' && !media.length) {
       const context = this.replies.get(this.key(chatId, message.msgId))
+
       if (context) this.closeContext(context)
       this.emit('command', {
         ...identity,
@@ -351,13 +400,16 @@ export class DingTalkAdapter extends ChannelAdapter {
     const context = this.replies.get(this.key(chatId, opts?.replyToMessageId))
     // Keep UTF-8 code points intact; 1800 bytes leaves room under the text API's 2 KB limit.
     let chunk = ''
+
     for (const character of text) {
       if (Buffer.byteLength(chunk + character) > 1800) {
         await this.api.sendText(chatId, chunk, context?.webhook)
         chunk = ''
       }
+
       chunk += character
     }
+
     if (chunk) await this.api.sendText(chatId, chunk, context?.webhook)
   }
 
@@ -369,8 +421,10 @@ export class DingTalkAdapter extends ChannelAdapter {
   async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {
     this.requireSend(chatId)
     const context = this.replies.get(this.key(chatId, opts?.replyToMessageId))
+
     if (!context || context.finished || context.active) return
     context.active = true
+
     if (!this.cfg.card_template_id) return
     const api = this.api
     const signal = this.lifetime.signal
@@ -380,15 +434,20 @@ export class DingTalkAdapter extends ChannelAdapter {
         await api.createCard(context.cardId!)
       } catch {
         if (!signal.aborted) this.log.warn('DingTalk card creation failed; using text replies')
+
         return
       }
+
       if (signal.aborted || context.finished) return
       context.cardState = 'delivering'
+
       try {
         await api.deliverCard(chatId, context.cardId!)
+
         if (!signal.aborted) context.cardState = 'delivered'
       } catch {
         context.cardState = 'uncertain'
+
         if (!signal.aborted) this.log.warn('DingTalk card delivery failed; check the conversation before retrying')
       }
     })()
@@ -397,13 +456,16 @@ export class DingTalkAdapter extends ChannelAdapter {
 
   override async onTextUpdate(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void> {
     const context = this.replies.get(this.key(chatId, opts?.replyToMessageId))
+
     if (!context || context.finished || !this.alive) return
     context.text = fullText
     await this.sendTypingIndicator(chatId, opts)
     await context.cardPromise
+
     if (context.finished || context.cardState !== 'delivered') return
     context.flusher ??= new FlushController(async () => {
       if (context.finished || !this.alive) return
+
       try {
         await this.api.updateCard(context.cardId!, context.text, false)
       } catch {
@@ -427,16 +489,21 @@ export class DingTalkAdapter extends ChannelAdapter {
     suppress = false
   ): Promise<boolean> {
     const context = this.replies.get(this.key(chatId, opts?.replyToMessageId))
+
     if (!context) return suppress
     this.closeContext(context)
     await context.cardPromise
     await context.flusher?.waitForFlush()
     context.active = false
     context.expiresAt = Date.now() + 10 * 60_000
+
     if (suppress || !this.alive) return true
+
     if (context.cardState === 'uncertain') throw new Error(t('common.dingtalk_delivery_failed'))
+
     if (context.cardState !== 'delivered') return false
     await this.api.updateCard(context.cardId!, text, true, error)
+
     return true
   }
 
@@ -450,7 +517,9 @@ export class DingTalkAdapter extends ChannelAdapter {
       outcome?.status === 'paused'
         ? `${text}\n\n${t('common.channel_stopped')}`.trim()
         : text || t('common.dingtalk_empty_response')
+
     if (!(await this.finish(chatId, content, opts, false))) await this.sendMessage(chatId, content, opts)
+
     return true
   }
 

@@ -5,13 +5,16 @@ import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { AgentRuntimeConnection } from '../runtime/types'
 
 export type AgentSessionTerminalStatus = 'success' | 'paused' | 'error'
+
 export type AgentSessionTerminalOutcome =
   | { status: 'success' }
   | { status: 'paused' }
   | { status: 'error'; error?: unknown }
 
 export type AgentSessionRuntimeAdmissionPhase = 'pending' | 'admitted'
+
 export type AgentSessionRuntimeLaunchTarget<TTurn> = { kind: 'queued-turn' } | { kind: 'reply'; turn: TTurn }
+
 export type AgentSessionRuntimeLaunchState<TTurn> =
   | { kind: 'idle' }
   | { kind: 'scheduled' | 'running' | 'suppressed'; target: AgentSessionRuntimeLaunchTarget<TTurn> }
@@ -168,6 +171,7 @@ function connectionTeardownEffects<TTurn, TPendingTurn>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn>
 ): AgentSessionRuntimeStateEffect<TTurn>[] {
   if (state.connection.kind !== 'connected') return []
+
   return [
     { type: 'release-background-waiter', connection: state.connection.connection },
     ...(state.connection.occupancy.compaction ? [{ type: 'compaction-interrupted' } as const] : [])
@@ -179,10 +183,15 @@ export function getAgentSessionRuntimeReply<TTurn, TPendingTurn>(
   turn: TTurn
 ): AgentSessionRuntimeReply<TTurn> | undefined {
   const execution = state.execution
+
   if (execution.kind === 'idle') return undefined
+
   if (execution.reply.turn === turn) return execution.reply
+
   if (execution.kind === 'steer-transition' && execution.source.turn === turn) return execution.source
+
   if (execution.kind === 'autonomous-turn' && execution.deferred?.turn === turn) return execution.deferred
+
   return undefined
 }
 
@@ -191,12 +200,17 @@ function replaceReply<TTurn, TPendingTurn>(
   value: AgentSessionRuntimeReply<TTurn>
 ): AgentSessionRuntimeState<TTurn, TPendingTurn> {
   const execution = state.execution
+
   if (execution.kind === 'idle') return state
+
   if (execution.reply.turn === value.turn) return { ...state, execution: { ...execution, reply: value } }
+
   if (execution.kind === 'steer-transition' && execution.source.turn === value.turn)
     return { ...state, execution: { ...execution, source: value } }
+
   if (execution.kind === 'autonomous-turn' && execution.deferred?.turn === value.turn)
     return { ...state, execution: { ...execution, deferred: value } }
+
   return state
 }
 
@@ -206,10 +220,12 @@ function advance<TTurn, TPendingTurn>(
   let { state } = transition
   const effects = [...transition.effects]
   let execution = state.execution
+
   if (execution.kind === 'steer-transition' && execution.source.delivery.kind === 'settled') {
     execution = { kind: 'turn', reply: execution.reply }
     state = { ...state, execution }
   }
+
   if (execution.kind !== 'idle' && execution.reply.delivery.kind === 'settled') {
     if (execution.kind === 'turn') {
       state = { ...state, execution: { kind: 'idle', lastTurn: execution.reply.turn } }
@@ -227,10 +243,13 @@ function advance<TTurn, TPendingTurn>(
       }
     }
   }
+
   if (state.launch.kind !== 'idle') return { state, effects }
   execution = state.execution
   let target: AgentSessionRuntimeLaunchTarget<TTurn> | undefined
+
   if (execution.kind === 'idle' && state.queue.length) target = { kind: 'queued-turn' }
+
   if (
     execution.kind === 'turn' ||
     (execution.kind === 'autonomous-turn' &&
@@ -239,10 +258,12 @@ function advance<TTurn, TPendingTurn>(
     if (execution.reply.delivery.kind === 'reserved' || execution.reply.delivery.kind === 'unopened')
       target = { kind: 'reply', turn: execution.reply.turn }
   }
+
   if (target) {
     state = { ...state, launch: { kind: 'scheduled', target } }
     effects.push({ type: 'schedule-launch', target })
   }
+
   return { state, effects }
 }
 
@@ -258,9 +279,11 @@ function reduce<TTurn, TPendingTurn>(
   event: AgentSessionRuntimeStateEvent<TTurn, TPendingTurn>
 ): AgentSessionRuntimeTransition<TTurn, TPendingTurn> {
   const execution = state.execution
+
   switch (event.type) {
     case 'begin-turn':
       if (execution.kind !== 'idle') return invalid(state, event)
+
       return {
         state: {
           ...state,
@@ -277,6 +300,7 @@ function reduce<TTurn, TPendingTurn>(
       return { state: { ...state, queue: [] }, effects: [] }
     case 'reserve-steer':
       if (execution.kind !== 'turn' || execution.reservation) return invalid(state, event)
+
       return { state: { ...state, execution: { ...execution, reservation: event.reservation } }, effects: [] }
     case 'clear-steer-reservation':
       return execution.kind === 'turn'
@@ -285,10 +309,12 @@ function reduce<TTurn, TPendingTurn>(
     case 'steer-boundary': {
       if (execution.kind !== 'turn' && execution.kind !== 'idle') return invalid(state, event)
       const successor = reply(event.turn)
+
       if (execution.kind === 'idle')
         return { state: { ...state, execution: { kind: 'turn', reply: successor } }, effects: [] }
       const source = execution.reply
       const settle = source.delivery.kind === 'open'
+
       return {
         state: {
           ...state,
@@ -304,6 +330,7 @@ function reduce<TTurn, TPendingTurn>(
         effects: settle ? [{ type: 'settle-turn', turn: source.turn, outcome: { status: 'success' } }] : []
       }
     }
+
     case 'background-reply-resumed': {
       if (
         execution.kind === 'idle' ||
@@ -312,6 +339,7 @@ function reduce<TTurn, TPendingTurn>(
       )
         return invalid(state, event)
       const resumed = { ...execution, reply: { ...execution.reply, terminal: undefined } }
+
       return {
         state: {
           ...state,
@@ -320,15 +348,19 @@ function reduce<TTurn, TPendingTurn>(
         effects: []
       }
     }
+
     case 'autonomous-turn-started': {
       if (execution.kind === 'autonomous-turn') return { state, effects: [] }
+
       if (execution.kind === 'steer-transition') return invalid(state, event)
+
       const deferred =
         event.deferCurrentTurn && execution.kind === 'turn'
           ? execution.reply.delivery.kind === 'awaiting-persistence'
             ? execution.reply
             : { ...execution.reply, delivery: { kind: 'suspending' } as const }
           : undefined
+
       return {
         state: {
           ...state,
@@ -337,9 +369,11 @@ function reduce<TTurn, TPendingTurn>(
         effects: deferred?.delivery.kind === 'suspending' ? [{ type: 'suspend-turn', turn: deferred.turn }] : []
       }
     }
+
     case 'autonomous-turn-finished': {
       if (execution.kind !== 'autonomous-turn' || execution.ownership === 'released') return { state, effects: [] }
       const current = execution.reply
+
       return {
         state: {
           ...state,
@@ -352,30 +386,43 @@ function reduce<TTurn, TPendingTurn>(
         effects: []
       }
     }
+
     case 'turn-suspended': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (current?.delivery.kind !== 'suspending') return { state, effects: [] }
+
       return { state: replaceReply(state, { ...current, delivery: { kind: 'unopened' } }), effects: [] }
     }
+
     case 'retry-reply': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (current?.delivery.kind !== 'failed') return { state, effects: [] }
+
       return { state: replaceReply(state, { ...current, delivery: { kind: 'reserved' } }), effects: [] }
     }
+
     case 'turn-prepared': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (current?.delivery.kind !== 'reserved') return { state, effects: [] }
+
       return { state: replaceReply(state, { ...current, delivery: { kind: 'unopened' } }), effects: [] }
     }
+
     case 'reply-delivery-failed': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (!current || current.delivery.kind === 'settled') return { state, effects: [] }
+
       if (current.admission === 'pending' && execution.kind === 'turn') {
         return {
           state: { ...state, execution: { kind: 'idle', lastTurn: event.turn }, queue: [], lastTerminal: 'error' },
           effects: [{ type: 'report-delivery-failure', turn: event.turn, error: event.error }]
         }
       }
+
       return {
         state: replaceReply(state, {
           ...current,
@@ -385,31 +432,46 @@ function reduce<TTurn, TPendingTurn>(
         effects: [{ type: 'report-delivery-failure', turn: event.turn, error: event.error }]
       }
     }
+
     case 'turn-stream-attaching': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (current?.delivery.kind !== 'unopened') return invalid(state, event)
+
       return { state: replaceReply(state, { ...current, delivery: { kind: 'attaching' } }), effects: [] }
     }
+
     case 'turn-stream-opened': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (current?.delivery.kind !== 'attaching' && current?.delivery.kind !== 'unopened') return invalid(state, event)
+
       return { state: replaceReply(state, { ...current, delivery: { kind: 'open' } }), effects: [] }
     }
+
     case 'turn-admitted': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (!current) return invalid(state, event)
+
       return { state: replaceReply(state, { ...current, admission: 'admitted' }), effects: [] }
     }
+
     case 'buffer-chunk': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (!current || current.delivery.kind === 'settled') return { state, effects: [] }
+
       return { state: replaceReply(state, { ...current, buffer: [...current.buffer, event.chunk] }), effects: [] }
     }
+
     case 'reply-results': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (!current || current.delivery.kind === 'settled' || current.delivery.kind === 'awaiting-persistence')
         return { state, effects: [] }
       const updated = replaceReply(state, { ...current, pendingResultToolCallIds: event.toolCallIds })
+
       return event.toolCallIds?.length === 0 && current.terminal
         ? transitionAgentSessionRuntime(updated, {
             type: 'runtime-terminal',
@@ -418,24 +480,32 @@ function reduce<TTurn, TPendingTurn>(
           })
         : { state: updated, effects: [] }
     }
+
     case 'runtime-terminal': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (!current || current.delivery.kind === 'settled' || current.delivery.kind === 'awaiting-persistence')
         return { state, effects: [] }
       const terminal = current.terminal && current.terminal.status !== 'success' ? current.terminal : event.outcome
+
       if (current.delivery.kind === 'failed') {
         const retry = execution.kind !== 'autonomous-turn' || execution.ownership === 'released'
         const reply: AgentSessionRuntimeReply<TTurn> = { ...current, terminal }
+
         if (retry) reply.delivery = { kind: 'reserved' }
+
         return {
           state: replaceReply(state, reply),
           effects: []
         }
       }
+
       const held = terminal.status === 'success' && current.pendingResultToolCallIds?.length !== 0
       const settle = current.delivery.kind === 'open' && !held
       const reply: AgentSessionRuntimeReply<TTurn> = { ...current, terminal }
+
       if (settle) reply.delivery = { kind: 'awaiting-persistence' }
+
       return {
         state: replaceReply(state, reply),
         effects: settle
@@ -449,18 +519,24 @@ function reduce<TTurn, TPendingTurn>(
           : []
       }
     }
+
     case 'flush-transition': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (current?.delivery.kind !== 'open') return { state, effects: [] }
       const held = current.terminal?.status === 'success' && current.pendingResultToolCallIds?.length !== 0
+
       const terminal =
         !held && current.terminal
           ? current.deliveryFailure
             ? { status: 'error' as const, error: current.deliveryFailure.error }
             : current.terminal
           : undefined
+
       const reply: AgentSessionRuntimeReply<TTurn> = { ...current, buffer: [] }
+
       if (terminal) reply.delivery = { kind: 'awaiting-persistence' }
+
       return {
         state: replaceReply(state, reply),
         effects: [
@@ -471,10 +547,13 @@ function reduce<TTurn, TPendingTurn>(
         ]
       }
     }
+
     case 'turn-terminal': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
+
       if (!current || current.delivery.kind === 'settled' || current.delivery.kind === 'suspending')
         return { state, effects: [] }
+
       return {
         state: {
           ...replaceReply(state, { ...current, delivery: { kind: 'settled', status: event.status } }),
@@ -483,9 +562,11 @@ function reduce<TTurn, TPendingTurn>(
         effects: []
       }
     }
+
     case 'launch-started':
     case 'launch-suppressed':
       if (state.launch.kind !== 'scheduled' || state.launch.target !== event.target) return { state, effects: [] }
+
       return {
         state: {
           ...state,
@@ -495,27 +576,34 @@ function reduce<TTurn, TPendingTurn>(
       }
     case 'launch-finished':
       if (state.launch.kind === 'idle' || state.launch.target !== event.target) return { state, effects: [] }
+
       return { state: { ...state, launch: { kind: 'idle' } }, effects: [] }
     case 'launch-resumed':
       if (state.launch.kind !== 'suppressed') return { state, effects: [] }
+
       return {
         state: { ...state, launch: { kind: 'scheduled', target: state.launch.target } },
         effects: [{ type: 'schedule-launch', target: state.launch.target }]
       }
     case 'connection-occupancy': {
       const connection = state.connection
+
       if (connection.kind !== 'connected') {
         // A cleared occupancy is already structurally gone with the connection; only an activation
         // without a connection is a protocol violation worth logging.
         return event.active ? invalid(state, event) : { state, effects: [] }
       }
+
       if (event.occupancy === 'compaction') {
         if (event.active === (connection.occupancy.compaction === true)) return { state, effects: [] }
         const occupancy = { ...connection.occupancy }
+
         if (event.active) occupancy.compaction = true
         else delete occupancy.compaction
+
         return { state: { ...state, connection: { ...connection, occupancy } }, effects: [] }
       }
+
       if (event.active) {
         const updated: AgentSessionRuntimeState<TTurn, TPendingTurn> = {
           ...state,
@@ -529,23 +617,29 @@ function reduce<TTurn, TPendingTurn>(
             }
           }
         }
+
         return { state: updated, effects: [] }
       }
+
       if (!connection.occupancy.background) return { state, effects: [] }
       const occupancy = { ...connection.occupancy }
       delete occupancy.background
+
       // Draining background work also releases any rebuild it was blocking.
       const released: AgentSessionRuntimeState<TTurn, TPendingTurn> = {
         ...state,
         connection: { kind: 'connected', connection: connection.connection, occupancy }
       }
+
       return {
         state: released,
         effects: [{ type: 'release-background-waiter', connection: connection.connection }]
       }
     }
+
     case 'connection-started':
       if (state.connection.kind !== 'disconnected') return invalid(state, event)
+
       return {
         state: { ...state, connection: { kind: 'connecting', attemptId: event.attemptId } },
         effects: []
@@ -554,6 +648,7 @@ function reduce<TTurn, TPendingTurn>(
       if (state.connection.kind !== 'connecting' || state.connection.attemptId !== event.attemptId) {
         return invalid(state, event)
       }
+
       return {
         state: { ...state, connection: { kind: 'connected', connection: event.connection, occupancy: {} } },
         effects: []
@@ -566,6 +661,7 @@ function reduce<TTurn, TPendingTurn>(
       ) {
         return invalid(state, event)
       }
+
       return {
         state: {
           ...state,
@@ -581,14 +677,18 @@ function reduce<TTurn, TPendingTurn>(
       ) {
         return invalid(state, event)
       }
+
       return {
         state: { ...state, connection: { kind: 'disconnected' } },
         effects: connectionTeardownEffects(state)
       }
     }
+
     case 'reset': {
       const reset = createAgentSessionRuntimeState<TTurn, TPendingTurn>()
+
       if (state.lastTerminal) reset.lastTerminal = state.lastTerminal
+
       return {
         state: reset,
         effects: connectionTeardownEffects(state)
@@ -608,7 +708,9 @@ export function getAgentSessionRuntimeNativeTurn<TTurn, TPendingTurn>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn>
 ): TTurn | undefined {
   const execution = state.execution
+
   if (execution.kind === 'idle') return undefined
+
   if (
     execution.kind === 'autonomous-turn' &&
     execution.ownership === 'released' &&
@@ -617,6 +719,7 @@ export function getAgentSessionRuntimeNativeTurn<TTurn, TPendingTurn>(
     !execution.deferred.terminal
   )
     return execution.deferred.turn
+
   return execution.reply.turn
 }
 
@@ -624,7 +727,9 @@ export function getAgentSessionRuntimeTurns<TTurn, TPendingTurn>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn>
 ): TTurn[] {
   const execution = state.execution
+
   if (execution.kind === 'idle') return []
+
   return [
     execution.reply.turn,
     ...(execution.kind === 'steer-transition' ? [execution.source.turn] : []),
@@ -637,6 +742,7 @@ export function isAgentSessionRuntimeTurnLive<TTurn, TPendingTurn>(
   turn: TTurn
 ): boolean {
   const current = getAgentSessionRuntimeReply(state, turn)
+
   return !!current && current.delivery.kind !== 'settled' && current.delivery.kind !== 'awaiting-persistence'
 }
 
@@ -644,6 +750,7 @@ export function getAgentSessionRuntimeLiveTurn<TTurn, TPendingTurn>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn>
 ): TTurn | undefined {
   const turn = getAgentSessionRuntimeCurrentTurn(state)
+
   return turn !== undefined && isAgentSessionRuntimeTurnLive(state, turn) ? turn : undefined
 }
 

@@ -54,6 +54,7 @@ function installedVersionOf(appId: string): string {
 }
 
 type Emit = (chunk: string) => void
+
 type Handler = (
   appId: string,
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- RequestSchema validates the envelope only; each capability parses its own guest-controlled method parameters.
@@ -88,6 +89,7 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
   'app.getPermissions': (appId) => {
     const manifest = MiniAppManifestSchema.parse(installationOf(appId).manifestJson)
     const granted = new Set(listGrants(appId))
+
     return Object.fromEntries(declaredGrantKeys(manifest).map((k) => [k, granted.has(k)]))
   },
 
@@ -132,6 +134,7 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Capability and routing catches may throw any value; expose only recognized public errors and hide all unmapped host failure details.
 export function publicErrorOf(error: unknown): CherryPublicError {
   const out: CherryPublicError = { name: 'Internal', message: 'Internal error' }
+
   // `detail`, not `message`: the message is prefixed with the internal class name.
   if (error instanceof RateLimitedError) [out.name, out.message] = ['RateLimited', error.detail]
   else if (error instanceof QuotaExceededError) [out.name, out.message] = ['QuotaExceeded', error.detail]
@@ -141,6 +144,7 @@ export function publicErrorOf(error: unknown): CherryPublicError {
   else if (error instanceof z.ZodError) [out.name, out.message] = ['InvalidArgument', 'Invalid arguments']
   else if (error instanceof Error && error.name === 'AbortError') [out.name, out.message] = ['Cancelled', 'Cancelled']
   else if (error instanceof InvalidArgumentError) [out.name, out.message] = ['InvalidArgument', error.message]
+
   return out
 }
 
@@ -156,7 +160,9 @@ export async function handleBridgeRequest(senderId: number, payload: unknown, em
     return { ok: true, value: await route(senderId, payload, emit) }
   } catch (error) {
     const publicError = publicErrorOf(error)
+
     if (publicError.name === 'Internal') logger.warn('Mini app bridge call failed', { error })
+
     return { ok: false, error: publicError }
   }
 }
@@ -165,11 +171,13 @@ export async function handleBridgeRequest(senderId: number, payload: unknown, em
 async function route(senderId: number, payload: unknown, emit: Emit): Promise<MiniAppReply> {
   const runtime = application.get('MiniAppRuntimeService')
   const appId = runtime.resolveAppIdBySender(senderId)
+
   if (!appId) {
     throw new Error(`Bridge request from an unknown mini app guest (webContents ${senderId})`)
   }
 
   const { method, params, requestId, callId } = RequestSchema.parse(payload)
+
   // Own-property check: `ROUTES['constructor']` would otherwise resolve up the prototype
   // chain, and the gate below refusing it would be luck, not design.
   if (!Object.hasOwn(ROUTES, method)) throw new InvalidArgumentError(`Unknown method: ${method}`)
@@ -178,6 +186,7 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<Mi
   // From here on the call is attributable, so from here on it is logged — the gate's
   // refusal included, which is the line the activity log exists to show.
   const started = Date.now()
+
   try {
     assertMethodAllowed(appId, method as MiniAppMethod)
 
@@ -189,6 +198,7 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<Mi
     // from the payload but names only this guest's own call — lookups scope by senderId.
     const value = await handler(appId, params, emit, senderId, requestId, callId)
     miniAppActivityLog.recordCall(appId, method as MiniAppMethod, 'ok', Date.now() - started, params, value)
+
     return value
   } catch (error) {
     miniAppActivityLog.recordCall(
@@ -214,5 +224,6 @@ async function route(senderId: number, payload: unknown, emit: Emit): Promise<Mi
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Refused capability calls can throw arbitrary values; log only a bounded string Error.cause, never a host error message.
 function reasonOf(error: unknown): string | undefined {
   const cause = error instanceof Error ? error.cause : undefined
+
   return typeof cause === 'string' && cause.length > 0 ? cause.slice(0, 64) : undefined
 }

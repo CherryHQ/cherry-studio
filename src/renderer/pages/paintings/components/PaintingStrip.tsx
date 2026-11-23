@@ -97,8 +97,10 @@ const PaintingStrip: FC<PaintingStripProps> = ({
 }) => {
   const { t } = useTranslation()
   const stripRef = useRef<HTMLDivElement>(null)
+
   const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {
     const target = event.currentTarget
+
     if (target.scrollTop + target.clientHeight >= target.scrollHeight - 120) {
       loadMore()
     }
@@ -106,6 +108,7 @@ const PaintingStrip: FC<PaintingStripProps> = ({
 
   useEffect(() => {
     const strip = stripRef.current
+
     if (hasMore && strip && strip.scrollHeight <= strip.clientHeight) {
       loadMore()
     }

@@ -22,10 +22,12 @@ const responseSchema = z.object({
 
 function readTexts(context: ProtocolContext, response: string) {
   const frames: string[] = []
+
   if (/^data:/m.test(response)) {
     const parser = createParser({
       onEvent: (event) => {
         if (event.data === '[DONE]') return
+
         try {
           JSON.parse(event.data)
           frames.push(event.data)
@@ -35,31 +37,43 @@ function readTexts(context: ProtocolContext, response: string) {
         }
       }
     })
+
     parser.feed(`${response}\n\n`)
   } else frames.push(response)
   const texts: string[] = []
   let empty = false
+
   for (const frame of frames) {
     let value: unknown
+
     try {
       value = JSON.parse(frame)
     } catch {
       continue
     }
+
     const parsed = responseSchema.safeParse(value)
+
     if (!parsed.success) continue
+
     if (parsed.data.error)
       throw protocolError(context, 'provider_error', parsed.data.error.message, String(parsed.data.error.code))
     const result = parsed.data.result
+
     if (!result) continue
+
     const content = result.content.flatMap((item) =>
       item.type === 'text' && item.text?.trim() ? [item.text.trim()] : []
     )
+
     if (result.isError) throw protocolError(context, 'provider_error', content.join('\n') || 'Exa MCP tool failed')
+
     if (result.content.length === 0) empty = true
     texts.push(...content)
   }
+
   if (texts.length || empty) return { texts, empty }
+
   if (response.startsWith('Title:')) return { texts: [response], empty: false }
   throw invalidResponse(context, 'mcp_invalid_response', 'Exa MCP response parsing failed: no parseable content found')
 }
@@ -70,6 +84,7 @@ function searchResults(raw: string, input: string): WebSearchResult[] {
     .split(/\n\n(?:---\n\n)?(?=Title:[^\n]*\nURL:)/)
     .flatMap((chunk) => {
       const url = /^URL:[ \t]*(https?:\/\/[^\s]+)/m.exec(chunk)?.[1]
+
       return url
         ? [
             {
@@ -87,8 +102,10 @@ function pageResults(raw: string, input: string, maxCharacters: number): WebSear
   const match = /^# ([^\n]+)\nURL: (https?:\/\/[^\s]+)\n(?:Published:[^\n]*\n)?(?:Author:[^\n]*\n)?\n([\s\S]*)/.exec(
     raw.replace(/\r\n/g, '\n')
   )
+
   if (!match?.[3].trim()) return []
   const content = match[3].trim()
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Build the readonly result contract before publication, omitting truncated unless the limit is reached.
   const result: { -readonly [K in keyof WebSearchResult]: WebSearchResult[K] } = {
     title: match[1].trim(),
@@ -96,7 +113,9 @@ function pageResults(raw: string, input: string, maxCharacters: number): WebSear
     content,
     sourceInput: input
   }
+
   if (content.length >= maxCharacters) result.truncated = true
+
   return [result]
 }
 
@@ -105,16 +124,20 @@ export const exaMcp: WebSearchProviderModule = {
   async execute(context) {
     const { call } = context
     const isSearch = call.capability === 'searchKeywords'
+
     const args =
       call.capability === 'searchKeywords'
         ? { query: call.input, type: 'auto', numResults: call.config.maxResults, livecrawl: 'fallback' }
         : { urls: [call.input], maxCharacters: call.config.maxCharacters ?? 24_000 }
+
     // oxlint-disable-next-line anti-slop/no-known-value-widening -- HTTP header names are open; credentials are attached after the required transport headers.
     const headers: Record<string, string> = {
       accept: 'application/json, text/event-stream',
       'content-type': 'application/json'
     }
+
     if (call.credentials?.apiKey) headers['x-api-key'] = call.credentials.apiKey
+
     const response = await requestText(context, {
       url: context.apiHost,
       method: 'POST',
@@ -126,17 +149,25 @@ export const exaMcp: WebSearchProviderModule = {
         params: { name: isSearch ? 'web_search_exa' : 'web_fetch_exa', arguments: args }
       })
     })
+
     const { texts, empty } = readTexts(context, response.bodyText)
+
     if (call.capability === 'searchKeywords') {
       const results = searchResults(texts.join('\n\n'), call.input).slice(0, call.config.maxResults)
+
       const noSearchResults =
         texts.length > 0 && texts.every((text) => text === 'No search results found. Please try a different query.')
+
       if (!results.length && !empty && !noSearchResults)
         throw invalidResponse(context, 'mcp_invalid_response', 'Exa MCP returned no recognizable search results')
+
       return results
     }
+
     const results = texts.flatMap((text) => pageResults(text, call.input, call.config.maxCharacters ?? 24_000))
+
     if (!results.length) throw invalidResponse(context, 'empty_content', 'Exa MCP returned no readable page content')
+
     return results
   }
 }

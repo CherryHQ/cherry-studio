@@ -23,7 +23,9 @@ export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage
       stats: shared.stats ?? undefined
     }
   }
+
   if (shared.stats?.totalTokens) message.metadata.totalTokens = shared.stats.totalTokens
+
   return message
 }
 
@@ -33,10 +35,12 @@ export function isRenderableConversationMessage(message: CherryUIMessage): boole
 
 export function uiMessagesToPartsMap(messages: CherryUIMessage[]) {
   const map = new Map<string, CherryMessagePart[]>()
+
   for (const message of messages) {
     if (message.parts.length > 0) {
       map.set(message.id, message.parts)
     }
   }
+
   return Object.fromEntries(map)
 }

@@ -29,10 +29,12 @@ const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
       clearTimeout(timer)
       reject(signal?.reason ?? new Error('Aborted'))
     }
+
     const timer = setTimeout(() => {
       signal?.removeEventListener('abort', onAbort)
       resolve()
     }, ms)
+
     signal?.addEventListener('abort', onAbort, { once: true })
   })
 
@@ -48,15 +50,19 @@ const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
 export async function ocrImageToText(file: FileHandle, signal?: AbortSignal): Promise<string> {
   const cache = application.get('CacheService')
   let cacheKey: string | null = null
+
   if (file.kind === 'entry') {
     const version = await application.get('FileManager').getVersion(file.entryId)
     cacheKey = `ocr-extraction:${file.entryId}:${version.mtime}:${version.size}`
     const cached = cache.get<string>(cacheKey)
+
     if (cached !== undefined) return cached
   }
 
   const text = await runOcr(file, signal)
+
   if (cacheKey) cache.set(cacheKey, text, CACHE_TTL_MS)
+
   return text
 }
 
@@ -72,6 +78,7 @@ async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
 
   if (prepared.mode === 'background') {
     const out = await prepared.execute({ signal: signal ?? new AbortController().signal, reportProgress: () => {} })
+
     return out.text
   }
 
@@ -79,12 +86,17 @@ async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
   const started = await prepared.startRemote(signal)
   let ref = { providerTaskId: started.providerTaskId, remoteContext: started.remoteContext }
   const deadline = Date.now() + REMOTE_POLL_TIMEOUT_MS
+
   while (Date.now() < deadline) {
     await delay(REMOTE_POLL_INTERVAL_MS, signal)
     const res = await prepared.pollRemote(ref, signal)
+
     if (res.status === 'completed') return res.output.text
+
     if (res.status === 'failed') throw new Error(res.error)
+
     if (res.remoteContext) ref = { providerTaskId: ref.providerTaskId, remoteContext: res.remoteContext }
   }
+
   throw new Error('OCR timed out')
 }

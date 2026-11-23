@@ -6,7 +6,9 @@ import { DuckLight } from './light'
 
 const Duck = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DuckLight {...props} className={className} />
+
   if (variant === 'dark') return <DuckDark {...props} className={className} />
+
   return (
     <>
       <DuckLight className={cn('dark:hidden', className)} {...props} />

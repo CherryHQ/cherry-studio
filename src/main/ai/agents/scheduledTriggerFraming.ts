@@ -34,11 +34,13 @@ export function frameScheduledTrigger(input: {
     'The user previously set up this task and asked you to do the following at this time:',
     ''
   ]
+
   if (input.taskName?.trim()) lines.push(`  Task name: ${input.taskName.trim()}`)
   lines.push(`  User's instruction: "${instruction}"`, '')
   lines.push(
     "Now is the scheduled time. Carry out the user's instruction directly: speak to the user in your own voice and deliver the reminder or perform the action.",
     'Do NOT thank the user for reminding you, and do NOT address them as if they just messaged you; you are initiating this turn on their behalf.'
   )
+
   return lines.join('\n')
 }

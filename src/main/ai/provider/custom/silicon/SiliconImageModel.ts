@@ -32,6 +32,7 @@ export interface SiliconImageModelConfig {
 }
 
 type ImageItem = { url?: string; b64_json?: string }
+
 type ImageResponseBody = {
   images?: ImageItem[]
   data?: ImageItem[]
@@ -64,6 +65,7 @@ export class SiliconImageModel implements ImageModelV3 {
         details: 'SiliconFlow uses `image_size` (WxH); aspectRatio is ignored.'
       })
     }
+
     if (mask != null) {
       warnings.push({ type: 'unsupported', feature: 'mask' })
     }
@@ -71,12 +73,16 @@ export class SiliconImageModel implements ImageModelV3 {
     // `silicon` matches `providerOptionsKey` derived from
     // `siliconProvider.ts` (`SILICON_PROVIDER_NAME = 'silicon'`).
     const bag = providerOptions?.silicon ?? providerOptions?.openai ?? {}
+
     const body: JSONObject = {
       model: this.modelId,
       prompt: prompt ?? ''
     }
+
     const imageSize = size ?? (this.modelId === 'OpenMOSS-Team/MOSS-Image' ? '1024x1024' : undefined)
+
     if (imageSize) body.image_size = imageSize
+
     if (typeof n === 'number' && n > 1) body.batch_size = n
 
     if (typeof seed === 'number') body.seed = seed
@@ -91,6 +97,7 @@ export class SiliconImageModel implements ImageModelV3 {
       'prompt_enhancement'
     ] as const) {
       const value = bag[key]
+
       if (value !== undefined && value !== '' && value !== null) body[key] = value
     }
 
@@ -99,6 +106,7 @@ export class SiliconImageModel implements ImageModelV3 {
     // vendor ignores unknown fields. We don't try to gate per-model here.
     if (files && files.length > 0) {
       const slots = ['image', 'image2', 'image3'] as const
+
       for (let i = 0; i < Math.min(files.length, slots.length); i++) {
         body[slots[i]] = fileToDataUrl(files[i])
       }
@@ -106,6 +114,7 @@ export class SiliconImageModel implements ImageModelV3 {
 
     const url = this.config.url({ path: '/images/generations', modelId: this.modelId })
     const fetchFn = this.config.fetch ?? globalThis.fetch
+
     const response = await fetchFn(url, {
       method: 'POST',
       headers: mergeHeaders(this.config.headers(), headers, { 'Content-Type': 'application/json' }),
@@ -131,6 +140,7 @@ export class SiliconImageModel implements ImageModelV3 {
     }
 
     let parsed: ImageResponseBody
+
     try {
       parsed = JSON.parse(responseBody) as ImageResponseBody
     } catch (cause) {
@@ -146,9 +156,12 @@ export class SiliconImageModel implements ImageModelV3 {
     }
 
     const items = parsed.images ?? parsed.data ?? []
+
     const images: string[] = items.flatMap((item) => {
       if (typeof item.b64_json === 'string') return [item.b64_json]
+
       if (typeof item.url === 'string') return [item.url]
+
       return []
     })
 

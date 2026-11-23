@@ -4,8 +4,10 @@ export function summarizeRelease(run, jobs, sourceSha, artifactSizes = null) {
   const buildJobs = jobs.filter(
     ({ name }) => name === 'Prepare release ref' || name.startsWith('Build ') || name === 'Update draft release'
   )
+
   const draft = buildJobs.find(({ name }) => name === 'Update draft release')
   const summary = summarizeRun(run, buildJobs)
+
   return {
     ...summary,
     sourceSha,
@@ -18,6 +20,7 @@ export function summarizeRelease(run, jobs, sourceSha, artifactSizes = null) {
 
 export function renderReleasePerformance(summary) {
   const duration = (value) => (value === null ? 'unknown' : `${(value / 60).toFixed(2)} min`)
+
   return [
     '## Release build performance',
     '',

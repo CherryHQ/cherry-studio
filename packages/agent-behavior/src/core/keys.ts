@@ -12,6 +12,7 @@ const mint = (value: string): Key => value as Key // eslint-disable-line no-rest
 export const nativeSummaryKey = (compactionKey: string): Key => mint(`cherry.summary-usage:${compactionKey}`)
 
 type NotifiedRun = { readonly child: ThreadId; readonly run: number }
+
 // Code-unit order, not localeCompare: the key must not depend on the host's locale.
 const byChildThenRun = ([childA, runA]: readonly [string, number], [childB, runB]: readonly [string, number]) =>
   childA < childB ? -1 : childA > childB ? 1 : runA - runB
@@ -32,6 +33,7 @@ export const keys = {
    */
   subagentNotify: (parent: ThreadId, runs: readonly NotifiedRun[], stops: number): Key => {
     const pairs = runs.map(({ child, run }): readonly [string, number] => [child, run]).sort(byChildThenRun)
+
     return mint(`subagent-notify:${parent}:s${stops}:${sha256Hex(JSON.stringify(pairs))}`)
   },
   turnStop: (requestKey: string): Key => mint(`turn-stop:${requestKey}`),
@@ -82,13 +84,17 @@ export const keys = {
 export function armSeq(history: readonly HistoryEntry[], goalId: string): number {
   let count = 0
   let armed = false
+
   for (const entry of history) {
     if (entry.kind !== 'record' || entry.record.type !== 'goal') continue
     const goal = entry.record.value
+
     if ('cleared' in goal || goal.id !== goalId) continue
+
     if (goal.armed && !armed) count++
     armed = goal.armed
   }
+
   return count
 }
 
@@ -105,10 +111,12 @@ export function idleDriverGeneration(history: readonly HistoryEntry[]): number {
 /** The next run number for `child`: one past the highest run recorded for it, or 1 when none is. */
 export function nextRun(history: readonly HistoryEntry[], child: ThreadId): number {
   let highest = 0
+
   for (const entry of history) {
     if (entry.kind === 'record' && entry.record.type === 'subagent-run' && entry.record.value.sessionId === child) {
       highest = Math.max(highest, entry.record.value.run)
     }
   }
+
   return highest + 1
 }

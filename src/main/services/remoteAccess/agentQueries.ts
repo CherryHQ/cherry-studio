@@ -40,6 +40,7 @@ export const INLINE_TEXT_LIMIT = 4096
 export const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 export const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text)
 export const revisionOf = (iso: string): string => String(Date.parse(iso))
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime tool inputs are tool-defined; the existing JSON representation defines their approval digest without inventing a shared tool schema.
 export const inputDigest = (input: unknown): string => sha256(utf8(JSON.stringify(input ?? null)))
 
@@ -48,6 +49,7 @@ export type PartContent = { text: string } | { ref: ContentRef }
 export function contentOf(contentId: string, revision: string, text: string): PartContent {
   if (text.length <= INLINE_TEXT_LIMIT) return { text }
   const bytes = utf8(text)
+
   return {
     ref: { contentId, revision, byteLength: String(bytes.length), mediaType: 'text/plain', sha256: sha256(bytes) }
   }
@@ -65,9 +67,11 @@ export function notFound<T>(fn: () => T): T {
 
 export function sliceContent(bytes: Uint8Array, offset: string, maxBytes: number) {
   const start = Number(offset)
+
   if (!Number.isSafeInteger(start) || start < 0 || start > bytes.length)
     throw new RemoteRpcError('NOT_FOUND', 'Offset exceeds content length')
   const slice = bytes.subarray(start, start + maxBytes)
+
   return {
     offset,
     dataBase64: Buffer.from(slice).toString('base64'),
@@ -80,6 +84,7 @@ export function sliceContent(bytes: Uint8Array, offset: string, maxBytes: number
 export function toSessionSummary(session: AgentSessionEntity, activeExecutionId?: string): AgentSession | undefined {
   if (!session.agentId) return undefined
   const historyRevision = revisionOf(session.updatedAt)
+
   return {
     sessionId: session.id,
     agentId: session.agentId,
@@ -117,6 +122,7 @@ export function projectMessageParts(
   const projected: ProjectedPart[] = []
   message.parts.forEach((part: CherryMessagePart, index) => {
     const partId = `${message.id}:${index}`
+
     if (part.type === 'text' || part.type === 'reasoning') {
       projected.push({
         part: {
@@ -142,6 +148,7 @@ export function projectMessageParts(
         },
         text: input
       })
+
       if (part.state === 'output-available' || part.state === 'output-error') {
         const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
         projected.push({
@@ -169,6 +176,7 @@ export function projectMessageParts(
       )
     } else if (part.type === 'file') {
       const metadata = readCherryMeta(part)?.remoteAttachment
+
       if (metadata && readCherryMeta(part)?.fileEntryId) {
         projected.push({
           text: '',
@@ -200,6 +208,7 @@ export function projectMessageParts(
       projected.push(dataPart(partId, revision, type, JSON.stringify(rest)))
     }
   })
+
   return projected
 }
 
@@ -209,17 +218,22 @@ export function toMessageModel(
 ): AgentMessage['model'] {
   const snapshot = message.messageSnapshot?.model
   const parsedId = UniqueModelIdSchema.safeParse(message.modelId)
+
   const identity = parsedId.success
     ? parseUniqueModelId(parsedId.data)
     : snapshot
       ? { modelId: snapshot.id, providerId: snapshot.provider }
       : undefined
+
   if (!identity) return undefined
+
   const name =
     snapshot?.id === identity.modelId && snapshot.provider === identity.providerId
       ? snapshot.name.trim() || identity.modelId
       : identity.modelId
+
   const result = modelSummarySchema.safeParse({ ...identity, name })
+
   return result.success ? result.data : undefined
 }
 
@@ -228,13 +242,17 @@ function toMessageMetadata(message: AgentSessionMessageEntity) {
   const model = toMessageModel(message)
   const error = message.data.parts?.find((part) => part.type === 'data-error')
   const identity: Pick<AgentMessage, 'messageId' | 'usage' | 'model'> = { messageId: message.id }
+
   if (usage) Object.assign(identity, { usage })
+
   if (model) Object.assign(identity, { model })
+
   const state: Pick<AgentMessage, 'revision' | 'role' | 'status' | 'failure'> = {
     revision: revisionOf(message.updatedAt),
     role: message.role,
     status: message.status
   }
+
   if (message.status === 'error')
     Object.assign(state, {
       failure: toExecutionFailure(
@@ -242,6 +260,7 @@ function toMessageMetadata(message: AgentSessionMessageEntity) {
         message.modelId ?? undefined
       )
     })
+
   return { ...identity, ...state }
 }
 
@@ -257,12 +276,15 @@ export function listMessages(
   partsMode?: 'paged'
 ): { items: AgentMessageListItem[]; nextCursor: string | null } {
   const session = getSession(sessionId)
+
   if (revisionOf(session.updatedAt) !== historyRevision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'History revision expired')
+
   return queryPage((attemptLimit) => {
     const page = notFound(() =>
       agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: attemptLimit })
     )
+
     return {
       items: page.items.map((message) =>
         partsMode === 'paged' ? { ...toMessageMetadata(message), partsMode } : toMessage(message)
@@ -280,8 +302,10 @@ export function listParts(
   limit?: number
 ): { items: AgentPart[]; nextCursor: string | null } {
   const message = notFound(() => agentSessionMessageService.getSessionMessage(sessionId, messageId))
+
   if (revisionOf(message.updatedAt) !== messageRevision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'Message revision expired')
+
   return pageOf(
     projectPersistedParts(message).map(({ part }) => part),
     cursor,
@@ -292,16 +316,20 @@ export function listParts(
 export function readPersistedContent(sessionId: string, contentId: string, revision: string): Uint8Array | undefined {
   const [messageId] = contentId.split(':')
   const message = notFound(() => agentSessionMessageService.getSessionMessage(sessionId, messageId))
+
   if (revisionOf(message.updatedAt) !== revision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'Content revision expired')
+
   const approval = (message.data.parts ?? []).find(
     (part) =>
       isToolUIPart(part) &&
       'approval' in part &&
       `${message.id}:approval:${(part.approval as { id?: string })?.id}` === contentId
   )
+
   if (approval && isToolUIPart(approval)) return utf8(JSON.stringify(approval.input ?? null))
   const projected = projectPersistedParts(message).find(({ part }) => part.partId === contentId)
+
   return projected ? utf8(projected.text) : undefined
 }
 
@@ -313,10 +341,12 @@ export function interactionKind(toolName: string | undefined): 'decision' | 'que
 export function listPersistedInteractions(sessionId: string): AgentInteraction[] {
   const messages = notFound(() => agentSessionMessageService.listApprovalMessages(sessionId))
   const interactions: AgentInteraction[] = []
+
   for (const message of messages) {
     for (const part of message.data.parts ?? []) {
       if (!isToolUIPart(part)) continue
       const approval = (part as { approval?: { id?: string; approved?: boolean } }).approval
+
       if (!approval?.id) continue
       const input = JSON.stringify(part.input ?? null)
       const partId = `${message.id}:approval:${approval.id}`
@@ -340,18 +370,23 @@ export function listPersistedInteractions(sessionId: string): AgentInteraction[]
       })
     }
   }
+
   return interactions
 }
 
 export function listAgents(cursor?: string, limit?: number) {
   const { agents } = agentService.listAgents()
+
   return pageOf(
     agents.map((agent) => {
       const emoji = agent.configuration?.avatar?.trim() || '🤖'
       const identity = toMessageModel({ modelId: agent.model })
+
       const named =
         identity && modelSummarySchema.safeParse({ ...identity, name: agent.modelName?.trim() || identity.name })
+
       const model = named?.success ? named.data : (identity ?? null)
+
       return { agentId: agent.id, name: agent.name, emoji: emoji.length <= 64 ? emoji : '🤖', model }
     }),
     cursor,
@@ -361,6 +396,7 @@ export function listAgents(cursor?: string, limit?: number) {
 
 export function listWorkspaces(agentId: string, cursor?: string, limit?: number) {
   if (!agentService.agentExists(agentId)) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
+
   return {
     ...pageOf(
       agentWorkspaceService.list().map((workspace) => ({ workspaceId: workspace.id, name: workspace.name })),
@@ -378,11 +414,13 @@ export function listSessions(query: AgentParams<'agent.sessions.list'>) {
     cursor: query.cursor,
     limit: query.limit ?? DEFAULT_PAGE
   }
+
   const page = notFound(() =>
     query.taskId
       ? agentTaskService.listTaskSessions(query.taskId, options)
       : agentSessionService.listByCursor({ ...options, scope: 'all-conversations' })
   )
+
   return {
     items: page.items,
     nextCursor: page.nextCursor ?? null
@@ -408,33 +446,44 @@ export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParam
 export async function readPersistedFileContent(params: AgentParams<'agent.content.read'>) {
   const [messageId] = params.contentId.split(':')
   const index = Number(params.contentId.slice(messageId.length + 1))
+
   if (`${messageId}:${index}` !== params.contentId) return undefined
   let message: AgentSessionMessageEntity
+
   try {
     message = agentSessionMessageService.getSessionMessage(params.sessionId, messageId)
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return undefined
     throw error
   }
+
   const part = message.data.parts?.[index]
+
   if (part?.type !== 'file') return undefined
   const meta = readCherryMeta(part)
+
   if (!meta?.remoteAttachment || !meta.fileEntryId) return undefined
+
   if (revisionOf(message.updatedAt) !== params.revision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'Content revision expired')
   const offset = Number(params.offset)
   const { byteLength, sha256 } = meta.remoteAttachment
+
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > byteLength)
     throw new RemoteRpcError('NOT_FOUND', 'Invalid file offset')
+
   const handle = await open(
     application.get('FileManager').getPhysicalPath(FileEntryIdSchema.parse(meta.fileEntryId)),
     'r'
   )
+
   try {
     const bytes = Buffer.alloc(Math.min(params.maxBytes, byteLength - offset))
     const { bytesRead } = await handle.read(bytes, 0, bytes.length, offset)
+
     if (bytesRead !== bytes.length || (await handle.stat()).size !== byteLength)
       throw new RemoteRpcError('NOT_FOUND', 'Attachment is unavailable')
+
     return {
       ...params,
       dataBase64: bytes.toString('base64'),

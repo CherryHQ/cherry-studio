@@ -5,9 +5,13 @@ import type { RuntimeMessage } from '@cherrystudio/agent-runtime'
 export type NativeBlock =
   | SDKAssistantMessage['message']['content'][number]
   | Exclude<SDKUserMessage['message']['content'], string>[number]
+
 type Part = RuntimeMessage['parts'][number]
+
 type Metadata = NonNullable<Extract<Part, { type: 'text' }>['providerMetadata']>
+
 export type ToolResult = { toolUseId: string; output: unknown; errorText?: string }
+
 export type ProjectedBlock = { type: NativeBlock['type']; part: Part } | { result: ToolResult }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native tool outputs and archived citation payloads have extension-defined shapes; serialize their JSON representation for provider metadata.
@@ -77,18 +81,23 @@ function toolResult(toolUseId: string, output: unknown, isError = false): ToolRe
   const errorType = object(output)?.type
   const failed = isError || (typeof errorType === 'string' && errorType.endsWith('_error'))
   let errorText: string | undefined
+
   if (failed) {
     if (typeof output === 'string') errorText = output
     else if (Array.isArray(output)) {
       const parts: readonly unknown[] = output
       const texts: string[] = []
+
       for (const part of parts) {
         const block = object(part)
+
         if (block?.type === 'text' && typeof block.text === 'string') texts.push(block.text)
       }
+
       errorText = texts.join('\n')
     } else errorText = JSON.stringify(output)
   }
+
   return { toolUseId, output, errorText }
 }
 
@@ -98,6 +107,7 @@ function filePart(mediaType: string, url: string): Part {
 
 export function projectBlock(block: NativeBlock, partial: boolean): ProjectedBlock | undefined {
   const type = block.type
+
   switch (block.type) {
     case 'text':
       return { type, part: textPart(block.text, partial, block.citations) }
@@ -135,8 +145,10 @@ export function projectBlock(block: NativeBlock, partial: boolean): ProjectedBlo
     case 'image':
     case 'document': {
       const source = block.source
+
       const mediaType =
         'media_type' in source ? source.media_type : block.type === 'image' ? 'image/*' : 'application/pdf'
+
       switch (source.type) {
         case 'url':
           return { type, part: filePart(mediaType, source.url) }
@@ -152,10 +164,12 @@ export function projectBlock(block: NativeBlock, partial: boolean): ProjectedBlo
         default: {
           const exhaustive: never = source
           void exhaustive
+
           return undefined
         }
       }
     }
+
     // These native references/control blocks have no resolved public display part.
     case 'search_result':
     case 'container_upload':
@@ -164,6 +178,7 @@ export function projectBlock(block: NativeBlock, partial: boolean): ProjectedBlo
     default: {
       const exhaustive: never = block
       void exhaustive
+
       return undefined
     }
   }
@@ -181,15 +196,20 @@ export function decodeArchiveContent(
     }
   | undefined {
   const body = object(value)
+
   if (!body) return undefined
   const content = typeof body.content === 'string' ? [{ type: 'text', text: body.content }] : body.content
+
   if (!Array.isArray(content)) return undefined
+
   return {
     id: typeof body.id === 'string' ? body.id : undefined,
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- An archive content array may mix malformed and supported blocks; validate each consumed field below.
     blocks: content.map((value: unknown): ProjectedBlock | undefined => {
       const block = object(value)
+
       if (!block) return undefined
+
       switch (block.type) {
         case 'text':
           return typeof block.text === 'string'
@@ -241,21 +261,28 @@ export function decodeArchiveContent(
         case 'image':
         case 'document': {
           const source = object(block.source)
+
           if (!source) return undefined
+
           const mediaType =
             typeof source.media_type === 'string'
               ? source.media_type
               : block.type === 'image'
                 ? 'image/*'
                 : 'application/pdf'
+
           if (source.type === 'url' && typeof source.url === 'string')
             return { type: block.type, part: filePart(mediaType, source.url) }
+
           if ((source.type === 'base64' || source.type === 'text') && typeof source.data === 'string') {
             const data = source.type === 'base64' ? source.data : Buffer.from(source.data).toString('base64')
+
             return { type: block.type, part: filePart(mediaType, `data:${mediaType};base64,${data}`) }
           }
+
           return undefined
         }
+
         case 'search_result':
         case 'container_upload':
         case 'compaction':

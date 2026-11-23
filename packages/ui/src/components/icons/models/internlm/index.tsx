@@ -4,6 +4,7 @@ import { InternlmLight } from './light'
 
 const Internlm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <InternlmLight {...props} className={className} />
+
   return <InternlmLight {...props} className={className} />
 }
 

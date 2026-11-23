@@ -29,21 +29,27 @@ export const convertTime = (time: number | null): string => {
   if (time == null) {
     return ''
   }
+
   if (time > 100000) {
     return `${(time / 1000).toFixed(0)}s`
   }
+
   if (time > 10000) {
     return `${(time / 1000).toFixed(1)}s`
   }
+
   if (time > 1000) {
     return `${(time / 1000).toFixed(2)}s`
   }
+
   if (time > 100) {
     return `${time.toFixed(0)}ms`
   }
+
   if (time > 10) {
     return `${time.toFixed(1)}ms`
   }
+
   return time.toFixed(2) + 'ms'
 }
 
@@ -68,22 +74,29 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
   const anchorRef = useRef<ScrollAnchor | null>(null)
   const isAtBottomRef = useRef(true)
   const previousRevisionRef = useRef(revision)
+
   const [requestedActiveNodeId, setRequestedActiveNodeId] = useState<string | null>(
     () => model.visibleRows[0]?.id ?? null
   )
+
   const activeNodeId =
     requestedActiveNodeId && model.getVisibleIndex(requestedActiveNodeId) !== undefined
       ? requestedActiveNodeId
       : (model.visibleRows[0]?.id ?? null)
+
   const activeIndex = activeNodeId ? model.getVisibleIndex(activeNodeId) : undefined
+
   const rangeExtractor = useCallback(
     (range: Range) => {
       const indexes = defaultRangeExtractor(range)
+
       if (activeIndex === undefined || indexes.includes(activeIndex)) return indexes
+
       return [...indexes, activeIndex].sort((left, right) => left - right)
     },
     [activeIndex]
   )
+
   const rowVirtualizer = useVirtualizer({
     count: model.visibleRows.length,
     getScrollElement: () => scrollerRef.current,
@@ -118,6 +131,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
     (index: number) => {
       const nextIndex = Math.max(0, Math.min(index, model.visibleRows.length - 1))
       const nextRow = model.visibleRows[nextIndex]
+
       if (!nextRow) return
       setRequestedActiveNodeId(nextRow.id)
       rowVirtualizer.scrollToIndex(nextIndex, { align: 'auto' })
@@ -132,6 +146,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
       const activeIndex = model.getVisibleIndex(activeNodeId)
       const activeRow = activeIndex === undefined ? undefined : model.visibleRows[activeIndex]
       const activeNode = model.getNode(activeNodeId)
+
       if (activeIndex === undefined || !activeRow || !activeNode) return
 
       switch (event.key) {
@@ -153,28 +168,36 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
           break
         case 'ArrowRight': {
           event.preventDefault()
+
           if (activeNode.childIds.length > 0 && !model.isExpanded(activeNodeId)) {
             toggleNode(activeNodeId)
             break
           }
+
           const nextRow = model.visibleRows[activeIndex + 1]
+
           if (nextRow?.depth === activeRow.depth + 1) moveActiveToIndex(activeIndex + 1)
           break
         }
+
         case 'ArrowLeft': {
           event.preventDefault()
+
           if (activeNode.childIds.length > 0 && model.isExpanded(activeNodeId)) {
             toggleNode(activeNodeId)
             break
           }
+
           for (let index = activeIndex - 1; index >= 0; index--) {
             if (model.visibleRows[index].depth === activeRow.depth - 1) {
               moveActiveToIndex(index)
               break
             }
           }
+
           break
         }
+
         case 'Enter':
         case ' ':
           event.preventDefault()
@@ -187,6 +210,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
 
   const captureScrollState = useCallback(() => {
     const scroller = scrollerRef.current
+
     if (!scroller) return
 
     isAtBottomRef.current = isTraceScrollAtBottom(scroller)
@@ -198,6 +222,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
   useLayoutEffect(() => {
     const mutation = model.lastMutation
     let followedAppend = false
+
     if (previousRevisionRef.current !== revision && mutation.structureChanged) {
       const shouldFollowAppend =
         mutation.kind === 'incremental' &&
@@ -212,6 +237,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
         const anchor = anchorRef.current
         const nextIndex = anchor ? model.getVisibleIndex(anchor.id) : undefined
         const scroller = scrollerRef.current
+
         if (anchor && nextIndex !== undefined && scroller) {
           scroller.scrollTop = getAnchoredTraceScrollTop(anchor, nextIndex)
         }
@@ -219,6 +245,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
     }
 
     previousRevisionRef.current = revision
+
     if (!followedAppend) captureScrollState()
   }, [captureScrollState, model, revision, rowVirtualizer])
 
@@ -251,9 +278,11 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
         <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const row = model.visibleRows[virtualRow.index]
+
             if (!row) return null
             const node = model.getNode(row.id)
             const rootNode = model.getNode(row.rootId)
+
             if (!node || !rootNode) return null
 
             return (

@@ -36,13 +36,16 @@ export interface RootProjectionCheckpoint {
 class AgentSessionContextService {
   saveRootProjectionTx(tx: DbOrTx, sessionId: string, checkpoint: RootProjectionCheckpoint): void {
     const context = tx.select().from(contexts).where(eq(contexts.id, checkpoint.contextId)).get()
+
     if (context?.sessionId !== sessionId) throw new Error('Projection belongs to another session')
     const removed = new Set([...(context.checkpointMapping?.root?.removed ?? []), ...checkpoint.root.removed])
+
     const root = {
       ...checkpoint.root,
       sources: Object.fromEntries(Object.entries(checkpoint.root.sources).filter(([id]) => !removed.has(id))),
       removed: [...removed]
     }
+
     tx.update(contexts)
       .set({ checkpointMapping: { ...context.checkpointMapping, root } })
       .where(eq(contexts.id, context.id))
@@ -51,10 +54,13 @@ class AgentSessionContextService {
 
   removeRootMessagesTx(tx: DbOrTx, sessionId: string, messageIds: readonly string[]): void {
     const removedMessages = new Set(messageIds)
+
     for (const context of tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()) {
       const root = context.checkpointMapping?.root
+
       if (!root) continue
       const deleted = Object.keys(root.sources).filter((id) => removedMessages.has(root.sources[id].messageId))
+
       if (!deleted.length) continue
       this.saveRootProjectionTx(tx, sessionId, {
         contextId: context.id,
@@ -87,19 +93,24 @@ class AgentSessionContextService {
   child(parentContextId: string, nativeThreadId: string, toolCallId: string, name: string): AgentSessionContextRow {
     return application.get('DbService').withWriteTx((tx) => {
       const parent = tx.select().from(contexts).where(eq(contexts.id, parentContextId)).get()
+
       if (!parent) throw new Error('Parent context is unavailable')
+
       const found = tx
         .select()
         .from(contexts)
         .where(and(eq(contexts.parentContextId, parentContextId), eq(contexts.nativeThreadId, nativeThreadId)))
         .get()
+
       if (found) return found
       const parentSession = tx.select().from(sessions).where(eq(sessions.id, parent.sessionId)).get()!
+
       const sessionId = agentSessionService.createChildArchiveTx(
         tx,
         parentSession.ownerSessionId ?? parent.sessionId,
         name
       )
+
       return tx
         .insert(contexts)
         .values({
@@ -126,6 +137,7 @@ class AgentSessionContextService {
       .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
       .where(and(eq(sessions.ownerSessionId, ownerSessionId), eq(contexts.spawnToolCallId, toolCallId)))
       .all()
+
     return rows.length === 1 ? rows[0].context : undefined
   }
 
@@ -161,8 +173,10 @@ class AgentSessionContextService {
       Partial<Pick<AgentSessionContextRow, 'id' | 'nativeThreadId' | 'checkpointMapping'>>
   ): AgentSessionContextRow {
     this.backendTx(tx, binding.backendId)
+
     if (!binding.anchorMessageId) throw new Error('Branch anchor is required')
     const nativeId = binding.nativeThreadId
+
     const existing = nativeId
       ? tx
           .select()
@@ -176,17 +190,21 @@ class AgentSessionContextService {
           )
           .get()
       : undefined
+
     if (existing) {
       if (existing.anchorMessageId && existing.anchorMessageId !== binding.anchorMessageId)
         throw new Error('Native context already belongs to another branch')
+
       return tx.update(contexts).set(binding).where(eq(contexts.id, existing.id)).returning().get()
     }
+
     return tx.insert(contexts).values(binding).returning().get()
   }
 
   branchTx(tx: DbOrTx, sessionId: string, messageId: string) {
     const path = readAgentSessionAncestry(tx, sessionId, messageId)
     const bindings = tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()
+
     return path
       .toReversed()
       .map((row) => bindings.find((binding) => binding.anchorMessageId === row.id))
@@ -200,6 +218,7 @@ class AgentSessionContextService {
     checkpointMapping: NonNullable<AgentSessionCheckpoints['fork']>
   ): void {
     const context = this.branchTx(tx, sessionId, getAgentSessionHead(tx, sessionId)!)
+
     if (context?.nativeThreadId !== nativeId) throw new Error('Native edit identity does not match the selected branch')
     tx.update(contexts)
       .set({ nativeThreadId: nativeId, bindingState: 'bound', checkpointMapping: { fork: checkpointMapping } })
@@ -209,8 +228,10 @@ class AgentSessionContextService {
 
   confirmBranchTx(tx: DbOrTx, contextId: string, sessionId: string, messageId: string, nativeId: string): void {
     const binding = this.contextTx(tx, contextId)
+
     if (binding.sessionId !== sessionId || this.branchTx(tx, sessionId, messageId)?.id !== contextId)
       throw new Error('Native output belongs to another branch')
+
     if (binding.nativeThreadId !== nativeId) throw new Error('Native context identity cannot change')
     tx.update(contexts).set({ nativeThreadId: nativeId, bindingState: 'bound' }).where(eq(contexts.id, contextId)).run()
   }
@@ -222,6 +243,7 @@ class AgentSessionContextService {
   ): AgentRuntimeBackendRow {
     const parsed = locatorSchema.parse(locator)
     const existing = tx.select().from(backends).where(eq(backends.locator, parsed)).get()
+
     return existing ?? tx.insert(backends).values({ locator: parsed, state }).returning().get()
   }
 
@@ -231,7 +253,9 @@ class AgentSessionContextService {
 
   backendTx(tx: DbOrTx, id: string): AgentRuntimeBackendRow {
     const row = tx.select().from(backends).where(eq(backends.id, id)).get()
+
     if (!row) throw new Error('Runtime backend does not exist')
+
     return { ...row, locator: locatorSchema.parse(row.locator) }
   }
 
@@ -248,17 +272,22 @@ class AgentSessionContextService {
 
   contextTx(tx: DbOrTx, id: string): AgentSessionContextRow {
     const row = tx.select().from(contexts).where(eq(contexts.id, id)).get()
+
     if (!row) throw new Error('Native context does not exist')
+
     return row
   }
 
   bindContext(id: string, nativeThreadId: string): AgentSessionContextRow {
     if (!nativeThreadId.trim()) throw new Error('Native thread identity is empty')
+
     return application.get('DbService').withWriteTx((tx) => {
       const row = this.contextTx(tx, id)
+
       if (row.nativeThreadId && row.nativeThreadId !== nativeThreadId) {
         throw new Error('Native context identity cannot change')
       }
+
       return tx
         .update(contexts)
         .set({ nativeThreadId, bindingState: 'bound', updatedAt: Date.now() })
@@ -270,4 +299,5 @@ class AgentSessionContextService {
 }
 
 export const agentSessionContextService = new AgentSessionContextService()
+
 import path from 'node:path'

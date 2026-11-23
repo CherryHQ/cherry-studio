@@ -15,7 +15,9 @@ import { type ItemId, type JsonValue, runtimeId, type ThreadId } from '@cherryst
 
 /** A message of the context Pi builds from the branch. */
 export type ContextMessage = ReturnType<typeof buildSessionContext>['messages'][number]
+
 type AssistantStop = Extract<HistoryEntry, { kind: 'assistant' }>['stop']
+
 type ToolCallPart = Extract<AssistantMessage['content'][number], { type: 'toolCall' }>
 
 /** How a blocked call's result reads, as Durable stores it (README "History projection"). */
@@ -47,6 +49,7 @@ export const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({
 export function restoredRunUsage(entries: readonly SessionEntry[], thread: ThreadId): UsageFact[] {
   const totals: UsageFact[] = []
   let run: number | undefined
+
   for (const entry of entries) {
     if (entry.type === 'custom' && entry.customType === 'cherry.native-run') {
       const data = entry.data
@@ -61,11 +64,13 @@ export function restoredRunUsage(entries: readonly SessionEntry[], thread: Threa
         data.run > 0
           ? data.run
           : undefined
+
       if (run !== undefined) while (totals.length < run) totals.push(ZERO_USAGE)
     } else if (run && entry.type === 'message' && entry.message.role === 'assistant') {
       totals[run - 1] = addUsage(totals[run - 1], usageFact(entry.message.usage))
     } else if (entry.type === 'custom' && entry.customType === ENTRY_KINDS.summaryUsage) {
       const data = entry.data
+
       const ownerRun =
         data &&
         typeof data === 'object' &&
@@ -74,24 +79,29 @@ export function restoredRunUsage(entries: readonly SessionEntry[], thread: Threa
         'nativeRun' in data
           ? data.nativeRun
           : undefined
+
       if (typeof ownerRun === 'number' && Number.isSafeInteger(ownerRun) && ownerRun > 0) {
         const accounting = decodeEntry({
           id: runtimeId(entry.id),
           kind: entry.customType,
           data: entry.data as JsonValue
         })
+
         if (accounting?.kind !== 'record' || accounting.record.type !== 'summary-usage') continue
+
         while (totals.length < ownerRun) totals.push(ZERO_USAGE)
         totals[ownerRun - 1] = addUsage(totals[ownerRun - 1], accounting.record.value.usage)
       }
     }
   }
+
   return totals
 }
 
 /** Content as the package reads its text (HistoryEntry): an image as `[image]` in place, no thinking or calls. */
 export function textOf(content: string | readonly { readonly type: string }[]): string {
   if (typeof content === 'string') return content
+
   return content
     .map((part) => (part.type === 'text' ? (part as TextContent).text : part.type === 'image' ? '[image]' : ''))
     .join('')
@@ -101,6 +111,7 @@ export function textOf(content: string | readonly { readonly type: string }[]): 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native custom-message details also contain unrelated extension data; recognize only an object carrying a string marker key.
 export function keyOf(details: unknown): string | undefined {
   const key = typeof details === 'object' && details !== null ? (details as { readonly key?: unknown }).key : undefined
+
   return typeof key === 'string' ? key : undefined
 }
 
@@ -111,6 +122,7 @@ export function historyOf(entries: readonly SessionEntry[], thread: ThreadId): H
 
 function projectEntry(entry: SessionEntry, thread: ThreadId): HistoryEntry | undefined {
   const id = runtimeId<'item'>(entry.id)
+
   switch (entry.type) {
     case 'custom':
       return decodeEntry({ id, kind: entry.customType, data: entry.data as JsonValue | undefined })
@@ -137,11 +149,13 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
       return { kind: 'user', id, text: textOf(message.content) }
     case 'assistant': {
       if (!STOPS.has(message.stopReason)) return undefined
+
       const toolCalls = message.content.flatMap((part): ToolCallFact[] =>
         part.type === 'toolCall'
           ? [{ callId: part.id, callKey: callKeyFor(thread, part.id), name: part.name, args: part.arguments }]
           : []
       )
+
       const reply = {
         kind: 'assistant' as const,
         id,
@@ -150,8 +164,10 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
         usage: usageFact(message.usage),
         stop: message.stopReason as AssistantStop
       }
+
       return message.errorMessage === undefined ? reply : { ...reply, error: message.errorMessage }
     }
+
     case 'toolResult': {
       const result: Extract<HistoryEntry, { kind: 'tool-result' }> = {
         kind: 'tool-result',
@@ -162,9 +178,12 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
         isError: message.isError,
         text: textOf(message.content)
       }
+
       if (message.details !== undefined) Object.assign(result, { details: message.details })
+
       return result
     }
+
     default:
       return undefined
   }
@@ -173,7 +192,9 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
 /** The calls of the assistant reply at `at` that no later entry answers; none when `at` holds no assistant reply. */
 export function unansweredCalls(entries: readonly SessionEntry[], at: number): ToolCallPart[] {
   const entry = entries[at]
+
   if (entry?.type !== 'message' || entry.message.role !== 'assistant') return []
+
   const answered = new Set(
     entries
       .slice(at + 1)
@@ -181,6 +202,7 @@ export function unansweredCalls(entries: readonly SessionEntry[], at: number): T
         later.type === 'message' && later.message.role === 'toolResult' ? [later.message.toolCallId] : []
       )
   )
+
   return entry.message.content.filter(
     (part): part is ToolCallPart => part.type === 'toolCall' && !answered.has(part.id)
   )
@@ -199,15 +221,19 @@ export const resultFor = (call: ToolCallPart, text: string, isError: boolean): T
 /** Keys the thread's records and markers carry (`ConversationFacts.keysSeen` without live jobs). */
 export function keysOf(history: readonly HistoryEntry[]): Set<string> {
   const keys = new Set<string>()
+
   for (const entry of history)
     if ((entry.kind === 'record' || entry.kind === 'marker') && entry.key !== undefined) keys.add(entry.key)
+
   return keys
 }
 
 /** The latest `plan` record (`GateFacts.plan`). */
 export function latestPlan(history: readonly HistoryEntry[]): PlanState | undefined {
   let plan: PlanState | undefined
+
   for (const entry of history) if (entry.kind === 'record' && entry.record.type === 'plan') plan = entry.record.value
+
   return plan
 }
 
@@ -220,16 +246,20 @@ const markerId = (kind: string, key: string): string => `${kind}\u0000${key}`
 export function omittedMarkers(entries: readonly SessionEntry[], ids: readonly ItemId[]): Set<string> {
   const wanted = new Set<string>(ids)
   const omitted = new Set<string>()
+
   for (const entry of entries) {
     if (entry.type !== 'custom_message' || !wanted.has(entry.id)) continue
     const key = keyOf(entry.details)
+
     if (key !== undefined) omitted.add(markerId(entry.customType, key))
   }
+
   return omitted
 }
 
 export function withoutMarkers(messages: ContextMessage[], omitted: ReadonlySet<string>): ContextMessage[] {
   if (omitted.size === 0) return messages
+
   return messages.filter(
     (message) => message.role !== 'custom' || !omitted.has(markerId(message.customType, keyOf(message.details) ?? ''))
   )

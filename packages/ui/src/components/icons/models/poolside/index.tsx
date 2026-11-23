@@ -4,6 +4,7 @@ import { PoolsideLight } from './light'
 
 const Poolside = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <PoolsideLight {...props} className={className} />
+
   return <PoolsideLight {...props} className={className} />
 }
 

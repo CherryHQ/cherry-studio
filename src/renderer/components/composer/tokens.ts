@@ -23,6 +23,7 @@ export interface ComposerDraftToken {
 }
 
 export type ActiveComposerInputToken = ComposerDraftToken & { kind: ActiveComposerInputTokenKind }
+
 export type PromptVariableComposerInputToken = ActiveComposerInputToken & { kind: 'promptVariable' }
 
 export interface ComposerSerializedToken extends ComposerDraftToken {
@@ -46,7 +47,9 @@ function readString(value: unknown): string | undefined {
 
 function normalizePromptText(kind: ComposerDraftTokenKind, promptText: string | undefined): string | undefined {
   if (!promptText) return undefined
+
   if (kind === 'quote') return normalizeQuoteTokenPromptText(promptText)
+
   return promptText
 }
 

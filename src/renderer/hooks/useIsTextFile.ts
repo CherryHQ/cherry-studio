@@ -36,11 +36,13 @@ export function useIsTextFile(
   useEffect(() => {
     if (!workspacePath || !filePath) {
       setState('pending')
+
       return
     }
 
     if (!enabled) {
       setState('binary')
+
       return
     }
 
@@ -54,7 +56,9 @@ export function useIsTextFile(
           'file.get_metadata',
           createFilePathHandle(AbsoluteFilePathSchema.parse(absPath))
         )
+
         const isText = meta?.kind === 'file' && meta.type === 'text'
+
         if (!cancelled) setState(isText ? 'text' : 'binary')
       } catch (err) {
         if (cancelled) return

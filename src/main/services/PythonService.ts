@@ -33,9 +33,11 @@ export class PythonService extends BaseService {
   private registerIpcHandlers() {
     this.ipcOn(IpcChannel.Python_ExecutionResponse, (_, response: PythonExecutionResponse) => {
       const request = this.pendingRequests.get(response.id)
+
       if (request) {
         clearTimeout(request.timeoutId)
         this.pendingRequests.delete(response.id)
+
         if (response.error) {
           request.reject(new Error(response.error))
         } else {

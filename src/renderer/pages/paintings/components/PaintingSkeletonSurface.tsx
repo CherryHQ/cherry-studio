@@ -57,6 +57,7 @@ type SampledColors = {
 
 function cellNoise(index: number, salt: number): number {
   const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453
+
   return value - Math.floor(value)
 }
 
@@ -94,6 +95,7 @@ function createGrid(width: number, height: number): Grid {
 
 async function downsampleCellColors(src: string, grid: Pick<Grid, 'cols' | 'rows'>): Promise<string[] | null> {
   let bitmap: ImageBitmap | null = null
+
   try {
     const blob = await getImageBlobFromSource(src)
     bitmap = await createImageBitmap(blob)
@@ -102,19 +104,24 @@ async function downsampleCellColors(src: string, grid: Pick<Grid, 'cols' | 'rows
     canvas.width = grid.cols
     canvas.height = grid.rows
     const context = canvas.getContext('2d', { willReadFrequently: true })
+
     if (!context) {
       logger.warn('Failed to acquire 2d canvas context for painting loader')
+
       return null
     }
 
     context.drawImage(bitmap, 0, 0, grid.cols, grid.rows)
     const { data } = context.getImageData(0, 0, grid.cols, grid.rows)
+
     return Array.from({ length: grid.cols * grid.rows }, (_, index) => {
       const offset = index * 4
+
       return `rgb(${data[offset]}, ${data[offset + 1]}, ${data[offset + 2]})`
     })
   } catch (error) {
     logger.warn('Failed to sample image colors for painting loader', { error })
+
     return null
   } finally {
     bitmap?.close()
@@ -192,10 +199,12 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
 
   useLayoutEffect(() => {
     const root = rootRef.current
+
     if (!root) return
 
     const measure = () => {
       const { height, width } = root.getBoundingClientRect()
+
       if (height <= 0 || width <= 0) return
 
       const next = createGrid(width, height)
@@ -205,6 +214,7 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(root)
+
     return () => observer.disconnect()
   }, [])
 
@@ -214,6 +224,7 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
     return Array.from({ length: grid.cols * grid.rows }, (_, index) => {
       const column = index % grid.cols
       const row = Math.floor(index / grid.cols)
+
       return {
         blinkDelayMs: Math.round(cellNoise(index, 1) * BLINK_DURATION_MS),
         fadeDelayMs: Math.round(cellNoise(index, 2) * CELL_FADE_DELAY_MAX_MS),
@@ -240,6 +251,7 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
         setSampledColors({ colors: colors ?? [], key: sampleKey })
       }
     })
+
     return () => {
       active = false
     }
@@ -249,6 +261,7 @@ const PaintingSkeletonSurface: FC<{ imageUrl?: string; onRevealReady?: () => voi
     if (!colorsReady || !sampleKey || reduceMotion) return
 
     const timer = setTimeout(() => setFadingKey(sampleKey), CELL_FILL_DURATION * 1000)
+
     return () => clearTimeout(timer)
   }, [colorsReady, reduceMotion, sampleKey])
 

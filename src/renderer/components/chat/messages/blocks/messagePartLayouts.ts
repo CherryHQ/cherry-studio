@@ -58,7 +58,9 @@ export function isHiddenPart(part: CherryMessagePart): boolean {
 
 function isIgnorableEmptyContentPart(part: CherryMessagePart): boolean {
   if (part.type === 'text') return isEmptyContentPart(part)
+
   if (part.type !== 'reasoning') return false
+
   return part.state !== 'streaming' && isEmptyContentPart(part)
 }
 
@@ -66,11 +68,13 @@ function hasVisibleComposerToken(part: CherryMessagePart): boolean {
   if (part.type !== 'text') return false
   const text = part.text ?? ''
   const composer = readCherryMeta(part)?.composer
+
   if (!composer) return false
 
   return getDisplayComposerTokens(composer).some((token) => {
     if (!token.promptText) return true
     const offset = Math.max(0, Math.min(text.length, token.textOffset))
+
     return text.slice(offset, offset + token.promptText.length) === token.promptText
   })
 }
@@ -79,11 +83,13 @@ function isEmptyContentPart(part: CherryMessagePart): boolean {
   // Narrow on `part.type` itself; an aliased copy would not discriminate the
   // union, which is what previously forced a `part as { text?: string }` cast.
   if (part.type !== 'text' && part.type !== 'reasoning') return false
+
   return !part.text?.trim() && !hasVisibleComposerToken(part)
 }
 
 function isEllipsisOnlyTextPart(part: CherryMessagePart): boolean {
   if (part.type !== 'text') return false
+
   return /^(?:\.{3}|…)$/.test(part.text?.trim() ?? '')
 }
 
@@ -94,9 +100,12 @@ function findAdjacentMeaningfulPart(
 ): CherryMessagePart | undefined {
   for (let index = position + direction; index >= 0 && index < entries.length; index += direction) {
     const part = entries[index].part
+
     if (isHiddenPart(part) || isEmptyContentPart(part) || isEllipsisOnlyTextPart(part)) continue
+
     return part
   }
+
   return undefined
 }
 
@@ -118,7 +127,9 @@ function isProcessFillerText(
   if (!isEllipsisOnlyTextPart(entries[position].part)) return false
 
   const nextPart = findAdjacentMeaningfulPart(entries, position, 1)
+
   if (isProcessContentPart(nextPart)) return true
+
   if (nextPart || !holdTrailingLiveCandidate) return false
 
   return isProcessContentPart(findAdjacentMeaningfulPart(entries, position, -1))
@@ -131,6 +142,7 @@ function getPartToolName(part: CherryMessagePart): string {
 function isReportToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part)) return false
   const toolName = getPartToolName(part)
+
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
 }
 
@@ -148,11 +160,13 @@ function isInlineResultToolPart(part: CherryMessagePart): boolean {
 
 function isVisibleReasoningPart(part: CherryMessagePart): boolean {
   if (part.type !== 'reasoning') return false
+
   return part.state === 'streaming' || isReasoningMessagePart(part)
 }
 
 export function isProcessToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || isReportToolPart(part)) return false
+
   return !isAskUserQuestionPart(part) && !isInlineResultToolPart(part)
 }
 
@@ -178,6 +192,7 @@ export function projectLiveMessageParts(
 
   const flushRegion = () => {
     let lastProcessPosition = -1
+
     for (let position = regionEntries.length - 1; position >= 0; position--) {
       if (isVisibleProcessPart(regionEntries[position].part)) {
         lastProcessPosition = position
@@ -187,8 +202,10 @@ export function projectLiveMessageParts(
 
     if (lastProcessPosition >= 0) {
       const processEntries = regionEntries.slice(0, lastProcessPosition + 1)
+
       if (keepIntermediateAssistantText) {
         const foldedEntries = processEntries.filter((entry) => entry.part.type !== 'text')
+
         for (const entry of processEntries) {
           if (entry.part.type === 'text') {
             items.push({ kind: 'part', key: entry.index, entry })
@@ -202,6 +219,7 @@ export function projectLiveMessageParts(
     }
 
     const resultStart = lastProcessPosition + 1
+
     for (let position = resultStart; position < regionEntries.length; position++) {
       const entry = regionEntries[position]
       items.push({ kind: 'part', key: entry.index, entry })
@@ -212,8 +230,11 @@ export function projectLiveMessageParts(
 
   for (let position = 0; position < entries.length; position++) {
     const entry = entries[position]
+
     if (isIgnorableEmptyContentPart(entry.part)) continue
+
     if (isHiddenPart(entry.part)) continue
+
     if (isProcessFillerText(entries, position, true)) continue
 
     if (isToolUIPart(entry.part) && !isVisibleProcessPart(entry.part)) {
@@ -226,6 +247,7 @@ export function projectLiveMessageParts(
   }
 
   flushRegion()
+
   return items
 }
 
@@ -237,12 +259,14 @@ export function projectLiveMessageParts(
 export function findOpenTextTailIndex(entries: readonly PartEntry[]): number | null {
   for (let position = entries.length - 1; position >= 0; position--) {
     const entry = entries[position]
+
     if (isHiddenPart(entry.part)) continue
 
     // Narrow on the part itself, not an aliased `type`, so `state` is typed.
     if (entry.part.type === 'text') {
       return entry.part.state === 'streaming' ? entry.index : null
     }
+
     return entry.part.type === 'data-code' ? entry.index : null
   }
 
@@ -310,6 +334,7 @@ export function projectCompletedMessageParts(
 
   for (let position = 0; position < entries.length; position++) {
     const entry = entries[position]
+
     if (entry.part.type === 'data-agent-session-fork') {
       forkEntries.push(entry)
     } else if (isReportToolPart(entry.part)) {
@@ -320,6 +345,7 @@ export function projectCompletedMessageParts(
   }
 
   let lastAnswerPosition = -1
+
   for (let position = contentEntries.length - 1; position >= 0; position--) {
     if (isSubstantiveAnswerPart(contentEntries[position].part)) {
       lastAnswerPosition = position
@@ -329,8 +355,10 @@ export function projectCompletedMessageParts(
 
   let resultStart = -1
   let resultEnd = -1
+
   if (lastAnswerPosition >= 0) {
     let lastRegularToolPosition = -1
+
     for (let position = lastAnswerPosition - 1; position >= 0; position--) {
       if (isProcessToolPart(contentEntries[position].part)) {
         lastRegularToolPosition = position
@@ -346,6 +374,7 @@ export function projectCompletedMessageParts(
       resultStart = lastRegularToolPosition + 1
     } else {
       resultStart = lastAnswerPosition
+
       while (
         resultStart > 0 &&
         (isSubstantiveAnswerPart(contentEntries[resultStart - 1].part) ||
@@ -357,6 +386,7 @@ export function projectCompletedMessageParts(
     }
 
     resultEnd = lastAnswerPosition + 1
+
     while (
       resultEnd < contentEntries.length &&
       (isAssociatedResultPart(contentEntries[resultEnd].part) || isHiddenPart(contentEntries[resultEnd].part))
@@ -368,10 +398,13 @@ export function projectCompletedMessageParts(
     // no prose answer to anchor them. Keep only the final uninterrupted value
     // tail outside process history; an ending tool/reasoning part seals it.
     let tailPosition = contentEntries.length - 1
+
     while (tailPosition >= 0 && isHiddenPart(contentEntries[tailPosition].part)) tailPosition--
+
     if (tailPosition >= 0 && isAssociatedResultPart(contentEntries[tailPosition].part)) {
       resultEnd = contentEntries.length
       resultStart = tailPosition
+
       while (
         resultStart > 0 &&
         (isAssociatedResultPart(contentEntries[resultStart - 1].part) ||

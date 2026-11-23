@@ -59,6 +59,7 @@ function omitToolInputExamples(options: LanguageModelV3CallOptions): LanguageMod
       if (tool.type !== 'function' || tool.inputExamples == null) return tool
       const { inputExamples, ...rest } = tool
       void inputExamples
+
       return rest
     })
   }
@@ -95,6 +96,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
   })
 
   const chatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(chatBaseURL)}${path}`
+
   const responsesUrl = ({ path }: { path: string; modelId: string }) =>
     `${withoutTrailingSlash(responsesBaseURL)}${path}`
 
@@ -103,6 +105,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createAnthropicModel = (modelId: string) => {
     const headers = authHeaders()
+
     return new AihubmixAnthropicMessagesLanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.anthropic`,
       baseURL: anthropicBaseURL,
@@ -120,6 +123,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createGeminiModel = (modelId: string) => {
     const headers = authHeaders()
+
     return new GoogleGenerativeAILanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.google`,
       baseURL: geminiBaseURL,

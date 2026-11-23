@@ -43,7 +43,9 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.toggle_dev_tools': async (_input, { senderId }) => {
     if (!senderId) return
     const webContents = application.get('WindowManager').getWindow(senderId)?.webContents
+
     if (!webContents) return
+
     if (webContents.isDevToolsOpened()) {
       webContents.closeDevTools()
     } else {
@@ -54,9 +56,11 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
     try {
       const { default: fontList } = await import('font-list')
       const fonts = await fontList.getFonts()
+
       return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
     } catch (error) {
       logger.error('Failed to get system fonts:', error as Error)
+
       return []
     }
   },

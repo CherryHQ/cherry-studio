@@ -27,12 +27,15 @@ interface ProviderSettingsContentProps {
 function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
   const search = useSearch<AppRouter, undefined, false>({ strict: false })
   const navigate = useNavigate()
+
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
     'settings.provider.last_selected_provider_id'
   )
+
   const [selectedProviderId, setSelectedProviderIdState] = useState<string | undefined>(
     () => lastSelectedProviderId ?? undefined
   )
+
   const [pendingApiSetup, setPendingApiSetup] = useState<PendingApiSetup | null>(null)
   const setLastSelectedProviderIdRef = useRef(setLastSelectedProviderId)
 
@@ -76,6 +79,7 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
 
     if (search.id) {
       const provider = visibleProviders.find((item) => item.id === search.id)
+
       if (provider) {
         setSelectedProviderId(provider.id)
         shouldConsume = true
@@ -100,8 +104,10 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
     // A pending ?id= deep link owns the initial selection while providers
     // load; the fallback must not race it to visibleProviders[0]
     if (search.id) return
+
     if (!selectedProviderId && visibleProviders[0]) {
       setSelectedProviderId(visibleProviders[0].id)
+
       return
     }
 

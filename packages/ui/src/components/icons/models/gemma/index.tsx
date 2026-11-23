@@ -4,6 +4,7 @@ import { GemmaLight } from './light'
 
 const Gemma = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GemmaLight {...props} className={className} />
+
   return <GemmaLight {...props} className={className} />
 }
 

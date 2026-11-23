@@ -55,9 +55,11 @@ type DoctorCheckBaseDefinition<Id extends DoctorCheckId> = {
 }
 
 type AutomaticDefinition<Id extends DoctorCheckId> = DoctorCheckBaseDefinition<Id> & { getConfirmation?: never }
+
 type ConfirmationDefinition<Id extends DoctorCheckId> = DoctorCheckBaseDefinition<Id> & {
   getConfirmation(ctx: DoctorCheckContext<Id>): Promise<DoctorPreparedConfirmation<Id> | DoctorProbeOutcome<Id>>
 }
+
 export type DoctorCheckDefinition<Id extends DoctorCheckId> = Id extends DoctorConfirmationCheckId
   ? ConfirmationDefinition<Id>
   : AutomaticDefinition<Id>

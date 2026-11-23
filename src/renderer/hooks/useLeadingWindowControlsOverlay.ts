@@ -14,6 +14,7 @@ function getOverlay(): WindowControlsOverlay | undefined {
 
 function readIsLeading(): boolean {
   const overlay = getOverlay()
+
   return !!overlay?.visible && overlay.getTitlebarAreaRect().x > 0
 }
 
@@ -29,10 +30,12 @@ export function useLeadingWindowControlsOverlay(): boolean {
 
   useEffect(() => {
     const overlay = getOverlay()
+
     if (!isLinux || !overlay) return
 
     const update = () => setIsLeading(readIsLeading())
     overlay.addEventListener('geometrychange', update)
+
     return () => overlay.removeEventListener('geometrychange', update)
   }, [])
 

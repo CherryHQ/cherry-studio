@@ -21,8 +21,10 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
     if (!preview) {
       setSelectedAddedIds(new Set())
       setSelectedMissingIds(new Set())
+
       return
     }
+
     setSelectedAddedIds(new Set(preview.added.map((m) => m.id)))
     setSelectedMissingIds(new Set(preview.missing.map((item) => item.model.id)))
   }, [preview])
@@ -30,11 +32,13 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
   const toggleAddedSelection = useCallback((uniqueModelId: UniqueModelId) => {
     setSelectedAddedIds((current) => {
       const next = new Set(current)
+
       if (next.has(uniqueModelId)) {
         next.delete(uniqueModelId)
       } else {
         next.add(uniqueModelId)
       }
+
       return next
     })
   }, [])
@@ -42,11 +46,13 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
   const toggleMissingSelection = useCallback((uniqueModelId: UniqueModelId) => {
     setSelectedMissingIds((current) => {
       const next = new Set(current)
+
       if (next.has(uniqueModelId)) {
         next.delete(uniqueModelId)
       } else {
         next.add(uniqueModelId)
       }
+
       return next
     })
   }, [])
@@ -61,6 +67,7 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
           next.delete(uniqueModelId)
         }
       })
+
       return next
     })
   }, [])
@@ -75,6 +82,7 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
           next.delete(uniqueModelId)
         }
       })
+
       return next
     })
   }, [])
@@ -85,10 +93,13 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
     if (!preview) {
       return null
     }
+
     const toAdd = preview.added.filter((model) => selectedAddedIds.has(model.id))
+
     const toRemove = preview.missing
       .filter((item) => selectedMissingIds.has(item.model.id))
       .map((item) => item.model.id)
+
     return { toAdd, toRemove }
   }, [preview, selectedAddedIds, selectedMissingIds])
 

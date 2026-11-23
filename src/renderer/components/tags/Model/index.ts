@@ -1,7 +1,11 @@
 export { AudioTag } from './AudioTag'
+
 export { EmbeddingTag } from './EmbeddingTag'
+
 export { FreeTag } from './FreeTag'
+
 export { ModelTag, type ModelTagProps } from './ModelTag'
+
 export {
   getModelDisplayTags,
   isModelTagVisible,
@@ -13,10 +17,17 @@ export {
   modelMatchesDisplayTag,
   type ModelTagVisibilityOptions
 } from './ModelTag'
+
 export { ReasoningTag } from './ReasoningTag'
+
 export { RerankerTag } from './RerankerTag'
+
 export { SubscriptionTag } from './SubscriptionTag'
+
 export { ToolsCallingTag } from './ToolsCallingTag'
+
 export { VideoTag } from './VideoTag'
+
 export { VisionTag } from './VisionTag'
+
 export { WebSearchTag } from './WebSearchTag'

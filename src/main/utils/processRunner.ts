@@ -106,19 +106,23 @@ export function killProcessTree(child: Pick<ChildProcess, 'pid' | 'kill'>): void
         child.kill()
       }
     })
+
     return
   }
+
   if (child.pid) {
     try {
       // Negative PID → signal the whole process group (the detached child is its group leader),
       // so descendants a plain child.kill() would orphan are terminated too.
       process.kill(-child.pid, 'SIGTERM')
+
       return
     } catch (error) {
       // No such group (child not detached, or already exited): fall back to a direct kill.
       logger.debug('Could not signal the process group, falling back to child.kill()', error as Error)
     }
   }
+
   child.kill()
 }
 
@@ -135,13 +139,16 @@ export function killProcessTree(child: Pick<ChildProcess, 'pid' | 'kill'>): void
  */
 export async function terminateProcessTree(child: ChildProcess, force: boolean, label: string): Promise<void> {
   if (!child.pid) return
+
   if (isWin) {
     const args = ['/PID', String(child.pid), '/T', ...(force ? ['/F'] : [])]
     await execFileAsync('taskkill', args, { windowsHide: true }).catch((error) => {
       if (child.exitCode !== null || child.signalCode !== null) return
+
       if (force) throw error
       logger.warn(`Failed to gracefully stop the managed ${label} process tree`, error as Error)
     })
+
     return
   }
 
@@ -155,18 +162,21 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
 /** Resolve true once the child exits within `timeoutMs` (or has already exited); false on timeout. */
 export function waitForProcessExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true)
+
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
       child.off('exit', onClose)
       child.off('close', onClose)
       resolve(false)
     }, timeoutMs)
+
     const onClose = () => {
       clearTimeout(timeout)
       child.off('exit', onClose)
       child.off('close', onClose)
       resolve(true)
     }
+
     child.once('exit', onClose)
     child.once('close', onClose)
   })
@@ -229,13 +239,18 @@ export async function executeCommand(
       const text = String(chunk)
       const chunkBytes = Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(text)
       const nextOutputBytes = outputBytes + chunkBytes
+
       if (options?.maxOutputBytes !== undefined && nextOutputBytes > options.maxOutputBytes) {
         outputLimitError = new CommandOutputLimitError(options.maxOutputBytes)
+
         if (timeoutId) clearTimeout(timeoutId)
         child.kill('SIGKILL')
+
         return null
       }
+
       outputBytes = nextOutputBytes
+
       return text
     }
 
@@ -261,6 +276,7 @@ export async function executeCommand(
 
     child.on('close', (code) => {
       if (timeoutId) clearTimeout(timeoutId)
+
       if (outputLimitError) {
         reject(outputLimitError)
       } else if (code === 0) {

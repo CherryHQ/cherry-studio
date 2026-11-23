@@ -33,7 +33,9 @@ export class CommandService extends BaseService {
         if (!this.canExecute(command)) {
           return false
         }
+
         this.execute(command, window)
+
         return true
       })
     )
@@ -45,6 +47,7 @@ export class CommandService extends BaseService {
 
   registerHandler(command: CommandId, handler: MainCommandHandler): Disposable {
     this.handlers.set(command, handler)
+
     return toDisposable(() => {
       if (this.handlers.get(command) === handler) {
         this.handlers.delete(command)
@@ -58,13 +61,16 @@ export class CommandService extends BaseService {
 
   canExecute(command: CommandId, context: ContextReader = this.getDefaultContext()): boolean {
     const definition = findCommandDefinition(command)
+
     return Boolean(definition && this.handlers.has(command) && evaluateContextExpr(definition.enablement, context))
   }
 
   execute(command: CommandId, window?: BrowserWindow, context: ContextReader = this.getDefaultContext()): void {
     const handler = this.handlers.get(command)
+
     if (!handler || !this.canExecute(command, context)) {
       logger.warn(`Command is not executable: ${command}`)
+
       return
     }
 
@@ -116,6 +122,7 @@ export class CommandService extends BaseService {
 
   private getDefaultContext(): ContextReader {
     const preferenceService = application.get('PreferenceService')
+
     return {
       'feature.quick_assistant.enabled': Boolean(preferenceService.get('feature.quick_assistant.enabled')),
       'feature.selection.enabled': Boolean(preferenceService.get('feature.selection.enabled')),

@@ -15,6 +15,7 @@ export async function deleteAgentAndRefresh<TResult>(
   refresh: (paths: string[]) => Promise<TResult>
 ): Promise<void> {
   await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: false })
+
   try {
     await refresh(['/agents', `/agents/${agentId}`, '/agent-sessions', '/agent-channels', '/pins'])
   } catch (error) {

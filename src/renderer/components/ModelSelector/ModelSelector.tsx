@@ -66,6 +66,7 @@ const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp'
 const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
+
 type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']
 
 function getModelSelectorOptionDomId(listboxId: string, itemKey: string) {
@@ -73,6 +74,7 @@ function getModelSelectorOptionDomId(listboxId: string, itemKey: string) {
 }
 
 type ModelSelectorValue = Model | UniqueModelId | Model[] | UniqueModelId[] | undefined
+
 type ModelSelectorSelectionSnapshot = {
   multiple: boolean
   selectionType?: ModelSelectorSelectionType
@@ -144,13 +146,16 @@ function normalizeSelectedIdsFromValue({
       const ids = Array.isArray(value)
         ? value.filter((modelId): modelId is UniqueModelId => typeof modelId === 'string' && isUniqueModelId(modelId))
         : []
+
       return dedupeSelectedIds(ids)
     }
 
     const modelValues = Array.isArray(value) ? value : []
+
     const ids = modelValues.flatMap((candidate) =>
       typeof candidate === 'object' && candidate?.id ? [candidate.id] : []
     )
+
     return dedupeSelectedIds(ids)
   }
 
@@ -167,6 +172,7 @@ function modelsFromSelectedIds(
 ) {
   return selectedIds.flatMap((modelId) => {
     const model = selectableModelsById.get(modelId)
+
     return model ? [model] : []
   })
 }
@@ -185,6 +191,7 @@ function useTextOverflow<T extends HTMLElement>() {
     if (typeof ResizeObserver === 'undefined') return undefined
     const observer = new ResizeObserver(update)
     observer.observe(element)
+
     return () => observer.disconnect()
   }, [element])
 
@@ -225,6 +232,7 @@ function ModelRow({
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const [nameRef, isNameOverflowing] = useTextOverflow<HTMLSpanElement>()
   const providerName = getProviderDisplayName(item.provider)
+
   const disambiguationLabel = item.showIdentifier
     ? item.groupKind === 'pinned'
       ? `${providerName} · ${item.modelIdentifier}`
@@ -232,6 +240,7 @@ function ModelRow({
     : item.groupKind === 'pinned'
       ? providerName
       : undefined
+
   const hasDescription = description != null && description !== '' && typeof description !== 'boolean'
   const descriptionId = hasDescription ? `${optionId}-description` : undefined
 
@@ -281,6 +290,7 @@ function ModelRow({
       <Pin className="size-3" />
     </ModelSelectorRowActionButton>
   )
+
   const actions =
     pinAction || hasDescription ? (
       <>
@@ -345,6 +355,7 @@ function ModelSelectorFilterTags({
 
   const updateFadeState = useCallback(() => {
     const element = scrollRef.current
+
     if (!element) return
 
     // 容差 1px:缩放下 scrollWidth/clientWidth 有亚像素误差,精确等式会让右侧渐隐永不消失
@@ -359,12 +370,14 @@ function ModelSelectorFilterTags({
 
   useLayoutEffect(() => {
     const element = scrollRef.current
+
     if (!element || typeof ResizeObserver === 'undefined') {
       return undefined
     }
 
     const observer = new ResizeObserver(updateFadeState)
     observer.observe(element)
+
     return () => observer.disconnect()
   }, [updateFadeState])
 
@@ -425,6 +438,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     shortcut,
     composition
   } = props
+
   const { t } = useTranslation()
   const [savedPresentation, setPresentation] = usePersistCache('ui.model_selector.presentation')
   const presentation = allowPresentationSwitch ? savedPresentation : 'popover'
@@ -445,11 +459,13 @@ export function ModelSelector(props: ModelSelectorProps) {
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
   const [hasActivatedLazyData, setHasActivatedLazyData] = useState(openProp === true && mountStrategy === 'lazy-keep')
+
   // 用 startTransition 包裹：滚动时虚拟列表内部可能已进入 layout lifecycle（flushSync），
   // 此时 onMouseEnter 同步 setState 会与之冲突，转为 transition 避免竞争。
   const setFocusedItemKey = useCallback((key: string) => {
     startTransition(() => _setFocusedItemKey(key))
   }, [])
+
   const inputRef = useRef<HTMLInputElement>(null)
   const [virtualList, setVirtualList] = useState<DynamicVirtualListRef | null>(null)
   const skipNextFocusScroll = useRef(false)
@@ -466,6 +482,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const handleListScroll = useCallback(() => {
     isScrollingRef.current = true
+
     if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current)
     scrollIdleTimerRef.current = setTimeout(() => {
       isScrollingRef.current = false
@@ -475,7 +492,9 @@ export function ModelSelector(props: ModelSelectorProps) {
   useEffect(() => {
     return () => {
       if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current)
+
       if (ignoreNextMultiSelectCloseTimerRef.current) clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
+
       if (focusScrollFrameRef.current !== null) {
         window.cancelAnimationFrame(focusScrollFrameRef.current)
       }
@@ -490,6 +509,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   // effect below can never reset the tags on the stale rows.
   if (renderedOpen !== open) {
     setRenderedOpen(open)
+
     if (!open && mountStrategy === 'lazy-keep' && hasActiveTagFilterRef.current) {
       setShellKey((key) => key + 1)
     }
@@ -504,22 +524,26 @@ export function ModelSelector(props: ModelSelectorProps) {
     (nextOpen: boolean) => {
       if (!nextOpen && ignoreNextMultiSelectCloseRef.current) {
         ignoreNextMultiSelectCloseRef.current = false
+
         if (ignoreNextMultiSelectCloseTimerRef.current) {
           clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
           ignoreNextMultiSelectCloseTimerRef.current = null
         }
+
         return
       }
 
       if (openProp === undefined) {
         setInternalOpen(nextOpen)
       }
+
       onOpenChange?.(nextOpen)
     },
     [onOpenChange, openProp]
   )
 
   const [recoveryProviderId, setRecoveryProviderId] = useState<string>()
+
   const handleShortcut = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- CommandRuntime erases per-command payload types; keyboard invocation has no arguments and recovery supplies providerId, which this handler validates.
     (args?: unknown) => {
@@ -532,9 +556,11 @@ export function ModelSelector(props: ModelSelectorProps) {
     },
     [setOpen]
   )
+
   useEffect(() => {
     if (!open) setRecoveryProviderId(undefined)
   }, [open])
+
   const recoveryFilter = useCallback<ModelSelectorFilter>(
     (model) => !recoveryProviderId || model.providerId === recoveryProviderId,
     [recoveryProviderId]
@@ -547,9 +573,11 @@ export function ModelSelector(props: ModelSelectorProps) {
       }
 
       multiSelectModeRef.current = nextEnabled
+
       if (multiSelectModeProp === undefined) {
         setInternalMultiSelectMode(nextEnabled)
       }
+
       onMultiSelectModeChange?.(nextEnabled)
     },
     [multiSelectModeProp, multiple, onMultiSelectModeChange]
@@ -592,12 +620,14 @@ export function ModelSelector(props: ModelSelectorProps) {
     composition,
     actionVisibilityFilter: (action) => !recoveryProviderId || action.providerId === recoveryProviderId
   })
+
   const isSelectionDisabled = useCallback(
     (model: Model, provider?: Provider) =>
       Boolean(provider && getModelPresentation(model, provider).disabled) ||
       Boolean(isModelDisabled?.(model, provider)),
     [getModelPresentation, isModelDisabled]
   )
+
   const listItemsRef = useRef(listItems)
   const navigableItemsRef = useRef(navigableItems)
   const visibleSelectedModelIdSetRef = useRef(visibleSelectedModelIdSet)
@@ -610,15 +640,18 @@ export function ModelSelector(props: ModelSelectorProps) {
     () => MODEL_SELECTOR_LIST_VERTICAL_PADDING + Math.max(1, listItems.length) * ITEM_HEIGHT,
     [listItems.length]
   )
+
   const pageSize = DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE
   const navigableKeys = navigableItems.map((item) => item.key).join('\0')
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
   const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
   const isStickyListItem = useCallback((index: number) => listItems[index].type === 'group', [listItems])
+
   const focusedListItemIndex = useMemo(
     () => listItems.findIndex((item) => item.key === focusedItemKey),
     [focusedItemKey, listItems]
   )
+
   const keepMountedIndexes = useMemo(
     () => (focusedListItemIndex >= 0 ? [focusedListItemIndex] : []),
     [focusedListItemIndex]
@@ -631,16 +664,20 @@ export function ModelSelector(props: ModelSelectorProps) {
       if (props.multiple) {
         if (props.selectionType === 'id') {
           props.onSelect(nextSelectedIds)
+
           return
         }
 
         props.onSelect(modelsFromSelectedIds(nextSelectedIds, selectableModelsById))
+
         return
       }
 
       const nextSelectedId = nextSelectedIds[0]
+
       if (props.selectionType === 'id') {
         props.onSelect(nextSelectedId)
+
         return
       }
 
@@ -656,10 +693,12 @@ export function ModelSelector(props: ModelSelectorProps) {
     (key: string, align: ModelSelectorScrollAlign = 'auto') => {
       setFocusedItemKey(key)
       const index = listItemsRef.current.findIndex((item) => item.key === key)
+
       if (index >= 0) {
         if (focusScrollFrameRef.current !== null) {
           window.cancelAnimationFrame(focusScrollFrameRef.current)
         }
+
         focusScrollFrameRef.current = window.requestAnimationFrame(() => {
           focusScrollFrameRef.current = null
           virtualList?.scrollToIndex(index, { align })
@@ -673,12 +712,14 @@ export function ModelSelector(props: ModelSelectorProps) {
     (key: string, align: ModelSelectorScrollAlign = 'auto') => {
       setFocusedItemKey(key)
       const index = listItemsRef.current.findIndex((item) => item.key === key)
+
       if (index < 0) return
 
       if (focusScrollFrameRef.current !== null) {
         window.cancelAnimationFrame(focusScrollFrameRef.current)
         focusScrollFrameRef.current = null
       }
+
       virtualList?.scrollToIndex(index, { align })
     },
     [setFocusedItemKey, virtualList]
@@ -689,21 +730,26 @@ export function ModelSelector(props: ModelSelectorProps) {
       if (item.type === 'action') {
         setOpen(false)
         item.onAction()
+
         return
       }
+
       if (isSelectionDisabled(item.model, item.provider)) return
       skipNextFocusScroll.current = true
 
       if (multiple && multiSelectModeRef.current) {
         ignoreNextMultiSelectCloseRef.current = true
+
         if (ignoreNextMultiSelectCloseTimerRef.current) {
           clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
         }
+
         ignoreNextMultiSelectCloseTimerRef.current = setTimeout(() => {
           ignoreNextMultiSelectCloseRef.current = false
           ignoreNextMultiSelectCloseTimerRef.current = null
         }, 0)
         emitSelection(computeToggledSelection(rawSelectedModelIds, item.modelId))
+
         return
       }
 
@@ -718,25 +764,31 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [setOpen])
 
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
+
   const runPendingCloseAction = useCallback(() => {
     const action = pendingCloseActionRef.current
+
     if (!action) return
 
     pendingCloseActionRef.current = null
     action()
   }, [])
+
   const closeBeforeAction = useCallback(
     (action: () => void) => {
       pendingCloseActionRef.current = action
+
       if (!open) {
         setShellKey((key) => key + 1)
         runPendingCloseAction()
+
         return
       }
 
       if (mountStrategy !== 'lazy-keep' || !hasActiveTagFilterRef.current) {
         setShellKey((key) => key + 1)
       }
+
       setOpen(false)
     },
     [mountStrategy, open, runPendingCloseAction, setOpen]
@@ -746,8 +798,10 @@ export function ModelSelector(props: ModelSelectorProps) {
     (path: SettingsPath) => {
       closeBeforeAction(() => {
         const navigate = () => openSettingsTab(path)
+
         if (onSettingsNavigate) {
           onSettingsNavigate(navigate)
+
           return
         }
 
@@ -804,6 +858,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       }
 
       const collapsed = computeCollapsedSelection(resolvedSelectedModelIds, rawSelectedModelIds)
+
       if (collapsed !== null) {
         emitSelection(collapsed)
       }
@@ -827,11 +882,13 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     const warning = getMalformedSelectionWarning({ multiple, selectionType, value: selectedValue })
+
     if (!warning) {
       return
     }
 
     const warningKey = `${warning.message}:${JSON.stringify(warning.context)}`
+
     if (malformedSelectionWarningKeyRef.current === warningKey) {
       return
     }
@@ -844,7 +901,9 @@ export function ModelSelector(props: ModelSelectorProps) {
     if (!open) {
       return undefined
     }
+
     const timer = window.setTimeout(() => inputRef.current?.focus(), 0)
+
     return () => window.clearTimeout(timer)
   }, [open])
 
@@ -887,17 +946,20 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     const frameId = window.requestAnimationFrame(runPendingCloseAction)
+
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
   useLayoutEffect(() => {
     const currentNavigableItems = navigableItemsRef.current
+
     if (!open || isLoading || currentNavigableItems.length === 0) {
       return
     }
 
     if (skipNextFocusScroll.current) {
       skipNextFocusScroll.current = false
+
       return
     }
 
@@ -920,6 +982,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       if (item.type === 'group') {
         const groupTitle =
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
+
         // Ends where the row tags end: rows keep a pin slot plus gap (20px) inside 6px of padding.
         const groupActionInset = showPinActions && 'mr-2.5'
 
@@ -963,6 +1026,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             </span>
           </ModelSelectorRow>
         )
+
         return (
           <div
             className="px-1 py-0.5"
@@ -979,7 +1043,9 @@ export function ModelSelector(props: ModelSelectorProps) {
           </div>
         )
       }
+
       const presentation = getModelPresentation(item.model, item.provider)
+
       return (
         // 静态时 onMouseEnter 同步 focusedItemKey（让 Enter 命中鼠标所在行）。
         // 滚动中通过 isScrollingRef 跳过 setState，避免与 virtualizer flushSync 竞争。
@@ -1193,5 +1259,6 @@ function ShortcutBinding({
   onTrigger: (args?: unknown) => void
 }) {
   useCommandHandler(shortcut, onTrigger)
+
   return null
 }

@@ -44,18 +44,23 @@ export const KnowledgeBaseSelector = ({
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const selectedOption = options.find((option) => option.value === value)
+
   const filteredOptions = useMemo(() => {
     const query = searchValue.trim().toLowerCase()
+
     return query ? options.filter((option) => matchesSearchText(`${option.label} ${option.value}`, query)) : options
   }, [options, searchValue])
+
   const listHeight =
     filteredOptions.length > 0
       ? filteredOptions.length * KNOWLEDGE_BASE_ROW_HEIGHT + KNOWLEDGE_BASE_LIST_PADDING
       : KNOWLEDGE_BASE_EMPTY_LIST_HEIGHT
+
   const contentHeight = Math.min(DEFAULT_SELECTOR_CONTENT_HEIGHT, listHeight + KNOWLEDGE_BASE_SHELL_CHROME_HEIGHT)
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
+
     if (!nextOpen) {
       setSearchValue('')
     }

@@ -40,6 +40,7 @@ export class DoctorExecution {
       requestId,
       confirmation
     }))
+
     return { results: this.results, pendingChecks }
   }
 
@@ -55,9 +56,12 @@ export class DoctorExecution {
     for (const [checkId, prepared] of this.pending) {
       if (prepared.requestId !== requestId) continue
       this.pending.delete(checkId)
+
       if (!this.isSubjectCurrent() || !prepared.isCurrent()) return undefined
+
       return { checkId, isCurrent: () => this.isSubjectCurrent() && prepared.isCurrent() }
     }
+
     return undefined
   }
 
@@ -67,10 +71,12 @@ export class DoctorExecution {
       subject: this.subject,
       share: (key, factory) => {
         let value = this.memo.get(key)
+
         if (!value) {
           value = factory(signal)
           this.memo.set(key, value)
         }
+
         return value as ReturnType<typeof factory>
       }
     }
@@ -84,6 +90,7 @@ export class DoctorExecution {
     const active = new Set<DoctorCheckId>()
     const settled = new Map(this.results.map((result) => [result.id, result]))
     const definitions = new Map<DoctorCheckId, DoctorEngineDefinition>()
+
     for (const id of this.ids) definitions.set(id, doctorCheckRegistry[id])
     this.results = (await runDoctorChecks<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>({
       signal,
@@ -92,6 +99,7 @@ export class DoctorExecution {
       checks: this.ids.map((id) => {
         const meta = DOCTOR_CHECK_CATALOG[id]
         const definition = definitions.get(id)!
+
         return {
           id,
           requires: meta.requires,
@@ -99,6 +107,7 @@ export class DoctorExecution {
           timeoutMs: definition.timeoutMs ?? TIMEOUTS[meta.tier],
           run: (signal) => {
             signal.throwIfAborted()
+
             if (
               'execution' in meta &&
               meta.execution === 'confirmation' &&
@@ -106,20 +115,25 @@ export class DoctorExecution {
             ) {
               throw new Error('Check confirmation is no longer valid')
             }
+
             return definition.run(this.context(signal))
           }
         }
       }),
       admit: async (id) => {
         const meta = DOCTOR_CHECK_CATALOG[id]
+
         if (!('execution' in meta) || meta.execution !== 'confirmation' || approval?.checkId === id) {
           return { status: 'run' }
         }
+
         if (!this.pending.has(id)) {
           const prepared = await definitions.get(id)!.getConfirmation!(this.context(signal))
+
           if (!('confirmation' in prepared)) return { status: 'settled', outcome: prepared }
           this.pending.set(id, { ...prepared, requestId: randomUUID() })
         }
+
         return { status: 'defer' }
       },
       onStart: (id) => {
@@ -132,6 +146,7 @@ export class DoctorExecution {
         onProgress?.([...settled.values()], [...active])
       }
     })) as DoctorCheckResult[]
+
     return this.snapshot()
   }
 }

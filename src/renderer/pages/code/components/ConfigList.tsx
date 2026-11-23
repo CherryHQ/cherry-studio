@@ -45,13 +45,16 @@ export const ConfigList: FC<ConfigListProps> = ({
   const { t } = useTranslation()
 
   const normalizedSearch = searchTerm?.trim().toLowerCase() ?? ''
+
   const displayedProviders = useMemo(() => {
     if (!normalizedSearch) return providers
+
     return providers.filter((provider) => {
       const name =
         provider.id === CLI_OWN_LOGIN_PROVIDER_ID
           ? t('code.own_login.title', { toolName })
           : resolveMeta(provider, providerConfigs[provider.id]).providerName
+
       return name.toLowerCase().includes(normalizedSearch)
     })
   }, [providers, normalizedSearch, t, toolName, resolveMeta, providerConfigs])
@@ -81,6 +84,7 @@ export const ConfigList: FC<ConfigListProps> = ({
       itemStyle={{ cursor: 'default' }}
       renderItem={(provider, _index, { dragging }) => {
         const onMoveToTop = providerActionsDisabled || providers[0]?.id === provider.id ? undefined : handleMoveToTop
+
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           return (
             <OwnLoginCard
@@ -95,10 +99,13 @@ export const ConfigList: FC<ConfigListProps> = ({
             />
           )
         }
+
         const cfg = providerConfigs[provider.id]
         const meta = resolveMeta(provider, cfg)
+
         const modelName =
           currentProviderId === provider.id && currentProviderModelName ? currentProviderModelName : meta.modelName
+
         return (
           <ProviderCard
             provider={provider}

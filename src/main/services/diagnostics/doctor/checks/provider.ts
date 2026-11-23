@@ -17,6 +17,7 @@ type ModelTarget = { readonly providerId: string; readonly modelId: string }
 /** A global run judges the chat default; only there can the model be unset or malformed. */
 async function defaultModelTarget(ctx: DoctorContextBase): Promise<ModelTarget | DoctorProbeOutcome<'provider-model'>> {
   const defaultModelId = await defaultChatModelId(ctx)
+
   if (!defaultModelId) {
     return {
       status: 'fail',
@@ -26,7 +27,9 @@ async function defaultModelTarget(ctx: DoctorContextBase): Promise<ModelTarget |
       devMessage: 'No default model is configured'
     }
   }
+
   const parsed = UniqueModelIdSchema.safeParse(defaultModelId)
+
   if (!parsed.success) {
     return {
       status: 'fail',
@@ -37,6 +40,7 @@ async function defaultModelTarget(ctx: DoctorContextBase): Promise<ModelTarget |
       evidence: [{ key: 'defaultModelId', value: defaultModelId, dataClass: 'local_only' }]
     }
   }
+
   return parseUniqueModelId(parsed.data)
 }
 
@@ -44,13 +48,16 @@ export const providerModel = defineDoctorCheck({
   id: 'provider-model',
   async run(ctx) {
     const target = ctx.subject ?? (await defaultModelTarget(ctx))
+
     if ('status' in target) return target
     const { providerId, modelId } = target
     let provider
+
     try {
       provider = providerService.getByProviderId(providerId)
     } catch (error) {
       if (!isDataApiNotFoundError(error)) throw error
+
       return {
         status: 'fail',
         attribution: 'user-fixable',
@@ -76,6 +83,7 @@ export const providerModel = defineDoctorCheck({
       modelService.getByKey(providerId, modelId)
     } catch (error) {
       if (!isDataApiNotFoundError(error)) throw error
+
       return {
         status: 'fail',
         attribution: 'user-fixable',
@@ -96,9 +104,12 @@ export const providerModel = defineDoctorCheck({
 
 async function isCherryAccountSignedIn(): Promise<boolean> {
   const cloud = application.get('CherryCloudService')
+
   if (!cloud.isReady) throw new Error('Cherry account service is not ready')
   const status = await cloud.getStatus()
+
   if (status.phase === 'authorizing') throw new Error('Cherry account authorization is still in progress')
+
   return status.phase === 'signed-in'
 }
 
@@ -106,13 +117,16 @@ export const providerApiKey = defineDoctorCheck({
   id: 'provider-api-key-present',
   async run(ctx) {
     const providerId = ctx.subject?.providerId ?? (await defaultChatModel(ctx))?.providerId
+
     if (!providerId) throw new Error('Default model configuration changed; rerun the provider-model check')
 
     let provider
+
     try {
       provider = providerService.getByProviderId(providerId)
     } catch (error) {
       if (!isDataApiNotFoundError(error)) throw error
+
       return {
         status: 'fail',
         attribution: 'user-fixable',
@@ -124,6 +138,7 @@ export const providerApiKey = defineDoctorCheck({
     // Cherry Cloud authenticates with the signed-in account session instead of a key.
     if (isManagedCherryCloudModel(provider.id)) {
       if (await isCherryAccountSignedIn()) return { status: 'pass' }
+
       return {
         status: 'fail',
         attribution: 'user-fixable',
@@ -159,6 +174,7 @@ export const cherryAccount = defineDoctorCheck({
   id: 'provider-cherry-account',
   async run() {
     if (getAppEdition() !== 'cn') return { status: 'pass' }
+
     if (await isCherryAccountSignedIn()) return { status: 'pass' }
 
     return {

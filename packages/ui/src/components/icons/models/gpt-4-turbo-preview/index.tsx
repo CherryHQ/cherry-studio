@@ -4,6 +4,7 @@ import { Gpt4TurboPreviewLight } from './light'
 
 const Gpt4TurboPreview = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt4TurboPreviewLight {...props} className={className} />
+
   return <Gpt4TurboPreviewLight {...props} className={className} />
 }
 

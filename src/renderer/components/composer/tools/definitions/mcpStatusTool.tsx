@@ -28,13 +28,16 @@ export const MCP_STATUS_LAUNCHER_ID = 'mcp-status'
 const logger = loggerService.withContext('mcpStatusTool')
 
 type McpStatusToolContext = ToolRenderContext<readonly [], readonly []>
+
 type McpStatusAgent = { mcps?: string[] } | undefined
+
 const MCP_RUNTIME_STATUS_LABEL_KEYS: Record<McpRuntimeStatus['state'], string> = {
   connected: 'settings.mcp.runtimeStatus.connected',
   connecting: 'settings.mcp.runtimeStatus.connecting',
   disabled: 'settings.mcp.runtimeStatus.disabled',
   error: 'settings.mcp.runtimeStatus.error'
 }
+
 const MCP_MODE_LABEL_KEYS: Record<McpMode, string> = {
   auto: 'library.config.tools.mode.auto.label',
   disabled: 'library.config.tools.mode.disabled.label',
@@ -109,9 +112,11 @@ function buildBindingServerItems(
     const isBound = boundIds.has(server.id)
     const isSaving = options.pendingServerId === server.id
     const hasPendingSave = options.pendingServerId != null
+
     const canToggle = Boolean(
       options.canEditBindings && options.onToggleBinding && !hasPendingSave && (server.isActive || isBound)
     )
+
     const handleToggle = (enabled: boolean) => {
       if (!canToggle) return
       options.onToggleBinding?.(server.id, enabled)
@@ -153,11 +158,13 @@ export async function updateMcpBinding<TAgentResult, TAssistantResult>({
   if (scope === TopicType.Session) {
     if (!agent) return false
     await updateAgent({ mcps: nextBindingIds(agent.mcps ?? [], serverId, enabled) })
+
     return true
   }
 
   if (!assistant || (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) !== 'manual') return false
   await updateAssistant({ mcpServerIds: nextBindingIds(assistant.mcpServerIds ?? [], serverId, enabled) })
+
   return true
 }
 
@@ -176,6 +183,7 @@ export function buildMcpStatusItems({
     if (mcpServers.length === 0) {
       return [createEmptyMcpStatusItem(t('settings.quickPanel.mcp.agentEmpty', 'No MCP servers configured'))]
     }
+
     return buildBindingServerItems(mcpServers, new Set(agent?.mcps ?? []), mcpStatuses, t, {
       canEditBindings,
       onToggleBinding,
@@ -184,21 +192,25 @@ export function buildMcpStatusItems({
   }
 
   const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
+
   if (mode === 'disabled') {
     return [createEmptyMcpStatusItem(t('settings.quickPanel.mcp.disabled', 'MCP is disabled'))]
   }
 
   if (mode === 'auto') {
     const activeServers = mcpServers.filter((server) => server.isActive)
+
     if (activeServers.length === 0) {
       return [createEmptyMcpStatusItem(t('settings.quickPanel.mcp.autoEmpty', 'No enabled MCP servers'))]
     }
+
     return activeServers.map((server) => createMcpStatusItem(server, mcpStatuses[server.id], t))
   }
 
   if (mcpServers.length === 0) {
     return [createEmptyMcpStatusItem(t('settings.quickPanel.mcp.assistantEmpty', 'No MCP servers configured'))]
   }
+
   return buildBindingServerItems(mcpServers, new Set(assistant?.mcpServerIds ?? []), mcpStatuses, t, {
     canEditBindings,
     onToggleBinding,
@@ -214,6 +226,7 @@ export function resolveMcpConfigTarget(options: {
   if (options.scope === TopicType.Session) {
     return options.agentId ? { kind: 'agent', id: options.agentId, initialTab: 'tools.mcp' } : null
   }
+
   return options.assistantId ? { kind: 'assistant', id: options.assistantId, initialTab: 'tools.mcp' } : null
 }
 
@@ -222,10 +235,12 @@ export function buildMcpConfigFooterItem(
   t: TFunction
 ): ComposerToolFooterAction | null {
   if (!target) return null
+
   const ariaLabel =
     target.kind === 'assistant'
       ? t('settings.quickPanel.mcp.manageCurrentAssistant')
       : t('settings.quickPanel.mcp.manageCurrentAgent')
+
   return {
     id: 'mcp-status:open-config',
     panelSymbol: ComposerPanelSymbol.McpStatus,
@@ -243,6 +258,7 @@ export function buildMcpConfigFooterItem(
 
 export function buildMcpGlobalConfigFooterItem(t: TFunction): ComposerToolFooterAction {
   const ariaLabel = t('settings.quickPanel.mcp.manageGlobal')
+
   return {
     id: 'mcp-status:open-global-config',
     panelSymbol: ComposerPanelSymbol.McpStatus,
@@ -298,8 +314,10 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   const { assistant, launcher, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
   const [dataRequested, setDataRequested] = useState(false)
+
   const mode =
     scope === TopicType.Chat ? (assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled') : undefined
+
   const dataEnabled = dataRequested && (scope === TopicType.Session || mode !== 'disabled')
   const { mcpServers, isLoading: isMcpServersLoading } = useMcpServers(undefined, { enabled: dataEnabled })
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
@@ -309,6 +327,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   const [pendingServerId, setPendingServerId] = useState<string | null>(null)
   const bindingMutationInFlightRef = useRef(false)
   const bindingPanelEditable = scope === TopicType.Session || mode === 'manual'
+
   const canEditBindings =
     scope === TopicType.Session ? Boolean(session?.agentId && agent) : Boolean(assistant?.id && mode === 'manual')
 
@@ -318,6 +337,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
 
       bindingMutationInFlightRef.current = true
       setPendingServerId(serverId)
+
       try {
         await updateMcpBinding({
           assistant,
@@ -360,6 +380,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
         }
       ]
     }
+
     const statusItems = buildMcpStatusItems({
       assistant,
       agent,
@@ -371,6 +392,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
       scope: scope === TopicType.Session ? TopicType.Session : TopicType.Chat,
       t
     })
+
     return statusItems
   }, [
     agent,
@@ -389,6 +411,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
 
   const footerActions = useMemo(() => {
     const currentAction = buildMcpConfigFooterItem(configTarget, t)
+
     return currentAction ? [currentAction, buildMcpGlobalConfigFooterItem(t)] : [buildMcpGlobalConfigFooterItem(t)]
   }, [configTarget, t])
 

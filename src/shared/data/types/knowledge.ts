@@ -52,11 +52,13 @@ export const KnowledgeRelativePathSchema = PosixRelativeFilePathSchema.refine((v
   // its base. Containment is the base owner's rule, so the material root asserts
   // it here: `null` is a climb-out, `[]` is the root itself.
   const segments = resolvePosixRelativeSegments(value)
+
   return segments !== null && segments.length > 0
 }, 'must stay inside the knowledge base material root and point below it')
 
 export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'directory'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
+
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
 /**
@@ -104,17 +106,23 @@ export const KNOWLEDGE_ITEM_STATUSES = [
   'failed',
   'deleting'
 ] as const
+
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
+
 export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
 export const KNOWLEDGE_SEARCH_SCORE_KINDS = ['relevance', 'ranking'] as const
 export const KnowledgeSearchScoreKindSchema = z.enum(KNOWLEDGE_SEARCH_SCORE_KINDS)
+
 export type KnowledgeSearchScoreKind = z.infer<typeof KnowledgeSearchScoreKindSchema>
 
 export const KNOWLEDGE_BASE_STATUSES = ['completed', 'failed'] as const
 export const KnowledgeBaseStatusSchema = z.enum(KNOWLEDGE_BASE_STATUSES)
+
 export type KnowledgeBaseStatus = z.infer<typeof KnowledgeBaseStatusSchema>
+
 export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
+
 // `missing_embedding_model`: the v1 embedding model could not be resolved to a migrated
 // user_model, so the base needs a new embedding model on restore.
 // `missing_vector_store`: the embedding model resolved, but the per-base legacy vector store
@@ -123,7 +131,9 @@ export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
 // user can re-index it — a transient lock is recoverable by re-running rather than a data loss.
 export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model', 'missing_vector_store'] as const
 export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
+
 export type KnowledgeBaseErrorCode = z.infer<typeof KnowledgeBaseErrorCodeSchema>
+
 export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCode = 'missing_embedding_model'
 export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode = 'missing_vector_store'
 
@@ -143,8 +153,11 @@ export const KNOWLEDGE_ITEM_ERROR_CODES = [
   'empty_indexable_text',
   'indexing_interrupted'
 ] as const
+
 export const KnowledgeItemErrorCodeSchema = z.enum(KNOWLEDGE_ITEM_ERROR_CODES)
+
 export type KnowledgeItemErrorCode = z.infer<typeof KnowledgeItemErrorCodeSchema>
+
 export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED: KnowledgeItemErrorCode = 'directory_not_migrated'
 export const KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT: KnowledgeItemErrorCode = 'empty_indexable_text'
 export const KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED: KnowledgeItemErrorCode = 'indexing_interrupted'
@@ -153,7 +166,9 @@ export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
 export const KNOWLEDGE_CHUNK_STRATEGIES = ['structured', 'delimiter'] as const
 export const KnowledgeChunkStrategySchema = z.enum(KNOWLEDGE_CHUNK_STRATEGIES)
+
 export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema>
+
 // Raw, user-typed delimiter in escaped form (e.g. "\\n\\n"); unescaped by the splitter.
 export const KnowledgeChunkSeparatorSchema = z.string()
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
@@ -250,6 +265,7 @@ function refineKnowledgeBaseInvariants(
 }
 
 export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine(refineKnowledgeBaseInvariants)
+
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 
 /**
@@ -323,6 +339,7 @@ export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
     'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
   )
 })
+
 export type FileItemData = z.infer<typeof FileItemDataSchema>
 
 /**
@@ -361,6 +378,7 @@ export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
     'Knowledge-base-relative `raw/` directory prefix the expanded files are stored under, written on first expansion.'
   )
 })
+
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
 /**
@@ -372,6 +390,7 @@ export const KnowledgeItemDataSchema = z.union([
   NoteItemDataSchema,
   DirectoryItemDataSchema
 ])
+
 export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
 
 // ============================================================================
@@ -520,14 +539,17 @@ const FileKnowledgeItemSchema = z.discriminatedUnion('status', [
     ...PreparingKnowledgeItemLifecycleSchema
   })
 ])
+
 const UrlKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createLeafKnowledgeItemEntitySchemas('url', UrlItemDataSchema)
 )
+
 const NoteKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createLeafKnowledgeItemEntitySchemas('note', NoteItemDataSchema)
 )
+
 const DirectoryKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createContainerKnowledgeItemEntitySchemas('directory', DirectoryItemDataSchema)
@@ -542,7 +564,9 @@ export const KnowledgeItemSchema = z.union([
   NoteKnowledgeItemSchema,
   DirectoryKnowledgeItemSchema
 ])
+
 export type KnowledgeItem = z.infer<typeof KnowledgeItemSchema>
+
 export type KnowledgeItemOf<T extends KnowledgeItemType> = Extract<KnowledgeItem, { type: T }>
 
 // ============================================================================
@@ -556,7 +580,9 @@ export const KnowledgeChunkMetadataSchema = z.strictObject({
   chunkIndex: z.number().int().min(0),
   tokenCount: z.number().int().min(0)
 })
+
 export type KnowledgeChunkMetadata = z.infer<typeof KnowledgeChunkMetadataSchema>
+
 export type KnowledgeSourceMetadata = Pick<KnowledgeChunkMetadata, 'source'>
 
 /**
@@ -576,6 +602,7 @@ export const KnowledgeSearchResultSchema = z.strictObject({
   conceptId: z.string().optional(),
   title: z.string().optional()
 })
+
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>
 
 export const KnowledgeItemChunkSchema = z.strictObject({
@@ -584,6 +611,7 @@ export const KnowledgeItemChunkSchema = z.strictObject({
   content: z.string(),
   metadata: KnowledgeChunkMetadataSchema
 })
+
 export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>
 
 // ============================================================================
@@ -640,6 +668,7 @@ export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend
   name: z.string().trim().min(1),
   groupId: KnowledgeBaseGroupIdInputSchema.optional()
 }).superRefine(refineRuntimeConfig)
+
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 export const RestoreKnowledgeBaseSchema = z
@@ -652,6 +681,7 @@ export const RestoreKnowledgeBaseSchema = z
     embeddingModelId: z.string().trim().min(1).nullable()
   })
   .superRefine(refineRuntimeConfig)
+
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
 // Restore is a partial operation: root items whose source is genuinely gone are skipped rather
@@ -661,6 +691,7 @@ export const RestoreKnowledgeBaseResultSchema = z.strictObject({
   base: KnowledgeBaseSchema,
   skippedMissingSourceCount: z.number().int().nonnegative()
 })
+
 export type RestoreKnowledgeBaseResult = z.infer<typeof RestoreKnowledgeBaseResultSchema>
 
 const CreateKnowledgeItemBaseSchema = z.strictObject({
@@ -676,10 +707,12 @@ const UrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
   type: z.literal('url'),
   data: UrlItemDataSchema
 })
+
 const NoteItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
   type: z.literal('note'),
   data: NoteItemDataSchema
 })
+
 const DirectoryItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
   type: z.literal('directory'),
   data: DirectoryItemDataSchema
@@ -694,6 +727,7 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   NoteItemMemberSchema,
   DirectoryItemMemberSchema
 ])
+
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
 const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
@@ -758,6 +792,7 @@ export const KnowledgeAddItemInputSchema = z.discriminatedUnion('type', [
   RuntimeNoteItemMemberSchema,
   DirectoryItemMemberSchema
 ])
+
 export type KnowledgeAddItemInput = z.infer<typeof KnowledgeAddItemInputSchema>
 
 // ============================================================================
@@ -781,7 +816,9 @@ export type KnowledgeAddItemInput = z.infer<typeof KnowledgeAddItemInputSchema>
  */
 export const KNOWLEDGE_ADD_CONFLICT_STRATEGIES = ['rename', 'detect', 'replace'] as const
 export const KnowledgeAddConflictStrategySchema = z.enum(KNOWLEDGE_ADD_CONFLICT_STRATEGIES)
+
 export type KnowledgeAddConflictStrategy = z.infer<typeof KnowledgeAddConflictStrategySchema>
+
 export const DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY: KnowledgeAddConflictStrategy = 'rename'
 
 /**
@@ -795,6 +832,7 @@ export const KnowledgeAddItemConflictSchema = z.object({
   type: KnowledgeItemTypeSchema,
   title: z.string()
 })
+
 export type KnowledgeAddItemConflict = z.infer<typeof KnowledgeAddItemConflictSchema>
 
 /**
@@ -805,6 +843,7 @@ export const KnowledgeAddItemsResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('added') }),
   z.object({ status: z.literal('conflicts'), conflicts: z.array(KnowledgeAddItemConflictSchema) })
 ])
+
 export type KnowledgeAddItemsResult = z.infer<typeof KnowledgeAddItemsResultSchema>
 
 // ============================================================================
@@ -831,6 +870,7 @@ export interface KnowledgeItemTitleSource {
 export function getKnowledgePathBasename(value: string): string {
   const normalized = value.replace(/[/\\]+$/, '')
   const name = normalized.split(/[/\\]/).pop()?.trim()
+
   return name || normalized || value
 }
 
@@ -861,9 +901,11 @@ export function deriveNoteSnapshotSlug(source: string): string {
   // Trim after truncating: `sanitizeFilename` only strips *trailing* whitespace, and it turns a tab
   // landing on the cut into an `_` first, so an 80-char cut would otherwise keep a stray separator.
   const sanitized = sanitizeFilename(getKnowledgeNoteFirstLine(source).slice(0, SNAPSHOT_TITLE_MAX).trim())
+
   if (sanitized && sanitized !== 'untitled') {
     return sanitized
   }
+
   return 'note'
 }
 
@@ -883,6 +925,7 @@ export function deriveNoteSnapshotSlug(source: string): string {
  */
 function getKnowledgeNoteName(data: KnowledgeItemTitleSource['data']): string {
   const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+
   return snapshotName || getKnowledgeNoteFirstLine(data.source || '') || getKnowledgeNoteFirstLine(data.content || '')
 }
 
@@ -898,6 +941,7 @@ function getKnowledgeNoteName(data: KnowledgeItemTitleSource['data']): string {
  */
 export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): string {
   const data = item.data
+
   switch (item.type) {
     case 'file':
       return getKnowledgePathBasename(data.relativePath || data.source || '')
@@ -907,6 +951,7 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
       return getKnowledgeNoteName(data)
     case 'url': {
       const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+
       return snapshotName || data.url || data.source || ''
     }
   }
@@ -928,17 +973,21 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
  */
 export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
   const data = item.data
+
   switch (item.type) {
     case 'file':
     case 'directory':
       return getKnowledgePathBasename(data.relativePath || data.source || '')
     case 'note': {
       const name = getKnowledgeNoteName(data)
+
       // An unnamed note has no real name to collide on — keep the empty key so detection skips it.
       if (!name) return ''
+
       // A stored snapshot name is already a slug; only a raw title still needs normalizing.
       return data.relativePath ? name : deriveNoteSnapshotSlug(name)
     }
+
     case 'url':
       return (data.url || '').trim()
   }

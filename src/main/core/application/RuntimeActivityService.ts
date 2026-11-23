@@ -11,6 +11,7 @@ export class RuntimeActivityService extends BaseService {
     const token = Symbol(reason)
     const sleepHold = application.get('PowerService').preventSleep(reason)
     this.activities.set(token, sleepHold)
+
     return {
       dispose: () => {
         if (this.activities.delete(token)) sleepHold.dispose()

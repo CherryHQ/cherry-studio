@@ -51,10 +51,12 @@ function agentSessionMessageToExportView(
   // Model priority: the frozen author snapshot → the row's own frozen `modelId` → (assistant only) the
   // live agent model. The stored id wins over the fallback so a row keeps the model that produced it.
   let modelSnapshot = row.messageSnapshot?.model
+
   if (!modelSnapshot && row.modelId && isUniqueModelId(row.modelId)) {
     const { providerId, modelId } = parseUniqueModelId(row.modelId)
     modelSnapshot = { id: modelId, name: modelId, provider: providerId }
   }
+
   if (!modelSnapshot && row.role === 'assistant') modelSnapshot = modelFallback
 
   return {
@@ -85,6 +87,7 @@ export async function getAgentSessionMessagesForExport(
     const query = cursor
       ? { limit: AGENT_SESSION_MESSAGES_MAX_LIMIT, cursor }
       : { limit: AGENT_SESSION_MESSAGES_MAX_LIMIT }
+
     const response = await dataApiService.get(`/agent-sessions/${session.id}/messages`, {
       query
     })

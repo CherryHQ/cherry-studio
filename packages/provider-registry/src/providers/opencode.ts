@@ -9,9 +9,12 @@ const fixedSupport: ReasoningSupport = { controls: [] }
 
 const effortSupport = (values: ReasoningEffort[], defaultEffort?: ReasoningEffort): ReasoningSupport => {
   const control: Extract<ReasoningControl, { kind: 'effort' }> = { kind: 'effort', values }
+
   if (defaultEffort) control.default = defaultEffort
   const support: ReasoningSupport = { controls: [control] }
+
   if (defaultEffort) support.defaultEffort = defaultEffort
+
   return support
 }
 
@@ -99,10 +102,12 @@ const endpointOverrides: ProviderModelTemplate[] = [
   })),
   ...chatEffortModels.map(({ modelId, values, defaultEffort, pricing }) => {
     const template: ProviderModelTemplate = { modelId, endpointTypes: ['openai-chat-completions'] }
+
     if (pricing) template.pricing = pricing
     template.reasoningContracts = {
       'openai-chat-completions': { support: effortSupport(values, defaultEffort) }
     }
+
     return template
   }),
   { modelId: 'longcat-2-0', endpointTypes: ['openai-chat-completions'] },

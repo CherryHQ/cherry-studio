@@ -82,11 +82,14 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
         onValueChange={(value) => {
           // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
           if (!value) return
+
           if (value === 'bypassPermissions') {
             // Already Full Access: nothing to confirm.
             if (channel.permissionMode !== 'bypassPermissions') setFullAccessPending(true)
+
             return
           }
+
           setFullAccessPending(false)
           onConfigChange({
             permissionMode: value === INHERIT_PERMISSION_MODE_VALUE ? null : value
@@ -138,6 +141,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? '']))
   )
+
   const [chatIds, setChatIds] = useState(((cfg[idsKey] as string[]) ?? []).join(', '))
 
   useEffect(() => {
@@ -149,6 +153,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
   const saveField = useCallback(
     (key: string, value: string) => {
       const trimmed = value.trim()
+
       if (trimmed !== ((cfg[key] as string) ?? '')) {
         onConfigChange(patchConfig ? { configPatch: { [key]: trimmed } } : { config: { ...cfg, [key]: trimmed } })
       }
@@ -161,6 +166,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
+
     if (JSON.stringify(ids) !== JSON.stringify((cfg[idsKey] as string[]) ?? [])) {
       onConfigChange(patchConfig ? { configPatch: { [idsKey]: ids } } : { config: { ...cfg, [idsKey]: ids } })
     }
@@ -220,6 +226,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
 
 export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+
   return (
     <ChannelFieldsForm
       channel={channel}
@@ -244,6 +251,7 @@ export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) 
 const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   const cfg = channel.config
+
   return (
     <div>
       <Label className="mb-1 block text-xs">{t('agent.channels.feishu.domain')}</Label>
@@ -274,6 +282,7 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
 
   useIpcOn('channel.feishu.qr_login', (data) => {
     if (data.channelId !== channel.id) return
+
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
@@ -371,6 +380,7 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
         onOpenChange={(open) => {
           if (open) return
           setQrUrl(null)
+
           if (status === 'pending') setStatus('idle')
         }}>
         <DialogContent closeOnOverlayClick={false} className="max-w-90">
@@ -389,6 +399,7 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
 
 export const DiscordForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+
   return (
     <ChannelFieldsForm
       channel={channel}
@@ -471,6 +482,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
     void ipcApi.request('channel.wechat.has_credentials', channel.id).then((result) => {
       if (result.exists) {
         setStatus('confirmed')
+
         if (result.userId) setLoginUserId(result.userId)
       }
     })
@@ -478,9 +490,11 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
 
   useIpcOn('channel.wechat.qr_login', (data) => {
     if (data.channelId !== channel.id) return
+
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
+
       if (data.userId) setLoginUserId(data.userId)
     } else if (data.status === 'expired') {
       setQrUrl(null)
@@ -541,6 +555,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
         onOpenChange={(open) => {
           if (open) return
           setQrUrl(null)
+
           if (status !== 'confirmed' && onRemove) onRemove()
         }}>
         <DialogContent closeOnOverlayClick={false} className="max-w-90">
@@ -559,6 +574,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
 
 export const SlackForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+
   return (
     <ChannelFieldsForm
       channel={channel}

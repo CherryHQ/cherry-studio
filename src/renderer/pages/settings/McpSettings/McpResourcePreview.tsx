@@ -14,20 +14,26 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
   const [preview, setPreview] = useState<OutputFor<'mcp.server.read_resource_preview'>>()
   const [failed, setFailed] = useState(false)
   const [revision, setRevision] = useState(0)
+
   const [subscription, setSubscription] =
     useState<Exclude<EventPayload<'mcp.resource.changed'>['state'], 'updated'>>('reconnecting')
 
   useEffect(() => {
     const requestId = crypto.randomUUID()
     let active = true
+
     const unsubscribe = ipcApi.on('mcp.resource.changed', (event) => {
       if (event.requestId !== requestId || !active) return
+
       if (event.state === 'updated' || event.state === 'subscribed') setRevision((value) => value + 1)
+
       if (event.state !== 'updated') setSubscription(event.state)
     })
+
     void ipcApi.request('mcp.resource.observe', { serverId, uri, requestId }).catch(() => {
       if (active) setSubscription('closed')
     })
+
     return () => {
       active = false
       unsubscribe()
@@ -58,6 +64,7 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
           }
         }
       )
+
     return () => {
       active = false
       void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)

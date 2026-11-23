@@ -85,9 +85,11 @@ const EMPTY_KNOWLEDGE_BASES: KnowledgeBase[] = []
  */
 export const useComposerToolProviderState = (): ComposerToolState => {
   const context = use(ComposerToolStateContext)
+
   if (!context) {
     throw new Error('useComposerToolProviderState must be used within ComposerToolProvider')
   }
+
   return context
 }
 
@@ -97,17 +99,21 @@ export const useComposerToolProviderState = (): ComposerToolState => {
  */
 export const useComposerToolProviderDispatch = (): ComposerToolDispatch => {
   const context = use(ComposerToolDispatchContext)
+
   if (!context) {
     throw new Error('useComposerToolProviderDispatch must be used within ComposerToolProvider')
   }
+
   return context
 }
 
 export const useComposerToolProviderLaunchers = (): ComposerToolLaunchersApi => {
   const context = use(ComposerToolLaunchersContext)
+
   if (!context) {
     throw new Error('useComposerToolProviderLaunchers must be used within ComposerToolProvider')
   }
+
   return context
 }
 
@@ -139,10 +145,13 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   const [files, setComposerFiles] = useState<ComposerAttachment[]>(() =>
     ensureComposerFileTokenSourceIds(initialState?.files || [])
   )
+
   const [mentionedModels, setMentionedModels] = useState<Model[]>(initialState?.mentionedModels || [])
+
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>(
     initialState?.selectedKnowledgeBases || []
   )
+
   const [isExpanded, setIsExpanded] = useState(initialState?.isExpanded || false)
 
   const couldAddImageFile = initialState?.couldAddImageFile ?? false
@@ -153,6 +162,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   const launcherRegistryRef = useRef(
     new Map<string, { entries: ComposerToolLauncher[]; footerActions: ComposerToolFooterAction[] }>()
   )
+
   const [launcherVersion, setLauncherVersion] = useState(0)
   const launcherVersionRef = useRef(launcherVersion)
   launcherVersionRef.current = launcherVersion
@@ -162,6 +172,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     launcherRegistryRef.current.forEach((registration) => {
       allEntries.push(...registration.entries)
     })
+
     return allEntries
   }, [])
 
@@ -170,6 +181,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     launcherRegistryRef.current.forEach((registration) => {
       allEntries.push(...registration.footerActions.filter((action) => action.panelSymbol === panelSymbol))
     })
+
     return allEntries.sort((left, right) => left.order - right.order)
   }, [])
 
@@ -178,6 +190,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
       const registration = { entries, footerActions }
       launcherRegistryRef.current.set(toolKey, registration)
       setLauncherVersion((version) => version + 1)
+
       return () => {
         if (launcherRegistryRef.current.get(toolKey) !== registration) return
         launcherRegistryRef.current.delete(toolKey)
@@ -300,6 +313,7 @@ export const ComposerToolDerivedStateProvider: React.FC<ComposerToolDerivedState
   selectableKnowledgeBases
 }) => {
   const state = useComposerToolProviderState()
+
   const stateValue = useMemo<ComposerToolState>(
     () => ({
       ...state,

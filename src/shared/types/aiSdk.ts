@@ -22,6 +22,7 @@ type NotUndefined<T> = Exclude<T, undefined>
  *   - `null` → verbosity is explicitly disabled
  */
 export type OpenAIVerbosity = OpenAI.Responses.ResponseTextConfig['verbosity']
+
 export type ValidOpenAIVerbosity = NotUndefined<OpenAIVerbosity>
 
 /**

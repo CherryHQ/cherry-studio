@@ -45,6 +45,7 @@ export async function downloadBundleFiles(
               .map((source) => resolveModelFileUrl(id, source.repo, source.remoteFile, source.revision))
           )
         : sourceOrder.map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
+
     await withMirrorFallback(urls, signal, `${bundle.id}/${file.key}`, (url) =>
       writeBundleFile(file, url, path.join(installDir, file.relPath), signal, (fraction) =>
         onProgress?.((doneWeight + file.weight * fraction) / totalWeight)
@@ -63,10 +64,13 @@ async function writeBundleFile(
   onProgress: (fraction: number) => void
 ): Promise<void> {
   const { derivation, sha256 } = file
+
   if (!derivation) {
     await streamToFileVerified(url, dest, { sha256, signal, onProgress })
+
     return
   }
+
   // Derived files are small configs whose bytes are rewritten before they land, so
   // streaming them to disk would only write something that is not the artifact.
   const fetched = await fetchTextVerified(url, { sha256, signal })

@@ -13,6 +13,7 @@ export const aiUsageRecordHandlers: HandlersFor<AiUsageRecordSchemas> = {
   '/ai-usage-records': {
     GET: async ({ query }) => {
       const parsed = AiUsageRecordListQuerySchema.parse(query ?? {})
+
       return aiUsageRecordService.list(parsed)
     }
   },
@@ -20,6 +21,7 @@ export const aiUsageRecordHandlers: HandlersFor<AiUsageRecordSchemas> = {
   '/ai-usage-records/stats': {
     GET: async ({ query }) => {
       const parsed = AiUsageRecordStatsQuerySchema.parse(query)
+
       return aiUsageRecordService.stats(parsed)
     }
   },
@@ -27,6 +29,7 @@ export const aiUsageRecordHandlers: HandlersFor<AiUsageRecordSchemas> = {
   '/ai-usage-records/timeline': {
     GET: async ({ query }) => {
       const parsed = AiUsageRecordTimelineQuerySchema.parse(query)
+
       return aiUsageRecordService.timeline(parsed)
     }
   }

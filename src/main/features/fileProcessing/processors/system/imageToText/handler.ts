@@ -30,6 +30,7 @@ function loadSystemOcr() {
       throw error
     })
   }
+
   return systemOcrModulePromise
 }
 
@@ -52,6 +53,7 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
         // On Windows the binding only ever reaches a PNG decoder — path input hardcodes it and
         // buffer input sniffs nothing else (#18326) — so it has to be fed PNG bytes.
         let image: string | Uint8Array = context.file.path
+
         if (isWin) {
           const bytes = await fs.readFile(context.file.path, { signal: executionContext.signal })
           const clamped = await clampImageForModel(bytes, SYSTEM_OCR_MAX_IMAGE_EDGE)
@@ -86,6 +88,7 @@ function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: Ab
   }
 
   const parsedOptions = SystemOcrOptionsSchema.safeParse(config.options ?? {})
+
   if (!parsedOptions.success) {
     logger.warn('Invalid system OCR options; falling back to platform defaults', parsedOptions.error, {
       processorId: config.id

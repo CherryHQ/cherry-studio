@@ -28,16 +28,20 @@ export const CodeStyleThemeCatalogContext = createContext<CodeStyleThemeCatalogC
 
 export const useCodeStyle = () => {
   const context = use(CodeStyleContext)
+
   if (!context) {
     throw new Error('useCodeStyle must be used within a CodeStyleProvider')
   }
+
   return context
 }
 
 export const useCodeStyleThemeCatalog = () => {
   const context = use(CodeStyleThemeCatalogContext)
+
   if (!context) {
     throw new Error('useCodeStyleThemeCatalog must be used within a CodeStyleProvider')
   }
+
   return context
 }

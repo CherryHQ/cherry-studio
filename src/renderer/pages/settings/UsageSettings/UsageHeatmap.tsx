@@ -20,12 +20,14 @@ const MIN_HEATMAP_DAYS = 365
 function startOfLocalWeek(date: Date, firstDayOfWeek: number): Date {
   const day = startOfLocalDay(date)
   day.setDate(day.getDate() - ((day.getDay() - firstDayOfWeek + 7) % 7))
+
   return day
 }
 
 function endOfLocalWeek(date: Date, firstDayOfWeek: number): Date {
   const day = startOfLocalWeek(date, firstDayOfWeek)
   day.setDate(day.getDate() + 6)
+
   return day
 }
 
@@ -89,6 +91,7 @@ function quantile(sorted: number[], ratio: number): number {
   }
 
   const index = Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))
+
   return sorted[index]
 }
 
@@ -96,12 +99,15 @@ function getIntensity(value: number, thresholds: [number, number, number]): 0 | 
   if (value <= 0) {
     return 0
   }
+
   if (value <= thresholds[0]) {
     return 1
   }
+
   if (value <= thresholds[1]) {
     return 2
   }
+
   if (value <= thresholds[2]) {
     return 3
   }
@@ -115,6 +121,7 @@ function useElementWidth() {
 
   useEffect(() => {
     const element = ref.current
+
     if (!element) return
 
     const updateWidth = () => setWidth(element.clientWidth)
@@ -126,6 +133,7 @@ function useElementWidth() {
 
     const observer = new ResizeObserver(updateWidth)
     observer.observe(element)
+
     return () => observer.disconnect()
   }, [])
 
@@ -155,11 +163,14 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
 
   const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
   const days = useMemo(() => buildHeatmapDays(buckets, range, firstDayOfWeek), [buckets, firstDayOfWeek, range])
+
   const weeks = useMemo(
     () => Array.from({ length: Math.ceil(days.length / 7) }, (_, index) => days.slice(index * 7, index * 7 + 7)),
     [days]
   )
+
   const bucketMap = useMemo(() => new Map(buckets.map((bucket) => [bucket.date, bucket])), [buckets])
+
   const thresholds = useMemo(() => {
     const values = buckets
       .map((bucket) => getBucketValue(bucket, metric))
@@ -168,8 +179,10 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
 
     return [quantile(values, 0.25), quantile(values, 0.5), quantile(values, 0.75)] as [number, number, number]
   }, [buckets, metric])
+
   useEffect(() => {
     const element = heatmapRef.current
+
     if (!element) return
 
     element.scrollLeft = element.scrollWidth - element.clientWidth
@@ -179,6 +192,7 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
     if (isLoading) return
 
     const element = animationRef.current
+
     if (!element || typeof element.getAnimations !== 'function') return
 
     for (const animation of element.getAnimations({ subtree: true })) {
@@ -201,6 +215,7 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
       }
 
       previousVisibleIndex = weekIndex
+
       return label
     })
   }, [i18n.language, weeks])
@@ -276,6 +291,7 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
                     ))
                   : week.map((day, dayIndex) => {
                       const cellIndex = weekIndex * 7 + dayIndex
+
                       const cellStyle = {
                         height: CELL_SIZE,
                         width: CELL_SIZE,
@@ -296,10 +312,12 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
                       const bucket = bucketMap.get(day.key)
                       const value = getBucketValue(bucket, metric)
                       const intensity = getIntensity(value, thresholds)
+
                       const tooltipValue =
                         metric === 'cost'
                           ? t('settings.usage.tooltip.cost', { value: formatCost(value, costCurrency) })
                           : t('settings.usage.tooltip.tokens', { value: formatCompactNumber(value) })
+
                       const tooltipContent = (
                         <div className="flex flex-col gap-1">
                           <span>{dateFormatter.format(day.date)}</span>

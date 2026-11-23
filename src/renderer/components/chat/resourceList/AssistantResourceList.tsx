@@ -113,6 +113,7 @@ export function AssistantResourceList({
   const [collapsedGroupIds, setCollapsedGroupIds] = usePersistCache('ui.assistant.entity_rail.expansion')
   // Keep the persisted legacy token (`tags`) for preference compatibility; runtime grouping uses Group rows.
   const isGroupGrouping = assistantSortType === 'tags'
+
   const {
     assistants,
     hasLoaded: hasAssistantsLoaded,
@@ -120,12 +121,15 @@ export function AssistantResourceList({
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi()
+
   const {
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
+
   const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
+
   const {
     topics: apiTopics,
     rendererTopics,
@@ -135,7 +139,9 @@ export function AssistantResourceList({
     error: topicsError,
     loadLatestTopic
   } = assistantTopicsSource
+
   const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic', { enabled: dataEnabled })
+
   const {
     isLoading: isAssistantPinsLoading,
     isMutating: isAssistantPinsMutating,
@@ -143,6 +149,7 @@ export function AssistantResourceList({
     pinnedIds: assistantPinnedIds,
     togglePin: toggleAssistantPin
   } = usePins('assistant', { enabled: dataEnabled })
+
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant, restoreAssistant } = useAssistantMutations()
   const { deleteTopicsByAssistantId, refreshTopics, restoreTopic } = useTopicMutations()
@@ -152,25 +159,31 @@ export function AssistantResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
+
   const {
     shortcuts: sidebarShortcuts,
     setPinned: setSidebarShortcutPinned,
     remove: removeSidebarShortcut
   } = useSidebarShortcuts()
+
   const sidebarAssistantFavoriteIdSet = useMemo(
     () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT),
     [sidebarShortcuts]
   )
+
   const assistantGroupById = useMemo(
     () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
     [assistantGroups]
   )
+
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
+
   // The shared mapped list carries `pinned: false`, so only pinned rows need a copy.
   const topics = useMemo(
     () => rendererTopics.map((topic) => (topicPinnedIdSet.has(topic.id) ? { ...topic, pinned: true } : topic)),
     [rendererTopics, topicPinnedIdSet]
   )
+
   const topicsRef = useRef(topics)
   const activeTopicIdRef = useRef(activeTopicId)
   const assistantsRef = useRef(assistants)
@@ -184,10 +197,12 @@ export function AssistantResourceList({
   const createTopicForAssistant = useCallback(
     (assistantId: string) => {
       if (assistantId === UNLINKED_ASSISTANT_ENTITY_ID) return Promise.resolve(null)
+
       return onCreateTopic(assistantId)
     },
     [onCreateTopic]
   )
+
   const handleActivationError = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Resource activation or reorder can reject arbitrary values; this owner logs the failure and formats localized guidance.
     (error: unknown) => {
@@ -196,10 +211,12 @@ export function AssistantResourceList({
     },
     [t]
   )
+
   const handleCreateTopic = useCallback(
     async (assistantId: string) => {
       try {
         const topic = await createTopicForAssistant(assistantId)
+
         if (topic) onSelectTopic(topic)
       } catch (error) {
         handleActivationError(error)
@@ -207,6 +224,7 @@ export function AssistantResourceList({
     },
     [createTopicForAssistant, handleActivationError, onSelectTopic]
   )
+
   const getAssistantEntityId = useCallback(
     (assistantId: string | null | undefined) =>
       assistantId && (!hasAssistantsLoaded || assistantIdSet.has(assistantId))
@@ -214,10 +232,12 @@ export function AssistantResourceList({
         : UNLINKED_ASSISTANT_ENTITY_ID,
     [assistantIdSet, hasAssistantsLoaded]
   )
+
   const hasUnlinkedAssistantTopics = useMemo(
     () => apiTopics.some((topic) => getAssistantEntityId(topic.assistantId) === UNLINKED_ASSISTANT_ENTITY_ID),
     [apiTopics, getAssistantEntityId]
   )
+
   const entities = useMemo<ResourceEntityRailItem[]>(() => {
     const unlinkedAssistantEntity: ResourceEntityRailItem[] = hasUnlinkedAssistantTopics
       ? [
@@ -235,6 +255,7 @@ export function AssistantResourceList({
     return [
       ...assistants.map((assistant) => {
         const group = assistant.groupId ? assistantGroupById.get(assistant.groupId) : undefined
+
         const icon = renderAssistantEntityIcon(
           assistantIconType,
           {
@@ -286,20 +307,26 @@ export function AssistantResourceList({
     (topic: Topic) => getAssistantEntityId(topic.assistantId),
     [getAssistantEntityId]
   )
+
   const entityIdsWithTopics = useMemo(() => new Set(topics.map(getTopicAssistantId)), [getTopicAssistantId, topics])
+
   const visibleEntities = useMemo(
     () => entities.filter((entity) => entityIdsWithTopics.has(entity.id)),
     [entities, entityIdsWithTopics]
   )
+
   const loadLatestTopicForAssistant = useCallback(
     async (assistantId: string) => {
       const topic = await loadLatestTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId)
+
       return topic ? mapApiTopicToRendererTopic(topic) : null
     },
     [loadLatestTopic]
   )
+
   const activeAssistantEntityId = getAssistantEntityId(activeAssistantId)
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
+
   const reorderAssistant = useCallback(
     async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
       if (assistantId === UNLINKED_ASSISTANT_ENTITY_ID) return
@@ -308,6 +335,7 @@ export function AssistantResourceList({
     },
     [reorderAssistantOrder]
   )
+
   const handleReorderError = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Resource activation or reorder can reject arbitrary values; this owner logs the failure and formats localized guidance.
     (error: unknown) => {
@@ -316,6 +344,7 @@ export function AssistantResourceList({
     },
     [t]
   )
+
   const handleGroupReorder = useCallback(
     async (groupId: string, anchor: ResourceEntityRailReorderAnchor) => {
       try {
@@ -371,16 +400,20 @@ export function AssistantResourceList({
       if (clearingTopicsAssistantId || deletingAssistantId) return
 
       const targetTopics = topicsRef.current.filter((topic) => topic.assistantId === assistantId)
+
       if (targetTopics.length === 0) return
 
       setClearingTopicsAssistantId(assistantId)
+
       try {
         const result = await deleteTopicsByAssistantId(assistantId)
+
         if (result.deletedIds.length === 0) {
           await refreshTopics().catch((err) => {
             logger.warn('Failed to refresh Topics after stale clear from classic-layout rail', { assistantId, err })
           })
           toast.info(t('recycle_bin.already_moved'))
+
           return
         }
 
@@ -401,9 +434,11 @@ export function AssistantResourceList({
         } catch (err) {
           logger.warn('Failed to refresh Topics after clear from classic-layout rail', { assistantId, err })
         }
+
         if (activeAssistantId === assistantId) {
           try {
             const nextTopic = await loadLatestTopic()
+
             if (nextTopic) onSelectTopic(mapApiTopicToRendererTopic(nextTopic))
             else onClearActiveTopic()
           } catch (err) {
@@ -412,6 +447,7 @@ export function AssistantResourceList({
         }
       } catch (err) {
         logger.error('Failed to clear assistant topics from classic-layout rail', { assistantId, err })
+
         if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
         else if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
         else toast.error(t('chat.topics.manage.delete.error'))
@@ -435,6 +471,7 @@ export function AssistantResourceList({
 
   const refreshAfterRestore = useCallback(async () => {
     const outcomes = await Promise.allSettled([refreshAssistants(), refreshTopics()])
+
     for (const outcome of outcomes) {
       if (outcome.status === 'rejected') {
         logger.warn('Failed to refresh Assistant resources after restore from classic-layout rail', {
@@ -448,6 +485,7 @@ export function AssistantResourceList({
     async (assistantId: string, mode: 'archive' | 'permanent' = 'archive') => {
       if (deleteAssistantPromptLockRef.current || deletingAssistantId) return
       const permanent = mode === 'permanent'
+
       if (
         permanent &&
         (assistantId === UNLINKED_ASSISTANT_ENTITY_ID ||
@@ -458,12 +496,15 @@ export function AssistantResourceList({
 
       const assistantName =
         assistantsRef.current.find((assistant) => assistant.id === assistantId)?.name ?? t('common.unnamed')
+
       const performDelete = async (deleteTopics: boolean) => {
         if (permanent) {
           const liveAssistant = assistantsRef.current.find((assistant) => assistant.id === assistantId)
+
           if (!liveAssistant || assistantId === UNLINKED_ASSISTANT_ENTITY_ID) {
             await Promise.allSettled([refreshAssistants(), refreshTopics()])
             toast.info(t('recycle_bin.delete.stale'))
+
             return
           }
         }
@@ -471,8 +512,10 @@ export function AssistantResourceList({
         const activeTopicIdWhenMutationStarted = activeTopicIdRef.current
         setDeletingAssistantId(assistantId)
         let deleted = false
+
         try {
           let result
+
           try {
             result = await deleteAssistant(
               assistantId,
@@ -481,33 +524,44 @@ export function AssistantResourceList({
           } catch (err) {
             if (permanent) {
               await Promise.allSettled([refreshAssistants(), refreshTopics()])
+
               if (isTrashTargetNotFoundError(err)) {
                 toast.info(t('recycle_bin.delete.stale'))
+
                 return
               }
+
               if (isTrashTopicBusyError(err)) throw new Error(t('recycle_bin.delete.busy'))
               throw err
             }
+
             if (!isTrashTargetNotFoundError(err)) throw err
             await Promise.allSettled([refreshAssistants(), refreshTopics()])
             toast.info(t('recycle_bin.already_moved'))
+
             return
           }
+
           if (!result.deleted) {
             await Promise.allSettled([refreshAssistants(), refreshTopics()])
             toast.info(permanent ? t('recycle_bin.delete.stale') : t('recycle_bin.already_moved'))
+
             return
           }
+
           deleted = true
           const deletedTopicIds = result.deletedTopicIds ?? []
           const activeTopicIdNow = activeTopicIdRef.current
           const currentTopicWasDeleted = !!activeTopicIdNow && deletedTopicIds.includes(activeTopicIdNow)
+
           // Empty selection only reconciles when the topic active at mutation start was deleted.
           const closedTargetRace =
             !activeTopicIdNow &&
             !!activeTopicIdWhenMutationStarted &&
             deletedTopicIds.includes(activeTopicIdWhenMutationStarted)
+
           if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
+
           if (currentTopicWasDeleted || closedTargetRace) {
             try {
               await onActiveAssistantDeleted?.(assistantId)
@@ -524,6 +578,7 @@ export function AssistantResourceList({
           } catch (err) {
             logger.warn('Failed to refresh Assistants after deletion from classic-layout rail', { assistantId, err })
           }
+
           try {
             await refreshTopics()
           } catch (err) {
@@ -532,6 +587,7 @@ export function AssistantResourceList({
               err
             })
           }
+
           if (!permanent) {
             showRecycleBinUndo({
               itemName: assistantName,
@@ -557,13 +613,18 @@ export function AssistantResourceList({
               assistantId,
               err
             })
+
             return
           }
+
           logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
+
           if (!permanent && isTrashTopicBusyError(err)) {
             toast.info(t('recycle_bin.move.blocked_generation'))
+
             return
           }
+
           throw err
         } finally {
           setDeletingAssistantId(null)
@@ -571,6 +632,7 @@ export function AssistantResourceList({
       }
 
       deleteAssistantPromptLockRef.current = true
+
       try {
         if (permanent) {
           await permanentDeletePopup.show({
@@ -607,6 +669,7 @@ export function AssistantResourceList({
       const pinned = assistantPinnedIdSet.has(item.id)
       const sidebarPinned = sidebarAssistantFavoriteIdSet.has(item.id)
       const deleteOptions: Pick<Parameters<typeof buildResolvedResourceEntityMenuAction>[0], 'shortcut'> = {}
+
       if (permanentDeleteShortcut) deleteOptions.shortcut = permanentDeleteShortcut
 
       return [
@@ -687,34 +750,49 @@ export function AssistantResourceList({
     (item: ResourceEntityRailItem, action: ResolvedAction) => {
       if (action.id === ASSISTANT_ENTITY_EDIT_ACTION_ID) {
         openAssistantEditor(item.id)
+
         return
       }
+
       if (action.id === ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID) {
         void handleToggleAssistantPin(item.id)
+
         return
       }
+
       if (action.id === ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
         const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT, item.id)
+
         if (sidebarAssistantFavoriteIdSet.has(item.id)) removeSidebarShortcut(target)
         else setSidebarShortcutPinned(target, true, item.name)
+
         return
       }
+
       if (action.id === ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID) {
         void handleClearAssistantTopics(item.id)
+
         return
       }
+
       if (action.id === ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID) {
         void setAssistantSortType(isGroupGrouping ? 'list' : 'tags')
+
         return
       }
+
       if (action.id.startsWith(`${ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
         void setAssistantIconType(action.id.slice(ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
+
         return
       }
+
       if (action.id === ASSISTANT_ENTITY_ARCHIVE_ACTION_ID) {
         void handleDeleteAssistant(item.id)
+
         return
       }
+
       if (action.id === ASSISTANT_ENTITY_PERMANENT_DELETE_ACTION_ID) {
         void handleDeleteAssistant(item.id, 'permanent')
       }

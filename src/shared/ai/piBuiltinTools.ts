@@ -1,4 +1,5 @@
 export type PiBuiltinToolCategory = 'file' | 'shell' | 'search'
+
 export type PiToolPermissionClass = 'read' | 'edit' | 'shell' | 'meta'
 
 export type PiBuiltinToolDescriptor = {
@@ -37,5 +38,6 @@ export const PI_BUILTIN_TOOLS = [
 /** Keep runtime policy and the edit form aligned with previously stored tool names. */
 export function normalizePiDisabledToolId(name: string): string {
   if (name === 'tool_exec') return PI_TOOL_EXEC_TOOL_NAME
+
   return PI_NATIVE_BUILTIN_TOOLS.find((tool) => tool.name === name.toLowerCase())?.name ?? name
 }

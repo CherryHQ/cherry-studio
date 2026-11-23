@@ -33,6 +33,7 @@ const GATEWAY_GOOGLE_IMAGE_PROVIDER = 'gateway.google.image' as const
  */
 export function isGatewayGeminiImageModel(modelId: string): boolean {
   const normalized = modelId.replace(/^google\//i, '').toLowerCase()
+
   return (
     (normalized.startsWith('gemini-') && normalized.includes('image')) ||
     /^(?:gemini-)?nano-banana(?:-|$)/.test(normalized)
@@ -59,6 +60,7 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
         // which rejects mask-based editing outright rather than ignoring it.
         throw new Error('Gemini image models do not support mask-based image editing.')
       }
+
       if (n != null && n > 1) {
         warnings.push({
           type: 'unsupported',
@@ -66,6 +68,7 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
           details: 'Gemini image models generate a single image per call. Extra images were not requested.'
         })
       }
+
       if (size != null) {
         warnings.push({
           type: 'unsupported',
@@ -78,9 +81,11 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
       const userContent: Array<
         { type: 'text'; text: string } | { type: 'file'; data: string | Uint8Array | URL; mediaType: string }
       > = []
+
       if (prompt != null) {
         userContent.push({ type: 'text', text: prompt })
       }
+
       if (files != null) {
         for (const file of files) {
           if (file.type === 'url') {
@@ -101,32 +106,43 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
       const { gateway: rawGateway, ...otherProviderOptions } = providerOptions ?? {}
       const { imageResolution, ...gateway } = rawGateway ?? {}
       const existingGoogle = providerOptions?.google ?? {}
+
       const existingImageConfig =
         !Array.isArray(existingGoogle.imageConfig) && isJSONObject(existingGoogle.imageConfig)
           ? existingGoogle.imageConfig
           : {}
+
       const imageDefaults: JSONObject = {}
+
       if (typeof imageResolution === 'string' && imageResolution !== 'auto') imageDefaults.imageSize = imageResolution
       const imageConfig: JSONObject = { ...imageDefaults, ...existingImageConfig }
+
       if (aspectRatio) imageConfig.aspectRatio = aspectRatio
+
       const google: JSONObject = {
         ...existingGoogle,
         responseModalities: ['IMAGE']
       }
+
       if (Object.keys(imageConfig).length > 0) google.imageConfig = imageConfig
 
       const request: Parameters<LanguageModelV3['doGenerate']>[0] = {
         prompt: [{ role: 'user', content: userContent }]
       }
+
       if (seed != null) request.seed = seed
+
       if (headers) request.headers = headers
+
       if (abortSignal) request.abortSignal = abortSignal
       const requestProviderOptions = { ...otherProviderOptions }
+
       if (Object.keys(gateway).length > 0) requestProviderOptions.gateway = gateway
       request.providerOptions = { ...requestProviderOptions, google }
       const result = await languageModel.doGenerate(request)
 
       const images: string[] = []
+
       for (const part of result.content) {
         if (part.type === 'file' && part.mediaType.startsWith('image/')) {
           images.push(convertToBase64(part.data))

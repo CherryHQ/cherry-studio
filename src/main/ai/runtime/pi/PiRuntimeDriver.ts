@@ -38,25 +38,31 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   async validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
     await ensureRetiredSessionHistory(session.id)
     const cwd = session.workspace?.path
+
     if (!cwd) {
       throw new Error(`pi agent session ${session.id} has no workspace configured`)
     }
+
     if (!session.agentId) {
       throw new Error(`pi agent session ${session.id} has no agent`)
     }
+
     const agent = agentService.getAgent(session.agentId)
     // Headless runs execute the agent default, so a stale session override
     // must not fail (or pass) preflight for them.
     const effectiveModel = opts?.headless ? agent?.model : (session.model ?? agent?.model)
+
     if (!effectiveModel) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
+
     await prepareAgentSessionWorkspaceDirectory(session)
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
     const migration = getRetiredAgentSessionMigration(application.get('DbService').getDb(), input.sessionId)
     await ensureRetiredSessionHistory(input.sessionId)
+
     const migratedInput = migration
       ? {
           ...input,
@@ -64,7 +70,9 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
           nativeSessionId: undefined
         }
       : input
+
     const connection = new PiRuntimeConnection(migratedInput)
+
     try {
       return await connection.start()
     } catch (error) {
@@ -89,8 +97,10 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     for (const entry of await listEntries(sessionDir)) {
       if (!entry.isFile()) continue
       const token = piResumeTokenOf(entry.name)
+
       if (!token || keptResumeTokens.has(token)) continue
       const target = path.resolve(sessionDir, entry.name)
+
       if (await reclaimStale(target, options)) removed.push(target)
     }
 
@@ -108,7 +118,9 @@ function piResumeTokenOf(fileName: string): string | null {
   if (!fileName.endsWith('.jsonl')) return null
   const stem = fileName.slice(0, -'.jsonl'.length)
   const separator = stem.indexOf('_')
+
   if (separator < 0) return null
   const token = stem.slice(separator + 1)
+
   return token.length > 0 ? token : null
 }

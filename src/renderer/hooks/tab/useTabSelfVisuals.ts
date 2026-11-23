@@ -37,7 +37,9 @@ export function useTabSelfVisuals({
 
   useEffect(() => {
     if (!currentTabId || !updateTab || !currentTab) return
+
     if (preserveVisuals) return
+
     if (
       routePrefix &&
       currentTab.url !== routePrefix &&
@@ -46,6 +48,7 @@ export function useTabSelfVisuals({
     )
       return
     const icon = imageIcon ?? emojiTabIcon(emoji)
+
     if (currentTab.title === title && currentTab.icon === icon) return
     updateTab(currentTabId, { title, icon })
   }, [currentTabId, currentTab, updateTab, title, emoji, imageIcon, routePrefix, preserveVisuals])

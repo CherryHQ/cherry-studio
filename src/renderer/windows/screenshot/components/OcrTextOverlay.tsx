@@ -57,10 +57,12 @@ function OcrLineSpan({
 
   useLayoutEffect(() => {
     const span = spanRef.current
+
     if (!span || targetWidth <= 0) return
     // Read before any transform: transforms do not affect layout, so this is the
     // un-scaled intrinsic width of the text as rendered.
     const actualWidth = span.scrollWidth
+
     if (actualWidth <= 0) return
     // Written straight to the node: a re-render through React would reset
     // `style.transform` and silently drop the correction.
@@ -93,6 +95,7 @@ export function OcrTextOverlay({ bounds, lines, scaleFactor, interactive = true 
   useEffect(() => {
     if (!interactive) return
     const container = containerRef.current
+
     if (!container) return
 
     let isDragging = false
@@ -101,6 +104,7 @@ export function OcrTextOverlay({ bounds, lines, scaleFactor, interactive = true 
     /** Resolve a caret position from viewport coordinates, gaps included. */
     const caretFromPoint = (x: number, y: number): { node: Node; offset: number } | null => {
       const range = document.caretRangeFromPoint(x, y)
+
       if (range && range.startContainer.nodeType === Node.TEXT_NODE) {
         return { node: range.startContainer, offset: range.startOffset }
       }
@@ -116,18 +120,22 @@ export function OcrTextOverlay({ bounds, lines, scaleFactor, interactive = true 
         const cx = Math.max(rect.left, Math.min(rect.right, x))
         const cy = Math.max(rect.top, Math.min(rect.bottom, y))
         const distSq = (cx - x) ** 2 + (cy - y) ** 2
+
         if (distSq < minDistSq) {
           minDistSq = distSq
           nearestX = cx
           nearestY = cy
         }
       }
+
       if (minDistSq === Number.POSITIVE_INFINITY) return null
 
       const clamped = document.caretRangeFromPoint(nearestX, nearestY)
+
       if (clamped && clamped.startContainer.nodeType === Node.TEXT_NODE) {
         return { node: clamped.startContainer, offset: clamped.startOffset }
       }
+
       return null
     }
 
@@ -142,6 +150,7 @@ export function OcrTextOverlay({ bounds, lines, scaleFactor, interactive = true 
       container.style.pointerEvents = 'auto'
 
       const position = caretFromPoint(e.clientX, e.clientY)
+
       if (position) {
         anchor = position
         window.getSelection()?.setBaseAndExtent(position.node, position.offset, position.node, position.offset)
@@ -152,6 +161,7 @@ export function OcrTextOverlay({ bounds, lines, scaleFactor, interactive = true 
       if (!isDragging) return
 
       const position = caretFromPoint(e.clientX, e.clientY)
+
       if (!position) return
 
       if (!anchor) anchor = position

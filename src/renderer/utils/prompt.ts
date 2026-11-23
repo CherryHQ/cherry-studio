@@ -23,10 +23,12 @@ export const containsSupportedVariables = (userSystemPrompt: string): boolean =>
 export const replacePromptVariables = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
   if (typeof userSystemPrompt !== 'string') {
     logger.warn('User system prompt is not a string:', userSystemPrompt)
+
     return userSystemPrompt
   }
 
   const now = new Date()
+
   if (userSystemPrompt.includes('{{date}}')) {
     const date = now.toLocaleDateString(undefined, {
       weekday: 'short',
@@ -34,6 +36,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       month: 'numeric',
       day: 'numeric'
     })
+
     userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
   }
 
@@ -52,6 +55,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       minute: 'numeric',
       second: 'numeric'
     })
+
     userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
   }
 

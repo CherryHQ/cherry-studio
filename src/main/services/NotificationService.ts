@@ -36,6 +36,7 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
   if (!meta || typeof meta !== 'object') return false
 
   const candidate = meta as Partial<ConversationNavigationTarget>
+
   return (
     (candidate.conversationType === 'assistant' || candidate.conversationType === 'agent') &&
     typeof candidate.conversationId === 'string' &&
@@ -60,6 +61,7 @@ export class NotificationService extends BaseService {
         .subscribeMultipleChanges([...OS_NOTIFICATION_PREF_KEYS], () => this.syncDockBadgeWithNotificationPrefs())
     )
     this.syncDockBadgeWithNotificationPrefs()
+
     const purge = () => {
       try {
         notificationRecordService.purgeExpired()
@@ -67,6 +69,7 @@ export class NotificationService extends BaseService {
         logger.warn('Failed to expire notification history', { error })
       }
     }
+
     purge()
     this.registerInterval(purge, 24 * 60 * 60 * 1000)
   }
@@ -76,35 +79,43 @@ export class NotificationService extends BaseService {
     options: { source?: NotificationSource; completion?: boolean; recordOnly?: boolean } = {}
   ): Promise<boolean> {
     let committed = false
+
     try {
       const preferences = application.get('PreferenceService')
       const enabled = preferences.get(`app.notification.center.${input.category}.enabled`)
       const result = input.target?.result
       const completion = input.kind === 'task-completion' || input.kind === 'queue-completion'
+
       const active =
         enabled &&
         (completion || !!result) &&
         input.target?.kind === 'conversation' &&
         getFullChromeWindowInfos().some((window) => window.isFocused) &&
         (await application.get('ConversationNavigationService').isActiveInFocusedWindow(input.target))
+
       const suppressed = !enabled || (active && (completion || result?.status === 'succeeded'))
       const recordOnly = options.recordOnly || result?.status === 'cancelled' || (!!result && active)
+
       const initial = {
         ...input,
         readAt: result && recordOnly ? Date.now() : input.readAt
       }
+
       const record = result
         ? notificationRecordService.consumeTaskResult(input.eventKey, suppressed ? null : initial)
         : suppressed
           ? null
           : notificationRecordService.create(initial)
+
       if (!record) return true
       committed = true
+
       if (recordOnly) return true
       const windows = getFullChromeWindowInfos()
       const focused = windows.find((window) => window.isFocused)
       const owner = focused ?? windows.find((window) => window.type === WindowType.Main) ?? windows[0]
       let sound = false
+
       if (options.completion && preferences.get('app.notification.completion_sound.enabled') && owner) {
         try {
           application.get('IpcApiService').send(owner.id, 'notification.completion_sound', { id: record.id })
@@ -113,23 +124,29 @@ export class NotificationService extends BaseService {
           logger.warn('Failed to play completion sound', { error })
         }
       }
+
       if (focused) {
         if (options.completion || result || input.category === 'usage') {
           application.get('IpcApiService').send(focused.id, 'notification.present', record)
         }
+
         if (options.source !== 'update' && options.source !== 'backup') return true
       }
+
       const osKey =
         input.category === 'usage'
           ? 'app.notification.usage.os.enabled'
           : options.source && options.source !== 'mini-app'
             ? (`app.notification.${options.source}.enabled` as const)
             : undefined
+
       if (!osKey || !preferences.get(osKey)) return true
+
       const notificationOptions: NonNullable<ConstructorParameters<typeof ElectronNotification>[0]> = {
         title: record.title,
         body: record.message
       }
+
       if (sound) notificationOptions.silent = true
       const notification = new ElectronNotification(notificationOptions)
       notification.on('click', () => {
@@ -138,9 +155,11 @@ export class NotificationService extends BaseService {
         )
       })
       this.showNotification(notification)
+
       return true
     } catch (error) {
       logger.warn('Failed to publish notification', { error, eventKey: input.eventKey })
+
       return committed
     }
   }
@@ -150,11 +169,13 @@ export class NotificationService extends BaseService {
     try {
       if (!input.resultId.trim() || !Number.isSafeInteger(input.finishedAt) || input.finishedAt < 0) return false
       const result = NotificationTaskResultSchema.parse(input)
+
       if (result.errorSummary) {
         result.errorSummary = Array.from(redactSecretTokens(redactSecretText(result.errorSummary)))
           .slice(0, 500)
           .join('')
       }
+
       return this.publish(
         {
           eventKey: `task-result:${JSON.stringify([result.source, input.resultId])}`,
@@ -174,6 +195,7 @@ export class NotificationService extends BaseService {
       )
     } catch (error) {
       logger.warn('Invalid task result notification', { error })
+
       return false
     }
   }
@@ -183,6 +205,7 @@ export class NotificationService extends BaseService {
       title: notification.title,
       body: notification.message
     }
+
     if (notification.silent !== undefined) options.silent = notification.silent
     const electronNotification = new ElectronNotification(options)
 
@@ -192,6 +215,7 @@ export class NotificationService extends BaseService {
           .get('ConversationNavigationService')
           .focusOrOpen(notification.meta, resolveNotificationConversationName(notification.meta))
           .catch((error) => logger.error('Failed to open conversation from notification', error as Error))
+
         return
       }
 
@@ -208,6 +232,7 @@ export class NotificationService extends BaseService {
     notification.once('click', release)
     notification.once('close', release)
     notification.once('failed', release)
+
     try {
       notification.show()
     } catch (error) {
@@ -218,8 +243,10 @@ export class NotificationService extends BaseService {
 
   public deliverConversationNotification(notification: ConversationNotification): void {
     const focusedWindow = getFullChromeWindowInfos().find((window) => window.isFocused)
+
     if (focusedWindow) {
       application.get('IpcApiService').send(focusedWindow.id, 'notification.conversation', notification)
+
       return
     }
 
@@ -229,6 +256,7 @@ export class NotificationService extends BaseService {
 
   private areAllOsNotificationPrefsDisabled(): boolean {
     const preferences = application.get('PreferenceService')
+
     return OS_NOTIFICATION_PREF_KEYS.every((key) => !preferences.get(key))
   }
 

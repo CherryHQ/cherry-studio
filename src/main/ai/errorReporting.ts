@@ -10,6 +10,7 @@ export function providerFailureFacts(error: unknown): FailureFacts | undefined {
   const status = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
   const text = 'message' in error && typeof error.message === 'string' ? error.message : ''
   const category = classifyErrorCategory({ text, status })
+
   if (
     ![
       'auth',
@@ -29,6 +30,7 @@ export function providerFailureFacts(error: unknown): FailureFacts | undefined {
     ].includes(category)
   )
     return
+
   return { source: 'provider', kind: 'expected', reason: category, outcome: 'failed' }
 }
 

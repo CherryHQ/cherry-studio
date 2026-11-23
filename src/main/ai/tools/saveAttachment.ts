@@ -21,6 +21,7 @@ import {
 const logger = loggerService.withContext('SaveAttachment')
 
 export const SAVE_ATTACHMENT_TOOL_NAME = 'save_attachment'
+
 export const SAVE_ATTACHMENT_DESCRIPTION =
   'Copy the original bytes of a file explicitly attached to this conversation into a new file in the current session workspace. ' +
   'Use the attachment handle or its filename as shown in the conversation, pass a workspace-relative destination, and never overwrite an existing file. ' +
@@ -63,12 +64,15 @@ function resolveAttachment(
   reference: string
 ): FileAttachmentRef | undefined {
   const byHandle = attachments.find(({ handle }) => handle === reference)
+
   if (byHandle) return byHandle
   const byFilename = attachments.filter(({ displayName }) => displayName === reference)
+
   if (byFilename.length > 1) {
     const candidates = byFilename.map(({ handle, displayName }) => `${handle} (${displayName})`).join(', ')
     throw new Error(`Multiple attached files are named "${reference}". Use an attachment handle: ${candidates}`)
   }
+
   return byFilename[0]
 }
 
@@ -81,6 +85,7 @@ export async function saveAttachmentToWorkspace(
   signal.throwIfAborted()
   const validatedInput = saveAttachmentInputSchema.parse(input)
   const attachment = resolveAttachment(attachments, validatedInput.filename)
+
   if (!attachment) {
     const available = attachments.map(({ handle, displayName }) => `${handle} (${displayName})`).join(', ') || '(none)'
     throw new Error(`No attached file named "${validatedInput.filename}". Available: ${available}`)
@@ -91,13 +96,16 @@ export async function saveAttachmentToWorkspace(
   signal.throwIfAborted()
   const outputDirectory = path.dirname(outputPath)
   const outputDirectoryStatus = await getPathStatus(outputDirectory)
+
   if (!outputDirectoryStatus.ok) {
     const reason = outputDirectoryStatus.reason === 'missing' ? 'does not exist' : 'is not accessible'
     throw new Error(`Attachment output directory ${reason}: ${path.dirname(validatedInput.output_path)}`)
   }
+
   if (outputDirectoryStatus.kind !== 'directory') {
     throw new Error(`Attachment output parent is not a directory: ${path.dirname(validatedInput.output_path)}`)
   }
+
   await assertWorkspacePathUnchanged(
     validatedInput.output_path,
     outputPath,
@@ -121,9 +129,11 @@ export async function saveAttachmentToWorkspace(
     })
   } catch (error) {
     if (signal.aborted || isAbortError(error)) throw error
+
     if (isErrno(error, 'EEXIST')) {
       throw new Error(`Attachment output already exists: ${validatedInput.output_path}`)
     }
+
     logger.error('Failed to save attached file into the workspace', error as Error, {
       filename: validatedInput.filename,
       outputPath: validatedInput.output_path

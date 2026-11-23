@@ -14,12 +14,14 @@ import { visit } from 'unist-util-visit'
 const rewriteSvgReference = (value: string, idMap: Map<string, string>) => {
   let rewritten = value.replace(/url\(\s*(['"]?)#([^'")\s]+)\1\s*\)/g, (match, quote, id) => {
     const prefixedId = idMap.get(id)
+
     return prefixedId ? `url(${quote}#${prefixedId}${quote})` : match
   })
 
   if (rewritten.startsWith('#')) {
     const id = rewritten.slice(1)
     const prefixedId = idMap.get(id)
+
     if (prefixedId) {
       rewritten = `#${prefixedId}`
     }
@@ -62,6 +64,7 @@ export function rehypePrefixSvgReferences(clobberPrefix = 'user-content-') {
       const idMap = new Map<string, string>()
       walkElement(svgNode, (node) => {
         const id = node.properties?.id
+
         if (typeof id === 'string' && id.startsWith(clobberPrefix)) {
           idMap.set(id.slice(clobberPrefix.length), id)
         }
@@ -71,6 +74,7 @@ export function rehypePrefixSvgReferences(clobberPrefix = 'user-content-') {
 
       walkElement(svgNode, (node) => {
         const properties = node.properties
+
         if (!properties) return
 
         for (const key of Object.keys(properties)) {

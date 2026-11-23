@@ -45,6 +45,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
 }) => {
   const { t } = useTranslation()
   const Icon = useIcon(getModelLogoRef(model))
+
   const deleteTooltip = isDefaultModel
     ? t('settings.models.manage.default_model_cannot_remove')
     : t('settings.models.manage.remove_model')

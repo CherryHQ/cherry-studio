@@ -155,6 +155,7 @@ function builderKey(rootPath: string, options: DirectoryTreeOptions | undefined)
   // forward slash) so identical Windows paths spelled with different
   // separators dedupe to the same shared builder.
   const normalized = rootPath.replace(/\\/g, '/')
+
   return `${normalized}${BUILDER_KEY_DELIMITER}${canonicalizeOptions(options)}`
 }
 
@@ -170,13 +171,16 @@ function canonicalizeOptions(options: DirectoryTreeOptions | undefined): string 
   if (!options) return '{}'
   const keys = DirectoryTreeOptionsSchema.keyof().options.sort()
   const ordered: Partial<Record<keyof DirectoryTreeOptions, DirectoryTreeOptions[keyof DirectoryTreeOptions]>> = {}
+
   for (const k of keys) {
     const v = options[k]
+
     if (v === undefined) continue
     // For array-valued options (`extensions`), normalize order too so
     // `['md', 'txt']` and `['txt', 'md']` dedupe.
     ordered[k] = Array.isArray(v) ? [...v].sort() : v
   }
+
   return JSON.stringify(ordered)
 }
 
@@ -233,10 +237,12 @@ export class DirectoryTreeManager extends BaseService {
    */
   rename(treeId: string, oldPath: string, newName: string, ownerWebContentsId: number): boolean {
     const consumer = this.ownedConsumer(treeId, ownerWebContentsId)
+
     if (!consumer) return false
     // Same normalization the builder applies, so a Windows-spelled oldPath
     // resolves against the same parent the builder indexed it under.
     const parent = oldPath.replace(/\\/g, '/').replace(/\/[^/]*$/, '')
+
     return consumer.builder.rename(oldPath, `${parent}/${newName}`)
   }
 
@@ -247,15 +253,21 @@ export class DirectoryTreeManager extends BaseService {
    */
   activateTree(treeId: string, revision: number, ownerWebContentsId: number): boolean {
     const consumer = this.ownedConsumer(treeId, ownerWebContentsId)
+
     if (!consumer || revision !== consumer.snapshotRevision) return false
+
     if (consumer.phase === 'active') return true
+
     if (consumer.sender.isDestroyed()) return false
 
     consumer.phase = 'active'
+
     for (const payload of consumer.pendingMutations) {
       sendMutation(consumer.sender, payload)
     }
+
     consumer.pendingMutations.length = 0
+
     return true
   }
 
@@ -281,6 +293,7 @@ export class DirectoryTreeManager extends BaseService {
     // live consumer and returns while the entry stays `draining`; the last dispose then
     // sees a non-`active` state, arms nothing, and the watcher survives until shutdown.
     const canonical = this.sharedBuilders.get(key)
+
     // Only `disposeAll()` removes an entry without a grace timer, and a timer cannot
     // interleave between the microtasks resuming these waiters — so a missing entry
     // means the manager shut down underneath us.
@@ -289,6 +302,7 @@ export class DirectoryTreeManager extends BaseService {
 
     const treeId = randomUUID()
     const snapshotRevision = 0
+
     const consumer: Consumer = {
       treeId,
       windowId,
@@ -302,20 +316,26 @@ export class DirectoryTreeManager extends BaseService {
       revision: snapshotRevision,
       pendingMutations: []
     }
+
     consumer.forwardSubscription = shared.builder.onMutation((event) => {
       if (sender.isDestroyed()) return
       const payload: TreeMutationPushPayload = { treeId, revision: ++consumer.revision, event }
+
       if (consumer.phase === 'pending') {
         if (consumer.pendingMutations.length >= MAX_PENDING_MUTATIONS) {
           logger.warn(
             `Tree ${treeId} buffered ${MAX_PENDING_MUTATIONS} mutations without activating — disposing the consumer`
           )
           this.dispose(treeId)
+
           return
         }
+
         consumer.pendingMutations.push(payload)
+
         return
       }
+
       sendMutation(sender, payload)
     })
     shared.consumers.set(treeId, consumer)
@@ -333,10 +353,12 @@ export class DirectoryTreeManager extends BaseService {
     }
 
     let bucket = this.byWindow.get(windowId)
+
     if (!bucket) {
       bucket = new Set()
       this.byWindow.set(windowId, bucket)
     }
+
     bucket.add(treeId)
 
     return { treeId, revision: snapshotRevision, snapshot: shared.builder.snapshot() }
@@ -351,27 +373,33 @@ export class DirectoryTreeManager extends BaseService {
   dispose(treeId: string, ownerWebContentsId?: number): boolean {
     const consumer =
       ownerWebContentsId === undefined ? this.consumers.get(treeId) : this.ownedConsumer(treeId, ownerWebContentsId)
+
     if (!consumer) return false
     consumer.forwardSubscription?.dispose()
     this.consumers.delete(treeId)
     const shared = this.sharedBuilders.get(consumer.sharedBuilderKey)
+
     if (!shared) return true
     shared.consumers.delete(treeId)
 
     const bucket = this.byWindow.get(consumer.windowId)
     bucket?.delete(treeId)
+
     if (bucket && bucket.size === 0) this.byWindow.delete(consumer.windowId)
 
     if (shared.consumers.size === 0 && shared.state === 'active') {
       this.transitionToDraining(shared)
     }
+
     return true
   }
 
   disposeAllForWindow(windowId: WindowId): void {
     const bucket = this.byWindow.get(windowId)
+
     if (!bucket) return
     const ids = Array.from(bucket)
+
     for (const id of ids) {
       try {
         this.dispose(id)
@@ -388,19 +416,24 @@ export class DirectoryTreeManager extends BaseService {
    */
   async disposeAll(): Promise<void> {
     this.disposed = true
+
     for (const treeId of Array.from(this.consumers.keys())) {
       this.dispose(treeId)
     }
+
     // After all consumers are gone, also force-tear shared builders so
     // tests don't wait for the grace timer.
     const drains: Array<Promise<void>> = []
+
     for (const shared of Array.from(this.sharedBuilders.values())) {
       if (shared.state === 'draining') {
         clearTimeout(shared.disposeTimer)
       }
+
       drains.push(shared.builder.disposeAsync())
       this.sharedBuilders.delete(shared.key)
     }
+
     // Drop pending creates too — any builder that resolves after this
     // point will see `this.disposed` and tear itself down in
     // `acquireBuilder`. Clearing here keeps the map from holding the
@@ -419,7 +452,9 @@ export class DirectoryTreeManager extends BaseService {
    */
   private ownedConsumer(treeId: string, ownerWebContentsId: number): Consumer | undefined {
     const consumer = this.consumers.get(treeId)
+
     if (!consumer || consumer.webContentsId !== ownerWebContentsId) return undefined
+
     return consumer
   }
 
@@ -429,14 +464,18 @@ export class DirectoryTreeManager extends BaseService {
     options: DirectoryTreeOptions | undefined
   ): Promise<SharedBuilder> {
     const existing = this.sharedBuilders.get(key)
+
     if (existing && !existing.builder.isDisposed) return existing
+
     if (existing) this.evictDisposedBuilder(existing)
     const pending = this.inflight.get(key)
+
     if (pending) return pending
 
     const promise = (async () => {
       try {
         const builder = await createDirectoryTree(rootPath, options)
+
         // If the registry was torn down while we were awaiting the build,
         // dispose the freshly-created builder so its watcher / FDs don't
         // outlive `onStop` and surface as an orphan.
@@ -446,22 +485,29 @@ export class DirectoryTreeManager extends BaseService {
           )
           throw new DirectoryTreeStoppedError()
         }
+
         // Window during which a concurrent `create` could have inserted
         // ahead of us — fold into theirs and discard the duplicate
         // builder so we don't leak a watcher.
         const winner = this.sharedBuilders.get(key)
+
         if (winner && !winner.builder.isDisposed) {
           builder.dispose()
+
           return winner
         }
+
         if (winner) this.evictDisposedBuilder(winner)
+
         const shared: SharedBuilder = {
           key,
           builder,
           consumers: new Map(),
           state: 'active'
         }
+
         this.sharedBuilders.set(key, shared)
+
         return shared
       } finally {
         this.inflight.delete(key)
@@ -469,6 +515,7 @@ export class DirectoryTreeManager extends BaseService {
     })()
 
     this.inflight.set(key, promise)
+
     return promise
   }
 
@@ -480,13 +527,16 @@ export class DirectoryTreeManager extends BaseService {
    */
   private evictDisposedBuilder(shared: SharedBuilder): void {
     if (shared.state === 'draining') clearTimeout(shared.disposeTimer)
+
     for (const consumer of shared.consumers.values()) {
       consumer.forwardSubscription?.dispose()
       this.consumers.delete(consumer.treeId)
       const bucket = this.byWindow.get(consumer.windowId)
       bucket?.delete(consumer.treeId)
+
       if (bucket && bucket.size === 0) this.byWindow.delete(consumer.windowId)
     }
+
     shared.consumers.clear()
     this.sharedBuilders.delete(shared.key)
   }
@@ -501,6 +551,7 @@ export class DirectoryTreeManager extends BaseService {
     // past app exit — the watcher cleanup is best-effort at shutdown.
     const handle = setTimeout(() => this.tearDownIfIdle(shared.key), DISPOSE_GRACE_MS)
     handle.unref()
+
     const next: SharedBuilder = {
       key: shared.key,
       builder: shared.builder,
@@ -508,6 +559,7 @@ export class DirectoryTreeManager extends BaseService {
       state: 'draining',
       disposeTimer: handle
     }
+
     this.sharedBuilders.set(shared.key, next)
   }
 
@@ -518,19 +570,24 @@ export class DirectoryTreeManager extends BaseService {
    */
   private transitionToActive(shared: SharedBuilder & { state: 'draining' }): SharedBuilder & { state: 'active' } {
     clearTimeout(shared.disposeTimer)
+
     const next: SharedBuilder & { state: 'active' } = {
       key: shared.key,
       builder: shared.builder,
       consumers: shared.consumers,
       state: 'active'
     }
+
     this.sharedBuilders.set(shared.key, next)
+
     return next
   }
 
   private tearDownIfIdle(key: string): void {
     const shared = this.sharedBuilders.get(key)
+
     if (!shared || shared.state !== 'draining') return
+
     if (shared.consumers.size > 0) return
     shared.builder.dispose()
     this.sharedBuilders.delete(key)

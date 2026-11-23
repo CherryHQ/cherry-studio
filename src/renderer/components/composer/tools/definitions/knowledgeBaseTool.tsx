@@ -74,6 +74,7 @@ const knowledgeBaseTool = defineTool({
 
           for (const base of state.selectableKnowledgeBases) {
             const tokenId = composerKnowledgeBaseTokenId(base)
+
             if (!knowledgeTokenIds.has(tokenId) || nextIds.has(tokenId)) continue
             next.push(base)
             nextIds.add(tokenId)

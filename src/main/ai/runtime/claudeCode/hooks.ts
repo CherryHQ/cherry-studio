@@ -54,6 +54,7 @@ export function surfaceExitPlanModeInput(
   if (toolName !== EXIT_PLAN_MODE_TOOL_NAME || !toolCallId || typeof input?.plan !== 'string' || !input.plan.trim()) {
     return
   }
+
   sessionState().peekToolApprovalEmitter(sessionId)?.emitInput?.({ toolCallId, toolName, input })
 }
 
@@ -79,6 +80,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   const toolGuardHook: HookCallback = async (input, toolUseId, options): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = input.tool_name
+
     if (!toolName) return {}
     // SAFETY: The shared guard contract retains opaque values; the selected guards check each field they consume.
     const toolInput = input.tool_input as ToolGuardContext['input']
@@ -87,6 +89,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
     const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
+
     const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
       toolName,
       input: toolInput,
@@ -102,6 +105,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
+
     if (!decision) {
       if (
         snapshot &&
@@ -110,11 +114,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       ) {
         return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow' } }
       }
+
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
       // first call past the soft threshold is allowed with a one-shot warning so the model can
       // self-correct; exactly-at-threshold fires it once, before the run grows past it.
       if (toolName === 'Bash' && typeof toolInput?.command === 'string') {
         const run = sessionState().getBashNoProgressRun(sessionId, toolInput.command, input.agent_id)
+
         if (run === BASH_NO_PROGRESS_THRESHOLD) {
           return {
             hookSpecificOutput: {
@@ -124,13 +130,17 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
           }
         }
       }
+
       if (toolName === 'Bash' && snapshot?.getPermissionMode() === 'auto')
         return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow' } }
+
       return {}
     }
+
     if (decision.effect === 'deny') {
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
     }
+
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -145,40 +155,53 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // instead of substituting unrelated output.
   const skillDependencyAdvisoryHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
+
     if (input.tool_name !== SKILL_TOOL_NAME) return {}
     // SAFETY: Only the skill field is consumed from the shared input contract and it is checked below.
     const skillName = (input.tool_input as ToolGuardContext['input'])?.skill
+
     if (typeof skillName !== 'string' || !skillName) return {}
 
     const { warning } = await checkSkillRuntimeDependencies(skillName, cwd, ctx.pluginDirectories)
+
     if (!warning) return {}
     logger.debug('Skill declares unresolved runtime dependencies', { sessionId, skillName, warning })
+
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: warning } }
   }
 
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = input.tool_name
+
     if (toolName !== 'Bash') return {}
     // SAFETY: The shared input contract keeps argument values opaque; the command is checked before rewriting.
     const toolInput = input.tool_input as ToolGuardContext['input']
     const command = toolInput?.command
+
     if (typeof command !== 'string' || !command.trim()) return {}
 
     // Register before yielding so an in-flight rewrite cannot recreate state after teardown.
     sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
     const rewritten = await rtkRewrite(command)
+
     if (!rewritten) {
       sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id)
+
       return {}
     }
+
     logger.info('rtk rewrote Bash command', { original: command, rewritten })
+
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
+
   const bashRewriteCleanupHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PostToolBatch') return {}
+
     // Denied calls have no PostToolUse event; consume only this batch's leftovers.
     for (const call of input.tool_calls) sessionState().takeBashRewriteOrigin(sessionId, call.tool_use_id)
+
     return {}
   }
 
@@ -187,6 +210,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
     sessionState().disposeBashScope(sessionId, input.agent_id)
+
     return {}
   }
 
@@ -201,6 +225,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
+
     const agentId = input.agent_id
 
     if (input.tool_name !== 'Bash') {
@@ -210,32 +235,41 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       if (input.hook_event_name === 'PostToolUse' && RUN_BREAK_TOOLS.has(input.tool_name)) {
         sessionState().recordBashRunBreak(sessionId, agentId)
       }
+
       return {}
     }
 
     const executedCommand = (input.tool_input as { command?: unknown } | undefined)?.command
+
     if (typeof executedCommand !== 'string') return {}
     const command = sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id) ?? executedCommand
 
     if (input.hook_event_name === 'PostToolUseFailure') {
       if (input.is_interrupt === true) {
         sessionState().recordBashRunBreak(sessionId, agentId)
+
         return {}
       }
+
       sessionState().recordBashOutcome(sessionId, command, input.error, true, agentId)
+
       return {}
     }
 
     const response = input.tool_response
+
     if (
       typeof response === 'object' &&
       response !== null &&
       (response as { interrupted?: unknown }).interrupted === true
     ) {
       sessionState().recordBashRunBreak(sessionId, agentId)
+
       return {}
     }
+
     sessionState().recordBashOutcome(sessionId, command, response, false, agentId)
+
     return {}
   }
 
@@ -243,9 +277,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
+
     const toolCallId = input.tool_use_id
     const toolName = input.tool_name
     const durationMs = input.duration_ms
+
     if (
       typeof toolCallId !== 'string' ||
       typeof toolName !== 'string' ||
@@ -255,11 +291,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     ) {
       return {}
     }
+
     application.get('AgentSessionRuntimeService').recordToolExecutionTiming(sessionId, {
       toolCallId,
       toolName,
       durationMs
     })
+
     return {}
   }
 

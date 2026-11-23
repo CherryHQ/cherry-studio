@@ -69,6 +69,7 @@ export interface ParsedPath {
  * (`ab:c.txt`).
  */
 const WINDOWS_DRIVE_PATTERN = /^[A-Za-z]:/
+
 /** `\\server\share` — both components required, matching `AbsoluteFilePathSchema`. */
 const WINDOWS_UNC_PATTERN = /^\\\\[^\\/]+[\\/][^\\/]+/
 
@@ -81,6 +82,7 @@ const toSegments = (body: string, separator: RegExp): string[] =>
  */
 export function parsePosixPath(value: string): ParsedPath {
   const isAbsolute = value.startsWith('/')
+
   return {
     isAbsolute,
     root: isAbsolute ? '/' : '',
@@ -101,14 +103,17 @@ export function parsePosixPath(value: string): ParsedPath {
  */
 export function parseWindowsPath(value: string): ParsedPath {
   const uncMatch = WINDOWS_UNC_PATTERN.exec(value)
+
   if (uncMatch) {
     return { isAbsolute: true, root: uncMatch[0], segments: toSegments(value.slice(uncMatch[0].length), /[/\\]/) }
   }
 
   const driveMatch = WINDOWS_DRIVE_PATTERN.exec(value)
+
   if (driveMatch) {
     const rest = value.slice(driveMatch[0].length)
     const rooted = /^[/\\]/.test(rest)
+
     return {
       isAbsolute: rooted,
       root: rooted ? `${driveMatch[0]}${rest[0]}` : driveMatch[0],
@@ -117,6 +122,7 @@ export function parseWindowsPath(value: string): ParsedPath {
   }
 
   const rooted = /^[/\\]/.test(value)
+
   return {
     isAbsolute: rooted,
     root: rooted ? value[0] : '',

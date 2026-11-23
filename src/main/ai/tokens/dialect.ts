@@ -36,5 +36,6 @@ export function resolveEndpointTokenDialect(endpointType: EndpointType | undefin
 /** Dialect of the endpoint a resolved provider+model pair actually talks to. */
 export function resolveModelTokenDialect(provider: Provider, model: Model): TokenDialect {
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
+
   return resolveEndpointTokenDialect(endpointType)
 }

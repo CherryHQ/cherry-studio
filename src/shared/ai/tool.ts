@@ -15,5 +15,7 @@ export const ToolSchema = z.strictObject({
 })
 
 export type Tool = z.infer<typeof ToolSchema>
+
 export type ToolApproval = z.infer<typeof ToolApprovalSchema>
+
 export type ToolOrigin = z.infer<typeof ToolOriginSchema>

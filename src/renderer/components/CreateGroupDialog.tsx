@@ -60,14 +60,17 @@ export function CreateGroupDialog<TResult>({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
     if (!open || submitting) return
 
     const normalizedName = name.trim()
     setHasAttemptedSubmit(true)
     setSubmitError(null)
+
     if (!normalizedName) return
 
     setIsSubmittingInternally(true)
+
     try {
       await onCreate(normalizedName)
       onOpenChange(false)

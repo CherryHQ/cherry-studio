@@ -33,12 +33,19 @@ const logger = loggerService.withContext('AiSdkToOpenAiResponsesSse')
  * Use SDK types for events
  */
 type Response = OpenAI.Responses.Response
+
 type ResponseStreamEvent = OpenAI.Responses.ResponseStreamEvent
+
 type ResponseUsage = OpenAI.Responses.ResponseUsage
+
 type ResponseStatus = OpenAI.Responses.ResponseStatus
+
 type ResponseOutputMessage = OpenAI.Responses.ResponseOutputMessage
+
 type ResponseFunctionToolCall = OpenAI.Responses.ResponseFunctionToolCall
+
 type ResponseOutputItem = OpenAI.Responses.ResponseOutputItem
+
 type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem
 
 /**
@@ -165,17 +172,21 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       output_tokens: this.state.outputTokens,
       total_tokens: this.state.inputTokens + this.state.outputTokens
     }
+
     if (this.state.cacheReadTokens !== undefined) {
       usage.input_tokens_details = { cached_tokens: this.state.cacheReadTokens }
     }
+
     if (this.state.reasoningTokens !== undefined) {
       usage.output_tokens_details = { reasoning_tokens: this.state.reasoningTokens }
     }
+
     return usage
   }
 
   private buildIncompleteDetails(): Response['incomplete_details'] {
     const reason = this.finishReason
+
     return reason === 'max_output_tokens' || reason === 'content_filter' ? { reason } : null
   }
 
@@ -204,6 +215,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       response: this.buildResponseForEvent('in_progress'),
       sequence_number: this.nextSequence()
     }
+
     this.emit(createdEvent)
 
     // Emit response.in_progress
@@ -212,6 +224,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       response: this.buildResponseForEvent('in_progress'),
       sequence_number: this.nextSequence()
     }
+
     this.emit(inProgressEvent)
   }
 
@@ -282,6 +295,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
 
       case 'reasoning-end':
         this.ensureReasoningItem(chunk.providerMetadata)
+
         // Native summary parts share one item; the final part supplies its encrypted content.
         if (!this.reasoning?.native) this.closeReasoningItem()
         break
@@ -317,11 +331,15 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
+
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
     }
+
     if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
       this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
     }
@@ -345,6 +363,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       logprobs: [],
       sequence_number: this.nextSequence()
     }
+
     this.emit(event)
   }
 
@@ -373,9 +392,12 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private ensureReasoningItem(metadata?: ProviderMetadata, hasText = false): void {
     const native = metadata?.openai ?? metadata?.azure
     const itemId = typeof native?.itemId === 'string' ? native.itemId : undefined
+
     const encryptedContent =
       typeof native?.reasoningEncryptedContent === 'string' ? native.reasoningEncryptedContent : undefined
+
     if (itemId && this.reasoning && this.reasoning.itemId !== itemId) this.closeReasoningItem()
+
     if (!this.reasoning && (hasText || itemId || encryptedContent)) {
       const outputIndex = this.nextOutputIndex++
       this.reasoning = {
@@ -435,6 +457,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       ...(encryptedContent !== undefined && { encrypted_content: encryptedContent }),
       status: 'completed'
     }
+
     this.outputItems.set(outputIndex, item)
     this.emit({
       type: 'response.output_item.done',
@@ -571,6 +594,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       logprobs: [],
       sequence_number: this.nextSequence()
     }
+
     this.emit(textDoneEvent)
 
     // Emit content_part.done
@@ -586,9 +610,11 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       },
       sequence_number: this.nextSequence()
     }
+
     this.emit(contentPartDoneEvent)
 
     const status = this.terminalStatus()
+
     const finalMessage: ResponseOutputMessage = {
       type: 'message',
       id: this.outputItemId,
@@ -602,6 +628,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         }
       ]
     }
+
     this.outputItems.set(outputIndex, finalMessage)
 
     // Emit output_item.done
@@ -611,6 +638,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       item: finalMessage,
       sequence_number: this.nextSequence()
     }
+
     this.emit(outputItemDoneEvent)
 
     const terminalEvent: ResponseStreamEvent = {
@@ -621,6 +649,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       },
       sequence_number: this.nextSequence()
     }
+
     this.emit(terminalEvent)
   }
 

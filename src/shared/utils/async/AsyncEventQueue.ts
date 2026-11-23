@@ -7,16 +7,20 @@ export class AsyncEventQueue<T> implements AsyncIterable<T> {
   push(item: T): void {
     if (this.closed) return
     const waiter = this.waiters.shift()
+
     if (waiter) {
       waiter({ value: item, done: false })
+
       return
     }
+
     this.items.push(item)
   }
 
   close(): void {
     if (this.closed) return
     this.closed = true
+
     while (this.waiters.length > 0) {
       this.waiters.shift()?.({ value: undefined as T, done: true })
     }
@@ -26,7 +30,9 @@ export class AsyncEventQueue<T> implements AsyncIterable<T> {
     return {
       next: () => {
         if (this.items.length > 0) return Promise.resolve({ value: this.items.shift() as T, done: false })
+
         if (this.closed) return Promise.resolve({ value: undefined as T, done: true })
+
         return new Promise<IteratorResult<T>>((resolve) => {
           this.waiters.push(resolve)
         })

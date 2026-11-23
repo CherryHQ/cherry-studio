@@ -4,6 +4,7 @@ import { SensenovaLight } from './light'
 
 const Sensenova = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SensenovaLight {...props} className={className} />
+
   return <SensenovaLight {...props} className={className} />
 }
 

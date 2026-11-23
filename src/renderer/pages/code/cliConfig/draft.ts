@@ -42,9 +42,11 @@ const OLLAMA_FALLBACK_TOOLS: string[] = [CodeCli.CLAUDE_CODE, CodeCli.OPEN_CODE,
 
 async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConfigContext | null> {
   if (!FILE_CONFIGURED_CLI_TOOLS.has(args.cliTool)) return null
+
   if (!isUniqueModelId(args.modelId)) {
     throw new Error(`Invalid model id: ${args.modelId}`)
   }
+
   const { providerId, modelId: model } = parseUniqueModelId(args.modelId)
 
   // Cherry gateway: resolve against the synthetic gateway provider + gateway key instead of the
@@ -57,8 +59,10 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
       .then((record) => record as Model | null)
       .catch((error) => {
         logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+
         return null
       })
+
     return {
       provider: args.gateway.provider,
       apiKey: args.gateway.apiKey,
@@ -70,6 +74,7 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
       configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)
     }
   }
+
   // The three reads are independent; run them concurrently (this resolver reruns
   // on every advanced-field keystroke in the edit panel).
   const [provider, apiKeysRes, modelRecord] = await Promise.all([
@@ -79,14 +84,17 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     // so a fetch failure degrades the config quietly — leave a breadcrumb.
     dataApiService.get(`/models/${args.modelId}`).catch((error) => {
       logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+
       return null
     })
   ])
+
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
   }
 
   const apiKey = firstApiKey(apiKeysRes?.keys)
+
   // Keyless local servers (authOptional, e.g. Ollama, oMLX) need no real credential,
   // but the CLI SDKs still require a non-empty auth token — same per-provider
   // stand-in OpenClaw injects. Ollama-endpoint custom providers keep the
@@ -116,12 +124,15 @@ export async function readCliConfigFiles(
   const targets = getCliConfigTargets(cliTool)
   const read = await readConfigFiles(targets)
   const files = targets.map((target) => makeDraftFile(target, readDraftFileText(target, undefined, read), read))
+
   return options.includeEmpty || files.some((file) => file.content.trim()) ? files : []
 }
 
 export async function readCliConfigDraft(args: CliConfigDraftBuildArgs): Promise<CliConfigFileDraft[]> {
   const context = await resolveContext(args)
+
   if (!context) return []
+
   return buildCliConfigDraftFiles(args, context)
 }
 
@@ -151,6 +162,7 @@ export async function writeCliConfigDraft(args: {
   gateway?: CliConfigGatewayContext
 }): Promise<void> {
   let files = args.files
+
   if (args.modelId) {
     const writeArgs: CliConfigDraftBuildArgs = {
       cliTool: args.cliTool,
@@ -160,9 +172,12 @@ export async function writeCliConfigDraft(args: {
       gateway: args.gateway,
       files: args.files
     }
+
     const context = await resolveContext(writeArgs)
+
     if (!context) return
     assertCliConfigCredentials(args.cliTool, context)
+
     // Gateway: always rebuild so the freshly-resolved gateway key/model is (re)injected — the preview
     // draft may carry a stale/empty key built before the gateway started. Passing `args.files` as the
     // merge base keeps the user's hand-edited unmanaged fields (managed credential/model are
@@ -173,19 +188,24 @@ export async function writeCliConfigDraft(args: {
   } else if (!files?.length) {
     throw new Error('Cannot write CLI config without a model id')
   }
+
   validateCliConfigDraftForWrite(files)
 
   if (!isFileConfiguredCli(args.cliTool)) {
     throw new Error(`${args.cliTool} does not use config files`)
   }
+
   const result = await ipcApi.request('code_cli.write_config', {
     cliTool: args.cliTool,
     files: files.map(({ target, content }) => ({ target, content }))
   })
+
   if (!result.success) {
     throw new Error(result.message)
   }
+
   logger.info(`Applied ${args.cliTool} config`)
+
   return undefined
 }
 
@@ -212,9 +232,11 @@ async function buildOwnLoginConfigDraftFiles(
   configBlob: NonNullable<CliConfigWriteArgs['configBlob']>
 ): Promise<CliConfigFileDraft[]> {
   const adapter = getAdapter(cliTool)
+
   if (!adapter?.buildOwnLoginDraft) {
     throw new Error(`Own-login config is not supported for ${cliTool}`)
   }
+
   return adapter.buildOwnLoginDraft(sanitizeCliConfigBlob(cliTool, configBlob))
 }
 
@@ -245,5 +267,6 @@ export async function writeOwnLoginCliConfigDraft(args: {
   const files = args.files?.length
     ? args.files
     : await buildOwnLoginConfigDraftFiles(args.cliTool, args.configBlob ?? {})
+
   await writeCliConfigDraft({ cliTool: args.cliTool, files })
 }

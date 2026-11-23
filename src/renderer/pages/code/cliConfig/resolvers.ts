@@ -27,6 +27,7 @@ export interface PiProviderInfo {
 }
 
 export const HERMES_API_MODES = ['anthropic_messages', 'chat_completions', 'codex_responses'] as const
+
 export type HermesApiMode = (typeof HERMES_API_MODES)[number]
 
 export interface HermesProviderInfo {
@@ -39,6 +40,7 @@ export { resolveGeminiBaseUrl }
 
 export function resolveClaudeBaseUrl(provider: Provider): string {
   const baseUrl = provider.endpointConfigs?.['anthropic-messages']?.baseUrl
+
   return baseUrl ? withoutTrailingApiVersion(formatApiHost(baseUrl, false)) : ''
 }
 
@@ -49,6 +51,7 @@ export function resolveCodexBaseUrl(provider: Provider): string {
 export function resolveOpenAIBaseUrl(provider: Provider): string {
   const responses = provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl
   const chat = provider.endpointConfigs?.[CODEX_CHAT_ENDPOINT]?.baseUrl
+
   return formatApiHost(responses ?? chat)
 }
 
@@ -58,6 +61,7 @@ const OPEN_CODE_NPM_ENTRIES: Array<Pick<OpenCodeNpmInfo, 'endpointType' | 'npm' 
   { endpointType: 'anthropic-messages', npm: '@ai-sdk/anthropic', providerType: 'anthropic' },
   { endpointType: 'openai-responses', npm: '@ai-sdk/openai', providerType: 'openai' }
 ]
+
 const OPEN_CODE_DEFAULT_NPM_INFO: Pick<OpenCodeNpmInfo, 'npm' | 'providerType'> = {
   npm: '@ai-sdk/openai-compatible',
   providerType: 'openai-compatible'
@@ -65,6 +69,7 @@ const OPEN_CODE_DEFAULT_NPM_INFO: Pick<OpenCodeNpmInfo, 'npm' | 'providerType'> 
 
 function toOpenCodeNpmInfo(endpointType: EndpointType): OpenCodeNpmInfo {
   const entry = OPEN_CODE_NPM_ENTRIES.find((e) => e.endpointType === endpointType)
+
   return {
     npm: entry?.npm ?? OPEN_CODE_DEFAULT_NPM_INFO.npm,
     providerType: entry?.providerType ?? OPEN_CODE_DEFAULT_NPM_INFO.providerType,
@@ -79,6 +84,7 @@ function resolveSupportedEndpointType(
   fallbackEndpoint: EndpointType
 ): EndpointType {
   const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
+
   const isSupported = (type: EndpointType | undefined): type is EndpointType =>
     Boolean(type && supportedEndpoints.includes(type))
 
@@ -95,6 +101,7 @@ function resolveSupportedEndpointType(
 /** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */
 export function openCodeNpmInfoFromNpmPackage(npm: string): OpenCodeNpmInfo {
   const entry = OPEN_CODE_NPM_ENTRIES.find((e) => e.npm === npm)
+
   return {
     npm,
     providerType: entry?.providerType ?? OPEN_CODE_DEFAULT_NPM_INFO.providerType,
@@ -115,13 +122,16 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
     PI_ENDPOINTS,
     'openai-chat-completions'
   )
+
   const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+
   const apiByEndpoint: Partial<Record<EndpointType, PiApi>> = {
     'anthropic-messages': 'anthropic-messages',
     'google-generate-content': 'google-generative-ai',
     'openai-chat-completions': 'openai-completions',
     'openai-responses': 'openai-responses'
   }
+
   const baseUrl =
     endpointType === 'google-generate-content'
       ? formatApiHost(rawBaseUrl, true, 'v1beta')
@@ -139,13 +149,16 @@ export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes
     HERMES_ENDPOINTS,
     'openai-chat-completions'
   )
+
   const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+
   const apiMode: HermesApiMode =
     endpointType === 'anthropic-messages'
       ? 'anthropic_messages'
       : endpointType === 'openai-responses'
         ? 'codex_responses'
         : 'chat_completions'
+
   const baseUrl =
     endpointType === 'anthropic-messages'
       ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false))
@@ -173,13 +186,16 @@ export function resolveMinimaxProviderInfo(
     MINIMAX_ENDPOINTS,
     'openai-chat-completions'
   )
+
   const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+
   const api: MinimaxApi =
     endpointType === 'anthropic-messages'
       ? 'anthropic-messages'
       : endpointType === 'openai-responses'
         ? 'openai-responses'
         : 'openai-completions'
+
   const baseUrl =
     endpointType === 'anthropic-messages'
       ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false))

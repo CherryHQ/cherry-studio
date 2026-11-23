@@ -131,6 +131,9 @@ export const ProviderModelListSchema = z.object({
 
 // Type exports
 export type CapabilityOverride = z.infer<typeof CapabilityOverrideSchema>
+
 export type ProviderModelReasoningContract = z.infer<typeof ProviderModelReasoningContractSchema>
+
 export type ProviderModelOverride = z.infer<typeof ProviderModelOverrideSchema>
+
 export type ProviderModelList = z.infer<typeof ProviderModelListSchema>

@@ -25,12 +25,16 @@ function getRecoveryTime(plans: CherryCloudAccountPlans | undefined, cloudModelI
     .filter((pool) => pool.model_ids.includes(cloudModelId))
     .flatMap((pool) => {
       const exhausted = pool.windows.filter((window) => window.used_units >= window.limit_units)
+
       const times = exhausted.map((window) => {
         const recoversAt = getQuotaRecoveryTime(window)
+
         return recoversAt ? Date.parse(recoversAt) : NaN
       })
+
       return exhausted.length > 0 && times.every(Number.isFinite) ? [Math.max(...times)] : []
     })
+
   return poolRecoveries.length > 0 ? new Date(Math.min(...poolRecoveries)).toISOString() : undefined
 }
 
@@ -40,27 +44,35 @@ export function useCherryCloudQuotaExhaustion(
   includeAgentOnlyModels = false
 ): CherryCloudQuotaExhaustion | null {
   const isCloudModel = Boolean(model && isManagedCherryCloudModel(model.providerId))
+
   const { isModelFree, isModelLocked, isModelUnavailable, availabilityFreshness, availabilityError } =
     useCherryCloudModelAvailability(isCloudModel)
+
   const locked = Boolean(model && isCloudModel && isModelLocked(model, includeAgentOnlyModels))
   const exhausted = Boolean(model && isCloudModel && !locked && isModelUnavailable(model))
+
   const { session, plansQuery, activePaid, upcomingPaid, isPlansReady, plansFreshness } =
     useCherryCloudPlans(isCloudModel)
+
   const phase = session.status?.phase
 
   return useMemo<CherryCloudQuotaExhaustion | null>(() => {
     if (!model || !isCloudModel) return null
+
     const base = {
       isFreeModel: isModelFree(model),
       isSubscribed: isPlansReady ? Boolean(activePaid || upcomingPaid) : undefined
     }
+
     if (availabilityFreshness !== 'fresh')
       return {
         ...base,
         reason: 'unknown',
         state: availabilityError ? 'error' : availabilityFreshness === 'stale' ? 'stale' : 'loading'
       }
+
     if (!(locked || exhausted)) return null
+
     if (exhausted) {
       return {
         ...base,
@@ -68,7 +80,9 @@ export function useCherryCloudQuotaExhaustion(
         recoversAt: getRecoveryTime(isPlansReady ? plansQuery.data : undefined, parseUniqueModelId(model.id).modelId)
       }
     }
+
     if (phase === 'signed-out') return { ...base, reason: 'sign_in_required' }
+
     if (phase !== 'signed-in' || !isPlansReady)
       return {
         ...base,
@@ -76,6 +90,7 @@ export function useCherryCloudQuotaExhaustion(
         state:
           session.loadState === 'error' || plansQuery.error ? 'error' : plansFreshness === 'stale' ? 'stale' : 'loading'
       }
+
     return { ...base, reason: !activePaid && !upcomingPaid ? 'subscription_required' : 'not_in_plan' }
   }, [
     activePaid,

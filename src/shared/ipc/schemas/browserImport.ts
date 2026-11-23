@@ -9,7 +9,9 @@ export const BrowserImportSourceSchema = z.object({
   history: z.boolean(),
   cookies: z.enum(['supported', 'requires_authorization', 'unavailable'])
 })
+
 export type BrowserImportSource = z.infer<typeof BrowserImportSourceSchema>
+
 export const BrowserImportOptionsSchema = z
   .strictObject({
     sourceId: z.string().optional(),
@@ -27,7 +29,9 @@ export const BrowserImportOptionsSchema = z
       .max(100)
   })
   .refine((v) => v.history || v.cookies || v.localStorage, 'Select at least one category')
+
 export type BrowserImportOptions = z.infer<typeof BrowserImportOptionsSchema>
+
 export const BrowserImportReasonSchema = z.enum([
   'expired',
   'partitioned',
@@ -39,7 +43,9 @@ export const BrowserImportReasonSchema = z.enum([
   'decryption_failed',
   'source_unavailable'
 ])
+
 export type BrowserImportReason = z.infer<typeof BrowserImportReasonSchema>
+
 const CategoryResultSchema = z.object({
   imported: z.number(),
   skipped: z.number(),
@@ -47,10 +53,12 @@ const CategoryResultSchema = z.object({
   unsupported: z.boolean(),
   reasons: z.partialRecord(BrowserImportReasonSchema, z.number().int().positive()).optional()
 })
+
 export const BrowserImportResultSchema = z.object({
   cancelled: z.boolean(),
   history: CategoryResultSchema,
   cookies: CategoryResultSchema,
   localStorage: CategoryResultSchema
 })
+
 export type BrowserImportResult = z.infer<typeof BrowserImportResultSchema>

@@ -13,6 +13,7 @@ function runGitBytes(cwd, args) {
     env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', LANG: 'C', LC_ALL: 'C' },
     maxBuffer: MAX_GIT_OUTPUT
   })
+
   return { ...result, stdout: result.stdout ?? Buffer.alloc(0), stderr: result.stderr ?? Buffer.alloc(0) }
 }
 
@@ -26,18 +27,22 @@ function decode(output, context) {
 
 function requireGit(cwd, args, context) {
   const result = runGitBytes(cwd, args)
+
   if (result.status !== 0) {
     const detail = result.error?.message ?? decode(result.stderr, context).trim() ?? `status ${String(result.status)}`
     throw new Error(`${context}: ${detail}`)
   }
+
   return result.stdout
 }
 
 function parsePathSet(output, context) {
   const paths = []
   let start = 0
+
   for (let end = 0; end < output.length; end += 1) {
     if (output[end] !== 0) continue
+
     if (end > start) {
       try {
         paths.push(UTF8.decode(output.subarray(start, end)))
@@ -45,8 +50,10 @@ function parsePathSet(output, context) {
         throw new Error(`${context}: Git path is not valid UTF-8`)
       }
     }
+
     start = end + 1
   }
+
   return [...new Set(paths)].sort()
 }
 
@@ -59,7 +66,9 @@ function resolveCommit(root, label, ref) {
     ),
     `cannot resolve ${label}`
   ).trim()
+
   if (!/^[0-9a-f]{40}$/u.test(output)) throw new Error(`${label} ${JSON.stringify(ref)} did not resolve to one commit`)
+
   return output
 }
 
@@ -86,12 +95,15 @@ function diffPaths(root, args, context) {
 
 export function collectChangeScope({ base, head = 'HEAD' }, cwd = process.cwd()) {
   if (!base) throw new Error('missing required --base <ref>')
+
   const root = decode(
     requireGit(cwd, ['rev-parse', '--show-toplevel'], 'cannot locate a Git worktree'),
     'repository root'
   ).trim()
+
   const baseSha = resolveCommit(root, 'base', base)
   const headSha = resolveCommit(root, 'head', head)
+
   const mergeBases = decode(
     requireGit(root, ['merge-base', '--all', baseSha, headSha], 'cannot resolve merge base'),
     'merge base'
@@ -99,6 +111,7 @@ export function collectChangeScope({ base, head = 'HEAD' }, cwd = process.cwd())
     .trim()
     .split(/\r?\n/u)
     .filter(Boolean)
+
   if (mergeBases.length !== 1)
     throw new Error(`base and head do not have a unique merge base; found ${mergeBases.length}`)
   const mergeBaseSha = mergeBases[0]
@@ -130,6 +143,7 @@ export function renderChangeScope(args, cwd = process.cwd()) {
       head: { type: 'string', default: 'HEAD' }
     }
   })
+
   return `${JSON.stringify(collectChangeScope({ base: values.base, head: values.head }, cwd), null, 2)}\n`
 }
 

@@ -18,6 +18,7 @@ const SettingsFocusUrl = () => {
 
   useEffect(() => {
     const focusId = (search as { focusId?: unknown }).focusId
+
     // Empty string included: a blank anchor must not reach querySelector('#')
     if (typeof focusId !== 'string' || !focusId) return
     setPendingFocus(focusId)
@@ -28,6 +29,7 @@ const SettingsFocusUrl = () => {
       search: (prev: typeof search & { focusId?: unknown }) => {
         const rest = { ...prev }
         delete rest.focusId
+
         return rest
       },
       replace: true

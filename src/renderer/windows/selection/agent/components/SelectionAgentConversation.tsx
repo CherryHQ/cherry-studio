@@ -40,8 +40,10 @@ import { SelectionAgentHeader } from './SelectionAgentHeader'
 const logger = loggerService.withContext('SelectionAgentConversation')
 
 const NO_RESERVED_MESSAGES: CherryUIMessage[] = []
+
 // Even with the composer's bottom margin, so the small window has one inset on every edge.
 const SIDE_PADDING_PX = 12
+
 // Ends message text at the composer's send button, balancing the avatar column on the left.
 const MESSAGE_END_INSET_PX = 12
 
@@ -66,6 +68,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   const { model, isLoading: modelLoading } = useModelById(session?.model ?? agent?.model)
   const workspacePath = session?.workspace?.type === 'user' ? session.workspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
+
   const runtime = useAgentChatRuntimeState({
     sessionId,
     modelId: model?.id,
@@ -93,6 +96,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   const topicId = buildAgentSessionTopicId(sessionId)
   const { status, awaitingApprovalAnchors } = useTopicStreamStatus(topicId)
   const [turnSeen, setTurnSeen] = useState(false)
+
   if (status && !turnSeen) setTurnSeen(true)
   const turn = classifyTurn(status)
   // An MCP approval can outlive its stream, which ends as done while the anchor still waits.
@@ -125,6 +129,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   // The main window composer receives the unsent draft; this window closes only once it has landed.
   const openInMainWindow = async () => {
     setHandingOff(true)
+
     try {
       await ipcApi.request('navigation.focus_or_open_conversation', {
         target: { conversationType: 'agent', conversationId: sessionId },

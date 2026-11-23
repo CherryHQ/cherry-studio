@@ -54,6 +54,7 @@ const discordAttachmentSchema = z.object({
   content_type: z.string().optional(),
   size: z.number()
 })
+
 const discordMessageSchema = z.object({
   id: z.string(),
   channel_id: z.string(),
@@ -62,6 +63,7 @@ const discordMessageSchema = z.object({
   content: z.string(),
   attachments: z.array(discordAttachmentSchema).optional()
 })
+
 const discordReadySchema = z.object({
   session_id: z.string(),
   resume_gateway_url: z.string(),
@@ -70,6 +72,7 @@ const discordReadySchema = z.object({
 })
 
 type DiscordAttachment = z.infer<typeof discordAttachmentSchema>
+
 type DiscordMessage = z.infer<typeof discordMessageSchema>
 
 /**
@@ -105,6 +108,7 @@ class DiscordStreamingController {
     if (this._completed || (!text && !this.messageId && !this.messageCreationPromise)) return
     this.currentText = text
     await this.ensureMessageCreated()
+
     if (this.messageId) {
       await this.flush.throttledUpdate(DISCORD_STREAM_THROTTLE_MS)
     }
@@ -116,6 +120,7 @@ class DiscordStreamingController {
     this.flush.complete()
 
     if (this.messageCreationPromise) await this.messageCreationPromise
+
     if (!this.messageId) return false
 
     await this.flush.waitForFlush()
@@ -123,11 +128,13 @@ class DiscordStreamingController {
     try {
       this.currentText = finalText
       await this.editMessage(finalText)
+
       return true
     } catch (error) {
       this.log.warn('Failed to finalize Discord stream', {
         error: error instanceof Error ? error.message : String(error)
       })
+
       return false
     }
   }
@@ -138,6 +145,7 @@ class DiscordStreamingController {
     this.flush.complete()
 
     if (this.messageCreationPromise) await this.messageCreationPromise
+
     if (!this.messageId) return
 
     await this.flush.waitForFlush()
@@ -146,6 +154,7 @@ class DiscordStreamingController {
       const displayText = this.currentText
         ? `${this.currentText}\n\n---\n**Error**: ${errorMessage}`
         : `**Error**: ${errorMessage}`
+
       await this.editMessage(displayText)
     } catch {
       // Best-effort error update
@@ -162,10 +171,13 @@ class DiscordStreamingController {
 
   private async ensureMessageCreated(): Promise<void> {
     if (this.messageId) return
+
     if (this.messageCreationPromise) {
       await this.messageCreationPromise
+
       return
     }
+
     this.messageCreationPromise = this.createMessage()
     await this.messageCreationPromise
   }
@@ -176,6 +188,7 @@ class DiscordStreamingController {
         method: 'POST',
         body: { content: this.currentText || '...' }
       })
+
       const data = (await response.json()) as { id?: string }
       this.messageId = data.id ?? null
     } catch (error) {
@@ -187,12 +200,14 @@ class DiscordStreamingController {
 
   private async editMessage(text: string): Promise<void> {
     if (!this.messageId) return
+
     // Discord messages max 2000 chars — truncate with indicator if needed,
     // keeping any surrogate pair at the cut whole so we don't send a lone surrogate.
     const content =
       text.length > DISCORD_MAX_LENGTH
         ? text.slice(0, clampSurrogateBoundary(text, DISCORD_MAX_LENGTH - 3)) + '...'
         : text
+
     await this.apiRequest(`${DISCORD_API_BASE}/channels/${this.discordChannelId}/messages/${this.messageId}`, {
       method: 'PATCH',
       body: { content }
@@ -201,6 +216,7 @@ class DiscordStreamingController {
 
   private async performFlush(): Promise<void> {
     if (!this.messageId) return
+
     try {
       await this.editMessage(this.currentText || t('common.channel_processing'))
     } catch {
@@ -211,12 +227,14 @@ class DiscordStreamingController {
 
 // Discord Interaction types
 const INTERACTION_TYPE_APPLICATION_COMMAND = 2
+
 // Interaction callback response types
 const INTERACTION_CALLBACK_CHANNEL_MESSAGE = 4
 const INTERACTION_CALLBACK_DEFERRED_CHANNEL_MESSAGE = 5
 
 const discordInteractionTypeSchema = z.object({ type: z.number() })
 const discordInteractionUserSchema = z.object({ id: z.string(), username: z.string() })
+
 const discordInteractionSchema = z.object({
   id: z.string(),
   type: z.literal(INTERACTION_TYPE_APPLICATION_COMMAND),
@@ -273,9 +291,11 @@ class DiscordAdapter extends ChannelAdapter {
 
   protected override async performDisconnect(): Promise<void> {
     this.shouldStop = true
+
     for (const controller of this.streamingControllers.values()) {
       controller.dispose()
     }
+
     this.streamingControllers.clear()
     this.cleanup()
     this.log.info('Discord bot stopped')
@@ -291,11 +311,14 @@ class DiscordAdapter extends ChannelAdapter {
       },
       signal
     })
+
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
       throw new Error(`Failed to get gateway URL: HTTP ${response.status} - ${errorText}`)
     }
+
     const data = (await response.json()) as { url: string }
+
     return data.url
   }
 
@@ -307,6 +330,7 @@ class DiscordAdapter extends ChannelAdapter {
       this.cleanup()
 
       const gatewayUrl = this.resumeGatewayUrl ?? (await this.getGatewayUrl(signal))
+
       if (signal?.aborted || this.shouldStop) return
       const wsUrl = `${gatewayUrl}?v=10&encoding=json`
       this.log.info('Connecting to Discord gateway', { url: wsUrl })
@@ -329,6 +353,7 @@ class DiscordAdapter extends ChannelAdapter {
       ws.on('close', (code, reason) => {
         this.markDisconnected(`WebSocket closed: ${code}`)
         this.log.warn(`WebSocket closed (code=${code}, reason=${reason.toString()})`)
+
         // 4004 = Authentication failed — do not reconnect
         if (code !== 4004) {
           this.scheduleReconnect()
@@ -355,6 +380,7 @@ class DiscordAdapter extends ChannelAdapter {
 
   private async handleWsMessage(data: Buffer): Promise<void> {
     let payload: { op: number; d?: unknown; s?: number; t?: string }
+
     try {
       payload = JSON.parse(data.toString())
     } catch {
@@ -385,6 +411,7 @@ class DiscordAdapter extends ChannelAdapter {
         break
       case OP_INVALID_SESSION: {
         const resumable = payload.d === true
+
         if (resumable && this.sessionId) {
           // Wait 1-5s as per Discord docs then resume
           await new Promise((r) => setTimeout(r, 1000 + Math.random() * 4000))
@@ -396,6 +423,7 @@ class DiscordAdapter extends ChannelAdapter {
           await new Promise((r) => setTimeout(r, 1000 + Math.random() * 4000))
           this.sendIdentify()
         }
+
         break
       }
     }
@@ -413,8 +441,10 @@ class DiscordAdapter extends ChannelAdapter {
         if (!this.heartbeatAcked) {
           this.log.warn('Discord heartbeat not acked, reconnecting')
           this.ws?.close(4000, 'Heartbeat timeout')
+
           return
         }
+
         this.heartbeatAcked = false
         this.sendHeartbeat()
       }, data.heartbeat_interval)
@@ -497,6 +527,7 @@ class DiscordAdapter extends ChannelAdapter {
         })
         break
       }
+
       case 'RESUMED':
         this.reconnectAttempts = 0
         this.markConnected()
@@ -509,6 +540,7 @@ class DiscordAdapter extends ChannelAdapter {
         if (discordInteractionTypeSchema.parse(data).type === INTERACTION_TYPE_APPLICATION_COMMAND) {
           await this.handleInteraction(discordInteractionSchema.parse(data))
         }
+
         break
     }
   }
@@ -522,13 +554,16 @@ class DiscordAdapter extends ChannelAdapter {
     if (!this.isAllowed(chatId, msg.channel_id)) return
 
     const { text, imageUrls, fileAttachments } = this.parseMessageContent(msg)
+
     if (!text && imageUrls.length === 0 && fileAttachments.length === 0) return
 
     if (isSlashCommand(text)) {
       if (text.startsWith('/whoami')) {
         await this.sendWhoami(chatId)
+
         return
       }
+
       const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
       this.emit('command', {
         chatId,
@@ -539,17 +574,21 @@ class DiscordAdapter extends ChannelAdapter {
     } else {
       // Download images in parallel, converting to base64
       let images: ImageAttachment[] | undefined
+
       if (imageUrls.length > 0) {
         const results = await Promise.all(imageUrls.map((url) => downloadImageAsBase64(url)))
         const downloaded = results.filter((r): r is ImageAttachment => r !== null)
+
         if (downloaded.length > 0) images = downloaded
       }
 
       // Download non-image file attachments in parallel
       let files: FileAttachment[] | undefined
+
       if (fileAttachments.length > 0) {
         const results = await Promise.all(fileAttachments.map((att) => downloadFileAsBase64(att.url, att.filename)))
         const downloaded = results.filter((r): r is FileAttachment => r !== null)
+
         if (downloaded.length > 0) files = downloaded
       }
 
@@ -587,6 +626,7 @@ class DiscordAdapter extends ChannelAdapter {
 
   private isAllowed(chatId: string, rawChannelId?: string): boolean {
     if (this.allowedChannelIds.length === 0) return true
+
     return (
       this.allowedChannelIds.includes(chatId) ||
       (rawChannelId !== undefined && this.allowedChannelIds.includes(rawChannelId))
@@ -640,12 +680,14 @@ class DiscordAdapter extends ChannelAdapter {
 
     if (!this.isAllowed(chatId, interaction.channel_id)) {
       await this.respondToInteraction(interaction, 'This bot is not enabled in this channel.', true)
+
       return
     }
 
     if (commandName === 'whoami') {
       const [type] = chatId.split(':')
       const typeLabel = type === 'dm' ? 'Direct Message' : 'Guild Channel'
+
       const info = [
         `**Chat Info**`,
         `Type: ${typeLabel}`,
@@ -653,7 +695,9 @@ class DiscordAdapter extends ChannelAdapter {
         ``,
         `Add \`${chatId}\` to Allowed Channel IDs in Agent Settings to enable notifications.`
       ].join('\n')
+
       await this.respondToInteraction(interaction, info, true)
+
       return
     }
 
@@ -674,6 +718,7 @@ class DiscordAdapter extends ChannelAdapter {
     ephemeral = false
   ): Promise<void> {
     const data = { content }
+
     if (ephemeral) Object.assign(data, { flags: DISCORD_FLAG_EPHEMERAL })
     await net.fetch(`${DISCORD_API_BASE}/interactions/${interaction.id}/${interaction.token}/callback`, {
       method: 'POST',
@@ -714,6 +759,7 @@ class DiscordAdapter extends ChannelAdapter {
 
   async sendTypingIndicator(chatId: string): Promise<void> {
     const channelId = chatId.split(':')[1]
+
     try {
       await this.apiRequest(`${DISCORD_API_BASE}/channels/${channelId}/typing`, {
         method: 'POST'
@@ -728,16 +774,20 @@ class DiscordAdapter extends ChannelAdapter {
   override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
     const discordChannelId = chatId.split(':')[1]
     let controller = this.streamingControllers.get(chatId)
+
     if (!controller || controller.completed) {
       controller = new DiscordStreamingController(discordChannelId, this.apiRequest.bind(this), this.log)
       this.streamingControllers.set(chatId, controller)
     }
+
     await controller.onText(fullText)
   }
 
   override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
     const controller = this.streamingControllers.get(chatId)
+
     if (!controller) return false
+
     try {
       return await controller.complete(finalText)
     } finally {
@@ -752,10 +802,13 @@ class DiscordAdapter extends ChannelAdapter {
     options?: ChannelStreamErrorOptions
   ): Promise<boolean> {
     const controller = this.streamingControllers.get(chatId)
+
     if (!controller) return false
+
     try {
       if (options?.suppressDelivery) controller.dispose()
       else await controller.error(error)
+
       return true
     } finally {
       this.streamingControllers.delete(chatId)
@@ -776,6 +829,7 @@ class DiscordAdapter extends ChannelAdapter {
         'User-Agent': USER_AGENT
       }
     }
+
     if (options?.body) request.body = JSON.stringify(options.body)
     const response = await net.fetch(url, request)
 
@@ -794,18 +848,22 @@ class DiscordAdapter extends ChannelAdapter {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
+
     if (this.heartbeatJitterTimer) {
       clearTimeout(this.heartbeatJitterTimer)
       this.heartbeatJitterTimer = null
     }
+
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
     }
+
     if (this.ws) {
       if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
         this.ws.close()
       }
+
       this.ws = null
     }
   }
@@ -816,6 +874,7 @@ class DiscordAdapter extends ChannelAdapter {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.markDisconnected('Max reconnect attempts reached')
       this.log.error('Max reconnect attempts reached, giving up')
+
       return
     }
 
@@ -826,6 +885,7 @@ class DiscordAdapter extends ChannelAdapter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
+
       if (!this.shouldStop) {
         this.startGateway().catch((err) => {
           this.log.error('Reconnect failed', {

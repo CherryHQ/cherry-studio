@@ -619,7 +619,9 @@ export function defaultBundleForCapability(capability: ModelBundle['capability']
  * bug — the alternative is silently loading a different quantization than was downloaded. */
 export function bundleDtype(bundle: ModelBundle): string {
   const dtype = bundle.runtime?.dtype
+
   if (!dtype) throw new Error(`bundle "${bundle.id}" declares no runtime dtype`)
+
   return dtype
 }
 
@@ -627,6 +629,8 @@ export function bundleDtype(bundle: ModelBundle): string {
  * so a renamed file surfaces at the call site instead of as a silent `undefined` path. */
 export function bundleFile(bundle: ModelBundle, key: string): ModelBundle['files'][number] {
   const file = bundle.files.find((entry) => entry.key === key)
+
   if (!file) throw new Error(`bundle "${bundle.id}" has no file with key "${key}"`)
+
   return file
 }

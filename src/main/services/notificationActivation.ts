@@ -14,20 +14,25 @@ const logger = loggerService.withContext('notificationActivation')
 
 export async function activateNotification(id: string): Promise<void> {
   const record = notificationRecordService.getById(id)
+
   if (!record) throw new Error(t('notification.center.target_unavailable'))
   notificationRecordService.markRead(id)
   const target = record.target
+
   if (!target) return
+
   if (target.kind === 'conversation') {
     try {
       const entity =
         target.conversationType === 'agent'
           ? agentSessionService.getById(target.conversationId)
           : topicService.getById(target.conversationId)
+
       if (entity.deletedAt) throw new Error('Deleted conversation')
     } catch {
       throw new Error(t('notification.center.target_unavailable'))
     }
+
     const conversation = { conversationType: target.conversationType, conversationId: target.conversationId }
     await application
       .get('ConversationNavigationService')
@@ -38,6 +43,7 @@ export async function activateNotification(id: string): Promise<void> {
     } catch {
       throw new Error(t('notification.center.target_unavailable'))
     }
+
     openRouteInMainWindow(
       `/settings/scheduled-tasks/${encodeURIComponent(target.taskId)}?notificationId=${encodeURIComponent(id)}`
     )
@@ -49,6 +55,7 @@ export async function activateNotification(id: string): Promise<void> {
     } catch {
       throw new Error(t('notification.center.target_unavailable'))
     }
+
     openRouteInMainWindow(`/app/knowledge?baseId=${encodeURIComponent(target.baseId)}`)
   } else {
     openNotificationInMainWindow(id)
@@ -64,9 +71,11 @@ export function resolveNotificationConversationName(
       target.conversationType === 'agent'
         ? agentSessionService.getById(target.conversationId).name
         : topicService.getById(target.conversationId).name
+
     return name.trim() || fallback
   } catch (error) {
     logger.warn('Failed to resolve conversation name for notification', { target, err: error })
+
     return fallback
   }
 }

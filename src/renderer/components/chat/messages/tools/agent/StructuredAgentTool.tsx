@@ -14,11 +14,13 @@ const PRIMARY_PARAM_KEYS = ['description', 'subject', 'taskId', 'task_id', 'name
 
 function getPrimaryParam(value: StructuredAgentToolProps['input']): ReactNode {
   if (typeof value === 'string') return value
+
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
 
   for (const key of PRIMARY_PARAM_KEYS) {
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Historical tool inputs retain unvalidated fields; only checked strings from the primary-key list become labels.
     const fieldValue = (value as Record<string, unknown>)[key]
+
     if (typeof fieldValue === 'string' && fieldValue.length > 0) return fieldValue
   }
 

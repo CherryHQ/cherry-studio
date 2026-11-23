@@ -50,6 +50,7 @@ const selectWindowsEnvironmentEntries = (
     if (value === undefined) continue
 
     const normalizedKey = key.toLowerCase()
+
     if (normalizedKeys.has(normalizedKey) && !selected.has(normalizedKey)) {
       selected.set(normalizedKey, [key, value])
     }
@@ -61,6 +62,7 @@ const selectWindowsEnvironmentEntries = (
 const normalizeBypassRules = (environment: Environment, platform: NodeJS.Platform): string[] => {
   const rules: string[] = []
   const normalizedRules = new Set<string>()
+
   const values =
     platform === 'win32'
       ? [selectWindowsEnvironmentEntries(environment, AGENT_PROXY_BYPASS_NORMALIZED_KEY_SET).get('no_proxy')?.[1]]
@@ -73,6 +75,7 @@ const normalizeBypassRules = (environment: Environment, platform: NodeJS.Platfor
       if (!rule) continue
 
       const normalizedRule = rule.toLowerCase()
+
       if (normalizedRules.has(normalizedRule)) continue
 
       normalizedRules.add(normalizedRule)
@@ -95,6 +98,7 @@ export const stripInheritedCherryProxyMarkers = (environment: Environment) => {
 
 const normalizeCherryProxyMarker = (value: string | undefined): string | undefined => {
   const normalized = value?.trim()
+
   return normalized ? normalized : undefined
 }
 
@@ -106,6 +110,7 @@ export const hasStaleCherryProxyMarkers = (
   const hasCachedMarker =
     cachedEnvironment[CHERRY_NODE_PROXY_RULES_ENV] !== undefined ||
     cachedEnvironment[CHERRY_NODE_PROXY_BYPASS_RULES_ENV] !== undefined
+
   if (!hasCachedMarker) return false
 
   return (
@@ -118,37 +123,45 @@ export const hasStaleCherryProxyMarkers = (
 
 export const isAgentProxyEnvironmentKey = (key: string, options: AgentProxyEnvironmentOptions = {}): boolean => {
   const platform = options.platform ?? process.platform
+
   const isProxyKey =
     platform === 'win32'
       ? AGENT_PROXY_ENVIRONMENT_NORMALIZED_KEY_SET.has(key.toLowerCase())
       : AGENT_PROXY_ENVIRONMENT_KEY_SET.has(key)
+
   return isProxyKey || CHERRY_PROXY_MARKER_KEY_SET.has(key.toUpperCase())
 }
 
 export const mergeAgentLoopbackProxyBypass = (environment: Environment, options: AgentProxyEnvironmentOptions = {}) => {
   const platform = options.platform ?? process.platform
   const result = { ...environment }
+
   const activeProxyValues =
     platform === 'win32'
       ? [...selectWindowsEnvironmentEntries(environment, AGENT_PROXY_ENDPOINT_NORMALIZED_KEY_SET).values()].map(
           ([, value]) => value
         )
       : AGENT_PROXY_ENDPOINT_KEYS.map((key) => environment[key])
+
   if (!activeProxyValues.some(isNonEmpty)) {
     return result
   }
 
   const rules = normalizeBypassRules(environment, platform)
+
   if (rules.includes('*')) {
     result.no_proxy = '*'
     result.NO_PROXY = '*'
+
     return result
   }
 
   const normalizedRules = new Set(rules.map((rule) => rule.toLowerCase()))
+
   const requiredRules: readonly string[] = options.additionalBypassRule
     ? [...LOOPBACK_BYPASS_RULES, options.additionalBypassRule]
     : LOOPBACK_BYPASS_RULES
+
   for (const rule of requiredRules) {
     if (!normalizedRules.has(rule.toLowerCase())) {
       rules.push(rule)
@@ -159,6 +172,7 @@ export const mergeAgentLoopbackProxyBypass = (environment: Environment, options:
   const bypassRules = rules.join(',')
   result.no_proxy = bypassRules
   result.NO_PROXY = bypassRules
+
   return result
 }
 
@@ -168,15 +182,18 @@ export const createAgentProxyEnvironmentFingerprint = (
 ): string => {
   const platform = options.platform ?? process.platform
   const normalizedEnvironment = mergeAgentLoopbackProxyBypass(environment, options)
+
   const selectedWindowsEndpoints =
     platform === 'win32'
       ? selectWindowsEnvironmentEntries(normalizedEnvironment, AGENT_PROXY_ENDPOINT_NORMALIZED_KEY_SET)
       : undefined
+
   const fingerprintEntries =
     platform === 'win32'
       ? [
           ...AGENT_PROXY_ENDPOINT_NORMALIZED_KEYS.flatMap((normalizedKey) => {
             const selected = selectedWindowsEndpoints?.get(normalizedKey)
+
             return selected && isNonEmpty(selected[1]) ? [[normalizedKey, selected[1]] as const] : []
           }),
           ...(isNonEmpty(normalizedEnvironment.NO_PROXY)
@@ -185,6 +202,7 @@ export const createAgentProxyEnvironmentFingerprint = (
         ]
       : AGENT_PROXY_ENVIRONMENT_KEYS.flatMap((key) => {
           const value = normalizedEnvironment[key]
+
           return isNonEmpty(value) ? [[key, value] as const] : []
         })
 

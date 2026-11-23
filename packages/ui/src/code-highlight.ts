@@ -6,13 +6,16 @@ export {
   resolveCodeTheme,
   supportsCodeLanguage
 } from './lib/code-highlight/catalog'
+
 export {
   CHERRY_CODE_THEME,
   cherryCodeTheme,
   loadCodeTheme,
   getReactStyleFromToken as getTokenStyle
 } from './lib/code-highlight/theme'
+
 export { createSnapshotExecutor, escapeCode, loadCodeHighlightRuntime, plainTokens } from './lib/code-highlight/runtime'
+
 export type {
   DocumentChange,
   HighlightDocument,
@@ -21,4 +24,5 @@ export type {
   SnapshotExecutor,
   SnapshotRequest
 } from './lib/code-highlight/runtime'
+
 export type { ThemedToken, Theme, TokensResult, LiveTextEdit as TextEdit } from '@pierre/highlights'

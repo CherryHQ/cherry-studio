@@ -92,9 +92,11 @@ const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
 /** Verbosity of the reasoning summary an endpoint returns (OpenAI `reasoning.summary`). */
 export const ReasoningSummarySchema = z.enum(['auto', 'concise', 'detailed'])
+
 export type ReasoningSummary = z.infer<typeof ReasoningSummarySchema>
 
 export const ServiceTierSelectionSchema = z.enum(['standard', 'auto', 'fast', 'flex'])
+
 export type ServiceTierSelection = z.infer<typeof ServiceTierSelectionSchema>
 
 /** Common reasoning fields shared across all reasoning type variants */
@@ -166,9 +168,12 @@ export const UniqueModelIdSchema = z.custom<UniqueModelId>(
   (value) => {
     if (typeof value !== 'string') return false
     const idx = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+
     if (idx <= 0) return false
     const modelId = value.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
+
     if (modelId.length === 0) return false
+
     return !hasReservedRouteChar(modelId)
   },
   { message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)` }
@@ -183,16 +188,21 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
   if (providerId.length === 0) {
     throw new Error('providerId cannot be empty')
   }
+
   if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
     throw new Error(`providerId cannot contain "${UNIQUE_MODEL_ID_SEPARATOR}": ${providerId}`)
   }
+
   if (modelId.length === 0) {
     throw new Error('modelId cannot be empty')
   }
+
   const reservedChar = RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.find((char) => modelId.includes(char))
+
   if (reservedChar) {
     throw new Error(`modelId cannot contain reserved route character "${reservedChar}": ${modelId}`)
   }
+
   return `${providerId}${UNIQUE_MODEL_ID_SEPARATOR}${modelId}`
 }
 
@@ -206,9 +216,11 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
  */
 export function parseUniqueModelId(uniqueId: UniqueModelId) {
   const idx = uniqueId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+
   if (idx === -1) {
     throw new Error(`Invalid UniqueModelId format: ${uniqueId}`)
   }
+
   return {
     providerId: uniqueId.slice(0, idx),
     modelId: uniqueId.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
@@ -251,6 +263,7 @@ export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 export const ReasoningConfigSchema = z.object({
   ...CommonReasoningFieldsSchema
 })
+
 export type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>
 
 /** Runtime form: renderer choices are always materialized, even when empty. */
@@ -291,10 +304,12 @@ export const RuntimeParameterSupportSchema = z.object({
   stopSequences: z.boolean(),
   systemMessage: z.boolean()
 })
+
 export type RuntimeParameterSupport = z.infer<typeof RuntimeParameterSupportSchema>
 
 /** Pricing tier imported from catalog (source of truth) */
 export const PricingTierSchema = PricePerTokenSchema
+
 export type PricingTier = z.infer<typeof PricingTierSchema>
 
 export const InputTokenPricingTierSchema = z.object({
@@ -304,6 +319,7 @@ export const InputTokenPricingTierSchema = z.object({
   cacheRead: PricePerTokenSchema.optional(),
   cacheWrite: PricePerTokenSchema.optional()
 })
+
 export type InputTokenPricingTier = z.infer<typeof InputTokenPricingTierSchema>
 
 export const RuntimeModelPricingSchema = z
@@ -329,6 +345,7 @@ export const RuntimeModelPricingSchema = z
     for (let index = 1; index < (pricing.inputTokenTiers?.length ?? 0); index++) {
       const previous = pricing.inputTokenTiers![index - 1]
       const current = pricing.inputTokenTiers![index]
+
       if (current.minInputTokens <= previous.minInputTokens) {
         ctx.addIssue({
           code: 'custom',
@@ -352,13 +369,16 @@ export const RuntimeModelPricingSchema = z
         ...(tier.cacheWrite ? [{ rate: tier.cacheWrite, path: ['inputTokenTiers', index, 'cacheWrite'] }] : [])
       ])
     ]
+
     const currency = pricing.input.currency ?? CURRENCY.USD
+
     for (const { rate, path } of rates) {
       if ((rate.currency ?? CURRENCY.USD) !== currency) {
         ctx.addIssue({ code: 'custom', path: [...path, 'currency'], message: 'pricing currencies must match' })
       }
     }
   })
+
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
 export const ModelSchema = z.object({

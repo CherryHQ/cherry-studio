@@ -7,6 +7,7 @@ export type PermissionRiskEffect = 'destructive' | 'network' | 'irreversible'
 function getCommandText(args: unknown): string {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return ''
   const command = (args as { command?: unknown }).command
+
   return typeof command === 'string' ? command : ''
 }
 
@@ -30,11 +31,13 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   ) {
     effects.add('destructive')
     effects.add('irreversible')
+
     return [...effects]
   }
 
   if (toolName === AgentToolsType.WebFetch || toolName === AgentToolsType.WebSearch) {
     effects.add('network')
+
     return [...effects]
   }
 
@@ -47,27 +50,32 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
     effects.add('irreversible')
   }
+
   // `>` truncates the target file. Quotes are separators too, because a redirect adjoined to a
   // quoted argument (`printf "new">f`) writes; `=>`/`>=`, fd duplication and /dev/null do not.
   if (/(^|[\s;&|\w"'`])\d*>{1,2}(?!&[\d-])(?!\s*\/dev\/null\b)(?![=>])\s*\S/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
+
   // `find ... -delete` removes matching files in batch, scoped to one simple
   // command so a later `-delete` past `&&`/`;`/`|` can't leak in.
   if (/\bfind\b[^;&|\n]*\s-delete(\s|$)/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
+
   // Moving a file removes the source path and may overwrite the destination,
   // but it can be moved back, so it is not marked irreversible.
   if (/\bmv\s+\S+\s+\S+/.test(text)) {
     effects.add('destructive')
   }
+
   // Copying onto an existing destination overwrites it, so flag it like `mv`.
   if (/\bcp\s+\S+\s+\S+/.test(text)) {
     effects.add('destructive')
   }
+
   // `pwsh` normalizes to Bash before this runs, so cover PowerShell verbs here too.
   // `-WhatIf` / `-WhatIf:$true` previews change nothing, scoped to one simple command (newlines included);
   // `-WhatIf:$false` or an unresolved value disables preview, so it must not suppress the warning.
@@ -75,9 +83,11 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
     effects.add('irreversible')
   }
+
   if (/\bMove-Item\b(?![^;&|\n]*\s-WhatIf(?::\$true)?(?=[\s;&|]|$))/i.test(text)) {
     effects.add('destructive')
   }
+
   // Git work-discarders, scoped to one simple command so flags past `&&`/`;`/`|` (or newline)
   // can't leak. `restore`/`checkout --` reset the working tree; `restore --staged` only unstages.
   if (
@@ -91,9 +101,11 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
     effects.add('irreversible')
   }
+
   if (/\b(?:remove|uninstall)\b/.test(lowerText) && /\b(?:npm|pnpm|yarn|bun|pip|uv|cargo|brew)\b/.test(lowerText)) {
     effects.add('destructive')
   }
+
   if (
     /https?:\/\//i.test(text) ||
     /\b(?:curl|wget|scp|rsync|sftp|ssh(?!-)|nc|ncat|socat|aria2c|telnet|Invoke-WebRequest|Invoke-RestMethod)\b/i.test(
@@ -103,6 +115,7 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   ) {
     effects.add('network')
   }
+
   // Dry runs contact the remote but change nothing, so they keep `network` above.
   if (/\bgit\s+push\b(?![^;&|\n]*--dry-run)(?![^;&|\n]*\s-[a-zA-Z]*n)/i.test(gitText)) {
     effects.add('irreversible')

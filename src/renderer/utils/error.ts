@@ -29,13 +29,17 @@ export function formatErrorMessage(error: unknown): string {
     if (error instanceof ZodError) {
       return formatZodError(error)
     }
+
     if (isAxiosError(error)) {
       return formatAxiosError(error)
     }
+
     const parseResult = AgentServerErrorSchema.safeParse(error)
+
     if (parseResult.success) {
       return formatAgentServerError(parseResult.data)
     }
+
     return formatErrorDetails(error, t('error.unknown'))
   } catch {
     return t('error.unknown')
@@ -45,29 +49,36 @@ export function formatErrorMessage(error: unknown): string {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Catch handlers and PromiseSettledResult.reason can contain any value; IPC guards and Error checks select a user-facing message.
 export function getErrorMessage(error: unknown): string {
   const actionableMessage = getActionableAiErrorMessage(error)
+
   if (actionableMessage) return actionableMessage
+
   if (error instanceof Error) {
     try {
       const message = error.message
+
       if (typeof message === 'string' && message) return message
     } catch {
       return t('error.unknown')
     }
   }
+
   return t('error.unknown')
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mutation catch handlers pass raw rejections; actionable IPC errors and getErrorMessage validate what can become notification text.
 export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
   const actionableMessage = getActionableAiErrorMessage(error)
+
   if (actionableMessage) return actionableMessage
   const msg = getErrorMessage(error)
+
   return `${prefix}: ${msg}`
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw mutation failures reach this helper; IPC error-code and reason guards select only recognized localized guidance.
 function getActionableAiErrorMessage(error: unknown): string | undefined {
   if (isAgentSessionArchiveBusyError(error)) return t('recycle_bin.move.blocked_generation')
+
   switch (aiStreamAdmissionReason(error)) {
     case 'SINGLE_MODEL_REQUIRED':
       return t('message.error.stream_admission.single_model_required')
@@ -92,6 +103,7 @@ export const isTimeoutError = (error: any): boolean => {
   }
 
   const cause = error?.cause
+
   if (cause instanceof DOMException && cause.name === 'TimeoutError') {
     return true
   }
@@ -147,6 +159,7 @@ const getBaseError = (error: Error) => {
 
 const serializeInvalidToolInputError = (error: InvalidToolInputError): SerializedAiSdkInvalidToolInputError => {
   const baseError = getBaseError(error)
+
   return {
     ...baseError,
     toolName: error.toolName,
@@ -156,6 +169,7 @@ const serializeInvalidToolInputError = (error: InvalidToolInputError): Serialize
 
 const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuchToolError => {
   const baseError = getBaseError(error)
+
   return {
     ...baseError,
     toolName: error.toolName ?? null,
@@ -165,6 +179,7 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
 
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   const unknownError: unknown = error
+
   if (APICallError.isInstance(unknownError)) return serializeNestedProviderError(unknownError) as SerializedError
 
   // 统一所有可能的错误字段
@@ -176,13 +191,18 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   }
 
   if ('url' in error) serializedError.url = error.url
+
   if ('requestBodyValues' in error) serializedError.requestBodyValues = safeSerialize(error.requestBodyValues)
+
   if ('statusCode' in error) serializedError.statusCode = error.statusCode ?? null
+
   if ('responseBody' in error && error.responseBody) {
     const body = parseJSON(error.responseBody)
+
     if (body) {
       // try to parse internal msg
       const message = body.message || body.msg
+
       if (message) {
         if (serializedError.message === null) {
           serializedError.message = message
@@ -190,44 +210,73 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
           serializedError.message += ' ' + message
         }
       }
+
       serializedError.responseBody = JSON.stringify(body, null, 2)
     } else {
       serializedError.responseBody = error.responseBody
     }
   }
+
   if ('isRetryable' in error) serializedError.isRetryable = error.isRetryable
+
   if ('data' in error) serializedError.data = safeSerialize(error.data)
+
   if ('responseHeaders' in error) serializedError.responseHeaders = error.responseHeaders ?? null
+
   if ('statusText' in error) serializedError.statusText = error.statusText ?? null
+
   if ('parameter' in error) serializedError.parameter = error.parameter
+
   if ('value' in error) serializedError.value = safeSerialize(error.value)
+
   if ('content' in error) serializedError.content = safeSerialize(error.content)
+
   if ('role' in error) serializedError.role = error.role
+
   if ('prompt' in error) serializedError.prompt = safeSerialize(error.prompt)
+
   if ('toolName' in error) serializedError.toolName = error.toolName
+
   if ('toolInput' in error) serializedError.toolInput = error.toolInput
+
   if ('text' in error) serializedError.text = error.text ?? null
+
   if ('originalMessage' in error) serializedError.originalMessage = safeSerialize(error.originalMessage)
+
   if ('response' in error) serializedError.response = safeSerialize(error.response)
+
   if ('usage' in error) serializedError.usage = safeSerialize(error.usage)
+
   if ('finishReason' in error) serializedError.finishReason = error.finishReason ?? null
+
   if ('modelId' in error) serializedError.modelId = error.modelId
+
   if ('modelType' in error) serializedError.modelType = error.modelType
+
   if ('providerId' in error) serializedError.providerId = error.providerId
+
   if ('availableProviders' in error) serializedError.availableProviders = error.availableProviders
+
   if ('availableTools' in error) serializedError.availableTools = error.availableTools ?? null
+
   if ('reason' in error) serializedError.reason = error.reason
+
   if ('lastError' in error) serializedError.lastError = serializeNestedProviderError(error.lastError)
+
   if ('errors' in error) serializedError.errors = error.errors.map(serializeNestedProviderError)
+
   if ('originalError' in error)
     serializedError.originalError = InvalidToolInputError.isInstance(error.originalError)
       ? serializeInvalidToolInputError(error.originalError)
       : serializeNoSuchToolError(error.originalError)
+
   if ('functionality' in error) serializedError.functionality = error.functionality
+
   if ('provider' in error) serializedError.provider = error.provider
 
   return serializedError
 }
+
 /**
  * 格式化 Zod 验证错误信息为可读的字符串
  * @param error - Zod 验证错误对象
@@ -237,6 +286,7 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
 export const formatZodError = (error: z.ZodError, title?: string) => {
   const readableErrors = error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
   const errorMessage = readableErrors.join('\n')
+
   return title ? `${title}: \n${errorMessage}` : errorMessage
 }
 
@@ -246,26 +296,33 @@ export function formatError(error: SerializedError): string {
 
 export function formatAiSdkError(error: SerializedAiSdkError): string {
   let text = formatError(error) + '\n'
+
   if (error.cause) {
     text += `${t('error.cause')}: ${error.cause}\n`
   }
+
   if (isSerializedAiSdkApiCallError(error)) {
     if (error.statusCode) {
       text += `${t('error.statusCode')}: ${error.statusCode}\n`
     }
+
     if (error.url) {
       text += `${t('error.requestUrl')}: ${error.url}\n`
     }
+
     if (error.requestBodyValues !== null) {
       const requestBodyValues = safeToString(error.requestBodyValues)
       text += `${t('error.requestBodyValues')}: ${requestBodyValues}\n`
     }
+
     if (error.responseHeaders) {
       text += `${t('error.responseHeaders')}: ${JSON.stringify(error.responseHeaders, null, 2)}\n`
     }
+
     if (error.responseBody) {
       text += `${t('error.responseBody')}: ${error.responseBody}\n`
     }
+
     if (error.data) {
       const data = safeToString(error.data)
       text += `${t('error.data')}: ${data}\n`
@@ -278,11 +335,14 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
 function retryProviderText(error: SerializedError): string {
   if (!isSerializedAiSdkRetryError(error)) return ''
   const attempts = Array.isArray(error.errors) ? [...error.errors].reverse() : []
+
   for (const nested of [error.lastError, ...attempts]) {
     if (!nested || typeof nested !== 'object' || Array.isArray(nested)) continue
     const text = providerErrorText(nested as SerializedError)
+
     if (text) return text
   }
+
   return ''
 }
 
@@ -291,11 +351,13 @@ function retryProviderText(error: SerializedError): string {
 export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
   const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
+
   return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>
   `${t('common.error')}: ${error.error.code} ${error.error.message}`
+
 export const formatAxiosError = (error: AxiosError) => {
   if (!error.response) {
     return `${t('common.error')}: ${t('error.no_response')}`
@@ -317,6 +379,7 @@ export function serializeHealthCheckError(error: unknown): SerializedError {
   // already ran serializeError, and the AISDKError instance is gone across IPC. Prefer
   // it so the connection-check popup shows real provider detail, not just `message`.
   const aiDetail = aiErrorDetail(error)
+
   if (aiDetail) {
     return aiDetail
   }
@@ -328,6 +391,7 @@ export function serializeHealthCheckError(error: unknown): SerializedError {
   if (error instanceof Error) {
     try {
       const { name, message, stack } = error
+
       return {
         name: typeof name === 'string' ? name || null : null,
         message: typeof message === 'string' ? message || null : null,

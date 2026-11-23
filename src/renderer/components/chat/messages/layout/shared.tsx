@@ -28,6 +28,7 @@ export const MessagesContainer = ({
   ...props
 }: ComponentPropsWithoutRef<'div'> & ContainerProps) => {
   void $right
+
   return (
     <div
       data-ui="chat.message-list"

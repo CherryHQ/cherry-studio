@@ -82,24 +82,30 @@ export function ProcessorPanel({
   const { t } = useTranslation()
   const { languages } = useLanguages()
   const processor = entry.processor
+
   const doc2xCapability: DocumentToMarkdownCapability | undefined =
     processor.id === 'doc2x' && entry.feature === 'document_to_markdown'
       ? (entry.capability as DocumentToMarkdownCapability)
       : undefined
+
   const processorName = t(getProcessorNameKey(processor.id))
   const apiKeyWebsite = getProcessorApiKeyWebsite(processor.id)
+
   const featureTitleKey =
     entry.feature === 'image_to_text'
       ? 'settings.tool.file_processing.features.image_to_text.title'
       : 'settings.tool.file_processing.features.document_to_markdown.title'
+
   const featureTooltipKey =
     entry.feature === 'image_to_text'
       ? 'settings.tool.file_processing.features.image_to_text.tooltip'
       : 'settings.tool.file_processing.features.document_to_markdown.tooltip'
+
   const featureTitle = t(featureTitleKey)
   const showApiSettings = supportsApiSettings(processor)
   const showLanguageOptions = shouldShowLanguageOptions(processor.id)
   const requiredLocalModel = FILE_PROCESSOR_LOCAL_MODEL[processor.id]
+
   const hasProcessorDetails =
     showApiSettings ||
     processor.id === 'paddleocr' ||
@@ -152,10 +158,12 @@ export function ProcessorPanel({
     async (action: () => Promise<void>, actionName: string) => {
       try {
         await action()
+
         return true
       } catch (error) {
         logger.error(`Failed to ${actionName}`, error as Error)
         toast.error(t('settings.tool.file_processing.errors.save_failed'))
+
         return false
       }
     },
@@ -181,10 +189,13 @@ export function ProcessorPanel({
   const handleApiHostBlur = useCallback(async () => {
     const trimmedApiHost = apiHostInput.trim()
     setApiHostInput(trimmedApiHost)
+
     if (!validateApiHost(trimmedApiHost)) {
       toast.warning(t('settings.tool.file_processing.errors.invalid_api_host'))
+
       return
     }
+
     await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', trimmedApiHost), 'save API host')
   }, [apiHostInput, entry.feature, onSetCapabilityField, persist, processor.id, t])
 
@@ -213,6 +224,7 @@ export function ProcessorPanel({
         () => onSetDefaultProcessor(selectedEntry.feature, selectedEntry.processor.id),
         'set default processor'
       )
+
       if (saved && pendingDefaultKeyRef.current === selectedEntry.key) {
         pendingDefaultKeyRef.current = null
       }

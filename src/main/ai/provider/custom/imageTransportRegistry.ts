@@ -21,7 +21,9 @@ function createLazyTransport(
     ...(registration.poll && {
       poll: async (...args: Parameters<NonNullable<ImageGenerationTransport['poll']>>) => {
         const transport = await load()
+
         if (!transport.poll) throw new Error('Image transport does not implement polling')
+
         return transport.poll(...args)
       }
     }),
@@ -40,6 +42,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       poll: true,
       load: async (settings) => {
         const { buildPpioTransport } = await import('./ppio/ppioProvider')
+
         return buildPpioTransport(settings as Parameters<typeof buildPpioTransport>[0])
       }
     },
@@ -49,6 +52,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       cancel: true,
       load: async (settings) => {
         const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
+
         return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
       }
     },
@@ -61,6 +65,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       cancel: true,
       load: async (settings) => {
         const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
+
         return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
       }
     },
@@ -69,6 +74,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       poll: true,
       load: async (settings) => {
         const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
+
         return buildModelscopeTransport(settings as Parameters<typeof buildModelscopeTransport>[0])
       }
     },
@@ -76,6 +82,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       supports: dmxapiUsesCustomTransport,
       load: async (settings) => {
         const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
+
         return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
       }
     },
@@ -88,6 +95,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       cancel: true,
       load: async (settings) => {
         const { createComfyuiTransport } = await import('./comfyui/comfyuiTransport')
+
         return createComfyuiTransport(settings as Parameters<typeof createComfyuiTransport>[0])
       }
     },
@@ -96,6 +104,7 @@ const TRANSPORTS: ReadonlyMap<string, TransportRegistration> = new Map(
       poll: true,
       load: async (settings) => {
         const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
+
         return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
       }
     }
@@ -112,5 +121,6 @@ export function resolveImageTransport(
   providerSettings: ProviderConfig['providerSettings']
 ): ImageGenerationTransport | null {
   const registration = TRANSPORTS.get(aiSdkProviderId)
+
   return registration?.supports(modelId) ? createLazyTransport(registration, providerSettings) : null
 }

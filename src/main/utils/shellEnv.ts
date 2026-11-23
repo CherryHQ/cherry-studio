@@ -15,6 +15,7 @@ const SHELL_ENV_TIMEOUT_MS = 15_000
 /** Read PATH using Windows-compatible, case-insensitive environment-key semantics. */
 export function getPathFromEnvironment(env: Record<string, string | undefined>): string | undefined {
   const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
+
   return pathKey ? env[pathKey] : undefined
 }
 
@@ -63,6 +64,7 @@ const applyBinaryExecutionEnv = (env: Record<string, string>) => {
 function expandWindowsEnvVars(value: string, env: Record<string, string>): string {
   return value.replace(/%([^%]+)%/g, (original, varName: string) => {
     const key = Object.keys(env).find((k) => k.toLowerCase() === varName.toLowerCase())
+
     return key ? env[key] : original
   })
 }
@@ -75,12 +77,14 @@ function expandWindowsEnvVars(value: string, env: Record<string, string>): strin
 async function readWindowsRegistryPath(env: Record<string, string>): Promise<string | null> {
   try {
     const { HKEY, RegistryValueType, enumerateValuesSafe } = await import('registry-js')
+
     const readPathValue = (hive: (typeof HKEY)[keyof typeof HKEY], subkey: string): string | null => {
       const pathValue = enumerateValuesSafe(hive, subkey).find(
         (value) =>
           value.name.toLowerCase() === 'path' &&
           (value.type === RegistryValueType.REG_SZ || value.type === RegistryValueType.REG_EXPAND_SZ)
       )
+
       return typeof pathValue?.data === 'string' ? pathValue.data : null
     }
 
@@ -88,6 +92,7 @@ async function readWindowsRegistryPath(env: Record<string, string>): Promise<str
       HKEY.HKEY_LOCAL_MACHINE,
       'SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'
     )
+
     const userPath = readPathValue(HKEY.HKEY_CURRENT_USER, 'Environment')
 
     if (!systemPath && !userPath) {
@@ -95,6 +100,7 @@ async function readWindowsRegistryPath(env: Record<string, string>): Promise<str
     }
 
     const combined = [systemPath, userPath].filter(Boolean).join(';')
+
     return expandWindowsEnvVars(combined, env)
   } catch {
     return null
@@ -108,19 +114,24 @@ async function readWindowsRegistryPath(env: Record<string, string>): Promise<str
  */
 async function getWindowsEnvironment(): Promise<Record<string, string>> {
   const env: Record<string, string> = {}
+
   for (const key in process.env) {
     env[key] = process.env[key] || ''
   }
 
   const registryPath = await readWindowsRegistryPath(env)
+
   if (registryPath) {
     const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
+
     for (const key of pathKeys) {
       env[key] = registryPath
     }
+
     if (pathKeys.length === 0) {
       env.Path = registryPath
     }
+
     logger.debug('Replaced PATH with fresh registry value')
   } else {
     logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
@@ -144,6 +155,7 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
  */
 function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, string>> {
   signal?.throwIfAborted()
+
   // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
   // the (potentially stale) parent process env. Instead, read the current PATH
   // straight from the Windows registry.
@@ -158,6 +170,7 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
       process.env.USERPROFILE ||
       process.env.UserProfile ||
       application.getPath('sys.home')
+
     if (!homeDirectory) {
       return reject(new Error("Could not determine user's home directory."))
     }
@@ -194,6 +207,7 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
       if (settled) {
         return
       }
+
       settled = true
       cleanup()
       resolve(value)
@@ -203,6 +217,7 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
       if (settled) {
         return
       }
+
       settled = true
       cleanup()
       reject(error)
@@ -225,6 +240,7 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
       const errorMessage = `Timed out after ${SHELL_ENV_TIMEOUT_MS}ms while retrieving shell environment. Shell: ${shellPath}. Args: ${commandArgs.join(
         ' '
       )}. CWD: ${homeDirectory}`
+
       logger.error(errorMessage)
       child.kill('SIGKILL')
       rejectOnce(new Error(errorMessage))
@@ -251,6 +267,7 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
       if (code !== 0) {
         const errorMessage = `Shell process exited with code ${code}. Shell: ${shellPath}. Args: ${commandArgs.join(' ')}. CWD: ${homeDirectory}. Stderr: ${errorOutput.trim()}`
         logger.error(errorMessage)
+
         return rejectOnce(new Error(errorMessage))
       }
 
@@ -266,8 +283,10 @@ function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, 
 
       lines.forEach((line) => {
         const trimmedLine = line.trim()
+
         if (trimmedLine) {
           const separatorIndex = trimmedLine.indexOf('=')
+
           if (separatorIndex > 0) {
             // Ensure '=' is present and it's not the first character
             const key = trimmedLine.substring(0, separatorIndex)
@@ -300,9 +319,11 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
   } catch (error) {
     logger.error('Failed to get shell environment, falling back to process.env', { error })
     const fallbackEnv: Record<string, string> = {}
+
     for (const key in process.env) {
       fallbackEnv[key] = process.env[key] || ''
     }
+
     return fallbackEnv
   }
 }
@@ -318,16 +339,19 @@ function loadShellEnv(): Promise<Record<string, string>> {
   if (inflight) {
     return inflight
   }
+
   // fetchShellEnv never rejects (it falls back to process.env), so the cache
   // is always populated and `inflight` always cleared.
   inflight = fetchShellEnv()
     .then((env) => {
       cachedEnv = env
+
       return env
     })
     .finally(() => {
       inflight = null
     })
+
   return inflight
 }
 
@@ -345,6 +369,7 @@ export async function getRawShellEnv(signal?: AbortSignal): Promise<Record<strin
   const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal) : loadShellEnv()))
   signal?.throwIfAborted()
   cachedEnv ??= env
+
   return { ...env }
 }
 
@@ -352,6 +377,7 @@ export async function getShellEnv(signal?: AbortSignal): Promise<Record<string, 
   const env = await getRawShellEnv(signal)
   appendCherryToolDirsToPath(env)
   applyBinaryExecutionEnv(env)
+
   return env
 }
 
@@ -376,8 +402,11 @@ export async function refreshShellEnv(): Promise<Record<string, string>> {
     const env = { ...(await inflight) }
     appendCherryToolDirsToPath(env)
     applyBinaryExecutionEnv(env)
+
     return env
   }
+
   cachedEnv = null
+
   return getShellEnv()
 }

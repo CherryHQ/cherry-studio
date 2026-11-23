@@ -32,6 +32,7 @@ export type ResourceListGroupReorderPayload = {
 }
 
 type TimestampInput = dayjs.ConfigType
+
 type GroupRankResolver<T> = (item: T) => number
 
 export function getResourceTimeBucket(timestamp: TimestampInput, now?: TimestampInput): ResourceListTimeBucket {
@@ -41,6 +42,7 @@ export function getResourceTimeBucket(timestamp: TimestampInput, now?: Timestamp
 
   const item = dayjs(timestamp)
   const current = now === undefined ? dayjs() : dayjs(now)
+
   if (!item.isValid() || !current.isValid()) {
     return 'earlier'
   }
@@ -53,11 +55,13 @@ export function getResourceTimeBucket(timestamp: TimestampInput, now?: Timestamp
   }
 
   const yesterdayStart = todayStart.subtract(1, 'day')
+
   if (itemStart.isSame(yesterdayStart)) {
     return 'yesterday'
   }
 
   const weekStart = todayStart.startOf('week')
+
   if (itemStart.isSame(weekStart) || (itemStart.isAfter(weekStart) && itemStart.isBefore(yesterdayStart))) {
     return 'this-week'
   }
@@ -71,8 +75,10 @@ export function composeResourceListGroupResolvers<T>(
   return (item) => {
     for (const resolver of resolvers) {
       const group = resolver(item)
+
       if (group) return group
     }
+
     return null
   }
 }
@@ -98,6 +104,7 @@ export function createTimeGroupResolver<T>({
 }): ResourceListGroupResolver<T> {
   return (item) => {
     const bucket = getResourceTimeBucket(getTimestamp(item), now)
+
     return { id: `time:${bucket}`, label: labels[bucket] }
   }
 }
@@ -142,9 +149,12 @@ export function sortRankedResourceItems<T>(
     .map((item, index) => ({ item, index, rank: getRank(item), pinned: isPinned(item) }))
     .sort((a, b) => {
       if (a.rank !== b.rank) return a.rank - b.rank
+
       if (a.pinned || b.pinned) return a.index - b.index
       const withinDelta = compareWithinGroup(a.item, b.item)
+
       if (withinDelta !== 0) return withinDelta
+
       return a.index - b.index
     })
     .map(({ item }) => item)
@@ -159,7 +169,9 @@ export function compareResourceRecency<T>(getUpdatedAt: (item: T) => string): (a
   return (a, b) => {
     const aMs = Date.parse(getUpdatedAt(a))
     const bMs = Date.parse(getUpdatedAt(b))
+
     if (Number.isFinite(aMs) && Number.isFinite(bMs)) return bMs - aMs
+
     return 0
   }
 }
@@ -169,6 +181,7 @@ export type ResourceListOrderAnchor = { before: string } | { after: string } | {
 export function compareResourceOrderKey(a?: string, b?: string) {
   if (a && b) {
     if (a < b) return -1
+
     if (a > b) return 1
   }
 
@@ -228,18 +241,24 @@ export function withSoleGroupLabelHidden<T>(
 ): ResourceListGroupResolver<T> {
   const ignored = new Set(ignoreGroupIds ?? [])
   const groupIds = new Set<string>()
+
   for (const item of items) {
     const group = resolver(item)
+
     if (group) groupIds.add(group.id)
+
     if (groupIds.size > 1) return resolver
   }
 
   const [soleGroupId] = groupIds
+
   if (groupIds.size !== 1 || ignored.has(soleGroupId)) return resolver
 
   return (item) => {
     const group = resolver(item)
+
     if (!group) return null
+
     return { ...group, label: '' }
   }
 }
@@ -250,7 +269,9 @@ export function withResourceListGroupIdPrefix<T>(
 ): ResourceListGroupResolver<T> {
   return (item) => {
     const group = resolver(item)
+
     if (!group) return null
+
     return { ...group, id: `${prefix}${group.id}` }
   }
 }

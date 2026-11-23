@@ -38,15 +38,18 @@ export async function isTextByContent(target: AbsoluteFilePath): Promise<boolean
     const length = 8 * KB
     const maxCharacterBytes = 4
     const fileHandle = await open(target, 'r')
+
     try {
       const buffer = Buffer.alloc(length + maxCharacterBytes)
       const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
 
       const firstEnd = Math.min(bytesRead, length)
       const lastEnd = Math.min(bytesRead, length + maxCharacterBytes)
+
       for (let end = firstEnd; end <= lastEnd; end++) {
         if (decodeTextBufferIfText(buffer.subarray(0, end)) !== null) return true
       }
+
       return false
     } finally {
       // Close on every path — a throwing read must not leak the descriptor.
@@ -89,11 +92,13 @@ export async function isTextByContent(target: AbsoluteFilePath): Promise<boolean
 export async function getFileType(target: AbsoluteFilePath): Promise<FileType> {
   const ext = path.extname(target)
   const fileType = getFileTypeByExt(ext)
+
   return fileType === FILE_TYPE.OTHER && (await isTextByContent(target)) ? FILE_TYPE.TEXT : fileType
 }
 
 /** Map MIME type to file extension (without leading dot). Returns undefined if unknown. */
 export function mimeToExt(mimeType: string): string | undefined {
   const ext = mime.getExtension(mimeType)
+
   return ext ?? undefined
 }

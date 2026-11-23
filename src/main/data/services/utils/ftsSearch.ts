@@ -67,9 +67,11 @@ function invalidCursor(config: CursorConfig) {
 // The `<key>:<id>` parsing itself is shared via `parseCursor`.
 export function decodeSearchCursor(raw: string, config: CursorConfig): SearchCursor {
   const parsed = parseCursor(raw, asNumericKey)
+
   if (!parsed) {
     throw invalidCursor(config)
   }
+
   return { createdAt: parsed.key, id: parsed.id }
 }
 
@@ -86,6 +88,7 @@ export function buildFtsLikePattern(term: string): string {
 export function getCreatedAtFromMs(createdAtFrom: string | undefined): number | undefined {
   if (!createdAtFrom) return undefined
   const value = Date.parse(createdAtFrom)
+
   return Number.isFinite(value) ? value : undefined
 }
 
@@ -102,6 +105,7 @@ export function searchWithCursor<Row, PublicItem>({
   mapRow
 }: SearchWithCursorOptions<Row, PublicItem>): CursorPaginationResponse<PublicItem> {
   const terms = splitKeywordsToTerms(q)
+
   if (terms.length === 0) return { items: [] }
 
   const matchMode: KeywordMatchMode = 'substring'
@@ -129,13 +133,17 @@ export function searchWithCursor<Row, PublicItem>({
 
     for (const row of rows) {
       const searchableText = getSearchableText(row)
+
       if (!searchableText) continue
 
       const plainText = stripMarkdownFormatting(searchableText)
+
       const matches = regexes.every((regex) => {
         regex.lastIndex = 0
+
         return regex.test(plainText)
       })
+
       if (!matches) continue
 
       results.push(
@@ -162,6 +170,7 @@ export function searchWithCursor<Row, PublicItem>({
 
   const itemsWithCursor = results.slice(0, limit)
   const nextCursorBoundary = results.length > limit ? itemsWithCursor.at(-1) : undefined
+
   return {
     items: itemsWithCursor.map((result) => result.item),
     nextCursor: nextCursorBoundary

@@ -61,17 +61,21 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const input = ctx.input
     const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
     const provider = providerService.getByProviderId(providerId)
+
     if (!provider) throw new Error(`Image generation job: provider '${providerId}' not found`)
     const model = modelService.getByKey(providerId, modelId)
+
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
     const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+
     const sdkConfig = {
       ...config,
       modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
     }
 
     const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+
     if (!transport) {
       throw new Error(
         `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
@@ -82,6 +86,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     // outlives the process that enqueued it, so every execution starts at submit.
     let urls: string[]
     const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
+
     // Built fresh every execution and held in memory only. Upstream persists this
     // to job metadata so a resumed run can still attribute its cost; with
     // `recovery: 'abandon'` no run outlives the process, so persisting it would be
@@ -100,8 +105,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       source: input.source ?? null,
       messageRef: null
     })
+
     const usageStartedAt = Date.now()
     const submit = await transport.submit(submitInput)
+
     if (submit.imageUrls) {
       urls = submit.imageUrls
     } else if (submit.taskId) {
@@ -138,6 +145,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
 
     const files = await downloadAndPersistImageUrls(urls, ctx.signal, input.cleanupPolicy)
     ctx.reportProgress(100, { stage: 'done' })
+
     return { files } satisfies ImageGenerationJobOutput
   }
 }
@@ -149,6 +157,7 @@ async function buildSubmitInput(
 ): Promise<ImageGenerationSubmitInput> {
   const files = input.inputFileIds?.length ? await Promise.all(input.inputFileIds.map(readImageFile)) : undefined
   const mask = input.maskFileId ? await readImageFile(input.maskFileId) : undefined
+
   return {
     modelId,
     prompt: input.prompt,
@@ -167,6 +176,7 @@ async function buildSubmitInput(
 
 async function readImageFile(fileId: string): Promise<ImageModelV3File> {
   const { content, mime } = await application.get('FileManager').read(fileId, { encoding: 'base64' })
+
   return { type: 'file', mediaType: mime, data: content }
 }
 
@@ -182,14 +192,18 @@ async function pollUntilDone(
   if (!transport.poll) {
     throw new Error('Image transport returned a task id but does not implement polling')
   }
+
   const cancelRemote = transport.cancel ? () => void transport.cancel?.(taskId).catch(() => {}) : undefined
+
   if (cancelRemote) {
     if (ctx.signal.aborted) {
       cancelRemote()
       throw createAbortError('Image generation aborted')
     }
+
     ctx.signal.addEventListener('abort', cancelRemote, { once: true })
   }
+
   try {
     return await transport.poll(taskId, {
       signal: ctx.signal,
@@ -208,7 +222,9 @@ async function pollUntilDone(
 async function resolveImageDataUrl(url: string): Promise<Base64String | null> {
   if (url.startsWith('data:')) return url as Base64String
   const downloaded = await downloadImageAsBase64(url)
+
   if (!downloaded) return null
+
   return `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`
 }
 
@@ -220,21 +236,26 @@ async function downloadAndPersistImageUrls(
 ): Promise<FileEntry[]> {
   const fileManager = application.get('FileManager')
   const files: FileEntry[] = []
+
   for (const url of urls) {
     if (signal.aborted) throw createAbortError('Image generation aborted')
     const data = await resolveImageDataUrl(url)
+
     if (!data) continue
     files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))
   }
+
   // The remote generation succeeded (it returned URLs); surfacing a hard failure
   // when none could be downloaded avoids reporting a paid generation as an empty,
   // silent success. A partial failure still returns what we have, with a warning.
   if (files.length === 0) {
     throw new Error(`Image generation produced ${urls.length} URL(s) but all downloads failed`)
   }
+
   if (files.length < urls.length) {
     logger.warn('Some generated image downloads failed', { requested: urls.length, persisted: files.length })
   }
+
   return files
 }
 
@@ -247,6 +268,7 @@ async function downloadAndPersistImageUrls(
  */
 export async function deleteImageInputEntries(ids: ReadonlyArray<string | undefined>): Promise<void> {
   const present = ids.filter((id): id is string => Boolean(id))
+
   if (present.length === 0) return
   const fileManager = application.get('FileManager')
   await Promise.all(

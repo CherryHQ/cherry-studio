@@ -236,6 +236,7 @@ function ShowPasswordButton({
 }) {
   const togglePassword = useCallback(() => {
     if (disabled) return
+
     if (type === 'password') {
       setType('text')
     } else if (type === 'text') {
@@ -293,6 +294,7 @@ function CompositeInput({
   const buttonContent = useMemo(() => {
     if (buttonProps === undefined) {
       console.warn("CustomizedInput: 'button' variant requires a 'button' prop to be provided.")
+
       return null
     } else {
       return (
@@ -306,6 +308,7 @@ function CompositeInput({
   const emailContent = useMemo(() => {
     if (!prefix) {
       console.warn('CompositeInput: "email" variant requires a "prefix" prop to be provided.')
+
       return null
     } else {
       return <div className={prefixVariants({ size, disabled })}>{prefix}</div>
@@ -315,6 +318,7 @@ function CompositeInput({
   const selectContent = useMemo(() => {
     if (!selectProps) {
       console.warn('CompositeInput: "select" variant requires a "selectProps" prop to be provided.')
+
       return null
     } else {
       return (

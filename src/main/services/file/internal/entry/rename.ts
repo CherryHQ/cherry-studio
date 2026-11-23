@@ -35,10 +35,13 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
   // the service would reject anyway.
   SafeNameSchema.parse(newName)
   const entry = deps.fileEntryService.getById(id)
+
   if (entry.name === newName) return entry
+
   if (entry.origin === 'internal') {
     return deps.fileEntryService.update(id, { name: newName })
   }
+
   // entry.origin === 'external' from here on; the schema discriminator
   // guarantees externalPath is present as `AbsoluteFilePathSchema` (no `null`
   // branch exists on ExternalEntrySchema), so the prior defensive
@@ -52,6 +55,7 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
   // (no NFC), so NFC and NFD spellings of a name are distinct targets.
   const oldPath = entry.externalPath
   const target = canonicalizeFilePath(path.join(dir, `${newName}${ext}`))
+
   // Defense in depth: `SafeNameSchema.parse(newName)` above already rejects
   // path separators and `..`, but a future regression in the schema (or any
   // canonicalization behaviour change) must not be able to relocate the
@@ -59,9 +63,11 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
   if (path.dirname(target) !== dir) {
     throw new Error(`rename: target escapes original directory: ${target}`)
   }
+
   if (target === entry.externalPath) {
     return entry
   }
+
   try {
     if (await exists(target)) {
       // Both names can resolve to the same inode on case-insensitive filesystems;
@@ -70,11 +76,13 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
         throw Object.assign(new Error(`rename: target path already exists: ${target}`), { code: 'EEXIST' })
       }
     }
+
     await fsMove(oldPath, target)
   } catch (error) {
     logFailure(logger, 'File rename failed', error, 'file.rename', classifyFileFailure(error, true))
     throw error
   }
+
   const canonical = target
   // Single atomic DB write — `setExternalPathAndName` is the only sanctioned
   // mutation site for `externalPath`. Doing both column changes in one
@@ -91,6 +99,7 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
   // operator can reconcile the orphan file at `target`, then propagate
   // the original DB error so the caller sees the real failure cause.
   let renamed: FileEntry
+
   try {
     renamed = deps.fileEntryService.setExternalPathAndName(id, canonical, newName)
   } catch (dbErr) {
@@ -105,8 +114,10 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
         rollbackErr
       })
     }
+
     throw dbErr
   }
+
   // Invalidate the cached FileVersion: `fsMove` may have fallen back to
   // copy+unlink across devices (EXDEV), producing a new inode whose mtime
   // differs from the snapshot captured before the rename. A subsequent
@@ -118,5 +129,6 @@ async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: str
   deps.danglingCache.removeEntry(id, oldPath)
   deps.danglingCache.addEntry(id, canonical)
   deps.danglingCache.onFsEvent(canonical, 'present', 'ops')
+
   return renamed
 }

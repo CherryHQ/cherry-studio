@@ -25,16 +25,20 @@ export const ActionMenu: FC<ActionMenuProps> = ({ show, position, items, onClose
 
   useEffect(() => {
     if (!show) return
+
     const onDocMouseDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         onClose()
       }
     }
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
+
     document.addEventListener('mousedown', onDocMouseDown)
     document.addEventListener('keydown', onKeyDown)
+
     return () => {
       document.removeEventListener('mousedown', onDocMouseDown)
       document.removeEventListener('keydown', onKeyDown)
@@ -46,6 +50,7 @@ export const ActionMenu: FC<ActionMenuProps> = ({ show, position, items, onClose
   const onMenuClick = useCallback(
     (key: string) => {
       const found = items.find((i) => i.key === key)
+
       if (found) found.onClick()
       onClose()
     },

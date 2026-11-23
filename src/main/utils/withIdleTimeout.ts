@@ -37,6 +37,7 @@ export function withIdleTimeout<T>(
       controller.abort(new DOMException('Stream idle timeout exceeded', 'TimeoutError'))
     }
   }
+
   idle.signal.addEventListener('abort', onIdleAbort, { once: true })
 
   const cleanup = () => {
@@ -50,11 +51,14 @@ export function withIdleTimeout<T>(
     async pull(dest) {
       try {
         const { done, value } = await reader.read()
+
         if (done) {
           cleanup()
           dest.close()
+
           return
         }
+
         idle.reset()
         dest.enqueue(value)
       } catch (err) {
@@ -64,6 +68,7 @@ export function withIdleTimeout<T>(
     },
     cancel(reason) {
       cleanup()
+
       return reader.cancel(reason)
     }
   })

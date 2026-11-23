@@ -14,24 +14,29 @@ export async function runAttachmentWorker<K extends keyof AttachmentWorkerTasks>
   signal?: AbortSignal
 ): Promise<AttachmentWorkerTasks[K]['result']> {
   signal?.throwIfAborted()
+
   const task = queue.add(
     async () => {
       signal?.throwIfAborted()
       const worker = createWorker({ workerData: { type, input } })
+
       try {
         return await new Promise<AttachmentWorkerTasks[K]['result']>((resolve, reject) => {
           const onAbort = () => {
             cleanup()
             reject(signal?.reason)
           }
+
           const timer = setTimeout(() => {
             cleanup()
             reject(new Error('Attachment worker timed out'))
           }, 60_000)
+
           const cleanup = () => {
             clearTimeout(timer)
             signal?.removeEventListener('abort', onAbort)
           }
+
           worker.on('message', (message: AttachmentWorkerMessage<AttachmentWorkerTasks[K]['result']>) => {
             if (message.type === 'log') {
               logger[message.level](message.message)
@@ -49,6 +54,7 @@ export async function runAttachmentWorker<K extends keyof AttachmentWorkerTasks>
             reject(new Error('Attachment worker exited without a result'))
           })
           signal?.addEventListener('abort', onAbort, { once: true })
+
           if (signal?.aborted) onAbort()
           timer.unref()
           worker.unref()
@@ -59,7 +65,9 @@ export async function runAttachmentWorker<K extends keyof AttachmentWorkerTasks>
     },
     { throwOnTimeout: true }
   )
+
   if (!signal) return task
+
   return new Promise((resolve, reject) => {
     const onAbort = () => reject(signal.reason)
     const cleanup = () => signal.removeEventListener('abort', onAbort)
@@ -74,6 +82,7 @@ export async function runAttachmentWorker<K extends keyof AttachmentWorkerTasks>
         reject(error)
       }
     )
+
     if (signal.aborted) onAbort()
   })
 }

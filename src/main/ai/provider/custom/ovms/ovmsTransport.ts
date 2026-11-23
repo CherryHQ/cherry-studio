@@ -66,11 +66,13 @@ class OvmsTransport implements ImageGenerationTransport {
     const base64s = items
       .filter((item: { b64_json?: string }) => item.b64_json)
       .map((item: { b64_json: string }) => `data:image/png;base64,${item.b64_json}`)
+
     if (base64s.length > 0) {
       return { imageUrls: base64s }
     }
 
     const urls = items.filter((item: { url?: string }) => item.url).map((item: { url: string }) => item.url)
+
     return { imageUrls: urls }
   }
 }

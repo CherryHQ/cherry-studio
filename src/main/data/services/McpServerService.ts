@@ -27,6 +27,7 @@ const logger = loggerService.withContext('DataApi:McpServerService')
  */
 function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
   const clean = nullsToUndefined(row)
+
   return {
     ...clean,
     type: clean.type as McpServer['type'],
@@ -59,12 +60,15 @@ export class McpServerService {
    */
   list(query: ListMcpServersQuery) {
     const conditions: SQL[] = []
+
     if (query.id !== undefined) {
       conditions.push(eq(mcpServerTable.id, query.id))
     }
+
     if (query.isActive !== undefined) {
       conditions.push(eq(mcpServerTable.isActive, query.isActive))
     }
+
     if (query.type !== undefined) {
       conditions.push(eq(mcpServerTable.type, query.type))
     }
@@ -72,6 +76,7 @@ export class McpServerService {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
     const rows = this.db.select().from(mcpServerTable).where(whereClause).orderBy(asc(mcpServerTable.sortOrder)).all()
+
     const [{ count }] = this.db
       .select({ count: sql<number>`count(*)` })
       .from(mcpServerTable)
@@ -92,10 +97,12 @@ export class McpServerService {
     >
   ): McpServer | undefined {
     const type = config.type ?? (config.baseUrl ? 'sse' : 'stdio')
+
     const pathValue = (env: Record<string, string> | undefined) =>
       Object.entries(env ?? {})
         .filter(([key]) => key.toLowerCase() === 'path')
         .at(-1)?.[1]
+
     return this.db
       .select()
       .from(mcpServerTable)
@@ -105,16 +112,19 @@ export class McpServerService {
       .map(rowToMcpServer)
       .find((server) => {
         if (server.installSource === 'builtin' || server.type === 'inMemory') return false
+
         if (
           (server.type ?? (server.baseUrl ? 'sse' : 'stdio')) !== type ||
           (server.baseUrl ?? '') !== (config.baseUrl ?? '')
         )
           return false
+
         if (type !== 'stdio')
           return isEqual(
             mergeHeaders(defaultAppHeaders(), server.headers),
             mergeHeaders(defaultAppHeaders(), config.headers)
           )
+
         return (
           (server.command ?? '').trim() === (config.command ?? '').trim() &&
           isEqual(server.args ?? [], config.args ?? []) &&
@@ -152,11 +162,14 @@ export class McpServerService {
   createMany(dtos: CreateMcpServerDto[]): McpServer[] {
     const created = application.get('DbService').withWriteTx((tx) => {
       const names = new Set<string>()
+
       for (const dto of dtos) {
         this.validateName(dto.name)
+
         if (names.has(dto.name)) {
           throw DataApiErrorFactory.conflict(`MCP server '${dto.name}' already exists`, 'McpServer')
         }
+
         names.add(dto.name)
       }
 
@@ -165,6 +178,7 @@ export class McpServerService {
         .from(mcpServerTable)
         .where(inArray(mcpServerTable.name, [...names]))
         .get()
+
       if (existing) {
         throw DataApiErrorFactory.conflict(`MCP server '${existing.name}' already exists`, 'McpServer')
       }
@@ -179,11 +193,13 @@ export class McpServerService {
           })
           .returning()
           .all()
+
         return row
       })
     })
 
     logger.info('Created MCP servers', { count: created.length })
+
     return created.map(rowToMcpServer)
   }
 
@@ -193,6 +209,7 @@ export class McpServerService {
   update(id: string, dto: UpdateMcpServerDto): McpServer {
     const result = application.get('DbService').withWriteTx((tx) => {
       const [existingRow] = tx.select().from(mcpServerTable).where(eq(mcpServerTable.id, id)).limit(1).all()
+
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('McpServer', id)
       }
@@ -203,7 +220,9 @@ export class McpServerService {
       const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
         typeof mcpServerTable.$inferInsert
       >
+
       const [row] = tx.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning().all()
+
       return rowToMcpServer(row)
     })
 

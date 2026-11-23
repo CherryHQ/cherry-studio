@@ -72,24 +72,30 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
     getSnapshot: (topicId) => snapshots.get(topicId) ?? null,
     setSnapshot: (topicId, state) => {
       const current = snapshots.get(topicId) ?? null
+
       if (current === state) return
+
       if (state) {
         snapshots.set(topicId, state)
       } else {
         snapshots.delete(topicId)
       }
+
       notify(topicId)
     },
     subscribe: (topicId, listener) => {
       let topicListeners = listeners.get(topicId)
+
       if (!topicListeners) {
         topicListeners = new Set()
         listeners.set(topicId, topicListeners)
       }
+
       topicListeners.add(listener)
 
       return () => {
         topicListeners?.delete(listener)
+
         if (topicListeners?.size === 0) listeners.delete(topicId)
       }
     }
@@ -97,17 +103,24 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 }
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
+
 type TopicRightPaneViewportValue = TopicRightPaneViewportCallbacks & { branchOpenCycle: number }
+
 const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportValue | null>(null)
+
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
+
   if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane.Scope>')
+
   return store
 }
 
 function useTopicRightPaneViewport(): TopicRightPaneViewportValue {
   const value = use(TopicRightPaneViewportContext)
+
   if (!value) throw new Error('useTopicRightPaneViewport must be used within <TopicRightPane.Viewport>')
+
   return value
 }
 
@@ -149,7 +162,9 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
 
 function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   const actions = useRightPanelActions()
+
   if (!scope.topicId) return null
+
   return (
     <SessionBrowserView
       runtime={browserRuntime}
@@ -169,11 +184,13 @@ function TopicBrowserPaneOpener({ topicId }: { topicId?: string }) {
   useIpcOn('browser.pane.open_requested', ({ sessionId, scope }) => {
     if (autoOpenPanel && scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
   })
+
   return null
 }
 
 function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   if (!active) return null
+
   return (
     <Suspense fallback={null}>
       <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
@@ -184,6 +201,7 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
 /** Stable capability declarations; catalog order is the fallback order. */
 const TRACE_PANE_ID = 'trace'
 const TOPIC_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<TopicRightPanelScope>()
+
 const TOPIC_TRACE_PANE_CAPABILITY = {
   component: TopicTraceRightPanel,
   resolve: (scope: TopicRightPanelScope) => ({
@@ -193,6 +211,7 @@ const TOPIC_TRACE_PANE_CAPABILITY = {
     readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
   })
 } satisfies RightPanelCapability<TopicRightPanelScope>
+
 const TOPIC_RIGHT_PANEL_CAPABILITIES = [
   TOPIC_RESOURCE_PANE_CAPABILITY,
   {
@@ -243,7 +262,9 @@ function TopicRightPaneProvider({
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
+
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
+
   const scope = useMemo<TopicRightPanelScope>(
     () => ({
       topicId,

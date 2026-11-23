@@ -17,16 +17,20 @@ export function getServiceTierCatalogErrors(
 
   for (const override of overrides) {
     const options = override.requestControls?.serviceTier?.options
+
     if (!options) continue
 
     const provider = providerById.get(override.providerId)
+
     const endpointTypes = override.endpointTypes?.length
       ? override.endpointTypes
       : provider?.defaultChatEndpoint
         ? [provider.defaultChatEndpoint]
         : []
+
     const controls = endpointTypes.flatMap((endpointType) => {
       const control = provider?.endpointConfigs?.[endpointType]?.requestControls?.serviceTier
+
       return control ? [{ endpointType, control }] : []
     })
 

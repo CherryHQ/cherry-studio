@@ -17,6 +17,7 @@ import { defineRoute } from '../define'
 const chatSubjectSchema = z
   .object({ kind: z.literal('chat'), providerId: z.string().min(1), modelId: z.string().min(1) })
   .strict()
+
 const agentSubjectSchema = z.union([
   z.object({ kind: z.literal('agent'), agentId: z.string().min(1) }).strict(),
   z
@@ -28,6 +29,7 @@ const agentSubjectSchema = z.union([
     })
     .strict()
 ])
+
 const contextualSubjectSchema = z.union([chatSubjectSchema, agentSubjectSchema])
 const subjectRefSchema = z.union([z.object({ kind: z.literal('global') }).strict(), contextualSubjectSchema])
 const scopeKeySchema = z.custom<DoctorScopeKey>(isDoctorScopeKey)

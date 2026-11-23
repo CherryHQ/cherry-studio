@@ -142,10 +142,13 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
 
 function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
   if (!ref) return
+
   if (typeof ref === 'function') {
     ref(value)
+
     return
   }
+
   ref.current = value
 }
 
@@ -177,6 +180,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   } = props
 
   const internalScrollerRef = useRef<HTMLDivElement>(null)
+
   const setScrollerRef = useCallback(
     (node: HTMLDivElement | null) => {
       internalScrollerRef.current = node
@@ -195,10 +199,13 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   useLayoutEffect(() => {
     const content = contentRef.current
     const scrollElement = usesExternalScroll ? externalScrollElement : internalScrollerRef.current
+
     if (!measuresContentOffset) {
       setContentScrollMargin(0)
+
       return undefined
     }
+
     if (!scrollElement || !content) return undefined
 
     const measureScrollMargin = () => {
@@ -210,16 +217,21 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           : contentRect.top - scrollRect.top + scrollElement.scrollTop - scrollElement.clientTop
       )
     }
+
     measureScrollMargin()
     const observer = new ResizeObserver(measureScrollMargin)
+
     // Preceding siblings can move the list without resizing a min-height ancestor.
     for (let element: HTMLElement | null = content; element; element = element.parentElement) {
       observer.observe(element)
+
       if (element === scrollElement) break
+
       for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
         observer.observe(sibling)
       }
     }
+
     return () => observer.disconnect()
   }, [
     externalScrollElement,
@@ -236,6 +248,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const stickyIndexes = useMemo(() => {
     if (!isSticky) return []
+
     return list.map((_, index) => (isSticky(index) ? index : -1)).filter((index) => index !== -1)
   }, [list, isSticky])
 
@@ -274,6 +287,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       } else {
         // Fallback: without depth info, just use the last sticky before range
         const lastStickyBeforeRange = [...stickyIndexes].reverse().find((index) => index < range.startIndex)
+
         if (lastStickyBeforeRange !== undefined) {
           activeStickies.push(lastStickyBeforeRange)
         }
@@ -292,15 +306,18 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   )
 
   const baseRangeExtractor = customRangeExtractor ?? (isSticky ? internalStickyRangeExtractor : undefined)
+
   const rangeExtractorWithKeptIndexes = useCallback(
     (range: Range) => {
       const extracted = baseRangeExtractor?.(range) ?? defaultRangeExtractor(range)
+
       return [
         ...new Set([...extracted, ...keepMountedIndexes.filter((index) => index >= 0 && index < list.length)])
       ].sort((a, b) => a - b)
     },
     [baseRangeExtractor, keepMountedIndexes, list.length]
   )
+
   const resolvedRangeExtractor = keepMountedIndexes.length > 0 ? rangeExtractorWithKeptIndexes : baseRangeExtractor
 
   const virtualizer = useVirtualizer({
@@ -311,6 +328,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     estimateSize,
     rangeExtractor: resolvedRangeExtractor
   })
+
   const previousListLengthRef = useRef(list.length)
 
   useLayoutEffect(() => {
@@ -341,9 +359,11 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const totalSize = virtualizer.getTotalSize()
   const maxStickyDepth = stickyIndexes.reduce((max, index) => Math.max(max, getItemDepth?.(index) ?? 0), 0)
   let previousStickyEnd = 0
+
   const hasFixedItemSize = horizontal
     ? itemContainerStyle?.width !== undefined
     : itemContainerStyle?.height !== undefined
+
   const measureItemElement = hasFixedItemSize ? undefined : virtualizer.measureElement
 
   const viewportProps = {
@@ -372,32 +392,40 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
           const isItemClamped =
             isItemSticky && (isItemActiveSticky || virtualItem.index >= (virtualizer.range?.startIndex ?? 0))
+
           const depth = getItemDepth?.(virtualItem.index) ?? 0
           let ancestorDepth = depth
           let stickyOffset = 0
+
           for (let i = stickyIndexes.length - 1; i >= 0 && ancestorDepth > 0; i--) {
             const index = stickyIndexes[i]
+
             if (index >= virtualItem.index) continue
             const candidateDepth = getItemDepth?.(index) ?? 0
+
             if (candidateDepth < ancestorDepth) {
               stickyOffset += virtualItems.find((item) => item.index === index)?.size ?? estimateSize(index)
               ancestorDepth = candidateDepth
             }
           }
+
           const naturalOffset = virtualItem.start - scrollMargin
           // In-flow gaps preserve virtual coordinates while native sticky follows compositor scrolling.
           const flowGap = naturalOffset - previousStickyEnd
+
           if (isItemClamped) previousStickyEnd = naturalOffset + virtualItem.size
 
           // Check if this item is visually covered by sticky items
           // If covered, disable pointer events to prevent hover/click bleeding through
           const isCoveredBySticky = (() => {
             if (!activeStickyIndexesRef.current.length) return false
+
             if (isItemActiveSticky) return false // Sticky items themselves are not covered
 
             // Calculate if this item's visual position is under any sticky header
             const itemVisualTop = virtualItem.start
             let totalStickyHeight = 0
+
             for (const stickyIdx of activeStickyIndexesRef.current) {
               totalStickyHeight += estimateSize(stickyIdx)
             }

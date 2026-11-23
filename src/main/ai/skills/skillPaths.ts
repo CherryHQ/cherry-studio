@@ -29,6 +29,7 @@ export function normalizeFolderKey(folderName: string): string {
 export async function createTempDir(prefix: string): Promise<string> {
   const root = application.getPath('feature.agents.skills.install.temp')
   await fs.promises.mkdir(root, { recursive: true })
+
   // mkdtemp, not a timestamp: two installs starting in the same millisecond would otherwise share
   // one workspace and delete each other's checkout on cleanup.
   return fs.promises.mkdtemp(path.join(root, `${prefix}-`))

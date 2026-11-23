@@ -47,8 +47,11 @@ export interface ExternalMcpConnectionLog {
 
 function transportCandidates(server: McpServer): McpServerType[] | null {
   if (!server.baseUrl) return null
+
   if (server.type === 'sse') return ['sse', 'streamableHttp']
+
   if (server.type === 'streamableHttp') return ['streamableHttp', 'sse']
+
   return null
 }
 
@@ -58,6 +61,7 @@ function transportCandidates(server: McpServer): McpServerType[] | null {
  */
 function prefersOAuth(server: Pick<McpServer, 'installSource' | 'name' | 'headers'>): boolean {
   if (server.installSource === 'builtin' && server.name === BuiltinMcpServerNames.qveris) return true
+
   // `headers` reaches here unnormalized, so match Authorization case-insensitively.
   return !Object.keys(server.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
 }
@@ -65,7 +69,9 @@ function prefersOAuth(server: Pick<McpServer, 'installSource' | 'name' | 'header
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Connection catches include arbitrary failures; only native SSE 405 or SDK HTTP 404/405 permit changing transports.
 function isTransportFallbackError(error: unknown): boolean {
   if (error instanceof SseError) return error.code === 405
+
   if (error instanceof SdkHttpError) return error.status === 404 || error.status === 405
+
   return false
 }
 
@@ -131,20 +137,27 @@ export async function createExternalMcpConnection({
   const authProvider = new McpOAuthClientProvider({
     serverUrlHash: oauthServerUrlHash(server.baseUrl || '')
   })
+
   const headers = mergeHeaders(defaultAppHeaders(), server.headers)
   const useOAuth = prefersOAuth(server)
   const fallbackAuthorization = useOAuth ? headers.authorization : undefined
+
   // Keep fallback Bearer out of `requestInit.headers` so the SDK's OAuth `/token` requests stay public-client.
   const requestHeaders = useOAuth
     ? Object.fromEntries(Object.entries(headers).filter(([key]) => key !== 'authorization'))
     : headers
+
   const args = [...(server.args || [])]
   const lifetime = new AbortController()
+
   type AuthOperation = { signal: AbortSignal; lease?: McpAuthorizationLease }
+
   const authOperations = new AsyncLocalStorage<AuthOperation>()
+
   const initialAuthorization: AuthOperation = {
     signal: AbortSignal.any([lifetime.signal, AbortSignal.timeout(connectTimeoutMs), ...(signal ? [signal] : [])])
   }
+
   let connecting = true
   let connected = false
   let activeConnection: ClientMcpConnection | undefined
@@ -152,17 +165,20 @@ export async function createExternalMcpConnection({
     const operation = authOperations.getStore() ?? initialAuthorization
     const windowId = connecting ? authorizationWindowId : activeConnection?.getInteractionContext()?.windowId
     const window = windowId ? application.get('WindowManager').getWindow(windowId) : undefined
+
     if (connecting ? !allowInteractiveAuthorization || (Boolean(windowId) && !window) : !window)
       throw new UnauthorizedError(t('settings.mcp.oauth.required'))
     const windowClosed = new AbortController()
     const close = () => windowClosed.abort(new Error('MCP authorization window closed'))
     window?.once('closed', close)
+
     try {
       operation.lease = await oauthCoordinator.begin(
         authProvider.config.serverUrlHash,
         AbortSignal.any([operation.signal, windowClosed.signal])
       )
       operation.lease.signal.addEventListener('abort', () => window?.removeListener('closed', close), { once: true })
+
       if (connecting) onAuthorizationStarted?.()
     } catch (error) {
       window?.removeListener('closed', close)
@@ -173,39 +189,51 @@ export async function createExternalMcpConnection({
   const createTransport = async (typeOverride?: McpServerType): Promise<Transport> => {
     if (server.baseUrl) {
       const serverUrl = new URL(server.baseUrl)
+
       const fetchUrl = async (input: RequestInfo | URL, init?: RequestInit) => {
         const target = input.toString()
         let requestInit = init
+
         if (fallbackAuthorization && target === serverUrl.href) {
           const merged = new Headers(init?.headers)
+
           if (!merged.has('authorization')) {
             merged.set('authorization', fallbackAuthorization)
             requestInit = { ...init, headers: merged }
           }
         }
+
         try {
           return await net.fetch(target, requestInit)
         } catch (error) {
           throw normalizeMcpTransportError(error)
         }
       }
+
       const type = typeOverride ?? server.type ?? 'sse'
+
       if (type === 'streamableHttp') {
         const options: NonNullable<ConstructorParameters<typeof StreamableHTTPClientTransport>[1]> = {
           fetch: fetchUrl,
           requestInit: { headers: requestHeaders }
         }
+
         if (useOAuth) options.authProvider = authProvider
+
         return wrapOAuthTransport(new StreamableHTTPClientTransport(serverUrl, options))
       }
+
       if (type === 'sse') {
         const options: NonNullable<ConstructorParameters<typeof SSEClientTransport>[1]> = {
           fetch: fetchUrl,
           requestInit: { headers: requestHeaders }
         }
+
         if (useOAuth) options.authProvider = authProvider
+
         return wrapOAuthTransport(new SSEClientTransport(serverUrl, options))
       }
+
       throw new Error(`Unsupported URL transport: ${type}`)
     }
 
@@ -218,11 +246,15 @@ export async function createExternalMcpConnection({
       args,
       logger: loggerService.withContext('ExternalMcpConnection', { serverId: server.id })
     })
+
     if (launch.unavailableReason) throw new McpConfigurationError(launch.unavailableReason)
+
     if (launch.resolution === 'unresolved') {
       log.warn('Could not resolve the stdio command; attempting the configured command', { command: launch.command })
     }
+
     Object.assign(serverEnv, launch.env, getBuiltinAutoInstallEnv(server))
+
     if (launch.command.includes('bun')) removeEnvProxy(loginShellEnv)
 
     const parameters: StdioServerParameters = {
@@ -231,9 +263,11 @@ export async function createExternalMcpConnection({
       env: buildStdioEnvironment(loginShellEnv, serverEnv),
       stderr: 'pipe'
     }
+
     if (server.dxtPath) parameters.cwd = server.dxtPath
     const transport = new StdioClientTransport(parameters)
     transport.stderr?.on('data', (data) => log.stdio(data.toString().trim()))
+
     return transport
   }
 
@@ -244,6 +278,7 @@ export async function createExternalMcpConnection({
       path: authProvider.config.callbackPath,
       events: new EventEmitter()
     })
+
     try {
       await callbackServer.getServer
     } catch (error) {
@@ -261,7 +296,9 @@ export async function createExternalMcpConnection({
   const authenticate = async (transport: UrlTransport, operation: AuthOperation): Promise<void> => {
     const callback = callbackServer
     const lease = operation.lease
+
     if (!callback || !lease) throw new UnauthorizedError()
+
     try {
       const params = await callback.waitForAuthCallback(300_000, lease.signal)
       await authProvider.validateCallbackState(params)
@@ -286,13 +323,16 @@ export async function createExternalMcpConnection({
     const send = wire.send.bind(wire)
     wire.send = (message, options) => {
       if (connecting) return send(message, options)
+
       const operation: AuthOperation = {
         signal: AbortSignal.any([lifetime.signal, ...(options?.requestSignal ? [options.requestSignal] : [])])
       }
+
       return authOperations.run(operation, () =>
         authProvider.withAuthorizationFlow(async () => {
           for (let attempt = 0; ; attempt++) {
             operation.signal.throwIfAborted()
+
             try {
               return await send(message, options)
             } catch (error) {
@@ -301,22 +341,26 @@ export async function createExternalMcpConnection({
                 authProvider.reloadCredentials()
                 continue
               }
+
               if (attempt < 2 && UnauthorizedError.isInstance(error) && operation.lease) {
                 await authenticate(transport, operation)
                 continue
               }
+
               if (operation.lease) {
                 await callbackServer?.close().catch(() => undefined)
                 callbackServer = undefined
                 operation.lease.finish(error)
                 operation.lease = undefined
               }
+
               throw error
             }
           }
         })
       )
     }
+
     return transport
   }
 
@@ -330,6 +374,7 @@ export async function createExternalMcpConnection({
       authProvider.beginAuthorization = undefined
       await callbackServer?.close()
     })
+
     return connection
   }
 
@@ -341,11 +386,13 @@ export async function createExternalMcpConnection({
       let connection = createClient(appVersion, events)
       activeConnection = connection
       let transport = await createTransport(candidate)
+
       try {
         await authProvider.withAuthorizationFlow(() =>
           connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
         )
         log.info('Server connected', { era: connection.era, serverVersion: connection.serverVersion })
+
         return finishConnection(connection)
       } catch (error) {
         lastError = error
@@ -365,6 +412,7 @@ export async function createExternalMcpConnection({
               connection.connect(transport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
             )
             log.info('Server authenticated', { era: connection.era })
+
             return finishConnection(connection)
           } catch (oauthError) {
             await connection.close().catch(() => undefined)
@@ -373,6 +421,7 @@ export async function createExternalMcpConnection({
         }
 
         await connection.close().catch(() => undefined)
+
         if (
           isLegacyProbeRejection(error) &&
           (transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport)
@@ -383,12 +432,14 @@ export async function createExternalMcpConnection({
           })
           const legacy = createClient(appVersion, events, 'legacy')
           activeConnection = legacy
+
           try {
             const retryTransport = await createTransport(candidate)
             await authProvider.withAuthorizationFlow(() =>
               legacy.connect(retryTransport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
             )
             log.info('Server connected', { era: legacy.era, serverVersion: legacy.serverVersion })
+
             return finishConnection(legacy)
           } catch (legacyError) {
             await legacy.close().catch(() => undefined)
@@ -396,10 +447,12 @@ export async function createExternalMcpConnection({
             throw error
           }
         }
+
         if (candidate && candidate !== candidates.at(-1) && isTransportFallbackError(error)) {
           log.warn('Transport mismatch; trying fallback', { candidate })
           continue
         }
+
         throw error
       }
     }

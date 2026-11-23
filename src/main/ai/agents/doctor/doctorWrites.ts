@@ -30,8 +30,10 @@ const DATA_API_PATCH_PATHS: readonly RegExp[] = [
 const credentialFreeUrl = z.string().refine(
   (value) => {
     if (value === '') return true
+
     try {
       const url = new URL(value)
+
       return !url.username && !url.password
     } catch {
       return false
@@ -66,7 +68,9 @@ export function parsePreferenceWrite(
 ) {
   if (!isPreferenceWritable(key)) throw new Error(`Preference "${key}" is not writable by the doctor`)
   const parsed = PREFERENCE_WRITE_SCHEMAS[key].safeParse(value)
+
   if (!parsed.success) throw new Error(`Invalid value for "${key}": ${parsed.error.issues[0]?.message ?? 'rejected'}`)
+
   return { key, value: parsed.data }
 }
 
@@ -80,12 +84,16 @@ export function redactTextForModel(text: string): string {
 export function redactForModel(value: unknown): Serializable {
   const walk = (val: Serializable): Serializable => {
     if (typeof val === 'string') return redactTextForModel(val)
+
     if (Array.isArray(val)) return val.map(walk)
+
     if (typeof val === 'object' && val !== null) {
       return Object.fromEntries(Object.entries(val).map(([key, item]) => [key, walk(item)]))
     }
+
     return val
   }
+
   return walk(redactDeep(value))
 }
 
@@ -96,8 +104,11 @@ export function isDataApiPatchPath(path: string): boolean {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Existing entity fields and preference values may contain secrets at any depth; reject writes whose undo snapshot would capture those credentials.
 function containsSecretMaterial(value: unknown): boolean {
   if (typeof value === 'string') return redactTextForModel(value) !== value
+
   if (Array.isArray(value)) return value.some(containsSecretMaterial)
+
   if (typeof value !== 'object' || value === null) return false
+
   return Object.entries(value).some(([key, item]) => isSensitiveKey(key) || containsSecretMaterial(item))
 }
 
@@ -105,6 +116,7 @@ function containsSecretMaterial(value: unknown): boolean {
 export function writeRisk(write: DoctorAgentWrite): 'auto' | 'confirm' {
   if (write.kind !== 'doctor_fix') return 'confirm'
   const meta = doctorFixMeta(write.request.checkId, write.request.fixId)
+
   return meta.reversible && !meta.relaunch ? 'auto' : 'confirm'
 }
 
@@ -131,15 +143,20 @@ async function fetchDataApi(input: DataApiQuery): Promise<DataApiResult> {
     params: input.query,
     body: input.body
   })
+
   const result: DataApiResult = { status: response.status }
+
   if (response.data !== undefined) Object.assign(result, { data: response.data })
+
   if (response.error) Object.assign(result, { error: response.error })
+
   return result
 }
 
 /** In-process DataApi call; the handler layer validates, this layer redacts. */
 export async function queryDataApi(input: DataApiQuery): Promise<DataApiResult> {
   const result = await fetchDataApi(input)
+
   return result.data !== undefined ? { ...result, data: redactForModel(result.data) } : result
 }
 
@@ -153,22 +170,29 @@ export function assertNoSecretFields(body: Extract<DoctorAgentWrite, { kind: 'da
           `Refusing to write credential value at "${trail.join('.')}"; ask the user to enter it in Settings`
         )
       }
+
       return
     }
+
     if (Array.isArray(value)) {
       value.forEach((item, index) => walk(item, [...trail, String(index)]))
+
       return
     }
+
     if (typeof value !== 'object' || value === null) return
+
     for (const [key, item] of Object.entries(value)) {
       if (isSensitiveKey(key)) {
         throw new Error(
           `Refusing to write credential field "${[...trail, key].join('.')}"; ask the user to enter it in Settings`
         )
       }
+
       walk(item, [...trail, key])
     }
   }
+
   walk(body, [])
 }
 
@@ -182,9 +206,11 @@ export interface AppliedWrite {
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Route-specific entities have different field types; undo snapshots must preserve their original values.
 async function readEntity(path: string): Promise<Record<string, unknown>> {
   const current = await fetchDataApi({ method: 'GET', path })
+
   if (current.error || typeof current.data !== 'object' || current.data === null) {
     throw new Error(`Cannot read ${path}: ${current.error?.message ?? 'no data'}`)
   }
+
   // SAFETY: The checked response is used only as an opaque field container, without assuming an entity schema.
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Selected snapshot values are inspected for secrets before they enter the ledger.
   return current.data as Record<string, unknown>
@@ -197,34 +223,47 @@ export async function applyWrite(write: DoctorAgentWrite): Promise<AppliedWrite>
       const raw = await readEntity(write.path)
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Secret-free prior fields retain their native values for exact undo; they are not model-bound JSON.
       const before: Record<string, unknown> = {}
+
       for (const key of Object.keys(write.body)) {
         // A field whose stored value changes under redaction carries a credential; the snapshot
         // would leak it or, once redacted, destroy it on undo. Such fields are off limits.
         if (containsSecretMaterial(raw[key] ?? null)) {
           throw new Error(`Refusing to write "${key}": its current value carries credentials`)
         }
+
         before[key] = raw[key] ?? null
       }
+
       const result = await fetchDataApi({ method: 'PATCH', path: write.path, body: { ...write.body } })
+
       if (result.error) throw new Error(result.error.message)
       const updated = await readEntity(write.path)
       const after = Object.fromEntries(Object.keys(write.body).map((key) => [key, updated[key] ?? null]))
+
       return { before, after, undoable: true }
     }
+
     case 'preference_set': {
       const { key, value } = parsePreferenceWrite(write.key, write.value)
       const preferences = application.get('PreferenceService')
       const before = preferences.get(key)
+
       if (containsSecretMaterial(before)) {
         throw new Error(`Refusing to write "${key}": its current value carries credentials`)
       }
+
       await preferences.set(key, value)
+
       return { before, after: value, undoable: true }
     }
+
     case 'doctor_fix': {
       const fix = await application.get('DoctorService').fix(write.request)
+
       if (fix.status === 'failed') throw new Error(fix.message)
+
       if (fix.status === 'stale') throw new Error(`Fix is stale: ${fix.reason}`)
+
       return { before: null, after: null, undoable: false, fix }
     }
   }
@@ -236,6 +275,7 @@ export async function undoWrite(write: DoctorAgentWrite, before: unknown, after:
   switch (write.kind) {
     case 'data_api_patch': {
       const raw = await readEntity(write.path)
+
       // SAFETY: PATCH after-snapshots are field maps created by applyWrite and retrieved from the current-run ledger.
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve each original value for the concurrent-edit comparison.
       for (const [key, written] of Object.entries(after as Record<string, unknown>)) {
@@ -243,6 +283,7 @@ export async function undoWrite(write: DoctorAgentWrite, before: unknown, after:
           throw new Error(`"${key}" changed since the doctor wrote it; nothing was restored`)
         }
       }
+
       const result = await fetchDataApi({
         method: 'PATCH',
         path: write.path,
@@ -250,18 +291,25 @@ export async function undoWrite(write: DoctorAgentWrite, before: unknown, after:
         // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Undo restores the original field map without coercing its values.
         body: { ...(before as Record<string, unknown>) }
       })
+
       if (result.error) throw new Error(result.error.message)
+
       return
     }
+
     case 'preference_set': {
       const { key } = parsePreferenceWrite(write.key, write.value)
       const preferences = application.get('PreferenceService')
+
       if (!isDeepStrictEqual(preferences.get(key), after)) {
         throw new Error(`"${key}" changed since the doctor wrote it; nothing was restored`)
       }
+
       await preferences.set(key, before as never)
+
       return
     }
+
     case 'doctor_fix':
       throw new Error('Catalog fixes cannot be undone')
   }

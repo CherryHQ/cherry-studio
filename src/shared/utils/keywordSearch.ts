@@ -6,17 +6,21 @@ function escapeRegex(text: string): string {
 
 export function splitKeywordsToTerms(keywords: string): string[] {
   const input = (keywords || '').trim()
+
   if (input.length === 0) return []
 
   const terms: string[] = []
   const pattern = /"([^"]*)"?|'([^']*)'?|(\S+)/g
   let match: RegExpExecArray | null
+
   while ((match = pattern.exec(input)) !== null) {
     const term = (match[1] ?? match[2] ?? match[3]).trim()
+
     if (term.length > 0) {
       terms.push(term.toLowerCase())
     }
   }
+
   return terms
 }
 
@@ -29,6 +33,7 @@ function buildWholeWordPattern(escapedTerm: string): string {
   if (containsCJK(escapedTerm)) {
     return escapedTerm
   }
+
   // Whole word means "not inside a larger alphanumeric token"; this avoids
   // false positives like API-key fragments and suffix-only matches.
   return `(?<![\\p{L}\\p{N}])${escapedTerm}(?![\\p{L}\\p{N}])`
@@ -40,12 +45,14 @@ function addRegexFlag(flags: string, flag: string): string {
 
 function buildKeywordPattern(term: string, matchMode: KeywordMatchMode): string {
   const escaped = escapeRegex(term)
+
   return matchMode === 'whole-word' ? buildWholeWordPattern(escaped) : escaped
 }
 
 function buildKeywordRegex(term: string, options: { matchMode: KeywordMatchMode; flags?: string }): RegExp {
   const flags = options.flags ?? 'i'
   const normalizedFlags = options.matchMode === 'whole-word' ? addRegexFlag(flags, 'u') : flags
+
   return new RegExp(buildKeywordPattern(term, options.matchMode), normalizedFlags)
 }
 

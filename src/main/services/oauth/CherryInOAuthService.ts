@@ -67,10 +67,12 @@ export class CherryInOAuthService {
 
   public getToken = async (apiHost = 'https://open.cherryin.ai'): Promise<string | null> => {
     this.validateApiHost(apiHost)
+
     try {
       const credentials = await application
         .get('OAuthRuntimeService')
         .getValidAccessToken(SystemProviderIds.cherryin, { apiHost })
+
       return credentials?.accessToken ?? null
     } catch (error) {
       // A transient refresh failure means the session is still valid but we
@@ -78,8 +80,10 @@ export class CherryInOAuthService {
       // still clear the local session — treat it as "no token to revoke".
       if (error instanceof OAuthTransientError) {
         logger.debug('CherryIN token temporarily unavailable, skipping remote revoke', describeOAuthError(error))
+
         return null
       }
+
       throw error
     }
   }
@@ -113,18 +117,21 @@ export class CherryInOAuthService {
 
     try {
       const text = await response.clone().text()
+
       if (!text) {
         return null
       }
 
       try {
         const value: unknown = JSON.parse(text)
+
         return this.redactDiagnosticValue(isSerializable(value) ? value : text)
       } catch {
         return this.redactDiagnosticValue(text)
       }
     } catch (error) {
       logger.warn('Failed to read CherryIN error response body for diagnostics:', error as Error)
+
       return null
     }
   }
@@ -197,10 +204,12 @@ export class CherryInOAuthService {
           statusText: response.statusText,
           body: await this.readResponseBodyForDiagnostics(response)
         })
+
         return null
       }
 
       const json = await response.json()
+
       return UserSelfResponseSchema.parse(json)
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -208,6 +217,7 @@ export class CherryInOAuthService {
       } else {
         logger.warn('Failed to fetch CherryIN profile:', error as Error)
       }
+
       return null
     }
   }
@@ -234,6 +244,7 @@ export class CherryInOAuthService {
       const profile = await this.getProfile(apiHost)
       const balance = quota / 500000
       logger.info('Balance fetched successfully', { balance, usedQuota })
+
       return {
         balance,
         profile
@@ -243,6 +254,7 @@ export class CherryInOAuthService {
         logger.error('Invalid balance response format:', error.issues)
         throw new CherryInOAuthServiceError('Invalid response format from server', error)
       }
+
       logger.error('Failed to get balance:', error as Error)
       const detail = error instanceof Error && error.message ? `: ${error.message}` : ''
       throw new CherryInOAuthServiceError(`Failed to get balance${detail}`, error)

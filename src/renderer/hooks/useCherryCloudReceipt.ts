@@ -16,7 +16,9 @@ export function useCherryCloudReceipt(enabled = true) {
     () => ipcApi.request('cherry_cloud.account.get'),
     { shouldRetryOnError: false, revalidateOnFocus: false, revalidateOnReconnect: false }
   )
+
   const [isRefreshing, setIsRefreshing] = useState(false)
+
   const applyReceipt = useCallback(
     (next: CherryCloudAccountReceipt) => {
       void mutate((current) => (!current || next.status.revision > current.status.revision ? next : current), {
@@ -25,19 +27,25 @@ export function useCherryCloudReceipt(enabled = true) {
     },
     [mutate]
   )
+
   useIpcOn('cherry_cloud.account_changed', (next) => {
     if (enabled) applyReceipt(next)
   })
+
   const refresh = useCallback(
     async (reason: 'initial' | 'focus_refresh' = 'initial'): Promise<CherryCloudAccountRefreshResult> => {
       setIsRefreshing(true)
+
       try {
         const snapshot = receipt ?? (await ipcApi.request('cherry_cloud.account.get'))
+
         const result = await ipcApi.request('cherry_cloud.account.refresh', {
           scopeId: snapshot.status.scopeId,
           reason
         })
+
         if ('receipt' in result) applyReceipt(result.receipt)
+
         return result
       } finally {
         setIsRefreshing(false)
@@ -45,5 +53,6 @@ export function useCherryCloudReceipt(enabled = true) {
     },
     [applyReceipt, receipt]
   )
+
   return { receipt, error, reload: mutate, refresh, isRefreshing, applyReceipt }
 }

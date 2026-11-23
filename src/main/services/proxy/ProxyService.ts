@@ -29,10 +29,13 @@ export type ProxyConnectionTestResult = {
 function classifyProxyTestError(error: unknown): NonNullable<ProxyConnectionTestResult['error']> {
   try {
     const message = error instanceof Error ? `${error.name} ${error.message}`.toLowerCase() : ''
+
     if (message.includes('proxy_auth') || message.includes('proxy authentication') || message.includes('407')) {
       return 'authentication_required'
     }
+
     if (message.includes('abort') || message.includes('timeout')) return 'timeout'
+
     if (
       message.includes('econnrefused') ||
       message.includes('enotfound') ||
@@ -45,6 +48,7 @@ function classifyProxyTestError(error: unknown): NonNullable<ProxyConnectionTest
   } catch {
     // Unreadable native diagnostics cannot establish authentication or timeout evidence.
   }
+
   return 'connection_failed'
 }
 
@@ -97,15 +101,19 @@ function withLoopbackBypass(bypassRules: string): string {
     .split(/[,;]/)
     .map((entry) => entry.trim())
     .filter(Boolean)
+
   if (entries.length === 0) return LOOPBACK_BYPASS_RULES.join(',')
+
   if (entries.some((entry) => entry === '*' || entry.toLowerCase() === '<-loopback>')) return entries.join(',')
   const seen = new Set(entries.map((entry) => entry.toLowerCase()))
+
   for (const rule of LOOPBACK_BYPASS_RULES) {
     if (!seen.has(rule)) {
       seen.add(rule)
       entries.push(rule)
     }
   }
+
   return entries.join(',')
 }
 
@@ -182,6 +190,7 @@ export class ProxyService extends BaseService {
     const converged = this.desiredKey === this.appliedKey
     // `getLastError()` only clears on a successful apply, so it is meaningful solely while unconverged.
     const error = converged ? null : this.proxyReconciler.getLastError()
+
     return {
       mode: preferenceService.get('app.proxy.mode'),
       hasConfiguredUrl: preferenceService.get('app.proxy.url') !== '',
@@ -205,6 +214,7 @@ export class ProxyService extends BaseService {
       () => undefined,
       () => undefined
     )
+
     return run
   }
 
@@ -234,10 +244,12 @@ export class ProxyService extends BaseService {
       await testSession.setProxy(config)
       await testSession.closeAllConnections()
       const resolvedRoute = await testSession.resolveProxy(PROXY_TEST_TARGET)
+
       const candidates = resolvedRoute
         .split(';')
         .map((candidate) => candidate.trim().toUpperCase())
         .filter(Boolean)
+
       if (candidates.includes('DIRECT') && candidates.some((candidate) => candidate !== 'DIRECT')) {
         // PAC candidates do not identify the transport that fetch ultimately uses.
         route = 'fallback'
@@ -249,10 +261,13 @@ export class ProxyService extends BaseService {
         method: 'GET',
         signal: AbortSignal.timeout(PROXY_TEST_TIMEOUT_MS)
       })
+
       if (response.status === 407) {
         return { target: PROXY_TEST_TARGET, route, success: false, error: 'authentication_required' }
       }
+
       if (!response.ok) return { target: PROXY_TEST_TARGET, route, success: false, error: 'http_error' }
+
       return { target: PROXY_TEST_TARGET, route, success: true }
     } catch (error) {
       return { target: PROXY_TEST_TARGET, route, success: false, error: classifyProxyTestError(error) }
@@ -276,6 +291,7 @@ export class ProxyService extends BaseService {
     this.proxyReconciler.request()
     void this.proxyReconciler.flush().then(() => {
       const error = this.proxyReconciler.getLastError()
+
       if (error) {
         logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error)
       }
@@ -285,17 +301,21 @@ export class ProxyService extends BaseService {
   /** Latest intent from preferences, resolving the concrete OS proxy for `system` mode. */
   private async snapshotProxyConfig(): Promise<ProxyConfig> {
     const preferenceService = application.get('PreferenceService')
+
     const config = resolveProxyConfig({
       mode: preferenceService.get('app.proxy.mode'),
       url: preferenceService.get('app.proxy.url'),
       bypassRules: preferenceService.get('app.proxy.bypass_rules')
     })
+
     this.systemProxyReadFailed = false
+
     if (config.mode === 'system') {
       // A failed OS read must not abort the apply — fall back to bare system mode so Electron
       // still applies something instead of leaving the proxy unconfigured.
       try {
         const currentProxy = await getSystemProxy()
+
         if (currentProxy) {
           config.proxyRules = currentProxy.proxyUrl.toLowerCase()
           config.proxyBypassRules = currentProxy.noProxy.join(',')
@@ -305,12 +325,15 @@ export class ProxyService extends BaseService {
         logger.warn('Failed to read OS system proxy; applying bare system mode', error as Error)
       }
     }
+
     this.desiredKey = proxyConfigKey(config)
+
     return config
   }
 
   private async applyProxyConfig(config: ProxyConfig): Promise<void> {
     logger.info(`apply proxy: ${config.mode} ${config.proxyRules ?? ''} ${config.proxyBypassRules ?? ''}`)
+
     // In system mode, poll the OS proxy so external changes re-converge through the reconciler.
     if (config.mode === 'system') this.ensureSystemProxyMonitor()
     else this.clearSystemProxyMonitor()
@@ -345,6 +368,7 @@ export class ProxyService extends BaseService {
 
   private getNodeProxyController(): NodeProxyController {
     this.nodeProxyController ??= new NodeProxyController(logger)
+
     return this.nodeProxyController
   }
 
@@ -355,9 +379,11 @@ export class ProxyService extends BaseService {
       session.defaultSession,
       ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
     ]
+
     // Drain every write even on failure so the next apply cannot race stale session writes.
     const outcomes = await Promise.allSettled([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])
     const failed = outcomes.find((outcome) => outcome.status === 'rejected')
+
     if (failed) throw failed.reason
   }
 }

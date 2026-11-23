@@ -20,6 +20,7 @@ export function subagentReport(host: HostPorts): JobHandler {
     const facts = await ports.ledger.read(parent)
     const target = reportTarget(facts, input)
     const origin = target && readSubagents(facts.history).find(({ child }) => child === target.child)
+
     if (!target || !origin) return
     const message = turnInput({ type: 'subagent-message' }, input.text)
     await runChild(

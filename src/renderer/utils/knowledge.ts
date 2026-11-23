@@ -77,7 +77,9 @@ function filePartUrlToPath(url: string): string {
 
   try {
     const pathname = decodeURIComponent(new URL(url).pathname)
+
     if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1).replace(/\//g, '\\')
+
     return pathname
   } catch {
     return url.replace(/^file:\/\//, '')
@@ -92,6 +94,7 @@ function getDataPart<T>(part: CherryMessagePart): Partial<T> | undefined {
   if ('data' in part && part.data && typeof part.data === 'object') {
     return part.data as Partial<T>
   }
+
   return undefined
 }
 
@@ -138,10 +141,12 @@ export function analyzeMessageContent(message: ExportableMessage): MessageConten
         break
       case 'file': {
         const filePart = part as FilePartLike
+
         if (isImageFilePart(filePart)) stats.images++
         else if (filePart.url) stats.files++
         break
       }
+
       default:
         if (isToolPart(part.type)) stats.tools++
         break
@@ -168,6 +173,7 @@ export function processMessageContent(
   getParts(message).forEach((part, index) => {
     // 处理文本内容
     const textContent = processTextlikePart(part, index, message.id, selectedTypeSet)
+
     if (textContent.trim()) {
       textParts.push(textContent)
     }
@@ -175,6 +181,7 @@ export function processMessageContent(
     // 处理文件内容
     if (selectedTypeSet.has(CONTENT_TYPES.FILE)) {
       const fileContent = filePartToMetadata(part)
+
       if (fileContent) {
         files.push(fileContent)
       }
@@ -208,6 +215,7 @@ function processTextlikePart(
   const partId = `${messageId}-part-${index}`
 
   const canonicalContentType = CANONICAL_PART_CONTENT_TYPES[part.type]
+
   if (canonicalContentType) {
     return selectedTypes.has(canonicalContentType) ? getRenderableTextContent(part) : ''
   }
@@ -215,31 +223,41 @@ function processTextlikePart(
   switch (part.type) {
     case 'reasoning': {
       if (!selectedTypes.has(CONTENT_TYPES.THINKING)) return ''
+
       return `<think>\n${part.text || ''}\n</think>`
     }
 
     case 'file': {
       const filePart = part as FilePartLike
+
       if (isImageFilePart(filePart)) {
         if (!selectedTypes.has(CONTENT_TYPES.IMAGES)) return ''
+
         if (filePart.url) {
           return `<image id="${partId}" filename="${filePart.filename ?? ''}" type="${filePart.mediaType ?? ''}" />`
         }
+
         return `<image id="${partId}" />`
       }
+
       // 文件信息在文本中只作为元信息记录，实际文件在files数组中
       if (!selectedTypes.has(CONTENT_TYPES.FILE)) return ''
+
       if (!filePart.url) return ''
+
       return `<file id="${partId}" filename="${filePart.filename ?? ''}" type="${filePart.mediaType ?? ''}" />`
     }
 
     default: {
       if (!isToolPart(part.type)) return ''
+
       if (!selectedTypes.has(CONTENT_TYPES.TOOL_USE)) return ''
+
       const toolInfo = {
         id: (part as { toolCallId?: string }).toolCallId ?? partId,
         name: ''
       }
+
       return `<tool>\n${JSON.stringify(toolInfo, null, 2)}\n</tool>`
     }
   }
@@ -251,8 +269,11 @@ function processTextlikePart(
 function filePartToMetadata(part: CherryMessagePart): FileMetadata | null {
   if (part.type !== 'file') return null
   const filePart = part as FilePartLike
+
   if (isImageFilePart(filePart)) return null
+
   if (!filePart.url) return null
+
   return {
     name: filePart.filename ?? '',
     path: filePartUrlToPath(filePart.url),

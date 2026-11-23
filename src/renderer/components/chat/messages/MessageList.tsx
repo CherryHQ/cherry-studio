@@ -47,12 +47,15 @@ import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
 const MessageOutline = lazy(() => import('./frame/MessageOutline'))
+
 /** Max gutter the content yields on both sides as the column widens. The total
  * (base + max = 48px) exactly covers the rail's 32px hit strip + its margin, so
  * hover growth never touches the content nor does content enter the strip. */
 const RAIL_GUTTER_MAX_PX = 24
+
 /** Below this chat-column width the gutter is zero; the rail keeps its 8px hit strip. */
 const RAIL_GUTTER_START_PX = 700
+
 /** Width range over which the gutter and rail hit strip grow smoothly. */
 const RAIL_GUTTER_FADE_PX = 120
 const AFTER_MESSAGES = { key: 'after-messages' } as const
@@ -84,9 +87,11 @@ function enqueuePendingTopicImageAction(topicId: string, action: PendingTopicIma
 
 function takePendingTopicImageActions(topicId: string): PendingTopicImageRuntimeAction[] {
   const pendingActions = pendingTopicImageActionsByTopic.get(topicId)
+
   if (!pendingActions) return []
 
   pendingTopicImageActionsByTopic.delete(topicId)
+
   return pendingActions
 }
 
@@ -122,6 +127,7 @@ function MessageGroupLayer({
   ...messageGroupProps
 }: MessageGroupLayerProps) {
   void isLive
+
   return (
     <PartsProvider value={partsByMessageId ?? null}>
       <NarrowLayout
@@ -145,6 +151,7 @@ function groupPartsShallowEqual(
   messages: MessageGroupLayerProps['messages']
 ): boolean {
   if (previous === next) return true
+
   return messages.every((message) => previous?.[message.id] === next?.[message.id])
 }
 
@@ -160,6 +167,7 @@ function groupPartsShallowEqual(
  */
 const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
   if (previous.isLive || next.isLive) return false
+
   return (
     previous.groupKey === next.groupKey &&
     previous.narrowMode === next.narrowMode &&
@@ -219,36 +227,45 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+
   const listItems = useMemo(
     () => (afterMessages ? [...groupedMessages, AFTER_MESSAGES] : groupedMessages),
     [afterMessages, groupedMessages]
   )
+
   const captureLeaseGroupKeys = useMemo(() => {
     if (leasedMessageIds.length === 0) return []
 
     const leasedIds = new Set(leasedMessageIds)
+
     return groupedMessages.flatMap(([groupKey, groupMessages]) =>
       groupMessages.some((message) => leasedIds.has(message.id)) ? [groupKey] : []
     )
   }, [groupedMessages, leasedMessageIds])
+
   // Streaming allocates a fresh `messages` array per chunk, so the anchor rail
   // needs a projection that only changes when its topology does — otherwise its
   // `memo` never bails and every chunk re-renders all of its ticks.
   const anchorMessagesCacheRef = useRef(createStableAnchorMessagesCache())
   const anchorMessages = useMemo(() => stableAnchorMessages(messages, anchorMessagesCacheRef.current), [messages])
   const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
+
   const directAssistantModelsByUserIdRef = useRef<ReturnType<typeof getDirectAssistantModelsByUserId> | undefined>(
     undefined
   )
+
   const directAssistantModelsByUserId = useMemo(() => {
     const next = getDirectAssistantModelsByUserId(messages)
     const shared = shareDirectAssistantModelsByUserId(directAssistantModelsByUserIdRef.current, next)
     directAssistantModelsByUserIdRef.current = shared
+
     return shared
   }, [messages])
+
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
+
   const latestAssistantGroupMessages = useMemo(
     () =>
       latestAssistantGroupKey
@@ -258,29 +275,37 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
         : [],
     [groupedMessages, latestAssistantGroupKey]
   )
+
   const shouldKeepLatestAssistantGroupMounted = useAnyMessageListItemProcessing(latestAssistantGroupMessages)
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
+
   const isSearchStreaming = useMemo(
     () => liveMessageIds.length > 0 || messages.some((message) => message.status === 'pending'),
     [liveMessageIds.length, messages]
   )
+
   const firstLiveGroupIndex = useMemo(() => {
     if (!streamingLayers) return 0
+
     if (liveMessageIds.length === 0) return groupedMessages.length
 
     const liveIndex = groupedMessages.findIndex(([, groupMessages]) =>
       groupMessages.some((message) => liveMessageIdSet.has(message.id))
     )
+
     // Stream status can arrive before its placeholder joins the visible list.
     return liveIndex >= 0 ? liveIndex : groupedMessages.length
   }, [groupedMessages, liveMessageIdSet, liveMessageIds.length, streamingLayers])
+
   const { bindRuntime, copyImage, loadOlder, saveImage } = actions
+
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
     [messageUi]
   )
+
   const useWideMessageLayout = useMemo(
     () =>
       groupedMessages.some(([key, groupMessages]) =>
@@ -288,6 +313,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           groupMessages,
           (messageId) => {
             const uiState = getMessageUiState(messageId)
+
             return {
               ...uiState,
               multiModelMessageStyle: groupLayoutOverrides[key] ?? uiState.multiModelMessageStyle
@@ -299,11 +325,13 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       ),
     [getMessageUiState, groupLayoutOverrides, groupedMessages, isMultiSelectMode, renderConfig.multiModelMessageStyle]
   )
+
   const messageListNarrowMode = renderConfig.narrowMode && !useWideMessageLayout
   const shouldTrackMessageOutline = renderConfig.showMessageOutline && !isMultiSelectMode
 
   useEffect(() => {
     setForceWideLayout(useWideMessageLayout)
+
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
 
@@ -331,6 +359,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
+
     if (!target) return
     messageListRef.current?.scrollToKey(getMessageGroupKey(target), 'start')
   }, [])
@@ -348,12 +377,15 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const updateActiveMessageOutline = useCallback(() => {
     if (!shouldTrackMessageOutline) {
       setActiveOutline((current) => (current ? null : current))
+
       return
     }
 
     const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
+
     if (!scrollElement) {
       setActiveOutline(null)
+
       return
     }
 
@@ -363,10 +395,12 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
     for (const [messageId, element] of messageElements.current) {
       const message = messageById.get(messageId)
+
       if (!message) {
         messageElements.current.delete(messageId)
         continue
       }
+
       if (message.role !== 'assistant' || message.isContextBoundary) continue
 
       if (!element.isConnected || !scrollElement.contains(element)) {
@@ -376,6 +410,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
       const rect = element.getBoundingClientRect()
       const visibleHeight = Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top)
+
       if (visibleHeight <= 0) continue
 
       const distance =
@@ -399,6 +434,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       ) {
         return current
       }
+
       return bestMatch
         ? {
             messageId: bestMatch.messageId,
@@ -407,9 +443,11 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
         : null
     })
   }, [messageById, shouldTrackMessageOutline])
+
   const updateActiveMessageOutlineRef = useRef(updateActiveMessageOutline)
   updateActiveMessageOutlineRef.current = updateActiveMessageOutline
   const activeMessageOutlineFrameRef = useRef<number | null>(null)
+
   const requestActiveMessageOutlineUpdate = useCallback(() => {
     if (activeMessageOutlineFrameRef.current !== null) return
 
@@ -418,6 +456,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       updateActiveMessageOutlineRef.current()
     })
   }, [])
+
   const cancelActiveMessageOutlineUpdate = useCallback(() => {
     if (activeMessageOutlineFrameRef.current === null) return
     cancelAnimationFrame(activeMessageOutlineFrameRef.current)
@@ -434,26 +473,32 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     if (!shouldTrackAnchorPosition) return
 
     const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
+
     if (!scrollElement) return
 
     const containerRect = scrollElement.getBoundingClientRect()
     const scrollRange = scrollElement.scrollHeight - scrollElement.clientHeight
     const atBottom = scrollElement.scrollTop >= scrollRange - 2
+
     // The reading line sits near the viewport top (so a turn jumped to via its
     // tick immediately reads as current); at the very bottom it clamps to the
     // bottom edge so the last turn wins regardless of its height.
     const readingLineY = atBottom
       ? containerRect.bottom - 1
       : containerRect.top + Math.min(120, containerRect.height * 0.25)
+
     let bestMatch: { messageId: string; distance: number } | null = null
 
     for (const [messageId, element] of messageElements.current) {
       const message = messageById.get(messageId)
+
       if (!message || message.isContextBoundary) continue
+
       if (!element.isConnected || !scrollElement.contains(element)) continue
 
       const rect = element.getBoundingClientRect()
       const visibleHeight = Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top)
+
       if (visibleHeight <= 0) continue
 
       const distance =
@@ -469,6 +514,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     const nextId = bestMatch?.messageId ?? null
     setActiveAnchorMessageId((current) => (current === nextId ? current : nextId))
   }, [messageById, shouldTrackAnchorPosition])
+
   const updateActiveAnchorMessageRef = useRef(updateActiveAnchorMessage)
   updateActiveAnchorMessageRef.current = updateActiveAnchorMessage
 
@@ -503,10 +549,13 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       if (action === 'copy') {
         const imageData = await exportService.captureScrollableAsDataUrl(captureRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
         const blob = imageData ? dataUrlToBlob(imageData) : null
+
         if (!blob) {
           throw new Error('Failed to capture topic image')
         }
+
         await copyImage?.(blob)
+
         return
       }
 
@@ -515,11 +564,13 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       }
 
       const imageData = await exportService.captureScrollableAsDataUrl(captureRef, CHAT_CAPTURE_BACKDROP_VARIABLE)
+
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
 
       const saved = await saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
+
       if (saved === false) {
         throw new Error('Failed to save topic image')
       }
@@ -533,15 +584,18 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       // Feed the clone the page's rendered .narrow-mode width — the scroll
       // container's clientWidth (scrollbar + rail gutter) squeezes its column.
       const narrowWidth = scrollContainer?.querySelector<HTMLElement>('.narrow-mode')?.getBoundingClientRect().width
+
       const captureWidth =
         (narrowWidth && Math.ceil(narrowWidth)) ||
         scrollContainer?.clientWidth ||
         scrollContainer?.getBoundingClientRect().width ||
         undefined
+
       const captureAction = { action, captureWidth, reject, resolve }
       setTopicImageCaptureActions((current) => {
         const nextActions = [...current, captureAction]
         topicImageCaptureActionsRef.current = nextActions
+
         return nextActions
       })
     })
@@ -559,11 +613,13 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     },
     [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id]
   )
+
   const runtimeActionsRef = useRef({
     scrollToBottom,
     scrollToMessageById,
     runTopicImageAction
   })
+
   runtimeActionsRef.current = {
     scrollToBottom,
     scrollToMessageById,
@@ -577,6 +633,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       void enqueueTopicImageCaptureAction(pendingAction.action).then(pendingAction.resolve, pendingAction.reject)
     }
   }, [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id])
+
   const handleScrollContainerReady = useCallback(
     (element: HTMLDivElement) => {
       scrollContainerRef.current = element
@@ -587,12 +644,15 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   useEffect(() => {
     const topicId = topic.id
+
     return () => {
       const cancelReason = new Error('Topic image export was cancelled')
       rejectPendingTopicImageActions(topicId, cancelReason)
+
       for (const pendingAction of topicImageCaptureActionsRef.current) {
         pendingAction.reject(cancelReason)
       }
+
       topicImageCaptureActionsRef.current = []
     }
   }, [topic.id])
@@ -608,6 +668,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
     let cancelled = false
     let secondFrame: number | undefined
+
     const firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {
         if (cancelled) return
@@ -622,7 +683,9 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                 current[0] === activeTopicImageCaptureAction
                   ? current.slice(1)
                   : current.filter((captureAction) => captureAction !== activeTopicImageCaptureAction)
+
               topicImageCaptureActionsRef.current = nextActions
+
               return nextActions
             })
           })
@@ -632,6 +695,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     return () => {
       cancelled = true
       cancelAnimationFrame(firstFrame)
+
       if (secondFrame !== undefined) {
         cancelAnimationFrame(secondFrame)
       }
@@ -646,8 +710,10 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   useEffect(() => {
     if (shouldTrackMessageOutline) {
       requestActiveMessageOutlineUpdate()
+
       return
     }
+
     cancelActiveMessageOutlineUpdate()
     setActiveOutline((current) => (current ? null : current))
   }, [cancelActiveMessageOutlineUpdate, groupedMessages, requestActiveMessageOutlineUpdate, shouldTrackMessageOutline])
@@ -657,6 +723,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   useEffect(() => {
     if (!shouldTrackMessageOutline) return
     const scrollElement = messageListRef.current?.getScrollElement()
+
     if (!scrollElement) return
 
     const handleOutlineUpdate = requestActiveMessageOutlineUpdate
@@ -672,17 +739,22 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   useEffect(() => {
     if (!shouldTrackAnchorPosition) {
       setActiveAnchorMessageId((current) => (current ? null : current))
+
       return
     }
+
     updateActiveAnchorMessage()
   }, [groupedMessages, shouldTrackAnchorPosition, updateActiveAnchorMessage])
 
   useEffect(() => {
     if (!shouldTrackAnchorPosition) {
       setRailGutterPx(0)
+
       return
     }
+
     const scrollElement = messageListRef.current?.getScrollElement()
+
     if (!scrollElement) return
 
     const updateRailGutter = () => {
@@ -692,11 +764,13 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
       const gutter = Math.round(Math.max(0, Math.min(1, ramp)) * RAIL_GUTTER_MAX_PX)
       setRailGutterPx(gutter)
     }
+
     updateRailGutter()
     const resizeObserver = new ResizeObserver(updateRailGutter)
     resizeObserver.observe(scrollElement)
 
     let frame: number | null = null
+
     const handleAnchorUpdate = () => {
       if (frame !== null) return
       frame = requestAnimationFrame(() => {
@@ -704,12 +778,14 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
         updateActiveAnchorMessageRef.current()
       })
     }
+
     scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
     window.addEventListener('resize', handleAnchorUpdate)
 
     // The layout owner survives topic switches, so preserve its width-derived gutter.
     return () => {
       resizeObserver.disconnect()
+
       if (frame !== null) cancelAnimationFrame(frame)
       scrollElement.removeEventListener('scroll', handleAnchorUpdate)
       window.removeEventListener('resize', handleAnchorUpdate)
@@ -727,8 +803,11 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   const keepMountedKeys = useMemo(() => {
     const keys = new Set<string>()
+
     if (shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey) keys.add(latestAssistantGroupKey)
+
     for (const key of captureLeaseGroupKeys) keys.add(key)
+
     return [...keys]
   }, [captureLeaseGroupKeys, latestAssistantGroupKey, shouldKeepLatestAssistantGroupMounted])
 
@@ -739,13 +818,16 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
+
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
+
   const bottomPadding =
     bottomOverlayInsets == null
       ? defaultBottomPadding
       : Math.max(bottomOverlayInsets.contentBottomPadding, isMultiSelectMode ? defaultBottomPadding : 0)
+
   const scrollerBottomMargin = bottomOverlayInsets?.scrollerBottomMargin ?? 0
   const topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX
   const topicImageCaptureWidth = activeTopicImageCaptureAction?.captureWidth
@@ -812,11 +894,14 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                   </NarrowLayout>
                 )
               }
+
               const [key, groupMessages] = item
+
               const groupMessageTail =
                 messageTail && groupMessages.some((message) => message.id === messageTail.messageId)
                   ? messageTail
                   : undefined
+
               const props: MessageGroupLayerProps = {
                 groupKey: key,
                 isLive: index >= firstLiveGroupIndex,

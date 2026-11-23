@@ -31,6 +31,7 @@ export async function fetchMessagesSummary({
 }): Promise<{ text: string | null; error?: string }> {
   let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const model = await readQuickModel()
+
   if (!model) {
     return { text: null, error: i18n.t('error.model.not_exists') }
   }
@@ -41,18 +42,21 @@ export async function fetchMessagesSummary({
 
   // 取最后5条消息，结构化为 JSON
   const contextMessages = takeRight(messages, 5)
+
   const structuredMessages = contextMessages.map((message) => {
     const fileList = (message.parts ?? [])
       .filter(isFileUIPart)
       .filter((p) => !p.mediaType?.startsWith('image/'))
       .map((p) => p.filename)
       .filter((name): name is string => Boolean(name))
+
     return {
       role: message.role,
       mainText: purifyMarkdownImages(getNamingTextContent(message)),
       files: fileList.length > 0 ? fileList : undefined
     }
   })
+
   const conversation = JSON.stringify(structuredMessages)
 
   try {
@@ -64,6 +68,7 @@ export async function fetchMessagesSummary({
     })
 
     const result = removeSpecialCharactersForTopicName(text)
+
     return result ? { text: result } : { text: null, error: i18n.t('error.no_response') }
   } catch (error: unknown) {
     return { text: null, error: getErrorMessage(error) }
@@ -82,6 +87,7 @@ export async function fetchNoteSummary({
   // assistant has no embedded model, so we go straight to the user's quick
   // model preference.
   const model = (await readQuickModel()) ?? (await readDefaultModel())
+
   if (!model) return null
 
   if (prompt && containsSupportedVariables(prompt)) {
@@ -98,6 +104,7 @@ export async function fetchNoteSummary({
       system: prompt,
       prompt: purifiedContent
     })
+
     return normalizeGeneratedNoteName(text)
   } catch (error: any) {
     return null
@@ -122,16 +129,21 @@ export async function fetchGenerate({
   try {
     signal?.throwIfAborted()
     const resolvedModel = model ?? (await readDefaultModel())
+
     if (!resolvedModel) {
       logger.error('fetchGenerate: no model available')
+
       if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
+
       return ''
     }
+
     signal?.throwIfAborted()
 
     // Cancellation is main-side: relay the abort to `ai.text.abort` and let the
     // in-flight `ai.text.generate` reject on its own.
     const requestId = signal ? crypto.randomUUID() : undefined
+
     if (signal && requestId) {
       const relayAbort = () => void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
       signal.addEventListener('abort', relayAbort, { once: true })
@@ -139,18 +151,22 @@ export async function fetchGenerate({
     }
 
     const input: Pick<InputFor<'ai.text.generate'>, 'requestId'> = {}
+
     if (requestId) input.requestId = requestId
     const request: InputFor<'ai.text.generate'> = Object.assign(input, { uniqueModelId: resolvedModel.id })
     request.reasoningEffort = 'none'
     request.system = prompt
     request.prompt = content
     const { text } = await ipcApi.request('ai.text.generate', request)
+
     return text || ''
   } catch (error: any) {
     if (!signal?.aborted) {
       logger.error('fetchGenerate failed', error)
     }
+
     if (throwOnError) throw error
+
     return ''
   } finally {
     stopAbortRelay?.()

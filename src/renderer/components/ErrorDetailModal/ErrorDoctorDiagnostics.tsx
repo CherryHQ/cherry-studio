@@ -24,7 +24,9 @@ export function ErrorDoctorDiagnostics({
   const controller = useDoctorController({ initialPanel: 'checks', subject, onNavigate, onReportProblem })
   useEffect(() => {
     onCloseBlockedChange?.(controller.isCloseBlocked)
+
     return () => onCloseBlockedChange?.(false)
   }, [controller.isCloseBlocked, onCloseBlockedChange])
+
   return <ErrorDiagnosisPanel doctorController={controller} subject={subject} incident={incident} />
 }

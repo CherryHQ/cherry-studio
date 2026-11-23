@@ -7,23 +7,30 @@ export function classifyStorageFailure(error: unknown): FailureFacts {
     if (isCancellation(error)) {
       return { source: 'environment', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
     }
+
     if (error instanceof TypeError || error instanceof ReferenceError || error instanceof SyntaxError) {
       return { source: 'application', kind: 'defect', reason: 'storage_defect', outcome: 'failed' }
     }
+
     if (error && typeof error === 'object') {
       const metadata = '$metadata' in error ? error.$metadata : undefined
+
       const metadataStatus =
         typeof metadata === 'object' && metadata !== null && 'httpStatusCode' in metadata
           ? metadata.httpStatusCode
           : undefined
+
       const status = metadataStatus ?? ('status' in error ? error.status : undefined)
+
       if (
         typeof status === 'number' &&
         ([401, 403, 404, 408, 409, 412, 413, 423, 429].includes(status) || (status >= 500 && status <= 599))
       ) {
         return { source: 'environment', kind: 'expected', reason: 'storage_remote_unavailable', outcome: 'failed' }
       }
+
       const code = 'code' in error ? error.code : undefined
+
       if (
         typeof code === 'string' &&
         [
@@ -47,5 +54,6 @@ export function classifyStorageFailure(error: unknown): FailureFacts {
   } catch {
     // Unreadable provider fields are not evidence of an expected remote failure.
   }
+
   return { source: 'application', kind: 'unknown', reason: 'storage_failed', outcome: 'failed' }
 }

@@ -43,28 +43,35 @@ function decodeRipgrepText(value: unknown): string {
   if (!isRecord(value)) {
     throw new Error('Unexpected ripgrep text format')
   }
+
   if (typeof value.text === 'string') {
     return value.text
   }
+
   if (typeof value.bytes === 'string') {
     return Buffer.from(value.bytes, 'base64').toString('utf-8')
   }
+
   throw new Error('Unexpected ripgrep text format')
 }
 
 function parseRipgrepMatch(line: string): GrepMatch | null {
   const message: unknown = JSON.parse(line)
+
   if (!isRecord(message) || typeof message.type !== 'string') {
     throw new Error('Unexpected ripgrep output format')
   }
+
   if (message.type !== 'match') {
     return null
   }
+
   if (!isRecord(message.data)) {
     throw new Error('Unexpected ripgrep match format')
   }
 
   const lineNum = message.data.line_number
+
   if (typeof lineNum !== 'number' || !Number.isInteger(lineNum) || lineNum < 1) {
     throw new Error('Unexpected ripgrep line number')
   }
@@ -122,6 +129,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
   async function searchFile(filePath: string): Promise<void> {
     if (matches.length >= MAX_GREP_MATCHES) {
       truncated = true
+
       return
     }
 
@@ -137,6 +145,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
       lines.forEach((line, index) => {
         if (matches.length >= MAX_GREP_MATCHES) {
           truncated = true
+
           return
         }
 
@@ -159,6 +168,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
   async function searchDirectory(dir: string): Promise<void> {
     if (matches.length >= MAX_GREP_MATCHES) {
       truncated = true
+
       return
     }
 
@@ -177,6 +187,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
         if (entry.name.startsWith('.') && entry.name !== '.env.example') {
           continue
         }
+
         if (['node_modules', 'dist', 'build', '__pycache__', '.git'].includes(entry.name)) {
           continue
         }
@@ -194,14 +205,17 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
           if (data.include) {
             const includePatterns = data.include.split(',').map((p) => p.trim())
             const fileName = path.basename(fullPath)
+
             const matchesInclude = includePatterns.some((pattern) => {
               // Simple glob pattern matching
               const regexPattern = pattern
                 .replace(/\*/g, '.*')
                 .replace(/\?/g, '.')
                 .replace(/\{([^}]+)\}/g, (_, group) => `(${group.split(',').join('|')})`)
+
               return new RegExp(`^${regexPattern}$`).test(fileName)
             })
+
             if (!matchesInclude) {
               continue
             }
@@ -220,19 +234,24 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
   // Perform the search
   const binaryFileCache = new Map<string, boolean>()
   let usedRipgrep = false
+
   try {
     const rgResult = await runRipgrep(rgArgs)
+
     if (rgResult.ok && (rgResult.exitCode === 0 || rgResult.exitCode === 1)) {
       if (rgResult.exitCode === 1) {
         usedRipgrep = true
       } else {
         const lines = rgResult.stdout.split('\n').filter(Boolean)
         let parsedMatchCount = 0
+
         for (const line of lines) {
           const parsedMatch = parseRipgrepMatch(line)
+
           if (!parsedMatch) {
             continue
           }
+
           parsedMatchCount++
 
           if (matches.length >= MAX_GREP_MATCHES) {
@@ -255,10 +274,12 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
           // ripgrep only auto-skips binary files it reaches by traversal; one named
           // explicitly on the command line is searched up to its first NUL byte.
           let binary = binaryFileCache.get(absoluteFilePath)
+
           if (binary === undefined) {
             binary = !(await isTextByContent(AbsoluteFilePathSchema.parse(absoluteFilePath)))
             binaryFileCache.set(absoluteFilePath, binary)
           }
+
           if (binary) {
             continue
           }
@@ -297,6 +318,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
     }
 
     const stats = await fs.stat(validPath)
+
     if (stats.isFile()) {
       await searchFile(validPath)
     } else {
@@ -316,6 +338,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
       if (!fileGroups.has(match.file)) {
         fileGroups.set(match.file, [])
       }
+
       fileGroups.get(match.file)!.push(match)
     })
 

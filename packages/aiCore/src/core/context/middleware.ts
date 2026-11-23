@@ -67,9 +67,11 @@ export function resolveCompressionOutputTokens(contextWindow?: number): number {
   if (!contextWindow || !Number.isFinite(contextWindow) || contextWindow <= 0) {
     return COMPRESSION_MIN_OUTPUT_TOKENS
   }
+
   const share = Math.floor(contextWindow * COMPRESSION_OUTPUT_WINDOW_RATIO)
   // Never hand out more than the window itself can hold.
   const ceiling = Math.min(COMPRESSION_MAX_OUTPUT_TOKENS, Math.max(1, contextWindow - 1))
+
   return Math.min(ceiling, Math.max(COMPRESSION_MIN_OUTPUT_TOKENS, share))
 }
 
@@ -166,11 +168,14 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
   // other call via E10 suppression).
   let compressionsFired = 0
   let persistenceWarned = false
+
   const onCompressionFired = () => {
     compressionsFired++
+
     if (persistenceWarned || compressionsFired < COMPRESS_WITHOUT_PERSISTENCE_WARN_THRESHOLD) {
       return
     }
+
     persistenceWarned = true
     logger.warn(
       `[context] budget compression has fired ${compressionsFired}× in-flight. In-flight compression ` +
@@ -231,6 +236,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
       if (!janitor) return result
 
       const inputTokens = getContextInputTokens(result.usage?.inputTokens?.total, result.providerMetadata)
+
       if (inputTokens != null) {
         janitor.feedTokenUsage(inputTokens)
       } else if (!usageWarned) {
@@ -253,6 +259,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
         transform(chunk, controller) {
           if (chunk.type === 'finish') {
             const inputTokens = getContextInputTokens(chunk.usage?.inputTokens?.total, chunk.providerMetadata)
+
             if (inputTokens != null) {
               janitor.feedTokenUsage(inputTokens)
             } else if (!usageWarned) {
@@ -263,6 +270,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
               )
             }
           }
+
           controller.enqueue(chunk)
         }
       })
@@ -293,7 +301,9 @@ function compactPrompt(
         providerOptions: msg.providerOptions
       }) as ModelMessage
   )
+
   const pruned = pruneMessages({ messages, ...config })
+
   return pruned.map(
     (msg) =>
       ({
@@ -310,6 +320,7 @@ function compactPrompt(
  */
 function toCompressRole(role: string): CompressRole {
   if (role === 'system' || role === 'user' || role === 'assistant') return role
+
   return 'user'
 }
 
@@ -333,15 +344,18 @@ export function createCompressionAdapter(
           content: `[Tool result${m.tool_call_id ? ` (${m.tool_call_id})` : ''}: ${m.content}]`
         } satisfies ModelMessage
       }
+
       if (m.role === 'assistant' && m.tool_calls?.length) {
         const toolCallsDesc = m.tool_calls
           .map((tc) => `[Called tool: ${tc.function.name}(${tc.function.arguments})]`)
           .join('\n')
+
         return {
           role: 'assistant',
           content: m.content ? `${m.content}\n${toolCallsDesc}` : toolCallsDesc
         } satisfies ModelMessage
       }
+
       return {
         role: toCompressRole(m.role),
         content: m.content
@@ -356,6 +370,7 @@ export function createCompressionAdapter(
     })
 
     if (finishReason === 'length') throw new Error('Compaction summary exceeded the output token limit')
+
     if (finishReason === 'error' || finishReason === 'content-filter' || finishReason === 'tool-calls') {
       throw new Error(`Compaction summary ended with ${finishReason}`)
     }
@@ -401,5 +416,6 @@ export async function summarizeModelMessages(
 ): Promise<string> {
   const { maxOutputTokens, ...summarizeOpts } = opts
   const ir = fromModelMessages(messages).filter((m) => m.role !== 'system')
+
   return summarizeHistory(ir, createCompressionAdapter(model, maxOutputTokens), summarizeOpts)
 }

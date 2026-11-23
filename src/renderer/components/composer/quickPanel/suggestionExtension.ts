@@ -78,6 +78,7 @@ function createActiveChangeOptions(
     exit: () => {
       if (props.editor.isDestroyed) return
       const current = pluginKey.getState(props.editor.state)
+
       // Result freshness follows the query; dismissal follows the trigger's active session.
       if (sessionId && current?.active && current.decorationId === sessionId && current.range.from === sessionStart) {
         exitSuggestion(props.editor.view, pluginKey)
@@ -111,7 +112,9 @@ function createSuggestionRender(
   const notifyActiveChange = (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
     if (props.editor.isDestroyed) return
     const itemsGeneration = suggestionItemsGeneration.get(props.items)
+
     if (itemsGeneration !== getLatestItemsGeneration() || itemsGeneration === lastNotifiedItemsGeneration) return
+
     if (!isCurrentActiveSuggestion(props, pluginKey)) return
     lastNotifiedItemsGeneration = itemsGeneration
     source.onActiveChange?.(createActiveChangeOptions(props, pluginKey))
@@ -122,6 +125,7 @@ function createSuggestionRender(
     onUpdate: notifyActiveChange,
     onExit: (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
       const current = pluginKey.getState(props.editor.state)
+
       if (current?.active && !isCurrentActiveSuggestion(props, pluginKey)) return
       source.onExit?.(createActiveChangeOptions(props, pluginKey))
     },
@@ -131,8 +135,10 @@ function createSuggestionRender(
 
 function hasTriggerBoundary(state: EditorState, range: Range) {
   const from = Math.max(0, Math.min(range.from, state.doc.content.size))
+
   if (from <= 1) return true
   const before = state.doc.textBetween(Math.max(0, from - 1), from, '\n', '')
+
   return before.length === 0 || /\s/.test(before)
 }
 
@@ -147,6 +153,7 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
 
         const recordItemsGeneration = (items: ComposerSuggestionItem[], generation: number) => {
           suggestionItemsGeneration.set(items, generation)
+
           return items
         }
 
@@ -165,12 +172,14 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
 
             try {
               const items = await source.items({ editor, query })
+
               return recordItemsGeneration(
                 items.map((item) => ({ ...item, query })),
                 itemsGeneration
               )
             } catch (error) {
               logger.warn('Failed to load composer suggestion items', { error, pluginKey: source.pluginKey })
+
               return recordItemsGeneration(
                 [
                   {

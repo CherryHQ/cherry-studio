@@ -62,6 +62,7 @@ const sameRect = (a: CellRangeRect | null, b: CellRangeRect | null): boolean =>
 /** A selection is one logical cell when it is 1x1, or when it is exactly the merged range holding its anchor. */
 const isSingleLogicalCell = (rect: CellRangeRect, anchorMerge: MergeRangeLike | undefined): boolean => {
   if (rect.top === rect.bottom && rect.left === rect.right) return true
+
   return (
     anchorMerge !== undefined &&
     rect.top === anchorMerge.top &&
@@ -94,20 +95,26 @@ export interface XlsxGridProps {
 /** Baseline row/column header sizes in px at zoom=1. */
 const ROW_HEADER_WIDTH_PX = 44
 const COL_HEADER_HEIGHT_PX = 22
+
 /** Extra items rendered outside the virtualized viewport. */
 const OVERSCAN = 6
+
 /** Blank rows/columns beyond the used range. Fill the viewport first, then leave a small scrollable blank area. */
 const EXTRA_ROWS = 20
 const EXTRA_COLS = 5
+
 /** Default grid line when no cell border is set. Follows the DESIGN.md border token. */
 const DEFAULT_GRID_LINE = '0.5px solid var(--border)'
+
 /** Maximum selected-cell overlay content width in px at zoom=1. Wider content wraps at this width. */
 const SELECTED_OVERLAY_MAX_WIDTH_PX = 480
 
 /** Default cell alignment when CellStyle.hAlign is unset: numbers right, booleans/errors center, others left. */
 const defaultHAlign = (cell: CellRenderModel): 'left' | 'center' | 'right' => {
   if (typeof cell.raw === 'number') return 'right'
+
   if (typeof cell.raw === 'boolean') return 'center'
+
   return 'left'
 }
 
@@ -120,6 +127,7 @@ const BORDER_STYLE_CSS: Record<BorderEdge['style'], string> = {
   hair: 'dotted',
   double: 'double'
 }
+
 const BORDER_WIDTH_PX: Record<BorderEdge['style'], number> = {
   thin: 1,
   hair: 1,
@@ -139,6 +147,7 @@ const H_ALIGN_TO_JUSTIFY: Record<NonNullable<CellStyle['hAlign']>, React.CSSProp
   right: 'flex-end',
   justify: 'stretch'
 }
+
 const V_ALIGN_TO_ITEMS: Record<NonNullable<CellStyle['vAlign']>, React.CSSProperties['alignItems']> = {
   top: 'flex-start',
   middle: 'center',
@@ -148,30 +157,46 @@ const V_ALIGN_TO_ITEMS: Record<NonNullable<CellStyle['vAlign']>, React.CSSProper
 /** CellStyle -> inline style in the zoom=1 coordinate space. Positioning and sizing are added by callers. */
 const cellStyleToCss = (style: CellStyle | undefined): React.CSSProperties => {
   const css: React.CSSProperties = { fontSize: style?.fontSizePx ?? DEFAULT_FONT_SIZE_PX }
+
   if (!style) return css
+
   if (style.fontFamily) css.fontFamily = style.fontFamily
+
   if (style.bold) css.fontWeight = 'bold'
+
   if (style.italic) css.fontStyle = 'italic'
+
   if (style.underline && style.strike) css.textDecoration = 'underline line-through'
   else if (style.underline) css.textDecoration = 'underline'
   else if (style.strike) css.textDecoration = 'line-through'
+
   if (style.color) css.color = style.color
+
   if (style.bg) css.backgroundColor = style.bg
+
   if (style.hAlign) css.justifyContent = H_ALIGN_TO_JUSTIFY[style.hAlign]
+
   if (style.vAlign) css.alignItems = V_ALIGN_TO_ITEMS[style.vAlign]
+
   if (style.wrap) {
     css.whiteSpace = 'normal'
     css.wordBreak = 'break-word'
   }
+
   if (style.indent) css.paddingLeft = style.indent * 8
   const borderRight = borderEdgeToCss(style.borderRight)
   const borderBottom = borderEdgeToCss(style.borderBottom)
   const borderTop = borderEdgeToCss(style.borderTop)
   const borderLeft = borderEdgeToCss(style.borderLeft)
+
   if (borderRight) css.borderRight = borderRight
+
   if (borderBottom) css.borderBottom = borderBottom
+
   if (borderTop) css.borderTop = borderTop
+
   if (borderLeft) css.borderLeft = borderLeft
+
   return css
 }
 
@@ -193,6 +218,7 @@ interface CellViewProps {
 /** Inline style for the cell text span: hyperlink coloring and whole-line clipping for wrapped cells. */
 const cellTextStyle = (cell: CellRenderModel, clampLines: number | undefined): React.CSSProperties | undefined => {
   if (!cell.hyperlink && !clampLines) return undefined
+
   return {
     ...(cell.hyperlink ? { color: 'var(--primary)', textDecoration: 'underline' } : undefined),
     ...(clampLines
@@ -310,6 +336,7 @@ interface UnsupportedChartPlaceholderProps {
 /** Placeholder for unsupported charts: dashed border, centered label, and raw type name. */
 const UnsupportedChartPlaceholder = ({ chart }: UnsupportedChartPlaceholderProps) => {
   const { t } = useTranslation()
+
   return (
     <div className="text-muted-foreground flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-center text-xs">
       <span>{t('xlsx_preview.chart_unsupported')}</span>
@@ -327,6 +354,7 @@ interface ChartHostProps {
 const ChartHost = ({ chart, renderChart }: ChartHostProps) => {
   const { t } = useTranslation()
   const disposeRef = useRef<(() => void) | null>(null)
+
   const setRef = useCallback(
     (node: HTMLDivElement | null) => {
       disposeRef.current?.()
@@ -362,8 +390,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // navigation stay within the parsed used range reported by sheet.rowCount/sheet.colCount.
   const viewportHeight = viewport.bottom - viewport.top
   const viewportWidth = viewport.right - viewport.left
+
   const renderedRowCount =
     Math.max(sheet.rowCount, Math.ceil(viewportHeight / (sheet.defaultRowHeightPx * zoom))) + EXTRA_ROWS
+
   const renderedColCount =
     Math.max(sheet.colCount, Math.ceil(viewportWidth / (sheet.defaultColWidthPx * zoom))) + EXTRA_COLS
 
@@ -372,6 +402,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     () => buildAxisLayout(renderedRowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, 1),
     [renderedRowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx]
   )
+
   const colLayout: AxisLayout = useMemo(
     () => buildAxisLayout(renderedColCount, sheet.defaultColWidthPx, sheet.colWidthsPx, 1),
     [renderedColCount, sheet.defaultColWidthPx, sheet.colWidthsPx]
@@ -389,6 +420,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     estimateSize: (index) => rowLayout.sizes[index] * zoom,
     overscan: OVERSCAN
   })
+
   const colVirtualizer = useVirtualizer({
     horizontal: true,
     count: renderedColCount,
@@ -396,6 +428,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     estimateSize: (index) => colLayout.sizes[index] * zoom,
     overscan: OVERSCAN
   })
+
   // Updating estimateSize alone does not invalidate cached measurements. Keep the
   // mounted viewport, but refresh each axis before painting changed dimensions.
   useLayoutEffect(() => {
@@ -420,6 +453,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const scrollElCallback = useCallback(
     (node: HTMLDivElement | null) => {
       scrollElRef.current = node
+
       if (node) setViewport(readViewport(node))
     },
     [readViewport]
@@ -428,9 +462,11 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // Panel resizes do not emit scroll events, so ResizeObserver remeasures the viewport.
   useEffect(() => {
     const el = scrollElRef.current
+
     if (!el) return
     const observer = new ResizeObserver(() => setViewport(readViewport(el)))
     observer.observe(el)
+
     return () => observer.disconnect()
   }, [readViewport])
 
@@ -444,6 +480,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     }),
     [viewport, zoom]
   )
+
   const mergesVisible = useMemo(
     () => mergesInView(sheet.merges, contentViewport, rowLayout, colLayout),
     [sheet.merges, contentViewport, rowLayout, colLayout]
@@ -452,12 +489,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // Index only the virtualized viewport intersection. Expanding every merge across the full sheet could itself be
   // unbounded, while this map stays O(visible cells) and makes the render loop's lookup O(1).
   const mergeKeyStride = renderedColCount + 1
+
   const visibleMergeByCell = useMemo(() => {
     const index = new Map<number, SheetRenderModel['merges'][number]>()
     const firstRow = (virtualRows[0]?.index ?? 0) + 1
     const lastRow = (virtualRows[virtualRows.length - 1]?.index ?? -1) + 1
     const firstCol = (virtualCols[0]?.index ?? 0) + 1
     const lastCol = (virtualCols[virtualCols.length - 1]?.index ?? -1) + 1
+
     if (lastRow < firstRow || lastCol < firstCol) return index
 
     for (const { merge } of mergesVisible) {
@@ -465,17 +504,21 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       const bottom = Math.min(merge.bottom, lastRow)
       const left = Math.max(merge.left, firstCol)
       const right = Math.min(merge.right, lastCol)
+
       for (let row = top; row <= bottom; row++) {
         const rowKey = row * mergeKeyStride
+
         for (let col = left; col <= right; col++) {
           index.set(rowKey + col, merge)
         }
       }
     }
+
     return index
   }, [mergeKeyStride, mergesVisible, virtualCols, virtualRows])
 
   const getCell = useCallback((row: number, col: number) => sheet.cells[`${row}:${col}`], [sheet.cells])
+
   const getStyle = useCallback(
     (cell: CellRenderModel | undefined) => (cell?.styleId !== undefined ? styles[cell.styleId] : undefined),
     [styles]
@@ -485,7 +528,9 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const findMerge = useCallback(
     (row: number, col: number) => {
       const visible = visibleMergeByCell.get(row * mergeKeyStride + col)
+
       if (visible) return visible
+
       // Non-render interactions may target a cell just outside the current virtual window. This path runs only on
       // keyboard/selection events, not per rendered cell, and merge parsing is capped upstream.
       return sheet.merges.find(
@@ -504,8 +549,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     (selection: GridSelection | null) => {
       if (!selection) {
         onSelectCell?.(null)
+
         return
       }
+
       const rect = expandRangeToMerges(cornersToRect(selection.anchor, selection.active), sheet.merges)
       const anchorMerge = findMerge(selection.anchor.row, selection.anchor.col)
       // rect.top/left is the master of a merged selection, so a single logical cell always reads from that corner.
@@ -551,8 +598,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   }, [sheet, clearSelection])
   useEffect(() => {
     const isActive = Boolean(pickerActive)
+
     if (pickerWasActiveRef.current === isActive) return
     pickerWasActiveRef.current = isActive
+
     if (isActive) clearSelection()
     else {
       lastPointerRef.current = null
@@ -568,15 +617,19 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
         selectCell(1, 1)
         rowVirtualizer.scrollToIndex(0)
         colVirtualizer.scrollToIndex(0)
+
         return
       }
+
       // When starting from a merged range, jump past the whole range in the travel direction to avoid looping on master.
       const from = selected.active
       const merge = findMerge(from.row, from.col)
       let nextRow = from.row
       let nextCol = from.col
+
       if (dRow > 0) nextRow = (merge?.bottom ?? from.row) + 1
       else if (dRow < 0) nextRow = from.row - 1
+
       if (dCol > 0) nextCol = (merge?.right ?? from.col) + 1
       else if (dCol < 0) nextCol = from.col - 1
       nextRow = Math.min(Math.max(nextRow, 1), sheet.rowCount)
@@ -593,16 +646,20 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const extendSelection = useCallback(
     (dRow: number, dCol: number) => {
       const current = selectionRef.current
+
       if (!current) {
         selectCell(1, 1)
         rowVirtualizer.scrollToIndex(0)
         colVirtualizer.scrollToIndex(0)
+
         return
       }
+
       const active: CellRef = {
         row: Math.min(Math.max(current.active.row + dRow, 1), sheet.rowCount),
         col: Math.min(Math.max(current.active.col + dCol, 1), sheet.colCount)
       }
+
       applySelection({ anchor: current.anchor, active })
       pendingKeyCommitRef.current = true
       rowVirtualizer.scrollToIndex(active.row - 1)
@@ -614,25 +671,31 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       const step = e.shiftKey ? extendSelection : moveSelection
+
       switch (e.key) {
         case 'Escape':
           clearSelection()
+
           return
         case 'ArrowUp':
           e.preventDefault()
           step(-1, 0)
+
           return
         case 'ArrowDown':
           e.preventDefault()
           step(1, 0)
+
           return
         case 'ArrowLeft':
           e.preventDefault()
           step(0, -1)
+
           return
         case 'ArrowRight':
           e.preventDefault()
           step(0, 1)
+
           return
         case 'Enter':
         case ' ': {
@@ -641,6 +704,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
           selectCell(target.row, target.col)
           rowVirtualizer.scrollToIndex(target.row - 1)
           colVirtualizer.scrollToIndex(target.col - 1)
+
           return
         }
       }
@@ -660,6 +724,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const cellAtPointer = useCallback(
     (clientX: number, clientY: number): { row: number; col: number; inHeader: boolean } | null => {
       const el = scrollElRef.current
+
       if (!el) return null
       const bounds = el.getBoundingClientRect()
       const offsetX = clientX - bounds.left
@@ -667,6 +732,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       // Scroll coordinates -> zoom=1 content coordinates, the space both axis layouts are built in.
       const x = (offsetX + el.scrollLeft - scaledHeaderWidth) / zoom
       const y = (offsetY + el.scrollTop - scaledHeaderHeight) / zoom
+
       return {
         row: axisIndexAt(rowLayout, y) + 1,
         col: axisIndexAt(colLayout, x) + 1,
@@ -679,12 +745,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const selectionAtPointer = useCallback(
     (clientX: number, clientY: number, extend: boolean): GridSelection | null => {
       const target = cellAtPointer(clientX, clientY)
+
       if (!target || target.inHeader || target.row > sheet.rowCount || target.col > sheet.colCount) return null
       // Address a merged range by its master, the way selectCell does: the stored corner is where later
       // Shift+Arrow steps start from, and stepping off a follower walks back into the same merge.
       const merge = findMerge(target.row, target.col)
       const cell: CellRef = { row: merge?.top ?? target.row, col: merge?.left ?? target.col }
       const current = selectionRef.current
+
       // Shift+Click is the v1 way to select a range whose corners sit in different viewports.
       return extend && current !== null ? { anchor: current.anchor, active: cell } : { anchor: cell, active: cell }
     },
@@ -695,18 +763,24 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     (e: React.PointerEvent<HTMLDivElement>) => {
       // A drag released outside the window never gets its trailing click, so clear the flag when the next one starts.
       suppressClickRef.current = false
+
       // Charts and images sit above the grid and handle their own presses; capturing the pointer here would
       // swallow the click ECharts needs for its legend and tooltip.
       if (isFloatingObject(e.target)) return
+
       if (e.button !== 0) return
+
       // A touch press may turn into a scroll, so it selects on release as a tap instead of starting a drag.
       if (e.pointerType === 'touch') {
         touchTapRef.current = e.pointerId
+
         return
       }
+
       // The selection visuals own the screen from here, so the hover highlight steps aside.
       if (pickerActive) setHoverRect(null)
       const next = selectionAtPointer(e.clientX, e.clientY, e.shiftKey)
+
       if (!next) return
       applySelection(next)
       dragRef.current = { pointerId: e.pointerId, selection: next }
@@ -724,10 +798,13 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const resolveHover = useCallback(
     (clientX: number, clientY: number) => {
       const hovered = cellAtPointer(clientX, clientY)
+
       if (!hovered || hovered.inHeader || hovered.row > sheet.rowCount || hovered.col > sheet.colCount) {
         updateHoverRect(null)
+
         return
       }
+
       // A merged range highlights as the one unit a click on it would pick.
       const hoveredMerge = findMerge(hovered.row, hovered.col)
       updateHoverRect(hoveredMerge ?? { top: hovered.row, left: hovered.col, bottom: hovered.row, right: hovered.col })
@@ -741,6 +818,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     (e: React.UIEvent<HTMLDivElement>) => {
       setViewport(readViewport(e.currentTarget))
       const last = lastPointerRef.current
+
       if (!pickerActive || dragRef.current || !last) return
       resolveHover(last.x, last.y)
     },
@@ -750,33 +828,43 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current
+
       if (!drag) {
         // No drag in flight: while picking, the highlight follows the pointer. With the picker off the grid has
         // no hover visual at all, so a plain move stays the no-op it has always been.
         if (!pickerActive) return
+
         if (isFloatingObject(e.target)) {
           // A chart or image is not a pickable cell, so entering one ends the hover and forgets the position.
           lastPointerRef.current = null
           updateHoverRect(null)
+
           return
         }
+
         lastPointerRef.current = { x: e.clientX, y: e.clientY }
         resolveHover(e.clientX, e.clientY)
+
         return
       }
+
       if (drag.pointerId !== e.pointerId) return
       const target = cellAtPointer(e.clientX, e.clientY)
+
       if (!target) return
+
       // Dragging back over the sticky headers gives a negative content offset. Clamp to at least 1 so the
       // drag stops at the edge instead of pulling the selection onto a hidden leading row or column.
       const clamped: CellRef = {
         row: Math.min(Math.max(target.row, 1), sheet.rowCount),
         col: Math.min(Math.max(target.col, 1), sheet.colCount)
       }
+
       // Address the merge by its master here too, for the reason pointerdown gives: pointerdown normalizes,
       // then the first pointermove — a millimetre of hand tremor — writes the raw coordinate straight back.
       const merge = findMerge(clamped.row, clamped.col)
       const active: CellRef = { row: merge?.top ?? clamped.row, col: merge?.left ?? clamped.col }
+
       if (active.row === drag.selection.active.row && active.col === drag.selection.active.col) return
       const next: GridSelection = { anchor: drag.selection.anchor, active }
       dragRef.current = { pointerId: drag.pointerId, selection: next }
@@ -801,13 +889,17 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       if (touchTapRef.current === e.pointerId) {
         touchTapRef.current = null
         const tapped = selectionAtPointer(e.clientX, e.clientY, false)
+
         if (!tapped) return
         applySelection(tapped)
         suppressClickRef.current = true
         commitSelection(tapped)
+
         return
       }
+
       const drag = dragRef.current
+
       if (!drag || drag.pointerId !== e.pointerId) return
       dragRef.current = null
       e.currentTarget.releasePointerCapture?.(e.pointerId)
@@ -822,6 +914,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   const handlePointerCancel = useCallback(() => {
     touchTapRef.current = null
     const drag = dragRef.current
+
     if (!drag) return
     dragRef.current = null
     commitSelection(drag.selection)
@@ -830,6 +923,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // The pointer left the grid, so there is no cell under it to highlight any more.
   const handlePointerLeave = useCallback(() => {
     lastPointerRef.current = null
+
     if (pickerActive) setHoverRect(null)
   }, [pickerActive])
 
@@ -844,8 +938,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     () => (selected ? expandRangeToMerges(cornersToRect(selected.anchor, selected.active), sheet.merges) : null),
     [selected, sheet.merges]
   )
+
   const anchorMerge = selected ? findMerge(selected.anchor.row, selected.anchor.col) : undefined
   const isSingleCellSelection = selectionRect !== null && isSingleLogicalCell(selectionRect, anchorMerge)
+
   const selectionRectPx = useMemo(
     () => (selectionRect ? mergeRectPx(selectionRect, rowLayout, colLayout) : null),
     [selectionRect, rowLayout, colLayout]
@@ -855,6 +951,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     () => (hoverRect ? mergeRectPx(hoverRect, rowLayout, colLayout) : null),
     [hoverRect, rowLayout, colLayout]
   )
+
   // The picked unit keeps its own outline, so containment — not equality — is the guard: a single cell inside
   // a picked A2:B2 must stay hover-free too, the way the block producers' `:not([data-*-picked])` rules do.
   const hoverInsidePick = Boolean(
@@ -867,6 +964,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   )
 
   const opaqueHeaders = options?.xlsx?.opaqueHeaders === true
+
   const headerBackground = opaqueHeaders
     ? {
         backgroundColor: 'rgb(from var(--background) r g b / 1)',
@@ -975,6 +1073,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
             {virtualRows.map((vr) => {
               const row = vr.index + 1
               const isSemanticRow = row <= sheet.rowCount
+
               return (
                 <div
                   key={vr.key}
@@ -990,6 +1089,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
                     const exposesGridCell = isSemanticCell && !isCovered
                     const cell = merge ? undefined : getCell(row, col)
                     const style = merge ? undefined : getStyle(cell)
+
                     const isSelected =
                       !isCovered &&
                       selectionRect !== null &&
@@ -997,6 +1097,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
                       row <= selectionRect.bottom &&
                       col >= selectionRect.left &&
                       col <= selectionRect.right
+
                     return (
                       <div
                         key={vc.key}
@@ -1033,6 +1134,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
             {mergesVisible.map(({ merge, masterRow, masterCol, rect }) => {
               const cell = getCell(masterRow, masterCol)
               const style = getStyle(cell)
+
               return (
                 <div
                   key={`merge:${merge.top}:${merge.left}:${merge.bottom}:${merge.right}`}
@@ -1060,7 +1162,9 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
           <div className="pointer-events-none absolute" data-xlsx-floating="">
             {sheet.floatingImages.map((img, i) => {
               const src = imageUrls[img.imageId]
+
               if (!src) return null
+
               return (
                 <img
                   // imageId is deduplicated across anchors (one workbook image reused at multiple placements), so the
@@ -1086,6 +1190,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
                 width: chart.rect.width,
                 height: chart.rect.height
               }
+
               return (
                 <div
                   key={`chart:${i}`}

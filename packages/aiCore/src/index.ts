@@ -29,6 +29,7 @@ export type {
   RuntimeProviderCallEvent,
   RuntimeProviderCallHandler
 } from './core/runtime'
+
 export type { SpeechOptions, SpeechResult, TranscriptionOptions, TranscriptionResult } from './core/runtime'
 
 // ==================== 高级API ====================
@@ -43,7 +44,9 @@ export type {
   StreamTextParams,
   StreamTextResult
 } from './core/plugins'
+
 export { definePlugin } from './core/plugins'
+
 export { PluginEngine } from './core/runtime/pluginEngine'
 
 // ==================== 类型工具 ====================
@@ -69,6 +72,7 @@ export type {
   TruncateOptions,
   VFSStorageAdapter
 } from './core/context'
+
 export {
   compactModelMessages,
   compactHistory,

@@ -42,6 +42,7 @@ export interface ImageViewerProps extends Omit<React.ImgHTMLAttributes<HTMLImage
 
 const getPreviewIndex = (items: ImagePreviewItem[], src: string, fallbackIndex = 0) => {
   const matchedIndex = items.findIndex((item) => item.src === src)
+
   return matchedIndex >= 0 ? matchedIndex : fallbackIndex
 }
 
@@ -58,6 +59,7 @@ const getImageSaveName = (item: ImagePreviewItem) => {
   }
 
   const nameWithoutImageExtension = name?.replace(/\.(?:avif|bmp|gif|heic|jpe?g|png|svg|webp)$/i, '')
+
   return removeSpecialCharactersForFileName(nameWithoutImageExtension || '') || 'image'
 }
 
@@ -74,6 +76,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   const { t } = useTranslation()
   const previewConfig = typeof preview === 'object' ? preview : undefined
   const previewEnabled = preview !== false
+
   const items = React.useMemo<ImagePreviewItem[]>(() => {
     return (
       previewConfig?.items ?? [
@@ -144,19 +147,23 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
       try {
         const blob = await getImageBlobFromSource(item.src)
         const { flipX, flipY, rotation } = context.transform
+
         const outputBlob =
           blob.type === 'image/gif'
             ? blob
             : rotation % 360 !== 0 || flipX || flipY
               ? await transformImageToPng(blob, { flipX, flipY, rotation })
               : await convertImageToPng(blob)
+
         const name = getImageSaveName(item)
+
         const saved =
           outputBlob.type === 'image/gif'
             ? await window.api.file.save(`${name}.gif`, new Uint8Array(await outputBlob.arrayBuffer()), {
                 filters: [{ name: 'GIF', extensions: ['gif'] }]
               })
             : await window.api.file.saveImage(name, await blobToDataUrl(outputBlob))
+
         if (saved) {
           toast.success(t('common.saved'))
         }
@@ -202,19 +209,23 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     () => [...builtInActions, ...(previewConfig?.actions ?? [])],
     [builtInActions, previewConfig?.actions]
   )
+
   const toolbarActions = React.useMemo(
     () => [saveAction, ...(previewConfig?.toolbarActions ?? [])],
     [previewConfig?.toolbarActions, saveAction]
   )
+
   const displayItem = items.find((item) => item.src === src) ?? {
     alt: typeof alt === 'string' ? alt : undefined,
     id: src,
     src
   }
+
   const displayIndex = Math.max(
     0,
     items.findIndex((item) => item.id === displayItem.id)
   )
+
   const resolvedContextMenuTransform = React.useMemo<ImagePreviewTransform>(
     () => ({
       flipX: contextMenuTransform?.flipX ?? false,
@@ -226,6 +237,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     }),
     [contextMenuTransform]
   )
+
   const contextMenuActionContext = React.useMemo(
     () => ({
       close: () => setOpen(false),
@@ -236,6 +248,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     }),
     [displayIndex, items, resolvedContextMenuTransform, setOpen]
   )
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preview actions can reject with any value; logging must preserve native errors and opaque rejection metadata.
   const onActionError = React.useCallback((error: unknown, action: ImagePreviewAction, item: ImagePreviewItem) => {
     logger.error(`Image preview action failed: ${action.id}`, {
@@ -268,6 +281,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
       className={cn(previewEnabled && 'cursor-zoom-in', className)}
       onClick={(event) => {
         onClick?.(event)
+
         if (!event.defaultPrevented && previewEnabled) {
           setActiveIndex(initialIndex)
           setOpen(true)

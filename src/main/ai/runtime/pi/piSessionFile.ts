@@ -18,6 +18,7 @@ export function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: s
   }
 
   let entries: string[]
+
   try {
     entries = readdirSync(sessionDir)
   } catch (error) {
@@ -31,5 +32,6 @@ export function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: s
     .filter((entry) => entry.endsWith(`_${resumeToken}.jsonl`))
     .sort()
     .at(-1)
+
   return match ? path.join(sessionDir, match) : null
 }

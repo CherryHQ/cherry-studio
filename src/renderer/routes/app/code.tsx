@@ -13,9 +13,11 @@ export const Route = createFileRoute('/app/code')({
 function CodeCliRoute() {
   const { tool } = Route.useSearch()
   const navigate = Route.useNavigate()
+
   const handleToolChange = useCallback(
     (selectedTool: CodeCli) => void navigate({ search: { tool: selectedTool }, replace: true }),
     [navigate]
   )
+
   return <CodeCliPage initialTool={tool} onToolChange={handleToolChange} />
 }

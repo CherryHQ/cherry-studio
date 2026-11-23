@@ -27,6 +27,7 @@ export type DefaultOpenContext = {
 export async function safeOpen(path: AbsoluteFilePath, context?: DefaultOpenContext): Promise<void> {
   assertSafePathForDefaultOpen(path)
   await assertOpenableTarget(path)
+
   const fields = {
     path,
     extension: normalizeExt(pathModule.extname(path.replace(/[\s.]+$/, ''))),
@@ -35,11 +36,14 @@ export async function safeOpen(path: AbsoluteFilePath, context?: DefaultOpenCont
     targetKind: 'system_default',
     targetApplication: 'unknown'
   }
+
   const startedAt = performance.now()
+
   try {
     await internalOpen(path)
   } catch (error) {
     const reason = error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
+
     try {
       logger.info('Default-app open handoff completed', {
         ...fields,
@@ -50,8 +54,10 @@ export async function safeOpen(path: AbsoluteFilePath, context?: DefaultOpenCont
     } catch {
       // Logging must never change the outcome of opening a file.
     }
+
     throw error
   }
+
   try {
     logger.info('Default-app open handoff completed', {
       ...fields,
@@ -78,12 +84,14 @@ async function assertClipboardTarget(path: AbsoluteFilePath): Promise<void> {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Clipboard path probes catch arbitrary filesystem failures; only ENOENT/ENOTDIR prove a missing target.
 function clipboardFailureReason(error: unknown): 'missing' | 'inaccessible' {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+
   return code === 'ENOENT' || code === 'ENOTDIR' ? 'missing' : 'inaccessible'
 }
 
 export async function getClipboardCopyStatus(path: AbsoluteFilePath): Promise<ClipboardCopyStatus> {
   try {
     await assertClipboardTarget(path)
+
     return { ok: true }
   } catch (error) {
     return { ok: false, reason: clipboardFailureReason(error) }
@@ -103,12 +111,15 @@ export async function copyFileToClipboard(path: AbsoluteFilePath, externalPath?:
       'file.copy_to_clipboard',
       classifyFileFailure(error, external)
     )
+
     const failure = new IpcError(fileErrorCodes.COPY_TARGET_UNAVAILABLE, 'The file is unavailable for copying', {
       path,
       reason: clipboardFailureReason(error)
     })
+
     markReportingHandled(failure)
     throw failure
   }
+
   await writeFileToClipboard(path)
 }

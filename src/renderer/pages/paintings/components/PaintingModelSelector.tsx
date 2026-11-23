@@ -55,6 +55,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
 
   const selectedName = selectedModel?.name ?? painting.model
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
+
   const selectedIconRef = useMemo(
     () =>
       painting.providerId
@@ -65,6 +66,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         : undefined,
     [painting.providerId, painting.model, selectedModel]
   )
+
   const selectedIcon = useIcon(selectedIconRef)
 
   return (

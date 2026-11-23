@@ -20,6 +20,7 @@ const EMOJI_VERSION_TESTS = [
 const BASELINE_EMOJI = '😀'
 const ZWJ_CODE_POINT = '200d'
 const ZWJ_UNSUPPORTED_WIDTH_RATIO = 1.8
+
 const EMOJI_FONT_FAMILY =
   '"Twemoji Mozilla","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol",' +
   '"Noto Color Emoji","EmojiOne Color","Android Emoji",sans-serif'
@@ -33,6 +34,7 @@ const getTextFeature = (text: string, color: string): Uint8ClampedArray | undefi
   canvas.height = 1
 
   const context = canvas.getContext('2d', { willReadFrequently: true })
+
   if (!context) return undefined
 
   context.textBaseline = 'top'
@@ -74,6 +76,7 @@ const determineEmojiSupportLevel = (): number => {
 const runWhenIdle = (callback: () => void) => {
   if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(callback)
+
     return
   }
 
@@ -125,6 +128,7 @@ const createMeasurementNode = (): HTMLSpanElement | undefined => {
 const calculateTextWidth = (measurementNode: HTMLSpanElement, text: string): number | undefined => {
   measurementNode.textContent = text
   const textNode = measurementNode.firstChild
+
   if (!textNode) return undefined
 
   const range = document.createRange()
@@ -138,14 +142,17 @@ const calculateTextWidth = (measurementNode: HTMLSpanElement, text: string): num
 const determineUnsupportedZwjEmojiIds = (emojiIds: string[]): string[] => {
   try {
     const measurementNode = createMeasurementNode()
+
     if (!measurementNode) return []
 
     try {
       const baselineWidth = calculateTextWidth(measurementNode, BASELINE_EMOJI)
+
       if (!baselineWidth) return []
 
       return emojiIds.filter((emojiId) => {
         const emojiWidth = calculateTextWidth(measurementNode, unifiedToNativeEmoji(emojiId))
+
         return Boolean(emojiWidth && emojiWidth / ZWJ_UNSUPPORTED_WIDTH_RATIO >= baselineWidth)
       })
     } finally {
@@ -160,6 +167,7 @@ export const detectUnsupportedZwjEmojiIds = (emojiData: EmojiData): Promise<stri
   const emojiIds = getZwjEmojiIds(emojiData)
   const cacheKey = emojiIds.join('|')
   const cached = unsupportedZwjEmojiIdsPromises.get(cacheKey)
+
   if (cached) return cached
 
   const promise = new Promise<string[]>((resolve) => {
@@ -167,6 +175,7 @@ export const detectUnsupportedZwjEmojiIds = (emojiData: EmojiData): Promise<stri
   })
 
   unsupportedZwjEmojiIdsPromises.set(cacheKey, promise)
+
   return promise
 }
 

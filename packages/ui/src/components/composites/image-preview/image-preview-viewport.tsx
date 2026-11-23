@@ -45,8 +45,10 @@ export interface ImagePreviewViewportProps extends Omit<React.HTMLAttributes<HTM
 const EMPTY_SIZE: Size = { height: 0, width: 0 }
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const getItemKey = (item: ImagePreviewItem) => `${item.id}\0${item.src}`
+
 const touchSpan = (points: Map<number, { x: number; y: number }>) => {
   const [first, second] = [...points.values()]
+
   return {
     span: Math.hypot(first.x - second.x, first.y - second.y),
     midX: (first.x + second.x) / 2,
@@ -83,6 +85,7 @@ const clampOffsets = (
   viewportSize: Size
 ) => {
   const { maxOffsetX, maxOffsetY } = getGeometry(imageSize, viewportSize, transform)
+
   return {
     offsetX: clamp(transform.offsetX, -maxOffsetX, maxOffsetX),
     offsetY: clamp(transform.offsetY, -maxOffsetY, maxOffsetY)
@@ -114,11 +117,13 @@ export function ImagePreviewViewport({
   const { transform, update } = transformControls
   const geometry = getGeometry(imageSize, viewportSize, transform)
   const canPan = geometry.maxOffsetX > 0 || geometry.maxOffsetY > 0
+
   const isGeometryReady =
     imageSize.width > 0 && imageSize.height > 0 && viewportSize.width > 0 && viewportSize.height > 0
 
   React.useLayoutEffect(() => {
     const viewport = viewportRef.current
+
     if (!viewport) return
 
     const updateSize = () => {
@@ -131,10 +136,12 @@ export function ImagePreviewViewport({
     }
 
     updateSize()
+
     if (typeof ResizeObserver === 'undefined') return
 
     const observer = new ResizeObserver(updateSize)
     observer.observe(viewport)
+
     return () => observer.disconnect()
   }, [])
 
@@ -146,6 +153,7 @@ export function ImagePreviewViewport({
   const zoomAt = React.useCallback(
     (nextZoom: number, clientX: number, clientY: number) => {
       const viewport = viewportRef.current
+
       if (!viewport) return
       const rect = viewport.getBoundingClientRect()
       const anchorX = clientX - rect.left - rect.width / 2
@@ -154,12 +162,14 @@ export function ImagePreviewViewport({
       update((current) => {
         const zoom = clamp(nextZoom, transformControls.minZoom, transformControls.maxZoom)
         const ratio = zoom / current.zoom
+
         const next = {
           ...current,
           offsetX: anchorX - (anchorX - current.offsetX) * ratio,
           offsetY: anchorY - (anchorY - current.offsetY) * ratio,
           zoom
         }
+
         return { ...next, ...clampOffsets(next, imageSize, viewportSize) }
       })
     },
@@ -181,6 +191,7 @@ export function ImagePreviewViewport({
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (event.pointerType !== 'touch') return
       touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+
       if (touchPointsRef.current.size !== 2) return
       dragRef.current = null
       setIsDragging(false)
@@ -194,8 +205,10 @@ export function ImagePreviewViewport({
       if (!touchPointsRef.current.has(event.pointerId)) return
       touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
       const pinch = pinchRef.current
+
       if (!pinch || touchPointsRef.current.size !== 2) return
       const { span, midX, midY } = touchSpan(touchPointsRef.current)
+
       if (pinch.span > 0) zoomAt((pinch.zoom * span) / pinch.span, midX, midY)
     },
     [zoomAt]
@@ -203,12 +216,14 @@ export function ImagePreviewViewport({
 
   const handleTouchPointerEnd = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     touchPointsRef.current.delete(event.pointerId)
+
     if (touchPointsRef.current.size < 2) pinchRef.current = null
   }, [])
 
   const handlePointerDown = React.useCallback(
     (event: React.PointerEvent<HTMLImageElement>) => {
       event.stopPropagation()
+
       if (event.button !== 0 || !canPan || pinchRef.current) return
 
       dragRef.current = {
@@ -228,6 +243,7 @@ export function ImagePreviewViewport({
   const handlePointerMove = React.useCallback(
     (event: React.PointerEvent<HTMLImageElement>) => {
       const drag = dragRef.current
+
       if (!drag || drag.pointerId !== event.pointerId) return
 
       const next = {
@@ -235,6 +251,7 @@ export function ImagePreviewViewport({
         offsetX: drag.offsetX + event.clientX - drag.startX,
         offsetY: drag.offsetY + event.clientY - drag.startY
       }
+
       update(clampOffsets(next, imageSize, viewportSize))
     },
     [imageSize, transform, update, viewportSize]
@@ -242,20 +259,24 @@ export function ImagePreviewViewport({
 
   const stopDragging = React.useCallback((event: React.PointerEvent<HTMLImageElement>) => {
     const drag = dragRef.current
+
     if (!drag || drag.pointerId !== event.pointerId) return
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
+
     dragRef.current = null
     setIsDragging(false)
   }, [])
 
   const dimensions: Pick<React.CSSProperties, 'height' | 'width'> = {}
+
   if (imageSize.width > 0) {
     dimensions.height = imageSize.height
     dimensions.width = imageSize.width
   }
+
   const image = (
     <ImagePreviewImage
       key={itemKey}

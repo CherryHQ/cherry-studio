@@ -68,7 +68,9 @@ function envVarsFromText(text: string): Record<string, string> {
     .filter((line) => line.trim().length > 0)
     .map((line): [string, string] | null => {
       const idx = line.indexOf('=')
+
       if (idx === -1) return [line.trim(), '']
+
       return [line.slice(0, idx).trim(), line.slice(idx + 1)]
     })
     .filter((entry): entry is [string, string] => entry !== null && entry[0].length > 0)
@@ -78,6 +80,7 @@ function envVarsFromText(text: string): Record<string, string> {
 
 export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds: string[] = []): AgentFormState {
   const cfg: AgentConfiguration = agent?.configuration ?? {}
+
   return {
     name: agent?.name ?? '',
     description: agent?.description ?? '',
@@ -105,10 +108,13 @@ function initialLanguageFields(
   language: AgentConfiguration['language']
 ): Pick<AgentFormState, 'languageMode' | 'languageCustom'> {
   if (language === null) return { languageMode: 'off', languageCustom: '' }
+
   if (typeof language === 'string') {
     const normalized = normalizeAgentLanguageInput(language)
+
     return { languageMode: 'custom', languageCustom: normalized ?? language }
   }
+
   return { languageMode: 'inherit', languageCustom: '' }
 }
 
@@ -142,41 +148,51 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     dto.name = next.name
     dirty = true
   }
+
   if (baseline.description !== next.description) {
     dto.description = next.description
     dirty = true
   }
+
   if (baseline.model !== next.model) {
     if (next.model) dto.model = next.model
     dirty = true
   }
+
   if (baseline.planModel !== next.planModel) {
     // null (not undefined) so the PATCH clears the column — undefined would be
     // dropped as "field not provided" and the old override would survive.
     dto.planModel = next.planModel || null
     dirty = true
   }
+
   if (baseline.smallModel !== next.smallModel) {
     dto.smallModel = next.smallModel || null
     dirty = true
   }
+
   if (baseline.instructions !== next.instructions) {
     dto.instructions = next.instructions
     dirty = true
   }
+
   if (!arraysEqual(baseline.mcps, next.mcps)) {
     dto.mcps = next.mcps
     dirty = true
   }
+
   if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
     dto.knowledgeBaseIds = next.knowledgeBaseIds
     dirty = true
   }
+
   const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)
+
   if (skillUpdates.length > 0) {
     dto.skillUpdates = skillUpdates
     dirty = true
   }
+
   if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
     dto.disabledTools = next.disabledTools
     dirty = true
@@ -189,30 +205,38 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     cfgPatch.avatar = next.avatar
     cfgDirty = true
   }
+
   if (baseline.permissionMode !== next.permissionMode) {
     cfgPatch.permission_mode = normalizePermissionMode(next.permissionMode)
     cfgDirty = true
   }
+
   if (baseline.envVarsText !== next.envVarsText) {
     cfgPatch.env_vars = envVarsFromText(next.envVarsText)
     cfgDirty = true
   }
+
   if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {
     cfgPatch.heartbeat_enabled = next.heartbeatEnabled
     cfgDirty = true
   }
+
   if (baseline.heartbeatInterval !== next.heartbeatInterval) {
     if (next.heartbeatEnabled) {
       cfgPatch.heartbeat_enabled = true
     }
+
     cfgPatch.heartbeat_interval = next.heartbeatInterval
     cfgDirty = true
   }
+
   if (baseline.heartbeatTimeoutMinutes !== next.heartbeatTimeoutMinutes) {
     cfgPatch.heartbeat_timeout_minutes = normalizeHeartbeatTimeoutMinutes(next.heartbeatTimeoutMinutes)
     cfgDirty = true
   }
+
   const languagePatch = diffLanguageUpdate(baseline, next)
+
   if (languagePatch.dirty) {
     cfgPatch.language = languagePatch.value
     cfgDirty = true
@@ -235,26 +259,34 @@ function diffLanguageUpdate(
   if (next.languageMode === 'inherit') {
     return baseline.languageMode === 'inherit' ? { dirty: false } : { dirty: true, value: undefined }
   }
+
   if (next.languageMode === 'off') {
     return baseline.languageMode === 'off' ? { dirty: false } : { dirty: true, value: null }
   }
+
   const normalized = normalizeAgentLanguageInput(next.languageCustom)
+
   if (normalized === null) return { dirty: false }
+
   if (baseline.languageMode === 'custom' && normalizeAgentLanguageInput(baseline.languageCustom) === normalized) {
     return { dirty: false }
   }
+
   return { dirty: true, value: normalized }
 }
 
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
+
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+
   return true
 }
 
 function stringSetsEqual(a: readonly string[], b: readonly string[]): boolean {
   const aSet = new Set(a)
   const bSet = new Set(b)
+
   return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
 }
 
@@ -266,6 +298,7 @@ function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: rea
   for (const skillId of baselineSkillIds) {
     if (!nextSet.has(skillId)) updates.push({ skillId, isEnabled: false })
   }
+
   for (const skillId of nextSkillIds) {
     if (!baselineSet.has(skillId)) updates.push({ skillId, isEnabled: true })
   }
@@ -289,7 +322,9 @@ export type AgentSaveIntent = { kind: 'update'; payload: UpdateAgentDto }
  */
 export function diffAgentSaveIntent(form: AgentFormState, baseline: AgentFormState): AgentSaveIntent | null {
   const result = diffAgentUpdate(baseline, form)
+
   if (!result) return null
+
   return {
     kind: 'update',
     payload: result.dto

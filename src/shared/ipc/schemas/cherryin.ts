@@ -24,6 +24,7 @@ const cherryInBalanceSchema = z.object({
 })
 
 export type CherryInProfile = z.infer<typeof cherryInProfileSchema>
+
 export type CherryInBalance = z.infer<typeof cherryInBalanceSchema>
 
 const apiHostInput = z.object({ apiHost: z.string() })

@@ -7,18 +7,22 @@ const known = (value: number | undefined) =>
 function spanDuration(timing: MessageRuntimeTiming | undefined, kind: 'tool-execution' | 'approval-wait') {
   if (timing?.completedAt === undefined) return undefined
   const end = timing.completedAt
+
   const intervals = timing.spans
     .filter((span) => span.kind === kind)
     .map((span) => ({ start: Math.max(timing.startedAt, span.startedAt), end: Math.min(end, span.completedAt ?? end) }))
     .filter((span) => span.end > span.start)
     .sort((a, b) => a.start - b.start)
+
   if (!intervals.length) return undefined
   let duration = 0
   let previousEnd = timing.startedAt
+
   for (const interval of intervals) {
     duration += Math.max(0, interval.end - Math.max(previousEnd, interval.start))
     previousEnd = Math.max(previousEnd, interval.end)
   }
+
   return known(duration)
 }
 
@@ -26,6 +30,7 @@ function spanDuration(timing: MessageRuntimeTiming | undefined, kind: 'tool-exec
 export function toMessageUsage(stats: MessageStats | null | undefined): AgentMessageUsage | undefined {
   if (!stats) return undefined
   const timing = stats.runtimeTiming
+
   const usage: AgentMessageUsage = {
     inputTokens: known(stats.inputTokens),
     outputTokens: known(stats.outputTokens),
@@ -45,7 +50,9 @@ export function toMessageUsage(stats: MessageStats | null | undefined): AgentMes
     toolDurationMs: spanDuration(timing, 'tool-execution'),
     approvalDurationMs: spanDuration(timing, 'approval-wait')
   }
+
   // Canonical event/checkpoint encoding rejects undefined, even on optional keys.
   for (const key of Object.keys(usage)) if (usage[key] === undefined) delete usage[key]
+
   return Object.keys(usage).length ? usage : undefined
 }

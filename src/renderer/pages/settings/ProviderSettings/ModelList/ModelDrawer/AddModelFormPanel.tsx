@@ -45,6 +45,7 @@ function getInitialPurposeFields(
   defaultEndpointType: EndpointType
 ): ModelPurposeFields {
   const initialForm = getInitialAddModelFormState(prefill, defaultEndpointType)
+
   return {
     endpointTypes: initialForm.endpointTypes,
     capabilities: prefill?.model?.capabilities,
@@ -84,12 +85,15 @@ export default function AddModelFormPanel({
   const { provider } = useProvider(providerId)
   const { models } = useModels({ providerId })
   const { createModel } = useModelMutations()
+
   const [formState, setFormState] = useState<ModelBasicFormState>(() =>
     getInitialAddModelFormState(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
+
   const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>(() =>
     getInitialPurposeFields(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
+
   const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
@@ -130,6 +134,7 @@ export default function AddModelFormPanel({
         group: getDefaultGroupName(value, provider.id)
       }))
       setSubmitError(null)
+
       if (value.trim()) {
         setModelIdTouched(false)
       }
@@ -147,11 +152,13 @@ export default function AddModelFormPanel({
 
       if (models.some((model) => model.id.endsWith(`::${modelId}`))) {
         setSubmitError(t('error.model.exists'))
+
         return null
       }
 
       const classifiedCapabilities = buildModelCapabilities(prefill?.model?.capabilities ?? [], classification)
       const classifiedInputModalities = buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification)
+
       const submittedPurposeFields =
         mode === 'purpose'
           ? applyModelPurpose(
@@ -167,7 +174,9 @@ export default function AddModelFormPanel({
               }
             )
           : null
+
       const submittedInputModalities = submittedPurposeFields?.inputModalities ?? classifiedInputModalities
+
       const shouldSubmitInputModalities =
         inputModalitiesTouched ||
         prefill?.model?.inputModalities !== undefined ||
@@ -189,10 +198,14 @@ export default function AddModelFormPanel({
               : undefined,
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities
       }
+
       if (shouldSubmitInputModalities) input.inputModalities = submittedInputModalities
       const limits: Pick<Parameters<typeof createModel>[0], 'contextWindow' | 'maxInputTokens' | 'maxOutputTokens'> = {}
+
       if (values.contextWindow !== null) limits.contextWindow = values.contextWindow
+
       if (values.maxInputTokens !== null) limits.maxInputTokens = values.maxInputTokens
+
       if (values.maxOutputTokens !== null) limits.maxOutputTokens = values.maxOutputTokens
       await createModel({ ...input, outputModalities: submittedPurposeFields?.outputModalities, ...limits })
 
@@ -220,14 +233,17 @@ export default function AddModelFormPanel({
     }
 
     const normalizedId = formState.modelId.trim().replaceAll('，', ',')
+
     if (!normalizedId) {
       setModelIdTouched(true)
       modelIdInputRef.current?.focus()
+
       return
     }
 
     if (mode === 'endpoint-types' && !(formState.endpointTypes?.length ?? 0)) {
       setEndpointTypeTouched(true)
+
       return
     }
 
@@ -238,6 +254,7 @@ export default function AddModelFormPanel({
     try {
       if (normalizedId.includes(',')) {
         const addedModelIds: UniqueModelId[] = []
+
         for (const singleId of splitModelIds(normalizedId)) {
           const addedModelId = await addSingleModel({
             modelId: singleId,
@@ -257,6 +274,7 @@ export default function AddModelFormPanel({
         if (addedModelIds.length > 0) {
           onSuccess(addedModelIds)
         }
+
         return
       }
 
@@ -264,6 +282,7 @@ export default function AddModelFormPanel({
         ...formState,
         modelId: normalizedId
       })
+
       if (addedModelId) {
         onSuccess([addedModelId])
       }
@@ -282,11 +301,13 @@ export default function AddModelFormPanel({
   const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
     setClassification((current) => {
       const capabilities = new Set(current.capabilities)
+
       if (capabilities.has(capability)) {
         capabilities.delete(capability)
       } else {
         capabilities.add(capability)
       }
+
       return { ...current, capabilities }
     })
   }, [])
@@ -295,11 +316,13 @@ export default function AddModelFormPanel({
     setInputModalitiesTouched(true)
     setClassification((current) => {
       const inputModalities = new Set(current.inputModalities)
+
       if (inputModalities.has(modality)) {
         inputModalities.delete(modality)
       } else {
         inputModalities.add(modality)
       }
+
       return { ...current, inputModalities }
     })
   }, [])
@@ -326,6 +349,7 @@ export default function AddModelFormPanel({
 
     if (!provider) {
       onDrawerFooterBinding(null)
+
       return
     }
 

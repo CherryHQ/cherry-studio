@@ -6,6 +6,7 @@ import { defineRoute } from '../define'
 
 const autoBackupTypeSchema = z.enum(AUTO_BACKUP_TYPES)
 const eventFields = { id: z.number().int().positive(), type: autoBackupTypeSchema }
+
 const autoBackupEventSchema = z.discriminatedUnion('status', [
   z.object({ ...eventFields, status: z.literal('running') }),
   z.object({ ...eventFields, status: z.literal('stopped') }),

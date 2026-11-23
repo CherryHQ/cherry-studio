@@ -38,6 +38,7 @@ import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TopicImageActionType } from '../../../messages/topicImageActionBus'
 
 export type TopicListBodyVariant = 'draggable' | 'plain'
+
 type TopicStreamState = {
   isAwaitingApproval: boolean
   isErrored: boolean
@@ -64,6 +65,7 @@ const selectTopicStreamState = (
   const status = statusEntry?.status
   const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
   const flags = classifyTurn(status)
+
   const streamStatus = {
     isAwaitingApproval: flags.isAwaitingApproval || (statusEntry?.awaitingApprovalAnchors.length ?? 0) > 0,
     isErrored: status === 'error',
@@ -114,6 +116,7 @@ type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listRef' | 
 
 export function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
+
   const {
     activeTopic,
     assistantMoveTargets,
@@ -189,6 +192,7 @@ export function TopicListBody(props: TopicListBodyProps) {
 
   const shortcutHints = useConversationListShortcuts(onSwitchTopic)
   const activeTopicId = activeTopic?.id
+
   const renderItem = useCallback(
     (topic: Topic) => (
       <TopicRow
@@ -259,6 +263,7 @@ const TopicRow = memo(function TopicRow({
   const streamStatus = useTopicListStreamStatus(topic.id)
   const topicDisplayName = topic.name.trim() ? topic.name : t('chat.conversation.new')
   const topicName = topicDisplayName.replace('`', '')
+
   // The row truncates its title, so the hover card carries the full name plus when the
   // conversation was last active.
   const hoverCard = (
@@ -269,13 +274,16 @@ const TopicRow = memo(function TopicRow({
       </span>
     </div>
   )
+
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
+
   const {
     isAwaitingApproval: isTopicAwaitingApproval,
     isErrored: isTopicStreamErrored,
     isFulfilled: isTopicStreamFulfilled,
     isPending: isTopicStreamPending
   } = streamStatus
+
   // Running (spinner) and errored (red) are ongoing states that stay on the
   // selected row too — only the completion dot (green) is a read-receipt that
   // clears once the row is opened (`!isActive`). Awaiting approval is shown as
@@ -289,6 +297,7 @@ const TopicRow = memo(function TopicRow({
         : !isActive && isTopicStreamFulfilled
           ? 'done'
           : null
+
   const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time'
@@ -298,6 +307,7 @@ const TopicRow = memo(function TopicRow({
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
   const submitRenameDialog = useCallback((name: string) => actions.commitRename(topic.id, name), [actions, topic.id])
+
   const { getMenuActions, handleMenuAction } = useTopicMenuActions({
     exportMenuOptions,
     isArchiveBlocked,
@@ -325,6 +335,7 @@ const TopicRow = memo(function TopicRow({
     topic,
     topicsLength
   })
+
   const deleteAction = useMemo(() => getMenuActions().find((action) => action.id === 'topic.delete'), [getMenuActions])
 
   const row = (
@@ -399,6 +410,7 @@ const TopicRow = memo(function TopicRow({
               disabled={isArchiveBlocked}
               onClick={(event) => {
                 event.stopPropagation()
+
                 if (deleteAction) void handleMenuAction(deleteAction)
               }}>
               <Archive size={14} className="size-3.5!" />

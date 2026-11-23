@@ -15,6 +15,7 @@ interface ZhipuRequestBody {
  */
 export function transformZhipuRequestBody(args: ZhipuRequestBody): ZhipuRequestBody {
   const { web_search: webSearch, ...rest } = args
+
   if (!webSearch || typeof webSearch !== 'object') return args
 
   return { ...rest, tools: [...(rest.tools ?? []), { type: 'web_search', web_search: webSearch }] }

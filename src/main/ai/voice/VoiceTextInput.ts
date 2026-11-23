@@ -13,13 +13,16 @@ export class VoiceTextInput implements AsyncIterable<SpeechTextEvent> {
 
   constructor(private readonly initialText: string) {
     this.characters = initialText.length
+
     if (!this.characters || this.characters > SPEECH_TEXT_STREAM_LIMIT) throw new VoiceRuntimeError('invalid_request')
   }
 
   write(sequence: number, event: SpeechTextEvent): Promise<void> {
     if (this.failure) return Promise.reject(this.failure)
+
     if (this.ended || this.pending || sequence !== this.sequence)
       return Promise.reject(new VoiceRuntimeError('invalid_request'))
+
     if (event.type === 'text') {
       if (
         !event.text.length ||
@@ -29,7 +32,9 @@ export class VoiceTextInput implements AsyncIterable<SpeechTextEvent> {
         return Promise.reject(new VoiceRuntimeError('invalid_request'))
       this.characters += event.text.length
     }
+
     this.sequence++
+
     return new Promise((resolve, reject) => {
       this.pending = { event, resolve, reject }
       this.wake?.()
@@ -38,6 +43,7 @@ export class VoiceTextInput implements AsyncIterable<SpeechTextEvent> {
 
   finish(sequence: number): void {
     if (this.failure) throw this.failure
+
     if (this.pending || this.ended || sequence !== this.sequence) throw new VoiceRuntimeError('invalid_request')
     this.ended = true
     this.wake?.()
@@ -55,8 +61,10 @@ export class VoiceTextInput implements AsyncIterable<SpeechTextEvent> {
     if (this.failure) throw this.failure
     yield { type: 'text', text: this.initialText }
     yield { type: 'flush' }
+
     while (true) {
       if (this.failure) throw this.failure
+
       if (this.pending) {
         const item = this.pending
         this.pending = undefined

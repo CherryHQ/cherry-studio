@@ -6,7 +6,9 @@ import { OpenclawLight } from './light'
 
 const Openclaw = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <OpenclawLight {...props} className={className} />
+
   if (variant === 'dark') return <OpenclawDark {...props} className={className} />
+
   return (
     <>
       <OpenclawLight className={cn('dark:hidden', className)} {...props} />

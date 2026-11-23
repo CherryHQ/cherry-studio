@@ -63,6 +63,7 @@ export function useResizeDrag({ onMove, onEnd, cursor = 'col-resize' }: UseResiz
         document.removeEventListener('mouseleave', cleanup)
         document.removeEventListener('visibilitychange', onVisibilityChange)
         window.removeEventListener('blur', cleanup)
+
         if (cleanupRef.current === cleanup) cleanupRef.current = null
         onEndRef.current?.()
       }

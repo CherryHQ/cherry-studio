@@ -37,6 +37,7 @@ export class MiddlewareEngine {
         insertIndex = i
         break
       }
+
       insertIndex = i + 1
     }
 
@@ -59,6 +60,7 @@ export class MiddlewareEngine {
 
       if (!middleware) {
         logger.warn(`Middleware not found: ${middlewareName}`)
+
         return next()
       }
 
@@ -158,9 +160,11 @@ export class MiddlewareEngine {
   removeMiddleware(name: string): void {
     this.middlewares.delete(name)
     const index = this.middlewareOrder.indexOf(name)
+
     if (index > -1) {
       this.middlewareOrder.splice(index, 1)
     }
+
     logger.debug(`Removed middleware: ${name}`)
   }
 

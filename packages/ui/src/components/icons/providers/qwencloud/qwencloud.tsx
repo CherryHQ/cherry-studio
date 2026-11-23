@@ -6,7 +6,9 @@ import { QwencloudLight } from './light'
 
 const Qwencloud = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <QwencloudLight {...props} className={className} />
+
   if (variant === 'dark') return <QwencloudDark {...props} className={className} />
+
   return (
     <>
       <QwencloudLight className={cn('dark:hidden', className)} {...props} />

@@ -53,14 +53,17 @@ export async function readPiApprovalFacts(
 ): Promise<ApprovalHostFacts> {
   const browser = resolveBrowserToolPermission(name)
   const permissionClass = PI_BUILTIN_TOOLS.find((tool) => tool.name === name)?.permissionClass
+
   const category = BEHAVIOR_META_TOOLS.has(name)
     ? 'meta'
     : permissionClass === 'read' || permissionClass === 'edit' || permissionClass === 'meta'
       ? permissionClass
       : 'other'
+
   const interaction = ctx.getInteractionState()
   const mode = ctx.getPermissionMode() ?? 'default'
   const disabled = ctx.isDisabled(name) || browser === 'deny'
+
   const sqlite = disabled
     ? undefined
     : await evaluateUserDataSqliteGuard({
@@ -70,14 +73,18 @@ export async function readPiApprovalFacts(
         cwd: ctx.workspacePath,
         workspacePath: ctx.workspacePath
       })
+
   const command = (name === 'bash' || name === 'powershell') && typeof input.command === 'string' ? input.command : ''
   const globalInstall = command ? (detectGlobalInstall(command) ?? undefined) : undefined
   const miseMutation = command ? (detectMiseMutation(command) ?? undefined) : undefined
+
   const rewritten =
     name === 'bash' && !disabled && !sqlite && !globalInstall && !miseMutation && command
       ? await rtkRewrite(command)
       : undefined
+
   const commandPolicy = command && !disabled ? await checkPiCommand(ctx, name, mode, command, rewritten) : undefined
+
   const guard = ctx.builtinRole
     ? await evaluateToolGuards(BUILTIN_AGENT_TOOL_GUARD_RULES, {
         toolName: name === 'bash' || name === 'powershell' ? 'Bash' : name,
@@ -92,9 +99,12 @@ export async function readPiApprovalFacts(
         isDisabled: ctx.isDisabled
       })
     : undefined
+
   const mandatoryBlock =
     commandPolicy?.effect === 'deny' ? commandPolicy.reason : guard?.effect === 'deny' ? guard.reason : undefined
+
   const policyAsk = commandPolicy?.effect === 'ask'
+
   const collected: Omit<CollectedApprovalFacts, 'destructive'> = {
     category,
     disabled,
@@ -114,9 +124,12 @@ export async function readPiApprovalFacts(
     globalInstall,
     miseMutation
   }
+
   if (globalInstall) collected.globalInstallPermissionMode = ctx.getPermissionMode() ?? 'default'
   const facts: CollectedApprovalFacts = { ...collected, permissionMode: mode, destructive: policyAsk }
+
   if (mandatoryBlock) facts.mandatoryBlock = mandatoryBlock
+
   if (commandPolicy) {
     facts.commandPolicy = {
       details: {
@@ -130,13 +143,16 @@ export async function readPiApprovalFacts(
       changedReason: commandContextChangedReason()
     }
   }
+
   if (rewritten) facts.rewrittenArgs = { ...input, command: rewritten }
+
   if (ctx.delegationTools.has(name)) {
     facts.delegation =
       interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable'
         ? 'unattended'
         : 'interactive'
   }
+
   return facts
 }
 
@@ -154,12 +170,15 @@ async function checkPiCommand(
     builtinRole: ctx.builtinRole,
     permissionMode
   }
+
   const checks = await Promise.all(
     [command, ...(rewritten && rewritten !== command ? [rewritten] : [])].map((text) =>
       checkCommand({ ...input, command: text })
     )
   )
+
   const severity = { allow: 0, ask: 1, deny: 2 }
+
   return checks.reduce((strictest, check) => (severity[check.effect] > severity[strictest.effect] ? check : strictest))
 }
 
@@ -171,10 +190,12 @@ async function isToolPathInsideAllowedRoots(
   additionalAllowedRoots: readonly string[] = []
 ): Promise<boolean> {
   const raw = input.path
+
   // read defaults a missing/empty path to "." → the workspace root, which is inside.
   if (raw !== undefined && raw !== null && typeof raw !== 'string') return false
 
   const resolved = resolveToolPath(raw || '.', workspacePath)
+
   if (resolved === undefined) return false
 
   const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
@@ -182,6 +203,7 @@ async function isToolPathInsideAllowedRoots(
     canonicalizeExistingPath(agentDataPath),
     canonicalizePathForContainment(resolved, { allowMissing: allowMissingTarget })
   ])
+
   if (!canonicalWorkspace || !canonicalAgentData || !canonicalTarget) return false
 
   const canonicalAdditionalRoots = (
@@ -190,6 +212,7 @@ async function isToolPathInsideAllowedRoots(
 
   return [canonicalWorkspace, canonicalAgentData, ...canonicalAdditionalRoots].some((root) => {
     const rel = path.relative(root, canonicalTarget)
+
     return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
   })
 }
@@ -206,6 +229,7 @@ async function canonicalizeExistingPath(target: string): Promise<string | undefi
  *  for inputs whose resolution is ambiguous (e.g. `file://` URLs) so the caller requires approval. */
 function resolveToolPath(raw: string, workspacePath: string): string | undefined {
   let p = normalizePiNativePathInput(raw)
+
   if (p === '~') p = application.getPath('sys.home')
   else if (p.startsWith('~/') || (process.platform === 'win32' && p.startsWith('~\\'))) {
     p = path.join(application.getPath('sys.home'), p.slice(2))
@@ -213,5 +237,6 @@ function resolveToolPath(raw: string, workspacePath: string): string | undefined
     // pi resolves file:// via fileURLToPath; the target can be anywhere, so stay conservative.
     return undefined
   }
+
   return path.isAbsolute(p) ? path.resolve(p) : path.resolve(workspacePath, p)
 }

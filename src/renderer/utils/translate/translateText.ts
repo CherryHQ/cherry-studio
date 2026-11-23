@@ -25,6 +25,7 @@ export const translateText = async (
   }
 
   const targetLangCode = typeof targetLanguage === 'string' ? targetLanguage : targetLanguage.langCode
+
   if (!isTranslateLangCode(targetLangCode) || targetLangCode === 'unknown') {
     throw new Error(`Invalid target language: ${targetLangCode}`)
   }
@@ -36,9 +37,11 @@ export const translateText = async (
   const unsubscribers: Array<() => void> = []
 
   let abortListener: (() => void) | undefined
+
   const cleanup = () => {
     if (cleaned) return
     cleaned = true
+
     for (const off of unsubscribers) {
       try {
         off()
@@ -46,6 +49,7 @@ export const translateText = async (
         // listener unsub never throws meaningfully
       }
     }
+
     if (signal && abortListener) signal.removeEventListener('abort', abortListener)
   }
 
@@ -55,6 +59,7 @@ export const translateText = async (
         // Already aborted / stream gone — main drives the final reject via the stream error event.
       })
     }
+
     signal.addEventListener('abort', abortListener, { once: true })
   }
 
@@ -65,6 +70,7 @@ export const translateText = async (
     unsubscribers.push(
       ipcApi.on('ai.stream.chunk', ({ topicId, chunk }) => {
         if (topicId !== streamId) return
+
         if (
           chunk &&
           (chunk as { type?: string }).type === 'text-delta' &&
@@ -81,10 +87,13 @@ export const translateText = async (
         if (topicId !== streamId) return
         const trimmed = accumulated.trim()
         cleanup()
+
         if (!trimmed) {
           reject(new Error(t('translate.error.empty')))
+
           return
         }
+
         onResponse?.(trimmed, true)
         resolve(trimmed)
       })
@@ -97,6 +106,7 @@ export const translateText = async (
         // Preserve error.name (e.g. 'AbortError') so downstream
         // `isAbortError(...)` classifies user stops correctly.
         const err = new Error(error?.message ?? 'Translation stream error')
+
         if (error?.name) err.name = error.name
         reject(err)
       })

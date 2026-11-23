@@ -45,6 +45,7 @@ export function AgentAvatarPicker({
     setPending(false)
     setOpen(false)
     setView('menu')
+
     return () => {
       session.active = false
     }
@@ -53,42 +54,53 @@ export function AgentAvatarPicker({
   const save = async (intent: InputFor<'agent.set_avatar'>['avatar'] | File) => {
     const id = agentId
     const session = sessionRef.current
+
     if (session.pending) return
     session.pending = true
     setPending(true)
+
     try {
       let avatar: InputFor<'agent.set_avatar'>['avatar']
+
       if (intent instanceof File) {
         const data = await prepareAvatarImage(intent, () => session.active)
+
         if (!data) return
         avatar = { kind: 'image', data }
       } else {
         avatar = intent
       }
+
       if (!session.active) return
       await ipcApi.request('agent.set_avatar', { agentId: id, avatar })
       await invalidate([`/agents/${id}`, '/agents'])
+
       if (!session.active) return
       setOpen(false)
       setView('menu')
+
       if (onChanged) {
         const data = await dataApiService.get(`/agents/${id}`)
+
         if (session.active) onChanged({ avatarSrc: data.avatarSrc, emoji: data.configuration?.avatar ?? '🤖' })
       }
     } catch (error: any) {
       if (session.active) toast.error(error.message)
     } finally {
       session.pending = false
+
       if (session.active) setPending(false)
     }
   }
 
   const avatarSize = size === 'sm' ? 36 : 32
+
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
+
         if (!next) setView('menu')
       }}>
       <PopoverTrigger asChild>
@@ -124,6 +136,7 @@ export function AgentAvatarPicker({
         onChange={(event) => {
           const file = event.target.files?.[0]
           event.target.value = ''
+
           if (file) void save(file)
         }}
       />

@@ -18,7 +18,9 @@ export {
   type UrlString,
   UrlStringSchema
 } from './common'
+
 export { type FileInfo, FileInfoSchema } from './info'
+
 export {
   type BatchCreateResult,
   type BatchMutationResult,
@@ -29,6 +31,7 @@ export {
   type GetPhysicalPathIpcParams,
   type ReadResult
 } from './ipc'
+
 export { type EntryCleanupSummary, type OrphanReport, type OrphanReportCounts } from './sweep'
 
 export { FILE_EDIT_MAX_SIZE_BYTES } from './edit'

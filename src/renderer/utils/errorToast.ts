@@ -38,9 +38,12 @@ export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentati
 export function serializeToastError(error: unknown): SerializedError {
   try {
     const detail = aiErrorDetail(error)
+
     if (detail) return detail
     const serialized = serializeHealthCheckError(error)
+
     if (typeof error !== 'object' || error === null) return serialized
+
     // Keep structured provider categories/status and retry wrappers lost by generic Error serialization.
     return {
       ...error,

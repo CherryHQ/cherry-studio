@@ -33,18 +33,22 @@ export class CherrySupportSeeder implements ISeeder {
     db.transaction((tx) => {
       agentService.clearUntrustedBuiltinSupportRolesTx(tx)
       agentService.claimBuiltinSupportIdentityTx(tx)
+
       const existing = agentService.findBuiltinAgentByRoleTx(tx, BUILTIN_AGENT_ROLE.SUPPORT, {
         includeDeleted: true
       })
+
       if (existing) {
         if (existing.name === 'Cherry 支持') {
           agentService.updateAgentTx(tx, existing.id, { name: CHERRY_SUPPORT_SEED.name.zh })
         }
+
         return
       }
 
       const assistant = agentService.findBuiltinAgentByRoleTx(tx, BUILTIN_AGENT_ROLE.ASSISTANT)
       const agentId = CHERRY_SUPPORT_AGENT_ID
+
       const row = agentService.createAgentTx(tx, agentId, {
         id: agentId,
         type: 'claude-code',
@@ -70,6 +74,7 @@ export class CherrySupportSeeder implements ISeeder {
   private getNameForPreferredSystemLanguage(): string {
     try {
       const language = app.getPreferredSystemLanguages()[0]
+
       return language?.toLowerCase().startsWith('zh') ? CHERRY_SUPPORT_SEED.name.zh : CHERRY_SUPPORT_SEED.name.default
     } catch {
       return CHERRY_SUPPORT_SEED.name.default

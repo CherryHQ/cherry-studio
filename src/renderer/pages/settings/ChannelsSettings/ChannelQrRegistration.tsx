@@ -19,8 +19,10 @@ export function ChannelQrRegistration({ channel }: { channel: ChannelData }) {
   const cancel = () => {
     const requestId = attempt.current
     attempt.current = null
+
     if (requestId) void ipcApi.request('channel.registration.cancel', { requestId }).catch(() => {})
   }
+
   useEffect(() => cancel, [channel.id])
 
   const start = async () => {
@@ -28,18 +30,25 @@ export function ChannelQrRegistration({ channel }: { channel: ChannelData }) {
     const requestId = crypto.randomUUID()
     attempt.current = requestId
     setStatus('pending')
+
     try {
       const result = await ipcApi.request('channel.registration.begin', { channelId: channel.id, requestId })
+
       if (attempt.current !== requestId) return
       setUrl(result.url)
+
       while (attempt.current === requestId) {
         const polled = await ipcApi.request('channel.registration.poll', { requestId })
+
         if (attempt.current !== requestId) return
+
         if (polled.status === 'pending') continue
         setUrl(null)
         setStatus(Date.now() >= result.expiresAt && polled.status !== 'confirmed' ? 'expired' : polled.status)
         cancel()
+
         if (polled.status === 'confirmed') await mutate()
+
         return
       }
     } catch {
@@ -49,6 +58,7 @@ export function ChannelQrRegistration({ channel }: { channel: ChannelData }) {
       setStatus('error')
     }
   }
+
   return (
     <div className="flex flex-col gap-2">
       <Button

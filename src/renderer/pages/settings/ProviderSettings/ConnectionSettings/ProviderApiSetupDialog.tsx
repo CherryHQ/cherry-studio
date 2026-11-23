@@ -49,6 +49,7 @@ import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/pr
 const VERIFICATION_STEP_FEEDBACK_DURATION_MS = 400
 
 export type ProviderApiSetupInitialStep = 'api-key' | 'models'
+
 type ProviderApiSetupStep = ProviderApiSetupInitialStep | 'verification'
 
 interface ProviderApiSetupDialogProps {
@@ -65,8 +66,11 @@ type SetupBusyState =
   | 'checking'
   | 'enabling'
   | null
+
 type SetupErrorKind = 'api-key' | 'models' | 'create' | 'check' | 'enable'
+
 type VerificationStep = 'models' | 'check' | 'enable'
+
 type VerificationStepStatus = 'pending' | 'active' | 'complete' | 'error' | 'warning'
 
 interface SetupError {
@@ -80,12 +84,14 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const providerMeta = useProviderMeta(providerId)
   const { data: apiKeysData, isLoading: isLoadingApiKeys } = useProviderApiKeys(providerId)
   const { createModels, updateModels } = useModelMutations()
+
   const {
     allModels: availableModels,
     localModels,
     reloadModels,
     isLoadingModels
   } = useProviderModelPullReconcile(providerId)
+
   const [step, setStep] = useState<ProviderApiSetupStep>(initialStep)
   const [apiKey, setApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
@@ -111,6 +117,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const isModelListLoading = busyState === 'loading-models' || isLoadingModels
   const canDismissDialog = !isBusy || busyState === 'loading-models'
   const providerDisplayName = providerMeta.fancyProviderName || provider?.name || ''
+
   const setupStepTitle = t(
     step === 'api-key'
       ? 'settings.provider.api_setup.add_key'
@@ -118,35 +125,45 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         ? 'settings.provider.api_setup.verify_and_enable'
         : 'settings.provider.api_setup.models_title'
   )
+
   const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
+
   const modelListView = useModelListSyncView({
     models: availableModels,
     resetKey: modelViewResetVersion
   })
+
   const selectedModels = useMemo(
     () => availableModels.filter((model) => selectedModelIds.has(model.id)),
     [availableModels, selectedModelIds]
   )
+
   const probeModel = useMemo(
     () => selectedModels.find((model) => getModelHealthCheckSkipReason(model) === null),
     [selectedModels]
   )
+
   const allFilteredSelected =
     modelListView.filteredModels.length > 0 &&
     modelListView.filteredModels.every((model) => selectedModelIds.has(model.id))
+
   const storedApiKeyEntries = useMemo(
     () => savedApiKeyEntries ?? apiKeysData?.keys ?? [],
     [apiKeysData?.keys, savedApiKeyEntries]
   )
+
   const storedApiKey = storedApiKeyEntries.find((entry) => entry.isEnabled)
   const hasStoredApiKey = storedApiKey !== undefined
   const hasOnlyDisabledApiKeys = storedApiKeyEntries.length > 0 && !hasStoredApiKey
   const verificationApiKey = parseProviderApiKeys(apiKey)[0] || storedApiKey?.key || ''
   const hasBlockingModelError = error?.kind === 'models' && availableModels.length === 0
+
   const activeVerificationStep: VerificationStep | null =
     busyState === 'checking' ? 'check' : busyState === 'enabling' ? 'enable' : null
+
   const failedVerificationStep: VerificationStep | null =
     error?.kind === 'create' ? 'models' : error?.kind === 'check' ? 'check' : error?.kind === 'enable' ? 'enable' : null
+
   const verificationSteps = [
     { id: 'models', label: t('settings.provider.api_setup.progress.add_models') },
     {
@@ -157,6 +174,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     },
     { id: 'enable', label: t('settings.provider.api_setup.progress.enable_provider') }
   ] as const
+
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) {
       return
@@ -196,11 +214,14 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       const fallback = t(fallbackKey)
       const storedKeys = apiKeysData?.keys
       const canSafelyShowSummary = apiKey.trim().length > 0 || storedKeys !== undefined
+
       const details = getProviderSetupErrorDetails(cause, [
         ...parseProviderApiKeys(apiKey),
         ...storedApiKeyEntries.map((entry) => entry.key)
       ])
+
       const summary = details.i18nKey ? t(details.i18nKey) : canSafelyShowSummary ? details.summary : ''
+
       return { kind, message: summary ? `${fallback} ${summary}` : fallback }
     },
     [apiKey, apiKeysData?.keys, storedApiKeyEntries, t]
@@ -226,9 +247,11 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     try {
       await keepProviderDisabled()
       const result = await reloadModels()
+
       if (!result) {
         return
       }
+
       if (result.error) {
         setError(createError('models', 'settings.models.manage.sync_pull_failed', result.error))
       } else if (result.models.length === 0 && localModelIds.size === 0) {
@@ -249,6 +272,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
     const pendingIdSet = new Set(pendingManualModelIds)
     const addedModels = localModels.filter((model) => pendingIdSet.has(model.id))
+
     if (addedModels.length !== pendingManualModelIds.length) {
       return
     }
@@ -265,24 +289,30 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     }
 
     initializedRef.current = true
+
     if (hasOnlyDisabledApiKeys) {
       setStep('api-key')
+
       return
     }
+
     void loadModels()
   }, [hasOnlyDisabledApiKeys, initialStep, isLoadingApiKeys, loadModels])
 
   const saveApiKey = useCallback(
     async (action: 'close' | 'next') => {
       const parsedApiKeys = parseProviderApiKeys(apiKey)
+
       if (parsedApiKeys.length === 0 || isBusy) {
         return
       }
 
       setBusyState(action === 'close' ? 'saving-key-close' : 'saving-key-next')
       setError(null)
+
       try {
         await keepProviderDisabled()
+
         if (parsedApiKeys.some((key) => [...key].some((character) => character.charCodeAt(0) > 0xff))) {
           throw new Error('API key contains characters unsupported by HTTP headers')
         }
@@ -294,6 +324,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
         if (action === 'close') {
           requestClose()
+
           return
         }
 
@@ -311,6 +342,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const setModelSelection = useCallback((modelIds: UniqueModelId[], selected: boolean) => {
     setSelectedModelIds((current) => {
       const next = new Set(current)
+
       for (const modelId of modelIds) {
         if (selected) {
           next.add(modelId)
@@ -318,6 +350,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           next.delete(modelId)
         }
       }
+
       return next
     })
   }, [])
@@ -325,6 +358,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
   const toggleAllFiltered = useCallback(() => {
     setSelectedModelIds((current) => {
       const next = new Set(current)
+
       if (
         modelListView.filteredModels.length > 0 &&
         modelListView.filteredModels.every((model) => next.has(model.id))
@@ -337,6 +371,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           next.add(model.id)
         }
       }
+
       return next
     })
   }, [modelListView.filteredModels])
@@ -351,10 +386,13 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     setSetupSucceeded(false)
 
     const shouldCheckModel = probeSucceededModelIdRef.current !== probeModel.id
+
     if (shouldCheckModel) {
       setBusyState('checking')
+
       try {
         const options: Pick<NonNullable<Parameters<typeof checkApi>[1]>, 'apiKey'> = {}
+
         if (verificationApiKey) options.apiKey = verificationApiKey
         await checkApi(probeModel.id, {
           ...options,
@@ -364,16 +402,19 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       } catch (cause) {
         setBusyState(null)
         setError(createError('check', 'settings.provider.api_setup.check_failed', cause))
+
         return
       }
     }
 
     setCompletedVerificationSteps((current) => new Set(current).add('check'))
+
     if (shouldCheckModel) {
       await new Promise((resolve) => setTimeout(resolve, VERIFICATION_STEP_FEEDBACK_DURATION_MS))
     }
 
     setBusyState('enabling')
+
     try {
       await enableProvider()
       setCompletedVerificationSteps((current) => new Set(current).add('enable'))
@@ -415,16 +456,20 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     } catch (cause) {
       setBusyState(null)
       setError(createError('create', 'settings.models.manage.operation_failed', cause))
+
       return
     }
 
     setCompletedVerificationSteps(new Set(['models']))
     setStep('verification')
+
     if (!probeModel) {
       setRequiresManualConfirmation(true)
       setBusyState(null)
+
       return
     }
+
     await verifyAndEnable()
   }, [
     createError,
@@ -485,6 +530,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     },
     [canDismissDialog, requestClose]
   )
+
   const headerBackAction =
     step === 'verification' && !setupSucceeded
       ? {
@@ -664,6 +710,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
             <ol className="space-y-1 px-1">
               {verificationSteps.map(({ id, label }) => {
                 let status: VerificationStepStatus = 'pending'
+
                 if (completedVerificationSteps.has(id)) {
                   status = 'complete'
                 } else if (failedVerificationStep === id) {

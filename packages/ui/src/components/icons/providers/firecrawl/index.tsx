@@ -4,6 +4,7 @@ import { FirecrawlLight } from './light'
 
 const Firecrawl = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <FirecrawlLight {...props} className={className} />
+
   return <FirecrawlLight {...props} className={className} />
 }
 

@@ -17,6 +17,7 @@ const SortableKnowledgeBaseRow = ({ disabled, indicator, ...props }: SortableKno
     data: { type: 'base', base: props.base, groupId: props.base.groupId },
     disabled
   })
+
   return (
     <div
       ref={setNodeRef}

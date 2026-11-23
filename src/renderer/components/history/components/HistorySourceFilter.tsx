@@ -49,6 +49,7 @@ const SourceFilterTrigger = ({
     />
   </button>
 )
+
 SourceFilterTrigger.displayName = 'SourceFilterTrigger'
 
 /**

@@ -69,8 +69,10 @@ import {
 import { NumberShortcutSettings } from './NumberShortcutSettings'
 
 const logger = loggerService.withContext('ShortcutSettings')
+
 const numberShortcutPlatform =
   platform === 'darwin' || platform === 'win32' || platform === 'linux' ? platform : undefined
+
 const shortcutRouteApi = getRouteApi('/settings/shortcut')
 
 const isBindingEqual = (a: ShortcutBinding, b: ShortcutBinding): boolean =>
@@ -103,8 +105,11 @@ const usableEndKeys = (event: Pick<ReactKeyboardEvent, 'key' | 'code'>): Shortcu
 
   if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
   const accelerator = keyCodeToAccelerator.get(code)
+
   if (accelerator) return accelerator
+
   if (passthrough.test(code)) return convertKeyToAccelerator(code) ?? null
+
   return null
 }
 
@@ -121,10 +126,12 @@ const ShortcutSettings: FC = () => {
   const { theme } = useTheme()
   const { shortcuts, updatePreference } = useCommandShortcuts()
   const [savingNumberMode, setSavingNumberMode] = useState(false)
+
   const listedShortcuts = useMemo(
     () => shortcuts.filter((shortcut) => !isNumberShortcut(shortcut.command)),
     [shortcuts]
   )
+
   const recorderRefs = useRef<Record<string, HTMLButtonElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<ShortcutBinding>([])
@@ -161,6 +168,7 @@ const ShortcutSettings: FC = () => {
     return listedShortcuts.reduce<Record<ShortcutSettingsGroup, typeof shortcuts>>(
       (acc, shortcut) => {
         acc[shortcut.group].push(shortcut)
+
         return acc
       },
       { general: [], chat: [], topic: [], assistant: [] }
@@ -176,6 +184,7 @@ const ShortcutSettings: FC = () => {
       },
       ...groupMeta.flatMap((group) => {
         const count = shortcutsByGroup[group.key].length + (group.key === 'general' ? 1 : 0)
+
         if (count === 0) return []
 
         return {
@@ -194,12 +203,15 @@ const ShortcutSettings: FC = () => {
 
   const visibleShortcuts = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
+
     return currentGroupShortcuts.filter((record) => {
       if (!query) return true
+
       const display =
         record.preference.binding.length > 0
           ? formatShortcutDisplay(record.preference.binding, isMac).toLowerCase()
           : ''
+
       return record.label.toLowerCase().includes(query) || display.includes(query)
     })
   }, [currentGroupShortcuts, searchQuery])
@@ -208,6 +220,7 @@ const ShortcutSettings: FC = () => {
     () =>
       shortcuts.reduce<Partial<Record<CommandId, PreferenceShortcutType>>>((acc, shortcut) => {
         acc[shortcut.command] = shortcut.preference
+
         return acc
       }, {}),
     [shortcuts]
@@ -225,6 +238,7 @@ const ShortcutSettings: FC = () => {
       if (!key || currentKey === key) {
         return null
       }
+
       return currentKey
     })
   }
@@ -235,6 +249,7 @@ const ShortcutSettings: FC = () => {
         if (hasConflict) {
           return key
         }
+
         return currentKey === key ? null : currentKey
       })
 
@@ -251,6 +266,7 @@ const ShortcutSettings: FC = () => {
 
     if (currentGroupShortcuts.length === 0) {
       const firstAvailable = groupMeta.find((group) => shortcutsByGroup[group.key].length > 0)
+
       if (firstAvailable && firstAvailable.key !== activeGroup) {
         setActiveGroup(firstAvailable.key)
       }
@@ -280,8 +296,10 @@ const ShortcutSettings: FC = () => {
       binding: record.defaultPreference.binding,
       enabled: record.defaultPreference.enabled
     })
+
     if (conflict) {
       showConflictToast(conflict)
+
       return
     }
 
@@ -299,11 +317,13 @@ const ShortcutSettings: FC = () => {
 
   const getCommandLabel = (command: CommandId): string => {
     const shortcut = shortcuts.find((item) => item.command === command)
+
     if (shortcut) {
       return shortcut.label
     }
 
     const definition = findCommandDefinition(command)
+
     return definition ? t(definition.titleKey) : command
   }
 
@@ -318,6 +338,7 @@ const ShortcutSettings: FC = () => {
       preferences,
       platform: platform as SupportedPlatform
     })[0]
+
     return conflict ? getCommandLabel(conflict.conflictingCommand) : null
   }
 
@@ -335,17 +356,22 @@ const ShortcutSettings: FC = () => {
 
     if (event.code === 'Escape') {
       clearEditingState()
+
       return
     }
 
     const keys: ShortcutToken[] = []
 
     if (event.ctrlKey) keys.push(isMac ? 'Ctrl' : 'CommandOrControl')
+
     if (event.altKey) keys.push('Alt')
+
     if (event.metaKey) keys.push(isMac ? 'CommandOrControl' : 'Meta')
+
     if (event.shiftKey) keys.push('Shift')
 
     const endKey = usableEndKeys(event)
+
     if (endKey) {
       keys.push(endKey)
     }
@@ -355,18 +381,22 @@ const ShortcutSettings: FC = () => {
 
     if (!isValidShortcut(binding)) {
       setConflictLabel(null)
+
       return
     }
 
     const conflict = findConflictLabel(record.command, { binding, enabled: true })
+
     if (conflict) {
       setConflictLabel(conflict)
       clearTimeoutTimer('conflict-clear')
       setTimeoutTimer('conflict-clear', () => setConflictLabel(null), 2000)
+
       return
     }
 
     setConflictLabel(null)
+
     try {
       clearSystemConflict(record.key)
       await updatePreference(record.key, { binding, enabled: true })
@@ -381,6 +411,7 @@ const ShortcutSettings: FC = () => {
       title: t('settings.shortcuts.reset_defaults_confirm'),
       centered: true
     })
+
     if (!confirmed) return
 
     const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
@@ -396,6 +427,7 @@ const ShortcutSettings: FC = () => {
 
   const handleToggleVisibleShortcuts = async (enabled: boolean) => {
     const nextPreferencesByCommand: Partial<Record<CommandId, PreferenceShortcutType>> = { ...shortcutPreferences }
+
     const updates = visibleShortcuts.reduce(
       (acc, record) => {
         // Fixed reservations (e.g. the native close role) must opt into toggling
@@ -413,6 +445,7 @@ const ShortcutSettings: FC = () => {
           binding: record.preference.binding,
           enabled
         }
+
         return acc
       },
       {} as Record<string, PreferenceShortcutType>
@@ -423,11 +456,14 @@ const ShortcutSettings: FC = () => {
     if (enabled) {
       for (const record of visibleShortcuts) {
         const nextPreference = nextPreferencesByCommand[record.command]
+
         if (!nextPreference?.enabled || !nextPreference.binding.length) continue
 
         const conflict = findConflictLabel(record.command, nextPreference, nextPreferencesByCommand)
+
         if (conflict) {
           showConflictToast(conflict)
+
           return
         }
       }
@@ -443,19 +479,26 @@ const ShortcutSettings: FC = () => {
   }
 
   const numberMode = getNumberShortcutMode(shortcutPreferences, numberShortcutPlatform)
+
   const handleNumberModeChange = async (mode: NumberShortcutMode) => {
     const preset = getNumberShortcutPreset(mode, numberShortcutPlatform)
     const nextPreferences = { ...shortcutPreferences, ...preset }
+
     for (const command of NUMBER_COMMANDS) {
       const preference = preset[command]
+
       if (!preference) continue
       const conflict = findConflictLabel(command, preference, nextPreferences)
+
       if (conflict) {
         showConflictToast(conflict)
+
         return
       }
     }
+
     setSavingNumberMode(true)
+
     try {
       await preferenceService.setMultiple(getNumberShortcutUpdates(mode, numberShortcutPlatform))
     } catch (error) {
@@ -465,6 +508,7 @@ const ShortcutSettings: FC = () => {
       setSavingNumberMode(false)
     }
   }
+
   const numberSearchText = [
     t('settings.shortcuts.number_keys.title'),
     t('settings.shortcuts.number_keys.conversations'),
@@ -474,6 +518,7 @@ const ShortcutSettings: FC = () => {
   ]
     .join(' ')
     .toLowerCase()
+
   const showNumberSettings =
     (activeGroup === 'all' || activeGroup === 'general') &&
     (!searchQuery.trim() ||
@@ -487,6 +532,7 @@ const ShortcutSettings: FC = () => {
     const isEditable = record.keybinding.editable !== false
     const isBindingModified = !isBindingEqual(displayKeys, record.defaultPreference.binding)
     const hasSystemConflict = systemConflictKey === record.key
+
     const conflictMessage =
       conflictLabel ?? (hasSystemConflict ? t('settings.shortcuts.occupied_by_other_application') : null)
 
@@ -510,6 +556,7 @@ const ShortcutSettings: FC = () => {
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onBlur={(event) => {
               const isUndoClick = (event.relatedTarget as HTMLElement)?.closest('.shortcut-undo-icon')
+
               if (!isUndoClick) {
                 clearEditingState()
               }
@@ -600,10 +647,13 @@ const ShortcutSettings: FC = () => {
             binding: record.preference.binding,
             enabled: !record.preference.enabled
           }
+
           if (nextPreference.enabled) {
             const conflict = findConflictLabel(record.command, nextPreference)
+
             if (conflict) {
               showConflictToast(conflict)
+
               return
             }
           }

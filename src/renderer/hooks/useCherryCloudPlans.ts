@@ -11,28 +11,35 @@ export function useCherryCloudPlans(enabled = true) {
   const session = useCherryAccountSession(enabled)
   const { receipt, refresh, isRefreshing } = useCherryCloudReceipt(enabled)
   const scopeId = session.status?.phase === 'signed-in' ? session.status.scopeId : null
+
   const initial = useSWR(
     enabled && scopeId ? ['cherry-cloud/account-initial', scopeId] : null,
     () => refresh('initial'),
     { shouldRetryOnError: false, revalidateOnFocus: false, revalidateOnReconnect: false }
   )
+
   const fact = receipt?.status.scopeId === scopeId ? receipt.plans : undefined
   const plansFreshness = fact?.freshness ?? 'unknown'
   const isPlansReady = plansFreshness === 'fresh'
   const data = fact && fact.freshness !== 'unknown' ? fact.value : undefined
+
   const error = useMemo(
     () => (fact && fact.freshness !== 'fresh' && fact.error ? new Error(fact.error) : initial.error),
     [fact, initial.error]
   )
+
   const mutate = useCallback(() => refresh('focus_refresh'), [refresh])
+
   const activePaid = useMemo(
     () => data?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free),
     [data]
   )
+
   const upcomingPaid = useMemo(
     () => data?.entitlements.find((item) => item.state === 'upcoming' && !item.plan.is_free),
     [data]
   )
+
   const plansQuery = {
     data,
     error,
@@ -40,6 +47,7 @@ export function useCherryCloudPlans(enabled = true) {
     isValidating: initial.isValidating || isRefreshing,
     mutate
   }
+
   return { session, plansQuery, activePaid, upcomingPaid, isPlansReady, plansFreshness }
 }
 
@@ -48,5 +56,6 @@ export function useCherryCloudSubscribeReminder(): boolean {
   const [subscribePromptSeen] = usePersistCache('ui.cherry_cloud.subscribe_prompt_seen')
   const remindToSubscribe = getAppEdition() === 'cn' && !subscribePromptSeen
   const { session, isPlansReady, activePaid, upcomingPaid } = useCherryCloudPlans(remindToSubscribe)
+
   return remindToSubscribe && (session.status?.phase === 'signed-out' || (isPlansReady && !activePaid && !upcomingPaid))
 }

@@ -29,6 +29,7 @@ const ChatLayoutModeContext = createContext<ChatLayoutModeContextValue>({
 export const ChatLayoutModeProvider = ({ children }: { children: ReactNode }) => {
   const [forceWideLayout, setForceWideLayout] = useState(false)
   const [railGutterPx, setRailGutterPx] = useState(0)
+
   const value = useMemo(
     () => ({
       forceWideLayout,
@@ -55,10 +56,12 @@ export const ChatSidePaddingProvider = ({
   children: ReactNode
 }) => {
   const layoutMode = use(ChatLayoutModeContext)
+
   const value = useMemo(
     () => ({ ...layoutMode, sidePaddingPx, messageEndInsetPx }),
     [layoutMode, sidePaddingPx, messageEndInsetPx]
   )
+
   return <ChatLayoutModeContext value={value}>{children}</ChatLayoutModeContext>
 }
 

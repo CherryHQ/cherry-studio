@@ -50,6 +50,7 @@ interface ApiOption {
 
 const CACHE_TOKEN_THRESHOLD_MAX = 100000
 const CACHE_LAST_N_MAX = 10
+
 const CACHE_TTL_LABELS = {
   '5m': 'settings.provider.api.options.anthropic_cache.cache_ttl_5m',
   '1h': 'settings.provider.api.options.anthropic_cache.cache_ttl_1h'
@@ -59,6 +60,7 @@ function clampInteger(value: number | null, min: number, max: number): number {
   if (value === null) {
     return min
   }
+
   return Math.min(max, Math.max(min, Math.trunc(value)))
 }
 
@@ -82,13 +84,16 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const { provider, updateProvider } = useProvider(providerId)
 
   const endpointType = provider?.defaultChatEndpoint ?? undefined
+
   const dialect = provider
     ? resolveEndpointDialect(provider, endpointType)
     : { streamOptions: true, developerRole: false, reasoningSummary: false }
 
   const cacheControl = provider?.settings?.cacheControl
+
   const cacheTokenThreshold =
     cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
+
   const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
   const cacheTtl = cacheControl?.ttl ?? ANTHROPIC_CACHE_DEFAULT_TTL
   // DO NOT DROP. The server merges `providerSettings` only at its top level, so a
@@ -103,6 +108,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     if (!open) {
       return
     }
+
     setTokenThresholdDraft(cacheTokenThreshold)
     setCacheLastNDraft(cacheLastNMessages)
   }, [cacheLastNMessages, cacheTokenThreshold, open])
@@ -134,6 +140,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     }
 
     const visibility = getProviderApiOptionsVisibility(provider)
+
     if (!visibility.showDialectSettings) {
       return []
     }
@@ -145,9 +152,11 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
       return openAIOptions.filter(({ key }) => key !== 'reasoningSummary')
     }
+
     if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
       return openAIOptions.filter(({ key }) => key !== 'streamOptions')
     }
+
     return openAIOptions.filter(({ key }) => key === 'developerRole')
   }, [endpointType, openAIOptions, provider])
 
@@ -160,6 +169,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       if (!provider || !endpointType) {
         return
       }
+
       const endpointConfig = provider.endpointConfigs?.[endpointType] ?? {}
       updateProvider({
         endpointConfigs: {
@@ -249,6 +259,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
           <div className="flex flex-col gap-4">
             {options.map((item) => {
               const id = apiOptionId(providerId, item.key)
+
               return (
                 <PageSidePanelItem
                   key={item.key}

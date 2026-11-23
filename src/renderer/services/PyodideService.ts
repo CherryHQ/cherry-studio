@@ -44,9 +44,11 @@ class PyodideService {
     if (this.initPromise) {
       return this.initPromise
     }
+
     if (this.worker) {
       return Promise.resolve()
     }
+
     if (this.initRetryCount >= SERVICE_CONFIG.WORKER.MAX_INIT_RETRY) {
       return Promise.reject(new Error('Pyodide worker initialization failed too many times'))
     }
@@ -109,6 +111,7 @@ class PyodideService {
     // 记录 Worker 错误消息
     if (type === 'system-error') {
       logger.error(error)
+
       return
     }
 
@@ -121,6 +124,7 @@ class PyodideService {
 
     // 查找对应的解析器
     const resolver = this.resolvers.get(id)
+
     if (resolver) {
       this.resolvers.delete(id)
       resolver.resolve(output)
@@ -145,11 +149,13 @@ class PyodideService {
     } catch (error: unknown) {
       logger.error('Pyodide initialization failed, cannot execute Python code', error as Error)
       const text = `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
+
       return { text }
     }
 
     if (!this.worker) {
       const text = 'Internal error: Pyodide worker is not initialized'
+
       return { text }
     }
 
@@ -184,6 +190,7 @@ class PyodideService {
       return { text: this.formatOutput(output), image: output.image }
     } catch (error: unknown) {
       const text = `Internal error: ${error instanceof Error ? error.message : String(error)}`
+
       return { text }
     }
   }
@@ -235,6 +242,7 @@ class PyodideService {
   public async resetWorker(): Promise<void> {
     logger.verbose('Resetting Pyodide worker...')
     this.terminate()
+
     try {
       await this.initialize()
       logger.verbose('Pyodide worker has been reset successfully.')
@@ -271,16 +279,19 @@ if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
   window.electron.ipcRenderer.on(IpcChannel.Python_ExecutionRequest, async (_, request: PythonExecutionRequest) => {
     try {
       const { text } = await pyodideService.runScript(request.script, request.context, request.timeout)
+
       const response: PythonExecutionResponse = {
         id: request.id,
         result: text
       }
+
       window.electron.ipcRenderer.send(IpcChannel.Python_ExecutionResponse, response)
     } catch (error: unknown) {
       const response: PythonExecutionResponse = {
         id: request.id,
         error: error instanceof Error ? error.message : String(error)
       }
+
       window.electron.ipcRenderer.send(IpcChannel.Python_ExecutionResponse, response)
     }
   })

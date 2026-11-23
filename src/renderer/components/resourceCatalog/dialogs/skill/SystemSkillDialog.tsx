@@ -33,8 +33,10 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const { skills, loading, error, importSkill, importing } = useSystemSkills(open)
+
   const visibleSkills = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
+
     if (!normalizedQuery) return skills
 
     return skills.filter((skill) =>
@@ -45,6 +47,7 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
   const handleImport = useCallback(
     async (skill: SystemSkillCandidate) => {
       const installed = await importSkill(skill)
+
       if (installed) toast.success(t('library.system_skill.import_success', { name: skill.name }))
     },
     [importSkill, t]
@@ -140,6 +143,7 @@ function SystemSkillRow({
   const imported = skill.status === 'registered'
   const enabled = mode === 'agent-create' && selected
   const disabled = importing || skill.status === 'conflict' || (mode === 'manage' ? imported : enabled)
+
   const buttonLabel =
     skill.status === 'conflict'
       ? t('library.system_skill.conflict')
@@ -150,6 +154,7 @@ function SystemSkillRow({
           : enabled
             ? t('library.system_skill.enabled')
             : t('library.action.enable')
+
   const onClick = skill.status === 'available' ? onImport : onEnable
 
   return (

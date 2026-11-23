@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils'
 import { Button } from './button'
 
 export type ToastType = 'error' | 'success' | 'warning' | 'info' | 'loading'
+
 type StaticToastType = Exclude<ToastType, 'loading'>
 
 export interface ToastAction {
@@ -59,9 +60,11 @@ export interface ToastLabels {
 export type ToastLabelsInput = Partial<ToastLabels> | (() => Partial<ToastLabels>)
 
 export type ToastUtilities = ReturnType<typeof getToastUtilities>
+
 export type ToastStore = ReturnType<typeof createToastStore>
 
 const DEFAULT_TIMEOUT = 3000
+
 const DEFAULT_TOAST_LABELS: ToastLabels = {
   close: 'Close',
   details: 'View details',
@@ -96,12 +99,14 @@ const createToastStore = () => {
 
   const subscribe = (listener: () => void) => {
     listeners.add(listener)
+
     // Invariant: exactly one ToastViewport per window. A second subscriber renders
     // every toast twice — always a bug. Log at error level, but do NOT throw:
     // subscribe runs inside React's commit phase and the failure mode is non-fatal.
     if (listeners.size > 1) {
       console.error('multiple ToastViewport mounted in one window; every toast will render once per host')
     }
+
     return () => {
       listeners.delete(listener)
     }
@@ -139,10 +144,13 @@ const createToastStore = () => {
     }
 
     const timeout = toast.timeout ?? DEFAULT_TIMEOUT
+
     if (paused) {
       remaining.set(toast.key, timeout)
+
       return
     }
+
     deadlines.set(toast.key, Date.now() + timeout)
     timers.set(
       toast.key,
@@ -155,6 +163,7 @@ const createToastStore = () => {
   const setPaused = (value: boolean) => {
     if (paused === value) return
     paused = value
+
     if (paused) {
       deadlines.forEach((deadline, key) => {
         remaining.set(key, Math.max(0, deadline - Date.now()))
@@ -164,6 +173,7 @@ const createToastStore = () => {
     } else {
       toastQueue.forEach((toast) => {
         const timeout = remaining.get(toast.key)
+
         if (timeout === undefined) return
         deadlines.set(toast.key, Date.now() + timeout)
         timers.set(
@@ -266,6 +276,7 @@ const createLoadingToast =
         if (store.getLoadingToken(key) !== token) {
           return result
         }
+
         store.unsetLoadingToken(key)
         upsertToast(
           {
@@ -278,12 +289,14 @@ const createLoadingToast =
           },
           store
         )
+
         return result
       })
       .catch((err) => {
         if (store.getLoadingToken(key) !== token) {
           return
         }
+
         store.unsetLoadingToken(key)
         onError?.(err)
         upsertToast(
@@ -481,11 +494,13 @@ export const ToastViewport = ({
 
   useEffect(() => {
     store.setPaused(interacting && toasts.length > 0)
+
     return () => store.setPaused(false)
   }, [interacting, store, toasts.length])
 
   useEffect(() => {
     setFocused(viewportRef.current?.contains(document.activeElement) ?? false)
+
     if (toasts.length === 0) {
       setHovered(false)
     }

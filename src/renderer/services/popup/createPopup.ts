@@ -37,6 +37,7 @@ export function createPopup<P extends object, R>(
         currentInstanceId = null
       }
     }
+
     promise.then(clear, clear)
 
     return promise

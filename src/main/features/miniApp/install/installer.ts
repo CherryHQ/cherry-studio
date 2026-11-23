@@ -54,7 +54,9 @@ export function installationOf(appId: string) {
     .from(miniAppInstallationTable)
     .where(eq(miniAppInstallationTable.appId, appId))
     .all()
+
   if (!row) throw new Error(`Mini app is not installed: ${appId}`)
+
   return row
 }
 
@@ -67,9 +69,11 @@ export function installationOf(appId: string) {
 export async function resolveInsideTree(root: string, relative: string): Promise<string> {
   const realRoot = await fs.promises.realpath(root)
   const target = await fs.promises.realpath(path.join(realRoot, relative))
+
   if (target !== realRoot && !target.startsWith(realRoot + path.sep)) {
     throw new Error(`Package path escapes the package: ${relative}`)
   }
+
   return target
 }
 
@@ -93,6 +97,7 @@ export async function hashFile(file: string): Promise<string> {
 export async function assertIconMatchesDigest(root: string, manifest: MiniAppManifest): Promise<void> {
   if (!manifest.icon) return
   const actual = await hashFile(await resolveInsideTree(root, manifest.icon.path))
+
   if (actual !== manifest.icon.sha256) {
     throw new Error(`Icon in package for ${manifest.id} does not match the digest its manifest declares`)
   }
@@ -100,11 +105,13 @@ export async function assertIconMatchesDigest(root: string, manifest: MiniAppMan
 
 export async function hashTree(dir: string): Promise<string> {
   const hash = crypto.createHash('sha256')
+
   const walk = async (current: string, prefix: string): Promise<void> => {
     for (const name of (await fs.promises.readdir(current)).sort()) {
       const full = path.join(current, name)
       const rel = prefix ? `${prefix}/${name}` : name
       const stat = await fs.promises.lstat(full)
+
       if (stat.isDirectory()) {
         hash.update(`d:${rel}\n`)
         await walk(full, rel)
@@ -114,7 +121,9 @@ export async function hashTree(dir: string): Promise<string> {
       }
     }
   }
+
   await walk(dir, '')
+
   return `sha256:${hash.digest('hex')}`
 }
 
@@ -141,9 +150,12 @@ export function assertOfficialNamespace(
     if (!appId.startsWith(MINI_APP_BUILTIN_ID_PREFIX)) {
       throw new Error(`A builtin mini app must live under "${MINI_APP_BUILTIN_ID_PREFIX}", got "${appId}"`)
     }
+
     return
   }
+
   if (!appId.startsWith(MINI_APP_OFFICIAL_ID_PREFIX)) return
+
   /*
    * EVERY pinned origin, not just the global one. Either address can serve the bytes, so
    * "official global + attacker CN mirror" resolves to the attacker's manifest while
@@ -156,6 +168,7 @@ export function assertOfficialNamespace(
     [sourceOrigin, sourceOriginCn].every(
       (origin) => origin === undefined || MINI_APP_OFFICIAL_ORIGINS.includes(origin as never)
     )
+
   if (!official) {
     throw new Error(`"${MINI_APP_OFFICIAL_ID_PREFIX}*" is a reserved namespace and this package cannot claim it`)
   }
@@ -192,8 +205,10 @@ export interface StagedMiniApp {
  */
 export async function stageMiniAppFromFile(zipPath: string): Promise<StagedMiniApp> {
   const stagingDir = await createStagingDir()
+
   try {
     const manifest = await extractMiniAppArchive(zipPath, stagingDir)
+
     return { stagingDir, contentHash: await hashTree(stagingDir), manifest }
   } catch (error) {
     await bestEffortCleanup('file staging', () => fs.promises.rm(stagingDir, { recursive: true, force: true }))
@@ -208,6 +223,7 @@ export async function stageMiniAppFromFile(zipPath: string): Promise<StagedMiniA
  */
 export async function installMiniAppFromFile(zipPath: string): Promise<LocalMiniApp> {
   const staged = await stageMiniAppFromFile(zipPath)
+
   try {
     return await installExtracted(staged.manifest, staged.stagingDir, { source: 'file' })
   } finally {
@@ -225,18 +241,22 @@ export async function installMiniAppFromFile(zipPath: string): Promise<LocalMini
  */
 export async function copyTreeToStaging(root: string, staging: string): Promise<MiniAppManifest> {
   await fs.promises.cp(root, staging, { recursive: true })
+
   const manifest = MiniAppManifestSchema.parse(
     JSON.parse(await fs.promises.readFile(path.join(staging, 'manifest.json'), 'utf8'))
   )
+
   // The archive path's post-extraction validation, same gate. Shipping inside
   // Cherry's resources buys no exemption: "full validation at install time" (§10.5).
   await assertExtractedTree(staging, manifest)
+
   return manifest
 }
 
 export async function createStagingDir(): Promise<string> {
   const packagesRoot = application.getPath('feature.mini_app.packages')
   await fs.promises.mkdir(packagesRoot, { recursive: true })
+
   return fs.promises.mkdtemp(path.join(packagesRoot, '.staging-'))
 }
 
@@ -252,10 +272,12 @@ export async function createStagingDir(): Promise<string> {
  */
 export async function sweepAbandonedStaging(): Promise<number> {
   const packagesRoot = application.getPath('feature.mini_app.packages')
+
   if (!fs.existsSync(packagesRoot)) return 0
 
   const stale = (await fs.promises.readdir(packagesRoot)).filter((n) => n.startsWith('.staging-'))
   let removed = 0
+
   for (const name of stale) {
     // Per-directory: one undeletable leftover must not shield every other one.
     if (
@@ -266,8 +288,10 @@ export async function sweepAbandonedStaging(): Promise<number> {
       removed += 1
     }
   }
+
   // Reality, not intent: a survivor must show up as `failed`, not inflate `removed`.
   if (stale.length > 0) logger.info('Swept mini app staging leftovers', { removed, failed: stale.length - removed })
+
   return removed
 }
 
@@ -287,6 +311,7 @@ export async function installExtracted(
   // refused without making concurrent installs wait for it.
   assertOfficialNamespace(manifest.id, info.source, info.sourceOrigin, info.sourceOriginCn)
   await assertIconMatchesDigest(staging, manifest)
+
   // Check-then-act across BOTH filesystem and database, so the DB transaction alone
   // cannot make it safe — two installs would both pass the check before either writes.
   // Quiesced INSIDE the lock either way — the same nesting as update and uninstall. A
@@ -302,9 +327,11 @@ export async function installExtracted(
           : publishInstall(manifest, staging, info, options)
       )
   )
+
   // After the commit, outside the lock. Installing is an IpcApi write DataApi never
   // sees — without this signal the launcher's `/mini-apps` query keeps yesterday's list.
   notifyDataApiDataChange([{ endpoint: '/mini-apps', kind: reinstall ? 'projection' : 'membership' }])
+
   return app
 }
 
@@ -333,12 +360,16 @@ export async function wipeMiniAppData(appId: string): Promise<void> {
   const treeSwept = await bestEffortCleanup('clear data tree', () =>
     fs.promises.rm(miniAppDataPath(appId), { recursive: true, force: true })
   )
+
   const partitionSwept = await bestEffortCleanup('clear data partition', () => clearMiniAppPartition(appId))
+
   // A store that would not clear stays journalled: startup recovery retries exactly it.
   if (treeSwept && partitionSwept) {
     clearPublishJournal(appId)
+
     return
   }
+
   // And THROWS. A half-done clear must not read as done: the caller records a `clear_data`
   // grant on the strength of this returning, and a reinstall writes its own entry over this
   // very journal file — which would drop the retry recovery is holding.
@@ -363,11 +394,13 @@ async function publishReinstall(
   reinstall: ReinstallOptions
 ): Promise<LocalMiniApp> {
   const db = application.get('DbService').getDb()
+
   const [existing] = db
     .select({ kind: miniAppTable.kind, status: miniAppTable.status, orderKey: miniAppTable.orderKey })
     .from(miniAppTable)
     .where(eq(miniAppTable.appId, manifest.id))
     .all()
+
   if (!existing || existing.kind !== 'app') throw new Error(`Mini app is not installed: ${manifest.id}`)
   const row = installationOf(manifest.id)
 
@@ -395,11 +428,13 @@ async function publishReinstall(
   })
   let movedToBackup = false
   let granted: string[] = []
+
   try {
     if (fs.existsSync(installPath)) {
       await fs.promises.rename(installPath, backup)
       movedToBackup = true
     }
+
     await fs.promises.rename(staging, installPath)
     application.get('DbService').withWriteTx((tx) => {
       tx.update(miniAppTable)
@@ -425,9 +460,11 @@ async function publishReinstall(
         .run()
       // A fresh consent, not a diff: the card showed the whole list and the user answered it.
       const { required, optional } = declaredGrants(manifest)
+
       const chosen = options.grantedOptional
         ? optional.filter((key) => options.grantedOptional!.includes(key))
         : optional
+
       granted = [...required, ...chosen]
       replaceGrantsTx(tx, manifest.id, granted, manifest.version)
     })
@@ -439,6 +476,7 @@ async function publishReinstall(
       await fs.promises.rm(installPath, { recursive: true, force: true })
       await fs.promises.rename(backup, installPath)
     }
+
     clearPublishJournal(manifest.id)
     throw error
   }
@@ -491,7 +529,9 @@ async function assertCleanSlate(appId: string): Promise<void> {
   if (fs.existsSync(miniAppInstallPath(appId))) {
     logger.warn('Reclaiming an orphan mini app directory before install', { id: appId })
   }
+
   let cleared = true
+
   for (const tree of [
     miniAppInstallPath(appId),
     miniAppBackupPath(appId),
@@ -503,10 +543,13 @@ async function assertCleanSlate(appId: string): Promise<void> {
     const removed = await bestEffortCleanup('install slate tree', () =>
       fs.promises.rm(tree, { recursive: true, force: true })
     )
+
     cleared &&= removed
   }
+
   const partitionCleared = await bestEffortCleanup('install slate partition', () => clearMiniAppPartition(appId))
   cleared &&= partitionCleared
+
   if (cleared) return
   throw new Error(`Mini app ${appId} still holds state from a previous install that could not be cleared`)
 }
@@ -522,6 +565,7 @@ async function publishInstall(
 
   const db = application.get('DbService').getDb()
   const taken = db.select().from(miniAppTable).where(eq(miniAppTable.appId, manifest.id)).all().length > 0
+
   if (taken) throw new Error(`A mini app with id "${manifest.id}" is already installed`)
 
   // Before the slate is swept, or recovery repairs these same trees underneath it and the
@@ -540,6 +584,7 @@ async function publishInstall(
 
   await fs.promises.rename(staging, installPath)
   let granted: string[] = []
+
   try {
     application.get('DbService').withWriteTx((tx) => {
       tx.insert(miniAppTable)
@@ -575,9 +620,11 @@ async function publishInstall(
       // Same transaction as the rows. Optional leaves are on unless the user unticked them on
       // the card; filtered against the manifest so nothing undeclared rides in from the renderer.
       const { required, optional } = declaredGrants(manifest)
+
       const chosen = options.grantedOptional
         ? optional.filter((key) => options.grantedOptional!.includes(key))
         : optional
+
       granted = [...required, ...chosen]
       grantMiniAppPermissionsTx(tx, manifest.id, granted, manifest.version)
     })
@@ -636,16 +683,20 @@ export async function uninstallMiniApp(appId: string): Promise<void> {
         .from(miniAppTable)
         .where(eq(miniAppTable.appId, appId))
         .all()
+
       if (!target) throw new Error(`Mini app is not installed: ${appId}`)
+
       if (target.kind !== 'app') {
         throw new Error(`Only locally installed mini apps can be uninstalled; "${appId}" is a ${target.kind}`)
       }
+
       const installed =
         db
           .select({ appId: miniAppInstallationTable.appId })
           .from(miniAppInstallationTable)
           .where(eq(miniAppInstallationTable.appId, appId))
           .all().length > 0
+
       if (!installed) throw new Error(`Mini app has no installation record: ${appId}`)
 
       const installPath = miniAppInstallPath(appId)
@@ -661,12 +712,15 @@ export async function uninstallMiniApp(appId: string): Promise<void> {
       // The app's OWN data too, or a reinstall of the same appId reads back the previous
       // owner's `storage.json` — the one leak a fresh install must never have.
       let swept = true
+
       for (const tree of [installPath, miniAppBackupPath(appId), miniAppRollingPath(appId), miniAppDataPath(appId)]) {
         const removed = await bestEffortCleanup('uninstall tree', () =>
           fs.promises.rm(tree, { recursive: true, force: true })
         )
+
         swept &&= removed
       }
+
       // Cookies and the HTTP cache live on the partition, not on the `mini_app` row —
       // nothing cascades them, and a reinstall would resume the old server identity.
       // BEFORE the journal is cleared, and counted in `swept`: this is the other store

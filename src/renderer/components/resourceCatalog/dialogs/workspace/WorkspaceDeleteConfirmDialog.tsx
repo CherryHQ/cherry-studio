@@ -87,6 +87,7 @@ export function WorkspaceDeleteConfirmDialog({
   const isPendingRef = useRef(false)
   const closeConversationTabs = useCloseConversationTabs()
   const invalidateCache = useInvalidateCache()
+
   const {
     data: references,
     isLoading: isReferencesLoading,
@@ -97,6 +98,7 @@ export function WorkspaceDeleteConfirmDialog({
     params: { workspaceId: workspace.id },
     swrOptions: { dedupingInterval: 0 }
   })
+
   const isPreviewPending = isReferencesLoading || isReferencesRefreshing
   const canConfirm = references !== undefined && !isPreviewPending && !referencesError && !isPending
 
@@ -105,9 +107,11 @@ export function WorkspaceDeleteConfirmDialog({
     isPendingRef.current = true
     setIsPending(true)
     let hasSucceeded = false
+
     try {
       const result = await ipcApi.request('ai.agent.workspace.delete', { workspaceId: workspace.id })
       closeConversationTabs('agents', result.deletedIds)
+
       try {
         await Promise.all(
           ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels', '/agent-tasks'].map((key) =>
@@ -117,6 +121,7 @@ export function WorkspaceDeleteConfirmDialog({
       } catch (error) {
         logger.warn('Failed to refresh after deleting workspace', error as Error, { workspaceId: workspace.id })
       }
+
       try {
         await invalidateCache(result.deletedIds.map((sessionId) => `/agent-sessions/${sessionId}`))
       } catch (error) {
@@ -125,6 +130,7 @@ export function WorkspaceDeleteConfirmDialog({
           sessionIds: result.deletedIds
         })
       }
+
       try {
         await onDeleted(workspace.id)
       } catch (error) {
@@ -132,6 +138,7 @@ export function WorkspaceDeleteConfirmDialog({
           workspaceId: workspace.id
         })
       }
+
       toast.success(t('common.delete_success'))
       hasSucceeded = true
     } catch (error) {

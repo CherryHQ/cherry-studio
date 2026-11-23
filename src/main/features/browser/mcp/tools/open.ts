@@ -22,6 +22,7 @@ export async function handleOpen(controller: BrowserController, args: unknown, s
       )
 
       let finalContent = content
+
       if (maxChars && typeof finalContent === 'string' && finalContent.length > maxChars) {
         finalContent = finalContent.slice(0, maxChars) + '\n... [truncated at ' + maxChars + ' chars]'
       }
@@ -36,6 +37,7 @@ export async function handleOpen(controller: BrowserController, args: unknown, s
         showWindow,
         signal
       )
+
       return successResponse(JSON.stringify(res))
     }
   } catch (error) {
@@ -43,6 +45,7 @@ export async function handleOpen(controller: BrowserController, args: unknown, s
       error,
       url: args && typeof args === 'object' && 'url' in args ? args.url : undefined
     })
+
     return errorResponse(error instanceof Error ? error : String(error))
   }
 }

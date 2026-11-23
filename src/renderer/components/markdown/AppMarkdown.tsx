@@ -44,6 +44,7 @@ const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
 export function AppMarkdown(props: AppMarkdownProps) {
   const generatedId = useId()
   const id = props.id ?? generatedId
+
   return <MarkdownContent key={id} {...props} id={id} />
 }
 
@@ -61,27 +62,34 @@ function MarkdownContent({
   const { t } = useTranslation()
   const { openFilePath, resolveImageSrc } = useMarkdownHost()
   const [hasStreamed, setHasStreamed] = useState(isStreaming)
+
   if (isStreaming && !hasStreamed) setHasStreamed(true)
 
   const parseMarkdownBlocks = useMemo(createLatexMarkdownBlockParser, [])
   const codeStyle = use(CodeStyleContext)
+
   const code = useMemo(
     () => createCodeHighlightPlugin({ execute: codeHighlightService.highlightSnapshot, themes: codeStyle?.codeThemes }),
     [codeStyle?.codeThemes]
   )
+
   const plugins = useMemo(
     () => ({ ...defaultMarkdownPlugins, code, math: withMath({ singleDollar: singleDollarMath }) }),
     [singleDollarMath, code]
   )
+
   const content = useMemo(
     () => (isStreaming && children.length > MAX_STREAMING_TRANSFORM_LENGTH ? children : transformSource(children)),
     [children, isStreaming, transformSource]
   )
+
   const resolvedRemarkPlugins = useMemo(
     () => (remarkPlugins ? [...REMARK_PLUGINS, ...remarkPlugins] : REMARK_PLUGINS),
     [remarkPlugins]
   )
+
   const markdownComponents = useMarkdownComponents({ components, hasStyleElement: /<style\b[^>]*>/i.test(content) })
+
   const commonProps = {
     additionalLinkProtocols: EXTERNAL_LINK_PROTOCOLS,
     id,

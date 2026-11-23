@@ -35,6 +35,7 @@ const ImageBlock: React.FC<Props> = ({
   }
 
   const previewItems = images.map((src, index) => ({ id: `${index}:${src}`, src }))
+
   const style: React.CSSProperties = thumbnail
     ? { maxWidth: 240, maxHeight: 160, padding: 0, borderRadius: 8 }
     : isSingle

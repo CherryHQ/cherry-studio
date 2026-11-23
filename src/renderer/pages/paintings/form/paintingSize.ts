@@ -18,6 +18,7 @@ export function sizeOptionLabel(
   translate: (key: string) => string
 ): string {
   const selected = resolveOptions(item, params ?? {}, translate).find((option) => controlValue(option.value) === value)
+
   return deriveChipLabel(selected?.label ?? value, value)
 }
 
@@ -41,28 +42,36 @@ export const SIZE_PREVIEW_KEYS = ['size', 'imageResolution', 'aspectRatio'] as c
  */
 export function resolveRatio(params: PaintingData['params'], items: BaseConfigItem[]): number | null {
   let sawAuto = false
+
   for (const item of items) {
     if (!item.key || !(SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)) continue
+
     if (item.condition && !item.condition(params ?? {})) continue
 
     const value = params?.[item.key] ?? item.initialValue
+
     if (value === 'custom') {
       const customWidth = optionalFiniteNumber(params?.customSize_width)
       const customHeight = optionalFiniteNumber(params?.customSize_height)
+
       if (customWidth !== null && customHeight !== null && customWidth > 0 && customHeight > 0) {
         return customWidth / customHeight
       }
+
       continue
     }
 
     if (typeof value !== 'string') continue
+
     // `auto` lets the model choose — remember it but keep scanning in case
     // another field carries a concrete ratio to prefer.
     if (value === 'auto') {
       sawAuto = true
       continue
     }
+
     const dim = parseRatio(value)
+
     if (dim && dim.w > 0 && dim.h > 0) return dim.w / dim.h
   }
 
@@ -85,18 +94,22 @@ export function resolveSizeLabel(
 ): string | undefined {
   for (const item of items) {
     if (!item.key || !(SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)) continue
+
     if (item.condition && !item.condition(params ?? {})) continue
 
     const value = params?.[item.key] ?? item.initialValue
+
     if (value === 'custom') {
       const customWidth = optionalFiniteNumber(params?.customSize_width)
       const customHeight = optionalFiniteNumber(params?.customSize_height)
+
       return customWidth !== null && customHeight !== null && customWidth > 0 && customHeight > 0
         ? `${customWidth}×${customHeight}`
         : undefined
     }
 
     if (typeof value !== 'string' || value === '') continue
+
     if (isOptionsConfigItem(item)) return sizeOptionLabel(item, value, params, translate)
   }
 

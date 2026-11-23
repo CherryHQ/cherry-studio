@@ -60,6 +60,7 @@ export function ConversationListOptionsMenu<TMode extends string>({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const selectedOption = options.find((option) => option.value === mode)
+
   const runAfterMenuClose = (action: () => void) => {
     setOpen(false)
     window.setTimeout(action, 0)

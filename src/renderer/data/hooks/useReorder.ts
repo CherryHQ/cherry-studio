@@ -39,10 +39,15 @@ const logger = loggerService.withContext('useReorder')
 
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Cached rows have heterogeneous fields; ordering checks the selected string identity and preserves every other value.
 type ItemList = Array<Record<string, unknown>>
+
 type CollectionPage = { items: ItemList }
+
 type SingleCollectionCache = ItemList | CollectionPage
+
 type InfiniteCollectionCache = CollectionPage[]
+
 type CollectionCache = SingleCollectionCache | InfiniteCollectionCache
+
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Extra body fields belong to each endpoint; this hook reads only the anchor and forwards the remaining values unchanged.
 export type ReorderRequest = OrderRequest | ({ anchor: OrderRequest } & Record<string, unknown>)
 
@@ -66,6 +71,7 @@ export type UpdateItems<Cache> = (cache: Cache, items: ItemList) => Cache
 function isItemList(value: unknown): value is ItemList {
   if (!Array.isArray(value)) return false
   const items: unknown[] = value
+
   return items.every((item) => item !== null && typeof item === 'object' && !Array.isArray(item))
 }
 
@@ -78,12 +84,14 @@ function isCollectionPage(value: unknown): value is CollectionPage {
 function isInfiniteCollectionCache(value: unknown): value is InfiniteCollectionCache {
   if (!Array.isArray(value)) return false
   const pages: unknown[] = value
+
   return pages.every(isCollectionPage)
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- useReadCache returns an unchecked SWR snapshot; validate record items in an array or items wrapper before optimistic reordering.
 function defaultSelectItems(cache: unknown): ItemList | undefined {
   if (isItemList(cache)) return cache
+
   return isCollectionPage(cache) ? cache.items : undefined
 }
 
@@ -98,9 +106,11 @@ function selectInfiniteItems(cache: unknown): ItemList | undefined {
 
 function updateInfiniteItems(cache: InfiniteCollectionCache, items: ItemList): InfiniteCollectionCache {
   let offset = 0
+
   return cache.map((page) => {
     const nextItems = items.slice(offset, offset + page.items.length)
     offset += page.items.length
+
     return { ...page, items: nextItems }
   })
 }
@@ -254,17 +264,22 @@ export function useReorder<Cache>(
 ): UseReorderResult {
   const hasSelect = options?.selectItems !== undefined
   const hasUpdate = options?.updateItems !== undefined
+
   if (hasSelect !== hasUpdate) {
     throw new Error('useReorder: options.selectItems and options.updateItems must be provided together')
   }
+
   const selectItems = options?.selectItems ?? (options?.infinite ? selectInfiniteItems : defaultSelectItems)
+
   const updateItems = useCallback(
     (cache: Cache, items: ItemList) => {
       if (options?.updateItems) return options.updateItems(cache, items)
+
       if (options?.infinite) {
         // oxlint-disable-next-line anti-slop/no-known-value-widening -- SWR's caller-defined Cache is unchecked; the fallback must recognize item pages before rebuilding them.
         return isInfiniteCollectionCache(cache) ? updateInfiniteItems(cache, items) : undefined
       }
+
       // oxlint-disable-next-line anti-slop/no-known-value-widening -- Without custom accessors, only a validated row list or items wrapper can receive the optimistic update.
       return isItemList(cache) || isCollectionPage(cache) ? defaultUpdateItems(cache, items) : undefined
     },
@@ -287,12 +302,15 @@ export function useReorder<Cache>(
   const idKey = options?.idKey ?? 'id'
   const computeOptimistic = options?.computeOptimistic ?? reorderLocally
   const mutationParams = options?.params as Record<string, string | number> | undefined
+
   if (mutationParams && Object.hasOwn(mutationParams, 'id')) {
     throw new Error('useReorder: collection params must not use the reserved item parameter "id"')
   }
+
   const resolvedCollectionUrl = resolveTemplate(collectionUrl, mutationParams) as ConcreteApiPaths
   const query = options?.query
   const infinite = options?.infinite
+
   const writeInfiniteCache = useWriteInfiniteCache(
     resolvedCollectionUrl as never,
     {
@@ -300,6 +318,7 @@ export function useReorder<Cache>(
       limit: infinite?.limit
     } as never
   )
+
   const writeCurrent = useCallback(
     async (value: Cache | CollectionCache) => {
       if (infinite) await writeInfiniteCache(value as never)
@@ -339,22 +358,28 @@ export function useReorder<Cache>(
   const move = useCallback(
     async (id: string, request: ReorderRequest) => {
       const current = readCache<Cache>(resolvedCollectionUrl, query, infinite)
+
       if (current === undefined) {
         logger.warn(`move called before data loaded at ${String(collectionUrl)}; ignored`)
+
         return
       }
 
       const anchor = 'anchor' in request ? request.anchor : request
       const items = selectItems(current)
+
       const optimistic =
         items !== undefined ? updateItems(current, computeOptimistic(items, id, anchor, idKey, request)) : undefined
+
       if (items === undefined) warnUnrecognizedShape('move')
 
       setIsPending(true)
+
       try {
         if (optimistic !== undefined) {
           await writeCurrent(optimistic)
         }
+
         await patchOrder({ params: { ...mutationParams, id }, body: request })
       } catch (err) {
         logger.warn(`move failed for ${String(collectionUrl)} id=${id}, rolling back`, { error: err })
@@ -390,9 +415,11 @@ export function useReorder<Cache>(
     async (current: Cache, items: ItemList, moves: OrderBatchRequest['moves']) => {
       setIsPending(true)
       let next = items
+
       for (const m of moves) {
         next = computeOptimistic(next, m.id, m.anchor, idKey, m.anchor)
       }
+
       const optimistic = updateItems(current, next)
 
       try {
@@ -422,20 +449,29 @@ export function useReorder<Cache>(
   const applyReorderedList = useCallback(
     async (newList: ItemList) => {
       const current = readCache<Cache>(resolvedCollectionUrl, query, infinite)
+
       if (current === undefined) {
         logger.warn(`applyReorderedList called before data loaded at ${String(collectionUrl)}; ignored`)
+
         return
       }
+
       const items = selectItems(current)
+
       if (items === undefined) {
         warnUnrecognizedShape('applyReorderedList')
+
         return
       }
+
       const moves = computeMinimalMoves(items, newList, idKey)
+
       if (moves.length === 0) return
+
       if (moves.length === 1) {
         return move(moves[0].id, moves[0].anchor)
       }
+
       return applyBatch(current, items, moves)
     },
     [

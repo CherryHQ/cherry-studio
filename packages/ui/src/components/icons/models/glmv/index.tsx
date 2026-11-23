@@ -4,6 +4,7 @@ import { GlmvLight } from './light'
 
 const Glmv = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GlmvLight {...props} className={className} />
+
   return <GlmvLight {...props} className={className} />
 }
 

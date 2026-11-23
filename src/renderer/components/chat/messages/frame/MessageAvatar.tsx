@@ -5,8 +5,10 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { isEmoji } from '@renderer/utils/naming'
 
 export const MESSAGE_AVATAR_SIZE = 30
+
 export const MESSAGE_AVATAR_CONTAINER_CLASS =
   'message-avatar flex size-[30px] shrink-0 items-center justify-center overflow-hidden rounded-full p-0'
+
 export const MESSAGE_AVATAR_INNER_CLASS = 'size-full rounded-full p-0'
 export const MESSAGE_AVATAR_IMAGE_CLASS = 'size-full object-cover p-0'
 export const MESSAGE_AVATAR_FALLBACK_CLASS = 'size-full rounded-full p-0'

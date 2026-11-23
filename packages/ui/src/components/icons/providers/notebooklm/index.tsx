@@ -6,7 +6,9 @@ import { NotebooklmLight } from './light'
 
 const Notebooklm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <NotebooklmLight {...props} className={className} />
+
   if (variant === 'dark') return <NotebooklmDark {...props} className={className} />
+
   return (
     <>
       <NotebooklmLight className={cn('dark:hidden', className)} {...props} />

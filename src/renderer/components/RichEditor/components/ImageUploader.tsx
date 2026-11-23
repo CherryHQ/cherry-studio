@@ -42,6 +42,7 @@ const convertFileToBase64 = (file: File): Promise<string> => {
         reject(new Error('Failed to convert file to base64'))
       }
     }
+
     reader.onerror = () => reject(new Error('Failed to read file'))
     reader.readAsDataURL(file)
   })
@@ -54,11 +55,13 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
 
   const validateFile = (file: File) => {
     const isImage = file.type.startsWith('image/')
+
     if (!isImage) {
       return t('richEditor.imageUploader.invalidType')
     }
 
     const isLt10M = file.size < MAX_IMAGE_SIZE
+
     if (!isLt10M) {
       return t('richEditor.imageUploader.tooLarge')
     }
@@ -68,8 +71,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
 
   const handleFileSelect = async (file: File) => {
     const validationError = validateFile(file)
+
     if (validationError) {
       toast.error(validationError)
+
       return
     }
 
@@ -92,6 +97,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
   const handleUrlSubmit = () => {
     if (!urlInput.trim()) {
       toast.error(t('richEditor.imageUploader.urlRequired'))
+
       return
     }
 
@@ -138,10 +144,12 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               maxFiles={1}
               validator={(file) => {
                 const validationError = validateFile(file)
+
                 return validationError ? { code: 'image-validation-error', message: validationError } : null
               }}
               onDrop={(files) => {
                 const file = files[0]
+
                 if (file) {
                   void handleFileSelect(file)
                 }

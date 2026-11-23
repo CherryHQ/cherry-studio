@@ -11,10 +11,12 @@ const logger = loggerService.withContext('i18n:label')
 
 const getLabelKey = (keyMap: Record<string, string>, key: string, fallback?: string) => {
   const labelKey = keyMap[key]
+
   if (labelKey) {
     return labelKey
   } else {
     logger.error(`Missing key ${key}`)
+
     return fallback ?? key
   }
 }
@@ -114,6 +116,7 @@ const providerKeyMap = {
  */
 export const getProviderLabelKey = (id: string, fallback?: string): string => {
   if (fallback !== undefined && !Object.hasOwn(providerKeyMap, id)) return fallback
+
   return getLabelKey(providerKeyMap, id)
 }
 
@@ -233,6 +236,7 @@ const sidebarFavoriteKeyMap = {
   code_tools: 'code.title',
   notes: 'notes.title'
 } as const
+
 export const getSidebarFavoriteLabelKey = (key: string): string => {
   return getLabelKey(sidebarFavoriteKeyMap, key)
 }

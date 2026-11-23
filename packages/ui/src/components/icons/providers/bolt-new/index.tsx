@@ -6,7 +6,9 @@ import { BoltNewLight } from './light'
 
 const BoltNew = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BoltNewLight {...props} className={className} />
+
   if (variant === 'dark') return <BoltNewDark {...props} className={className} />
+
   return (
     <>
       <BoltNewLight className={cn('dark:hidden', className)} {...props} />

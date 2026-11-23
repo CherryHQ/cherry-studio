@@ -16,6 +16,7 @@ import { localModelStorageService } from './LocalModelStorageService'
 const logger = loggerService.withContext('BundleInstaller')
 
 export type ResolveDownloadSourcePreference = () => Promise<DownloadSourcePreference>
+
 export type PublishLocalModelStatus = (snapshot: LocalModelStatusSnapshot) => void
 
 interface DownloadAttempt {
@@ -79,22 +80,27 @@ export class BundleInstaller {
   getStatusSnapshot(): LocalModelStatusSnapshot {
     const info = this.getStatusInfo()
     const percent = info.status === 'ready' ? 100 : (this.attempt?.percent ?? 0)
+
     return { ...info, percent }
   }
 
   /** {@link getStatus} plus why an `error` status arose, for the cards' notice text. */
   getStatusInfo(): Omit<LocalModelStatusSnapshot, 'percent'> {
     if (!localModelStorageService.isBundleSupported(this.bundle)) return { status: 'unsupported' }
+
     if (this.attempt) return { status: 'downloading' }
+
     if (this.lastDownloadFailed) return { status: 'error', errorCode: 'download_failed' }
 
     const state = localModelStorageService.scanBundleFiles(this.bundle)
+
     switch (state.status) {
       case 'installed':
         // Complete files without the shared runtime read as not-downloaded, not as an
         // error: Download re-fetches only the missing runtime, so the card must offer it
         // rather than a failure the user cannot act on.
         this.incompleteLogged = false
+
         return this.artifactsReady()
           ? { status: 'ready' }
           : { status: 'not_downloaded', hintCode: 'missing_shared_runtime' }
@@ -103,9 +109,11 @@ export class BundleInstaller {
           logger.warn('local model files are incomplete', { bundle: this.bundle.id, missing: state.missingFiles })
           this.incompleteLogged = true
         }
+
         return { status: 'error', errorCode: 'incomplete_cache' }
       default:
         this.incompleteLogged = false
+
         return { status: 'not_downloaded' }
     }
   }
@@ -120,13 +128,17 @@ export class BundleInstaller {
 
   async download(resolvePreference: ResolveDownloadSourcePreference): Promise<LocalModelDownloadResult> {
     if (this.removalInFlight) throw new Error(`Local model bundle ${this.bundle.id} is being removed.`)
+
     if (!localModelStorageService.isBundleSupported(this.bundle)) {
       throw new Error(`Local ${this.bundle.capability} model download is not supported on this platform.`)
     }
+
     const active = this.attempt
+
     if (active) {
       if (active.phase === 'active') return active.promise
       await active.promise.catch(() => {})
+
       return this.download(resolvePreference)
     }
 
@@ -135,6 +147,7 @@ export class BundleInstaller {
     const promise = Promise.resolve().then(() => this.runDownloadAttempt(controller, resolvePreference))
     this.attempt = { controller, phase: 'active', percent: 0, promise }
     this.publishStatus({ status: 'downloading', percent: 0 })
+
     return promise
   }
 
@@ -157,6 +170,7 @@ export class BundleInstaller {
     }
 
     let durableReady = false
+
     try {
       durableReady = this.isDurablyReady()
     } catch (error) {
@@ -184,13 +198,16 @@ export class BundleInstaller {
     if (this.attempt?.controller === controller) this.attempt.phase = 'draining'
     releaseReservations?.()
     this.lastDownloadFailed = outcome.kind === 'error'
+
     if (outcome.kind === 'error' || outcome.result === 'cancelled') {
       await this.runSharedArtifactFinalizer()
     }
 
     if (this.attempt?.controller === controller) this.attempt = null
     this.publishStatus(outcome.terminal)
+
     if (outcome.kind === 'error') throw outcome.error
+
     return outcome.result
   }
 
@@ -210,16 +227,19 @@ export class BundleInstaller {
     registryOrder: readonly [ArtifactRegistryId, ...ArtifactRegistryId[]]
   ): Promise<void> {
     const pending = localModelStorageService.pendingBundleFiles(this.bundle)
+
     const artifactWeight = this.bundle.requires.reduce(
       (sum, id) => sum + (localModelStorageService.isArtifactReady(id) ? 0 : SHARED_ARTIFACT_WEIGHT),
       0
     )
+
     const filesWeight = pending.reduce((sum, file) => sum + file.weight, 0)
     const totalWeight = artifactWeight + filesWeight || 1
     let doneWeight = 0
 
     const report = (fraction: number) => {
       const percent = Math.round((100 * fraction) / totalWeight)
+
       if (this.attempt?.controller.signal === signal) this.attempt.percent = percent
       this.publishStatus({ status: 'downloading', percent })
     }
@@ -252,11 +272,14 @@ export class BundleInstaller {
 
   async cancel(): Promise<void> {
     const attempt = this.attempt
+
     if (!attempt) return
+
     if (attempt.phase === 'active') {
       attempt.phase = 'draining'
       attempt.controller.abort(new Error('download cancelled'))
     }
+
     await attempt.promise.catch(() => {})
   }
 
@@ -274,12 +297,14 @@ export class BundleInstaller {
 
     return new Promise<DownloadSourcePreference>((resolve, reject) => {
       let settled = false
+
       const finish = (callback: () => void) => {
         if (settled) return
         settled = true
         signal.removeEventListener('abort', onAbort)
         callback()
       }
+
       const onAbort = () => finish(() => reject(this.abortError(signal)))
 
       signal.addEventListener('abort', onAbort, { once: true })
@@ -316,15 +341,18 @@ export class BundleInstaller {
     this.removalInFlight = this.performRemove().finally(() => {
       this.removalInFlight = null
     })
+
     return this.removalInFlight
   }
 
   private async performRemove(): Promise<{ removed: boolean }> {
     const releaseGuard = this.hooks.acquireRemovalGuard?.()
+
     if (this.hooks.acquireRemovalGuard && !releaseGuard) {
       logger.info('skipped local model removal because it is in use or already being removed', {
         bundle: this.bundle.id
       })
+
       return { removed: false }
     }
 
@@ -335,6 +363,7 @@ export class BundleInstaller {
       await this.hooks.afterRemove?.()
       await this.runSharedArtifactFinalizer()
       this.publishStatus({ status: 'not_downloaded', percent: 0 })
+
       return { removed: true }
     } finally {
       releaseGuard?.()

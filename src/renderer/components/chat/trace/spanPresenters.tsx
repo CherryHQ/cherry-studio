@@ -60,6 +60,7 @@ const httpPresenter: SpanPresenter = {
   match: (node) => attrsOf(node).tags === 'HTTP',
   build: (node, t) => {
     const a = attrsOf(node)
+
     return {
       rows: [
         { label: t('trace.requestMethod'), value: str(a['http.method']) ?? '' },
@@ -83,11 +84,13 @@ const mcpPresenter: SpanPresenter = {
   build: (node, t) => {
     const a = attrsOf(node)
     const call = parseMcpCall(a.inputs)
+
     const rows: SpanDetailRow[] = [
       { label: t('trace.serverName'), value: str(call?.server?.name) },
       { label: t('trace.serverType'), value: str(call?.server?.type) },
       { label: t('trace.serverDescription'), value: str(call?.server?.description) }
     ].filter((row) => row.value)
+
     return {
       rows,
       tabs: [
@@ -106,13 +109,18 @@ const turnPresenter: SpanPresenter = {
     const a = attrsOf(node)
     const rows: SpanDetailRow[] = []
     const model = modelRow(node, t)
+
     if (model) rows.push(model)
     const agent = str(a['gen_ai.agent.name'])
+
     if (agent) rows.push({ label: t('trace.agent'), value: agent })
     const operation = str(a['gen_ai.operation.name'])
+
     if (operation) rows.push({ label: t('trace.operation'), value: operation })
+
     if (a['cs.tool_calls'] != null) rows.push({ label: t('trace.toolCalls'), value: String(a['cs.tool_calls']) })
     rows.push({ label: t('trace.status'), value: String(node.status ?? '') })
+
     return {
       rows,
       tabs: [
@@ -133,7 +141,9 @@ const modelPresenter: SpanPresenter = {
     const usage = node.usage
     const rows: SpanDetailRow[] = []
     const model = modelRow(node, t)
+
     if (model) rows.push(model)
+
     if (usage) {
       const cachedTokens = getTokenDetail(usage, 'prompt_tokens_details', 'cached_tokens')
       const reasoningTokens = getTokenDetail(usage, 'completion_tokens_details', 'reasoning_tokens')
@@ -155,6 +165,7 @@ const modelPresenter: SpanPresenter = {
         )
       })
     }
+
     return { rows, tabs: defaultTabs(node, t) }
   }
 }
@@ -168,9 +179,11 @@ function getTokenDetail(
   if (!usage || typeof usage !== 'object') return undefined
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the historical usage container is checked; nested token values are validated below.
   const details = (usage as Record<string, unknown>)[detailsKey]
+
   if (!details || typeof details !== 'object') return undefined
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; only a numeric token count is returned.
   const value = (details as Record<string, unknown>)[tokenKey]
+
   return typeof value === 'number' ? value : undefined
 }
 
@@ -184,6 +197,7 @@ const PRESENTERS: SpanPresenter[] = [httpPresenter, mcpPresenter, turnPresenter,
 
 export function buildSpanView(node: TraceNode, t: Translate): SpanView {
   const presenter = PRESENTERS.find((p) => p.match(node)) ?? genericPresenter
+
   return presenter.build(node, t)
 }
 
@@ -193,13 +207,16 @@ export function buildSpanView(node: TraceNode, t: Translate): SpanView {
  */
 function hasModelAttribute(node: TraceNode): boolean {
   const a = attrsOf(node)
+
   return Boolean(a['cs.model_id'] || a['ai.model.id'] || a['gen_ai.request.model'])
 }
 
 /** Model logo + name row, shared by the model-call and turn presenters. */
 function modelRow(node: TraceNode, t: Translate): SpanDetailRow | undefined {
   const model = resolveSpanModel(node)
+
   if (!model) return undefined
+
   return {
     label: t('trace.model'),
     content: (
@@ -215,17 +232,21 @@ function modelRow(node: TraceNode, t: Translate): SpanDetailRow | undefined {
 function resolveSpanModel(node: TraceNode): { id: string; name: string; providerId?: string } | undefined {
   const attrs = attrsOf(node)
   const name = node.modelName ?? str(attrs.modelName) ?? str(attrs['ai.model.id'])
+
   if (!name) return undefined
   // Cherry's uniqueModelId (`provider::model`) lives on the turn span as `cs.model_id`.
   const uniqueId = attrs['cs.model_id']
+
   if (typeof uniqueId === 'string') {
     try {
       const { providerId, modelId } = parseUniqueModelId(uniqueId as UniqueModelId)
+
       if (providerId && modelId) return { id: modelId, name, providerId }
     } catch {
       // Not a uniqueModelId; fall through to the AI SDK attributes.
     }
   }
+
   // AI SDK provider spans carry `ai.model.provider` / `ai.model.id`.
   return { id: str(attrs['ai.model.id']) ?? name, name, providerId: str(attrs['ai.model.provider']) }
 }
@@ -239,13 +260,17 @@ interface McpCall {
 /** Parse the MCP span input (`[{ server, name, args }]`) to its single call. */
 function parseMcpCall(raw: AttributeValue): McpCall | undefined {
   if (typeof raw !== 'string') return undefined
+
   try {
     const parsed: Serializable = JSON.parse(raw)
     const call: Serializable | undefined = Array.isArray(parsed) ? parsed[0] : parsed
+
     if (!call || typeof call !== 'object' || Array.isArray(call)) return undefined
     const record = call
+
     const server =
       record.server && typeof record.server === 'object' && !Array.isArray(record.server) ? record.server : undefined
+
     return {
       server: server
         ? { name: str(server.name), type: str(server.type), description: str(server.description) }
@@ -277,6 +302,7 @@ function rawData(node: TraceNode) {
 
 function getSpanInputs(node: TraceNode) {
   const attrs = node.attributes ?? {}
+
   return (
     attrs.inputs ??
     attrs.user_prompt ??
@@ -306,6 +332,7 @@ function getSpanInputs(node: TraceNode) {
 
 function getSpanOutputs(node: TraceNode) {
   const attrs = node.attributes ?? {}
+
   return (
     attrs.outputs ??
     attrs['response.model_output'] ??
@@ -329,24 +356,31 @@ function getSpanOutputs(node: TraceNode) {
 function getEventValue(node: TraceNode, eventNames: string[], keys: string[]) {
   for (const event of node.events ?? []) {
     if (!eventNames.includes(getEventName(event))) continue
+
     for (const key of keys) {
       const value = event.attributes?.[key]
+
       if (value !== undefined) return value
     }
   }
+
   return undefined
 }
 
 function getEventName(event: NonNullable<TraceNode['events']>[number]) {
   const name = event.attributes?.['event.name']
+
   return typeof name === 'string' ? name : event.name
 }
 
 function pickAttributes(attributes: NonNullable<TraceNode['attributes']>, keys: string[]) {
   const picked: NonNullable<TraceNode['attributes']> = {}
+
   for (const key of keys) {
     const value = attributes[key]
+
     if (value !== undefined) picked[key] = value
   }
+
   return Object.keys(picked).length > 0 ? picked : undefined
 }

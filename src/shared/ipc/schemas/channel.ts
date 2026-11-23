@@ -24,6 +24,7 @@ const channelLogEntry = z.object({
   message: z.string(),
   channelId: z.string()
 })
+
 export const channelRequestSchemas = {
   'channel.registration.begin': defineRoute({
     input: z.strictObject({ channelId: z.string().min(1), requestId: z.uuid() }),

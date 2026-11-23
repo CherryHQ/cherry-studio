@@ -32,6 +32,7 @@ export function parseDataUrl(url: string): DataUrlParts | null {
   }
 
   const commaIndex = url.indexOf(',')
+
   if (commaIndex === -1) {
     return null
   }
@@ -65,5 +66,6 @@ export function isDataUrl(url: string): boolean {
  */
 export function isBase64ImageDataUrl(url: string): boolean {
   const parsed = parseDataUrl(url)
+
   return parsed?.mediaType?.startsWith('image/') === true && parsed.isBase64
 }

@@ -52,10 +52,12 @@ export function createDefaultPainting({ providerId, modelId }: PaintingDraftDefa
  */
 export async function paintingGenerate(input: GenerateInput): Promise<FileMetadata[]> {
   const modelId = input.painting.model
+
   const canonicalMode = tabToImageGenerationMode(
     input.painting.mode,
     (input.painting.inputFiles ?? []).filter((file) => getFileTypeByExt(file.ext ?? '') === FILE_TYPE.IMAGE).length
   )
+
   let requirePrompt: boolean | undefined
   // Threaded into canonicalGenerate so it can validate/coerce params against
   // the model's registry support + central catalog (already prefetched here).
@@ -91,5 +93,6 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
     ...(support !== undefined && { support }),
     ...(effectiveMode !== undefined && { mode: effectiveMode })
   }
+
   return canonicalGenerate(input, Object.keys(options).length > 0 ? options : undefined)
 }

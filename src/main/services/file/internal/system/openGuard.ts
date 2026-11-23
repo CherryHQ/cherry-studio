@@ -8,6 +8,7 @@ import { isDangerExt, normalizeExt } from '@shared/utils/file'
 
 function getEffectivePathExt(physicalPath: AbsoluteFilePath): string | null {
   const fallbackPath = physicalPath.replace(/[\s.]+$/, '')
+
   return normalizeExt(path.extname(fallbackPath))
 }
 
@@ -38,6 +39,7 @@ export function assertSafePathForDefaultOpen(physicalPath: AbsoluteFilePath): vo
  */
 export async function assertOpenableTarget(physicalPath: AbsoluteFilePath): Promise<void> {
   const status = await getPathStatus(physicalPath)
+
   if (status.ok) return
 
   throw new IpcError(fileErrorCodes.OPEN_TARGET_UNAVAILABLE, `Refusing to open an unavailable path: ${physicalPath}`, {

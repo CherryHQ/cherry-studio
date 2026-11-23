@@ -44,6 +44,7 @@ export function useProviders(
 ) {
   const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
+
   const queryOptions =
     hasQuery || options?.enabled === false || options?.swrOptions
       ? {
@@ -92,11 +93,13 @@ export function useProviders(
 // ─── Layer 2: Single read + write + delete ────────────────────────────
 export function useProviderById(providerId: string | null | undefined) {
   const resolvedProviderId = providerId ?? ''
+
   const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', {
     params: { providerId: resolvedProviderId },
     enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
+
   return { provider: data, isLoading, error, refetch }
 }
 
@@ -261,6 +264,7 @@ export function useProviderAuthConfig(providerId: string) {
     params: { providerId },
     enabled: !!providerId
   })
+
   // Schema: GET /providers/:id/auth-config -> AuthConfig | null
   return { ...result, data: result.data }
 }
@@ -276,7 +280,9 @@ export function useProviderPreset(providerId: string | null | undefined, fields:
     query: { fields: [...fields] },
     enabled: !!providerId
   })
+
   useDataChange('/providers/:providerId/preset', () => void query.refetch())
+
   return query
 }
 
@@ -293,6 +299,7 @@ export function useProviderDisplayName(providerId: string | undefined): string {
     enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
+
   return getProviderDisplayName(data)
 }
 

@@ -20,7 +20,9 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
 ] as const)
 
 export type RemoteProviderId = (typeof REMOTE_PROVIDER_IDS)[number]
+
 export type WebSearchCapability = 'searchKeywords' | 'fetchUrls'
+
 export type WebSearchCredentials = Readonly<{
   apiKey?: string
   basicAuth?: Readonly<{ username: string; password: string }>

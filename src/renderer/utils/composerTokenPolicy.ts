@@ -31,15 +31,21 @@ export const COMPOSER_TOKEN_CAPABILITIES = {
 } as const satisfies Record<ComposerMessageTokenKind | 'promptVariable' | 'messagePart', ComposerTokenCapabilities>
 
 export type ComposerTokenKind = keyof typeof COMPOSER_TOKEN_CAPABILITIES
+
 type ComposerTokenCapability = keyof ComposerTokenCapabilities
+
 type ComposerTokenKindWithCapability<TCapability extends ComposerTokenCapability> = {
   [TKind in ComposerTokenKind]: (typeof COMPOSER_TOKEN_CAPABILITIES)[TKind][TCapability] extends true ? TKind : never
 }[ComposerTokenKind]
 
 export type ComposerInputTokenKind = ComposerTokenKindWithCapability<'input'>
+
 export type ComposerPersistedMessageTokenKind = ComposerTokenKindWithCapability<'message'>
+
 export type ComposerMessageTextTokenKind = ComposerTokenKindWithCapability<'messageText'>
+
 export type ComposerClipboardTokenKind = ComposerTokenKindWithCapability<'clipboard'>
+
 export type ComposerClipboardPromptTokenKind = ComposerTokenKindWithCapability<'clipboardPromptText'>
 
 export const COMPOSER_TOKEN_KINDS = Object.freeze(Object.keys(COMPOSER_TOKEN_CAPABILITIES) as ComposerTokenKind[])

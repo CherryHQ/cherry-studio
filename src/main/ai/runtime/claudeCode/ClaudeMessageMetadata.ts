@@ -19,6 +19,7 @@ import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { McpToolDisplayMetadata } from './types'
 
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
+
 type ToolMetadata = {
   name: string
   parentToolCallId?: string | null
@@ -44,18 +45,24 @@ export class ClaudeMessageMetadata {
 
   accept(batch: ClaudeObservation): boolean {
     let refreshAll = !isDeepStrictEqual(this.catalog, this.mcpToolMetadata)
+
     // oxlint-disable-next-line no-restricted-globals -- Refresh the MCP catalog on loadout changes before applying mutable display metadata.
     if (refreshAll) this.catalog = structuredClone(this.mcpToolMetadata)
+
     for (const native of batch.native) {
       const message = native.message
+
       if (message.type === 'assistant' && native.isApiErrorMessage && !this.rejectedMessages.has(message.uuid)) {
         this.rejectedMessages.add(message.uuid)
         refreshAll = true
       }
+
       if (message.type === 'user' && 'isSynthetic' in message && message.isSynthetic) {
         const body = message.message as { content?: string | BetaContentBlockParam[] }
+
         const content =
           typeof body.content === 'string' ? [{ type: 'text' as const, text: body.content }] : body.content
+
         for (const block of content ?? [])
           if (block.type === 'text')
             for (const body of extractSystemReminderBodies(block.text)) {
@@ -64,30 +71,37 @@ export class ClaudeMessageMetadata {
             }
       }
     }
+
     for (const event of batch.events) {
       if (event.type === 'message.upsert') {
         const id = event.message.id
+
         for (const ref of event.replaces ?? []) {
           const timing = this.thinking.get(ref.id)
+
           if (timing) {
             this.thinking.set(id, timing)
             this.thinking.delete(ref.id)
           }
         }
+
         for (const [index, part] of event.message.parts.entries()) {
           if (part.type !== 'reasoning') continue
           let timing = this.thinking.get(id)?.get(index)
+
           if (!timing && part.state === 'streaming' && batch.native.some((native) => native.source === 'live')) {
             timing = { startedAt: Date.now(), elapsedFrom: performance.now() }
             const blocks = this.thinking.get(id) ?? new Map()
             blocks.set(index, timing)
             this.thinking.set(id, blocks)
           }
+
           if (timing && (part.state === 'done' || event.message.metadata?.completeness === 'complete'))
             timing.thinkingMs ??= Math.round(performance.now() - timing.elapsedFrom)
         }
       }
     }
+
     return refreshAll
   }
 
@@ -97,6 +111,7 @@ export class ClaudeMessageMetadata {
       if (part.type === 'dynamic-tool') {
         const native = part.callProviderMetadata?.anthropic
         const type = native?.type === 'mcp_tool_use' || native?.type === 'server_tool_use' ? native.type : 'tool_use'
+
         const state: ToolMetadata = {
           name: part.toolName,
           ...this.getToolUseMetadata({
@@ -105,13 +120,16 @@ export class ClaudeMessageMetadata {
             server_name: typeof native?.serverName === 'string' ? native.serverName : undefined
           })
         }
+
         this.mergeToolDisplayMetadata(state)
         const metadata = this.buildToolProviderMetadata(state)
+
         const decoration = {
           providerExecuted: true,
           title: this.getToolTitle(state),
           callProviderMetadata: { ...part.callProviderMetadata, ...metadata }
         }
+
         if (part.state === 'output-available')
           return {
             ...part,
@@ -119,18 +137,25 @@ export class ClaudeMessageMetadata {
             output: this.buildToolOutput(normalizeClaudeToolResult(part.output), state, part.output),
             resultProviderMetadata: { ...part.resultProviderMetadata, ...metadata }
           }
+
         return { ...part, ...decoration }
       }
+
       if (part.type === 'reasoning') {
         const timing = this.thinking.get(message.id)?.get(index)
+
         if (!timing) return part
         const cherry = { startedAt: timing.startedAt }
+
         if (timing.thinkingMs !== undefined) Object.assign(cherry, { thinkingMs: timing.thinkingMs })
+
         return { ...part, providerMetadata: { ...part.providerMetadata, cherry } }
       }
+
       if (part.type !== 'text') return part
       const filter = new SystemReminderTextFilter(this.reminders)
       const text = this.rejectedMessages.has(message.id) ? stripClaudeCodeRejectionPrefix(part.text) : part.text
+
       return { ...part, text: filter.write(text) + (part.state === 'streaming' ? '' : filter.flush()) }
     })
   })
@@ -140,6 +165,7 @@ export class ClaudeMessageMetadata {
   ): Pick<ToolMetadata, 'sdkBlockType' | 'serverName' | 'serverId' | 'toolType'> {
     if (tool.type === 'mcp_tool_use') {
       const serverName = typeof tool.server_name === 'string' ? tool.server_name : undefined
+
       return {
         sdkBlockType: tool.type,
         serverName,
@@ -147,7 +173,9 @@ export class ClaudeMessageMetadata {
         toolType: 'mcp'
       }
     }
+
     const parsed = parseFunctionCallToolName(tool.name)
+
     if (parsed) {
       return {
         sdkBlockType: tool.type,
@@ -156,6 +184,7 @@ export class ClaudeMessageMetadata {
         toolType: 'mcp'
       }
     }
+
     return {
       sdkBlockType: tool.type,
       toolType: 'provider'
@@ -164,6 +193,7 @@ export class ClaudeMessageMetadata {
 
   private resolveMcpToolDisplayMetadata(state: ToolMetadata): McpToolDisplayMetadata | undefined {
     if (state.toolType !== 'mcp' && !parseFunctionCallToolName(state.name)) return undefined
+
     return (
       this.mcpToolMetadata[state.name] ??
       (state.serverId ? this.mcpToolMetadata[`mcp__${state.serverId}__${state.name}`] : undefined) ??
@@ -173,6 +203,7 @@ export class ClaudeMessageMetadata {
 
   private mergeToolDisplayMetadata(state: ToolMetadata): void {
     const parsed = parseFunctionCallToolName(state.name)
+
     if (parsed) {
       state.toolType = 'mcp'
       state.serverName = state.serverName ?? parsed.serverPart
@@ -181,6 +212,7 @@ export class ClaudeMessageMetadata {
     }
 
     const metadata = this.resolveMcpToolDisplayMetadata(state)
+
     if (!metadata) return
 
     state.toolType = 'mcp'
@@ -192,6 +224,7 @@ export class ClaudeMessageMetadata {
 
   private getToolTitle(state: ToolMetadata): string | undefined {
     const toolName = state.displayName ?? state.name
+
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
@@ -199,15 +232,22 @@ export class ClaudeMessageMetadata {
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null
     }
+
     if (state.sdkBlockType) claudeCode.sdkBlockType = state.sdkBlockType
+
     if (state.serverName) claudeCode.serverName = state.serverName
+
     if (state.serverId) claudeCode.serverId = state.serverId
 
     const transport = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
     const tool: JSONObject = { type: state.toolType ?? 'provider' }
+
     if (state.displayName) tool.name = state.displayName
+
     if (state.description) tool.description = state.description
+
     if (state.serverName) tool.serverName = state.serverName
+
     if (state.serverId) tool.serverId = state.serverId
 
     return {
@@ -227,13 +267,16 @@ export class ClaudeMessageMetadata {
   ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
     const content = hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result
+
     const metadata: JSONObject = {
       type: 'mcp',
       name: state.displayName ?? state.name
     }
+
     if (state.description) metadata.description = state.description
     metadata.serverName = state.serverName ?? 'MCP'
     metadata.serverId = state.serverId ?? state.serverName ?? 'unknown'
+
     return { content, metadata }
   }
 }
@@ -246,6 +289,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Unrecognized tool-result values and content blocks need a text fallback; JSON serialization may fail for non-JSON native values.
 function stringifyJsonValue(value: unknown): string {
   if (typeof value === 'string') return value
+
   try {
     return JSON.stringify(value)
   } catch {
@@ -256,7 +300,9 @@ function stringifyJsonValue(value: unknown): string {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native and archived results may be a block array, a content envelope or a scalar; verify the array container before traversing blocks.
 function getContentArray(value: unknown): unknown[] | undefined {
   if (Array.isArray(value)) return value
+
   if (isRecord(value) && Array.isArray(value.content)) return value.content
+
   return undefined
 }
 
@@ -270,6 +316,7 @@ function normalizeMcpContentBlock(block: unknown): JSONObject {
 
   if (block.type === 'image') {
     const source = block.source
+
     if (isRecord(source) && source.type === 'base64' && typeof source.data === 'string') {
       return {
         type: 'image',
@@ -285,6 +332,7 @@ function normalizeMcpContentBlock(block: unknown): JSONObject {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw MCP results can use array or content-envelope forms; recognize the container and normalize each block before display.
 function normalizeMcpToolContent(value: unknown): JSONValue[] {
   const content = getContentArray(value)
+
   if (content) return content.map(normalizeMcpContentBlock)
 
   return [{ type: 'text', text: stringifyJsonValue(value) }]
@@ -293,11 +341,14 @@ function normalizeMcpToolContent(value: unknown): JSONValue[] {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Archived result bodies are not a guaranteed block union; check containers, block tags and resource.blob before selecting rich MCP rendering.
 function hasMcpNonTextContent(value: unknown): boolean {
   const content = getContentArray(value)
+
   if (!content) return false
 
   return content.some((block) => {
     if (!isRecord(block)) return false
+
     if (block.type === 'image' || block.type === 'audio') return true
+
     return block.type === 'resource' && isRecord(block.resource) && typeof block.resource.blob === 'string'
   })
 }
@@ -311,6 +362,7 @@ export function normalizeClaudeToolResult(result: unknown): NonNullable<JSONValu
       return result
     }
   }
+
   if (Array.isArray(result) && result.length > 0) {
     const textBlocks = result
       .filter((b): b is { type: 'text'; text: string } => b?.type === 'text' && typeof b.text === 'string')
@@ -318,11 +370,13 @@ export function normalizeClaudeToolResult(result: unknown): NonNullable<JSONValu
 
     if (textBlocks.length !== result.length) return JSON.parse(JSON.stringify(result))
     const combined = textBlocks.join('\n')
+
     try {
       return JSON.parse(combined)
     } catch {
       return combined
     }
   }
+
   return typeof result === 'object' && result !== null ? JSON.parse(JSON.stringify(result)) : String(result ?? '')
 }

@@ -35,6 +35,7 @@ export const OrderRequestSchema = z.union([
   z.object({ after: z.string().min(1) }).strict(),
   z.object({ position: z.enum(['first', 'last']) }).strict()
 ])
+
 export type OrderRequest = z.infer<typeof OrderRequestSchema>
 
 /**
@@ -51,6 +52,7 @@ export const OrderBatchRequestSchema = z.object({
     )
     .min(1)
 })
+
 export type OrderBatchRequest = z.infer<typeof OrderBatchRequestSchema>
 
 // Reset-endpoint body shapes are NOT factored into a shared factory.

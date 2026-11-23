@@ -100,15 +100,18 @@ const EMPTY_VALUE = '__automatic__'
 const INSTALL_LOCALE_PREFIX = '__install__:'
 const SYSTEM_SETTINGS_VALUE = '__system_settings__'
 const DOWNLOAD_MODEL_PREFIX = '__download_model__:'
+
 const RECOGNITION_PREFERENCE_KEYS = {
   modelId: 'feature.voice.recognition.model_id',
   language: 'feature.voice.recognition.language'
 } as const
+
 const SPEECH_PREFERENCE_KEYS = {
   modelId: 'feature.voice.speech.model_id',
   voiceId: 'feature.voice.speech.voice_id',
   language: 'feature.voice.speech.language'
 } as const
+
 const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
@@ -122,7 +125,9 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
 
 function statusKey(status: StatusState): string {
   if (status.status === 'loading') return 'common.loading'
+
   if (status.status === 'installing') return 'settings.voice.status.installing'
+
   if (
     status.reason &&
     ['asset_required', 'download_failed', 'model_load_failed', 'voice_unavailable', 'worker_crashed'].includes(
@@ -130,6 +135,7 @@ function statusKey(status: StatusState): string {
     )
   )
     return `settings.voice.status.${status.reason}`
+
   return `settings.voice.status.${status.status}`
 }
 
@@ -137,11 +143,13 @@ function recognitionStatusKey(status: StatusState): string {
   if (status.status !== 'loading' && status.status !== 'installing' && status.reason === 'model_required') {
     return 'settings.voice.status.model_required'
   }
+
   return statusKey(status)
 }
 
 function errorKey(error: boolean | string): string {
   if (error === 'busy') return 'settings.voice.playback.error.busy'
+
   if (
     typeof error === 'string' &&
     [
@@ -157,22 +165,26 @@ function errorKey(error: boolean | string): string {
     ].includes(error)
   )
     return `settings.voice.status.${error}`
+
   return 'settings.voice.status.operation_failed'
 }
 
 function optionalValue(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim() ?? ''
+
   return trimmed || undefined
 }
 
 function languageValue(value: string | null | undefined): string | undefined {
   const language = optionalValue(value)
+
   return language?.toLowerCase() === 'auto' ? undefined : language
 }
 
 function languageLabel(language: string, displayNames: Intl.DisplayNames, worldLabel: string): string {
   try {
     const label = displayNames.of(language) ?? language
+
     // Electron may leave the world-region code untranslated.
     return new Intl.Locale(language).region === '001' ? label.replace('001', worldLabel) : label
   } catch {
@@ -183,12 +195,15 @@ function languageLabel(language: string, displayNames: Intl.DisplayNames, worldL
 function previewSampleCatalog(locale: string): string {
   if (isAppLanguage(locale)) return locale
   let language: string
+
   try {
     language = new Intl.Locale(locale).language
   } catch {
     return fallbackSampleCatalog
   }
+
   const catalogs = appLanguageOptions.filter((option) => new Intl.Locale(option.value).language === language)
+
   // zh-CN and zh-TW are distinct catalogs; only an unambiguous language may borrow one.
   return catalogs.length === 1 ? catalogs[0].value : fallbackSampleCatalog
 }
@@ -222,38 +237,49 @@ function VoiceSettings() {
   const microphoneAuthorization = useRef<AbortController | null>(null)
   const [autoRead, setAutoRead] = usePreference('feature.voice.auto_read.enabled')
   const [disclosureConfirmed, setDisclosureConfirmed] = usePreference('feature.voice.auto_read.disclosure_confirmed')
+
   const speech = useSyncExternalStore(
     speechPlaybackService.subscribe,
     speechPlaybackService.getSnapshot,
     speechPlaybackService.getSnapshot
   )
+
   const [models, setModels] = useState<readonly LocalVoiceModelDescriptor[]>([])
+
   const asrInstallationStatus = useSharedCacheSelector([LOCAL_MODEL_STATUS_CACHE_KEY], ([snapshots]) =>
     Object.values(DOWNLOADABLE_TRANSCRIPTION_BUNDLES)
       .map((id) => snapshots?.[id]?.status)
       .join(',')
   )
+
   const ttsInstallationStatus = useSharedCacheSelector([LOCAL_MODEL_STATUS_CACHE_KEY], ([snapshots]) =>
     Object.values(DOWNLOADABLE_SPEECH_BUNDLES)
       .map((id) => snapshots?.[id]?.status)
       .join(',')
   )
+
   const [downloadableModelStatuses, setDownloadableModelStatuses] = useState<
     Partial<Record<LocalVoiceModelId, StatusState>>
   >({})
+
   const [asrLocales, setAsrLocales] = useState<Awaited<ReturnType<typeof voiceService.listTranscriptionLocales>>>()
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
   const [defaultSpeechModel, setDefaultSpeechModel] = useState<LocalSpeechModelId>()
+
   const [defaultVoice, setDefaultVoice] =
     useState<Awaited<ReturnType<typeof voiceService.resolveSpeechConfiguration>>>()
+
   const [voices, setVoices] = useState<
     readonly { id: string; name: string; language: string; languages?: readonly string[] }[]
   >([])
+
   const [voicesLoading, setVoicesLoading] = useState(true)
   const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<QueriedRecognitionStatus>()
   const [queriedSpeechStatus, setQueriedSpeechStatus] = useState<QueriedSpeechStatus>()
+
   const [microphoneStatus, setMicrophoneStatus] =
     useState<Awaited<ReturnType<typeof voiceService.getMicrophoneStatus>>>()
+
   const [installingLocale, setInstallingLocale] = useState(false)
   const localeSelectionPending = useRef(false)
   const localeSelectionGeneration = useRef(0)
@@ -273,25 +299,31 @@ function VoiceSettings() {
 
   useEffect(() => {
     let current = true
+
     if (catalogAttempt.current === queryRevision) loadedCatalogs.current.clear()
     catalogAttempt.current = queryRevision
     setCatalogLoading(true)
+
     const load = async (key: string, query: () => Promise<void>) => {
       if (loadedCatalogs.current.has(key)) return
+
       try {
         await query()
       } catch (error) {
         logger.warn('Voice catalog query failed', { key, error })
         throw error
       }
+
       if (current) loadedCatalogs.current.add(key)
     }
+
     void voiceService
       .initialize()
       .then(async () => {
         await Promise.allSettled([
           load('models', async () => {
             const result = await voiceService.listModels()
+
             if (!current) return
             setModels(result.models)
             setDefaultAsrModel(result.defaultAsrModelId)
@@ -299,6 +331,7 @@ function VoiceSettings() {
           }),
           load('microphone', async () => {
             const result = await voiceService.getMicrophoneStatus()
+
             if (current) setMicrophoneStatus(result)
           })
         ])
@@ -309,6 +342,7 @@ function VoiceSettings() {
       .finally(() => {
         if (current) setCatalogLoading(false)
       })
+
     return () => {
       current = false
     }
@@ -318,13 +352,16 @@ function VoiceSettings() {
     if (installingRecognitionLocaleRef.current) return
     let current = true
     const downloadable = models.filter((model) => model.resourceOperations.includes(VoiceResourceOperation.Download))
+
     const inspection = Promise.all(
       downloadable.map((model) => {
         const status = voiceService.getModelStatus({ modelId: model.id })
         trackSettingsInspection(pendingSettingsInspectionsRef.current, status)
+
         return status.then((result) => [model.id, result] as const)
       })
     )
+
     void inspection
       .then((statuses) => {
         if (current) setDownloadableModelStatuses(Object.fromEntries(statuses))
@@ -332,20 +369,25 @@ function VoiceSettings() {
       .catch((error) => {
         logger.warn('Voice catalog query failed', { error })
       })
+
     return () => {
       current = false
     }
   }, [models, queryRevision, asrInstallationStatus, ttsInstallationStatus])
 
   const recognitionOff = isVoiceRecognitionOff(recognitionModel)
+
   const configuredRecognitionModel =
     recognitionModel && isTranscriptionModelId(recognitionModel) ? recognitionModel : undefined
+
   const hasConfiguredRecognitionModel = optionalValue(recognitionModel) !== undefined
+
   const effectiveRecognitionModel = recognitionOff
     ? undefined
     : hasConfiguredRecognitionModel
       ? configuredRecognitionModel
       : defaultAsrModel
+
   const recognitionDescriptor = models.find((model) => model.id === effectiveRecognitionModel)
   const automaticLanguage = recognitionDescriptor?.localeSelection === null
   const incompatibleLanguage = automaticLanguage ? languageValue(recognitionLanguage) : undefined
@@ -355,6 +397,7 @@ function VoiceSettings() {
   const effectiveSpeechLanguage = languageValue(speechLanguage) ?? defaultLanguage
   useLayoutEffect(() => {
     setPreviewLoading(false)
+
     return () => {
       previewController.current?.abort()
       previewController.current = null
@@ -365,7 +408,9 @@ function VoiceSettings() {
     const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
     const worldLabel = t('settings.voice.language.world')
     const languages = new Set(voices.flatMap((voice) => voice.languages ?? [voice.language]))
+
     if (effectiveSpeechLanguage) languages.add(effectiveSpeechLanguage)
+
     return [
       {
         value: EMPTY_VALUE,
@@ -382,6 +427,7 @@ function VoiceSettings() {
         .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
     ]
   }, [defaultLanguage, effectiveSpeechLanguage, i18n.language, t, voices])
+
   const speechVoiceOptions: VoiceSelectOption[] = [
     {
       value: EMPTY_VALUE,
@@ -398,6 +444,7 @@ function VoiceSettings() {
       .map((voice) => ({ value: voice.id, label: voice.name }))
       .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
   ]
+
   if (
     speechVoice &&
     (!selectedVoice || !(selectedVoice.languages ?? [selectedVoice.language]).includes(effectiveSpeechLanguage))
@@ -410,12 +457,14 @@ function VoiceSettings() {
       disabled: true
     })
   }
+
   const recognitionLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
     if (!asrLocales) return []
     const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
     const worldLabel = t('settings.voice.language.world')
     const label = (tag: string) => languageLabel(tag, displayNames, worldLabel)
     const options: VoiceSelectOption[] = asrLocales.supported.map((tag) => ({ value: tag, label: label(tag) }))
+
     if (!asrLocales.supported.includes(effectiveRecognitionLanguage)) {
       options.push({
         value: effectiveRecognitionLanguage,
@@ -423,6 +472,7 @@ function VoiceSettings() {
         disabled: true
       })
     }
+
     return [
       {
         value: EMPTY_VALUE,
@@ -431,6 +481,7 @@ function VoiceSettings() {
       ...options.sort((a, b) => a.label.localeCompare(b.label, i18n.language))
     ]
   }, [asrLocales, defaultLanguage, effectiveRecognitionLanguage, i18n.language, t])
+
   const recognitionStatus: StatusState =
     hasConfiguredRecognitionModel && !configuredRecognitionModel
       ? { status: 'unsupported', reason: 'unsupported' }
@@ -440,13 +491,16 @@ function VoiceSettings() {
             queriedRecognitionStatus.language === effectiveRecognitionLanguage
           ? queriedRecognitionStatus.result
           : { status: 'loading' }
+
   const configuredSpeechModel = speechModel
     ? isSpeechModelId(speechModel)
       ? speechModel
       : undefined
     : defaultSpeechModel
+
   const configuredSpeechLanguage = languageValue(speechLanguage)
   const configuredSpeechVoice = optionalValue(speechVoice)
+
   const speechStatus: StatusState =
     speechModel && !configuredSpeechModel
       ? { status: 'unsupported', reason: 'unsupported' }
@@ -460,14 +514,19 @@ function VoiceSettings() {
   useEffect(() => {
     if (recognitionOff) {
       setQueriedRecognitionStatus(undefined)
+
       return
     }
+
     if (hasConfiguredRecognitionModel && !configuredRecognitionModel) return
+
     if (installingRecognitionLocaleRef.current) return
     let current = true
+
     const inspection = recognitionInspectionRef.current.then(async () => {
       if (!current || installingRecognitionLocaleRef.current) return
       setQueriedRecognitionStatus(undefined)
+
       try {
         const resolved = await voiceService.resolveTranscriptionConfiguration({
           modelId: configuredRecognitionModel,
@@ -478,8 +537,11 @@ function VoiceSettings() {
             locale: effectiveRecognitionLanguage
           }
         })
+
         if (!current || installingRecognitionLocaleRef.current) return
+
         if (!hasConfiguredRecognitionModel) setDefaultAsrModel(resolved.modelId)
+
         if (resolved.modelId)
           setQueriedRecognitionStatus({
             modelId: resolved.modelId,
@@ -490,8 +552,10 @@ function VoiceSettings() {
         logger.warn('Recognition configuration query failed', { error })
       }
     })
+
     recognitionInspectionRef.current = inspection
     trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
+
     return () => {
       current = false
     }
@@ -509,27 +573,34 @@ function VoiceSettings() {
     if (installingRecognitionLocaleRef.current) return
     setQueriedSpeechStatus(undefined)
     setDefaultVoice(undefined)
+
     if (!configuredSpeechModel) return
     let current = true
     const query = { modelId: configuredSpeechModel, language: configuredSpeechLanguage, voice: configuredSpeechVoice }
+
     const inspection = speechStatusCheckRef.current.then(async () => {
       if (!current || installingRecognitionLocaleRef.current) return
+
       try {
         const resolved = await voiceService.resolveSpeechConfiguration({
           ...query,
           language: effectiveSpeechLanguage,
           speed: speechSpeed
         })
+
         if (current) {
           setQueriedSpeechStatus({ ...query, result: resolved.status })
+
           if (!configuredSpeechVoice) setDefaultVoice(resolved)
         }
+
         if (current && configuredSpeechVoice) {
           try {
             const automatic = await voiceService.resolveSpeechConfiguration({
               modelId: configuredSpeechModel,
               language: effectiveSpeechLanguage
             })
+
             if (current) setDefaultVoice(automatic)
           } catch {
             if (current) setDefaultVoice({ speed: 1, status: { status: 'failed', reason: 'operation_failed' } })
@@ -542,8 +613,10 @@ function VoiceSettings() {
         }
       }
     })
+
     speechStatusCheckRef.current = inspection
     trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
+
     return () => {
       current = false
     }
@@ -561,6 +634,7 @@ function VoiceSettings() {
     if (installingRecognitionLocaleRef.current) return
     let current = true
     setAsrLocales(undefined)
+
     if (effectiveRecognitionModel && recognitionDescriptor?.localeSelection) {
       const inspection = voiceService.listTranscriptionLocales(effectiveRecognitionModel)
       trackSettingsInspection(pendingSettingsInspectionsRef.current, inspection)
@@ -572,6 +646,7 @@ function VoiceSettings() {
           logger.warn('Voice catalog query failed', { error })
         })
     }
+
     return () => {
       current = false
     }
@@ -582,6 +657,7 @@ function VoiceSettings() {
     let current = true
     setVoices([])
     setVoicesLoading(false)
+
     if (configuredSpeechModel && models.some((model) => model.id === configuredSpeechModel)) {
       setVoicesLoading(true)
       const inspection = voiceService.listVoices(configuredSpeechModel)
@@ -597,6 +673,7 @@ function VoiceSettings() {
           if (current) setVoicesLoading(false)
         })
     }
+
     return () => {
       current = false
     }
@@ -604,6 +681,7 @@ function VoiceSettings() {
 
   useEffect(() => {
     let disposed = false
+
     const refresh = () => {
       const query = ++microphoneQueryGeneration.current
       void enumerateMicrophones()
@@ -616,9 +694,11 @@ function VoiceSettings() {
           if (!disposed && query === microphoneQueryGeneration.current) setMicrophonesFailed(true)
         })
     }
+
     refresh()
     const unsubscribe = subscribeMicrophoneChanges(refresh)
     window.addEventListener('focus', refresh)
+
     return () => {
       disposed = true
       unsubscribe()
@@ -636,13 +716,16 @@ function VoiceSettings() {
   const toggleMicrophoneTest = async () => {
     if (microphoneAuthorization.current) {
       microphoneAuthorization.current.abort()
+
       return
     }
+
     const controller = new AbortController()
     microphoneAuthorization.current = controller
     setTestingMicrophone(true)
     setMicrophoneReady(false)
     setMicrophoneError(undefined)
+
     try {
       await voiceService.testMicrophone(
         controller.signal,
@@ -670,6 +753,7 @@ function VoiceSettings() {
   }
 
   const microphonePermissionFailed = microphoneError === 'microphone_permission'
+
   const needsMicrophoneRecovery =
     microphonePermissionFailed || microphoneStatus === 'denied' || microphoneStatus === 'restricted'
 
@@ -686,6 +770,7 @@ function VoiceSettings() {
         .then((status) => {
           if (!current) return
           setMicrophoneStatus(status)
+
           if (status !== 'granted') return
           setMicrophoneError(undefined)
         })
@@ -699,6 +784,7 @@ function VoiceSettings() {
 
     if (microphonePermissionFailed) refreshMicrophoneStatus()
     window.addEventListener('focus', refreshMicrophoneStatus)
+
     return () => {
       current = false
       window.removeEventListener('focus', refreshMicrophoneStatus)
@@ -714,6 +800,7 @@ function VoiceSettings() {
   useEffect(() => {
     const refresh = () => setQueryRevision((revision) => revision + 1)
     window.addEventListener('focus', refresh)
+
     return () => {
       window.removeEventListener('focus', refresh)
       localeSelectionGeneration.current += 1
@@ -727,6 +814,7 @@ function VoiceSettings() {
 
   const needsLocaleInstallation = (value: string) => {
     const locale = value === EMPTY_VALUE ? defaultLanguage : value
+
     return (
       recognitionDescriptor?.resourceOperations.includes(VoiceResourceOperation.InstallLocale) &&
       asrLocales?.supported.includes(locale) &&
@@ -737,8 +825,10 @@ function VoiceSettings() {
   const selectRecognitionLanguage = async (value: string) => {
     if (value === SYSTEM_SETTINGS_VALUE) {
       openSystemVoiceSettings()
+
       return
     }
+
     if (localeSelectionPending.current) return
     const install = value.startsWith(INSTALL_LOCALE_PREFIX)
     const selection = install ? value.slice(INSTALL_LOCALE_PREFIX.length) : value
@@ -746,14 +836,19 @@ function VoiceSettings() {
     const modelId = effectiveRecognitionModel
     const generation = ++localeSelectionGeneration.current
     localeSelectionPending.current = true
+
     if (install) installingRecognitionLocaleRef.current = true
     setInstallingLocale(install)
     setActionFailed(false)
+
     try {
       await setRecognitionPreferences({ language })
+
       if (generation !== localeSelectionGeneration.current) return
+
       if (install && modelId) {
         await settleSettingsInspections(pendingSettingsInspectionsRef.current)
+
         if (generation !== localeSelectionGeneration.current) return
         await voiceService.installTranscriptionAsset({
           modelId,
@@ -769,12 +864,14 @@ function VoiceSettings() {
       installingRecognitionLocaleRef.current = false
       localeSelectionPending.current = false
       setInstallingLocale(false)
+
       if (install && modelId) setQueryRevision((revision) => revision + 1)
     }
   }
 
   const savePreference = (write: () => Promise<void>) => {
     setActionFailed(false)
+
     try {
       void write().catch(() => setActionFailed(true))
     } catch {
@@ -787,17 +884,23 @@ function VoiceSettings() {
     setPreviewFailure(undefined)
     previewController.current?.abort()
     previewController.current = null
+
     if (previewLoading) {
       setPreviewLoading(false)
+
       return
     }
+
     const controller = new AbortController()
     previewController.current = controller
+
     try {
       if (speechBusy) {
         await speechPlaybackService.stop()
+
         return
       }
+
       setPreviewLoading(true)
       const sampleLanguage = previewSampleCatalog(effectiveSpeechLanguage)
       await i18n.loadLanguages(sampleLanguage)
@@ -812,6 +915,7 @@ function VoiceSettings() {
     } catch (error) {
       if (controller.signal.aborted || previewController.current !== controller) return
       const reason = error instanceof VoiceDomainError ? error.reason : 'operation_failed'
+
       if (reason !== 'aborted') setPreviewFailure({ snapshot: speechPlaybackService.getSnapshot(), reason })
     } finally {
       if (previewController.current === controller) {
@@ -823,11 +927,14 @@ function VoiceSettings() {
 
   const updateAutoRead = async (enabled: boolean) => {
     setActionFailed(false)
+
     try {
       if (!enabled) {
         await setAutoRead(false)
+
         return
       }
+
       if (!disclosureConfirmed) {
         const confirmed = await popup.confirm({
           title: t('settings.voice.auto_read.disclosure.title'),
@@ -837,9 +944,11 @@ function VoiceSettings() {
           centered: true,
           focusOnClose: () => autoReadRef.current?.focus()
         })
+
         if (!confirmed) return
         await setDisclosureConfirmed(true)
       }
+
       await setAutoRead(true)
     } catch {
       setActionFailed(true)
@@ -934,13 +1043,16 @@ function VoiceSettings() {
               if (value.startsWith(DOWNLOAD_MODEL_PREFIX)) {
                 const selected = value.slice(DOWNLOAD_MODEL_PREFIX.length)
                 const bundleId = Object.entries(DOWNLOADABLE_TRANSCRIPTION_BUNDLES).find(([id]) => id === selected)?.[1]
+
                 if (bundleId)
                   void navigate({
                     to: '/settings/local-models',
                     hash: bundleId === 'funasr-nano-int8' ? 'voice-resources' : bundleId
                   }).catch(() => setActionFailed(true))
+
                 return
               }
+
               savePreference(async () => {
                 const modelId = value === EMPTY_VALUE ? '' : value
                 await setRecognitionPreferences({
@@ -976,6 +1088,7 @@ function VoiceSettings() {
                 const downloadable = model.resourceOperations.includes(VoiceResourceOperation.Download)
                 const status = downloadableModelStatuses[model.id as LocalTranscriptionModelId]
                 const needsDownload = downloadable && status && status.status !== 'ready'
+
                 return (
                   <SelectItem
                     key={model.id}
@@ -1101,14 +1214,17 @@ function VoiceSettings() {
               onValueChange={(value) => {
                 if (value.startsWith(DOWNLOAD_MODEL_PREFIX)) {
                   const modelId = value.slice(DOWNLOAD_MODEL_PREFIX.length)
+
                   if (modelId in DOWNLOADABLE_SPEECH_BUNDLES) {
                     void navigate({
                       to: '/settings/local-models',
                       hash: DOWNLOADABLE_SPEECH_BUNDLES[modelId as keyof typeof DOWNLOADABLE_SPEECH_BUNDLES]
                     }).catch(() => setActionFailed(true))
                   }
+
                   return
                 }
+
                 savePreference(() => setSpeechPreferences({ modelId: value === EMPTY_VALUE ? '' : value, voiceId: '' }))
               }}>
               <SelectTrigger className={settingsControlClasses.model} aria-label={t('settings.voice.speech.model')}>
@@ -1131,6 +1247,7 @@ function VoiceSettings() {
                   const downloadable = model.resourceOperations.includes(VoiceResourceOperation.Download)
                   const status = downloadableModelStatuses[model.id]
                   const needsDownload = downloadable && status?.status !== 'ready'
+
                   return (
                     <SelectItem
                       key={model.id}
@@ -1162,8 +1279,10 @@ function VoiceSettings() {
             onValueChange={(value) => {
               if (value === SYSTEM_SETTINGS_VALUE) {
                 openSystemVoiceSettings()
+
                 return
               }
+
               const language = value === EMPTY_VALUE ? '' : value
               savePreference(() => setSpeechPreferences({ language }))
             }}>

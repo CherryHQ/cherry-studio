@@ -13,9 +13,11 @@ export function modelOutputToMcpResult(
 export function mcpLegacyResult(result: CallToolResult) {
   const { structuredContent, ...rest } = result
   const legacy: CallToolResult = { ...rest, content: mcpModelContent(result) }
+
   if (structuredContent !== null && typeof structuredContent === 'object' && !Array.isArray(structuredContent)) {
     legacy.structuredContent = structuredContent
   }
+
   return legacy
 }
 
@@ -25,14 +27,17 @@ export function mcpModelContent<T extends { type: string }>(result: {
   structuredContent?: unknown
 }): Array<T | { type: 'text'; text: string }> {
   if (result.structuredContent === undefined) return result.content
+
   const alreadyIncluded = result.content.some((part) => {
     if (part.type !== 'text' || !('text' in part) || typeof part.text !== 'string') return false
+
     try {
       return isDeepStrictEqual(JSON.parse(part.text), result.structuredContent)
     } catch {
       return false
     }
   })
+
   return alreadyIncluded
     ? result.content
     : [...result.content, { type: 'text', text: JSON.stringify(result.structuredContent) }]

@@ -35,19 +35,23 @@ export function useSidebarShortcuts() {
     (target: SidebarShortcutTarget) => isSidebarShortcutPinned(shortcuts, target),
     [shortcuts]
   )
+
   const setPinned = useCallback(
     (target: SidebarShortcutTarget, pinned: boolean, fallbackLabel?: string) =>
       runMutation(sidebarShortcutService.setPinned(target, pinned, fallbackLabel)),
     [runMutation]
   )
+
   const remove = useCallback(
     (target: SidebarShortcutTarget) => runMutation(sidebarShortcutService.remove(target)),
     [runMutation]
   )
+
   const reorder = useCallback(
     (items: readonly SidebarShortcutItem[]) => {
       const operation = sidebarShortcutService.reorder(items)
       runMutation(operation)
+
       return operation
     },
     [runMutation]

@@ -4,6 +4,7 @@ import { LmstudioLight } from './light'
 
 const Lmstudio = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LmstudioLight {...props} className={className} />
+
   return <LmstudioLight {...props} className={className} />
 }
 

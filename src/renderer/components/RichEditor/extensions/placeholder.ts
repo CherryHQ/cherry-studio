@@ -35,6 +35,7 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
               (this.editor.options.extensions.find((extension) => extension.name === this.name)?.options as
                 | PlaceholderOptions
                 | undefined) ?? this.options
+
             const active = this.editor.isEditable
             const { anchor } = selection
             const decorations: Decoration[] = []
@@ -58,6 +59,7 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
               // Only show placeholder on current node (where cursor is) or all nodes based on showOnlyCurrent
               if ((hasAnchor || !options.showOnlyCurrent) && isEmpty) {
                 const classes = ['placeholder']
+
                 if (hasAnchor) {
                   classes.push('has-focus')
                 }

@@ -15,7 +15,9 @@ const RTF_PREVIEW_MAX_SOURCE_BYTES = 10 * 1024 * 1024
 const SAFE_LINK_PROTOCOLS = new Set(['https:', 'http:', 'mailto:'])
 
 RTFJS.loggingEnabled(false)
+
 WMFJS.loggingEnabled(false)
+
 EMFJS.loggingEnabled(false)
 
 export default function RtfFilePreview({ fileName, document: previewDocument }: FilePreviewPluginProps) {
@@ -27,6 +29,7 @@ export default function RtfFilePreview({ fileName, document: previewDocument }: 
 
   useEffect(() => {
     const body = bodyRef.current
+
     if (!body) return
     const controller = new AbortController()
     setLoading(true)
@@ -37,11 +40,14 @@ export default function RtfFilePreview({ fileName, document: previewDocument }: 
       try {
         const bytes = await readPreviewDocument(previewDocument, RTF_PREVIEW_MAX_SOURCE_BYTES, controller.signal)
         controller.signal.throwIfAborted()
+
         const rtf = new RTFJS.Document(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), {
           onHyperlink: (_create, hyperlink) => {
             let element: HTMLElement = document.createElement('span')
+
             try {
               const url = new URL(hyperlink.url())
+
               if (SAFE_LINK_PROTOCOLS.has(url.protocol)) {
                 const anchor = document.createElement('a')
                 anchor.href = url.href
@@ -52,10 +58,13 @@ export default function RtfFilePreview({ fileName, document: previewDocument }: 
             } catch {
               // Relative and invalid links have no trusted base in a local document.
             }
+
             return { element, content: element }
           }
         })
+
         const elements = await rtf.render()
+
         if (!controller.signal.aborted) body.replaceChildren(...elements)
       } catch (loadError) {
         if (controller.signal.aborted) return

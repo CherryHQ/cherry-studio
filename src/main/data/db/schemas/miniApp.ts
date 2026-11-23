@@ -76,6 +76,7 @@ export const miniAppTable = sqliteTable(
 )
 
 export type MiniAppRow = typeof miniAppTable.$inferSelect
+
 export type InsertMiniAppRow = typeof miniAppTable.$inferInsert
 
 export type MiniAppInstallSource = 'file' | 'url' | 'builtin'
@@ -181,6 +182,7 @@ export const miniAppInstallationTable = sqliteTable(
  * were the workaround.
  */
 export type MiniAppInstallationRow = typeof miniAppInstallationTable.$inferSelect
+
 export type InsertMiniAppInstallationRow = typeof miniAppInstallationTable.$inferInsert
 
 /**

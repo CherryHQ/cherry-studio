@@ -23,6 +23,7 @@ const meta: Meta<typeof Divider> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const Horizontal: Story = {

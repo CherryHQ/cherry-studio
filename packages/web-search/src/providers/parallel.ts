@@ -20,7 +20,9 @@ export const parallel: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG['parallel'],
   async execute(context) {
     const { call } = context
+
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
+
     const payload = await requestJson(
       context,
       {
@@ -35,6 +37,7 @@ export const parallel: WebSearchProviderModule = {
       },
       ParallelSearchResponseSchema
     )
+
     return payload.results.slice(0, call.config.maxResults).map((item) => ({
       title: item.title?.trim() || '',
       content: item.excerpts

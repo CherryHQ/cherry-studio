@@ -23,6 +23,7 @@ export function normalizeFlatV3Usage(flat: FlatV3Usage): LanguageModelV3Usage {
   // from pricing the cached part twice: it falls back to the total when
   // `noCache` is missing and then adds the cache-read bucket on top.
   const cachedInput = flat.cachedInputTokens
+
   const noCache =
     flat.inputTokens !== undefined && cachedInput !== undefined
       ? Math.max(0, flat.inputTokens - cachedInput)
@@ -41,7 +42,9 @@ export function normalizeFlatV3Usage(flat: FlatV3Usage): LanguageModelV3Usage {
       reasoning: flat.reasoningTokens
     }
   }
+
   if (flat.raw !== undefined) Object.assign(usage, { raw: flat.raw })
+
   return usage
 }
 
@@ -58,7 +61,9 @@ export function recordTotalTokens(
 ): number | undefined {
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- SDK typing does not validate the network usage shape; read totalTokens only after the legacy flat schema accepts it.
   const flatTotal = isFlatV3Usage(usage) ? usage.totalTokens : undefined
+
   const summed =
     inputTokens !== undefined || outputTokens !== undefined ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined
+
   return flatTotal ?? summed
 }

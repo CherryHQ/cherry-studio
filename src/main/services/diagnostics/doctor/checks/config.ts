@@ -14,7 +14,9 @@ export const bootConfigValid = defineDoctorCheck({
   id: 'config-boot-config-valid',
   async run() {
     const error = bootConfigService.getLoadError()
+
     if (!error) return { status: 'pass' }
+
     return {
       status: 'warn',
       attribution: 'user-fixable',
@@ -30,6 +32,7 @@ export const bootConfigValid = defineDoctorCheck({
   fixes: {
     async repair() {
       bootConfigService.repair()
+
       return { status: 'requires_relaunch' }
     }
   }
@@ -42,11 +45,15 @@ export const hardwareAcceleration = defineDoctorCheck({
     if (!bootConfigService.get('app.disable_hardware_acceleration')) return { status: 'pass' }
 
     const scanned = await recentLogScan(ctx)
+
     if (!scanned.complete) throw new Error('Cannot assess hardware acceleration: the seven-day log scan is incomplete')
+
     const hasRecentRendererCrash = diagnose(scanned.records).some(
       (finding) => finding.ruleId === 'environment-renderer-crashed'
     )
+
     if (hasRecentRendererCrash) return { status: 'pass' }
+
     return {
       status: 'warn',
       attribution: 'user-fixable',

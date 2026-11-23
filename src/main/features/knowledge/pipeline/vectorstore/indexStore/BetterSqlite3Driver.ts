@@ -29,10 +29,15 @@ type Bindable = string | number | bigint | Buffer | null
  */
 function toBindable(value: SqlValue): Bindable {
   if (value === null) return null
+
   if (typeof value === 'boolean') return value ? 1 : 0
+
   if (Buffer.isBuffer(value)) return value
+
   if (value instanceof Uint8Array) return Buffer.from(value.buffer, value.byteOffset, value.byteLength)
+
   if (value instanceof ArrayBuffer) return Buffer.from(value)
+
   return value
 }
 
@@ -66,25 +71,32 @@ export class BetterSqlite3Driver implements SqliteDriver {
   execute(sql: string, args: SqlValue[] = []): SqlQueryResult {
     this.assertOpen()
     let stmt = this.stmtCache.get(sql)
+
     if (!stmt) {
       stmt = this.db.prepare(sql)
       this.stmtCache.set(sql, stmt)
     }
+
     const bound = args.map(toBindable)
+
     // `reader` is true for statements that yield rows (SELECT, row-returning PRAGMA).
     // run() throws on those and all() throws on non-row statements, so split on it.
     if (stmt.reader) {
       return { rows: stmt.all(...bound) as Array<Record<string, SqlValue>>, changes: 0 }
     }
+
     const result = stmt.run(...bound)
+
     return { rows: [], changes: result.changes }
   }
 
   transaction<T>(fn: (tx: SqliteTransaction) => T): T {
     this.assertOpen()
+
     const handle: SqliteTransaction = {
       execute: (sql, args) => this.execute(sql, args)
     }
+
     // .immediate acquires the write lock up front (BEGIN IMMEDIATE), so a
     // read-then-write transaction never fails mid-way after the read already ran.
     return this.db.transaction((tx: SqliteTransaction) => fn(tx)).immediate(handle)
@@ -102,6 +114,7 @@ export class BetterSqlite3Driver implements SqliteDriver {
     const pageCount = this.readPragmaInt('page_count')
     const freelist = this.readPragmaInt('freelist_count')
     const ratio = pageCount > 0 ? freelist / pageCount : 0
+
     if (ratio < VACUUM_MIN_FREELIST_RATIO || freelist * pageSize < VACUUM_MIN_FREED_BYTES) {
       return { vacuumed: false, reclaimedBytes: 0 }
     }
@@ -114,6 +127,7 @@ export class BetterSqlite3Driver implements SqliteDriver {
     for (const statement of preVacuumStatements) {
       this.db.exec(statement)
     }
+
     this.db.pragma('wal_checkpoint(TRUNCATE)')
 
     // VACUUM rewrites the whole file and renumbers every table's implicit rowid, so any
@@ -124,6 +138,7 @@ export class BetterSqlite3Driver implements SqliteDriver {
     this.db.exec('VACUUM')
     this.db.pragma('wal_checkpoint(TRUNCATE)')
     const pageCountAfter = this.readPragmaInt('page_count')
+
     return { vacuumed: true, reclaimedBytes: Math.max(0, pageCount - pageCountAfter) * pageSize }
   }
 
@@ -141,6 +156,7 @@ export class BetterSqlite3Driver implements SqliteDriver {
     if (this.closed) {
       return
     }
+
     this.closed = true
     this.db.close()
   }
@@ -167,6 +183,7 @@ export function openBetterSqlite3IndexDriver(filePath: string): BetterSqlite3Dri
   // file: URL client), so ensure the base's index dir exists before opening.
   mkdirSync(dirname(filePath), { recursive: true })
   const db = new Database(filePath)
+
   try {
     db.pragma('busy_timeout = 5000')
     db.pragma('synchronous = NORMAL')
@@ -182,5 +199,6 @@ export function openBetterSqlite3IndexDriver(filePath: string): BetterSqlite3Dri
     db.close()
     throw error
   }
+
   return new BetterSqlite3Driver(db)
 }

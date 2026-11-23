@@ -6,18 +6,21 @@ type TextOutputItem = { type: 'text'; text: string }
 
 const isTextOutputItem = (value: unknown): value is TextOutputItem => {
   if (!value || typeof value !== 'object') return false
+
   return 'type' in value && value.type === 'text' && 'text' in value && typeof value.text === 'string'
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP content and tool-output arrays may mix text and other blocks; the text-item predicate validates each retained block.
 const getTextItems = (value: unknown): TextOutputItem[] => {
   if (!Array.isArray(value)) return []
+
   return value.filter(isTextOutputItem)
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool renderers pass extension-defined outputs; extract validated text blocks or serialize before line counting and truncation.
 const toOutputText = (output: unknown): string => {
   if (output === undefined || output === null || output === '') return ''
+
   if (typeof output === 'string') return output
 
   try {
@@ -42,7 +45,9 @@ const toOutputText = (output: unknown): string => {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search and glob renderers pass raw tool results; toOutputText normalizes them before counting nonblank display lines.
 export function countLines(output: unknown): number {
   const text = toOutputText(output)
+
   if (!text) return 0
+
   return text.split('\n').filter((line) => line.trim()).length
 }
 

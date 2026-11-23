@@ -156,6 +156,7 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
   const detailValues = error.detailI18nValues as Record<string, string> | undefined
   const detailFullKey = typeof detailKey === 'string' ? `error.${detailKey}` : ''
   const hasDetail = detailFullKey !== '' && i18n.exists(detailFullKey)
+
   return (
     <>
       {error.name && (
@@ -497,6 +498,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const [agentOpen, setAgentOpen] = useState(false)
   const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
+
   const copyErrorDetails = useCallback(() => {
     if (!error) {
       return
@@ -644,6 +646,7 @@ type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' |
 
 const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => {
   const [doctorCloseBlocked, setDoctorCloseBlocked] = useState(false)
+
   const close = useCallback(() => {
     if (!doctorCloseBlocked) resolve()
   }, [doctorCloseBlocked, resolve])
@@ -692,4 +695,5 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
 }
 
 export { ErrorDetailContent }
+
 export type { ErrorDetailContentProps }

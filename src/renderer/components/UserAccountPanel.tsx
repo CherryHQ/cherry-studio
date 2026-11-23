@@ -41,6 +41,7 @@ export function UserAccountPanel({
   const [userName] = usePreference('app.user.name')
   const { t } = useTranslation()
   const avatar = useAvatar()
+
   const {
     status: cloudStatus,
     loadState: cloudStatusLoadState,
@@ -50,6 +51,7 @@ export function UserAccountPanel({
     isCancellingLogin,
     isAuthorizing
   } = useCherryAccountSession()
+
   const isGlobalEdition = getAppEdition() === 'global'
   const showSubscribeDot = useCherryCloudSubscribeReminder()
   const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
@@ -76,6 +78,7 @@ export function UserAccountPanel({
   const upcomingPaidPlan = activePaidPlan ? undefined : upcomingPaid
   const paidPlanName = (activePaidPlan ?? upcomingPaidPlan)?.plan.display_name
   const remainingPercent = activePaidPlan ? (getLowestRemainingPercent(activePaidPlan) ?? null) : null
+
   const cloudSubtitle = isCloudSignedIn
     ? paidPlanName || cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
     : isAuthorizing
@@ -83,13 +86,18 @@ export function UserAccountPanel({
       : cloudStatusLoadState === 'error'
         ? t('error.http.503')
         : null
+
   const cloudSubtitleRole =
     isCloudSignedIn || isAuthorizing ? 'status' : cloudStatusLoadState === 'error' ? 'alert' : undefined
+
   const accountDisplayName = userName || t('settings.profile.title')
+
   const subscriptionLoading =
     cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && !plans && !plansError)
+
   const subscriptionFailed =
     cloudStatusLoadState === 'error' || (isCloudSignedIn && !paidPlanName && !isPlansReady && !subscriptionLoading)
+
   const subscriptionAction = subscriptionLoading ? (
     t('common.loading')
   ) : subscriptionFailed ? (
@@ -105,13 +113,16 @@ export function UserAccountPanel({
   ) : (
     <span className="text-link">{t('settings.subscription.go_to_subscribe')}</span>
   )
+
   const offersSubscription =
     !subscriptionLoading && !subscriptionFailed && !paidPlanName && (!isCloudSignedIn || isPlansReady)
+
   useEffect(() => {
     if (offersSubscription) trackSubscriptionEntryView('account_panel')
   }, [offersSubscription])
   // The avatar dot leads here, so a click while it is still showing is credited to it as well.
   const subscribeDetails = showSubscribeDot ? { via: 'avatar_dot' as const } : {}
+
   const handleSubscriptionClick = () => {
     if (cloudStatusLoadState === 'error') {
       void loadCloudStatus()
@@ -121,6 +132,7 @@ export function UserAccountPanel({
       void reloadPlans().catch(() => {})
     } else if (plans) {
       onRequestClose?.()
+
       if (paidPlanName) {
         openSettingsTab('/settings/profile')
       } else {
@@ -128,6 +140,7 @@ export function UserAccountPanel({
       }
     }
   }
+
   const cloudHeaderAction: {
     label: string
     loading: boolean
@@ -163,6 +176,7 @@ export function UserAccountPanel({
     onRequestClose?.()
     void openCherryCloudAccountPortal()
   }
+
   const subscriptionRow = (
     <Button
       type="button"

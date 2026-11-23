@@ -17,6 +17,7 @@ const logger = loggerService.withContext('useCommandRuntime')
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The internal registry erases command-specific payload types; each registered handler interprets its own optional arguments.
 export type CommandHandler = (args?: unknown) => void | Promise<void>
+
 export type CommandHandlerSource = CommandHandler | Readonly<RefObject<CommandHandler>>
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The selected command handler owns its payload contract; this dispatcher only forwards arguments and isolates handler failures.
@@ -108,37 +109,48 @@ export function useCommandOrigin() {
   const scope = use(CommandFocusScopeContext)
   const host = use(CommandFocusHostContext)
   const runtime = useCommandRuntime()
+
   return useCallback(
     (target?: EventTarget | null) => {
       let origin = scope
+
       for (let node = target instanceof HTMLElement ? target : null; node; node = node.parentElement) {
         const registered = host?.registry.roots.get(node)
+
         if (registered) {
           origin = registered
           break
         }
       }
+
       const element = target instanceof HTMLElement ? target : null
       const isActive = () => (!element || element.isConnected) && (origin?.isActive() ?? true)
+
       if (!origin) return { isActive, execute: runtime.execute }
       const originScope = origin
       const commands = new Set<CommandId>()
+
       for (let current: CommandFocusScopeState | null = originScope; current; current = current.parent) {
         for (const command of current.handlers.keys()) commands.add(command)
       }
+
       const captured = new Map(
         [...commands].flatMap((command) => {
           const entry = findScopeHandler(originScope, command)
+
           return entry ? [[command, { entry, handler: readRegisteredHandler(entry) }] as const] : []
         })
       )
+
       return {
         isActive,
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Captured handlers retain command-specific payload ownership; this origin dispatcher only checks handler identity and forwards arguments.
         execute: (command: CommandId, args?: unknown) => {
           const selected = captured.get(command)
+
           if (!isActive() || !selected) return
           const current = findScopeHandler(originScope, command)
+
           if (current !== selected.entry || readRegisteredHandler(current) !== selected.handler) return
           runCommandHandler(command, selected.handler, args)
         }
@@ -157,20 +169,26 @@ export function useCommandKeyboardBoundary() {
     },
     []
   )
+
   return useCallback(() => {
     if (!host) return () => {}
+
     const scope = new CommandFocusScopeState(host.rootScope, {
       element: () => null,
       active: () => true,
       context: () => ({ 'resource.focused': false }),
       boundary: true
     })
+
     const close = host.registry.openBoundary(scope)
+
     const dispose = () => {
       close()
       disposables.current.delete(dispose)
     }
+
     disposables.current.add(dispose)
+
     return dispose
   }, [host])
 }

@@ -6,7 +6,9 @@ import { MinimaxAgentLight } from './light'
 
 const MinimaxAgent = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MinimaxAgentLight {...props} className={className} />
+
   if (variant === 'dark') return <MinimaxAgentDark {...props} className={className} />
+
   return (
     <>
       <MinimaxAgentLight className={cn('dark:hidden', className)} {...props} />

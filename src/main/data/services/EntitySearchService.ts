@@ -21,6 +21,7 @@ type EntitySearchInput = { q: string; limit: number; updatedAtFrom?: number }
 function getUpdatedAtFromMs(updatedAtFrom: string | undefined): number | undefined {
   if (!updatedAtFrom) return undefined
   const value = Date.parse(updatedAtFrom)
+
   return Number.isFinite(value) ? value : undefined
 }
 
@@ -28,6 +29,7 @@ function getUpdatedAtFromMs(updatedAtFrom: string | undefined): number | undefin
 function withTypeContext(type: EntitySearchType, error: unknown) {
   const context = `entity search type ${type}`
   const apiError = toDataApiError(error, context)
+
   if (!isDataApiError(error)) return apiError
 
   return DataApiErrorFactory.create(

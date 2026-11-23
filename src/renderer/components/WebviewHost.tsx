@@ -89,6 +89,7 @@ export function WebviewHost({
         if (allowPopups) element.setAttribute('allowpopups', 'true')
         else element.removeAttribute('allowpopups')
       }
+
       setWebview(element)
       onWebviewChangeRef.current?.(element)
     },
@@ -101,6 +102,7 @@ export function WebviewHost({
 
   useEffect(() => {
     if (!webview) return
+
     if (allowPopups) webview.setAttribute('allowpopups', 'true')
     else webview.removeAttribute('allowpopups')
   }, [allowPopups, webview])
@@ -109,10 +111,12 @@ export function WebviewHost({
     (guest: WebviewTag) => {
       try {
         const webviewId = guest.getWebContentsId()
+
         if (!webviewId) return
         void ipcApi
           .request('webview.set_spell_check_enabled', { webviewId, isEnable: enableSpellCheck })
           .catch((error) => logger.debug('Failed to update WebView spell check', { id, error }))
+
         if (openLinksExternal !== undefined) {
           void ipcApi
             .request('webview.set_open_link_external', { webviewId, isExternal: openLinksExternal })
@@ -130,16 +134,20 @@ export function WebviewHost({
     applyGuestPreferences(guest)
     onDomReady?.(guest)
   })
+
   const handleStartLoading = useEffectEvent(() => {
     readyWebviewRef.current = null
     onDidStartLoading?.()
   })
+
   const handleNavigate = useEffectEvent((event: DidNavigateEvent | DidNavigateInPageEvent) => {
     if (webview && (!('isMainFrame' in event) || event.isMainFrame)) {
       committedLocationRef.current = { webview, url: event.url }
     }
+
     onDidNavigate?.(event)
   })
+
   const handleStartNavigation = useEffectEvent((event: DidStartNavigationEvent) => onDidStartNavigation?.(event))
   const handleFinishLoad = useEffectEvent(() => onDidFinishLoad?.())
   const handleStopLoading = useEffectEvent(() => onDidStopLoading?.())
@@ -160,6 +168,7 @@ export function WebviewHost({
       if (event.channel !== WEBVIEW_KEYDOWN_CHANNEL) return
 
       const payload = event.args[0] as WebviewKeyPayload | undefined
+
       if (!payload?.isTrusted || document.activeElement !== webview) return
 
       const replayed = new KeyboardEvent('keydown', { ...payload, cancelable: true })
@@ -205,6 +214,7 @@ export function WebviewHost({
       webview.removeEventListener('did-fail-load', handleFailLoad)
       webview.removeEventListener('page-title-updated', handleTitleUpdated)
       webview.removeEventListener('page-favicon-updated', handleFaviconUpdated)
+
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
     }
   }, [webview])
@@ -217,8 +227,10 @@ export function WebviewHost({
     if (previous.webview !== webview || previous.src !== src) {
       if (committedLocationRef.current?.webview === webview && committedLocationRef.current.url === src) return
       webview.setAttribute('src', src)
+
       return
     }
+
     if (previous.reloadKey !== undefined && previous.reloadKey !== reloadKey) {
       try {
         webview.reload()

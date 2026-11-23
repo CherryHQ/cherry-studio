@@ -35,6 +35,7 @@ export function getApiKey(config: FileProcessorMerged, processorId: FileProcesso
   const nextKey = keys[nextIndex]
 
   lastUsedKeyByProcessor.set(processorId, nextKey)
+
   return nextKey
 }
 

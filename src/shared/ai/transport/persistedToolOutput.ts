@@ -70,6 +70,7 @@ export interface PersistedToolOutput {
 export function isPersistedToolOutput(value: unknown): value is PersistedToolOutput {
   if (typeof value !== 'object' || value === null) return false
   const ref = (value as PersistedToolOutput).$persistedToolOutput
+
   return typeof ref === 'object' && ref !== null
 }
 
@@ -77,6 +78,7 @@ export function isPersistedToolOutput(value: unknown): value is PersistedToolOut
 export function blobRefsOf(ref: PersistedToolOutputRef): PersistedToolOutputBlobRef[] {
   if (ref.shape === 'entities') return ref.blobRefs
   const { fileEntryId, vfsFilename, head, tail, totalChars, totalLines } = ref
+
   return [{ key: '', fileEntryId, vfsFilename, head, tail, totalChars, totalLines }]
 }
 
@@ -85,6 +87,7 @@ export function blobRefsOf(ref: PersistedToolOutputRef): PersistedToolOutputBlob
  *  and the renderer excerpt path shape-agnostic. */
 export function envelopeDisplayExcerpt(ref: PersistedToolOutputRef) {
   const blobs = blobRefsOf(ref)
+
   return {
     head: blobs[0].head,
     tail: blobs[blobs.length - 1].tail,

@@ -65,9 +65,11 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
     // The row is already `running` here; publish so open task lists leave the
     // previous run's state. JobContext carries no scheduleId — resolve the row.
     const scheduleId = jobService.getById(ctx.jobId)?.scheduleId
+
     if (scheduleId) {
       agentTaskService.notifyRunChange(scheduleId, ctx.jobId, 'projection')
     }
+
     return await runAgentTask(ctx)
   },
 
@@ -77,9 +79,11 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
         .get('DbService')
         .withWriteTx((tx) => agentTaskService.completeMissedRunTx(tx, event.scheduleId!, event.jobId, Date.now()))
     }
+
     if (event.scheduleId) {
       agentTaskService.notifyRunChange(event.scheduleId, event.jobId, 'projection')
     }
+
     if (event.scheduleId) {
       try {
         await publishScheduledTaskResult(event.jobId)
@@ -87,18 +91,22 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
         logger.warn('Failed to publish settled task result', { jobId: event.jobId, error })
       }
     }
+
     if (event.status !== 'failed' || !event.scheduleId) return
     // Captured once — closure capture would lose the narrowing above.
     const scheduleId = event.scheduleId
 
     const recent = jobService.listRecentTerminalByScheduleId(scheduleId, RECENT_TERMINAL_WINDOW)
+
     if (recent.length < RECENT_TERMINAL_WINDOW) return
+
     if (!recent.every((j) => j.status === 'failed')) return
 
     logger.warn('Agent task schedule failed in last N terminal runs — pausing', {
       scheduleId,
       window: RECENT_TERMINAL_WINDOW
     })
+
     try {
       // Pause and mark in one transaction: a heartbeat sync landing between a
       // separate pause commit and marker write would re-arm the schedule. The

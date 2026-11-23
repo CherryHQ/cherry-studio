@@ -8,6 +8,7 @@ export function createAuthorizationSecrets() {
   const state = toBase64Url(randomBytes(32))
   const codeVerifier = toBase64Url(randomBytes(32))
   const codeChallenge = createHash('sha256').update(codeVerifier, 'ascii').digest('base64url')
+
   return { state, codeVerifier, codeChallenge }
 }
 
@@ -39,6 +40,7 @@ export function createDeviceSignature(input: {
   const timestamp = Math.floor((input.now ?? new Date()).getTime() / 1000).toString()
   const requestId = input.requestId ?? randomUUID()
   const bodyHash = createHash('sha256').update(input.body).digest('hex')
+
   const canonical = [
     'cherry-device-signature-v2',
     input.method.toUpperCase(),
@@ -49,6 +51,7 @@ export function createDeviceSignature(input: {
     input.idempotencyKey ?? '',
     input.machineCode
   ].join('\n')
+
   const privateKey = createPrivateKey({
     key: Buffer.from(input.privateKey, 'base64'),
     format: 'der',

@@ -4,6 +4,7 @@ import { Gpt4oMiniAudioPreviewLight } from './light'
 
 const Gpt4oMiniAudioPreview = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt4oMiniAudioPreviewLight {...props} className={className} />
+
   return <Gpt4oMiniAudioPreviewLight {...props} className={className} />
 }
 

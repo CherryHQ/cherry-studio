@@ -12,10 +12,12 @@ import type { PreferenceSchemas } from './preferenceSchemas'
 
 /** DB-backed preferences only (stored in SQLite) */
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
+
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
 
 /** Unified type: DB-backed preferences + file-backed boot config (BootConfig.* prefix) */
 export type UnifiedPreferenceType = PreferenceDefaultScopeType & BootConfigPreferenceKeys
+
 export type UnifiedPreferenceKeyType = keyof UnifiedPreferenceType
 
 /**
@@ -65,7 +67,9 @@ export enum SelectionFilterMode {
 }
 
 export const SELECTION_ACTION_RUNNERS = ['default', 'assistant', 'agent'] as const
+
 export type SelectionActionRunner = (typeof SELECTION_ACTION_RUNNERS)[number]
+
 export const SELECTION_ACTION_RUNNER = {
   DEFAULT: 'default',
   ASSISTANT: 'assistant',
@@ -198,7 +202,9 @@ export type SidebarStoredItem = SidebarShortcutItem | { type: string; id: string
 
 export function createSidebarShortcutId(target: SidebarShortcutTarget): string {
   const parts = ['sidebar-shortcut', target.locator.providerId, target.locator.resourceId]
+
   if (target.activationId !== undefined) parts.push(target.activationId)
+
   return parts.map(encodeURIComponent).join(':')
 }
 
@@ -245,7 +251,9 @@ export const PersistedLangCodeSchema = z
   .string()
   .regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
   .brand<'PersistedLangCode'>()
+
 export type PersistedLangCode = z.infer<typeof PersistedLangCodeSchema>
+
 export const parsePersistedLangCode = (value: string): PersistedLangCode => PersistedLangCodeSchema.parse(value)
 
 const TranslateLangCodePatternSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
@@ -257,11 +265,16 @@ const TranslateLangCodePatternSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4}
  * Persistence paths should parse with {@link PersistedLangCodeSchema} instead.
  */
 export const TranslateLangCodeSchema = z.union([z.literal('unknown'), TranslateLangCodePatternSchema])
+
 export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
+
 export const parseTranslateLangCode = (value: string): TranslateLangCode => TranslateLangCodeSchema.parse(value)
+
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
   TranslateLangCodeSchema.safeParse(value).success
+
 export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+
 /**
  * Fold a UI-side language code down to what persistence accepts.
  *
@@ -274,9 +287,12 @@ export const toPersistedLangCodeOrNull = (
   langCode: TranslateSourceLanguage | null | undefined
 ): PersistedLangCode | null => {
   if (langCode === null || langCode === undefined || langCode === 'unknown' || langCode === 'auto') return null
+
   return parsePersistedLangCode(langCode)
 }
+
 export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
+
 export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
   parseTranslateLangCode(value[0]),
   parseTranslateLangCode(value[1])

@@ -38,6 +38,7 @@ function createLazyOpenAICompatibleRerankingModel(
   }
 
   let modelPromise: Promise<RerankingModelV3> | undefined
+
   return {
     specificationVersion: 'v3',
     provider: `${settings.name}.rerank`,
@@ -46,6 +47,7 @@ function createLazyOpenAICompatibleRerankingModel(
       modelPromise ??= import('../openaiCompatible/rerankingModel').then(({ createOpenAICompatibleRerankingModel }) =>
         createOpenAICompatibleRerankingModel(modelId, settings)
       )
+
       return (await modelPromise).doRerank(options)
     }
   }
@@ -77,6 +79,7 @@ const AzureExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: async (settings): Promise<ProviderV3> => {
     const provider = (await import('@ai-sdk/azure')).createAzure(settings)
+
     // Default to chat mode (AI SDK defaults to responses API)
     const wrapper = customProvider({
       fallbackProvider: {
@@ -84,6 +87,7 @@ const AzureExtension = ProviderExtension.create({
         languageModel: (modelId: string) => provider.chat(modelId)
       }
     })
+
     // customProvider drops the SDK provider's `.tools`, but toolFactories need it
     return Object.assign(wrapper, { tools: provider.tools })
   },
@@ -190,11 +194,14 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     if (!settings) {
       throw new Error('OpenAI Compatible provider requires settings')
     }
+
     const [{ createOpenAICompatible }, { applyReasoningModelMaxTokensConversion }] = await Promise.all([
       import('@ai-sdk/openai-compatible'),
       import('@cherrystudio/ai-sdk-provider')
     ])
+
     const { transformRequestBody } = settings
+
     return createOpenAICompatible({
       ...settings,
       transformRequestBody: (args) =>
@@ -205,6 +212,7 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     if (!settings) {
       throw new Error('OpenAI Compatible provider requires settings')
     }
+
     return createLazyOpenAICompatibleRerankingModel(modelId, settings)
   }
 } as const satisfies ProviderExtensionConfig<OpenAICompatibleProviderSettings, ProviderV3, 'openai-compatible'>)

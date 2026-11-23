@@ -80,8 +80,10 @@ export function useToolApproval(
   // identity changes so a new approval card starts in the pending state.
   const [optimisticSubmitted, setOptimisticSubmitted] = useState(false)
   const lastApprovalIdRef = useRef<string | undefined>(undefined)
+
   if (lastApprovalIdRef.current !== match?.approvalId) {
     lastApprovalIdRef.current = match?.approvalId
+
     if (optimisticSubmitted) setOptimisticSubmitted(false)
   }
 
@@ -89,6 +91,7 @@ export function useToolApproval(
     async (approved: boolean) => {
       if (!match || !respondToolApproval) return
       setOptimisticSubmitted(true)
+
       try {
         await respondToolApproval({
           match,
@@ -106,8 +109,10 @@ export function useToolApproval(
   const persistAutoApprove = useCallback(() => {
     if (!mcpTool) return
     const server = mcpServers.find((s) => s.id === mcpTool.serverId)
+
     if (!server) return
     const current = server.disabledAutoApproveTools ?? []
+
     if (!current.includes(mcpTool.name)) return // already auto-approved server-side
     const next = current.filter((name) => name !== mcpTool.name)
     void updateMcpServer({ body: { disabledAutoApproveTools: next } }).catch((err) => {
@@ -122,6 +127,7 @@ export function useToolApproval(
   if (!match?.approvalId) return IDLE
 
   const remoteExecuting = match.state === APPROVAL_RESPONDED || match.state === 'input-available'
+
   return {
     // Hide the pending bar the instant the user submits — the real state
     // transition is on its way, but buttons should not look interactable.

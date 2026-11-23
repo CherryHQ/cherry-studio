@@ -4,6 +4,7 @@ import { Gpt4oSearchPreviewLight } from './light'
 
 const Gpt4oSearchPreview = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt4oSearchPreviewLight {...props} className={className} />
+
   return <Gpt4oSearchPreviewLight {...props} className={className} />
 }
 

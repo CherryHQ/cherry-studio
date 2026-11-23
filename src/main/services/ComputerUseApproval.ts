@@ -41,7 +41,9 @@ export class ComputerUseApproval {
 
   respond(approvalId: string, scope: ComputerUseApprovalScope, windowId: string | null): boolean {
     const pending = [...this.pending.values()].find((entry) => entry.request.approvalId === approvalId)
+
     if (!pending || pending.windowId !== windowId || pending.cancel.signal.aborted) return false
+
     return !!toolApprovalRegistry.dispatch(approvalId, { approved: scope !== 'reject', applicationScope: scope })
   }
 
@@ -52,24 +54,32 @@ export class ComputerUseApproval {
     signal: AbortSignal
   ): Promise<void> {
     signal.throwIfAborted()
+
     if (!authorization) throw new Error('Application approval context is unavailable')
     const context = authorization.current()
+
     if (context.bypass) return
     const identity = app.identity
+
     if (!identity) throw new Error('Cannot approve an application without a stable native identity')
     const preferences = application.get('PreferenceService')
+
     if (preferences.get('app.computer_use.approved_apps').includes(identity) || this.grants.get(ownerId)?.has(identity))
       return
+
     if (!context.windowId) throw new Error('Application approval requires an interactive conversation')
     const key = JSON.stringify([ownerId, identity])
     const existing = this.pending.get(key)
+
     if (existing) {
       const cancel = () => existing.cancel.abort()
       signal.addEventListener('abort', cancel, { once: true })
       authorization.waiting(true)
+
       try {
         await existing.result
         signal.throwIfAborted()
+
         return
       } finally {
         signal.removeEventListener('abort', cancel)
@@ -82,16 +92,20 @@ export class ComputerUseApproval {
     const approvalId = crypto.randomUUID()
     const decision = Promise.withResolvers<DispatchDecision>()
     const request = { approvalId, topicId: context.topicId, app }
+
     const result = decision.promise
       .then(async (answer) => {
         approvalSignal.throwIfAborted()
+
         if (!answer.approved || !answer.applicationScope || answer.applicationScope === 'reject')
           throw new Error('The user rejected access to this application')
         await this.writes.runExclusive(async () => {
           approvalSignal.throwIfAborted()
           authorization.current()
+
           if (answer.applicationScope === 'always') {
             const approved = preferences.get('app.computer_use.approved_apps')
+
             if (!approved.includes(identity))
               await preferences.set('app.computer_use.approved_apps', [...approved, identity])
           } else {
@@ -107,6 +121,7 @@ export class ComputerUseApproval {
         authorization.waiting(false)
         this.changed()
       })
+
     this.pending.set(key, { ownerId, request, windowId: context.windowId, cancel, result })
     authorization.waiting(true)
     toolApprovalRegistry.register({
@@ -120,6 +135,7 @@ export class ComputerUseApproval {
       resolve: decision.resolve
     })
     this.changed()
+
     return result
   }
 
@@ -143,6 +159,7 @@ export class ComputerUseApproval {
   clear(ownerId?: string): void {
     if (ownerId === undefined) this.grants.clear()
     else this.grants.delete(ownerId)
+
     for (const pending of this.pending.values()) {
       if (ownerId === undefined || pending.ownerId === ownerId) pending.cancel.abort()
     }

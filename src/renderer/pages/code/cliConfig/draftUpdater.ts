@@ -6,6 +6,7 @@ import { asRecord } from './values'
 
 export function formatCliConfigDraftFile(file: CliConfigFileDraft): CliConfigFileDraft {
   if (file.language !== 'json') return file
+
   return { ...file, content: renderJsonFile(parseJsonOrThrow(file.content)) }
 }
 
@@ -16,6 +17,8 @@ export function updateCliConfigDraftConfig(
 ): CliConfigFileDraft[] {
   const connection = extractConnectionFromCliConfigDraft(cliTool, files)
   const blob = sanitizeCliConfigBlob(cliTool, asRecord(configBlob))
+
   if (!connection) return files
+
   return getAdapter(cliTool)?.updateDraftConfig(files, connection, blob) ?? files
 }

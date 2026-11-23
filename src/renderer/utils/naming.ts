@@ -48,6 +48,7 @@ export const getDefaultGroupName = (id: string, provider?: string): string => {
   for (const delimiter of secondDelimiters) {
     if (str.includes(delimiter)) {
       const parts = str.split(delimiter)
+
       return parts.length > 1 ? parts[0] + '-' + parts[1] : parts[0]
     }
   }
@@ -66,6 +67,7 @@ export const getDefaultGroupName = (id: string, provider?: string): string => {
  */
 export const getBaseModelName = (id: string, delimiter: string = '/'): string => {
   const parts = id.split(delimiter)
+
   return parts[parts.length - 1]
 }
 
@@ -87,19 +89,23 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
     : id
 
   let baseModelName = getBaseModelName(normalizedId, delimiter).toLowerCase()
+
   // Remove suffix
   // for openrouter
   if (baseModelName.endsWith(':free')) {
     baseModelName = baseModelName.replace(':free', '')
   }
+
   // for cherryin
   if (baseModelName.endsWith('(free)')) {
     baseModelName = baseModelName.replace('(free)', '')
   }
+
   // for ollama
   if (baseModelName.endsWith(':cloud')) {
     baseModelName = baseModelName.replace(':cloud', '')
   }
+
   return baseModelName
 }
 
@@ -109,6 +115,7 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
  */
 export function getProviderDisplayNameById(providerId: string): string {
   const labelKey = getProviderLabelKey(providerId, '')
+
   return labelKey ? i18n.t(labelKey) : providerId
 }
 
@@ -118,6 +125,7 @@ export function getProviderDisplayNameById(providerId: string): string {
  */
 export function getProviderDisplayName(provider: Pick<Provider, 'id' | 'name'> | undefined): string {
   if (!provider) return ''
+
   return isSystemProviderId(provider.id) ? getProviderDisplayNameById(provider.id) : provider.name
 }
 
@@ -128,6 +136,7 @@ const KEYCAP_EMOJI_PATTERN = String.raw`(?:[0-9#*]\uFE0F?\u20E3)`
 const REGIONAL_FLAG_EMOJI_PATTERN = String.raw`(?:\p{Regional_Indicator}{2})`
 const EMOJI_SEQUENCE_PATTERN = String.raw`(?:${EMOJI_PART_PATTERN}(?:\u200D${EMOJI_PART_PATTERN})*)`
 const EMOJI_CLUSTER_PATTERN = String.raw`(?:${KEYCAP_EMOJI_PATTERN}|${REGIONAL_FLAG_EMOJI_PATTERN}|${EMOJI_SEQUENCE_PATTERN})`
+
 // Anchored at both ends for whole-string checks (isEmoji); anchored at the start only
 // for leading-run extraction/removal (getLeadingEmoji / removeLeadingEmoji).
 const EMOJI_REGEX = new RegExp(`^(?:${EMOJI_CLUSTER_PATTERN})+$`, 'u')
@@ -141,6 +150,7 @@ const FIRST_LETTER_OR_EMOJI_REGEX = new RegExp(`${EMOJI_CLUSTER_PATTERN}|\\p{L}\
  */
 export function firstLetter(str: string): string {
   const match = str?.match(FIRST_LETTER_OR_EMOJI_REGEX)
+
   return match ? match[0] : ''
 }
 
@@ -160,6 +170,7 @@ export function removeLeadingEmoji(str: string): string {
  */
 export function getLeadingEmoji(str: string): string {
   const match = str.match(EMOJI_LEADING_REGEX)
+
   return match ? match[0] : ''
 }
 
@@ -172,9 +183,11 @@ export function isEmoji(str: string): boolean {
   if (str.startsWith('data:')) {
     return false
   }
+
   if (str.startsWith('http')) {
     return false
   }
+
   return EMOJI_REGEX.test(str)
 }
 
@@ -194,6 +207,7 @@ export function normalizeGeneratedNoteName(text: string): string | null {
   const tableLines = new Set<number>()
   // Ignore wrappers so a model's fenced table is still rejected as table material.
   const tokens = new MarkdownIt().parse(lines.map((line) => (isFence(line) ? '' : line)).join('\n'), {})
+
   for (const token of tokens) {
     if (token.type === 'table_open' && token.map) {
       for (let i = token.map[0]; i < token.map[1]; i++) tableLines.add(i)
@@ -201,30 +215,38 @@ export function normalizeGeneratedNoteName(text: string): string | null {
   }
 
   const usable = /[\p{L}\p{N}\p{S}]/u
+
   for (const [index, line] of lines.entries()) {
     if (tableLines.has(index) || isFence(line) || /^\s*[-+*]\s*$/.test(line)) continue
+
     let name = removeMarkdown(line)
       .trim()
       .replace(/^["'“‘«「『]+|["'”’»」』]+$/gu, '')
+
     name = name
       .replace(/\s+/gu, ' ')
       .trim()
       .replace(/(?:\.md)+$/i, '')
       .replace(/^[.\s]+/u, '')
+
     if (!usable.test(name)) continue
 
     name = sanitizeFilename(name)
     let prefix = ''
+
     for (const { segment } of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(name)) {
       if (prefix.length + segment.length > 37) break
       prefix += segment
     }
+
     name = prefix
       .replace(/[\s.]+$/u, '')
       .replace(/(?:\.md[\s.]*)+$/i, '')
       .replace(/[\s.]+$/u, '')
+
     return usable.test(name) && sanitizeFilename(name) === name ? name : null
   }
+
   return null
 }
 
@@ -298,6 +320,7 @@ export function truncateText(text: string, options: { minLength?: number; maxLen
     if (result.length + segment.length > maxLength) {
       break
     }
+
     result += segment
   }
 
@@ -333,6 +356,7 @@ export function truncateText(text: string, options: { minLength?: number; maxLen
     if (wordResult.length + segment.length > maxLength) {
       break
     }
+
     wordResult += segment
   }
 

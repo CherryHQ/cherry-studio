@@ -6,7 +6,9 @@ import { ApplicationLight } from './light'
 
 const Application = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ApplicationLight {...props} className={className} />
+
   if (variant === 'dark') return <ApplicationDark {...props} className={className} />
+
   return (
     <>
       <ApplicationLight className={cn('dark:hidden', className)} {...props} />

@@ -8,6 +8,7 @@ const DEFAULT_RUBBER_BAND_OPTIONS = {
 }
 
 type RubberBandOptions = Partial<typeof DEFAULT_RUBBER_BAND_OPTIONS>
+
 type HorizontalRect = Pick<DOMRectReadOnly, 'left' | 'width'>
 
 const getRubberBandOffset = (
@@ -21,6 +22,7 @@ const getRubberBandOffset = (
   }
 
   const offset = (overflow * boundaryWidth * resistance) / (boundaryWidth + overflow * resistance)
+
   return Math.min(offset, maxOverdrag)
 }
 
@@ -45,8 +47,11 @@ export const applyHorizontalRubberBandTranslateX = (
     // physical-bounds clamp so the tab cannot fly off-screen with no resistance.
     const physicalMinX = Math.min(hardMinX, hardMaxX)
     const physicalMaxX = Math.max(hardMinX, hardMaxX)
+
     if (translateX < physicalMinX) return physicalMinX
+
     if (translateX > physicalMaxX) return physicalMaxX
+
     return translateX
   }
 

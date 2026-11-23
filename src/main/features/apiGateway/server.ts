@@ -12,6 +12,7 @@ const logger = loggerService.withContext('ApiGateway')
 const GLOBAL_REQUEST_TIMEOUT_MS = 5 * 60_000
 const GLOBAL_HEADERS_TIMEOUT_MS = GLOBAL_REQUEST_TIMEOUT_MS + 5_000
 const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
+
 /** How long a still-running response may delay shutdown before its socket is destroyed. */
 const SHUTDOWN_GRACE_MS = 3_000
 
@@ -51,16 +52,20 @@ export class ApiGateway {
     const preferences = application.get('PreferenceService')
     const port = this.endpoint?.port ?? preferences.get('feature.api_gateway.port')
     const host = this.endpoint?.host ?? preferences.get('feature.api_gateway.host')
+
     try {
       await this.listen(host, port)
       this.boundPort = this.getPort()
+
       try {
         await this.listen(host === '0.0.0.0' ? '::' : '::1', this.boundPort)
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code
+
         if (code !== 'EAFNOSUPPORT' && code !== 'EADDRNOTAVAIL') throw error
         logger.info('IPv6 unavailable; listening on IPv4 only', { code })
       }
+
       logger.info('API server started', { hosts: this.getHosts(), port: this.boundPort })
     } catch (error) {
       await this.stop()
@@ -73,6 +78,7 @@ export class ApiGateway {
     // Explicit IPv6-only sockets avoid platform-dependent dual-stack defaults.
     const options = { port, hostname: host, reusePort: false, gracefulShutdown: false, node: { ipv6Only: true } }
     let created: NodeServerInfo | undefined
+
     try {
       const server = await new Promise<NodeServerInfo>((resolve, reject) => {
         app.listen(options, (server: NodeServerInfo) => {
@@ -81,6 +87,7 @@ export class ApiGateway {
           void server.raw.ready().then(() => resolve(server), reject)
         })
       })
+
       this.servers.push(server)
     } catch (error) {
       if (created) await this.closeHttpServer(created)
@@ -91,6 +98,7 @@ export class ApiGateway {
   getHosts(): string[] {
     return this.servers.flatMap((server) => {
       const address = server.raw.node.server.address()
+
       return address && typeof address !== 'string' ? [address.address] : []
     })
   }
@@ -101,12 +109,16 @@ export class ApiGateway {
 
   async rebind(host: string): Promise<void> {
     if (this.getHost() === host) return
+
     if (!this.servers.length || this.boundPort === undefined) throw new Error('API Gateway has no TCP listener')
+
     // Release listening handles only; existing local streams retain their sockets.
     for (const server of this.servers) {
       const http = server.raw.node.server
+
       if (http.listening) http.close()
     }
+
     try {
       for (const [index, server] of this.servers.entries()) {
         const address = index === 0 ? host : host === '0.0.0.0' ? '::' : '::1'
@@ -116,10 +128,12 @@ export class ApiGateway {
             http.off('listening', onListening)
             reject(error)
           }
+
           const onListening = () => {
             http.off('error', onError)
             resolve()
           }
+
           http.once('error', onError)
           http.once('listening', onListening)
           http.listen({ port: this.boundPort, host: address, ipv6Only: true })
@@ -129,8 +143,10 @@ export class ApiGateway {
       // A partially rebound pair must not leave an unreported network listener open.
       for (const server of this.servers) {
         const http = server.raw.node.server
+
         if (http.listening) http.close()
       }
+
       this.servers.length = 0
       throw error
     }
@@ -145,6 +161,7 @@ export class ApiGateway {
 
   async stop(): Promise<void> {
     if (!this.servers.length) return
+
     try {
       // End MCP notification streams before waiting for their HTTP sockets to close.
       await this.mcpSessions.closeAll()
@@ -164,12 +181,15 @@ export class ApiGateway {
    */
   private async closeHttpServer(server: NodeServerInfo): Promise<void> {
     const http = server.raw.node.server
+
     if (!http.listening) http.closeAllConnections?.()
+
     // `stop()` must never reject: `onDeactivate` rethrows, which would strand the service activated.
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Server shutdown may reject with a non-Error value; this terminal handler records it and keeps shutdown non-rejecting.
     const closed = Promise.resolve(server.stop()).catch((error: unknown) =>
       logger.warn('API server close failed', error as Error)
     )
+
     if (await settledWithin(closed, SHUTDOWN_GRACE_MS)) return
 
     logger.warn('API server still has open connections after the grace period; destroying them')
@@ -184,7 +204,9 @@ export class ApiGateway {
 
   getPort(): number {
     const address = this.servers[0]?.raw.node.server.address()
+
     if (!address || typeof address === 'string') throw new Error('API Gateway is not listening on a TCP port')
+
     return address.port
   }
 }

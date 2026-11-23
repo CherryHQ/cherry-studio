@@ -24,6 +24,7 @@ export function normalizeWebSearchKeywords(keywords: string[]): string[] {
 export function normalizeWebSearchUrls(urls: string[]): string[] {
   const normalized = urls.flatMap((url) => {
     const value = url.trim()
+
     return value ? [value] : []
   })
 
@@ -36,6 +37,7 @@ export function normalizeWebSearchUrls(urls: string[]): string[] {
   }
 
   const invalidUrls = normalized.filter((url) => !isHttpUrl(url))
+
   if (invalidUrls.length > 0) {
     throw new Error(`Invalid URL format: ${invalidUrls.join(', ')}`)
   }

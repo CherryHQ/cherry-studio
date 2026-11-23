@@ -24,16 +24,19 @@ const namespaceForServer = (serverId: string) => `mcp:${serverId}`
 function resolveActiveServerById(serverId: string): McpServer | undefined {
   // Direct point lookup instead of listing every active server on each tool call.
   let server: McpServer | undefined
+
   try {
     server = mcpServerService.getById(serverId)
   } catch {
     server = undefined
   }
+
   return server?.isActive ? server : undefined
 }
 
 function interactionContext(options: Parameters<NonNullable<Tool['execute']>>[1]): McpInteractionContext | undefined {
   const request = getRequestContext(options)
+
   if (!request?.windowId || !request.topicId) return undefined
 
   return {
@@ -53,6 +56,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     serverName: mcpTool.serverName,
     type: 'mcp' as const
   }
+
   return {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
@@ -62,9 +66,11 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     execute: async (args: InferSchema<ReturnType<typeof createMcpInputSchema>>, options) => {
       const { toolCallId, abortSignal } = options
       const server = resolveActiveServerById(mcpTool.serverId)
+
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
+
       const result: CallToolResult = await application.get('McpRuntimeService').callTool({
         serverId: server.id,
         name: mcpTool.name,
@@ -82,6 +88,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       }
 
       const resources = getRequestContext(options)?.mcpToolResources
+
       if (resources) registerMcpToolResources(resources, result, metadata)
 
       // Full CallToolResult for the renderer's ToolUIPart (multimodal
@@ -104,6 +111,7 @@ function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
   // via `tool_invoke` — which would run it with no approval card. Keep it inline. Reading
   // `forcePrompt` once keeps `defer` and `needsApproval` in lock-step (they must always agree).
   const forcePrompt = isMcpToolForcePromptBySource(server, mcpTool)
+
   return {
     name: mcpTool.id,
     namespace: namespaceForServer(server.id),
@@ -157,12 +165,15 @@ export async function syncMcpToolsToRegistry(
     // remaining catalog reads (and leave their namespaces out of the eviction scope).
     if (selectedToolIds && freshNames.size === selectedToolIds.size) break
     const namespace = namespaceForServer(server.id)
+
     try {
       const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
       const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
+
       if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
       const freshEntries: ToolEntry[] = []
       const freshServerNames = new Set<string>()
+
       for (const mcpTool of scopedTools) {
         // A wire id encodes serverId + protocol tool name, so a repeat can only be the
         // same identity listed twice by one server. First wins.
@@ -170,10 +181,12 @@ export async function syncMcpToolsToRegistry(
         freshEntries.push(toEntry(mcpTool, server))
         freshServerNames.add(mcpTool.id)
       }
+
       for (const entry of freshEntries) {
         reg.register(entry)
         freshNames.add(entry.name)
       }
+
       refreshedNamespaces.add(namespace)
     } catch (error) {
       logger.error('Failed to list MCP tools for server', {
@@ -192,6 +205,7 @@ export async function syncMcpToolsToRegistry(
     const inSyncScope = targetNamespaces.has(entry.namespace) && refreshedNamespaces.has(entry.namespace)
     const missing = !freshNames.has(entry.name)
     const missingFromSelectedSync = selectedToolIds ? selectedToolIds.has(entry.name) : true
+
     if (serverDeactivated || (inSyncScope && missing && missingFromSelectedSync)) {
       reg.deregister(entry.name)
     }

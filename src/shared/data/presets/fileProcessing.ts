@@ -39,6 +39,7 @@ export const ImageToTextCapabilitySchema = z
     modelId: z.string().min(1).optional()
   })
   .strict()
+
 export type ImageToTextCapability = z.infer<typeof ImageToTextCapabilitySchema>
 
 export const DocumentToMarkdownCapabilitySchema = z
@@ -54,12 +55,14 @@ export const DocumentToMarkdownCapabilitySchema = z
     maxInputPages: z.int().positive().optional()
   })
   .strict()
+
 export type DocumentToMarkdownCapability = z.infer<typeof DocumentToMarkdownCapabilitySchema>
 
 export const FileProcessorFeatureCapabilitySchema = z.discriminatedUnion('feature', [
   ImageToTextCapabilitySchema,
   DocumentToMarkdownCapabilitySchema
 ])
+
 export type FileProcessorFeatureCapability = z.infer<typeof FileProcessorFeatureCapabilitySchema>
 
 /**
@@ -95,13 +98,16 @@ export const FileProcessorTemplateSchema = FileProcessorPresetDefinitionSchema.s
         path: ['capabilities', index, 'feature'],
         message: `Duplicate capability feature '${capability.feature}' is not allowed. Use 'inputs' to model multiple input types.`
       })
+
       return
     }
 
     seenFeatures.add(capability.feature)
   })
 })
+
 export type FileProcessorTemplate = z.infer<typeof FileProcessorTemplateSchema>
+
 export const FileProcessorTemplatesSchema = z.array(FileProcessorTemplateSchema)
 
 type FileProcessorPresetConfig = {
@@ -160,6 +166,7 @@ export const FileProcessorOverrideSchema: z.ZodType<FileProcessorOverride> = z
     options: FileProcessorOptionsSchema.optional()
   })
   .strict()
+
 export const FileProcessorOverridesSchema: z.ZodType<FileProcessorOverrides> = z.partialRecord(
   FileProcessorIdSchema,
   FileProcessorOverrideSchema
@@ -178,6 +185,7 @@ export const FileProcessorMergedSchema = FileProcessorTemplateSchema.extend({
   apiKeys: z.array(z.string().min(1)).optional(),
   options: FileProcessorOptionsSchema.optional()
 })
+
 export type FileProcessorMerged = z.infer<typeof FileProcessorMergedSchema>
 
 export const FILE_PROCESSOR_PRESET_MAP = {

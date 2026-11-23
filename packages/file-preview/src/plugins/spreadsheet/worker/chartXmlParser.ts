@@ -50,11 +50,13 @@ const errorMessage = (error: unknown): string => {
 
 /** Any node value produced by fast-xml-parser: element object/array or primitive value. */
 const xmlValueSchema = z.json()
+
 type XmlValue = z.infer<typeof xmlValueSchema>
 
 /** Strip namespace prefixes, for example 'c:chart' -> 'chart' and 'a:t' -> 't'. */
 const localName = (tag: string): string => {
   const idx = tag.indexOf(':')
+
   return idx === -1 ? tag : tag.slice(idx + 1)
 }
 
@@ -62,17 +64,22 @@ const localName = (tag: string): string => {
 const findChild = (node: XmlValue | undefined, name: string): XmlValue | undefined => {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return undefined
   const obj = node
+
   for (const key of Object.keys(obj)) {
     if (key.startsWith('@_')) continue
+
     if (localName(key) === name) return obj[key]
   }
+
   return undefined
 }
 
 /** Find all matching child nodes by local name and normalize single-child parser output to an array. */
 const findChildren = (node: XmlValue | undefined, name: string): XmlValue[] => {
   const found = findChild(node, name)
+
   if (found === undefined) return []
+
   return Array.isArray(found) ? found : [found]
 }
 
@@ -80,6 +87,7 @@ const findChildren = (node: XmlValue | undefined, name: string): XmlValue[] => {
 const entries = (node: XmlValue | undefined): [string, XmlValue][] => {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return []
   const obj = node
+
   return Object.keys(obj)
     .filter((key) => !key.startsWith('@_'))
     .map((key) => [localName(key), obj[key]])
@@ -89,13 +97,17 @@ const entries = (node: XmlValue | undefined): [string, XmlValue][] => {
 const getAttr = (node: XmlValue | undefined, attr: string): string | undefined => {
   if (!node || typeof node !== 'object' || Array.isArray(node)) return undefined
   const obj = node
+
   for (const key of Object.keys(obj)) {
     if (!key.startsWith('@_')) continue
+
     if (localName(key.slice(2)) === attr) {
       const value = obj[key]
+
       return value === undefined ? undefined : String(value)
     }
   }
+
   return undefined
 }
 
@@ -105,6 +117,7 @@ const valAttr = (node: XmlValue | undefined): string | undefined => getAttr(node
 const toNumber = (value: XmlValue | undefined): number | undefined => {
   if (value === undefined || value === null || value === '') return undefined
   const n = Number(value)
+
   return Number.isNaN(n) ? undefined : n
 }
 
@@ -121,6 +134,7 @@ interface Relationship {
 const parseRelationships = (xml: string): Relationship[] => {
   const doc = xmlValueSchema.parse(xmlParser.parse(xml))
   const root = findChild(doc, 'Relationships')
+
   return findChildren(root, 'Relationship').map((rel) => ({
     id: getAttr(rel, 'Id') ?? '',
     type: getAttr(rel, 'Type') ?? '',
@@ -133,17 +147,22 @@ const resolveTarget = (baseDir: string, target: string): string => {
   if (target.startsWith('/')) return target.slice(1)
   const baseParts = baseDir.split('/').filter(Boolean)
   const targetParts = target.split('/')
+
   for (const part of targetParts) {
     if (part === '.' || part === '') continue
+
     if (part === '..') baseParts.pop()
     else baseParts.push(part)
   }
+
   return baseParts.join('/')
 }
 
 const readZipText = async (zip: JSZip, path: string): Promise<string | null> => {
   const file = zip.file(path)
+
   if (!file) return null
+
   return file.async('string')
 }
 
@@ -156,6 +175,7 @@ export const createChartSheetPartPathMap = async (zip: JSZip): Promise<ReadonlyM
     readZipText(zip, 'xl/workbook.xml'),
     readZipText(zip, 'xl/_rels/workbook.xml.rels')
   ])
+
   if (!workbookXml || !relsXml) return new Map()
 
   const doc = xmlValueSchema.parse(xmlParser.parse(workbookXml))
@@ -163,12 +183,15 @@ export const createChartSheetPartPathMap = async (zip: JSZip): Promise<ReadonlyM
   const sheets = findChildren(findChild(workbook, 'sheets'), 'sheet')
   const relById = new Map(parseRelationships(relsXml).map((rel) => [rel.id, rel]))
   const result = new Map<string, string>()
+
   for (const sheet of sheets) {
     const name = getAttr(sheet, 'name')
     const rId = getAttr(sheet, 'id') // r:id → localName 'id'
     const rel = rId ? relById.get(rId) : undefined
+
     if (name && rel) result.set(name, resolveTarget('xl', rel.target))
   }
+
   return result
 }
 
@@ -178,10 +201,13 @@ const resolveDrawingPartPath = async (zip: JSZip, sheetPartPath: string): Promis
   const fileName = sheetPartPath.split('/').pop() ?? ''
   const relsPath = `${dir}/_rels/${fileName}.rels`
   const relsXml = await readZipText(zip, relsPath)
+
   if (!relsXml) return null
   const rels = parseRelationships(relsXml)
   const rel = rels.find((r) => r.type.endsWith('/drawing'))
+
   if (!rel) return null
+
   return resolveTarget(dir, rel.target)
 }
 
@@ -214,17 +240,21 @@ const extractAnchoredChart = (
   layout: SheetLayoutAccessor
 ): AnchoredChartRef | null => {
   const graphicFrame = findChild(anchorNode, 'graphicFrame')
+
   if (!graphicFrame) return null // Ignore pictures or other non-chart anchors.
 
   const graphic = findChild(graphicFrame, 'graphic')
   const graphicData = findChild(graphic, 'graphicData')
   const chartNode = findChild(graphicData, 'chart')
+
   if (!chartNode) return null
 
   const chartRId = getAttr(chartNode, 'id')
+
   if (!chartRId) return null
 
   let rect: PxRect
+
   if (kind === 'twoCellAnchor') {
     const from = anchorPointToPx(readAnchorPoint(findChild(anchorNode, 'from')), layout)
     const to = anchorPointToPx(readAnchorPoint(findChild(anchorNode, 'to')), layout)
@@ -265,18 +295,23 @@ const extractAnchoredCharts = (drawingXml: string, layout: SheetLayoutAccessor, 
   const root = findChild(doc, 'wsDr')
   const charts: AnchoredChartRef[] = []
   let skippedAnchors = 0
+
   for (const kind of ANCHOR_KINDS) {
     const anchorNodes = findChildren(root, kind)
+
     for (let index = 0; index < anchorNodes.length; index += 1) {
       // Anchor counts are untrusted, so extraction cost must scale with the budget, not the anchor count.
       if (charts.length >= budget) {
         skippedAnchors += anchorNodes.length - index
         break
       }
+
       const extracted = extractAnchoredChart(anchorNodes[index], kind, layout)
+
       if (extracted) charts.push(extracted)
     }
   }
+
   return { charts, skippedAnchors }
 }
 
@@ -297,9 +332,12 @@ const PLOT_AREA_TYPE_MAP: ReadonlyMap<string, ChartType> = new Map([
 const collectText = (node: XmlValue | undefined, acc: string[] = []): string[] => {
   if (Array.isArray(node)) {
     for (const item of node) collectText(item, acc)
+
     return acc
   }
+
   if (!node || typeof node !== 'object') return acc
+
   for (const [name, value] of entries(node)) {
     if (name === 't' && typeof value !== 'object') {
       acc.push(String(value))
@@ -307,18 +345,22 @@ const collectText = (node: XmlValue | undefined, acc: string[] = []): string[] =
       collectText(value, acc)
     }
   }
+
   return acc
 }
 
 const parseTitle = (chartNode: XmlValue | undefined): string | undefined => {
   const title = findChild(chartNode, 'title')
+
   if (!title) return undefined
   const text = collectText(title).join('')
+
   return text.length > 0 ? text : undefined
 }
 
 /** Chart cache point limit. ptCount/pt idx come from untrusted XML; out-of-range values discard cache and fall back. */
 const MAX_CHART_CACHE_POINTS = 10_000
+
 /** Excel supports at most 255 data series; cap untrusted XML before allocating per-series cache arrays. */
 export const MAX_CHART_SERIES = 255
 
@@ -329,28 +371,40 @@ const readCache = (
   warnings: string[]
 ): (string | number | null)[] | null => {
   const cache = findChild(refNode, cacheTag)
+
   if (!cache) return null
   const ptCount = toNumber(valAttr(findChild(cache, 'ptCount'))) ?? 0
+
   if (!Number.isInteger(ptCount) || ptCount < 0 || ptCount > MAX_CHART_CACHE_POINTS) {
     warnings.push(`chart cache declares an out-of-range ptCount (${ptCount}); falling back to cell references`)
+
     return null
   }
+
   const pts = findChildren(cache, 'pt')
+
   // A declared ptCount with no actual points carries no usable cache data. Do not allocate attacker-sized empty arrays.
   if (pts.length === 0) return null
 
   const result: (string | number | null)[] = new Array(ptCount).fill(null)
+
   for (const pt of pts) {
     const idx = toNumber(getAttr(pt, 'idx'))
+
     if (idx === undefined) continue
+
     if (!Number.isInteger(idx) || idx < 0 || idx >= MAX_CHART_CACHE_POINTS) {
       warnings.push(`chart cache point index out of range (${idx}); falling back to cell references`)
+
       return null
     }
+
     const vNode = findChild(pt, 'v')
     const raw = typeof vNode === 'object' ? undefined : vNode
+
     if (raw === undefined) continue
     const value = cacheTag === 'numCache' ? (toNumber(raw) ?? null) : String(raw)
+
     if (idx < result.length) {
       result[idx] = value
     } else {
@@ -359,12 +413,14 @@ const readCache = (
       result[idx] = value
     }
   }
+
   return result
 }
 
 /** Read the f reference formula from numRef/strRef. Sheet prefix handling is delegated to SheetDataAccessor. */
 const readRefFormula = (refNode: XmlValue | undefined): string | undefined => {
   const f = findChild(refNode, 'f')
+
   return typeof f === 'string' || typeof f === 'number' ? String(f) : undefined
 }
 
@@ -377,6 +433,7 @@ const readDataSource = (sourceNode: XmlValue | undefined, warnings: string[]) =>
   const cacheTag = numRef ? 'numCache' : 'strCache'
   const cache = readCache(refNode, cacheTag, warnings)
   const ref = readRefFormula(refNode)
+
   return { cache, ref }
 }
 
@@ -388,18 +445,25 @@ const readSeriesName = (
 ): string | undefined => {
   if (!txNode) return undefined
   const strRef = findChild(txNode, 'strRef')
+
   if (strRef) {
     const cache = readCache(strRef, 'strCache', warnings)
+
     if (cache && cache.length > 0 && cache[0] !== null) return String(cache[0])
     const ref = readRefFormula(strRef)
+
     if (ref) {
       const rows = safeReadRange(data, ref, warnings)
       const first = rows?.[0]?.[0]
+
       if (first !== null && first !== undefined) return String(first)
     }
+
     return undefined
   }
+
   const literal = findChild(txNode, 'v')
+
   return typeof literal === 'object' ? undefined : literal !== undefined ? String(literal) : undefined
 }
 
@@ -412,6 +476,7 @@ const safeReadRange = (
     return data.readRange(ref)
   } catch (err) {
     warnings.push(`chart data reference failed: ${ref} (${errorMessage(err)})`)
+
     return null
   }
 }
@@ -419,6 +484,7 @@ const safeReadRange = (
 /** Flatten a 2D range read result to 1D. Ranges are usually a single row or column. */
 const flattenRange = (rows: (string | number | null)[][]): (string | number | null)[] => {
   if (rows.length === 1) return rows[0]
+
   return rows.map((row) => row[0])
 }
 
@@ -428,12 +494,16 @@ const readCategoriesOrValues = (
   warnings: string[]
 ): (string | number | null)[] => {
   const { cache, ref } = readDataSource(sourceNode, warnings)
+
   if (cache && cache.length > 0) return cache
+
   if (ref) {
     const rows = safeReadRange(data, ref, warnings)
+
     if (rows && rows.length > 0) return flattenRange(rows)
     warnings.push(`chart data reference returned no data: ${ref}`)
   }
+
   return []
 }
 
@@ -462,9 +532,11 @@ const pickChartTypeNode = (
   warnings: string[]
 ): { tag: string; node: XmlValue | undefined } | null => {
   const candidates = entries(plotArea).filter(([name]) => name.endsWith('Chart'))
+
   if (candidates.length === 0) return null
 
   const supported = candidates.find(([name]) => PLOT_AREA_TYPE_MAP.has(name))
+
   if (candidates.length > 1) {
     warnings.push(
       `combo chart detected (${candidates.map(([n]) => n).join(', ')}); rendering only "${
@@ -474,6 +546,7 @@ const pickChartTypeNode = (
   }
 
   const [tag, node] = supported ?? candidates[0]
+
   return { tag, node: Array.isArray(node) ? node[0] : node }
 }
 
@@ -495,6 +568,7 @@ const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: stri
   const { tag, node } = picked
 
   const type = PLOT_AREA_TYPE_MAP.get(tag)
+
   if (!type) {
     return { type: 'unsupported', rawTypeName: tag, title, series: [] }
   }
@@ -504,11 +578,14 @@ const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: stri
   }
 
   const serNodes = findChildren(node, 'ser')
+
   if (serNodes.length > MAX_CHART_SERIES) {
     warnings.push(`chart series truncated: kept ${MAX_CHART_SERIES} of ${serNodes.length}`)
   }
+
   const series: ChartSeries[] = []
   const seriesCount = Math.min(serNodes.length, MAX_CHART_SERIES)
+
   for (let index = 0; index < seriesCount; index++) {
     series.push(parseSeries(serNodes[index], data, warnings))
   }
@@ -522,6 +599,7 @@ const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: stri
 
   if (type === 'bar' || type === 'line' || type === 'area') {
     const grouping = valAttr(findChild(node, 'grouping'))
+
     if (grouping === 'stacked' || grouping === 'percentStacked') result.stacking = grouping
   }
 
@@ -546,12 +624,15 @@ export async function parseCharts(
   try {
     const resolvedSheetPartPaths = sheetPartPaths ?? (await createChartSheetPartPathMap(zip))
     const sheetPartPath = resolvedSheetPartPaths.get(sheetName)
+
     if (!sheetPartPath) return { charts, warnings }
 
     const drawingPartPath = await resolveDrawingPartPath(zip, sheetPartPath)
+
     if (!drawingPartPath) return { charts, warnings }
 
     const drawingXml = await readZipText(zip, drawingPartPath)
+
     if (!drawingXml) return { charts, warnings }
 
     const drawingDir = drawingPartPath.split('/').slice(0, -1).join('/')
@@ -563,6 +644,7 @@ export async function parseCharts(
     // budget to bound both worker parsing and the number of chart hosts the renderer creates.
     const chartBudget = Math.max(0, maxCharts)
     const { charts: anchoredCharts, skippedAnchors } = extractAnchoredCharts(drawingXml, layout, chartBudget)
+
     if (skippedAnchors > 0) {
       warnings.push(
         `floating-objects-truncated: kept ${anchoredCharts.length} chart anchors, skipped ${skippedAnchors} drawing anchors`
@@ -576,15 +658,19 @@ export async function parseCharts(
 
     for (const anchored of anchoredCharts) {
       const rel = drawingRels.find((r) => r.id === anchored.chartRId)
+
       if (!rel) {
         warnings.push(`chart relationship not found: ${anchored.chartRId}`)
         continue
       }
+
       const chartPartPath = resolveTarget(drawingDir, rel.target)
       let parsed = chartPartCache.get(chartPartPath)
+
       if (parsed === undefined) {
         try {
           const chartXml = await readZipText(zip, chartPartPath)
+
           if (!chartXml) {
             warnings.push(`chart part missing: ${chartPartPath}`)
             parsed = null
@@ -595,8 +681,10 @@ export async function parseCharts(
           warnings.push(`failed to parse chart: ${errorMessage(err)}`)
           parsed = null
         }
+
         chartPartCache.set(chartPartPath, parsed)
       }
+
       if (parsed) charts.push({ ...parsed, rect: anchored.rect })
     }
   } catch (err) {

@@ -4,6 +4,7 @@ import { LanyunLight } from './light'
 
 const Lanyun = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LanyunLight {...props} className={className} />
+
   return <LanyunLight {...props} className={className} />
 }
 

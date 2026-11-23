@@ -111,7 +111,9 @@ export class SkillService {
   async exportArchive(id: string): Promise<Uint8Array> {
     return this.mutationLock.runExclusive(async () => {
       const skill = agentGlobalSkillService.getById(id)
+
       if (!skill) throw new Error(`Skill not found: ${id}`)
+
       return exportSkillArchive(this.getInstalledSkillDirectory(skill))
     })
   }
@@ -123,6 +125,7 @@ export class SkillService {
   /** Enable or disable a skill for a specific agent. */
   toggle(options: SkillToggleOptions): InstalledSkill | null {
     const skill = agentGlobalSkillService.getById(options.skillId)
+
     if (!skill) return null
 
     agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, options.isEnabled)
@@ -139,14 +142,17 @@ export class SkillService {
 
   async uninstallByFolderName(folderName: string): Promise<void> {
     const skill = agentGlobalSkillService.getByFolderName(folderName)
+
     if (!skill) {
       throw new Error(`Skill not found by folder name: ${folderName}`)
     }
+
     await this.uninstall(skill.id)
   }
 
   async getByFolderName(name: string): Promise<InstalledSkill | null> {
     const folderName = sanitizeFolderName(name)
+
     return agentGlobalSkillService.getByFolderName(folderName)
   }
 
@@ -163,16 +169,20 @@ export class SkillService {
     const rootPath = path.resolve(application.getPath('feature.agents.skills'))
     const skillPath = path.resolve(rootPath, skill.folderName)
     const relativePath = path.relative(rootPath, skillPath)
+
     if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
       throw new Error(`Invalid managed Skill folder: ${skill.folderName}`)
     }
+
     return skillPath
   }
 
   /** Classify only registered skills, following symlinks rather than import provenance. */
   async listCatalog(query: Pick<ListSkillsQuery, 'search'> = {}): Promise<SkillCatalogEntry[]> {
     const skills = agentGlobalSkillService.list(query)
+
     if (skills.length === 0) return []
+
     const realPath = async (directory: string): Promise<string | undefined> => {
       try {
         return await fs.promises.realpath(directory)
@@ -181,18 +191,22 @@ export class SkillService {
         throw error
       }
     }
+
     const env = await getShellEnv()
+
     const roots = await Promise.all(
       [
         application.getPath('feature.agents.skills'),
         ...buildSystemSkillSources(application.getPath('sys.home'), env).map((source) => source.directoryPath)
       ].map(realPath)
     )
+
     return Promise.all(
       skills.map(async (skill): Promise<SkillCatalogEntry> => {
         if (skill.source === 'builtin') return { ...skill, scope: 'builtin' }
         const directory = await realPath(this.getInstalledSkillDirectory(skill))
         const scope = directory && roots.some((root) => root && isPathInside(directory, root)) ? 'system' : 'local'
+
         return { ...skill, scope }
       })
     )
@@ -206,9 +220,11 @@ export class SkillService {
   async uninstall(skillId: string): Promise<void> {
     return this.mutationLock.runExclusive(async () => {
       const skill = agentGlobalSkillService.getById(skillId)
+
       if (!skill) {
         throw new Error(`Skill not found: ${skillId}`)
       }
+
       await this.uninstallLocked(skill)
     })
   }
@@ -217,13 +233,17 @@ export class SkillService {
   async uninstallBuiltinSkill(folderName: string, namespace: string): Promise<boolean> {
     return this.mutationLock.runExclusive(async () => {
       const skill = this.findCatalogSkillCaseInsensitive(sanitizeFolderName(folderName))
+
       if (!skill) return false
+
       if (skill.source !== 'builtin' || skill.namespace !== namespace) {
         throw new Error(
           `Skill folder "${folderName}" is not owned by builtin namespace "${namespace}"; refusing to remove it.`
         )
       }
+
       await this.uninstallLocked(skill)
+
       return true
     })
   }
@@ -241,6 +261,7 @@ export class SkillService {
     try {
       const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
       fetched.onInstalled?.()
+
       return installed
     } finally {
       await safeRemoveDirectory(fetched.tempDir)
@@ -249,9 +270,11 @@ export class SkillService {
 
   installMarketplace(id: string): Promise<MarketplaceInstallResult> {
     const pending = this.marketplaceInstalls.get(id)
+
     if (pending) return pending
     const task = this.installMarketplacePackage(id).finally(() => this.marketplaceInstalls.delete(id))
     this.marketplaceInstalls.set(id, task)
+
     return task
   }
 
@@ -259,24 +282,30 @@ export class SkillService {
     const skill = await getMarketplaceSkill(id)
     const namespace = marketplaceSkillNamespace(id)
     const downloaded = await downloadMarketplaceSkill(skill)
+
     const result: MarketplaceInstallResult = {
       members: downloaded.directories.map(({ path, name }) => ({ path, name })),
       installed: [],
       alreadyInstalled: [],
       failed: []
     }
+
     try {
       await this.mutationLock.runExclusive(async () => {
         const existing = await this.list()
+
         for (const member of downloaded.directories) {
           const sourceUrl = marketplaceSkillSource(id, member.path)
+
           const installed = existing.find(
             (entry) => entry.source === 'marketplace' && entry.namespace === namespace && entry.sourceUrl === sourceUrl
           )
+
           if (installed) {
             result.alreadyInstalled.push(installed)
             continue
           }
+
           try {
             result.installed.push(
               await this.installSkillDirLocked(member.skillDir, 'marketplace', sourceUrl, { namespace })
@@ -288,6 +317,7 @@ export class SkillService {
           }
         }
       })
+
       return result
     } finally {
       await safeRemoveDirectory(downloaded.tempDir)
@@ -299,30 +329,37 @@ export class SkillService {
     const namespace = 'subscription:' + createHash('sha256').update(skillInstallIdentity(source.url)).digest('hex')
     const fetched = source.kind === 'github' ? await fetchRemoteSkill('github', source.url) : null
     const downloaded = fetched ? null : await downloadSkillPackage(source.url)
+
     const directories = fetched
       ? [{ path: '', name: skill.name.en, skillDir: fetched.skillDir }]
       : downloaded!.directories
+
     const result: MarketplaceInstallResult = {
       members: directories.map(({ path, name }) => ({ path, name })),
       installed: [],
       alreadyInstalled: [],
       failed: []
     }
+
     try {
       await this.mutationLock.runExclusive(async () => {
         const existing = await this.list()
+
         for (const member of directories) {
           const sourceUrl = fetched?.sourceUrl ?? subscriptionMemberSource(skill, member.path)
+
           const installed = existing.find(
             (entry) =>
               entry.source === 'marketplace' &&
               entry.sourceUrl &&
               skillInstallIdentity(entry.sourceUrl) === skillInstallIdentity(sourceUrl)
           )
+
           if (installed) {
             result.alreadyInstalled.push(installed)
             continue
           }
+
           try {
             result.installed.push(
               await this.installSkillDirLocked(
@@ -341,6 +378,7 @@ export class SkillService {
           }
         }
       })
+
       return result
     } finally {
       await safeRemoveDirectory(fetched?.tempDir ?? downloaded!.tempDir)
@@ -360,6 +398,7 @@ export class SkillService {
       await extractZip(canonicalZipPath, tempDir)
       const skillDir = await resolveSkillDirectory(tempDir, null, null)
       await assertSkillDirectoryWithinLimits(skillDir)
+
       return await this.installSkillDir(skillDir, 'zip', sourceUrl)
     } finally {
       await safeRemoveDirectory(tempDir)
@@ -375,6 +414,7 @@ export class SkillService {
     }
 
     const canonicalPath = await fs.promises.realpath(directoryPath)
+
     return this.installSkillDir(canonicalPath, 'local', pathToFileURL(canonicalPath).href)
   }
 
@@ -387,6 +427,7 @@ export class SkillService {
         const metadata = await parseSkillMetadata(skill.path, skill.name, 'skills', {
           calculateSize: false
         })
+
         results.push({ name: metadata.name, description: metadata.description, filename: skill.name })
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
@@ -408,18 +449,22 @@ export class SkillService {
    */
   async listLocalFolderNames(workdir: string): Promise<string[]> {
     const names: string[] = []
+
     for (const skill of await this.listLocalSkillDirectories(workdir)) {
       if (await findSkillMdPath(skill.path)) names.push(skill.name)
     }
+
     return names
   }
 
   /** Resolve workspace skill directories for runtimes that accept explicit skill paths. */
   async listLocalSkillPaths(workdir: string): Promise<string[]> {
     const paths: string[] = []
+
     for (const skill of await this.listLocalSkillDirectories(workdir)) {
       if (await findSkillMdPath(skill.path)) paths.push(skill.path)
     }
+
     return paths
   }
 
@@ -431,6 +476,7 @@ export class SkillService {
     for (const skillsDir of [path.join(workdir, '.claude', 'skills'), path.join(workdir, '.agents', 'skills')]) {
       try {
         const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
+
         for (const entry of entries) {
           if (seenNames.has(entry.name) || !(await this.isLocalSkillDirectoryEntry(skillsDir, entry))) continue
           seenNames.add(entry.name)
@@ -453,9 +499,11 @@ export class SkillService {
     const env = await getShellEnv()
     const sources = buildSystemSkillSources(application.getPath('sys.home'), env)
     const installed = agentGlobalSkillService.list()
+
     const installedByPath = new Map(
       installed.flatMap((skill) => {
         if (skill.source !== 'system' || !skill.sourceUrl?.startsWith('file:')) return []
+
         try {
           return [[fileURLToPath(skill.sourceUrl), skill] as const]
         } catch {
@@ -463,6 +511,7 @@ export class SkillService {
         }
       })
     )
+
     const installedByFolder = new Map(installed.map((skill) => [normalizeFolderKey(skill.folderName), skill]))
     const mirrorRoot = path.resolve(this.getMirrorRoot())
     const candidates = new Map<string, SystemSkillCandidate>()
@@ -471,10 +520,13 @@ export class SkillService {
       if (path.resolve(source.directoryPath) === mirrorRoot) continue
 
       const skillDirectories = await findAllSkillDirectories(source.directoryPath, source.directoryPath)
+
       for (const skillDirectory of skillDirectories) {
         const entryPath = skillDirectory.folderPath
+
         try {
           const canonicalPath = await fs.promises.realpath(entryPath)
+
           if (await this.isManagedSkillTarget(canonicalPath)) continue
 
           const placement: SystemSkillPlacement = {
@@ -482,7 +534,9 @@ export class SkillService {
             sourceName: source.name,
             directoryPath: entryPath
           }
+
           const duplicate = candidates.get(canonicalPath)
+
           if (duplicate) {
             duplicate.placements.push(placement)
             continue
@@ -491,6 +545,7 @@ export class SkillService {
           const metadata = await parseSkillMetadata(canonicalPath, skillDirectory.sourcePath, 'skills', {
             calculateSize: false
           })
+
           const folderName = sanitizeFolderName(metadata.filename)
           const registered = installedByPath.get(canonicalPath)
           const folderConflict = installedByFolder.get(normalizeFolderKey(folderName))
@@ -524,12 +579,15 @@ export class SkillService {
     const canonicalPath = await fs.promises.realpath(options.directoryPath)
     const candidates = await this.discoverSystem()
     const candidate = candidates.find((item) => item.directoryPath === canonicalPath)
+
     if (!candidate) {
       throw new Error(`Directory is not a discovered system skill: ${options.directoryPath}`)
     }
+
     if (candidate.registeredSkillId) {
       throw new Error(`System skill is already imported: ${candidate.filename}`)
     }
+
     if (candidate.status === 'conflict') {
       throw new Error(`A different skill already uses the folder name: ${candidate.filename}`)
     }
@@ -543,6 +601,7 @@ export class SkillService {
       folderName: installed.folderName,
       directoryPath: canonicalPath
     })
+
     return installed
   }
 
@@ -557,13 +616,18 @@ export class SkillService {
    */
   private async isLocalSkillDirectoryEntry(skillsDir: string, entry: fs.Dirent): Promise<boolean> {
     const entryPath = path.join(skillsDir, entry.name)
+
     if (entry.isDirectory()) return !(await this.isManagedSkillTarget(entryPath))
+
     if (!entry.isSymbolicLink()) return false
 
     try {
       const stats = await fs.promises.stat(entryPath)
+
       if (!stats.isDirectory()) return false
+
       if (await this.isManagedSkillTarget(entryPath)) return false
+
       return true
     } catch (error) {
       logger.warn('Failed to resolve local skill symlink; skipping', {
@@ -571,6 +635,7 @@ export class SkillService {
         entry: entry.name,
         error: error instanceof Error ? error.message : String(error)
       })
+
       return false
     }
   }
@@ -579,11 +644,13 @@ export class SkillService {
   private async isManagedSkillTarget(entryPath: string): Promise<boolean> {
     try {
       const entryRealPath = await fs.promises.realpath(entryPath)
+
       const roots = await Promise.all(
         [application.getPath('feature.agents.skills'), this.getMirrorRoot()].map((root) =>
           fs.promises.realpath(root).catch(() => null)
         )
       )
+
       return roots.some((root) => root !== null && (entryRealPath === root || isPathInside(entryRealPath, root)))
     } catch {
       return false
@@ -622,6 +689,7 @@ export class SkillService {
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
 
     const existing = this.findCatalogSkillCaseInsensitive(folderName)
+
     if (existing) {
       // Only the same source + exact origin may replace a folder. The narrow legacy skills.sh path
       // upgrades a prior repo-root URL after an explicit reinstall resolves the same folder.
@@ -629,6 +697,7 @@ export class SkillService {
         existing.source === source &&
         ((existing.sourceUrl ?? null) === (sourceUrl ?? null) ||
           this.isLegacySkillsShReinstall(existing, sourceUrl, folderName))
+
       if (!sameOrigin) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
@@ -638,12 +707,14 @@ export class SkillService {
     }
 
     const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+
     if (!existing && storageEntry) {
       throw new Error(
         `Folder name "${folderName}" conflicts with an existing library directory "${storageEntry}"; ` +
           'reconcile or remove that directory before installing.'
       )
     }
+
     if (existing && storageEntry && storageEntry !== existing.folderName) {
       throw new Error(
         `Catalog folder "${existing.folderName}" conflicts with library directory "${storageEntry}" by case; ` +
@@ -671,22 +742,27 @@ export class SkillService {
           tags,
           contentHash
         }
+
         if (source === 'marketplace') patch.sourceUrl = sourceUrl
+
         if (source === 'system') {
           patch.sourceUrl = sourceUrl
           patch.namespace = provenance.namespace ?? null
         }
+
         agentGlobalSkillService.updateTx(tx, existing.id, patch)
       })
       await this.linkMirror(destFolderName, { throwOnError: true })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
+
       return updated
     }
 
     const isBuiltin = source === 'builtin'
 
     let inserted: InstalledSkill | undefined
+
     try {
       application.get('DbService').withWriteTx((tx) => {
         const insertedRow = agentGlobalSkillService.insertTx(tx, {
@@ -701,6 +777,7 @@ export class SkillService {
           tags,
           contentHash
         })
+
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
     } catch (error) {
@@ -713,19 +790,23 @@ export class SkillService {
           error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
         })
       }
+
       throw error
     }
+
     if (!inserted) {
       await this.installer.uninstall(destPath)
       throw new Error(`Failed to insert skill: ${metadata.name}`)
     }
 
     await this.linkMirror(destFolderName, { throwOnError: true })
+
     if (isBuiltin) {
       this.enableForAllAgents(inserted.id)
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })
+
     return inserted
   }
 
@@ -766,14 +847,19 @@ export class SkillService {
   async linkMirror(folderName: string, options: { throwOnError?: boolean } = {}): Promise<boolean> {
     if (!(await this.linkClaudeMirror(folderName, options))) return false
     const skill = agentGlobalSkillService.getByFolderName(folderName)
+
     if (!skill) return true
+
     try {
       await this.setExportEnabled(folderName, skill.mirrorEnabled)
     } catch (error) {
       logger.warn('Failed to synchronize external skill export', { folderName, error })
+
       if (options.throwOnError) throw error
+
       return false
     }
+
     return true
   }
 
@@ -782,12 +868,15 @@ export class SkillService {
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
     const relativeTarget = path.relative(rootDir, targetDir)
+
     if (!relativeTarget || relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
       logger.warn('Refusing to mirror skill outside Claude config root', { folderName, targetDir })
+
       return false
     }
 
     let catalogSkill: InstalledSkill | null
+
     try {
       catalogSkill = this.findCatalogSkillCaseInsensitive(folderName)
     } catch (error) {
@@ -796,6 +885,7 @@ export class SkillService {
         folderName,
         error: error instanceof Error ? error.message : String(error)
       })
+
       return false
     }
 
@@ -803,6 +893,7 @@ export class SkillService {
     // SKILL.md, but install paths may not have run yet) — otherwise it would be in the catalog
     // but absent from the mirror the SDK loads.
     const descriptor = await this.readSkillMdState(sourceDir)
+
     if (descriptor.status !== 'found') {
       await this.unlinkMirror(folderName)
       logger.warn('Skill source descriptor unavailable; removed mirror', {
@@ -810,17 +901,21 @@ export class SkillService {
         sourceDir,
         status: descriptor.status
       })
+
       return false
     }
 
     const builtinSkill = catalogSkill?.source === 'builtin' ? catalogSkill : null
     const isBuiltin = builtinSkill !== null
+
     if (builtinSkill) {
       try {
         const actualHash = await this.computeBuiltinDirectoryHash(sourceDir)
+
         if (actualHash !== builtinSkill.contentHash) {
           await this.unlinkMirror(folderName)
           logger.warn('Refusing to mirror modified built-in skill content', { folderName })
+
           return false
         }
       } catch (error) {
@@ -829,6 +924,7 @@ export class SkillService {
           folderName,
           error: error instanceof Error ? error.message : String(error)
         })
+
         return false
       }
     }
@@ -840,16 +936,19 @@ export class SkillService {
       // authoring root immediately to every other agent before reconcile can reject the change.
       if (!isWin && !isBuiltin) {
         const stat = await fs.promises.lstat(targetDir).catch(() => null)
+
         if (stat?.isSymbolicLink()) {
           const [targetRealPath, sourceRealPath] = await Promise.all([
             fs.promises.realpath(targetDir).catch(() => null),
             fs.promises.realpath(sourceDir)
           ])
+
           if (targetRealPath === sourceRealPath) return true
         }
       }
 
       await fs.promises.rm(targetDir, { recursive: true, force: true })
+
       if (isWin || isBuiltin) {
         // Windows avoids symlink/junction privilege quirks; builtins use a verified copy so
         // out-of-band writes to the authoring root cannot change another agent's loaded instructions.
@@ -859,21 +958,28 @@ export class SkillService {
       }
     } catch (error) {
       logger.warn('Failed to mirror skill to Claude config', { folderName, sourceDir, targetDir, error })
+
       if (options.throwOnError) throw error
+
       return false
     }
+
     return true
   }
 
   /** Remove the CLAUDE_CONFIG_DIR/skills mirror entry for a skill. */
   async unlinkMirror(folderName: string): Promise<boolean> {
     const targetDir = this.getMirrorPath(folderName)
+
     const results = await Promise.allSettled([
       fs.promises.rm(targetDir, { recursive: true, force: true }),
       this.setExportEnabled(folderName, false)
     ])
+
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+
     if (errors.length) logger.warn('Failed to remove skill mirrors', { folderName, targetDir, errors })
+
     return errors.length === 0
   }
 
@@ -883,24 +989,32 @@ export class SkillService {
     const shouldExport = enabled && appEnabled && skill !== null && isSkillExternallyExportable(skill)
     const root = path.resolve(application.getPath('external.agents.skills'))
     const target = path.resolve(root, folderName)
+
     if (!isPathInside(target, root) || target === root) throw new Error(`Invalid skill export: ${folderName}`)
     const source = path.resolve(this.getMirrorPath(folderName))
     let stat: fs.Stats | undefined
+
     try {
       stat = await fs.promises.lstat(target)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
+
     if (stat) {
       const owned =
         stat.isSymbolicLink() && path.resolve(path.dirname(target), await fs.promises.readlink(target)) === source
+
       if (!owned) {
         if (shouldExport) throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
+
         return
       }
+
       if (!shouldExport) await fs.promises.unlink(target)
+
       return
     }
+
     if (shouldExport) {
       await fs.promises.mkdir(root, { recursive: true })
       await fs.promises.symlink(source, target, isWin ? 'junction' : 'dir')
@@ -910,17 +1024,22 @@ export class SkillService {
   private async pruneExternalExports(): Promise<void> {
     const root = path.resolve(application.getPath('external.agents.skills'))
     let entries: string[]
+
     try {
       entries = await fs.promises.readdir(root)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
       throw error
     }
+
     const failures: unknown[] = []
+
     for (const name of entries) {
       const target = path.join(root, name)
+
       try {
         const stat = await fs.promises.lstat(target)
+
         if (
           stat.isSymbolicLink() &&
           path.resolve(path.dirname(target), await fs.promises.readlink(target)) ===
@@ -932,6 +1051,7 @@ export class SkillService {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') failures.push(error)
       }
     }
+
     if (failures.length)
       throw new AggregateError(
         failures,
@@ -945,6 +1065,7 @@ export class SkillService {
       const enabled = application.get('PreferenceService').get('agent.skills.external_export.enabled') !== false
       const skills = agentGlobalSkillService.listAll()
       const failures: unknown[] = []
+
       for (const skill of skills) {
         try {
           if (enabled) {
@@ -957,6 +1078,7 @@ export class SkillService {
           failures.push(error)
         }
       }
+
       if (!enabled) {
         try {
           await this.pruneExternalExports()
@@ -964,6 +1086,7 @@ export class SkillService {
           failures.push(...(error instanceof AggregateError ? error.errors : [error]))
         }
       }
+
       if (failures.length)
         throw new AggregateError(
           failures,
@@ -981,6 +1104,7 @@ export class SkillService {
   async setMirrorEnabled(skillId: string, mirrorEnabled: boolean): Promise<InstalledSkill | null> {
     return this.mutationLock.runExclusive(async () => {
       const skill = agentGlobalSkillService.getById(skillId)
+
       if (!skill) return null
 
       if (mirrorEnabled) {
@@ -988,11 +1112,14 @@ export class SkillService {
           throw new Error(`Failed to create the ~/.agents/skills mirror for skill: ${skill.folderName}`)
         }
       }
+
       await this.setExportEnabled(skill.folderName, mirrorEnabled)
 
       try {
         const updated = agentGlobalSkillService.updateMirrorEnabled(skillId, mirrorEnabled)
+
         if (!updated) throw new Error(`Failed to persist mirror toggle for skill: ${skill.folderName}`)
+
         return updated
       } catch (error) {
         try {
@@ -1000,6 +1127,7 @@ export class SkillService {
         } catch (recoveryError) {
           throw new AggregateError([error, recoveryError], `Failed to restore skill export: ${skill.folderName}`)
         }
+
         throw error
       }
     })
@@ -1031,17 +1159,20 @@ export class SkillService {
       .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
         await this.installer.recoverInterruptedInstalls(storageRoot)
+
         try {
           await this.ensureSkillPluginManifest()
         } catch (error) {
           logger.warn('Failed to prepare external CLI skill plugin bridge', { error })
         }
+
         await this.reconcileLibraryToDb()
         await this.reconcileMirror()
       })
       .finally(() => {
         this.reconcileInFlight = null
       })
+
     return this.reconcileInFlight
   }
 
@@ -1051,11 +1182,14 @@ export class SkillService {
 
   private async reconcileSkillLocked(skillId: string): Promise<void> {
     const skill = agentGlobalSkillService.getById(skillId)
+
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
+
     if (skill.source === 'builtin') throw new Error(`Built-in Skill is read-only: ${skill.folderName}`)
 
     const skillDir = this.getSkillStoragePath(skill.folderName)
     let stats: fs.Stats
+
     try {
       stats = await fs.promises.lstat(skillDir)
     } catch (error) {
@@ -1064,20 +1198,24 @@ export class SkillService {
       await this.unlinkMirror(skill.folderName)
       agentGlobalSkillService.notifySkillMembershipChange(skillId)
       logger.info('Pruned missing Skill during scoped reconcile', { skillId, folderName: skill.folderName })
+
       return
     }
+
     if (!stats.isDirectory() || stats.isSymbolicLink()) {
       throw new Error(`Managed Skill path is not a directory: ${skill.folderName}`)
     }
 
     await this.normalizeSkillMdCasing(skillDir)
     const descriptor = await this.readSkillMdState(skillDir)
+
     if (descriptor.status !== 'found') {
       await this.unlinkMirror(skill.folderName)
       throw new Error(`Skill descriptor is ${descriptor.status}: ${skill.folderName}`)
     }
 
     let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
+
     try {
       metadata = await parseSkillMetadata(skillDir, skill.folderName, 'skills')
     } catch (error) {
@@ -1086,6 +1224,7 @@ export class SkillService {
     }
 
     await this.linkMirror(skill.folderName, { throwOnError: true })
+
     if (this.hasMetadataChanges(skill, metadata)) {
       agentGlobalSkillService.update(skillId, {
         name: metadata.name,
@@ -1096,28 +1235,36 @@ export class SkillService {
       })
       agentGlobalSkillService.notifySkillProjectionChange(skillId)
     }
+
     logger.info('Scoped Skill reconcile completed', { skillId, folderName: skill.folderName })
   }
 
   async checkRemoteUpdate(skillId: string): Promise<SkillRemoteUpdateCheck> {
     const skill = agentGlobalSkillService.getById(skillId)
+
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
+
     if (skill.source !== 'marketplace') return { state: 'unsupported', reason: 'not_remote' }
+
     if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
       return { state: 'unsupported', reason: 'missing_provenance' }
     }
 
     const fetched = await this.fetchRemote(skill.sourceUrl!)
+
     try {
       const [currentHash, remoteHash, metadata] = await Promise.all([
         this.installer.computeContentHash(this.getSkillStoragePath(skill.folderName)),
         this.installer.computeContentHash(fetched.skillDir),
         parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
+
       const localChanges = currentHash !== skill.contentHash
+
       if (remoteHash === skill.contentHash) {
         return { state: 'up_to_date', localChanges, remoteVersion: metadata.version ?? null }
       }
+
       return {
         state: 'available',
         localChanges,
@@ -1141,12 +1288,15 @@ export class SkillService {
     overwriteLocalChanges: boolean
   }): Promise<InstalledSkill> {
     const skill = agentGlobalSkillService.getById(options.skillId)
+
     if (!skill) throw new Error(`Skill not found: ${options.skillId}`)
+
     if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
       throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill has no supported remote source')
     }
 
     const fetched = await this.fetchRemote(skill.sourceUrl!)
+
     try {
       const [remoteHash, metadata] = await Promise.all([
         this.installer.computeContentHash(fetched.skillDir),
@@ -1156,6 +1306,7 @@ export class SkillService {
       return await this.mutationLock.runExclusive(() =>
         runPathMutationExclusive(async () => {
           const currentSkill = agentGlobalSkillService.getById(options.skillId)
+
           if (
             !currentSkill ||
             !this.hasSupportedRemoteUpdateProvenance(currentSkill) ||
@@ -1167,6 +1318,7 @@ export class SkillService {
 
           const destination = this.getSkillStoragePath(currentSkill.folderName)
           const currentHash = await this.installer.computeContentHash(destination)
+
           const revision = this.createRemoteRevision({
             skillId: options.skillId,
             sourceUrl: currentSkill.sourceUrl!,
@@ -1174,11 +1326,13 @@ export class SkillService {
             currentHash,
             remoteHash
           })
+
           if (revision !== options.revision || remoteHash === currentSkill.contentHash) {
             throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
           }
 
           const hasLocalChanges = currentHash !== currentSkill.contentHash
+
           if (hasLocalChanges && !options.overwriteLocalChanges) {
             throw new SkillRemoteUpdateError(
               skillErrorCodes.REMOTE_LOCAL_CHANGES,
@@ -1188,6 +1342,7 @@ export class SkillService {
 
           const prepared = await this.installer.prepareInstall(fetched.skillDir, destination)
           let databaseUpdated = false
+
           try {
             await this.linkMirror(currentSkill.folderName, { throwOnError: true })
             application.get('DbService').withWriteTx((tx) => {
@@ -1203,6 +1358,7 @@ export class SkillService {
             })
             databaseUpdated = true
             const updated = agentGlobalSkillService.getById(options.skillId)
+
             if (!updated) throw new Error(`Skill disappeared after remote update: ${options.skillId}`)
             await prepared.commit()
 
@@ -1212,10 +1368,12 @@ export class SkillService {
               folderName: currentSkill.folderName,
               overwriteLocalChanges: options.overwriteLocalChanges
             })
+
             return updated
           } catch (error) {
             const recoveryErrors: unknown[] = []
             await prepared.rollback().catch((recoveryError) => recoveryErrors.push(recoveryError))
+
             if (databaseUpdated) {
               try {
                 application.get('DbService').withWriteTx((tx) => {
@@ -1233,15 +1391,18 @@ export class SkillService {
                 recoveryErrors.push(recoveryError)
               }
             }
+
             await this.linkMirror(currentSkill.folderName, { throwOnError: true }).catch((recoveryError) =>
               recoveryErrors.push(recoveryError)
             )
+
             if (recoveryErrors.length > 0) {
               throw new AggregateError(
                 [error, ...recoveryErrors],
                 `Failed to apply and restore remote Skill update: ${options.skillId}`
               )
             }
+
             throw error
           }
         })
@@ -1253,16 +1414,20 @@ export class SkillService {
 
   private fetchRemote(sourceUrl: string) {
     const parsed = parseSkillSourceUrl(sourceUrl)
+
     if (!parsed) {
       throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill source URL is not installable')
     }
+
     const installSource = parsed.installSource
     const [source, ...identifier] = installSource.split(':')
+
     return fetchRemoteSkill(source, identifier.join(':'))
   }
 
   private hasSupportedRemoteUpdateProvenance(skill: InstalledSkill): boolean {
     if (!hasSkillRemoteUpdateProvenance(skill)) return false
+
     return parseSkillSourceUrl(skill.sourceUrl!)?.sourceRegistry !== 'clawhub.ai'
   }
 
@@ -1286,6 +1451,7 @@ export class SkillService {
   private async reconcileLibraryToDb(): Promise<void> {
     const storageRoot = application.getPath('feature.agents.skills')
     let entries: fs.Dirent[]
+
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
     } catch (error) {
@@ -1296,21 +1462,27 @@ export class SkillService {
           error: error instanceof Error ? error.message : String(error)
         })
       }
+
       return
     }
 
     const dbSkills = agentGlobalSkillService.listAll()
     const dbGroups = new Map<string, InstalledSkill[]>()
+
     for (const skill of dbSkills) {
       const key = normalizeFolderKey(skill.folderName)
       const group = dbGroups.get(key)
+
       if (group) group.push(skill)
       else dbGroups.set(key, [skill])
     }
+
     const dbByFolder = new Map(
       [...dbGroups.entries()].flatMap(([key, group]) => (group.length === 1 ? [[key, group[0]] as const] : []))
     )
+
     const conflictingDbKeys = new Set<string>()
+
     for (const [folderKey, group] of dbGroups) {
       if (group.length > 1) {
         conflictingDbKeys.add(folderKey)
@@ -1320,6 +1492,7 @@ export class SkillService {
         })
       }
     }
+
     const onDisk = new Set<string>()
     // Every skill folder physically enumerated on disk, regardless of whether its descriptor is
     // currently readable. Pruning keys off THIS set, not off a successful descriptor read: an editor
@@ -1328,12 +1501,15 @@ export class SkillService {
     // catalog row and every agent's enablement via the agent_skill FK.
     const presentFolders = new Set<string>()
     const directoryGroups = new Map<string, fs.Dirent[]>()
+
     for (const entry of entries) {
       // Hidden entries (an install's `.<name>.bak` backup, temporary dirs, …) are bookkeeping, never
       // skills — skip them so a backup can't be adopted as a phantom skill.
       if (entry.name.startsWith('.')) continue
+
       if (entry.isSymbolicLink()) {
         logger.warn('Rejected symlink in managed skill library', { folderName: entry.name })
+
         try {
           await fs.promises.unlink(path.join(storageRoot, entry.name))
         } catch (error) {
@@ -1342,29 +1518,35 @@ export class SkillService {
             error: error instanceof Error ? error.message : String(error)
           })
         }
+
         continue
       }
+
       if (!entry.isDirectory()) continue
       const folderKey = normalizeFolderKey(entry.name)
       const group = directoryGroups.get(folderKey)
+
       if (group) group.push(entry)
       else directoryGroups.set(folderKey, [entry])
     }
 
     for (const [folderKey, group] of directoryGroups) {
       presentFolders.add(folderKey)
+
       if (group.length > 1) {
         logger.warn('Rejected case-colliding skill library folders', {
           folderNames: group.map((entry) => entry.name)
         })
         continue
       }
+
       const [entry] = group
       const dir = path.join(storageRoot, entry.name)
       // The scanner/parser accept lowercase `skill.md`, but the mirror + SDK load `SKILL.md`, so
       // normalize first — else a lowercase-only skill enters the catalog yet never loads.
       await this.normalizeSkillMdCasing(dir)
       const read = await this.readSkillMdState(dir)
+
       if (read.status === 'found') {
         onDisk.add(entry.name)
       } else if (read.status === 'error') {
@@ -1378,16 +1560,20 @@ export class SkillService {
 
     for (const folderName of onDisk) {
       const folderKey = normalizeFolderKey(folderName)
+
       if (conflictingDbKeys.has(folderKey)) continue
 
       const existing = dbByFolder.get(folderKey)
+
       if (existing?.source === 'builtin') {
         // Builtins are owned by the bundled source and synchronized before reconcile. Never adopt
         // out-of-band writes as new trusted builtin metadata; linkMirror verifies the full directory
         // hash and removes the mirror when canonical content no longer matches the trusted DB hash.
         continue
       }
+
       let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
+
       try {
         metadata = await parseSkillMetadata(path.join(storageRoot, folderName), folderName, 'skills')
       } catch (error) {
@@ -1397,6 +1583,7 @@ export class SkillService {
         })
         continue
       }
+
       if (!metadata) continue
       const tags = metadata.tags ?? []
 
@@ -1430,9 +1617,11 @@ export class SkillService {
 
     for (const skill of dbSkills) {
       if (skill.source === 'builtin') continue
+
       // Prune ONLY when the whole folder is gone from disk. A present folder whose descriptor is
       // momentarily missing/unreadable (atomic save, EACCES) keeps its row — see presentFolders.
       if (presentFolders.has(normalizeFolderKey(skill.folderName))) continue
+
       // Agent file tools write outside mutationLock. Recheck the canonical path immediately before
       // deleting so a folder recreated after the initial readdir snapshot keeps its row and all
       // agent_skill enablement.
@@ -1448,6 +1637,7 @@ export class SkillService {
           continue
         }
       }
+
       agentGlobalSkillService.deleteById(skill.id)
       await this.unlinkMirror(skill.folderName)
       logger.info('Pruned skill whose library folder was removed', { folderName: skill.folderName })
@@ -1462,9 +1652,11 @@ export class SkillService {
     const all = agentGlobalSkillService.listAll()
     const known = new Set(all.map((s) => normalizeFolderKey(s.folderName)))
     const groups = new Map<string, InstalledSkill[]>()
+
     for (const skill of all) {
       const key = normalizeFolderKey(skill.folderName)
       const group = groups.get(key)
+
       if (group) group.push(skill)
       else groups.set(key, [skill])
     }
@@ -1475,17 +1667,21 @@ export class SkillService {
           folderKey,
           folderNames: group.map((skill) => skill.folderName)
         })
+
         for (const skill of group) {
           await this.unlinkMirror(skill.folderName)
         }
+
         continue
       }
+
       const skill = group[0]
       await this.linkMirror(skill.folderName)
     }
 
     const root = this.getMirrorRoot()
     let entries: fs.Dirent[]
+
     try {
       entries = await fs.promises.readdir(root, { withFileTypes: true })
     } catch {
@@ -1495,12 +1691,14 @@ export class SkillService {
     for (const entry of entries) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
       const folderName = entry.name
+
       if (known.has(normalizeFolderKey(folderName))) continue
 
       // This is an app-owned one-way projection. Unknown entries are either stale POSIX symlinks,
       // stale Windows directory copies, or out-of-band writes; none belong in the SDK discovery root.
       await this.unlinkMirror(folderName)
     }
+
     if (application.get('PreferenceService').get('agent.skills.external_export.enabled') === false) {
       try {
         await this.pruneExternalExports()
@@ -1519,6 +1717,7 @@ export class SkillService {
     dir: string
   ): Promise<{ status: 'found'; content: string } | { status: 'missing' } | { status: 'error' }> {
     let sawError = false
+
     for (const variant of ['SKILL.md', 'skill.md']) {
       try {
         return { status: 'found', content: await fs.promises.readFile(path.join(dir, variant), 'utf-8') }
@@ -1526,6 +1725,7 @@ export class SkillService {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') sawError = true
       }
     }
+
     return sawError ? { status: 'error' } : { status: 'missing' }
   }
 
@@ -1538,15 +1738,18 @@ export class SkillService {
   private async normalizeSkillMdCasing(dir: string): Promise<void> {
     try {
       await fs.promises.access(path.join(dir, 'SKILL.md'))
+
       return
     } catch {
       // No uppercase descriptor resolves — check for a lowercase one to rename.
     }
+
     try {
       await fs.promises.access(path.join(dir, 'skill.md'))
     } catch {
       return
     }
+
     try {
       await fs.promises.rename(path.join(dir, 'skill.md'), path.join(dir, 'SKILL.md'))
       logger.info('Normalized skill descriptor to SKILL.md', { dir })
@@ -1566,6 +1769,7 @@ export class SkillService {
 
   private hasMetadataChanges(skill: InstalledSkill, metadata: Awaited<ReturnType<typeof parseSkillMetadata>>): boolean {
     const tags = metadata.tags ?? []
+
     return (
       skill.name !== metadata.name ||
       skill.description !== (metadata.description ?? null) ||
@@ -1587,8 +1791,10 @@ export class SkillService {
     }
 
     const parsed = parseSkillSourceUrl(sourceUrl)
+
     if (parsed?.sourceRegistry !== 'skills.sh') return false
     const [owner, repo, skillName, ...extraParts] = parsed.installSource.slice('skills.sh:'.length).split('/')
+
     if (
       !owner ||
       !repo ||
@@ -1602,6 +1808,7 @@ export class SkillService {
     try {
       const legacyUrl = new URL(existing.sourceUrl)
       const [legacyOwner, legacyRepo, ...legacyPath] = legacyUrl.pathname.split('/').filter(Boolean)
+
       return (
         legacyUrl.protocol === 'https:' &&
         legacyUrl.hostname.toLowerCase() === 'github.com' &&
@@ -1619,30 +1826,36 @@ export class SkillService {
   private findCatalogSkillCaseInsensitive(folderName: string): InstalledSkill | null {
     const key = normalizeFolderKey(folderName)
     const matches = agentGlobalSkillService.listAll().filter((skill) => normalizeFolderKey(skill.folderName) === key)
+
     if (matches.length > 1) {
       throw new Error(
         `Multiple catalog skills conflict by case for "${folderName}": ${matches.map((skill) => skill.folderName).join(', ')}`
       )
     }
+
     return matches[0] ?? null
   }
 
   private async findStorageFolderCaseInsensitive(folderName: string): Promise<string | null> {
     const storageRoot = application.getPath('feature.agents.skills')
     let entries: fs.Dirent[]
+
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
       throw error
     }
+
     const key = normalizeFolderKey(folderName)
     const matches = entries.filter((entry) => !entry.name.startsWith('.') && normalizeFolderKey(entry.name) === key)
+
     if (matches.length > 1) {
       throw new Error(
         `Multiple library directories conflict by case for "${folderName}": ${matches.map((entry) => entry.name).join(', ')}`
       )
     }
+
     return matches[0]?.name ?? null
   }
 
@@ -1667,11 +1880,13 @@ export class SkillService {
   ): Promise<boolean> {
     return this.mutationLock.runExclusive(async () => {
       const existing = this.findCatalogSkillCaseInsensitive(folderName)
+
       if (existing && existing.source !== 'builtin') {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
         )
       }
+
       if (existing && existing.namespace !== namespace) {
         throw new Error(
           `Folder name "${folderName}" belongs to builtin namespace "${existing.namespace ?? 'default'}"; ` +
@@ -1683,10 +1898,12 @@ export class SkillService {
       const destFolderName = existing?.folderName ?? storageEntry ?? folderName
       const destPath = this.getSkillStoragePath(destFolderName)
       const sourceHash = await this.computeBuiltinDirectoryHash(sourcePath)
+
       if (!existing && storageEntry) {
         try {
           await fs.promises.access(path.join(destPath, BUILTIN_VERSION_FILE))
           const installedHash = await this.computeBuiltinDirectoryHash(destPath)
+
           if (installedHash !== sourceHash) {
             throw new Error('content does not match the bundled builtin')
           }
@@ -1698,6 +1915,7 @@ export class SkillService {
       }
 
       let filesUpdated = true
+
       try {
         const installedVersion = (await fs.promises.readFile(path.join(destPath, BUILTIN_VERSION_FILE), 'utf-8')).trim()
         const installedHash = await this.computeBuiltinDirectoryHash(destPath)
@@ -1714,6 +1932,7 @@ export class SkillService {
       // Builtin contentHash is the trusted install baseline excluding Cherry's version marker.
       if (existing && !filesUpdated && existing.contentHash === sourceHash) {
         await this.linkMirror(destFolderName)
+
         return false
       }
 
@@ -1747,15 +1966,18 @@ export class SkillService {
 
       await this.linkMirror(destFolderName)
       logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
+
       return filesUpdated
     })
   }
 
   private async uninstallLocked(skill: InstalledSkill): Promise<void> {
     const skillPath = this.getSkillStoragePath(skill.folderName)
+
     if (!(await this.unlinkMirror(skill.folderName))) {
       throw new Error(`Failed to remove skill mirrors: ${skill.folderName}`)
     }
+
     await this.installer.uninstall(skillPath)
     agentGlobalSkillService.deleteById(skill.id)
     logger.info('Skill uninstalled', { skillId: skill.id, folderName: skill.folderName })

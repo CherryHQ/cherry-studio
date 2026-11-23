@@ -69,6 +69,7 @@ function useLocalModelCard(id: LocalModelBundleId) {
 
   useEffect(() => {
     mountedRef.current = true
+
     return () => {
       mountedRef.current = false
     }
@@ -76,6 +77,7 @@ function useLocalModelCard(id: LocalModelBundleId) {
 
   const download = async () => {
     setNotice(null)
+
     try {
       await localModel.download()
     } catch {
@@ -85,9 +87,12 @@ function useLocalModelCard(id: LocalModelBundleId) {
 
   const remove = async () => {
     setNotice(null)
+
     try {
       const { removed } = await localModel.remove()
+
       if (!mountedRef.current) return
+
       if (!removed) setNotice('inUse')
     } catch {
       if (mountedRef.current) setNotice('removeFailed')
@@ -125,6 +130,7 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   useEffect(() => {
     onStatusChange(id, status)
   }, [id, status, onStatusChange])
+
   if (status === 'unsupported') return null
   const ready = status === 'ready'
   const downloading = status === 'downloading'
@@ -238,9 +244,11 @@ type ListedModel = { id: LocalModelBundleId; capability: LocalModelCapability }
 const LocalModelsSection: FC = () => {
   const accelerationId = useId()
   const { t } = useTranslation()
+
   const [hardwareAccelerationEnabled, setHardwareAccelerationEnabled] = usePreference(
     'feature.local_model.hardware_acceleration.enabled'
   )
+
   const [accelerationSupported, setAccelerationSupported] = useState(false)
   const [models, setModels] = useState<ListedModel[]>([])
   const [statuses, setStatuses] = useState<Partial<Record<LocalModelBundleId, LocalModelStatus>>>({})
@@ -263,6 +271,7 @@ const LocalModelsSection: FC = () => {
         if (mounted) setModels(result.models)
       })
       .catch((error) => logger.warn('Failed to list local models', error as Error))
+
     return () => {
       mounted = false
     }

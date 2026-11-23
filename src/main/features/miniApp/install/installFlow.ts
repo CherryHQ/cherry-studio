@@ -106,11 +106,15 @@ function placementOf(manifest: MiniAppManifest): Placement {
     .from(miniAppTable)
     .where(eq(miniAppTable.appId, manifest.id))
     .all()
+
   if (!app) return { relation: 'fresh' }
+
   if (app.kind !== 'app') throw new Error(`"${manifest.id}" is already used by a website entry`)
   const row = installationOf(manifest.id)
   const installed = { version: row.version, source: row.source }
+
   if (semverGt(manifest.version, row.version)) return { relation: 'upgrade', installed }
+
   return { relation: semverEq(manifest.version, row.version) ? 'same' : 'downgrade', installed }
 }
 
@@ -129,6 +133,7 @@ function summarize(
   placement: Placement
 ): Promise<InstallPreviewSummary> {
   const { ownerId, claim, manifest, iconDataUrl, payload, repin } = input
+
   if (placement.relation === 'upgrade') {
     return (async () => {
       // The namespace rule the install path enforces, applied to the source being pinned.
@@ -137,7 +142,9 @@ function summarize(
       // The newest preview still wins, even though no install token is minted here.
       miniAppInstallConsentService.assertLive(ownerId, claim)
       const update = reviewUpgradeOverInstalled(manifest.id, manifest, upgradePayload, repin)
+
       if (update.status === 'current') throw new Error(`Mini app ${manifest.id} reviewed as current while newer`)
+
       return {
         kind: 'upgrade',
         appId: manifest.id,
@@ -149,12 +156,16 @@ function summarize(
       }
     })()
   }
+
   const installed =
     placement.relation === 'fresh' ? undefined : { ...placement.installed, relation: placement.relation }
+
   const pending: Parameters<typeof registerPending>[0] = { ownerId, manifest, payload }
+
   if (installed) pending.installed = { version: installed.version }
   const installToken = registerPending(pending, claim)
   const { required, optional } = declaredGrants(manifest)
+
   return Promise.resolve({
     kind: 'install',
     installToken,
@@ -189,6 +200,7 @@ class MiniAppInstallConsentService {
   beginPreview(ownerId: WindowId): string {
     const claim = crypto.randomUUID()
     this.liveClaims.set(ownerId, claim)
+
     return claim
   }
 
@@ -208,28 +220,35 @@ class MiniAppInstallConsentService {
   register(input: Omit<PendingInstall, 'installToken' | 'expiresAt'>, claim: string): string {
     this.assertLive(input.ownerId, claim)
     const now = Date.now()
+
     for (const [token, entry] of this.pending) if (entry.expiresAt <= now) this.pending.delete(token)
+
     // One pending consent per window: a second preview replaces the first.
     for (const [token, entry] of this.pending) if (entry.ownerId === input.ownerId) this.pending.delete(token)
     const installToken = crypto.randomUUID()
     this.pending.set(installToken, { ...input, installToken, expiresAt: now + REVIEW_TTL_MS })
+
     return installToken
   }
 
   take(installToken: string, ownerId: WindowId | null): PendingInstall {
     const entry = this.pending.get(installToken)
+
     // One refusal for missing, expired and foreign alike — an error that distinguishes
     // "someone else's token" confirms to a prober that the token exists.
     if (!entry || entry.ownerId !== ownerId) throw new Error('Unknown or expired preview')
     this.pending.delete(installToken)
+
     // Enforced at CONSUMPTION — the lazy sweep in `register` only saves memory.
     if (entry.expiresAt <= Date.now()) throw new Error('Unknown or expired preview')
+
     return entry
   }
 
   /** Idempotent: the late-response compensation may race TTL expiry. */
   cancel(installToken: string, ownerId: WindowId | null): void {
     const entry = this.pending.get(installToken)
+
     if (entry && entry.ownerId === ownerId) this.pending.delete(installToken)
   }
 }
@@ -239,6 +258,7 @@ export const miniAppInstallConsentService = new MiniAppInstallConsentService()
 /** Function-shaped API for the flows and the later kinds. */
 export const registerPending = (input: Omit<PendingInstall, 'installToken' | 'expiresAt'>, claim: string): string =>
   miniAppInstallConsentService.register(input, claim)
+
 export const cancelPending = (installToken: string, ownerId: WindowId | null): void =>
   miniAppInstallConsentService.cancel(installToken, ownerId)
 
@@ -247,8 +267,10 @@ export async function previewFileForInstall(zipPath: string, ownerId: WindowId |
   if (ownerId === null) throw new Error('Mini app previews require a managed window caller')
   // BEFORE the slow read: settling order must not decide which preview registers.
   const claim = miniAppInstallConsentService.beginPreview(ownerId)
+
   try {
     const { manifest, iconDataUrl, sha256 } = await previewMiniAppArchive(zipPath)
+
     return await summarize(
       {
         ownerId,
@@ -265,6 +287,7 @@ export async function previewFileForInstall(zipPath: string, ownerId: WindowId |
             fs.promises.rm(staged.stagingDir, { recursive: true, force: true })
           )
           assertManifestUnchanged(staged.manifest, manifest)
+
           return { kind: 'file', zipPath, contentHash: staged.contentHash }
         }
       },
@@ -283,10 +306,12 @@ export async function previewUrlForInstall(
   if (ownerId === null) throw new Error('Mini app previews require a managed window caller')
   // BEFORE the network round-trip — the slowest source is where late-settling bites.
   const claim = miniAppInstallConsentService.beginPreview(ownerId)
+
   try {
     // `answered`, not the address typed: a manifest without `update.url` is checked at
     // `sourceUrl` later, and the typed address may be the directory that just 404'd.
     const { manifestUrl: answered, origins, manifest, iconDataUrl } = await previewMiniAppUrl(manifestUrl)
+
     return await summarize(
       {
         ownerId,
@@ -318,12 +343,16 @@ export async function previewBuiltinForInstall(
   if (ownerId === null) throw new Error('Mini app previews require a managed window caller')
   // Fast local reads, same guard anyway: one ordering rule for all three sources.
   const claim = miniAppInstallConsentService.beginPreview(ownerId)
+
   try {
     const root = miniAppBuiltinPath(appId)
+
     const manifest = MiniAppManifestSchema.parse(
       JSON.parse(await fs.promises.readFile(path.join(root, 'manifest.json'), 'utf8'))
     )
+
     if (manifest.id !== appId) throw new Error(`Builtin tree for ${appId} declares id ${manifest.id}`)
+
     // The SAME pipeline the other two preview sources use. Base64ing the raw file under an
     // `image/webp` label is a lie whenever the tree ships a PNG, and this was the one of the
     // three that skipped it. Trusted bytes do not make a wrong MIME type right, and
@@ -335,6 +364,7 @@ export async function previewBuiltinForInstall(
           )
         ).toString('base64')}`
       : null
+
     return await summarize(
       {
         ownerId,
@@ -359,19 +389,24 @@ export async function confirmPendingInstall(
   reinstall?: ReinstallOptions
 ): Promise<LocalMiniApp> {
   const entry = miniAppInstallConsentService.take(installToken, ownerId)
+
   // The card said "already installed"; a confirm that does not answer it is a stale
   // client, not a fresh install — and the installed version must still be the one shown.
   if (entry.installed) {
     if (!reinstall) {
       throw new Error(`Mini app ${entry.manifest.id} is already installed; confirm it as a reinstall`)
     }
+
     const placement = placementOf(entry.manifest)
+
     if (placement.relation === 'fresh' || placement.installed.version !== entry.installed.version) {
       throw new Error(`Mini app ${entry.manifest.id} changed since the preview; preview it again`)
     }
   }
+
   const replace = entry.installed ? reinstall : undefined
   const grants = { grantedOptional }
+
   switch (entry.payload.kind) {
     case 'file':
       return confirmFromFile(entry.manifest, entry.payload, grants, replace)
@@ -379,8 +414,10 @@ export async function confirmPendingInstall(
       return installFromUrlConfirmed(entry.payload, grants, replace)
     case 'builtin': {
       const staged = await stageBuiltinMiniApp(entry.payload.appId)
+
       try {
         assertManifestUnchanged(staged.manifest, entry.manifest)
+
         return await installExtracted(staged.manifest, staged.stagingDir, { source: 'builtin' }, grants, replace)
       } finally {
         await bestEffortCleanup('builtin confirm staging', () =>
@@ -413,9 +450,12 @@ async function confirmFromFile(
   if ((await sha256File(payload.zipPath)) !== payload.zipSha256) {
     throw new Error('Package file changed since preview; pick it again')
   }
+
   const staged = await stageMiniAppFromFile(payload.zipPath)
+
   try {
     assertManifestUnchanged(staged.manifest, consented)
+
     return await installExtracted(staged.manifest, staged.stagingDir, { source: 'file' }, grants, reinstall)
   } finally {
     await bestEffortCleanup('confirm staging', () =>

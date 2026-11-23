@@ -25,6 +25,7 @@ export class LoopbackCallbackTransport {
   tryAcquire(): boolean {
     if (this.busy) return false
     this.busy = true
+
     return true
   }
 
@@ -32,6 +33,7 @@ export class LoopbackCallbackTransport {
     for (const server of this.activeServers) {
       server.close()
     }
+
     this.activeServers = []
     this.busy = false
   }
@@ -44,11 +46,13 @@ export class LoopbackCallbackTransport {
       // mid-flight. Settle exactly once so a fired timer (or any late callback)
       // is a no-op.
       let settled = false
+
       const settleResolve = (code: string) => {
         if (settled) return
         settled = true
         resolve(code)
       }
+
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Loopback server failures and cancellation reasons reject the waiting authorization with the original value.
       const settleReject = (error: unknown) => {
         if (settled) return
@@ -59,8 +63,10 @@ export class LoopbackCallbackTransport {
 
       const handleRequest = (req: IncomingMessage, res: ServerResponse) => {
         const url = new URL(req.url ?? '', this.config.redirectUri)
+
         if (url.pathname !== this.config.path) {
           res.writeHead(404).end()
+
           return
         }
 
@@ -78,16 +84,21 @@ export class LoopbackCallbackTransport {
 
         if (!state || state !== expectedState) {
           respond('Sign-in failed')
+
           return
         }
+
         if (error) {
           respond('Sign-in failed')
           settleReject(new OAuthServiceError(`OAuth provider returned error: ${error}`))
+
           return
         }
+
         if (!code) {
           respond('Sign-in failed')
           settleReject(new OAuthServiceError('No authorization code received'))
+
           return
         }
 
@@ -107,11 +118,14 @@ export class LoopbackCallbackTransport {
           })
           server.once('error', (err: NodeJS.ErrnoException) => {
             this.activeServers = this.activeServers.filter((activeServer) => activeServer !== server)
+
             if (host === '::1' && err.code === 'EADDRNOTAVAIL') {
               resolveListen()
               server.close()
+
               return
             }
+
             rejectListen(
               new OAuthServiceError(
                 `Failed to start OAuth callback server on ${host}:${this.config.port}: ${err.message}`,
@@ -130,6 +144,7 @@ export class LoopbackCallbackTransport {
       const handleAbort = () => {
         settleReject(new OAuthServiceError('Sign-in timed out'))
       }
+
       if (signal.aborted) handleAbort()
       else signal.addEventListener('abort', handleAbort, { once: true })
     })

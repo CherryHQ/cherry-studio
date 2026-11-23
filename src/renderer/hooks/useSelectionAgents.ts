@@ -14,17 +14,21 @@ export function useSelectionAgents(agentIds: readonly (string | null)[]): AgentE
   const ids = [...new Set(agentIds.filter((id): id is string => id !== null))]
   const withAssistant = agentIds.includes(null)
   const bound = useQuery('/agents', { query: { ids }, enabled: ids.length > 0 })
+
   const assistant = useQuery('/agents', {
     query: { builtinRole: BUILTIN_AGENT_ROLE.ASSISTANT },
     enabled: withAssistant
   })
+
   useDataChange('/agents', () => {
     if (ids.length > 0) void bound.refetch()
+
     if (withAssistant) void assistant.refetch()
   })
 
   const boundAgents = ids.length > 0 ? bound.data?.items : NO_AGENTS
   const assistantAgents = withAssistant ? assistant.data?.items : NO_AGENTS
+
   return useMemo(
     () => (boundAgents && assistantAgents ? [...boundAgents, ...assistantAgents] : undefined),
     [boundAgents, assistantAgents]

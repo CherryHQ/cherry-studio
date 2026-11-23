@@ -39,4 +39,5 @@ export const assistantTable = sqliteTable(
 )
 
 export type InsertAssistantRow = typeof assistantTable.$inferInsert
+
 export type AssistantRow = typeof assistantTable.$inferSelect

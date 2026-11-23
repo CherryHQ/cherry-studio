@@ -17,7 +17,9 @@ const TIER = {
 } as const
 
 type Tier = (typeof TIER)[keyof typeof TIER]
+
 type MatchLevel = keyof Tier
+
 type Translate = (key: string) => string
 
 /** Canonical match form: NFC fold (composed ≡ decomposed accents) + case fold */
@@ -25,34 +27,45 @@ const normalizeText = (text: string): string => text.normalize('NFC').toLowerCas
 
 function compareLevels(haystack: string, needle: string): MatchLevel | undefined {
   if (haystack === needle) return 'exact'
+
   if (haystack.startsWith(needle)) return 'prefix'
+
   if (haystack.includes(needle)) return 'substring'
+
   return undefined
 }
 
 function matchLevel(haystack: string, needle: string): MatchLevel | undefined {
   const level = compareLevels(normalizeText(haystack), normalizeText(needle))
+
   if (level) return level
   // Whitespace-insensitive pass: CJK/latin spacing is stylistic ("API 网关" ≡ "API网关")
   const hSqueezed = normalizeText(haystack).replace(/\s+/g, '')
   const nSqueezed = normalizeText(needle).replace(/\s+/g, '')
+
   if (!nSqueezed) return undefined
+
   return compareLevels(hSqueezed, nSqueezed)
 }
 
 /** Pinyin match (full or initials) against Chinese text; latin-only text never matches here */
 function pinyinMatch(text: string, query: string): boolean {
   const { full, initials } = toPinyinForms(text)
+
   if (!full) return false
   // Same whitespace folding as matchLevel: "dai li" ≡ "daili"
   const q = normalizeText(query).replace(/\s+/g, '')
+
   return full.replace(/\s+/g, '').includes(q) || initials.includes(q)
 }
 
 function scoreField(text: string, query: string, tier: Tier, allowPinyin: boolean): number {
   const level = matchLevel(text, query)
+
   if (level) return tier[level]
+
   if (allowPinyin && pinyinMatch(text, query)) return tier.substring
+
   return 0
 }
 
@@ -65,6 +78,7 @@ function scoreField(text: string, query: string, tier: Tier, allowPinyin: boolea
 function sourceText(tEn: Translate | undefined, key: string): string | undefined {
   if (!tEn) return undefined
   const text = tEn(key)
+
   return text === key ? undefined : text
 }
 
@@ -96,6 +110,7 @@ export function rankEntries(
   tEn?: Translate
 ): SettingsSearchResult[] {
   const trimmed = query.trim()
+
   if (!trimmed || isQueryTooLarge(trimmed)) return []
 
   const candidates: Candidate[] = []
@@ -107,6 +122,7 @@ export function rankEntries(
       scoreField(sectionTitle, trimmed, TIER.section, true),
       scoreField(sourceText(tEn, section.sectionTitleKey) ?? '', trimmed, TIER.alias, false)
     )
+
     if (sectionScore > 0) {
       candidates.push({
         score: sectionScore,
@@ -131,6 +147,7 @@ export function rankEntries(
         scoreField(enDescription ?? '', trimmed, TIER.alias, false),
         ...(entry.aliases?.map((alias) => scoreField(alias, trimmed, TIER.alias, true)) ?? [0])
       )
+
       if (score <= 0) return
 
       candidates.push({

@@ -28,7 +28,9 @@ export function useNutstoreSso() {
       const release = () => {
         settled = true
         removeListener?.()
+
         if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+
         if (cancelPendingAttemptRef.current === cancel) {
           cancelPendingAttemptRef.current = null
         }
@@ -45,20 +47,24 @@ export function useNutstoreSso() {
         if (settled) return
         release()
       }
+
       cancelPendingAttemptRef.current = cancel
 
       const onProtocolData = (data: { url: string }) => {
         let url: URL
+
         try {
           url = new URL(data.url)
         } catch (error) {
           logger.warn('Ignored malformed protocol URL during Nutstore SSO', error as Error)
+
           return
         }
 
         const encryptedToken = url.searchParams.get('s')
         const isSchemeRoot = url.hostname === '' && (url.pathname === '' || url.pathname === '/')
         const isNutstoreSso = url.hostname === 'nutstore-sync' && url.pathname === '/sso'
+
         if (url.protocol !== 'cherrystudio:' || !(isSchemeRoot || isNutstoreSso) || !encryptedToken) return
         finish(encryptedToken)
       }
@@ -66,10 +72,12 @@ export function useNutstoreSso() {
       try {
         const unsubscribe = ipcApi.on('navigation.protocol_data', onProtocolData)
         removeListener = unsubscribe
+
         if (settled) unsubscribe()
       } catch (error) {
         logger.error('Failed to listen for Nutstore SSO callback', error as Error)
         finish(null)
+
         return
       }
 
@@ -77,7 +85,9 @@ export function useNutstoreSso() {
         logger.warn('Nutstore SSO timed out')
         finish(null)
       }, NUTSTORE_SSO_TIMEOUT_MS)
+
       timeoutId = timer
+
       if (settled) window.clearTimeout(timer)
     })
   }, [])

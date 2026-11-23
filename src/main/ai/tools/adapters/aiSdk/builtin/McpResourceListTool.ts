@@ -41,6 +41,7 @@ const mcpResourceListTool = tool({
     const servers = resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds)
     const listing = await listScopedMcpResources(servers)
     logger.debug('Listed MCP resources', { servers: servers.length, resources: listing.resources.length })
+
     return listing
   }
 })

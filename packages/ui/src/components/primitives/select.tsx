@@ -103,6 +103,7 @@ function SelectTrigger({
   }) {
   const selectContext = React.use(SelectContext)
   const state = props.disabled ? 'disabled' : props['aria-invalid'] ? 'error' : 'default'
+
   const handleRef = React.useCallback(
     (node: HTMLButtonElement | null) => {
       selectContext?.setTriggerElement(node)
@@ -144,6 +145,7 @@ function SelectContent({
   const defaultPortalContainer = usePortalContainer()
   const selectContext = React.use(SelectContext)
   const resolvedPortalContainer = portalContainer ?? defaultPortalContainer ?? undefined
+
   const handleRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       selectContext?.setContentElement(node)
@@ -154,6 +156,7 @@ function SelectContent({
 
   React.useEffect(() => {
     const portalElement = resolvedPortalContainer instanceof HTMLElement ? resolvedPortalContainer : null
+
     if (!selectContext?.open || !portalElement) return
 
     const ownerDocument = portalElement.ownerDocument
@@ -174,8 +177,11 @@ function SelectContent({
 
     const closeForInsidePortalPointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return
+
       if (selectContext.contentElement?.contains(event.target)) return
+
       if (selectContext.triggerElement?.contains(event.target)) return
+
       if (!portalElement.contains(event.target)) return
 
       selectContext.setOpen(false)
@@ -186,9 +192,11 @@ function SelectContent({
     return () => {
       pointerEventsObserver.disconnect()
       ownerDocument.removeEventListener('pointerdown', closeForInsidePortalPointerDown, true)
+
       if (portalElement.style.pointerEvents === 'auto') {
         portalElement.style.removeProperty('pointer-events')
       }
+
       if (previousPointerEvents && previousPointerEvents !== 'none') {
         portalElement.style.setProperty('pointer-events', previousPointerEvents, previousPointerEventsPriority)
       }

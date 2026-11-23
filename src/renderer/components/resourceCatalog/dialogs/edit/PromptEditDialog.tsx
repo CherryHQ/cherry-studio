@@ -71,11 +71,13 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
 
   const isEdit = !!prompt
   const trimmedTitleLength = formData.title.trim().length
+
   const canSave =
     trimmedTitleLength > 0 &&
     trimmedTitleLength <= PROMPT_TITLE_MAX &&
     formData.content.length > 0 &&
     formData.content.length <= PROMPT_CONTENT_MAX
+
   const isSaving = saving || isSubmitting
 
   useEffect(() => {
@@ -138,6 +140,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
 
   const handleInsertVariable = useCallback(() => {
     const insertedAtCursor = promptEditorRef.current?.insertText(variablePlaceholder) ?? false
+
     if (!insertedAtCursor) {
       appendVariable()
     }

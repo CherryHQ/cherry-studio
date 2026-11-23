@@ -4,6 +4,7 @@ import { AzureaiLight } from './light'
 
 const Azureai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AzureaiLight {...props} className={className} />
+
   return <AzureaiLight {...props} className={className} />
 }
 

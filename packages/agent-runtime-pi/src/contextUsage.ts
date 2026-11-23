@@ -15,6 +15,7 @@ import type {
 export function readContextUsage(session: AgentSession): OperationResult<ThreadContextUsage> {
   const usage = session.getContextUsage()
   const model = session.model
+
   if (!usage || !model)
     return {
       status: 'unknown',
@@ -24,18 +25,23 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
   const system = getCurrentSystemMessage(projection.messages)
   const tools = session.getAllTools()
   const loaded = new Set(system?.toolsAdded?.map((tool) => tool.name))
+
   const deferred = tools.filter(
     (tool) => !loaded.has(tool.name) && (tool.exposure === 'deferred' || tool.exposure === 'codemode')
   )
+
   const categories: ContextCategory[] = []
   const resources: ContextResource[] = []
+
   for (const part of measureSystemContext(system, deferred, estimateSystemCharacters, '')) {
     const key = categoryKeys.get(part.kind) ?? 'other'
     const occupancy = part.state === 'deferred' ? 'deferred' : 'included'
     const id = `${key}:${occupancy}`
     const category = categories.find((category) => category.id === id)
+
     if (category) categories[categories.indexOf(category)] = { ...category, tokens: category.tokens + part.tokens }
     else categories.push({ id, key, occupancy, tokens: part.tokens, precision: 'estimated' })
+
     if (part.state)
       resources.push({
         id: `tool:${part.id}`,
@@ -59,6 +65,7 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
           }
         })
   }
+
   categories.push({
     id: 'messages',
     key: 'messages',
@@ -68,6 +75,7 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
       .filter((message) => message.role !== 'system')
       .reduce((sum, message) => sum + estimateTokens(message), 0)
   })
+
   const value: Pick<ThreadContextUsage, 'model' | 'revision' | 'contextWindow' | 'used'> = {
     model: model.id,
     revision: createHash('sha256')
@@ -75,15 +83,18 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
       .digest('hex'),
     contextWindow: usage.contextWindow
   }
+
   if (usage.tokens !== null) {
     const used: ThreadContextUsage['used'] = { tokens: usage.tokens, precision: 'estimated' }
     Object.assign(value, { used })
   }
+
   const context: Pick<ThreadContextUsage, 'basis' | 'breakdown' | 'resources'> = {
     basis: 'current-context',
     breakdown: { coverage: 'partial', categories },
     resources
   }
+
   return { status: 'confirmed', value: Object.assign(value, context) }
 }
 

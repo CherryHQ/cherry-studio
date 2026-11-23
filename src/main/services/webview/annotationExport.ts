@@ -32,19 +32,25 @@ async function captureDocumentAccessibility(
       ...annotation,
       accessibility: createAccessibilityContext(status)
     }))
+
   if (Date.now() >= deadline) return withStatus('timeout')
+
   if (budget.remaining <= 0) return withStatus('budget_exceeded')
+
   if (guest.isDestroyed() || guest.isDevToolsOpened()) return withStatus('debugger_unavailable')
   const service = application.get('BrowserSessionService')
   const owner = `annotation:${guest.id}`
   let session: GuestSession
+
   try {
     session = await service.acquire(guest, owner, { ownership: 'borrowed' })
   } catch {
     return withStatus('debugger_unavailable')
   }
+
   try {
     const resolved: ResolvedAnnotation[] = []
+
     for (const annotation of document.annotations) {
       try {
         resolved.push({
@@ -53,10 +59,12 @@ async function captureDocumentAccessibility(
         })
       } catch (error) {
         signal?.throwIfAborted()
+
         const status =
           error instanceof BrowserSessionError && (error.code === 'timeout' || error.code === 'debugger_unavailable')
             ? error.code
             : 'capture_failed'
+
         logger.debug('Failed to capture annotation accessibility context', {
           webviewId: guest.id,
           annotationId: annotation.id,
@@ -65,6 +73,7 @@ async function captureDocumentAccessibility(
         resolved.push({ ...annotation, accessibility: createAccessibilityContext(status) })
       }
     }
+
     return resolved
   } finally {
     service.release(guest, owner)
@@ -85,6 +94,7 @@ export async function exportAnnotationDocument({
   signal
 }: ExportAnnotationDocumentInput): Promise<string> {
   signal?.throwIfAborted()
+
   if (new Set(annotations.map((annotation) => annotation.id)).size !== annotations.length) {
     throw new Error('Annotation ids must be unique')
   }
@@ -97,6 +107,7 @@ export async function exportAnnotationDocument({
     },
     annotations
   }
+
   const resolvedAnnotations = await captureDocumentAccessibility(
     guest,
     document,
@@ -104,6 +115,7 @@ export async function exportAnnotationDocument({
     Date.now() + ACCESSIBILITY_CAPTURE_TIMEOUT_MS,
     signal
   )
+
   const copyDocument: ResolvedAnnotationDocument = {
     ...document,
     annotations: resolvedAnnotations.map((annotation) => ({
@@ -111,6 +123,7 @@ export async function exportAnnotationDocument({
       accessibility: { ...annotation.accessibility }
     }))
   }
+
   let markdown = formatWebviewAnnotations(copyDocument, { includeSafetyNotice: true }).text
 
   for (
@@ -119,6 +132,7 @@ export async function exportAnnotationDocument({
     annotationIndex--
   ) {
     const annotation = copyDocument.annotations[annotationIndex]
+
     if (annotation.accessibility.status !== 'available') continue
     annotation.accessibility = createAccessibilityContext('budget_exceeded')
     markdown = formatWebviewAnnotations(copyDocument, { includeSafetyNotice: true }).text

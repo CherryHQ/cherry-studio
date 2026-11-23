@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const DesearchDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path fill="#171717" d="M0 0H120V120H0z" />
@@ -11,5 +12,7 @@ const DesearchDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
+
 export { DesearchDark }
+
 export default DesearchDark

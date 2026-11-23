@@ -58,6 +58,8 @@ export function getDefaultValue<K extends UnifiedPreferenceKeyType>(key: K): Uni
   if (isPreferenceKey(key)) {
     return DefaultPreferences.default[key] as UnifiedPreferenceType[K]
   }
+
   const configKey = toBootConfigKey(key)
+
   return DefaultBootConfig[configKey] as UnifiedPreferenceType[K]
 }

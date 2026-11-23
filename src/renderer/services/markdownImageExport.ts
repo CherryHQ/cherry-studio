@@ -84,20 +84,28 @@ export async function hydrateDeferredImageOutputs(
 ): Promise<{ messages: ExportableMessage[]; unresolvedCount: number }> {
   let unresolvedCount = 0
   let hydrated: ExportableMessage[] | undefined
+
   for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
     const parts = messages[messageIndex].parts
+
     if (!parts) continue
     let messageParts: typeof parts | undefined
+
     for (let partIndex = 0; partIndex < parts.length; partIndex += 1) {
       const part = parts[partIndex]
+
       if (!isGenerateImageToolPart(part)) continue
       const output = part.output
+
       if (!isDeferredToolOutput(output)) continue
+
       try {
         const response = await ipcApi.request('ai.tool.get_result', output.$deferredToolResult)
+
         if (!response.found) {
           throw new Error(`Tool result is no longer available: ${output.$deferredToolResult.toolCallId}`)
         }
+
         messageParts ??= [...parts]
         messageParts[partIndex] = { ...part, output: response.output } as (typeof parts)[number]
       } catch (error) {
@@ -105,11 +113,13 @@ export async function hydrateDeferredImageOutputs(
         logger.warn('Failed to resolve a deferred generate_image output, skipping it', { error })
       }
     }
+
     if (messageParts) {
       hydrated ??= [...messages]
       hydrated[messageIndex] = { ...messages[messageIndex], parts: messageParts }
     }
   }
+
   return { messages: hydrated ?? messages, unresolvedCount }
 }
 
@@ -119,13 +129,16 @@ const isImageFilePart = (part: FileUIPart): boolean => part.mediaType?.startsWit
 async function resolvePhysicalPath(id: string): Promise<AbsoluteFilePath> {
   const paths = await ipcApi.request('file.batch_get_physical_paths', { ids: [id] })
   const path = paths[id]
+
   if (!path) throw new Error(`File entry ${id} has no physical path`)
+
   return path
 }
 
 function isGenerateImageToolPart(part: CherryMessagePart): part is ToolUIPart | DynamicToolUIPart {
   if (!isToolUIPart(part) || part.state !== 'output-available') return false
   const toolName = getToolName(part).trim()
+
   return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === AGENT_GENERATE_IMAGE_TOOL_NAME
 }
 
@@ -138,6 +151,7 @@ type GenerateImageItem = { key: string; entryId?: string; url?: string; filename
 
 function parseGenerateImageItems(part: ToolUIPart | DynamicToolUIPart): GenerateImageItem[] {
   const output = part.output
+
   // An error result carries its explanation as content — check before the unwrap,
   // because extractOutputMetadata may drop the envelope (and its isError flag).
   if (
@@ -148,21 +162,28 @@ function parseGenerateImageItems(part: ToolUIPart | DynamicToolUIPart): Generate
   ) {
     return []
   }
+
   const { response } = extractOutputMetadata(output)
   const parsed = generateImageOutputSchema.safeParse(response)
+
   if (parsed.success) {
     return parsed.data.map((item) => ({ key: item.id, entryId: item.id, filename: item.name }))
   }
+
   // extractOutputMetadata unwraps `{content: [...]}` into the array itself unless
   // mcp metadata keeps the envelope — accept both shapes.
   const content = Array.isArray(response) ? response : (response as { content?: unknown } | null | undefined)?.content
+
   if (!Array.isArray(content)) return []
+
   return content.flatMap((item) => {
     if (item?.type === 'image' && typeof item.data === 'string' && item.data) {
       const mime = typeof item.mimeType === 'string' && item.mimeType ? item.mimeType : 'image/png'
       const url = `data:${mime};base64,${item.data}`
+
       return [{ key: url, url, mime }]
     }
+
     return []
   })
 }
@@ -176,11 +197,13 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
   const refs: ExportableImageRef[] = []
   const seen = new Set<string>()
   let unresolvedCount = 0
+
   const push = (ref: ExportableImageRef) => {
     if (seen.has(ref.key)) return
     seen.add(ref.key)
     refs.push(ref)
   }
+
   for (const message of messages) {
     for (const part of message.parts ?? []) {
       try {
@@ -188,6 +211,7 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
           if (!isImageFilePart(part)) continue
           const filePart = part
           const fileEntryId = readCherryMeta(part)?.fileEntryId
+
           if (fileEntryId) {
             // The entry's current physical path is authoritative; the persisted
             // part url is a snapshot that goes stale after a userData move.
@@ -246,15 +270,18 @@ export async function collectExportableImages(messages: ExportableMessage[]): Pr
       }
     }
   }
+
   return { refs, unresolvedCount }
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = ''
   const chunkSize = 0x8000
+
   for (let i = 0; i < bytes.length; i += chunkSize) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
   }
+
   return btoa(binary)
 }
 
@@ -270,9 +297,12 @@ const MIME_EXTS: ReadonlyMap<string, string> = new Map([
 
 function imageExtension(ref: ExportableImageRef, mime: string | undefined): string {
   const fromMime = mime ? MIME_EXTS.get(mime.toLowerCase()) : undefined
+
   if (fromMime) return fromMime
   const fromName = ref.filename?.includes('.') ? ref.filename.split('.').pop() : undefined
+
   if (fromName && /^[a-zA-Z0-9]{1,5}$/.test(fromName)) return fromName.toLowerCase()
+
   return 'png'
 }
 
@@ -287,8 +317,10 @@ const filePathOfUrl = (url: string): AbsoluteFilePath =>
 // size falls through to the read path, whose blob.size check stays authoritative.
 async function isOverEmbedLimit(url: string): Promise<boolean> {
   if (!url.startsWith('file://')) return false
+
   try {
     const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(filePathOfUrl(url)))
+
     return metadata?.kind === 'file' && metadata.size > MAX_EMBED_IMAGE_BYTES
   } catch {
     return false
@@ -316,19 +348,25 @@ export async function serializeMessagesWithImages(
   const renderEmbed = async (ref: ExportableImageRef): Promise<string | null> => {
     if (dataUriByKey.has(ref.key)) return dataUriByKey.get(ref.key) ?? null
     let segment: string | null = null
+
     try {
       if (await isOverEmbedLimit(ref.url)) {
         skipped.count += 1
         dataUriByKey.set(ref.key, null)
+
         return null
       }
+
       const blob = await getImageBlobFromSource(ref.url)
+
       // Re-check after the read: covers non-file sources and stat→read growth.
       if (blob.size > MAX_EMBED_IMAGE_BYTES) {
         skipped.count += 1
         dataUriByKey.set(ref.key, null)
+
         return null
       }
+
       const bytes = new Uint8Array(await blob.arrayBuffer())
       const mime = ref.mime ?? blob.type ?? 'image/png'
       segment = `![${altText(ref)}](data:${mime};base64,${bytesToBase64(bytes)})`
@@ -336,17 +374,21 @@ export async function serializeMessagesWithImages(
       skipped.count += 1
       logger.warn('Failed to read an image for markdown export, skipping it', { url: ref.url, error })
     }
+
     dataUriByKey.set(ref.key, segment)
+
     return segment
   }
 
   const renderFolder = (ref: ExportableImageRef): string => {
     let fileName = fileNameByKey.get(ref.key)
+
     if (!fileName) {
       fileName = `img-${uuidv4()}.${imageExtension(ref, ref.mime)}`
       fileNameByKey.set(ref.key, fileName)
       pendingWrites.push({ fileName, ref })
     }
+
     // Asset names are generated (uuid + extension), so no URL escaping is needed.
     return `![${altText(ref)}](assets/${fileName})`
   }
@@ -357,12 +399,15 @@ export async function serializeMessagesWithImages(
   for (const message of messages) {
     const segments: string[] = []
     let hasImage = false
+
     for (const part of message.parts ?? []) {
       if (part.type === 'file' && isImageFilePart(part)) {
         const filePart = part
         const ref = refByKey.get(readCherryMeta(part)?.fileEntryId ?? filePart.url)
+
         if (!ref) continue
         const segment = await renderRef(ref)
+
         if (segment) {
           segments.push(segment)
           hasImage = true
@@ -370,8 +415,10 @@ export async function serializeMessagesWithImages(
       } else if (isGenerateImageToolPart(part)) {
         for (const item of parseGenerateImageItems(part)) {
           const ref = refByKey.get(item.key)
+
           if (!ref) continue
           const segment = await renderRef(ref)
+
           if (segment) {
             segments.push(segment)
             hasImage = true
@@ -379,6 +426,7 @@ export async function serializeMessagesWithImages(
         }
       } else {
         const text = getRenderableTextContent(part)
+
         if (text.trim().length > 0) {
           // Mirror `getComposerTextFromParts`: user text parts may carry composer tokens
           // that must render as pasteable markers in the export.
@@ -387,6 +435,7 @@ export async function serializeMessagesWithImages(
         }
       }
     }
+
     if (hasImage) overrides.set(message.id, segments.join('\n\n'))
   }
 
@@ -403,15 +452,19 @@ export async function writeImageAssets(dirPath: string, pendingWrites: PendingIm
   if (pendingWrites.length === 0) return []
   // Root directories ('/a.md' → '/', 'C:\a.md' → 'C:\') already end in the separator.
   const assetsDir = /[\\/]$/.test(dirPath) ? `${dirPath}assets` : `${dirPath}/assets`
+
   try {
     await window.api.file.mkdir(assetsDir)
   } catch (error) {
     // The .md is already saved; report every image as failed so the caller
     // repairs the links instead of surfacing a whole-export error.
     logger.warn('Failed to create the assets directory, skipping image writes', { assetsDir, error })
+
     return pendingWrites.map(({ fileName }) => fileName)
   }
+
   const failed: string[] = []
+
   for (const { fileName, ref } of pendingWrites) {
     try {
       if (ref.url.startsWith('file://')) {
@@ -431,5 +484,6 @@ export async function writeImageAssets(dirPath: string, pendingWrites: PendingIm
       logger.warn('Failed to write an exported image asset', { fileName, error })
     }
   }
+
   return failed
 }

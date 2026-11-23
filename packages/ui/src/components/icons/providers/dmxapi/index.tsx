@@ -4,6 +4,7 @@ import { DmxapiLight } from './light'
 
 const Dmxapi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DmxapiLight {...props} className={className} />
+
   return <DmxapiLight {...props} className={className} />
 }
 

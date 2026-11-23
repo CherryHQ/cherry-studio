@@ -4,6 +4,7 @@ import { Gpt6AstraLight } from './light'
 
 const Gpt6Astra = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt6AstraLight {...props} className={className} />
+
   return <Gpt6AstraLight {...props} className={className} />
 }
 

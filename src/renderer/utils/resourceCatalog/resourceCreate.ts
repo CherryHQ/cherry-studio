@@ -18,20 +18,28 @@ export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAss
 /** Map the shared create-wizard values to the Agent creation command. */
 export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAgentCommand {
   const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
+
   const permissionMode = caps.permissionModes.some((mode) => mode === values.permissionMode)
     ? values.permissionMode
     : caps.createDefaults.permissionMode
+
   const identity: Omit<CreateAgentCommand, 'name' | 'model'> = { type: values.agentType }
+
   if (values.avatarImage) identity.avatarImage = values.avatarImage
   const command: CreateAgentCommand = Object.assign(identity, { name: values.name, model: values.modelId })
+
   if (caps.modelTiers) {
     command.planModel = values.modelId
     command.smallModel = values.modelId
   }
+
   command.description = values.description
   command.instructions = values.prompt
+
   if (caps.knowledgeBases) command.knowledgeBaseIds = values.knowledgeBaseIds
+
   if (caps.skills) command.skillIds = values.skillIds
   command.configuration = { avatar: values.avatar, permission_mode: permissionMode }
+
   return command
 }

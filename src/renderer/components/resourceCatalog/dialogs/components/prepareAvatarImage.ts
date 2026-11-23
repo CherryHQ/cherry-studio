@@ -6,10 +6,14 @@ export async function prepareAvatarImage(
   isActive: () => boolean
 ): Promise<Uint8Array<ArrayBuffer> | undefined> {
   const error = checkEntityImageSize(file)
+
   if (error) {
     toast.error(error)
+
     return
   }
+
   const data = await prepareEntityImageBytes(file)
+
   return isActive() ? data : undefined
 }

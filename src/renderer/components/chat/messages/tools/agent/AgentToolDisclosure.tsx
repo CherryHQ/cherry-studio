@@ -47,24 +47,32 @@ export function AgentToolDisclosure({
   const itemKey = String(item.key)
   const canExpand = showInlineDetails && item.children !== undefined && item.children !== null
   const isInteractive = canExpand || !!onOpenDetails
+
   const [isExpanded, setIsExpanded] = useMessageDisclosureState(
     stateId ? `agent-tool:${stateId}` : undefined,
     defaultActiveKey.includes(itemKey)
   )
+
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
+
   const toggleExpanded = () => {
     if (!canExpand) return
     withScrollAnchor(() => setIsExpanded((current) => !current), { enterReadingMode: !isExpanded })
   }
+
   const openOrToggle = () => {
     if (onOpenDetails) {
       onOpenDetails()
+
       return
     }
+
     toggleExpanded()
   }
+
   const handleHeaderKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!isInteractive) return
+
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
     openOrToggle()

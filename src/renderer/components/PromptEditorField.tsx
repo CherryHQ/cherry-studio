@@ -59,11 +59,13 @@ export function PromptEditorField({
   const [showPreview, setShowPreview] = useState(value.length > 0)
   const previousResetPreviewKey = useRef(resetPreviewKey)
   const codeEditorRef = useRef<CodeEditorHandles | null>(null)
+
   const [session, setSession] = useState(() => ({
     accepted: value,
     stateRef: { current: null as EditorState | null },
     epoch: 0
   }))
+
   if (session.accepted !== value) {
     const echoed = session.stateRef.current?.sliceDoc() === value
     setSession({
@@ -72,6 +74,7 @@ export function PromptEditorField({
       epoch: session.epoch + Number(!echoed)
     })
   }
+
   const hasError = Boolean(error)
   const effectiveShowPreview = showPreview && value.length > 0
   const tokenCount = useMemo(() => estimateTextTokens(value), [value])
@@ -94,6 +97,7 @@ export function PromptEditorField({
   // empty area below the text leaves the editor unfocused, so forward those clicks manually.
   const handleEditorAreaMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (disabled || effectiveShowPreview) return
+
     if ((event.target as HTMLElement).closest('.cm-content')) return
     event.preventDefault()
     codeEditorRef.current?.focus?.()

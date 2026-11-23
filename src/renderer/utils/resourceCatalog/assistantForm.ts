@@ -76,6 +76,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
   const mcpMode = McpModeSchema.safeParse(settings.mcpMode)
   const maxTokens = AssistantSettingsSchema.shape.maxTokens.safeParse(settings.maxTokens)
   const ctx = settings.contextSettings
+
   return {
     name: assistant.name,
     emoji: assistant.emoji,
@@ -147,6 +148,7 @@ export function diffAssistantUpdate(
   const customParametersChanged = JSON.stringify(baseline.customParameters) !== JSON.stringify(form.customParameters)
   const maxTokensChanged = baseline.maxTokens !== form.maxTokens
   const enableMaxTokensChanged = baseline.enableMaxTokens !== form.enableMaxTokens
+
   const contextSettingsChanged =
     baseline.contextOverrideEnabled !== form.contextOverrideEnabled ||
     // Always compared: the scope control persists whether or not the
@@ -161,28 +163,44 @@ export function diffAssistantUpdate(
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
   const settings: NonNullable<UpdateAssistantDto['settings']> = {}
+
   if (baseline.temperature !== form.temperature) settings.temperature = form.temperature
+
   if (baseline.enableTemperature !== form.enableTemperature) settings.enableTemperature = form.enableTemperature
+
   if (baseline.topP !== form.topP) settings.topP = form.topP
+
   if (baseline.enableTopP !== form.enableTopP) settings.enableTopP = form.enableTopP
+
   if (maxTokensChanged || (enableMaxTokensChanged && form.enableMaxTokens)) settings.maxTokens = form.maxTokens
+
   if (enableMaxTokensChanged) settings.enableMaxTokens = form.enableMaxTokens
+
   if (baseline.streamOutput !== form.streamOutput) settings.streamOutput = form.streamOutput
+
   if (baseline.maxToolCalls !== form.maxToolCalls) settings.maxToolCalls = form.maxToolCalls
+
   if (baseline.enableMaxToolCalls !== form.enableMaxToolCalls) settings.enableMaxToolCalls = form.enableMaxToolCalls
+
   if (baseline.enableBrowser !== form.enableBrowser) settings.enableBrowser = form.enableBrowser
+
   if (baseline.mcpMode !== form.mcpMode) settings.mcpMode = form.mcpMode
+
   if (customParametersChanged) settings.customParameters = form.customParameters
+
   if (contextSettingsChanged) {
     if (form.contextOverrideEnabled) {
       const contextSettings: NonNullable<typeof settings.contextSettings> = {
         truncateThreshold: form.contextTruncateThreshold
       }
+
       if (form.contextMaxMessages !== null) contextSettings.maxMessages = form.contextMaxMessages
+
       const compress: NonNullable<typeof contextSettings.compress> = {
         enabled: form.contextCompressEnabled,
         modelId: form.contextCompressModelId
       }
+
       if (form.contextCompressThresholdPercent !== null)
         compress.thresholdPercent = form.contextCompressThresholdPercent
       contextSettings.compress = compress
@@ -219,14 +237,23 @@ export function diffAssistantUpdate(
   }
 
   const dto: UpdateAssistantDto = {}
+
   if (nameChanged) dto.name = form.name.trim() || assistant.name
+
   if (emojiChanged) dto.emoji = form.emoji
+
   if (descriptionChanged) dto.description = form.description
+
   if (modelIdChanged) dto.modelId = form.modelId
+
   if (promptChanged) dto.prompt = form.prompt
+
   if (settingsChanged) dto.settings = settings
+
   if (knowledgeBaseIdsChanged) dto.knowledgeBaseIds = form.knowledgeBaseIds
+
   if (mcpServerIdsChanged) dto.mcpServerIds = form.mcpServerIds
+
   if (groupChanged) dto.groupId = form.groupId
 
   return { dto }
@@ -238,6 +265,7 @@ export function diffAssistantSaveIntent(
   assistant: Assistant
 ): AssistantSaveIntent | null {
   const diff = diffAssistantUpdate(form, baseline, assistant)
+
   if (!diff) return null
 
   return {
@@ -250,5 +278,6 @@ export function diffAssistantSaveIntent(
 function sameIdSet(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   const set = new Set(a)
+
   return b.every((id) => set.has(id))
 }

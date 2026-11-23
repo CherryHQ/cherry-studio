@@ -15,6 +15,7 @@ import { fetchEntityReferencePromptText } from './entityReferenceContext'
 
 const REFERENCE_RESULT_LIMIT = 50
 const EMPTY_QUERY_GROUP_LIMIT = 5
+
 // List endpoints page pinned-first in manual order, so recency sorting happens client-side
 // over the first page; entities beyond it are reachable by typing a name query instead.
 const REFERENCE_LIST_FETCH_LIMIT = 200
@@ -33,12 +34,15 @@ async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): P
     // requires a non-empty q, so the plain list endpoints back the initial panel.
     if (entityType === 'topic') {
       const page = await dataApiService.get('/topics', { query: { limit: REFERENCE_LIST_FETCH_LIMIT } })
+
       return page.items
         .toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
         .slice(0, REFERENCE_RESULT_LIMIT)
         .map((topic) => ({ id: topic.id, title: topic.name, agentId: null }))
     }
+
     const page = await dataApiService.get('/agent-sessions', { query: { limit: REFERENCE_LIST_FETCH_LIMIT } })
+
     return page.items
       .toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
       .slice(0, REFERENCE_RESULT_LIMIT)
@@ -48,7 +52,9 @@ async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): P
   const response = await dataApiService.get('/search/entities', {
     query: { q, types: [entityType], limitPerType: REFERENCE_RESULT_LIMIT }
   })
+
   const hits: EntityReferenceHit[] = []
+
   for (const group of response.groups) {
     if (group.type === 'topic') {
       for (const hit of group.items) {
@@ -60,6 +66,7 @@ async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): P
       }
     }
   }
+
   return hits
 }
 
@@ -79,14 +86,17 @@ function settlePendingReferenceToken(editor: Editor, tokenId: string, promptText
     }
   })
   const match = matches[0]
+
   if (!match) return
 
   const transaction = editor.state.tr
+
   if (promptText === null) {
     transaction.delete(match.position, match.position + match.node.nodeSize)
   } else {
     transaction.setNodeMarkup(match.position, undefined, { ...match.node.attrs, promptText })
   }
+
   editor.view.dispatch(transaction)
 }
 
@@ -134,6 +144,7 @@ export function useEntityReferenceMentionItems({
         .map((hit): ComposerSuggestionItem => {
           const tokenId = referenceTokenId(entityType, hit.id)
           const title = hit.title.trim() || untitledLabel
+
           return {
             id: tokenId,
             label: title,
@@ -143,6 +154,7 @@ export function useEntityReferenceMentionItems({
             disabled: insertedTokenIds.has(tokenId),
             command: ({ editor }) => {
               const draft = serializeComposerDocument(editor)
+
               if (draft.tokens.some((token) => token.id === tokenId)) return
 
               // Insert synchronously so the chip is bound to this draft and position; the
@@ -170,6 +182,7 @@ export function useEntityReferenceMentionItems({
                       ? { entityType, id: hit.id, name: title }
                       : { entityType, id: hit.id, name: title, agentId: hit.agentId }
                   )
+
                   settlePendingReferenceToken(editor, tokenId, promptText)
                 } catch {
                   settlePendingReferenceToken(editor, tokenId, null)
@@ -241,7 +254,9 @@ export function useEntityReferenceMentionSource({
     async (args: { query: string; editor: Editor }): Promise<ComposerSuggestionItem[]> => {
       if (!additionalItems) {
         const items = await getItems(args)
+
         if (items.length > 0) return items
+
         return [
           {
             id: 'entity-reference:no-results',
@@ -255,6 +270,7 @@ export function useEntityReferenceMentionSource({
       }
 
       const [itemsResult, extraItemsResult] = await Promise.allSettled([getItems(args), additionalItems.getItems(args)])
+
       if (itemsResult.status === 'rejected' && extraItemsResult.status === 'rejected') throw itemsResult.reason
 
       const items = itemsResult.status === 'fulfilled' ? itemsResult.value : []
@@ -270,7 +286,9 @@ export function useEntityReferenceMentionSource({
       }
 
       const combinedItems = [...extraItems, ...items]
+
       if (combinedItems.length > 0) return combinedItems
+
       return [
         {
           id: 'entity-reference:no-results',

@@ -64,14 +64,18 @@ export class SseListener<TPayload = UIMessageChunk> implements StreamListener {
 
     if (this.formatChunk) {
       const frames = this.formatChunk(chunk)
+
       if (frames == null) return
+
       for (const frame of Array.isArray(frames) ? frames : [frames]) {
         if (frame) this.write(frame)
       }
+
       return
     }
 
     const mapped = this.mapChunk ? this.mapChunk(chunk) : chunk
+
     if (mapped !== null && mapped !== undefined) {
       this.write(`data: ${JSON.stringify(mapped)}\n\n`)
     }
@@ -87,11 +91,13 @@ export class SseListener<TPayload = UIMessageChunk> implements StreamListener {
   // oxlint-disable-next-line no-unused-vars
   onPaused(_result: StreamPausedResult): void {
     if (!this.alive()) return
+
     if (this.formatPaused) {
       this.write(this.formatPaused())
     } else {
       this.write(this.formatDone ? this.formatDone() : 'data: [DONE]\n\n')
     }
+
     this.end()
   }
 

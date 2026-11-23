@@ -12,9 +12,11 @@ const logger = loggerService.withContext('miniAppCleanup')
 export async function bestEffortCleanup<TResult>(label: string, fn: () => Promise<TResult>): Promise<boolean> {
   try {
     await fn()
+
     return true
   } catch (error) {
     logger.warn('Mini app cleanup failed', { label, error })
+
     return false
   }
 }

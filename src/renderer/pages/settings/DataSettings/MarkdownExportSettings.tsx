@@ -27,25 +27,32 @@ const MarkdownExportSettings: FC = () => {
   const { theme } = useTheme()
 
   const [markdownExportPath, setmarkdownExportPath] = usePreference('data.export.markdown.path')
+
   const [forceDollarMathInMarkdown, setForceDollarMathInMarkdown] = usePreference(
     'data.export.markdown.force_dollar_math'
   )
+
   const [useTopicNamingForMessageTitle, setUseTopicNamingForMessageTitle] = usePreference(
     'data.export.markdown.use_topic_naming_for_message_title'
   )
+
   const [showModelNameInExport, setShowModelNameInMarkdown] = usePreference('data.export.markdown.show_model_name')
+
   const [showModelProviderInMarkdown, setShowModelProviderInMarkdown] = usePreference(
     'data.export.markdown.show_model_provider'
   )
+
   const [excludeCitationsInExport, setExcludeCitationsInExport] = usePreference(
     'data.export.markdown.exclude_citations'
   )
+
   const [standardizeCitationsInExport, setStandardizeCitationsInExport] = usePreference(
     'data.export.markdown.standardize_citations'
   )
 
   const handleSelectFolder = async () => {
     const path = await window.api.file.selectFolder()
+
     if (path) {
       void setmarkdownExportPath(path)
     }

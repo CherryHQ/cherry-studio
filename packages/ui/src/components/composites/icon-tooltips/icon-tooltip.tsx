@@ -29,6 +29,7 @@ export const IconTooltip = ({
 }: BaseIconTooltipProps) => {
   const accessibleLabel =
     ariaLabel ?? iconProps?.['aria-label'] ?? (typeof content === 'string' ? content : defaultAriaLabel)
+
   const icon = (
     <Icon
       size={iconProps?.size ?? 14}
@@ -39,6 +40,7 @@ export const IconTooltip = ({
       tabIndex={-1}
     />
   )
+
   const triggerClassName =
     'inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 outline-none focus-visible:bg-accent'
 

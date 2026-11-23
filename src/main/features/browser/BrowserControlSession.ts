@@ -24,19 +24,25 @@ export class BrowserControlSession {
   ): Promise<T> {
     if (this.closing) throw new BrowserSessionError('debugger_unavailable')
     const signal = this.controller.signal ? AbortSignal.any([callSignal, this.controller.signal]) : callSignal
+
     const invoke = async () => {
       signal.throwIfAborted()
+
       if (this.closing) throw new BrowserSessionError('debugger_unavailable')
       this.controller.assertAvailable?.()
+
       try {
         this.controller.beginTool?.(signal)
+
         return await operation(this.controller, signal)
       } finally {
         this.controller.finishTool?.()
       }
     }
+
     const request = this.serialize ? this.paneRequests.runExclusive(invoke) : invoke()
     this.requests.add(request)
+
     try {
       return await request
     } finally {

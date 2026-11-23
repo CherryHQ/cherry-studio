@@ -48,6 +48,7 @@ const logger = loggerService.withContext('useTopic')
 /** Keep only the requested topic. An empty or unrelated result is a no-op, not a deletion. */
 function topicDeleteOutcome(result: DeleteTopicsResult, topicId: string): DeleteTopicsResult {
   const deleted = result.deletedIds.includes(topicId)
+
   return deleted ? { deletedIds: [topicId], deletedCount: 1 } : { deletedIds: [], deletedCount: 0 }
 }
 
@@ -73,13 +74,17 @@ function useStructurallySharedTopics(topics: Topic[]): Topic[] {
     const nextTopics = topics.map((topic, index) => {
       const previous = previousById.get(topic.id)
       const next = previous && isEqual(previous, topic) ? previous : topic
+
       if (next !== previousTopics[index]) {
         arrayChanged = true
       }
+
       return next
     })
+
     const sharedTopics = arrayChanged ? nextTopics : previousTopics
     previousTopicsRef.current = sharedTopics
+
     return sharedTopics
   }, [topics])
 }
@@ -115,6 +120,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
 
 export async function getTopicById(topicId: string): Promise<RendererTopic> {
   const apiTopic = await dataApiService.get(`/topics/${topicId}`)
+
   // `messages` stays empty — the sole caller reads only topic metadata
   // (`topic.id`); message history is fetched on demand via `getTopicMessages`.
   return mapApiTopicToRendererTopic(apiTopic)
@@ -125,6 +131,7 @@ export async function getTopicById(topicId: string): Promise<RendererTopic> {
  */
 export const startTopicRenaming = (topicId: string) => {
   const currentIds = cacheService.get('topic.renaming') ?? []
+
   if (!currentIds.includes(topicId)) {
     cacheService.set('topic.renaming', [...currentIds, topicId])
   }
@@ -135,6 +142,7 @@ export const startTopicRenaming = (topicId: string) => {
  */
 export const cancelTopicRenaming = (topicId: string) => {
   const renamingTopics = cacheService.get('topic.renaming')
+
   if (renamingTopics && renamingTopics.includes(topicId)) {
     cacheService.set(
       'topic.renaming',
@@ -172,6 +180,7 @@ const MESSAGES_PAGE_SIZE = 200
 
 function isRenderableTopicMessage(message: SharedMessage): boolean {
   const parts = message.data.parts ?? []
+
   return !hasClearContextPart(parts) && !isBlankUserTurn({ role: message.role, status: message.status, parts })
 }
 
@@ -216,10 +225,12 @@ export async function getTopicMessages(
       if (!cursor) assistantId = response.assistantId ?? ''
 
       const pageMessages: MessageExportView[] = []
+
       for (const item of response.items) {
         if (isRenderableTopicMessage(item.message)) {
           pageMessages.push(convertSharedMessage(item.message, assistantId))
         }
+
         if (item.siblingsGroup) {
           for (const sibling of item.siblingsGroup) {
             if (isRenderableTopicMessage(sibling)) {
@@ -228,6 +239,7 @@ export async function getTopicMessages(
           }
         }
       }
+
       pages.push(pageMessages)
       collected += pageMessages.length
 
@@ -238,8 +250,10 @@ export async function getTopicMessages(
   } catch (error: unknown) {
     if (error instanceof Object && 'code' in error && error.code === ErrorCode.NOT_FOUND) {
       logger.debug(`Topic ${id} not found in Data API, returning empty`)
+
       return []
     }
+
     logger.error(`Failed to fetch messages from Data API for topic ${id}:`, error as Error)
     throw error
   }
@@ -294,12 +308,14 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
   // once fully loaded, `revalidateAll` still keeps mutations/passive refreshes
   // complete. Progressive pagination retains SWR's first-page revalidation.
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
+
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
     enabled: opts?.enabled,
     swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
+
   const flatTopics = useInfiniteFlatItems(pages)
   const topics = useStructurallySharedTopics(flatTopics)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
@@ -344,6 +360,7 @@ export function useTopicById(topicId: string | undefined) {
   const { data, isLoading, error, refetch, mutate } = useQuery(`/topics/${topicId}`, {
     enabled: !!topicId
   })
+
   useDataChange(
     '/topics/:id',
     (effects) => {
@@ -403,11 +420,14 @@ export function useTopicMutations() {
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
     refresh: ['/topics']
   })
+
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
+
   const { trigger: moveTrigger } = useMutation('POST', '/topics/:id/move')
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id')
+
   const { trigger: restoreTrigger } = useMutation('POST', '/topics/:id/restore', {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
@@ -418,6 +438,7 @@ export function useTopicMutations() {
     async (dto: CreateTopicDto): Promise<Topic> => {
       const topic = await createTrigger({ body: dto })
       logger.info('Created topic', { id: topic.id })
+
       return topic
     },
     [createTrigger]
@@ -427,6 +448,7 @@ export function useTopicMutations() {
     async (topicId: string, dto: UpdateTopicDto): Promise<Topic> => {
       const topic = await updateTrigger({ params: { id: topicId }, body: dto })
       logger.info('Updated topic', { id: topicId })
+
       return topic
     },
     [updateTrigger]
@@ -438,8 +460,10 @@ export function useTopicMutations() {
       options?: { permanent?: boolean; refresh?: boolean; targetState?: 'active' | 'trashed' }
     ): Promise<DeleteTopicsResult> => {
       const shouldRefresh = options?.refresh !== false
+
       const refreshTopicsAfterDelete = (phase: 'failed' | 'completed') => {
         if (!shouldRefresh) return Promise.resolve()
+
         return invalidate('/topics').catch((refreshError) => {
           logger.warn(
             phase === 'failed'
@@ -452,6 +476,7 @@ export function useTopicMutations() {
       }
 
       let outcome: DeleteTopicsResult
+
       try {
         if (options?.permanent && options.targetState === 'active') {
           outcome = topicDeleteOutcome(
@@ -468,18 +493,22 @@ export function useTopicMutations() {
         }
       } catch (error) {
         await refreshTopicsAfterDelete('failed')
+
         if (isTrashTopicPinnedError(error)) throw new Error(t('recycle_bin.delete.pinned'))
         throw error
       }
 
       await refreshTopicsAfterDelete('completed')
+
       if (outcome.deletedIds.length === 0) {
         logger.info('Topic deletion found no matching topic', { topicId, permanent: options?.permanent === true })
+
         return outcome
       }
 
       closeConversationTabs('assistants', outcome.deletedIds)
       logger.info(options?.permanent ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id: topicId })
+
       return outcome
     },
     [closeConversationTabs, deleteTrigger, invalidate, t]
@@ -489,6 +518,7 @@ export function useTopicMutations() {
     async (topicId: string): Promise<Topic> => {
       const topic = await restoreTrigger({ params: { id: topicId } })
       logger.info('Restored topic', { id: topicId })
+
       return topic
     },
     [restoreTrigger]
@@ -500,6 +530,7 @@ export function useTopicMutations() {
       await invalidate(['/topics', '/pins'])
       closeConversationTabs('assistants', result.deletedIds)
       logger.info('Deleted topics', { count: result.deletedCount })
+
       return result
     },
     [closeConversationTabs, invalidate]
@@ -511,6 +542,7 @@ export function useTopicMutations() {
       await invalidate(['/topics', '/pins'])
       closeConversationTabs('assistants', result.deletedIds)
       logger.info('Deleted assistant topics', { assistantId, count: result.deletedCount })
+
       return result
     },
     [closeConversationTabs, invalidate]
@@ -549,8 +581,10 @@ export function useTopicMutations() {
             const topic = await dataApiService.patch(`/topics/${topicId}`, { body: { assistantId } })
             await writeCache(`/topics/${topicId}`, topic)
           }
+
           await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
         }
+
         await invalidate(refreshKeys)
       } catch (err) {
         if (assistantChanged) {
@@ -560,6 +594,7 @@ export function useTopicMutations() {
             logger.error('Failed to refresh topics after topic move error', { refreshErr, topicId })
           }
         }
+
         throw err
       }
     },
@@ -571,7 +606,9 @@ export function useTopicMutations() {
       const results = await Promise.allSettled(
         topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto }))
       )
+
       await refreshTopics()
+
       return results
     },
     [refreshTopics]
@@ -626,9 +663,11 @@ export function useActiveTopic({ initialTopic, activeTopicId, setActiveTopicId }
     isLoading: isActiveTopicQueryLoading,
     error
   } = useTopicById(activeTopicId || undefined)
+
   // NOT_FOUND is authoritative even if SWR still exposes cached data or a matching optimistic
   // topic. Otherwise cross-window deletion can strand HomePage on a stale active topic.
   const isNotFound = isDataApiNotFoundError(error)
+
   const queryTopic = useMemo<RendererTopic | undefined>(
     () =>
       !isNotFound && activeTopicId && apiActiveTopic?.id === activeTopicId
@@ -636,6 +675,7 @@ export function useActiveTopic({ initialTopic, activeTopicId, setActiveTopicId }
         : undefined,
     [activeTopicId, apiActiveTopic, isNotFound]
   )
+
   // Holds the last Topic object passed to setActiveTopic, used as fallback while the
   // by-id query for the newly-selected topic is still resolving.
   const [pendingTopic, setPendingTopic] = useState<RendererTopic | undefined>(() => initialTopic ?? undefined)
@@ -644,17 +684,23 @@ export function useActiveTopic({ initialTopic, activeTopicId, setActiveTopicId }
   useEffect(() => {
     if (!initialTopic) return
     setPendingTopic((prev) => prev ?? initialTopic)
+
     if (hasAppliedInitialTopicRef.current) return
 
     hasAppliedInitialTopicRef.current = true
+
     if (activeTopicId !== initialTopic.id) setActiveTopicId(initialTopic.id)
   }, [activeTopicId, initialTopic, setActiveTopicId])
 
   const activeTopic = useMemo<RendererTopic | undefined>(() => {
     if (isNotFound) return undefined
+
     if (!activeTopicId) return pendingTopic
+
     if (queryTopic) return queryTopic
+
     if (pendingTopic?.id === activeTopicId) return pendingTopic
+
     return undefined
   }, [activeTopicId, isNotFound, pendingTopic, queryTopic])
 
@@ -664,8 +710,11 @@ export function useActiveTopic({ initialTopic, activeTopicId, setActiveTopicId }
   // to persisted topics only.
   const topicSource: ActiveTopicSource = useMemo(() => {
     if (!activeTopic) return 'none'
+
     if (queryTopic?.id === activeTopic.id) return 'query'
+
     if (pendingTopic?.id === activeTopic.id) return 'pending'
+
     return 'none'
   }, [activeTopic, pendingTopic, queryTopic])
 
@@ -695,5 +744,6 @@ export function useActiveTopic({ initialTopic, activeTopicId, setActiveTopicId }
   // Mirror `useActiveSession`: once the topic resolves (from the by-id query or the
   // pending fallback) we are no longer loading, even while a background revalidation runs.
   const isLoading = !activeTopic && isActiveTopicQueryLoading
+
   return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, error, topicSource }
 }

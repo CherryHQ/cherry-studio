@@ -59,21 +59,26 @@ interface BranchProjection {
  */
 function bucketAssistantSiblingsByModel(members: SharedMessage[]): Map<string, SharedMessage[]> {
   const buckets = new Map<string, SharedMessage[]>()
+
   for (const m of members) {
     const key = resolveUniqueModelId(m.modelId, m.messageSnapshot?.model) ?? m.id
     const bucket = buckets.get(key)
+
     if (bucket) bucket.push(m)
     else buckets.set(key, [m])
   }
+
   return buckets
 }
 
 /** Pick the display member of an off-path model bucket: most recent sibling. */
 function pickLatest(bucket: SharedMessage[]): SharedMessage {
   let latest = bucket[0]
+
   for (let i = 1; i < bucket.length; i++) {
     if (compareMessageOrder(bucket[i], latest) > 0) latest = bucket[i]
   }
+
   return latest
 }
 
@@ -89,6 +94,7 @@ function pickDisplayMember(bucket: SharedMessage[], activeMessageId: string): Sh
 function projectBranchMessages(items: BranchMessage[]): BranchProjection {
   const displayMessages: DisplayBranchMessage[] = []
   const siblingsMap: Record<string, SharedMessage[]> = {}
+
   for (const item of items) {
     if (!item.siblingsGroup || item.siblingsGroup.length === 0) {
       displayMessages.push({ message: item.message, isActiveBranch: true })
@@ -96,29 +102,36 @@ function projectBranchMessages(items: BranchMessage[]): BranchProjection {
     }
 
     const members = [item.message, ...item.siblingsGroup]
+
     if (item.message.role === 'user') {
       displayMessages.push({ message: item.message, isActiveBranch: true })
       const group = members.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
       for (const member of group) siblingsMap[member.id] = group
       continue
     }
 
     const buckets = bucketAssistantSiblingsByModel(members)
     const isMultiModelGroup = buckets.size > 1
+
     if (isMultiModelGroup) {
       for (const message of members.sort(compareMessageOrder)) {
         displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
       }
+
       continue
     }
 
     const bucket = buckets.values().next().value!
     const message = pickDisplayMember(bucket, item.message.id)
     displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
+
     if (bucket.length < 2) continue
     bucket.sort(compareMessageOrder)
+
     for (const member of bucket) siblingsMap[member.id] = bucket
   }
+
   return { displayMessages, siblingsMap }
 }
 
@@ -174,6 +187,7 @@ export function useTopicMessages(
   useEffect(() => {
     stopLoadAll()
   }, [stopLoadAll, topicId])
+
   const { pages, isLoading, isRefreshing, error, mutate, loadNext, hasNext } = useConversationHistoryQuery(
     '/topics/:topicId/messages',
     {
@@ -193,10 +207,12 @@ export function useTopicMessages(
       }
     }
   )
+
   // Branch endpoint paginates newest-page-first; flipping page order gives a
   // chronological root → activeNode list. `activeNodeId` lives on each page
   // response — page 0 is the freshest fetch, so its value is authoritative.
   const branchItems = useInfiniteFlatItems(pages, { reversePages: true })
+
   const pagesBelongToTopic = useMemo(
     () =>
       pages.every((page) =>
@@ -208,17 +224,21 @@ export function useTopicMessages(
       ),
     [pages, topicId]
   )
+
   const activeNodeId = pages[0]?.activeNodeId ?? null
 
   // Errors that predate the load-all are baseline; only a NEW error while paging
   // abandons it. A retained error would otherwise deadlock a retried select-all
   // behind the !error gate, so starting also revalidates it away.
   const loadAllBaselineErrorRef = useRef<Error | undefined>(undefined)
+
   const startLoadAll = useCallback(() => {
     loadAllBaselineErrorRef.current = error
     setLoadAllRequested(true)
+
     if (error) void mutate()
   }, [error, mutate])
+
   useEffect(() => {
     if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing && !error) {
       loadNext()
@@ -240,6 +260,7 @@ export function useTopicMessages(
   useEffect(() => {
     if (!enabled || !fetchOnMount) {
       setReadyTopicId(topicId)
+
       return
     }
 
@@ -253,16 +274,21 @@ export function useTopicMessages(
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
   const branchProjection = useMemo(() => projectBranchMessages(branchItems), [branchItems])
+
   const uiMessages = useMemo<CherryUIMessage[]>(
     () => projectDisplayMessagesToUI(branchProjection.displayMessages, projectionCacheRef.current),
     [branchProjection.displayMessages]
   )
+
   const loadedMessageIds = useMemo(() => {
     const ids = new Set<string>()
+
     for (const item of branchItems) {
       ids.add(item.message.id)
+
       for (const sibling of item.siblingsGroup ?? []) ids.add(sibling.id)
     }
+
     return ids
   }, [branchItems])
 
@@ -293,11 +319,14 @@ export function useTopicMessages(
   const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
     if (!enabled) return []
     const refreshed = await mutate()
+
     if (!refreshed?.length) return []
+
     const allItems = refreshed
       .slice()
       .reverse()
       .flatMap((p) => p.items)
+
     return projectBranchMessagesToUI(allItems, projectionCacheRef.current)
   }, [mutate, enabled])
 
@@ -345,6 +374,7 @@ function projectDisplayMessagesToUI(
 ): CherryUIMessage[] {
   return displayMessages.map(({ message, isActiveBranch }) => {
     const cached = cache.get(message)
+
     if (cached && cached.metadata?.isActiveBranch === isActiveBranch) return cached
     const projected = sharedMessageToUIMessage(message)
     projected.metadata = {
@@ -352,6 +382,7 @@ function projectDisplayMessagesToUI(
       isActiveBranch
     }
     cache.set(message, projected)
+
     return projected
   })
 }

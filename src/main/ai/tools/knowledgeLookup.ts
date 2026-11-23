@@ -52,6 +52,7 @@ const logger = loggerService.withContext('KnowledgeLookup')
 
 const SAMPLE_LIMIT = 8
 const NOTE_SNIPPET_MAX_CHARS = 80
+
 /**
  * Max concurrent `listRootItems` reads behind one bounded kb_list page. Eight in-flight keeps the
  * agent loop responsive without overwhelming the knowledge service. (listRootItems is a pure
@@ -87,15 +88,22 @@ export const KNOWLEDGE_MANAGE_DESCRIPTION = `Add, delete, or re-index knowledge 
  * `kbSearchOutputSchema`); an all-bases-failed infrastructure error returns `{ error }`.
  */
 export const knowledgeLookupErrorSchema = z.object({ error: z.string() })
+
 export type KnowledgeLookupError = z.infer<typeof knowledgeLookupErrorSchema>
+
 export type KnowledgeSearchResultOrError = KbSearchOutput | KnowledgeLookupError
+
 // kb_list has two output modes (list of bases / one base's outline tree), kb_read has two (document
 // text / grep matches). The merged result types below union both modes; the per-mode subtypes
 // (KnowledgeTreeResultOrError / KnowledgeGrepResultOrError) keep the underlying core fns precise.
 export type KnowledgeListResultOrError = KbListOutput | KbTreeOutput | KnowledgeLookupError
+
 export type KnowledgeReadResultOrError = KbReadOutput | KbGrepOutput | KnowledgeLookupError
+
 type KnowledgeGrepResultOrError = KbGrepOutput | KnowledgeLookupError
+
 type KnowledgeTreeResultOrError = KbTreeOutput | KnowledgeLookupError
+
 export type KnowledgeManageResultOrError = KbManageOutput | KnowledgeLookupError
 
 /**
@@ -157,16 +165,19 @@ export async function searchKnowledge(
   if (targetIds.length === 0) return []
 
   const knowledgeService = application.get('KnowledgeService')
+
   const perBase = await Promise.all(
     targetIds.map(async (baseId) => {
       try {
         const results = await knowledgeService.search(baseId, query)
+
         // Tag each hit with the base it came from: the flatMap below loses the closure, and
         // `conceptId` alone is only unique within one base.
         return { ok: true as const, results: results.map((result) => ({ result, baseId })) }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         logger.warn('KnowledgeService.search failed', { baseId, query, error: message })
+
         return { ok: false as const, error: message }
       }
     })
@@ -176,20 +187,25 @@ export async function searchKnowledge(
   // on the topic (and waste retries). A partial failure still returns whatever bases succeeded.
   if (perBase.every((r) => !r.ok)) {
     const firstError = perBase.find((r): r is { ok: false; error: string } => !r.ok)
+
     return { error: firstError?.error ?? 'All targeted knowledge bases failed to search.' }
   }
 
   const merged = perBase.flatMap((r) => (r.ok ? r.results : []))
   const dedupedByContent = new Map<string, { result: KnowledgeSearchResult; baseId: string }>()
+
   for (const hit of merged) {
     const existing = dedupedByContent.get(hit.result.pageContent)
+
     if (!existing || hit.result.score > existing.result.score) {
       dedupedByContent.set(hit.result.pageContent, hit)
     }
   }
+
   const sorted = [...dedupedByContent.values()].sort((a, b) => b.result.score - a.result.score)
 
   const prefix = newCitePrefix()
+
   return sorted.map(({ result, baseId }, index) => ({
     id: citeId(prefix, index),
     // Provenance so the model can follow a hit with kb_read. baseId pairs with
@@ -214,6 +230,7 @@ export function knowledgeSearchModelOutput(
   if (isKnowledgeLookupError(output)) {
     return { type: 'text', value: KNOWLEDGE_LOOKUP_ERROR_NOTE }
   }
+
   if (output.length === 0) {
     return {
       type: 'text',
@@ -221,6 +238,7 @@ export function knowledgeSearchModelOutput(
         'No matches in the requested knowledge bases. If you are not sure which bases to search, call kb_list first to inspect available bases and their sample sources, then retry kb_search with refined baseIds or query.'
     }
   }
+
   return { type: 'json', value: output }
 }
 
@@ -238,10 +256,13 @@ async function readConcept(
 ): Promise<KnowledgeReadResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_read targeted a base outside the assistant scope', { baseId, allowedIds })
+
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
   }
+
   try {
     const result = await application.get('KnowledgeService').readConcept(baseId, conceptId, range)
+
     return {
       // One slice, one source — index 0 yields the call's only cite id.
       id: citeId(newCitePrefix(), 0),
@@ -266,11 +287,14 @@ export function knowledgeReadModelOutput(
 ): { type: 'text'; value: string } | { type: 'json'; value: KbReadOutput | KbGrepOutput } {
   if (!isObjectOutput(output)) {
     logger.warn('kb_read output is not an object; rendering the unreadable-output note', { received: typeof output })
+
     return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
   }
+
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
   }
+
   // Grep mode (called with a `pattern`) returns `matches`; a zero-match result is a steer, not data.
   if ('matches' in output) {
     if (output.totalMatches === 0) {
@@ -279,8 +303,10 @@ export function knowledgeReadModelOutput(
         value: `No matches for that pattern in "${output.conceptId}". Try a broader pattern, or omit \`pattern\` to read the document directly.`
       }
     }
+
     return { type: 'json', value: output }
   }
+
   return { type: 'json', value: output }
 }
 
@@ -297,10 +323,13 @@ async function grepConcept(
 ): Promise<KnowledgeGrepResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_read (grep mode) targeted a base outside the assistant scope', { baseId, allowedIds })
+
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
   }
+
   try {
     const result = await application.get('KnowledgeService').grepConcept(baseId, conceptId, options)
+
     return {
       // Every match is in this one document, so the call yields a single cite id.
       id: citeId(newCitePrefix(), 0),
@@ -334,6 +363,7 @@ export async function readOrGrepConcept(
       allowedIds
     )
   }
+
   return readConcept(input.baseId, input.conceptId, { charStart: input.charStart, charEnd: input.charEnd }, allowedIds)
 }
 
@@ -359,6 +389,7 @@ function conceptLookupError(
     if (error.details && 'resource' in error.details && error.details.resource === KNOWLEDGE_BASE_NOT_FOUND_RESOURCE) {
       return { error: `Knowledge base "${baseId}" not found. Call kb_list to see the available bases.` }
     }
+
     // The conceptId resolved to a real, visible document whose content is momentarily missing (being
     // re-indexed). Verifying the id won't help — steer the model to retry rather than re-pick.
     if (
@@ -372,14 +403,17 @@ function conceptLookupError(
           '(it may be re-indexing). Retry shortly; the conceptId itself is valid.'
       }
     }
+
     return {
       error:
         `No document with conceptId "${conceptId}" in knowledge base "${baseId}". ` +
         'Verify the conceptId against a kb_search result (its conceptId field) and the baseId.'
     }
   }
+
   const message = error instanceof Error ? error.message : String(error)
   logger.warn(`KnowledgeService.${verb}Concept failed`, { baseId, conceptId, error: message })
+
   return { error: message }
 }
 
@@ -395,10 +429,13 @@ function readTree(
 ): KnowledgeTreeResultOrError {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_list (outline mode) targeted a base outside the assistant scope', { baseId, allowedIds })
+
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
   }
+
   try {
     const tree = application.get('KnowledgeService').getOrganizationTree(baseId, options)
+
     return {
       baseId: tree.baseId,
       totalItems: tree.totalItems,
@@ -415,8 +452,10 @@ function readTree(
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
       return { error: `Knowledge base "${baseId}" not found. Call kb_list to see the available bases.` }
     }
+
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('KnowledgeService.getOrganizationTree failed', { baseId, error: message })
+
     return { error: message }
   }
 }
@@ -434,6 +473,7 @@ export async function listOrOutlineKnowledge(
   if (input.baseId) {
     return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
   }
+
   return listKnowledgeBases(input, allowedIds)
 }
 
@@ -482,21 +522,29 @@ export async function manageKnowledge(
 ): Promise<KnowledgeManageResultOrError> {
   try {
     const service = application.get('KnowledgeService')
+
     if (input.action === 'create') {
       const name = input.name?.trim()
+
       if (!name) {
         return { error: 'kb_manage create requires `name` — the display name of the new knowledge base.' }
       }
+
       const base = await service.createBase({ name })
+
       return { action: 'create', created: { baseId: base.id, name: base.name } }
     }
+
     if (!input.baseId) {
       return { error: `kb_manage ${input.action} requires \`baseId\` — a knowledge base id from kb_list.` }
     }
+
     if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
       logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
+
       return { error: `Knowledge base "${input.baseId}" is not available to this assistant.` }
     }
+
     switch (input.action) {
       case 'add': {
         if (input.items) {
@@ -506,39 +554,56 @@ export async function manageKnowledge(
                 'kb_manage add accepts either `items` (batch) or the single-source form (`type` + its field) — not both in one call.'
             }
           }
+
           const built: ValidatedAddInput[] = []
+
           for (const [index, item] of input.items.entries()) {
             const result = buildAddInput(item)
+
             if (!result.ok) return { error: `items[${index}]: ${result.error}` }
             built.push(result)
           }
+
           await service.addItems(
             input.baseId,
             built.map((entry) => entry.input)
           )
+
           return { action: 'add', added: built.map((entry) => entry.source) }
         }
+
         const built = buildAddInput(input)
+
         if (!built.ok) return { error: built.error }
         await service.addItems(input.baseId, [built.input])
+
         return { action: 'add', added: [built.source] }
       }
+
       case 'delete': {
         const conceptIds = input.conceptIds ?? []
+
         if (conceptIds.length === 0) {
           return { error: 'kb_manage delete requires `conceptIds` — one or more Concept IDs to remove.' }
         }
+
         const { applied, notFound } = await service.deleteConcepts(input.baseId, conceptIds)
+
         return { action: 'delete', deleted: applied, notFound }
       }
+
       case 'refresh': {
         const conceptIds = input.conceptIds ?? []
+
         if (conceptIds.length === 0) {
           return { error: 'kb_manage refresh requires `conceptIds` — one or more Concept IDs to re-index.' }
         }
+
         const { applied, notFound } = await service.refreshConcepts(input.baseId, conceptIds)
+
         return { action: 'refresh', refreshed: applied, notFound }
       }
+
       default:
         return { error: 'kb_manage requires `action` to be "add", "delete", "refresh", or "create".' }
     }
@@ -546,12 +611,14 @@ export async function manageKnowledge(
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
       return { error: `Knowledge base "${input.baseId}" not found. Call kb_list to see the available bases.` }
     }
+
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('KnowledgeService kb_manage operation failed', {
       baseId: input.baseId,
       action: input.action,
       error: message
     })
+
     return { error: message }
   }
 }
@@ -561,11 +628,14 @@ export function knowledgeManageModelOutput(
 ): { type: 'text'; value: string } | { type: 'json'; value: KbManageOutput } {
   if (!isObjectOutput(output)) {
     logger.warn('kb_manage output is not an object; rendering the unreadable-output note', { received: typeof output })
+
     return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
   }
+
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
   }
+
   return { type: 'json', value: output }
 }
 
@@ -589,26 +659,34 @@ function buildAddInput(input: ManageAddSource): AddInputResult {
       if (!input.path) {
         return { ok: false, error: 'kb_manage add with type "file" requires `path` — an absolute local file path.' }
       }
+
       // Source is the user-facing identifier stored on the row. Reindex rebuilds
       // from this path; storing only the basename breaks every kb_manage refresh
       // call after PR #19829 made reindex re-acquire from the real source
       // (issue #19954).
       const source = input.path
+
       return validateAddInput({ type: 'file', data: { source, path: input.path } }, source)
     }
+
     case 'url': {
       if (!input.url) {
         return { ok: false, error: 'kb_manage add with type "url" requires `url`.' }
       }
+
       return validateAddInput({ type: 'url', data: { source: input.url, url: input.url } }, input.url)
     }
+
     case 'note': {
       if (!input.content) {
         return { ok: false, error: 'kb_manage add with type "note" requires `content`.' }
       }
+
       const source = deriveNoteSource(input.content, input.title)
+
       return validateAddInput({ type: 'note', data: { source, content: input.content } }, source)
     }
+
     default:
       return { ok: false, error: 'kb_manage add requires `type` to be "file", "url", or "note".' }
   }
@@ -617,12 +695,14 @@ function buildAddInput(input: ManageAddSource): AddInputResult {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool fields form an unvalidated candidate; KnowledgeAddItemInputSchema owns the complete ingestion contract.
 function validateAddInput(candidate: unknown, source: string): AddInputResult {
   const parsed = KnowledgeAddItemInputSchema.safeParse(candidate)
+
   if (!parsed.success) {
     return {
       ok: false,
       error: `Invalid knowledge item to add: ${parsed.error.issues[0]?.message ?? 'validation failed'}`
     }
   }
+
   return { ok: true, input: parsed.data, source }
 }
 
@@ -637,11 +717,14 @@ function firstNonEmptyLine(content: string): string | undefined {
 /** A note's display source: the caller-supplied title, else its first non-empty line (truncated), else a placeholder. */
 function deriveNoteSource(content: string, title?: string | null): string {
   const explicit = title?.trim()
+
   if (explicit) return explicit
   // Truncation here differs by role from deriveSampleSource's note branch (a stored id, plain-clipped;
   // vs a display sample, ellipsised), so only the first-non-empty-line extraction is shared.
   const firstLine = firstNonEmptyLine(content)
+
   if (!firstLine) return 'Untitled note'
+
   return firstLine.length > NOTE_TITLE_MAX_CHARS ? firstLine.slice(0, NOTE_TITLE_MAX_CHARS) : firstLine
 }
 
@@ -651,12 +734,17 @@ async function listKnowledgeBases(
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')
+
     const query: Omit<Parameters<typeof knowledgeService.listBasesForDiscovery>[0], 'scope'> = {
       limit: input.limit ?? KB_LIST_DEFAULT_LIMIT
     }
+
     if (input.cursor) query.cursor = input.cursor
+
     if (input.query) query.query = input.query
+
     if (input.groupId) query.groupId = input.groupId
+
     const page = knowledgeService.listBasesForDiscovery({
       ...query,
       scope: toKnowledgeBaseDiscoveryScope(allowedIds)
@@ -666,6 +754,7 @@ async function listKnowledgeBases(
     // `throwOnTimeout: true` keeps p-queue's add() return type as the value (not `T | void`), so the
     // ordered map stays typed; map preserves order and no task is given a timeout.
     const queue = new PQueue({ concurrency: KB_LIST_ROOT_ITEMS_CONCURRENCY })
+
     const items: KbListOutputItem[] = await Promise.all(
       page.items.map((base) => queue.add(() => buildOutputItem(base, knowledgeService), { throwOnTimeout: true }))
     )
@@ -674,19 +763,23 @@ async function listKnowledgeBases(
       items,
       total: page.total
     }
+
     if (page.nextCursor) result.nextCursor = page.nextCursor
+
     return result
   } catch (error) {
     // `listBasesForDiscovery()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
     // error string through the MCP catch-all, mirroring kb_search's all-bases-failed path.
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('KnowledgeService.listBasesForDiscovery failed', { error: message })
+
     return { error: message }
   }
 }
 
 function toKnowledgeBaseDiscoveryScope(allowedIds: readonly string[]) {
   const [first, ...rest] = allowedIds
+
   return first === undefined
     ? { kind: 'unrestricted' as const }
     : { kind: 'restricted' as const, baseIds: [first, ...rest] as readonly [string, ...string[]] }
@@ -700,6 +793,7 @@ export function knowledgeListModelOutput(
 
   if (!isObjectOutput(output)) {
     logger.warn('kb_list output is not an object; rendering the unreadable-output note', { received: typeof output })
+
     return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
   }
 
@@ -720,7 +814,9 @@ export function knowledgeListModelOutput(
             'This knowledge-base cursor is exhausted or stale. Call kb_list again without cursor, keeping the same query and groupId filters if they still apply.'
         }
       }
+
       const filtered = Boolean(input?.query) || Boolean(input?.groupId)
+
       return {
         type: 'text',
         value: filtered
@@ -728,6 +824,7 @@ export function knowledgeListModelOutput(
           : 'No knowledge bases are available for this assistant. Inform the user that no knowledge base is configured rather than retrying.'
       }
     }
+
     return { type: 'json', value: output }
   }
 
@@ -736,12 +833,14 @@ export function knowledgeListModelOutput(
     if (output.nodes.length === 0) {
       return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
     }
+
     return { type: 'json', value: output }
   }
 
   logger.warn('kb_list output matches no known shape; rendering the unreadable-output note', {
     keys: Object.keys(output)
   })
+
   return { type: 'text', value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE }
 }
 
@@ -751,6 +850,7 @@ function buildOutputItem(
 ): KbListOutputItem {
   let rootItems: KnowledgeItem[] = []
   let itemsUnavailable = false
+
   if (base.status === 'completed') {
     try {
       rootItems = knowledgeService.listRootItems(base.id)
@@ -768,6 +868,7 @@ function buildOutputItem(
   }
 
   const completedItems = rootItems.filter((item) => item.status === 'completed')
+
   const sampleSources = completedItems
     .slice(0, SAMPLE_LIMIT)
     .map(deriveSampleSource)
@@ -789,24 +890,30 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
   switch (item.type) {
     case 'file': {
       const legacyFile = (item.data as { file?: { origin_name?: string; name?: string } }).file
+
       const value =
         legacyFile?.origin_name?.trim() ||
         legacyFile?.name?.trim() ||
         item.data.source.trim() ||
         item.data.relativePath.trim()
+
       return value ? value : null
     }
+
     case 'url':
       return item.data.url.trim() || null
     case 'directory':
       return item.data.source.trim() || null
     case 'note': {
       const firstLine = firstNonEmptyLine(item.data.content)
+
       if (!firstLine) return null
+
       return firstLine.length > NOTE_SNIPPET_MAX_CHARS
         ? `${firstLine.slice(0, NOTE_SNIPPET_MAX_CHARS - 1)}…`
         : firstLine
     }
+
     default:
       return null
   }

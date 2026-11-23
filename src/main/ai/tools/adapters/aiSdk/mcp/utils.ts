@@ -31,6 +31,7 @@ export function mcpResultToTextSummary(result: CallToolResult): string {
   }
 
   const parts: string[] = []
+
   for (const item of mcpModelContent(result)) {
     switch (item.type) {
       case 'text':
@@ -54,6 +55,7 @@ export function mcpResultToTextSummary(result: CallToolResult): string {
         } else {
           parts.push(item.resource.text || JSON.stringify(item))
         }
+
         break
       default:
         parts.push(JSON.stringify(item))
@@ -74,16 +76,20 @@ export function mcpResultToModelOutput(result: CallToolResult, serverId?: string
     if (item.type === 'image' || item.type === 'audio') {
       if (item.data) {
         const isImage = item.type === 'image'
+
         return {
           type: isImage ? 'image-data' : 'file-data',
           data: item.data,
           mediaType: item.mimeType || (isImage ? 'image/png' : 'audio/mp3')
         }
       }
+
       return { type: 'text', text: JSON.stringify(item) }
     }
+
     if (item.type === 'resource' && 'blob' in item.resource && item.resource.blob && serverId && item.resource.uri) {
       const { uri, mimeType } = item.resource
+
       return {
         type: 'text',
         text:
@@ -91,11 +97,13 @@ export function mcpResultToModelOutput(result: CallToolResult, serverId?: string
           `read with mcp_resource_read using ${JSON.stringify({ serverId, uri })}.`
       }
     }
+
     return { type: 'text', text: mcpResultToTextSummary({ content: [item] }) }
   })
 
   if (value.every((item) => item.type === 'text')) {
     return { type: 'text', value: value.map((item) => item.text).join('\n') }
   }
+
   return { type: 'content', value }
 }

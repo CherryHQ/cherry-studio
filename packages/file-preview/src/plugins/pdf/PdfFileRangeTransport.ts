@@ -40,16 +40,21 @@ export class PdfFileRangeTransport extends PDFDataRangeTransport {
     void this.readRange(begin, end).catch((error: unknown) => {
       if (this.isInactive()) return
       this.failed = true
+
       if (error instanceof Error) {
         this.onError(error)
+
         return
       }
+
       let message = 'PDF range could not be read'
+
       try {
         message = String(error)
       } catch {
         // Unreadable diagnostics must still reach the document's failure callback.
       }
+
       this.onError(new Error(message))
     })
   }
@@ -61,21 +66,25 @@ export class PdfFileRangeTransport extends PDFDataRangeTransport {
 
   private async readRange(begin: number, end: number): Promise<void> {
     assertPreviewRange(this.length, begin, end - begin)
+
     if (end <= begin) {
       throw new PreviewError('invalid_range', `Invalid PDF byte range: ${begin}-${end} of ${this.length}`)
     }
 
     const rangeLength = end - begin
+
     if (rangeLength > PDF_MAX_ASSEMBLED_RANGE_BYTES) {
       throw new PdfRangeTooLargeError(begin, end)
     }
 
     const data = new Uint8Array(rangeLength)
+
     for (let offset = begin; offset < end; offset += PDF_RANGE_CHUNK_SIZE_BYTES) {
       if (this.isInactive()) return
 
       const length = Math.min(PDF_RANGE_CHUNK_SIZE_BYTES, end - offset)
       const chunk = await readPreviewRange(this.document, offset, length, this.controller.signal)
+
       if (this.isInactive()) return
       data.set(chunk, offset - begin)
     }

@@ -9,6 +9,7 @@ import { useChartTheme } from './useChartTheme'
 export function Chart(props: ChartProps) {
   const theme = useChartTheme()
   const animation = !useReducedMotion()
+
   const option =
     props.type === 'pie' ? buildPieChart(props, animation, theme) : buildCartesianChart(props, animation, theme)
 

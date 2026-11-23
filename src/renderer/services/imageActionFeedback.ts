@@ -16,6 +16,7 @@ export function showImageActionFeedback(
 ) {
   if (type !== 'export') {
     void request.promise.catch(() => toast.error(t('common.copy_failed')))
+
     return
   }
 

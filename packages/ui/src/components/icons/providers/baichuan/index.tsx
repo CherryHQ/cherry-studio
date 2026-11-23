@@ -6,7 +6,9 @@ import { BaichuanLight } from './light'
 
 const Baichuan = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BaichuanLight {...props} className={className} />
+
   if (variant === 'dark') return <BaichuanDark {...props} className={className} />
+
   return (
     <>
       <BaichuanLight className={cn('dark:hidden', className)} {...props} />

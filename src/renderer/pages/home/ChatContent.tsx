@@ -160,6 +160,7 @@ const ChatContentInner: FC<InnerProps> = ({
   const { reserveBranch } = useTopicBranchActions(topic.id)
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
+
   const runtime = useChatRuntimeState({
     topic,
     isHistoryLoading,
@@ -172,7 +173,9 @@ const ChatContentInner: FC<InnerProps> = ({
     composerModelId,
     onBranchLiveStateChange
   })
+
   const locateRuntimeMessage = runtime.locateMessage
+
   const handleConversationControlsChange = useCallback<ChatConversationControlsChangeHandler>(
     (snapshot) => {
       setSupportsImageInput(snapshot?.supportsImageInput ?? false)
@@ -180,6 +183,7 @@ const ChatContentInner: FC<InnerProps> = ({
     },
     [onConversationControlsChange]
   )
+
   const addGeneratedImageToComposer = useCallback<NonNullable<MessageListActions['addGeneratedImageToComposer']>>(
     (image) =>
       EventEmitter.emit(EVENT_NAMES.ADD_CHAT_COMPOSER_IMAGE_REFERENCE, {
@@ -188,35 +192,46 @@ const ChatContentInner: FC<InnerProps> = ({
       }),
     [topic.id]
   )
+
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
+
   const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
     if (isHistoryStale) return null
 
     const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
     const contextTokens = activeMessage?.metadata?.stats?.contextTokens
     const modelId = activeMessage?.metadata?.modelId
+
     if (activeMessage?.role !== 'assistant' || typeof contextTokens !== 'number' || !isUniqueModelId(modelId)) {
       return null
     }
+
     return { contextTokens, modelId }
   }, [activeNodeId, isHistoryStale, uiMessages])
 
   useEffect(() => {
     if (!locateMessageId && !locateToEnd) {
       locateLoadRequestRef.current = undefined
+
       return
     }
+
     if (isHistoryLoading || isHistoryStale) return
     const targetLoaded = uiMessages.some((message) => message.id === locateMessageId)
+
     if (!targetLoaded && !locateToEnd && hasOlder) {
       const requestKey = `${locateMessageId}:${uiMessages.length}`
+
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
         loadOlder()
       }
+
       return
     }
+
     locateLoadRequestRef.current = undefined
+
     // Claim scroll ownership before the list's pending initial-restore frame.
     if (locateToEnd || !targetLoaded) locateRuntimeMessage(null)
     else if (locateMessageId) locateRuntimeMessage(locateMessageId, true)
@@ -234,6 +249,7 @@ const ChatContentInner: FC<InnerProps> = ({
   ])
 
   const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
+
   const main = (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
@@ -260,6 +276,7 @@ const ChatContentInner: FC<InnerProps> = ({
       />
     </div>
   )
+
   const composer = runtime.shouldRenderHomeComposer ? (
     <ChatComposerSlot
       placement="home"
@@ -289,6 +306,7 @@ const ChatContentInner: FC<InnerProps> = ({
       onConversationControlsChange={handleConversationControlsChange}
     />
   )
+
   const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'
 
   return (

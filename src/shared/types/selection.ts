@@ -14,7 +14,9 @@ export const SELECTION_BUILTIN_ACTION_IDS = [
   'quote',
   'ask-agent'
 ] as const
+
 export type SelectionBuiltinActionId = (typeof SELECTION_BUILTIN_ACTION_IDS)[number]
+
 export const SELECTION_BUILTIN_ACTION_ID = {
   TRANSLATE: 'translate',
   EXPLAIN: 'explain',
@@ -33,7 +35,9 @@ const selectionActionFields = {
   selectedText: z.string().optional(),
   programName: z.string().optional()
 }
+
 const builtinActionFields = { ...selectionActionFields, isBuiltIn: z.literal(true) }
+
 const agentBindingFields = {
   agentId: z.string().optional(),
   agentWorkspace: AgentSessionWorkspaceSourceSchema.optional()
@@ -76,12 +80,16 @@ export const SelectionActionSchema = z.discriminatedUnion('isBuiltIn', [
 ]) satisfies z.ZodType<SelectionActionItem>
 
 export type BuiltinSelectionAction = z.infer<typeof BuiltinSelectionActionSchema>
+
 export type SearchSelectionAction = Extract<BuiltinSelectionAction, { id: typeof SELECTION_BUILTIN_ACTION_ID.SEARCH }>
+
 export type AskAgentSelectionAction = Extract<
   BuiltinSelectionAction,
   { id: typeof SELECTION_BUILTIN_ACTION_ID.ASK_AGENT }
 >
+
 export type CustomSelectionAction = z.infer<typeof CustomSelectionActionSchema>
+
 export type SelectionAction = z.infer<typeof SelectionActionSchema>
 
 export type SelectionActionSession = SelectionAction & {
@@ -102,6 +110,7 @@ export const SelectionAgentWindowLayoutSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('compose'), height: z.number().positive() }),
   z.object({ mode: z.literal('conversation') })
 ])
+
 export type SelectionAgentWindowLayout = z.infer<typeof SelectionAgentWindowLayoutSchema>
 
 export const SELECTION_AGENT_STATUSES = [
@@ -112,6 +121,7 @@ export const SELECTION_AGENT_STATUSES = [
   'done',
   'failed'
 ] as const
+
 export type SelectionAgentStatus = (typeof SELECTION_AGENT_STATUSES)[number]
 
 /** What a collapsed agent window shows on its capsule; the window publishes it as its turn changes. */
@@ -123,6 +133,7 @@ export const SelectionAgentSummarySchema = z.object({
   /** Tool calls in the current turn. */
   steps: z.number().int().nonnegative()
 })
+
 export type SelectionAgentSummary = z.infer<typeof SelectionAgentSummarySchema>
 
 /** One capsule of a display's stack, which main orders nearest the corner first. */

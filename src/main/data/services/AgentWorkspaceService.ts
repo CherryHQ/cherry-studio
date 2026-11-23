@@ -29,7 +29,9 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
+
 export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }
+
 const AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT = 21
 
 function buildReferenceList(items: AgentWorkspaceReferenceItem[], total = items.length): AgentWorkspaceReferenceList {
@@ -54,9 +56,11 @@ function defaultWorkspaceName(workspacePath: string): string {
 
 function normalizeWorkspaceName(rawName: string): string {
   const trimmed = rawName.trim()
+
   if (!trimmed) {
     throw DataApiErrorFactory.validation({ name: ['Workspace name is required'] })
   }
+
   return trimmed
 }
 
@@ -73,6 +77,7 @@ export class AgentWorkspaceService {
         )
       )
       .run()
+
     if (result.changes !== 1) throw new Error('System workspace changed during relocation')
   }
 
@@ -89,30 +94,38 @@ export class AgentWorkspaceService {
     if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
       throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
     }
+
     const date = new Date(createdAt)
     const year = String(date.getUTCFullYear()).padStart(4, '0')
     const month = String(date.getUTCMonth() + 1).padStart(2, '0')
     const day = String(date.getUTCDate()).padStart(2, '0')
+
     return path.join(systemWorkspacesRoot, `${year}-${month}-${day}`, sessionId)
   }
 
   private normalizeWorkspacePath(rawPath: string): string {
     const trimmed = rawPath.trim()
+
     if (!trimmed) {
       throw DataApiErrorFactory.validation({ path: ['Workspace path is required'] })
     }
+
     if (!path.isAbsolute(trimmed)) {
       throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
     }
+
     const normalized = path.normalize(trimmed)
     const root = path.parse(normalized).root
     let end = normalized.length
+
     while (end > root.length && /[\\/]/.test(normalized[end - 1])) end -= 1
+
     return normalized.slice(0, end)
   }
 
   list(options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity[] {
     const db = application.get('DbService').getDb()
+
     const rows = db
       .select()
       .from(agentWorkspaceTable)
@@ -166,17 +179,20 @@ export class AgentWorkspaceService {
       )
       .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
       .all()
+
     return rows.map(rowToAgentWorkspace)
   }
 
   getById(id: string, options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity {
     const db = application.get('DbService').getDb()
     const row = this.getRowByIdTx(db, id, options)
+
     return rowToAgentWorkspace(row)
   }
 
   getByIdTx(tx: DbOrTx, id: string, options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity {
     const row = this.getRowByIdTx(tx, id, options)
+
     return rowToAgentWorkspace(row)
   }
 
@@ -184,8 +200,11 @@ export class AgentWorkspaceService {
     const predicate = options.includeSystem
       ? eq(agentWorkspaceTable.id, id)
       : and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
+
     const [row] = tx.select().from(agentWorkspaceTable).where(predicate).limit(1).all()
+
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+
     return row
   }
 
@@ -198,6 +217,7 @@ export class AgentWorkspaceService {
       .from(sessionsTable)
       .where(eq(sessionsTable.workspaceId, id))
       .all()
+
     const sessions = db
       .select({ id: sessionsTable.id, name: sessionsTable.name })
       .from(sessionsTable)
@@ -205,6 +225,7 @@ export class AgentWorkspaceService {
       .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT)
       .all()
+
     const channels = agentChannelService.listWorkspaceReferencesTx(db, id)
     const tasks = getDataService('AgentTaskService').listWorkspaceReferencesTx(db, id)
 
@@ -221,6 +242,7 @@ export class AgentWorkspaceService {
 
   findOrCreateByPathResult(rawPath: string, options: { name?: string } = {}): FindOrCreateAgentWorkspaceResult {
     const workspacePath = this.normalizeWorkspacePath(rawPath)
+
     const result = withSqliteErrors(
       () =>
         application
@@ -231,17 +253,21 @@ export class AgentWorkspaceService {
         unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
       }
     )
+
     if (result.created)
       notifyDataApiDataChange([{ endpoint: '/agent-workspaces', kind: 'membership', entityIds: [result.row.id] }])
+
     return { workspace: rowToAgentWorkspace(result.row), created: result.created }
   }
 
   findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: { name?: string } = {}): AgentWorkspaceEntity {
     const workspacePath = this.normalizeWorkspacePath(rawPath)
+
     const result = withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
       ...defaultHandlersFor('Workspace', workspacePath),
       unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
     })
+
     return rowToAgentWorkspace(result.row)
   }
 
@@ -252,23 +278,27 @@ export class AgentWorkspaceService {
       .where(eq(agentWorkspaceTable.path, workspacePath))
       .limit(1)
       .all()
+
     if (existing) {
       // Idempotent find branch: POST/find-or-create never renames an existing workspace.
       // Callers that want to rename must use PATCH /agent-workspaces/:workspaceId.
       if (AgentWorkspaceTypeSchema.parse(existing.type) === AGENT_WORKSPACE_TYPE.USER) {
         return { row: existing, created: false }
       }
+
       throw DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
     }
 
     const id = uuidv4()
     const name = options.name?.trim() || defaultWorkspaceName(workspacePath)
+
     const row = insertWithOrderKey(
       tx,
       agentWorkspaceTable,
       { id, name, path: workspacePath, type: AGENT_WORKSPACE_TYPE.USER },
       { pkColumn: agentWorkspaceTable.id, position: 'first' }
     )
+
     return { row, created: true }
   }
 
@@ -280,6 +310,7 @@ export class AgentWorkspaceService {
         input.createdAt
       )
     )
+
     const row = withSqliteErrors(
       () =>
         insertWithOrderKey(
@@ -299,6 +330,7 @@ export class AgentWorkspaceService {
           DataApiErrorFactory.conflict(`System workspace already exists for session ${input.sessionId}`, 'Workspace')
       }
     )
+
     return rowToAgentWorkspace(row)
   }
 
@@ -307,17 +339,21 @@ export class AgentWorkspaceService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           this.getRowByIdTx(tx, id)
+
           const [updated] = tx
             .update(agentWorkspaceTable)
             .set({ name: normalizeWorkspaceName(dto.name) })
             .where(and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER)))
             .returning()
             .all()
+
           return updated
         }),
       defaultHandlersFor('Workspace', id)
     )
+
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+
     return rowToAgentWorkspace(row)
   }
 
@@ -327,6 +363,7 @@ export class AgentWorkspaceService {
       .where(eq(agentWorkspaceTable.id, id))
       .returning({ id: agentWorkspaceTable.id })
       .all()
+
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
     pinService.purgeForEntityTx(tx, 'workspace', id)
   }
@@ -356,6 +393,7 @@ export class AgentWorkspaceService {
       )
       .limit(1)
       .all()
+
     if (!row) return false
 
     const [session] = tx
@@ -364,11 +402,15 @@ export class AgentWorkspaceService {
       .where(eq(sessionsTable.workspaceId, id))
       .limit(1)
       .all()
+
     if (session) return false
+
     if (agentChannelService.listWorkspaceReferencesTx(tx, id).length > 0) return false
+
     if (getDataService('AgentTaskService').listWorkspaceReferencesTx(tx, id).length > 0) return false
 
     this.deleteByIdTx(tx, id)
+
     return true
   }
 
@@ -392,6 +434,7 @@ export class AgentWorkspaceService {
       this.assertUserWorkspaceExistsTx(tx, move.id)
       this.assertUserAnchorExistsTx(tx, move.anchor)
     }
+
     applyMoves(tx, agentWorkspaceTable, moves, { pkColumn: agentWorkspaceTable.id })
   }
 
@@ -402,11 +445,13 @@ export class AgentWorkspaceService {
       .where(and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER)))
       .limit(1)
       .all()
+
     if (!target) throw DataApiErrorFactory.notFound('Workspace', id)
   }
 
   private assertUserAnchorExistsTx(tx: DbOrTx, anchor: OrderRequest): void {
     const anchorId = 'before' in anchor ? anchor.before : 'after' in anchor ? anchor.after : undefined
+
     if (!anchorId) return
     this.assertUserWorkspaceExistsTx(tx, anchorId)
   }

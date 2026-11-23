@@ -57,10 +57,12 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
 
   const foundProvider = providers.find((p) => p.id === id)
   const existingApiHost = getProviderHostTopology(foundProvider).primaryBaseUrl
+
   const { data: apiKeysData, isLoading: apiKeysLoading } = useQuery('/providers/:providerId/api-keys', {
     params: { providerId: id },
     enabled: foundProvider !== undefined
   })
+
   const baseProvider: ImportedProviderData = foundProvider
     ? {
         id: foundProvider.id,
@@ -85,6 +87,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
   const trimmedNewKey = newApiKey.trim()
   const keyAlreadyExists = existingKeys.includes(trimmedNewKey)
   const baseUrlChanged = Boolean(baseUrl) && baseUrl !== baseProvider.apiHost
+
   const okDisabled =
     !finalName ||
     (foundProvider !== undefined && apiKeysLoading) ||
@@ -102,6 +105,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
 
     if (!nameChanged && finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
       resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
+
       return
     }
 
@@ -111,6 +115,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
       apiKey: finalApiKey,
       apiHost: finalApiHost
     }
+
     resolve({
       updatedProvider,
       isNew: !foundProvider,

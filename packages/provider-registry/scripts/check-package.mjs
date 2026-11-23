@@ -22,12 +22,14 @@ try {
   const [packed] = JSON.parse(
     run(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', directory], packageRoot)
   )
+
   for (const file of ['LICENSE', 'data/models.json', 'data/providers.json', 'data/provider-models.json']) {
     assert(
       packed.files.some((entry) => entry.path === file),
       `Missing published file: ${file}`
     )
   }
+
   writeFileSync(join(directory, 'package.json'), JSON.stringify({ private: true, type: 'module' }))
   run(npm, [
     'install',
@@ -53,6 +55,7 @@ try {
       assert.equal(typeof read(path).version, 'string')
     }
   `
+
   writeFileSync(
     join(directory, 'consumer.mjs'),
     `
@@ -93,6 +96,7 @@ try {
     // @ts-expect-error Query collections are read-only.
     registry.listModels().push(model)
   `
+
   writeFileSync(join(directory, 'consumer.mts'), types)
   writeFileSync(join(directory, 'consumer.cts'), types)
   run(process.execPath, [
@@ -141,6 +145,7 @@ try {
   )
 } catch (error) {
   if (error.stdout) process.stderr.write(error.stdout)
+
   if (error.stderr) process.stderr.write(error.stderr)
   throw error
 } finally {

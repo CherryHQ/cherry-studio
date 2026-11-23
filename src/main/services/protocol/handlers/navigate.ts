@@ -21,11 +21,13 @@ export function handleNavigateProtocolUrl(url: URL) {
 
   if (!isAllowedRoute(normalizedPath)) {
     logger.warn(`Blocked navigation to disallowed route: ${normalizedPath}`)
+
     return
   }
 
   if (url.searchParams.has('protocolInstall') || url.searchParams.has('protocolInstallRequestId')) {
     logger.warn('Blocked navigation with internal MCP install parameters')
+
     return
   }
 
@@ -37,6 +39,7 @@ export function handleNavigateProtocolUrl(url: URL) {
 
   if (fullPath.startsWith('/settings/')) {
     openSettingsInMainWindow(normalizeSettingsPath(fullPath))
+
     return
   }
 

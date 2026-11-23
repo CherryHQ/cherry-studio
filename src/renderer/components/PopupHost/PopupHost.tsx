@@ -26,6 +26,7 @@ export default function PopupHost() {
         }
 
         const { Component, props, instanceId, open } = entry
+
         return (
           <Component
             key={instanceId}

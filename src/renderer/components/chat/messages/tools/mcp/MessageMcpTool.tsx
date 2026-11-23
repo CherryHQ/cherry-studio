@@ -63,6 +63,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 
   useEffect(() => {
     const unsubscribe = subscribeToolProgress?.(id, setProgress)
+
     return () => {
       setProgress(0)
       unsubscribe?.()
@@ -105,10 +106,12 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const getDisclosureItems = (): ToolDisclosureItem[] => {
     const items: ToolDisclosureItem[] = []
     const hasError = response?.isError === true
+
     const result = {
       params: toolResponse.arguments,
       response: toolResponse.response
     }
+
     items.push({
       key: id,
       label: (
@@ -196,23 +199,29 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
 
   const hasMcpContent =
     typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
+
   const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
+
   if (result?.success) {
     const contents = result.data.content
+
     if (contents.length === 0) return { text: '', images: [], links: [] }
 
     const textParts: string[] = []
     const images: Array<{ data: string; mimeType: string }> = []
     const links: ToolResultLinkData[] = []
+
     for (const content of contents) {
       switch (content.type) {
         case 'text':
           if (content.text) {
             const textLinks = getToolResultLinks(content)
+
             if (textLinks) {
               for (const link of textLinks) links.push(link)
               break
             }
+
             try {
               const parsed = JSON.parse(content.text)
               textParts.push(JSON.stringify(parsed, null, 2))
@@ -220,62 +229,77 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
               textParts.push(content.text)
             }
           }
+
           break
         case 'image':
           if (content.data) {
             images.push({ data: content.data, mimeType: content.mimeType ?? 'image/png' })
           }
+
           break
         case 'resource':
           textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
           break
         case 'resource_link': {
           const resourceLinks = getToolResultLinks(content)
+
           if (resourceLinks) links.push(...resourceLinks)
           else textParts.push(content.uri)
           break
         }
       }
     }
+
     return { text: textParts.join('\n\n'), images, links }
   }
 
   // Fallback: return JSON string for unknown format
   const text = typeof response === 'string' ? JSON.stringify(response) : safeToString(response, 2)
   const links = getToolResultLinks({ type: 'text', text: typeof response === 'string' ? response : text })
+
   return { text: links ? '' : text, images: [], links: links ?? [] }
 }
 
 const truncateArgText = (text: string): string => {
   const result = truncateOutput(text, MAX_ARG_VALUE_LENGTH)
+
   return result.isTruncated ? `${result.data}\n... truncated (${result.originalLength} chars)` : result.data
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool argument fields are extension-defined; this bounded preview narrows each value before formatting it.
 const formatArgPreviewValue = (value: unknown, depth = 0): string => {
   if (value === null) return 'null'
+
   if (value === undefined) return ''
+
   if (typeof value === 'string') return truncateArgText(value)
+
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+
   if (typeof value === 'bigint') return value.toString()
 
   if (depth >= 2) {
     if (Array.isArray(value)) return `[${value.length} items]`
+
     return '{...}'
   }
 
   if (Array.isArray(value)) {
     const visibleItems = value.slice(0, MAX_ARG_ARRAY_ITEMS).map((item) => formatArgPreviewValue(item, depth + 1))
     const suffix = value.length > MAX_ARG_ARRAY_ITEMS ? `, ... ${value.length - MAX_ARG_ARRAY_ITEMS} more items` : ''
+
     return `[${visibleItems.join(', ')}${suffix}]`
   }
 
   if (typeof value === 'object') {
     const entries = Object.entries(value)
+
     const visibleEntries = entries.slice(0, MAX_ARG_OBJECT_KEYS).map(([key, item]) => {
       return `${JSON.stringify(key)}: ${formatArgPreviewValue(item, depth + 1)}`
     })
+
     const suffix = entries.length > MAX_ARG_OBJECT_KEYS ? `, ... ${entries.length - MAX_ARG_OBJECT_KEYS} more keys` : ''
+
     return `{${visibleEntries.join(', ')}${suffix}}`
   }
 
@@ -293,10 +317,12 @@ const ToolResponseContent: FC<{
   useEffect(() => {
     if (!isExpanded) {
       setShouldRender(false)
+
       return
     }
 
     const timer = window.setTimeout(() => setShouldRender(true), TOOL_RESPONSE_RENDER_DELAY_MS)
+
     return () => window.clearTimeout(timer)
   }, [isExpanded])
 
@@ -334,17 +360,21 @@ const ExpandedToolResponseContent: FC<{
   // Parse args if it's a string (streaming partial JSON)
   const parsedArgs = useMemo(() => {
     if (!showArgs) return null
+
     if (!args) return null
+
     if (typeof args === 'string') {
       if (args.length > MAX_ARG_STRING_PARSE_LENGTH) {
         return { arguments: truncateArgText(args) }
       }
+
       try {
         return parsePartialJson(args)
       } catch {
         return { arguments: truncateArgText(args) }
       }
     }
+
     return args
   }, [args, showArgs])
 
@@ -355,6 +385,7 @@ const ExpandedToolResponseContent: FC<{
     // <Activity> re-show re-runs this effect with an unchanged response, and
     // the unconditional clear+shiki pass would flash and re-pay the highlight.
     const last = highlightedForRef.current
+
     if (last && last.response === response && last.highlight === highlightCode) return
 
     let cancelled = false
@@ -366,18 +397,22 @@ const ExpandedToolResponseContent: FC<{
       setIsTruncated(false)
       setOriginalLength(0)
       const { text: previewContent, images, links } = extractPreviewContent(response)
+
       if (cancelled) return
       setResponseImages(images)
       setResponseLinks(links)
+
       const {
         data: truncatedContent,
         isTruncated: wasTruncated,
         originalLength: origLen
       } = truncateOutput(previewContent)
+
       if (cancelled) return
       setIsTruncated(wasTruncated)
       setOriginalLength(origLen)
       const result = truncatedContent ? await highlightCode(truncatedContent, 'json') : ''
+
       if (cancelled) return
       highlightedForRef.current = { response, highlight: highlightCode }
       setHighlightedResponse(result)
@@ -385,6 +420,7 @@ const ExpandedToolResponseContent: FC<{
 
     if (window.requestIdleCallback) {
       const idleId = window.requestIdleCallback(() => void highlight(), { timeout: 500 })
+
       return () => {
         cancelled = true
         window.cancelIdleCallback(idleId)
@@ -392,6 +428,7 @@ const ExpandedToolResponseContent: FC<{
     }
 
     const timer = window.setTimeout(() => void highlight(), 80)
+
     return () => {
       cancelled = true
       window.clearTimeout(timer)
@@ -401,15 +438,19 @@ const ExpandedToolResponseContent: FC<{
   // Handle both object and array args - for arrays, show as single entry
   const getEntries = (): Array<[string, unknown]> => {
     if (!parsedArgs || typeof parsedArgs !== 'object') return []
+
     if (Array.isArray(parsedArgs)) {
       return [['arguments', parsedArgs]]
     }
+
     return Object.entries(parsedArgs)
   }
+
   const entries = getEntries()
 
   const renderArgsTable = (): React.ReactNode => {
     if (entries.length === 0) return null
+
     return (
       <ArgsSection>
         <ArgsSectionTitle>Arguments</ArgsSectionTitle>

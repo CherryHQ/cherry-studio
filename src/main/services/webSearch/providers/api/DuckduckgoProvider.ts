@@ -28,6 +28,7 @@ function decodeResultUrl(href: string): string {
 
     // URLSearchParams already percent-decoded the target; decoding again would corrupt it.
     const target = url.searchParams.get('uddg')
+
     // Scheme check must go through URL parsing: `startsWith('http')` is case-sensitive and
     // rejects uppercase schemes the URL parser accepts.
     return target && isHttpUrl(target) ? target : href
@@ -45,6 +46,7 @@ async function parseSearchItems(html: string): Promise<{ title: string; url: str
     const titleEl = $(element).find('.result__title a')
     const href = titleEl.attr('href')
     const title = titleEl.text().trim()
+
     if (!href || !title) {
       return
     }
@@ -68,6 +70,7 @@ export class DuckduckgoProvider extends BaseWebSearchProvider {
   ): Promise<WebSearchResponse> {
     const signal = httpOptions?.signal ?? undefined
     const searchUrl = `${SEARCH_ENDPOINT}?q=${encodeURIComponent(query)}`
+
     const response = await net.fetch(searchUrl, {
       method: 'GET',
       headers: {

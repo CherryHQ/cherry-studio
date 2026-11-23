@@ -87,8 +87,10 @@ function DateTimePicker({
   const isValueControlled = value !== undefined
   const [internalValue, setInternalValue] = React.useState<Date | undefined>(() => normalizeDate(defaultValue))
   const selectedDate = isValueControlled ? normalizeDate(value) : internalValue
+
   const [month, setMonth] = React.useState<Date>(() => {
     const initialDate = normalizeDate(value) ?? normalizeDate(defaultValue) ?? new Date()
+
     return getMonthDate(initialDate)
   })
 
@@ -124,12 +126,14 @@ function DateTimePicker({
     (date: Date | undefined) => {
       if (!date) {
         commitDate(undefined)
+
         return
       }
 
       const nextDate = mergeDatePart(date, selectedDate)
       setMonth(getMonthDate(nextDate))
       commitDate(nextDate)
+
       if (granularity === 'day') setPickerOpen(false)
     },
     [commitDate, granularity, selectedDate, setPickerOpen]
@@ -142,7 +146,9 @@ function DateTimePicker({
       const nextValue = clampTimeValue(rawValue, max)
 
       if (part === 'hours') nextDate.setHours(nextValue)
+
       if (part === 'minutes') nextDate.setMinutes(nextValue)
+
       if (part === 'seconds') nextDate.setSeconds(nextValue)
 
       commitDate(nextDate)
@@ -271,7 +277,9 @@ function mergeDatePart(date: Date, current: Date | undefined) {
 
 function clampTimeValue(value: string, max: number) {
   const parsed = Number.parseInt(value, 10)
+
   if (Number.isNaN(parsed)) return 0
+
   return Math.min(Math.max(parsed, 0), max)
 }
 

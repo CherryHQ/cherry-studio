@@ -6,7 +6,9 @@ import { TrinityLight } from './light'
 
 const Trinity = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TrinityLight {...props} className={className} />
+
   if (variant === 'dark') return <TrinityDark {...props} className={className} />
+
   return (
     <>
       <TrinityLight className={cn('dark:hidden', className)} {...props} />

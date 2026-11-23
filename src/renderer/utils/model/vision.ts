@@ -52,5 +52,6 @@ export const isPureGenerateImageModel = isTextToImageModel
  */
 export function isVisionModel(model: Model): boolean {
   if (!model) return false
+
   return sharedIsVisionModel(model)
 }

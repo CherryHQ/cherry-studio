@@ -16,5 +16,6 @@ function NotesRoute() {
   const { notePath } = Route.useSearch()
   const navigate = Route.useNavigate()
   const handleNoteOpened = useCallback(() => void navigate({ search: {}, replace: true }), [navigate])
+
   return <NotesPage notePath={notePath} onNoteOpened={handleNoteOpened} />
 }

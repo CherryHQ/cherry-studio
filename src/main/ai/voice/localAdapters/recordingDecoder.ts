@@ -6,6 +6,7 @@ import { voiceAudioProcess } from './voiceAudioProcess'
 export async function decodeVoiceRecording(audio: Uint8Array, callerSignal?: AbortSignal) {
   const timeout = AbortSignal.timeout(30_000)
   const signal = callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout
+
   return (
     application
       .get('UtilityProcessManager')

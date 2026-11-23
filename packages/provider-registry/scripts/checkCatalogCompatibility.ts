@@ -32,15 +32,18 @@ export async function checkCatalogCompatibility(options: CompatibilityCheckOptio
   }
 
   const validator = (await import(pathToFileURL(validatorPath).href)) as FrozenValidator
+
   if (validator.schemaVersion !== schemaVersion) {
     throw new Error(
       `Frozen validator ${path.basename(validatorPath)} reports schema version ${validator.schemaVersion}`
     )
   }
+
   validator.validateCatalogDirectory(dataDirectory)
 }
 
 const isCommandLine = process.argv[1] && path.resolve(process.argv[1]) === scriptPath
+
 if (isCommandLine) {
   void checkCatalogCompatibility()
     .then(() => console.log(`Catalog is compatible with frozen registry schema v${REGISTRY_SCHEMA_VERSION}`))

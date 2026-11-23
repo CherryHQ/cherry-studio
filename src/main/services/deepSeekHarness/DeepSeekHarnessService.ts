@@ -76,7 +76,9 @@ export class DeepSeekHarnessService extends BaseService {
 
   getStatus(): ManagedToolStatusState {
     const snapshot: ManagedToolStatusState = { status: this.status }
+
     if (this.url) Object.assign(snapshot, { url: this.url })
+
     return snapshot
   }
 
@@ -93,11 +95,13 @@ export class DeepSeekHarnessService extends BaseService {
   ): Promise<{ success: true; url: string } | { success: false; message: string }> {
     const startupAbortController = new AbortController()
     this.startupAbortControllers.add(startupAbortController)
+
     try {
       return await this.operationMutex.runExclusive(async () => {
         if (startupAbortController.signal.aborted) {
           return { success: false, message: 'DeepSeek Harness startup was cancelled' }
         }
+
         if (
           this.child &&
           this.status === 'running' &&
@@ -106,8 +110,10 @@ export class DeepSeekHarnessService extends BaseService {
         ) {
           const runningChild = this.child
           const transitionBefore = this.statusTransitionId
+
           try {
             const { receipt } = await this.syncConfig(input)
+
             if (
               startupAbortController.signal.aborted ||
               this.child !== runningChild ||
@@ -121,47 +127,60 @@ export class DeepSeekHarnessService extends BaseService {
                   : 'DeepSeek Harness exited while updating its configuration'
               )
             }
+
             // Idempotent success publishes nothing on its own — republish so a
             // renderer that missed an earlier update is corrected by this request.
             if (this.statusTransitionId === transitionBefore) this.setStatus('running', { force: true })
+
             return { success: true, url: this.url }
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to update DeepSeek Harness configuration'
+
             return { success: false, message: sanitizeDiagnostic(message) }
           }
         }
+
         if (this.child) await this.stopOwnedProcessLocked()
+
         if (startupAbortController.signal.aborted) {
           return { success: false, message: 'DeepSeek Harness startup was cancelled' }
         }
 
         let receipt: DeepSeekHarnessConfigReceipt | undefined
         let runtime: DeepSeekHarnessRuntime | undefined
+
         try {
           this.url = undefined
           this.setStatus('starting')
           runtime = await this.resolveRuntime()
+
           if (startupAbortController.signal.aborted) {
             throw new Error('DeepSeek Harness startup was cancelled')
           }
+
           const synced = await this.syncConfig(input)
           const projection = synced.projection
           receipt = synced.receipt
+
           if (startupAbortController.signal.aborted) {
             throw new Error('DeepSeek Harness startup was cancelled')
           }
+
           const url = await this.spawnAndWaitForReady(
             runtime,
             projection,
             input.permissionMode,
             startupAbortController.signal
           )
+
           if (!this.child || this.child.exitCode !== null || this.child.signalCode !== null) {
             throw new Error('DeepSeek Harness exited immediately after becoming ready')
           }
+
           this.url = url
           this.setStatus('running')
           this.runningPermissionMode = input.permissionMode
+
           return { success: true, url }
         } catch (error) {
           // Terminal state first: the cleanup-driven termination handler must not
@@ -172,16 +191,21 @@ export class DeepSeekHarnessService extends BaseService {
           // runtime, so only its own startup verdict fails launch; record its version for reports.
           const aborted = startupAbortController.signal.aborted
           const dshVersion = !aborted && runtime ? await readDshVersion(runtime.path) : undefined
+
           if (!aborted) {
             const diagnostics = {}
+
             if (dshVersion) Object.assign(diagnostics, { dshVersion })
             logger.warn('DeepSeek Harness failed to start', diagnostics)
           }
+
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError as Error)
           })
+
           if (receipt) await this.rollbackLaunchConfig(receipt)
           const message = error instanceof Error ? error.message : 'Failed to start DeepSeek Harness'
+
           return { success: false, message: sanitizeDiagnostic(message) }
         }
       })
@@ -198,6 +222,7 @@ export class DeepSeekHarnessService extends BaseService {
       this.url = undefined
       this.runningPermissionMode = undefined
       this.setStatus('stopped')
+
       // A no-op stop (already stopped) still confirms the terminal state to the renderer.
       if (this.statusTransitionId === transitionBefore) this.setStatus('stopped', { force: true })
     })
@@ -206,6 +231,7 @@ export class DeepSeekHarnessService extends BaseService {
   private async rollbackLaunchConfig(receipt: DeepSeekHarnessConfigReceipt): Promise<void> {
     try {
       const rolledBack = await rollbackDeepSeekHarnessConfig(receipt)
+
       if (!rolledBack) logger.warn('Skipped DeepSeek Harness config rollback because the files changed concurrently')
     } catch (error) {
       logger.warn('Failed to roll back DeepSeek Harness config after launch failure', error as Error)
@@ -214,13 +240,16 @@ export class DeepSeekHarnessService extends BaseService {
 
   private async findBinary(): Promise<Exclude<BinaryAvailability, { source: 'none' }> | null> {
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['dsh'])).dsh
+
     return snapshot.availability.source === 'none' ? null : snapshot.availability
   }
 
   private async resolveRuntime(): Promise<DeepSeekHarnessRuntime> {
     const binary = await this.findBinary()
+
     if (!binary) throw new Error('DeepSeek Harness is not installed')
     const env = binary.source === 'system' ? await getRawShellEnv() : await refreshShellEnv()
+
     return { path: AbsoluteFilePathSchema.parse(binary.path), env }
   }
 
@@ -229,10 +258,12 @@ export class DeepSeekHarnessService extends BaseService {
     receipt: DeepSeekHarnessConfigReceipt
   }> {
     const projection = await this.resolveProjection(input)
+
     const receipt = await writeDeepSeekHarnessConfig(
       AbsoluteFilePathSchema.parse(application.getPath('external.deepseek_harness.config')),
       projection
     )
+
     return { projection, receipt }
   }
 
@@ -241,7 +272,9 @@ export class DeepSeekHarnessService extends BaseService {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
     const provider = providerService.getByProviderId(providerId)
     const model = modelService.getByKey(providerId, modelId)
+
     if (!provider.isEnabled || !model.isEnabled) throw new Error('The selected DeepSeek Harness model is disabled')
+
     if (isNonChatModel(model)) throw new Error('The selected DeepSeek Harness model must support chat')
 
     if (input.mode === 'gateway') {
@@ -249,6 +282,7 @@ export class DeepSeekHarnessService extends BaseService {
       await gateway.start()
       const credentialValue = await gateway.ensureValidApiKey()
       const { host, port } = gateway.getCurrentConfig()
+
       return {
         route: GATEWAY_ROUTE,
         credentialRef: GATEWAY_CREDENTIAL_REF,
@@ -265,9 +299,11 @@ export class DeepSeekHarnessService extends BaseService {
     if (isLoginBasedProvider(provider)) {
       throw new Error('This provider must be used through the Unified Gateway')
     }
+
     const { protocol, baseUrl } = resolveDeepSeekHarnessEndpoint(provider, model)
     const { route, credentialRef } = createDeepSeekHarnessDirectIdentity(provider.id, protocol)
     const apiKey = providerService.getApiKeys(provider.id, { enabled: true })[0]?.key
+
     if (!apiKey && !provider.authOptional) throw new Error(`Provider ${provider.id} has no enabled API key`)
 
     return {
@@ -301,9 +337,12 @@ export class DeepSeekHarnessService extends BaseService {
       detached: !isWin,
       stdio: ['ignore', 'pipe', 'pipe']
     })
+
     this.child = child
+
     const handleTermination = (code: number | null, signal: NodeJS.Signals | null) =>
       this.handleChildTermination(child, code, signal)
+
     child.once('exit', handleTermination)
     child.once('close', handleTermination)
     child.on('error', (error) => {
@@ -323,13 +362,17 @@ export class DeepSeekHarnessService extends BaseService {
     this.child = null
     this.url = undefined
     this.runningPermissionMode = undefined
+
     if (this.stoppingChild === child) {
       this.stoppingChild = null
+
       // A teardown that began after the state already left starting/running (failed-launch
       // cleanup sets 'error' first) must not revive 'stopped'.
       if (this.status === 'starting' || this.status === 'running') this.setStatus('stopped')
+
       return
     }
+
     if (this.status === 'starting' || this.status === 'running') {
       this.setStatus('error')
       logger.warn('Managed DeepSeek Harness process exited unexpectedly', { code, signal })
@@ -338,12 +381,15 @@ export class DeepSeekHarnessService extends BaseService {
 
   private async stopOwnedProcessLocked(): Promise<void> {
     const child = this.child
+
     if (!child) return
     this.stoppingChild = child
     await terminateProcessTree(child, false, 'DeepSeek Harness')
+
     if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
 
     await terminateProcessTree(child, true, 'DeepSeek Harness')
+
     if (!(await waitForProcessExit(child, FORCE_STOP_TIMEOUT_MS))) {
       throw new Error('DeepSeek Harness did not exit after forced termination')
     }
@@ -362,6 +408,7 @@ function stripManagedCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   for (const name of Object.keys(env)) {
     if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
   }
+
   return env
 }
 
@@ -383,12 +430,15 @@ function parseReadyUrl(output: string): string | undefined {
   for (const match of output.matchAll(/^dsh web: (\S+)\r?\n/gm)) {
     const candidate = match[1]
     const address = /^http:\/\/127\.0\.0\.1:([1-9]\d{0,4})/.exec(candidate)
+
     if (!address) continue
     const port = Number(address[1])
+
     if (port > 65535) continue
 
     try {
       const url = new URL(candidate)
+
       if (
         url.protocol !== 'http:' ||
         url.hostname !== '127.0.0.1' ||
@@ -401,19 +451,24 @@ function parseReadyUrl(output: string): string | undefined {
       }
 
       const baseUrl = `http://127.0.0.1:${address[1]}`
+
       if (!url.search) {
         if (candidate !== baseUrl && candidate !== `${baseUrl}/`) continue
+
         return baseUrl
       }
 
       const params = [...url.searchParams]
       const token = params.length === 1 && params[0][0] === 'token' ? params[0][1] : undefined
+
       if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || candidate !== `${baseUrl}/?token=${token}`) continue
+
       return candidate
     } catch {
       continue
     }
   }
+
   return undefined
 }
 
@@ -421,12 +476,14 @@ async function assertWebReady(url: string): Promise<void> {
   const readyUrl = new URL(url)
   const response = await fetch(readyUrl.toString(), { redirect: 'manual', signal: AbortSignal.timeout(5000) })
   await response.body?.cancel()
+
   // RFC 9110 section 10.2.2 allows a relative Location reference; dsh >= 0.1.7-rc.2 emits "./"
   // for the root request. Resolve the header instead of comparing it verbatim (#21132).
   const exchangedToken =
     readyUrl.searchParams.has('token') &&
     response.status === 303 &&
     resolvesTo(response.headers.get('location'), readyUrl, '/')
+
   if (response.status !== 200 && !exchangedToken) {
     throw new Error(`DeepSeek Harness Web UI returned HTTP ${response.status}`)
   }
@@ -434,6 +491,7 @@ async function assertWebReady(url: string): Promise<void> {
 
 function resolvesTo(location: string | null, baseUrl: URL, target: string): boolean {
   if (!location) return false
+
   try {
     return new URL(location, baseUrl).href === new URL(target, baseUrl).href
   } catch {
@@ -459,6 +517,7 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
       child.stdout?.resume()
       child.stderr?.resume()
     }
+
     const fail = (error: Error) => {
       if (settled) return
       settled = true
@@ -466,9 +525,11 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
       const diagnostic = sanitizeDiagnostic([error.message, stderr, stdout].filter(Boolean).join('\n'), secret)
       reject(new Error(diagnostic || 'DeepSeek Harness failed during startup'))
     }
+
     const onStdout = (chunk: Buffer) => {
       stdout = appendBounded(stdout, chunk)
       const url = parseReadyUrl(stdout)
+
       if (!url || checkingUrl) return
       checkingUrl = true
       void assertWebReady(url)
@@ -480,13 +541,17 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
         })
         .catch((error) => fail(error instanceof Error ? error : new Error('DeepSeek Harness Web UI is unavailable')))
     }
+
     const onStderr = (chunk: Buffer) => {
       stderr = appendBounded(stderr, chunk)
     }
+
     const onError = (error: Error) => fail(error)
     const onAbort = () => fail(new Error('DeepSeek Harness startup was cancelled'))
+
     const onClose = (code: number | null, signal: NodeJS.Signals | null) =>
       fail(new Error(`DeepSeek Harness exited before it was ready (code ${String(code)}, signal ${String(signal)})`))
+
     const timeout = setTimeout(() => fail(new Error('DeepSeek Harness startup timed out')), START_TIMEOUT_MS)
 
     child.stdout?.on('data', onStdout)
@@ -495,6 +560,7 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
     child.once('exit', onClose)
     child.once('close', onClose)
     signal.addEventListener('abort', onAbort, { once: true })
+
     if (signal.aborted) onAbort()
   })
 }

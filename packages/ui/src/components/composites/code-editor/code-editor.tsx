@@ -22,8 +22,10 @@ const codeEditorLineBreakFilter = EditorState.transactionFilter.of((transaction)
   const changes: ChangeSpec[] = []
   transaction.changes.iterChanges((_from, _to, from, to, inserted) => {
     const normalized = toDocumentText(inserted.toString())
+
     if (!inserted.eq(normalized)) changes.push({ from, to, insert: normalized })
   })
+
   return changes.length ? [transaction, { changes, sequential: true }] : transaction
 })
 
@@ -92,8 +94,10 @@ const CodeEditor = ({
 
   const initialContent = useRef(options?.stream && !syntaxHighlightStyle ? (value ?? '').trimEnd() : (value ?? ''))
   const lineBreak = initialContent.current.includes('\r\n') ? '\r\n' : '\n'
+
   const [initialState] = useState(() => {
     const retained = stateRef?.current
+
     const state =
       retained?.sliceDoc() === initialContent.current
         ? retained
@@ -101,11 +105,13 @@ const CodeEditor = ({
             doc: toDocumentText(initialContent.current),
             extensions: [EditorState.lineSeparator.of(lineBreak)]
           })
+
     return {
       json: state.toJSON({ history: historyField, folds: foldState }),
       fields: { history: historyField, folds: foldState }
     }
   })
+
   const editorViewRef = useRef<EditorView | null>(null)
   const shouldStickToBottomRef = useRef(true)
   const autoScrollToBottomRef = useRef(autoScrollToBottom)
@@ -121,22 +127,27 @@ const CodeEditor = ({
 
   const insertText = useCallback((text: string) => {
     const editorView = editorViewRef.current
+
     if (!editorView) return false
 
     editorView.dispatch(editorView.state.replaceSelection(text))
     editorView.focus()
+
     return true
   }, [])
 
   const getSelection = useCallback(() => {
     const editorView = editorViewRef.current
+
     if (!editorView) return null
     const { from, to } = editorView.state.selection.main
+
     return { from, to, text: editorView.state.sliceDoc(from, to) }
   }, [])
 
   const replaceRange = useCallback((range: { from: number; to: number }, text: string) => {
     const editorView = editorViewRef.current
+
     if (
       !editorView ||
       !editorView.state.facet(EditorView.editable) ||
@@ -156,6 +167,7 @@ const CodeEditor = ({
       selection: { anchor: range.from + insert.length }
     })
     editorView.focus()
+
     return true
   }, [])
 
@@ -166,6 +178,7 @@ const CodeEditor = ({
   useEffect(() => {
     autoScrollToBottomRef.current = autoScrollToBottom
     expandedRef.current = expanded
+
     if (!autoScrollToBottom || expanded) {
       shouldStickToBottomRef.current = true
     }
@@ -194,6 +207,7 @@ const CodeEditor = ({
     // Serialized CRLF strings have different offsets from CodeMirror's single-position line breaks.
     const currentDoc = editorViewRef.current.state.doc.toString()
     const nextDoc = toDocumentText(newContent)
+
     const changes = prepareCodeChanges(currentDoc, nextDoc.toString()).map((change) => ({
       ...change,
       insert: toDocumentText(change.insert)
@@ -202,9 +216,11 @@ const CodeEditor = ({
     if (changes && changes.length > 0) {
       const shouldScrollToBottom = autoScrollToBottom && !expanded && shouldStickToBottomRef.current
       const transaction: TransactionSpec = { changes, annotations: [ExternalChange.of(true)] }
+
       if (shouldScrollToBottom) {
         transaction.effects = EditorView.scrollIntoView(nextDoc.length, { y: 'end', x: 'nearest' })
       }
+
       editorViewRef.current.dispatch(transaction)
     }
   }, [autoScrollToBottom, expanded, options?.stream, value, syntaxHighlightStyle])
@@ -278,6 +294,7 @@ const CodeEditor = ({
       ),
     [theme, fontSize]
   )
+
   const handleUpdate = useCallback(
     (update: ViewUpdate) => {
       if (stateRef) stateRef.current = update.state
@@ -330,14 +347,17 @@ const CodeEditor = ({
       onCreateEditor={(view: EditorView) => {
         scrollCleanupRef.current?.()
         editorViewRef.current = view
+
         if (stateRef) stateRef.current = view.state
         onHeightChange?.(view.scrollDOM?.scrollHeight ?? 0)
         const scrollElement = view.scrollDOM
+
         const handleScroll = () => {
           if (autoScrollToBottomRef.current && !expandedRef.current) {
             updateShouldStickToBottom(scrollElement)
           }
         }
+
         scrollElement.addEventListener('scroll', handleScroll, { passive: true })
         scrollCleanupRef.current = () => scrollElement.removeEventListener('scroll', handleScroll)
       }}
@@ -363,10 +383,12 @@ CodeEditor.displayName = 'CodeEditor'
 
 export function SharedSyntaxEditor(props: CodeEditorProps) {
   const language = use(loadCodeBlockLanguage(props.language, props.languageConfig))
+
   const extensions = useMemo(
     () => (language ? [language, ...(props.extensions ?? [])] : props.extensions),
     [language, props.extensions]
   )
+
   return <CodeEditor {...props} extensions={extensions} />
 }
 

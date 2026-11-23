@@ -36,14 +36,18 @@ export function ClaudeCodeDownloadStatus({
   useEffect(() => {
     if (!checking) return
     const timer = window.setTimeout(() => setCheckingVisible(true), CHECKING_DELAY_MS)
+
     return () => window.clearTimeout(timer)
   }, [checking])
 
   if (checking && !checkingVisible) return null
+
   const percent = status?.totalBytes
     ? Math.min(100, Math.floor((status.receivedBytes / status.totalBytes) * 100))
     : undefined
+
   const phase = status?.phase ?? 'missing'
+
   return (
     <NarrowLayout
       narrowMode={narrowMode}

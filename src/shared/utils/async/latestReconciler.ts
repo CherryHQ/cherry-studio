@@ -143,6 +143,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
 
   const runLoop = async (): Promise<void> => {
     running = true
+
     try {
       while (true) {
         // A request after dispose() is a no-op, so once an in-flight apply finishes the loop
@@ -154,6 +155,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
         dirty = false
 
         let snap: T
+
         try {
           snap = await getSnapshot()
         } catch (error) {
@@ -162,6 +164,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
               ? error
               : new Error(typeof error === 'string' ? error : 'Reconciliation failed', { cause: error })
           onError(error, undefined)
+
           if (dirty) continue
           break
         }
@@ -184,6 +187,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
               ? error
               : new Error(typeof error === 'string' ? error : 'Reconciliation failed', { cause: error })
           onError(error, snap)
+
           // No auto-retry of the same target (a permanent failure must not spin). A request that
           // arrived meanwhile means a (possibly new) target to converge to — keep going.
           if (dirty) continue
@@ -201,6 +205,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
     request(): void {
       if (disposed) return
       dirty = true
+
       // `runLoop` sets `running = true` synchronously before its first await, so by the time this
       // returns a loop is guaranteed in flight (and a subsequent `flush()` will observe it).
       if (!running) void runLoop()
@@ -209,6 +214,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
       // When no loop is running the reconciler is already quiescent (the loop only exits with
       // `dirty === false`), so there is nothing to await.
       if (!running) return Promise.resolve()
+
       return new Promise<void>((resolve) => {
         flushWaiters.push(resolve)
       })

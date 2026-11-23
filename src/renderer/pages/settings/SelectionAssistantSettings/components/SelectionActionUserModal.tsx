@@ -90,6 +90,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
     }
 
     setErrors(newErrors)
+
     return Object.keys(newErrors).length === 0
   }
 
@@ -117,6 +118,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 
   const handleInputChange = (field: keyof CustomSelectionAction, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }))
@@ -213,6 +215,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 value={runner}
                 onValueChange={(value) => {
                   setFormData((prev) => ({ ...prev, runner: value as SelectionActionRunner }))
+
                   if (value === SELECTION_ACTION_RUNNER.ASSISTANT && !formData.assistantId) {
                     handleInputChange('assistantId', firstAssistantId ?? '')
                   }

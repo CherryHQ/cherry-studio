@@ -27,6 +27,7 @@ export async function generateSelectionPng(
   canvas.height = sh
 
   const ctx = canvas.getContext('2d')
+
   if (!ctx) throw new Error('Failed to get a 2d context for the screenshot export')
 
   ctx.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh)

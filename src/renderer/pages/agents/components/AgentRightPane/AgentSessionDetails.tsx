@@ -23,6 +23,7 @@ export function AgentSessionDetailsProvider({
   children: ReactNode
 }) {
   const [storedInlineOpen, setStoredInlineOpen] = usePersistCache('ui.agent.details.open')
+
   const [presentation, setPresentation] = useState<{
     sessionId?: string
     available: boolean
@@ -34,12 +35,16 @@ export function AgentSessionDetailsProvider({
     mode: 'popover',
     popupOpen: false
   })
+
   const triggerRef = useRef<HTMLButtonElement>(null)
   const suppressCloseFocusRef = useRef(false)
+
   if (presentation.sessionId !== sessionId || presentation.available !== available) {
     setPresentation({ ...presentation, sessionId, available, popupOpen: false })
   }
+
   const inlineOpen = !!sessionId && storedInlineOpen
+
   const setInlineOpen = useCallback(
     (open: boolean) => {
       if (!sessionId) return
@@ -47,30 +52,37 @@ export function AgentSessionDetailsProvider({
     },
     [sessionId, setStoredInlineOpen]
   )
+
   const measure = useCallback((width: number, height: number) => {
     setPresentation((previous) => {
       const mode = resolveAgentDetailsMode(width, height, previous.mode)
+
       return mode === previous.mode ? previous : { ...previous, mode, popupOpen: false }
     })
   }, [])
+
   const dismissPopup = useCallback(() => {
     suppressCloseFocusRef.current = true
     setPresentation((previous) => (previous.popupOpen ? { ...previous, popupOpen: false } : previous))
   }, [])
+
   const setOpen = useCallback(
     (open: boolean) => {
       if (open) suppressCloseFocusRef.current = false
+
       if (presentation.mode === 'inline') setInlineOpen(open)
       else setPresentation((previous) => ({ ...previous, popupOpen: open }))
     },
     [presentation.mode, setInlineOpen]
   )
+
   const openDetails = useCallback(() => {
     triggerRef.current?.focus()
     suppressCloseFocusRef.current = false
     setInlineOpen(true)
     setPresentation((previous) => ({ ...previous, popupOpen: previous.mode === 'popover' }))
   }, [setInlineOpen])
+
   const state = useMemo(
     () => ({
       mode: presentation.mode,
@@ -86,6 +98,7 @@ export function AgentSessionDetailsProvider({
     }),
     [presentation.mode, presentation.popupOpen, available, inlineOpen, measure, setOpen, openDetails, dismissPopup]
   )
+
   return (
     <AgentSessionDetailsContext value={state}>
       <Popover open={state.mode === 'popover' && state.popupOpen} onOpenChange={setOpen}>
@@ -98,8 +111,10 @@ export function AgentSessionDetailsProvider({
 export function AgentSessionDetailsToggle({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const state = useAgentSessionDetails()
+
   if (!state.available) return null
   const label = t('agent.right_pane.tabs.details')
+
   const button = (
     <Button
       ref={state.triggerRef}
@@ -116,6 +131,7 @@ export function AgentSessionDetailsToggle({ children }: { children: ReactNode })
       <ListCollapse className="size-3.5" />
     </Button>
   )
+
   return (
     <>
       <Tooltip content={label} placement="bottom" delay={800} asChild>
@@ -152,7 +168,9 @@ export function AgentSessionDetailsLayout({ children, details }: { children: Rea
   const { measure } = state
   useLayoutEffect(() => {
     const element = containerRef.current
+
     if (!element) return
+
     const update = () => {
       if (
         cardRef.current?.contains(document.activeElement) &&
@@ -160,14 +178,18 @@ export function AgentSessionDetailsLayout({ children, details }: { children: Rea
       ) {
         state.triggerRef.current?.focus()
       }
+
       measure(element.clientWidth, element.clientHeight)
     }
+
     update()
     const observer = new ResizeObserver(update)
     observer.observe(element)
+
     return () => observer.disconnect()
   }, [measure, state.triggerRef])
   const visible = state.available && state.mode === 'inline' && state.inlineOpen
+
   return (
     <div ref={containerRef} data-agent-details-layout className="relative flex min-h-0 min-w-0 flex-1">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col" style={{ marginRight: visible ? AGENT_DETAILS_INSET : 0 }}>

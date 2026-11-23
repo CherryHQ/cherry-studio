@@ -22,6 +22,7 @@ const logger = loggerService.withContext('YuqueSettings')
 const isYuqueRepoResponse = (value: unknown): value is { data: { id: string | number } } => {
   if (!value || typeof value !== 'object') return false
   const data = (value as { data?: unknown }).data
+
   return Boolean(data && typeof data === 'object' && 'id' in data)
 }
 
@@ -44,10 +45,13 @@ const YuqueSettings: FC = () => {
   const handleYuqueConnectionCheck = async () => {
     if (!yuqueToken) {
       toast.error(t('settings.data.yuque.check.empty_token'))
+
       return
     }
+
     if (!yuqueUrl) {
       toast.error(t('settings.data.yuque.check.empty_repo_url'))
+
       return
     }
 
@@ -60,24 +64,33 @@ const YuqueSettings: FC = () => {
 
       if (!response.ok) {
         toast.error(t('settings.data.yuque.check.fail'))
+
         return
       }
+
       const yuqueSlug = yuqueUrl.replace('https://www.yuque.com/', '')
+
       const repoIDResponse = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueSlug}`, {
         headers: {
           'X-Auth-Token': yuqueToken
         }
       })
+
       if (!repoIDResponse.ok) {
         toast.error(t('settings.data.yuque.check.fail'))
+
         return
       }
+
       const data = (await repoIDResponse.json()) as unknown
+
       if (!isYuqueRepoResponse(data)) {
         logger.error('Invalid Yuque repo response')
         toast.error(t('settings.data.yuque.check.fail'))
+
         return
       }
+
       await setYuqueRepoId(String(data.data.id))
       toast.success(t('settings.data.yuque.check.success'))
     } catch (error) {

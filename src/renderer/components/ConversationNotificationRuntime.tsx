@@ -23,9 +23,12 @@ export function ConversationNotificationRuntime(): null {
   useEffect(() => {
     if (activeTab?.type !== 'route') return
     const appId = resolveSidebarActiveItem(activeTab.url)
+
     if (appId !== 'agents' && appId !== 'assistants') return
     const conversationId = getSidebarApp(appId)?.conversationRoute?.keyFromUrl(activeTab.url)
+
     if (!conversationId) return
+
     const markRead = () => {
       if (!document.hasFocus() || document.visibilityState !== 'visible') return
       void dataApiService
@@ -34,9 +37,11 @@ export function ConversationNotificationRuntime(): null {
         })
         .catch((error) => logger.error('Failed to mark conversation notifications read', error as Error))
     }
+
     markRead()
     window.addEventListener('focus', markRead)
     document.addEventListener('visibilitychange', markRead)
+
     return () => {
       window.removeEventListener('focus', markRead)
       document.removeEventListener('visibilitychange', markRead)
@@ -66,6 +71,7 @@ export function ConversationNotificationRuntime(): null {
           : notification.category === 'official'
             ? toast.info
             : toast.success
+
     const Icon = notificationCategoryIcons[notification.category]
     showToast({
       key: notification.id,

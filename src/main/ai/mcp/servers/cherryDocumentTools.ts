@@ -48,13 +48,17 @@ function loadAnydocModule(): Promise<AnydocModule> {
  */
 async function isAuthorizedOutsideWorkspace(context: CherryDocumentContext, requestedPath: string): Promise<boolean> {
   const agentDataRoot = await realpath(AbsoluteFilePathSchema.parse(context.agentDataPath)).catch(() => null)
+
   if (agentDataRoot && isSameOrInside(requestedPath, agentDataRoot)) return true
 
   const fileManager = application.get('FileManager')
+
   for (const attachment of listAgentSessionAttachments(context.sessionId)) {
     const physicalPath = await realpath(fileManager.getPhysicalPath(attachment.fileEntryId)).catch(() => null)
+
     if (physicalPath === requestedPath) return true
   }
+
   return false
 }
 
@@ -70,9 +74,11 @@ async function resolveDocumentSource(context: CherryDocumentContext, sourcePath:
     const requestedPath = await realpath(
       AbsoluteFilePathSchema.parse(path.resolve(context.workspacePath, sourcePath))
     ).catch(() => null)
+
     if (requestedPath && (await isAuthorizedOutsideWorkspace(context, requestedPath))) {
       return resolveLocalFile(context.workspacePath, sourcePath)
     }
+
     throw workspaceError
   }
 }
@@ -84,6 +90,7 @@ async function cleanupStaleOutputs(directory: string): Promise<void> {
     entries.map(async (entry) => {
       if (!entry.isFile() || !entry.name.endsWith('.md')) return
       const outputPath = path.join(directory, entry.name)
+
       if ((await stat(outputPath)).mtimeMs < cutoff) {
         await rm(outputPath, { force: true })
       }
@@ -106,6 +113,7 @@ export function registerDocumentTools(server: McpServer, context: CherryDocument
       const anydoc = await loadAnydocModule()
       const format = anydoc.formatFromExtension(path.extname(source.filename)) ?? undefined
       const markdown = (await anydoc.toMarkdownBytes(Buffer.from(source.data, 'base64'), format)).trim()
+
       if (!markdown) throw new Error('Document conversion produced no text')
       signal.throwIfAborted()
 
@@ -118,6 +126,7 @@ export function registerDocumentTools(server: McpServer, context: CherryDocument
       const outputPath = path.join(outputDirectory, `${randomUUID()}.md`)
       await writeFile(outputPath, markdown, { encoding: 'utf-8', flag: 'wx' })
       const output = toMarkdownOutputSchema.parse({ path: outputPath, chars: markdown.length })
+
       return { content: [{ type: 'text', text: JSON.stringify(output) }] }
     }
   )

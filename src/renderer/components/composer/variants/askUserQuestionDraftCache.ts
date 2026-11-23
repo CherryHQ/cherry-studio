@@ -36,32 +36,39 @@ function isRecord(value: unknown): value is {
 /** Question indices are stored as object keys, so they come back as strings. */
 function parseQuestionIndex(key: string): number | null {
   const index = Number(key)
+
   return Number.isInteger(index) && index >= 0 ? index : null
 }
 
 export function readAskUserQuestionDraftCache(approvalId: string): AskUserQuestionDraftCache {
   const cached = cacheService.get(getAskUserQuestionDraftCacheKey(approvalId))
+
   if (!isRecord(cached)) return EMPTY_DRAFT
 
   const selectedAnswers: Record<number, string[]> = {}
+
   if (isRecord(cached.selectedAnswers)) {
     for (const [key, labels] of Object.entries(cached.selectedAnswers)) {
       const index = parseQuestionIndex(key)
+
       if (index === null || !Array.isArray(labels)) continue
       selectedAnswers[index] = labels.filter((label): label is string => typeof label === 'string')
     }
   }
 
   const customAnswers: Record<number, string> = {}
+
   if (isRecord(cached.customAnswers)) {
     for (const [key, text] of Object.entries(cached.customAnswers)) {
       const index = parseQuestionIndex(key)
+
       if (index === null || typeof text !== 'string') continue
       customAnswers[index] = text
     }
   }
 
   const cachedIndex = cached.currentIndex
+
   const currentIndex =
     typeof cachedIndex === 'number' && Number.isInteger(cachedIndex) && cachedIndex >= 0 ? cachedIndex : 0
 

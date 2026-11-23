@@ -6,6 +6,7 @@ import { decimal, digest, opaqueId, pageOf, pageParams, timestamp, unicodeText }
 import { contentRefSchema, workspaceSelectionSchema } from './resources'
 
 export const taskStatusSchema = z.enum(['active', 'paused', 'completed', 'missed'])
+
 export const taskTriggerSchema = z.discriminatedUnion('kind', [
   z.looseObject({
     kind: z.literal('cron'),
@@ -47,6 +48,7 @@ export const taskResultLocationSchema = z.discriminatedUnion('kind', [
   z.looseObject({ kind: z.literal('session'), sessionId: opaqueId }),
   z.looseObject({ kind: z.literal('unavailable') })
 ])
+
 const run = {
   runId: opaqueId,
   taskId: opaqueId,
@@ -55,7 +57,9 @@ const run = {
   summary: unicodeText.max(200).nullable(),
   resultLocation: taskResultLocationSchema
 }
+
 const terminal = { ...run, startedAt: timestamp.nullable(), finishedAt: timestamp.nullable() }
+
 export const taskRunSchema = z.discriminatedUnion('status', [
   z.looseObject({ ...run, status: z.literal('queued'), startedAt: z.null(), cancelRequested: z.boolean() }),
   z.looseObject({
@@ -120,9 +124,15 @@ export const taskMethods = {
 }
 
 export type TaskMethod = keyof typeof taskMethods
+
 export type TaskStatus = z.infer<typeof taskStatusSchema>
+
 export type TaskTrigger = z.infer<typeof taskTriggerSchema>
+
 export type TaskSummary = z.infer<typeof taskSummarySchema>
+
 export type TaskDetail = z.infer<typeof taskDetailSchema>
+
 export type TaskRun = z.infer<typeof taskRunSchema>
+
 export type TaskResultLocation = z.infer<typeof taskResultLocationSchema>

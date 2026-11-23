@@ -15,6 +15,7 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
       const inputs = await gatherInputs(context, thread)
       const { supportsTools } = await host.models.current(thread)
       await step(context, thread, (facts) => decideOnOpen(facts, inputs, { ...open, supportsTools }))
+
       // The host lost the views it showed, and a crash may have fallen between a step's commit and its views.
       if (open.reopened) await emitViews(context, thread)
     },

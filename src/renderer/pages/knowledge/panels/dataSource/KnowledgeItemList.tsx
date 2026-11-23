@@ -70,6 +70,7 @@ const KnowledgeItemList = ({
   const handleListScroll = useCallback(
     (e: UIEvent<HTMLDivElement>) => {
       const el = e.currentTarget
+
       if (
         hasMore &&
         !isLoadingMore &&
@@ -142,6 +143,7 @@ const KnowledgeItemList = ({
           ).map(([column, label]) => {
             const active = sort?.sortBy === column
             const Icon = active ? (sort.sortOrder === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+
             return (
               <div
                 key={column}

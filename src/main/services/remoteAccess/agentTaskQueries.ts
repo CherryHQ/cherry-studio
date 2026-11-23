@@ -23,13 +23,16 @@ const cursorSchema = z.strictObject({ offset: z.number().int().nonnegative(), fi
 
 function offsetOf(cursor: string | undefined, filter: string): number {
   if (!cursor) return 0
+
   try {
     const bytes = Buffer.from(cursor, 'base64url')
     const value = cursorSchema.parse(JSON.parse(bytes.toString('utf8')))
+
     if (bytes.toString('base64url') === cursor && value.filter === filter) return value.offset
   } catch {
     // Malformed and differently scoped cursors share the same public failure.
   }
+
   throw new RemoteRpcError('NOT_FOUND', 'Invalid task page cursor')
 }
 
@@ -41,7 +44,9 @@ function nextCursor(offset: number, count: number, total: number, filter: string
 
 function taskById(taskId: string): ScheduledTaskEntity {
   const task = agentTaskService.getTaskById(taskId)
+
   if (!task) throw new RemoteRpcError('NOT_FOUND', 'Task not found')
+
   return task
 }
 
@@ -101,8 +106,10 @@ export function listTasks(params: AgentParams<'agent.tasks.list'>): AgentResult<
   const statuses = [...new Set(params.statuses ?? taskStatusSchema.options)].sort()
   const filter = inputDigest(['agent.tasks.list', params.agentId ?? null, statuses])
   const offset = offsetOf(params.cursor, filter)
+
   return queryPage((limit) => {
     const page = agentTaskService.queryTasks({ agentId: params.agentId, status: statuses, offset, limit })
+
     return {
       items: page.tasks.map(toTaskSummary),
       nextCursor: nextCursor(offset, page.tasks.length, page.total, filter)
@@ -112,6 +119,7 @@ export function listTasks(params: AgentParams<'agent.tasks.list'>): AgentResult<
 
 export function getTask(taskId: string): TaskDetail {
   const task = taskById(taskId)
+
   return {
     ...toTaskSummary(task),
     prompt: contentOf(promptId(task), revisionOf(task.updatedAt), task.prompt),
@@ -134,7 +142,9 @@ function toTaskRun(run: TaskRunRecord): TaskRun {
         .toWellFormed() ?? null,
     resultLocation: toResultLocation(run.resultLocation)
   }
+
   const terminal = { ...common, startedAt: run.startedAt, finishedAt: run.finishedAt }
+
   switch (run.status) {
     case 'pending':
     case 'delayed':
@@ -164,8 +174,10 @@ function toTaskRun(run: TaskRunRecord): TaskRun {
 export function listTaskRuns(params: AgentParams<'agent.tasks.runs.list'>): AgentResult<'agent.tasks.runs.list'> {
   const filter = inputDigest(['agent.tasks.runs.list', params.taskId])
   const offset = offsetOf(params.cursor, filter)
+
   return queryPage((limit) => {
     const page = notFound(() => agentTaskService.listTaskRuns(params.taskId, { offset, limit }))
+
     return {
       items: page.runs.map(toTaskRun),
       nextCursor: nextCursor(offset, page.runs.length, page.total, filter)
@@ -182,7 +194,9 @@ export function readTaskContent(
 ): AgentResult<'agent.tasks.content.read'> {
   const task = taskById(params.taskId)
   const revision = revisionOf(task.updatedAt)
+
   if (params.revision !== revision || params.contentId !== promptId(task))
     throw new RemoteRpcError('REVISION_EXPIRED', 'Task prompt changed; reload task details')
+
   return { contentId: params.contentId, revision, ...sliceContent(utf8(task.prompt), params.offset, params.maxBytes) }
 }

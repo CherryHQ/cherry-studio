@@ -37,6 +37,7 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
     }
 
     let ensuredOptions: ModelOption[]
+
     try {
       ensuredOptions = await ensureCurrentCatalog()
     } catch (error) {
@@ -48,6 +49,7 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
     }
 
     const ensuredOption = ensuredOptions.find((option) => option.value === modelId)
+
     if (!ensuredOption || ensuredOption.isEnabled === false) {
       return { ok: false, reason: 'model_unavailable' }
     }

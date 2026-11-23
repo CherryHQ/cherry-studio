@@ -57,15 +57,19 @@ const AboutSettings: FC = () => {
 
   const { appUpdateState, updateAppUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
     const { default: UpdateDialogPopup } = await import('@renderer/components/UpdateDialogPopup')
+
     return UpdateDialogPopup.show({ releaseInfo })
   })
 
   useEffect(() => {
     const initialPanel = search[DOCTOR_OPEN_QUERY_PARAM]
+
     if (!initialPanel) {
       consumedDoctorPanelRef.current = undefined
+
       return
     }
+
     if (consumedDoctorPanelRef.current === initialPanel) return
     consumedDoctorPanelRef.current = initialPanel
 
@@ -74,6 +78,7 @@ const AboutSettings: FC = () => {
       search: (previous: typeof search) => {
         const remaining = { ...previous }
         delete remaining[DOCTOR_OPEN_QUERY_PARAM]
+
         return remaining
       },
       replace: true
@@ -105,6 +110,7 @@ const AboutSettings: FC = () => {
     if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
       toast.warning(t('settings.general.test_plan.version_channel_not_match'))
     }
+
     void setTestChannel(value)
     updateAppUpdateState({
       available: false,
@@ -151,6 +157,7 @@ const AboutSettings: FC = () => {
     if (testChannel === UpgradeChannel.LATEST) {
       return UpgradeChannel.RC
     }
+
     return testChannel
   }
 
@@ -169,6 +176,7 @@ const AboutSettings: FC = () => {
 
   const testChannels = getAvailableTestChannels()
   const isUpdateReady = appUpdateState.available && appUpdateState.downloaded && !appUpdateState.downloading
+
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>

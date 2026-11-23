@@ -6,7 +6,9 @@ import { TingwuLight } from './light'
 
 const Tingwu = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TingwuLight {...props} className={className} />
+
   if (variant === 'dark') return <TingwuDark {...props} className={className} />
+
   return (
     <>
       <TingwuLight className={cn('dark:hidden', className)} {...props} />

@@ -6,7 +6,9 @@ import { BaiduLight } from './light'
 
 const Baidu = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BaiduLight {...props} className={className} />
+
   if (variant === 'dark') return <BaiduDark {...props} className={className} />
+
   return (
     <>
       <BaiduLight className={cn('dark:hidden', className)} {...props} />

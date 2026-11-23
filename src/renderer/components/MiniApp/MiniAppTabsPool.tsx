@@ -25,15 +25,18 @@ function MiniAppGuest({
 }) {
   const { key, source, instance, visible, element } = resource
   const { appId, kind } = app
+
   const bind = useCallback(
     (_appId: string, guest: WebviewTag | null) => webviewRuntimeService.bind(key, instance, guest),
     [key, instance]
   )
+
   const loaded = useCallback(() => webviewRuntimeService.reportLoaded(key, instance, true), [key, instance])
   useEffect(() => {
     if (!element || kind !== 'app') return
     void ipcApi.request('mini_app.runtime.set_visible', { appId: appId, visible }).catch(() => {})
   }, [appId, kind, element, visible])
+
   return (
     <div
       className={cn('absolute top-0 bottom-0 h-full', split ? 'w-1/2' : 'w-full', secondary ? 'left-1/2' : 'left-0')}
@@ -54,13 +57,16 @@ export default function MiniAppTabsPool() {
   useMiniAppRuntimeBinding()
   const { guests, splitOpen, splitMiniAppId, miniAppShow } = useMiniAppRuntime()
   const [focusedAppId, setFocusedAppId] = useState<string | null>(null)
+
   const handleFocus = useCallback((id: string, focused: boolean) => {
     setFocusedAppId((current) => (focused ? id : current === id ? null : current))
   }, [])
+
   useCommandContextKey(
     'webview.focused',
     guests.some(({ resource, app }) => resource.visible && app.appId === focusedAppId)
   )
+
   return (
     <div
       data-mini-app-tabs-pool

@@ -7,6 +7,7 @@ import { getPrimarySessionWorkdir } from '@renderer/utils/chat/sessionListHelper
 export function useGlobalSearchTopicContext(topicId: string) {
   const { topic } = useTopicById(topicId)
   const { assistant } = useAssistantApiById(topic?.assistantId ?? undefined)
+
   return { name: assistant?.name }
 }
 
@@ -14,6 +15,7 @@ export function useGlobalSearchSessionContext(sessionId: string) {
   const { session } = useSession(sessionId)
   const { agent } = useAgent(session?.agentId ?? null)
   const path = session ? getPrimarySessionWorkdir(session) : null
+
   return {
     name: agent?.name,
     workspaceName: path ? session?.workspace.name : undefined,

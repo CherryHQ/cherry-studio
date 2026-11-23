@@ -16,25 +16,30 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
   const metadata = new Map<string, { type: 'mcp'; name: string; serverId: string; serverName: string }>()
   const close = () => Promise.all(clients.map((client) => client.close())).then(() => undefined)
   const tools: ToolRegistration[] = []
+
   try {
     for (const server of Object.values(servers)) {
       const client = new Client(
         { name: 'cherry-pi-durable', version: '1' },
         { versionNegotiation: { mode: { pin: '2026-07-28' }, probe: { timeoutMs: 10_000, maxRetries: 0 } } }
       )
+
       clients.push(client)
       const [local, remote] = InMemoryTransport.createLinkedPair()
       await server.connect(remote)
       await client.connect(local)
       const catalog: Awaited<ReturnType<Client['listTools']>>['tools'] = []
       let cursor: string | undefined
+
       do {
         const page = await client.listTools(cursor ? { cursor } : {})
         catalog.push(...page.tools)
         cursor = page.nextCursor
       } while (cursor)
+
       const serverId = server.id ?? server.name
       const names = catalog.map((tool) => buildPiMcpToolName(serverId, tool.name))
+
       for (const tool of catalog) {
         const raw = buildPiMcpToolName(serverId, tool.name)
         const name = buildPiMcpToolName(serverId, tool.name, names.indexOf(raw) !== names.lastIndexOf(raw))
@@ -58,24 +63,33 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
                   timeout: MCP_FORWARDING_TIMEOUT_MS
                 }
               )
+
               if (!('content' in result)) throw new Error('MCP returned no tool content')
+
               const content = result.content.flatMap<TextContent | ImageContent>((part) => {
                 if (part.type === 'text') return [{ type: 'text' as const, text: part.text }]
+
                 if (part.type === 'image') return [{ type: 'image' as const, data: part.data, mimeType: part.mimeType }]
+
                 return [{ type: 'text' as const, text: JSON.stringify(part) }]
               })
+
               const output = { output: content, isError: result.isError === true }
+
               if (result.structuredContent) {
                 Object.assign(output, { details: result.structuredContent as JsonValue })
+
                 if (tool.outputSchema)
                   Object.assign(output, { structuredOutput: result.structuredContent as JsonValue })
               }
+
               return output
             }
           })
         )
       }
     }
+
     return { extension: defineExtension({ name: 'cherry.mcp', tools }), metadata, close }
   } catch (error) {
     await close()

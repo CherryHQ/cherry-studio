@@ -27,9 +27,11 @@ const logger = loggerService.withContext('FsReadTool')
 
 /** Whole-file reads above this are rejected; paging args bypass the cap. */
 const SIZE_CAP_BYTES = 5 * MB
+
 /** Absolute ceiling, paging or not — the read path decodes the whole file
  *  into memory before slicing, so paging must not unlock unbounded files. */
 const PAGED_SIZE_CAP_BYTES = 50 * MB
+
 /**
  * Default max chars returned per call. Above this the tool returns a structured
  * error with a file-specific recommended `limit` — fs_read must handle
@@ -106,14 +108,17 @@ async function resolveAgainstAllowedPaths(
   // vanished still resolves and reports `not-found` downstream instead of a
   // misleading access-denied.
   const normalized = resolve(requestedPath)
+
   if (allowedPaths.has(normalized)) return normalized
   let requestedReal: string
+
   try {
     requestedReal = await fsp.realpath(requestedPath)
   } catch {
     // A path that doesn't resolve can't match an existing allow-listed blob.
     return null
   }
+
   for (const allowed of allowedPaths) {
     try {
       if ((await fsp.realpath(allowed)) === requestedReal) return requestedReal
@@ -121,6 +126,7 @@ async function resolveAgainstAllowedPaths(
       // Allow-listed blob no longer on disk — skip.
     }
   }
+
   return null
 }
 
@@ -138,6 +144,7 @@ interface TextReadResult {
  *  Format ported from #14916's readers/text.ts — the model pattern-matches it. */
 function formatLines(content: string, offset: number | undefined, limit: number | undefined): TextReadResult {
   const lines = content.split('\n')
+
   // A file ending in '\n' yields a trailing '' element ("a\nb\n" → ["a","b",""]); drop it so
   // totalLines counts real lines and the model isn't told to page for a phantom empty line.
   // (An empty file stays [''] → totalLines 1.)
@@ -145,10 +152,12 @@ function formatLines(content: string, offset: number | undefined, limit: number 
   const totalLines = lines.length
   const startIndex = Math.max(0, (offset ?? 1) - 1)
   const endIndex = Math.min(startIndex + (limit ?? DEFAULT_READ_LIMIT), totalLines)
+
   const text = lines
     .slice(startIndex, endIndex)
     .map((line, i) => `${String(startIndex + i + 1).padStart(6, ' ')}\t${line}`)
     .join('\n')
+
   return { text, startLine: startIndex + 1, endLine: endIndex, totalLines }
 }
 
@@ -166,8 +175,10 @@ export async function executeFsRead(
   }
 
   const absolutePath = await resolveAgainstAllowedPaths(requestedPath, allowedPaths)
+
   if (!absolutePath) {
     logger.warn('fs_read denied: path outside allowed roots', { requestedPath })
+
     return {
       kind: 'error',
       code: 'access-denied',
@@ -176,16 +187,20 @@ export async function executeFsRead(
   }
 
   let stats: Awaited<ReturnType<typeof fsp.stat>>
+
   try {
     stats = await fsp.stat(absolutePath)
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
+
     if (code === 'ENOENT') {
       return { kind: 'error', code: 'not-found', message: `File not found: ${requestedPath}` }
     }
+
     if (code === 'EACCES' || code === 'EPERM') {
       return { kind: 'error', code: 'access-denied', message: `Access denied by the OS: ${requestedPath}` }
     }
+
     return { kind: 'error', code: 'parse-error', message: err instanceof Error ? err.message : String(err) }
   }
 
@@ -202,6 +217,7 @@ export async function executeFsRead(
   }
 
   const hasPagingArgs = offset !== undefined || limit !== undefined
+
   if (!hasPagingArgs && stats.size > SIZE_CAP_BYTES) {
     return {
       kind: 'error',
@@ -233,6 +249,7 @@ export async function executeFsRead(
 
     if (result.text.length > charCap) {
       const returnedLines = Math.max(1, result.endLine - result.startLine + 1)
+
       if (returnedLines === 1) {
         // A single physical line exceeds the per-call cap. Paging is line-based,
         // so lowering `limit` can't subdivide it and fs_read has no byte-range
@@ -248,8 +265,10 @@ export async function executeFsRead(
             `head/tail excerpt, or narrow the upstream tool's output.`
         }
       }
+
       const avgPerLine = Math.max(1, Math.round(result.text.length / returnedLines))
       const safeLimit = Math.max(1, Math.floor((charCap - 200) / avgPerLine))
+
       return {
         kind: 'error',
         code: 'output-too-large',
@@ -283,15 +302,19 @@ The persistence layer applies to non-read tools only; this tool never persists i
     if (output.kind === 'error') {
       return { type: 'error-text' as const, value: `[Error: ${output.code}] ${output.message}` }
     }
+
     const remaining = output.totalLines - output.endLine
+
     const tail =
       remaining > 0
         ? `\n\n[showing lines ${output.startLine}-${output.endLine} of ${output.totalLines}; ${remaining} more — call again with offset=${output.endLine + 1} to continue]`
         : ''
+
     return { type: 'text' as const, value: `${output.text}${tail}` }
   },
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
+
     return executeFsRead(input, request.persistedOutputPaths, request.toolOutputCharCap)
   }
 })

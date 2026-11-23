@@ -33,6 +33,7 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const { t } = useTranslation()
   const [fileProcessorOverrides] = usePreference('feature.file_processing.overrides')
   const availableProcessors = useAvailableFileProcessors()
+
   const { trigger, isLoading, error } = useMutation('PATCH', '/knowledge-bases/:id', {
     refresh: ['/knowledge-bases']
   })
@@ -45,6 +46,7 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
         const isInitialProcessor = processor.id === initialValues.fileProcessorId
         const isSupported = availableProcessors.status === 'ready' && availableProcessors.processorIds.has(processor.id)
         const shouldKeepInitialWhileUnavailable = availableProcessors.status !== 'ready' && isInitialProcessor
+
         if (!isSupported && !shouldKeepInitialWhileUnavailable) {
           return []
         }

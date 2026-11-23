@@ -34,6 +34,7 @@ export const PermissionChecklist: FC<{
 }> = ({ items, disabled, onToggle, hosts, emptyText, testId }) => {
   const { t } = useTranslation()
   const byKey = new Map(items.map((item) => [item.key, item]))
+
   return (
     <ul data-testid={testId} className="flex flex-col gap-3">
       {items.length === 0 ? (
@@ -62,6 +63,7 @@ export const PermissionChecklist: FC<{
             <div className="flex flex-wrap gap-x-4 gap-y-1.5">
               {leaves.map((leaf) => {
                 const item = byKey.get(leaf)!
+
                 return (
                   <label
                     key={leaf}

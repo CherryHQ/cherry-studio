@@ -4,6 +4,7 @@ import { PromptBuilder } from '@main/ai/agents/prompt'
 
 export function createPiIdentityExtension(agentDataPath: string): ExtensionFactory {
   const builder = new PromptBuilder()
+
   return (pi) => {
     pi.on('before_agent_start', async (event) => {
       const { text, resources } = await builder.buildMemoriesContext(agentDataPath)

@@ -101,23 +101,30 @@ export function useLaunchDialogController({
     // Provider-less tools (qoder/copilot) and the virtual "own login" option both
     // launch with a directory only — no Cherry provider/model is injected.
     const runWithoutProvider = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool) || isOwnLoginSelected
+
     if (!directory || (!runWithoutProvider && !enabledProvider)) {
       toast.error(t('code.folder_placeholder'))
+
       return
     }
+
     if (runWithoutProvider) {
       try {
         setLaunching(true)
+
         const runResult = await ipcApi.request('code_cli.run', {
           mode: 'own-login',
           cliTool: selectedCliTool,
           directory,
           terminal: effectiveTerminal
         })
+
         if (!runResult.success) {
           toast.error(runResult.message)
+
           return
         }
+
         setLaunchOpen(false)
       } catch (err) {
         logger.error('Failed to launch CLI tool:', err as Error)
@@ -125,10 +132,12 @@ export function useLaunchDialogController({
       } finally {
         setLaunching(false)
       }
+
       return
     }
 
     const isGatewayProvider = !!enabledProvider && isApiGatewayProviderId(enabledProvider.id)
+
     const cliConfigContext = enabledProvider
       ? resolveCliConfigApplyContext(
           selectedCliTool,
@@ -137,26 +146,32 @@ export function useLaunchDialogController({
           isGatewayProvider ? gatewayModelsById : undefined
         )
       : null
+
     if (!cliConfigContext) {
       logger.error('Invalid CLI model id configured for launch', {
         modelId: currentProviderConfig?.modelId,
         toolId: selectedCliTool,
         providerId: enabledProvider?.id
       })
+
       // Gateway resolution depends on the live model query, so a miss may be transient. Preserve
       // the saved gateway selection and let the user retry instead of treating it as corrupt data.
       if (!isGatewayProvider) {
         if (enabledProvider) {
           await upsertProviderConfig(enabledProvider.id, { modelId: null })
         }
+
         await setCurrentProvider(null)
       }
+
       toast.error(t('code.launch.validation_error'))
+
       return
     }
 
     try {
       setLaunching(true)
+
       // The gateway may have been stopped or re-keyed/re-ported since "enable" wrote the CLI
       // config; re-verify it's serving and rewrite the config with the configured context so the
       // CLI never launches against a dead endpoint.
@@ -165,18 +180,23 @@ export function useLaunchDialogController({
       if (isModelsLoading) {
         throw new Error('Model list is still loading')
       }
+
       // Every launch, not just the file-configured ones: the reconciliation below skips tools
       // like Antigravity, so a stale selection would start a session that cannot route.
       const launchModelRecord = (isGatewayProvider ? gatewayModelsById : modelById).get(cliConfigContext.modelId)
+
       if (!launchModelRecord) {
         throw new Error(`Model is no longer available: ${cliConfigContext.modelId}`)
       }
+
       if (isGatewayProvider && apiGatewayProvider) {
         await apiGatewayProvider.ensureRunning()
       }
+
       if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
         const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
+
         try {
           onDiskFiles = await readCliConfigFiles(selectedCliTool)
         } catch (err) {
@@ -188,30 +208,38 @@ export function useLaunchDialogController({
         let modelId = cliConfigContext.modelId
         let configBlob = currentProviderConfig?.config
         let mergeFiles: CliConfigFileDraft[] | undefined
+
         if (onDiskFiles) {
           const onDiskModel = extractConnectionFromCliConfigDraft(selectedCliTool, onDiskFiles)?.model
+
           const expectedModel = gatewayExpectedModel(
             cliConfigContext.modelId,
             gatewayModelsById.get(cliConfigContext.modelId)?.apiModelId
           )
+
           if (onDiskModel && expectedModel && onDiskModel !== expectedModel) {
             const onDiskModelId = gatewayModelIdFromAddress(onDiskModel, gatewayModelsById)
+
             if (!onDiskModelId) {
               throw new Error(`Cannot resolve gateway model from CLI config: ${onDiskModel}`)
             }
+
             modelId = onDiskModelId
             configBlob = extractConfigFromCliConfigDraft(selectedCliTool, onDiskFiles) ?? configBlob
             mergeFiles = onDiskFiles
           }
         }
+
         if (!gatewayModelsById.has(modelId)) {
           throw new Error(`Gateway model is no longer available: ${modelId}`)
         }
+
         const input: Pick<Parameters<typeof writeCliConfigDraft>[0], 'cliTool' | 'modelId' | 'configBlob' | 'files'> = {
           cliTool: selectedCliTool,
           modelId,
           configBlob
         }
+
         if (mergeFiles) input.files = mergeFiles
         await writeCliConfigDraft({
           ...input,
@@ -219,10 +247,12 @@ export function useLaunchDialogController({
           gateway: { provider: apiGatewayProvider.provider, apiKey }
         })
       }
+
       // Both routes address a model by its provider-facing apiModelId: the gateway matches on it,
       // and a direct launch hands it straight to the provider's own API. A record without one
       // legitimately falls back to the raw id — unlike a missing record, rejected above.
       const launchModel = launchModelRecord.apiModelId ?? cliConfigContext.rawModelId
+
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
         cliTool: selectedCliTool,
@@ -232,6 +262,7 @@ export function useLaunchDialogController({
         directory,
         terminal: effectiveTerminal
       })
+
       if (!runResult.success) {
         toast.error(runResult.message)
       } else {

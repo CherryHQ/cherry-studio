@@ -73,8 +73,10 @@ const STRICT_UNSUPPORTED = new Set([
 
 /** Keys whose value is a map of schemas — recurse into the values, never filter the keys. */
 const SCHEMA_MAPS = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas'])
+
 /** Keys whose value is an array of schemas. */
 const SCHEMA_LISTS = new Set(['allOf', 'anyOf', 'oneOf', 'prefixItems'])
+
 /** Keys whose value is a schema (`items` may also be an array of schemas in draft-07). */
 const SCHEMA_VALUES = new Set([
   'items',
@@ -99,8 +101,10 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) 
 
   const entries: [string, unknown][] = []
   let changed = false
+
   for (const [key, value] of Object.entries(schema)) {
     let next = value
+
     if (SCHEMA_MAPS.has(key) && typeof value === 'object' && value !== null) {
       next = mapSchemaMap(value as Record<string, JSONSchema7Definition>, mapNode)
     } else if (SCHEMA_LISTS.has(key) && Array.isArray(value)) {
@@ -108,22 +112,30 @@ function mapSchemas(schema: JSONSchema7Definition, mapNode: (node: JSONSchema7) 
     } else if (SCHEMA_VALUES.has(key)) {
       next = Array.isArray(value) ? mapSchemaList(value, mapNode) : mapSchemas(value, mapNode)
     }
+
     if (next !== value) changed = true
     entries.push([key, next])
   }
+
   const result: JSONSchema7 = Object.fromEntries(entries)
   const mapped = mapNode(result)
+
   if (mapped !== result) changed = true
+
   return changed ? mapped : schema
 }
 
 function mapSchemaList(list: unknown[], mapNode: (node: JSONSchema7) => JSONSchema7): unknown[] {
   let changed = false
+
   const next = list.map((item) => {
     const mapped = mapSchemas(item as JSONSchema7Definition, mapNode)
+
     if (mapped !== item) changed = true
+
     return mapped
   })
+
   return changed ? next : list
 }
 
@@ -133,24 +145,30 @@ function mapSchemaMap(
 ): Record<string, JSONSchema7Definition> {
   let changed = false
   const entries: [string, JSONSchema7Definition][] = []
+
   for (const [key, value] of Object.entries(map)) {
     const next = mapSchemas(value, mapNode)
     entries.push([key, next])
+
     if (next !== value) changed = true
   }
+
   return changed ? Object.fromEntries(entries) : map
 }
 
 function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSchema7 {
   let changed = false
   const kept: [string, unknown][] = []
+
   for (const [key, value] of Object.entries(node)) {
     if (keywords.has(key) || (key === 'required' && value === null)) {
       changed = true
       continue
     }
+
     kept.push([key, value])
   }
+
   return changed ? Object.fromEntries(kept) : node
 }
 
@@ -172,16 +190,22 @@ function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<stri
  */
 function addMissingProperties(node: JSONSchema7Definition): JSONSchema7Definition {
   if (typeof node !== 'object' || Array.isArray(node)) return node
+
   if (node.type !== 'object' || node.$ref !== undefined || Object.hasOwn(node, 'properties')) return node
+
   return { ...node, properties: {} }
 }
 
 /** The single simple type shared by every value, if one exists. */
 function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | undefined {
   if (values.length === 0) return undefined
+
   if (values.every((value) => typeof value === 'boolean')) return 'boolean'
+
   if (values.every((value) => typeof value === 'number' && Number.isInteger(value))) return 'integer'
+
   if (values.every((value) => typeof value === 'number')) return 'number'
+
   return undefined
 }
 
@@ -194,12 +218,15 @@ function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | 
 function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
   const values = node.enum !== undefined ? node.enum : node.const !== undefined ? [node.const] : undefined
   const kind = Array.isArray(values) ? uniformEnumType(values) : undefined
+
   if (kind === undefined) return node
 
   const replacement: JSONSchema7 = { ...node }
   delete replacement.enum
   delete replacement.const
+
   if (replacement.type === undefined) replacement.type = kind
+
   return replacement
 }
 
@@ -216,14 +243,18 @@ function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
  */
 function expandTypeArrays(node: JSONSchema7): JSONSchema7 {
   const type = node.type
+
   if (!Array.isArray(type) || type.length === 0 || type.some((entry) => typeof entry !== 'string')) return node
+
   if (node.anyOf !== undefined) return node
 
   const rest: JSONSchema7 = { ...node }
   delete rest.type
+
   if (type.length === 1) return { ...rest, type: type[0] }
 
   const branches = type.map((entry) => (entry === 'null' ? { type: entry } : { ...rest, type: entry }))
+
   return { ...rest, anyOf: branches }
 }
 
@@ -234,7 +265,9 @@ function isGeminiArraySchema(schema: JSONSchema7): boolean {
 function hasGeminiArrayItems(items: JSONSchema7['items']): boolean {
   // @ai-sdk/google serializes the `true` schema as a typed boolean schema.
   if (items === true) return true
+
   if (typeof items !== 'object' || items === null || Array.isArray(items)) return false
+
   return typeof items.type === 'string' || (Array.isArray(items.type) && items.type.length > 0)
 }
 
@@ -243,66 +276,83 @@ function hasIncompatibleGeminiArray(schema: JSONSchema7Definition): boolean {
   if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return false
 
   const objectSchema = schema
+
   if (isGeminiArraySchema(objectSchema) && !hasGeminiArrayItems(objectSchema.items)) return true
 
   return Object.entries(objectSchema).some(([key, value]) => {
     if (SCHEMA_MAPS.has(key) && typeof value === 'object' && value !== null && !Array.isArray(value)) {
       return Object.values(value).some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
     }
+
     if (SCHEMA_LISTS.has(key) && Array.isArray(value)) {
       return value.some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
     }
+
     if (SCHEMA_VALUES.has(key)) {
       return Array.isArray(value)
         ? value.some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
         : hasIncompatibleGeminiArray(value as JSONSchema7Definition)
     }
+
     return false
   })
 }
 
 function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: RequestScope): LanguageModelV3CallOptions {
   const tools = params.tools
+
   if (!tools) return params
 
   const isGeminiEndpoint =
     scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && scope.sdkConfig.providerId !== 'google-vertex-maas'
+
   // Partial scopes exist at runtime and may lack a resolvable model identity.
   const isChatGeminiModel =
     scope.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
     scope.model &&
     (scope.model.apiModelId || isUniqueModelId(scope.model.id)) &&
     isGeminiModel(scope.model)
+
   const isResponsesEndpoint = scope.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
 
   let changed = false
   const droppedTools: string[] = []
   const transformedTools: NonNullable<LanguageModelV3CallOptions['tools']> = []
+
   for (const tool of tools) {
     if (tool.type !== 'function') {
       transformedTools.push(tool)
       continue
     }
+
     if (isGeminiEndpoint && hasIncompatibleGeminiArray(tool.inputSchema)) {
       changed = true
       droppedTools.push(tool.name)
       continue
     }
+
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
     let inputSchema = stripKeywords(tool.inputSchema, keywords)
     inputSchema = addMissingProperties(inputSchema)
+
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
+
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, expandTypeArrays)
+
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
+
     if (isChatGeminiModel) inputSchema = stripKeywords(inputSchema, CHAT_GEMINI_UNSUPPORTED)
     const optOutOfStrict = isResponsesEndpoint && tool.strict === undefined
+
     if (inputSchema === tool.inputSchema && !optOutOfStrict) transformedTools.push(tool)
     else {
       changed = true
+
       const transformed = {
         ...tool,
         inputSchema: inputSchema as JSONSchema7
       }
+
       if (optOutOfStrict) transformed.strict = false
       transformedTools.push(transformed)
     }

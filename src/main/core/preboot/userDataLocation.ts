@@ -21,9 +21,11 @@ export function getNormalizedExecutablePath(): string {
   if (isLinux && process.env.APPIMAGE) {
     return path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
   }
+
   if (isWin && isPortable) {
     return path.join(process.env.PORTABLE_EXECUTABLE_DIR || '', 'cherry-studio-portable.exe')
   }
+
   return app.getPath('exe')
 }
 
@@ -31,6 +33,7 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
   if (!path.isAbsolute(userDataPath)) {
     throw new Error(`userData path must be absolute: ${userDataPath}`)
   }
+
   return path.normalize(userDataPath)
 }
 
@@ -51,22 +54,27 @@ export function canonicalizeUserDataPath(userDataPath: string): string {
 export function resolveUserDataLocation(): void {
   if (!app.isPackaged) {
     const devPath = resolveDevUserDataPath()
+
     if (DEV_PROFILE_ROOT) {
       const tempPath = path.join(DEV_PROFILE_ROOT, 'home', 'temp')
       fs.mkdirSync(devPath, { recursive: true })
       fs.mkdirSync(tempPath, { recursive: true })
       app.setPath('temp', tempPath)
     }
+
     app.setPath('userData', devPath)
     logger.info(DEV_PROFILE_ROOT ? 'userData set from dev profile root' : 'userData set with dev suffix', { devPath })
+
     return
   }
 
   const exe = getNormalizedExecutablePath()
   const resolved = bootConfigService.get('app.user_data_path')?.[exe]
+
   if (resolved && isUsableDataDir(resolved)) {
     app.setPath('userData', resolved)
     logger.info('userData set from BootConfig', { exe, resolved })
+
     return
   }
 
@@ -87,6 +95,7 @@ export function isUsableDataDir(value: string): boolean {
   try {
     if (!fs.statSync(value).isDirectory()) return false
     fs.accessSync(value, fs.constants.R_OK | fs.constants.W_OK | fs.constants.X_OK)
+
     return true
   } catch {
     return false

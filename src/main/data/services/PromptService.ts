@@ -36,6 +36,7 @@ const logger = loggerService.withContext('DataApi:PromptService')
 
 function rowToPrompt(row: typeof promptTable.$inferSelect): Prompt {
   const clean = nullsToUndefined(row)
+
   return {
     ...clean,
     createdAt: timestampToISO(row.createdAt),
@@ -50,10 +51,13 @@ function rowToPrompt(row: typeof promptTable.$inferSelect): Prompt {
  */
 function collectAnchorIds(anchors: OrderRequest[]): string[] {
   const ids: string[] = []
+
   for (const anchor of anchors) {
     if ('before' in anchor) ids.push(anchor.before)
+
     if ('after' in anchor) ids.push(anchor.after)
   }
+
   return ids
 }
 
@@ -71,9 +75,11 @@ function bindingMembershipEffects(promptIds?: readonly string[], includePromptLi
     { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'membership', entityIds: promptIds },
     { endpoint: '/prompts/:id/bindings', kind: 'membership' }
   ]
+
   if (includePromptList) {
     effects.unshift({ endpoint: '/prompts', kind: 'membership', entityIds: promptIds })
   }
+
   return effects
 }
 
@@ -85,13 +91,16 @@ export class PromptService {
   list(query: ListPromptsQuery = {}): Prompt[] {
     // Canonical API order follows the persisted fractional order keys.
     const conditions: SQL[] = []
+
     if (query.search) {
       const pattern = `%${query.search.replace(/[\\%_]/g, '\\$&')}%`
       const titleMatch = sql`${promptTable.title} LIKE ${pattern} ESCAPE '\\'`
       const contentMatch = sql`${promptTable.content} LIKE ${pattern} ESCAPE '\\'`
       const searchClause = or(titleMatch, contentMatch)
+
       if (searchClause) conditions.push(searchClause)
     }
+
     if ('visibility' in query && query.visibility) {
       conditions.push(eq(promptTable.visibility, query.visibility))
     }
@@ -99,6 +108,7 @@ export class PromptService {
     if ('targetType' in query) {
       const target = { type: query.targetType, id: query.targetId }
       const boundPrompts = this.listBoundToTargetMatching(target, conditions)
+
       if (!query.includeGlobal) return boundPrompts
 
       const globalRows = this.db
@@ -107,11 +117,13 @@ export class PromptService {
         .where(and(...conditions, eq(promptTable.visibility, 'global')))
         .orderBy(asc(promptTable.orderKey))
         .all()
+
       return [...boundPrompts, ...globalRows.map(rowToPrompt)]
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const rows = this.db.select().from(promptTable).where(whereClause).orderBy(asc(promptTable.orderKey)).all()
+
     return rows.map(rowToPrompt)
   }
 
@@ -139,11 +151,13 @@ export class PromptService {
       .where(and(...conditions, eq(promptTable.visibility, 'restricted'), bindingTargetCondition(target)))
       .orderBy(asc(promptBindingTable.orderKey))
       .all()
+
     return rows.map((row) => rowToPrompt(row.prompt))
   }
 
   listBindings(promptId: string): PromptBindingTarget[] {
     this.getById(promptId)
+
     return this.listBindingsTx(this.db, promptId)
   }
 
@@ -154,6 +168,7 @@ export class PromptService {
       .where(eq(promptBindingTable.promptId, promptId))
       .orderBy(asc(promptBindingTable.targetType), asc(promptBindingTable.targetId))
       .all()
+
     return rows.map((row) =>
       row.type === 'assistant' ? { type: 'assistant', id: row.id } : { type: 'agent', id: row.id }
     )
@@ -172,6 +187,7 @@ export class PromptService {
       content: PromptContentSchema.parse(phrase.content),
       visibility: 'restricted' as const
     }))
+
     const prompts = insertManyWithOrderKey(tx, promptTable, promptValues, { pkColumn: promptTable.id })
     insertManyWithOrderKey(
       tx,
@@ -179,6 +195,7 @@ export class PromptService {
       prompts.map((prompt) => ({ promptId: prompt.id, targetType: target.type, targetId: target.id })),
       { pkColumn: promptBindingTable.promptId, scope: bindingTargetCondition(target) }
     )
+
     return prompts.map((prompt) => prompt.id)
   }
 
@@ -193,6 +210,7 @@ export class PromptService {
       .where(bindingTargetCondition(source))
       .orderBy(asc(promptBindingTable.orderKey))
       .all()
+
     if (bindings.length === 0) return []
 
     this.assertBindingTargetExistsTx(tx, target)
@@ -206,14 +224,17 @@ export class PromptService {
       })),
       { pkColumn: promptBindingTable.promptId, scope: bindingTargetCondition(target) }
     )
+
     return bindings.map((binding) => binding.promptId)
   }
 
   getById(id: string): Prompt {
     const [row] = this.db.select().from(promptTable).where(eq(promptTable.id, id)).limit(1).all()
+
     if (!row) {
       throw DataApiErrorFactory.notFound('Prompt', id)
     }
+
     return rowToPrompt(row)
   }
 
@@ -226,6 +247,7 @@ export class PromptService {
             'global prompts are already available to every target'
           )
         }
+
         this.assertBindingTargetExistsTx(tx, dto.bindingTarget)
       }
 
@@ -257,14 +279,18 @@ export class PromptService {
       }
 
       logger.info('Created prompt', { id: row.id, bindingTarget: dto.bindingTarget })
+
       return rowToPrompt(row)
     })
+
     const effects: DataApiDataChangeEffect[] = [
       { endpoint: '/prompts', kind: 'membership', entityIds: [prompt.id] },
       { endpoint: '/prompts/:id', entityIds: [prompt.id] }
     ]
+
     if (dto.bindingTarget) effects.push(...bindingMembershipEffects([prompt.id], false))
     notifyDataApiDataChange(effects)
+
     return prompt
   }
 
@@ -273,12 +299,14 @@ export class PromptService {
       this.assertPromptIsRestrictedTx(tx, promptId, 'bind prompt')
       this.assertBindingTargetExistsTx(tx, target)
       const targetScope = bindingTargetCondition(target)
+
       const existing = tx
         .select({ promptId: promptBindingTable.promptId })
         .from(promptBindingTable)
         .where(and(eq(promptBindingTable.promptId, promptId), targetScope))
         .limit(1)
         .get()
+
       if (existing) return false
 
       insertWithOrderKey(
@@ -287,8 +315,10 @@ export class PromptService {
         { promptId, targetType: target.type, targetId: target.id },
         { pkColumn: promptBindingTable.promptId, scope: targetScope }
       )
+
       return true
     })
+
     if (!changed) return
     logger.info('Bound prompt to target', { promptId, target })
     notifyDataApiDataChange(bindingMembershipEffects([promptId]))
@@ -297,6 +327,7 @@ export class PromptService {
   unbindFromTarget(promptId: string, target: PromptBindingTarget): void {
     const changed = application.get('DbService').withWriteTx((tx) => {
       this.assertPromptIsRestrictedTx(tx, promptId, 'unbind prompt')
+
       const result = tx
         .delete(promptBindingTable)
         .where(
@@ -307,8 +338,10 @@ export class PromptService {
           )
         )
         .run()
+
       return result.changes > 0
     })
+
     if (!changed) return
     logger.info('Unbound prompt from target', { promptId, target })
     notifyDataApiDataChange(bindingMembershipEffects([promptId]))
@@ -338,15 +371,18 @@ export class PromptService {
         .where(eq(promptTable.id, id))
         .limit(1)
         .get()
+
       if (!existing) {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
       const isMakingGlobal = existing.visibility === 'restricted' && dto.visibility === 'global'
+
       if (isMakingGlobal) {
         const actualBindings = this.listBindingsTx(tx, id)
         const expectedKeys = dto.expectedBindings?.map(bindingTargetKey).sort()
         const actualKeys = actualBindings.map(bindingTargetKey).sort()
+
         const hasExactSnapshot =
           expectedKeys !== undefined &&
           expectedKeys.length === actualKeys.length &&
@@ -361,32 +397,41 @@ export class PromptService {
       }
 
       const updates: Partial<typeof promptTable.$inferInsert> = {}
+
       if (dto.title !== undefined) updates.title = dto.title
+
       if (dto.content !== undefined) updates.content = dto.content
+
       if (dto.visibility !== undefined) updates.visibility = dto.visibility
 
       tx.update(promptTable).set(updates).where(eq(promptTable.id, id)).run()
       let clearedBindings = false
+
       if (isMakingGlobal) {
         clearedBindings = tx.delete(promptBindingTable).where(eq(promptBindingTable.promptId, id)).run().changes > 0
       }
 
       const [row] = tx.select().from(promptTable).where(eq(promptTable.id, id)).limit(1).all()
+
       if (!row) {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
       logger.info('Updated prompt', { id, changes: Object.keys(dto) })
+
       return { prompt: rowToPrompt(row), clearedBindings }
     })
+
     const effects: DataApiDataChangeEffect[] = [
       { endpoint: '/prompts', kind: 'projection', entityIds: [id] },
       { endpoint: '/prompts', kind: 'membership', entityIds: [id] },
       { endpoint: '/prompts/:id', entityIds: [id] },
       { endpoint: '/prompt-bindings/:targetType/:targetId', kind: 'projection', entityIds: [id] }
     ]
+
     if (clearedBindings) effects.push(...bindingMembershipEffects([id], false))
     notifyDataApiDataChange(effects)
+
     return prompt
   }
 
@@ -458,11 +503,13 @@ export class PromptService {
   /** Pre-check that every id in a reorder exists; convert to NOT_FOUND otherwise. */
   private assertPromptsExistTx(tx: Pick<DbType, 'select'>, ids: string[]): void {
     const uniqueIds = Array.from(new Set(ids))
+
     const rows = tx
       .select({ id: promptTable.id })
       .from(promptTable)
       .where(inArray(promptTable.id, uniqueIds))
       .all() as Array<{ id: string }>
+
     if (rows.length === uniqueIds.length) return
     const found = new Set(rows.map((r) => r.id))
     const missing = uniqueIds.find((id) => !found.has(id)) ?? uniqueIds[0]
@@ -476,9 +523,11 @@ export class PromptService {
       .where(eq(promptTable.id, id))
       .limit(1)
       .get()
+
     if (!row) {
       throw DataApiErrorFactory.notFound('Prompt', id)
     }
+
     if (row.visibility !== 'restricted') {
       throw DataApiErrorFactory.invalidOperation(operation, 'global prompts are already available to every target')
     }
@@ -499,6 +548,7 @@ export class PromptService {
             .where(and(eq(agentTable.id, target.id), isNull(agentTable.deletedAt)))
             .limit(1)
             .get()
+
     if (!row) {
       throw DataApiErrorFactory.notFound(target.type === 'assistant' ? 'Assistant' : 'Agent', target.id)
     }
@@ -506,9 +556,11 @@ export class PromptService {
 
   delete(id: string): void {
     const result = this.db.delete(promptTable).where(eq(promptTable.id, id)).run()
+
     if (result.changes === 0) {
       throw DataApiErrorFactory.notFound('Prompt', id)
     }
+
     logger.info('Deleted prompt', { id })
     notifyDataApiDataChange([
       { endpoint: '/prompts', kind: 'membership', entityIds: [id] },

@@ -41,9 +41,12 @@ export async function resolveLaunchModelId({
 }: ResolveLaunchModelIdArgs): Promise<ConfiguredCliModelId | null> {
   if (!enabledProvider || !currentProviderConfig?.modelId) {
     toast.error(i18n.t(errorToastKey))
+
     return null
   }
+
   const parsedModelId = parseConfiguredModelId(currentProviderConfig.modelId)
+
   if (!parsedModelId) {
     logger.error(logLabel, {
       modelId: currentProviderConfig.modelId,
@@ -52,7 +55,9 @@ export async function resolveLaunchModelId({
     await upsertProviderConfig(enabledProvider.id, { modelId: null })
     await setCurrentProvider(null)
     toast.error(i18n.t(errorToastKey))
+
     return null
   }
+
   return parsedModelId
 }

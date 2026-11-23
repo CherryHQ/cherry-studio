@@ -29,6 +29,7 @@ export const CreatePinSchema = z.strictObject({
   entityType: EntityTypeSchema,
   entityId: EntityIdSchema
 })
+
 export type CreatePinDto = z.infer<typeof CreatePinSchema>
 
 /**
@@ -38,6 +39,7 @@ export type CreatePinDto = z.infer<typeof CreatePinSchema>
 export const ListPinsQuerySchema = z.strictObject({
   entityType: EntityTypeSchema
 })
+
 export type ListPinsQuery = z.infer<typeof ListPinsQuerySchema>
 
 // ============================================================================

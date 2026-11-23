@@ -20,9 +20,11 @@ interface Props {
 const MiniAppLogoAvatar: FC<Props> = ({ logo, size = 32, className, alt }) => {
   const logoRef = getMiniAppsLogoRef(logo)
   const Icon = useMiniAppLogo(logo)
+
   if (logoRef && !Icon) {
     return <span className="inline-block shrink-0" style={{ width: size, height: size }} />
   }
+
   return <LogoAvatar logo={Icon ?? logo} size={size} className={className} alt={alt} />
 }
 

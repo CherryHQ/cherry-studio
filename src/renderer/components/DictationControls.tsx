@@ -17,6 +17,7 @@ const SETTINGS_RECOVERY_ERRORS = new Set<DictationErrorCategory>([
   'microphone_unavailable',
   'microphone_unreadable'
 ])
+
 const PHASE_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
   starting: 'settings.voice.dictation.phase.starting',
   recording: 'settings.voice.dictation.phase.recording',
@@ -41,11 +42,13 @@ export function DictationControls({
   const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
   const target = useSyncExternalStore(voiceTargetManager.subscribe, voiceTargetManager.getSnapshot)
   const capturing = ['starting', 'recording', 'stopping', 'transcribing'].includes(snapshot.phase)
+
   const run = <TResult,>(action: () => Promise<TResult>) => {
     void action()
       .catch(() => undefined)
       .finally(focusInput)
   }
+
   const start = () => {
     if (disabled || !voiceTargetManager.markCurrent(targetId)) return
     void dictationService.startScoped().result.catch(() => undefined)

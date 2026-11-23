@@ -44,6 +44,7 @@ function normalizeTrashPath(filePath: string): string {
 // Missing or destroyed sender window falls back to the unparented overload.
 function resolveSaveDialogParent(event: Electron.IpcMainInvokeEvent): Electron.BrowserWindow | undefined {
   const window = BrowserWindow.fromWebContents(event.sender)
+
   return window && !window.isDestroyed() ? window : undefined
 }
 
@@ -86,9 +87,11 @@ class FileStorage {
   private resolveStoredPath(id: string): string {
     const root = path.resolve(this.storageDir)
     const resolved = path.resolve(root, id)
+
     if (resolved === root || !resolved.startsWith(root + path.sep)) {
       throw new Error(`Invalid stored file id: ${id}`)
     }
+
     return resolved
   }
 
@@ -107,6 +110,7 @@ class FileStorage {
     }
 
     const dialogOptions = { ...defaultOptions, ...options }
+
     if (!dialogOptions.defaultPath && this.lastSelectedDir) {
       dialogOptions.defaultPath = this.lastSelectedDir
     }
@@ -177,6 +181,7 @@ class FileStorage {
 
       const nativePath = normalizeTrashPath(filePath)
       await assertOutsideManagedStorageMutation(nativePath)
+
       if (!fs.existsSync(nativePath)) {
         return
       }
@@ -195,6 +200,7 @@ class FileStorage {
 
       const nativePath = normalizeTrashPath(dirPath)
       await assertOutsideManagedStorageMutation(nativePath)
+
       if (!fs.existsSync(nativePath)) {
         return
       }
@@ -210,12 +216,14 @@ class FileStorage {
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
     try {
       await assertOutsideManagedStorageMutation(filePath, newPath)
+
       if (!fs.existsSync(filePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
       }
 
       // 确保目标目录存在
       const destDir = path.dirname(newPath)
+
       if (!fs.existsSync(destDir)) {
         await fs.promises.mkdir(destDir, { recursive: true })
       }
@@ -232,12 +240,14 @@ class FileStorage {
   public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
     try {
       await assertOutsideManagedStorageMutation(dirPath, newDirPath)
+
       if (!fs.existsSync(dirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
       }
 
       // 确保目标父目录存在
       const parentDir = path.dirname(newDirPath)
+
       if (!fs.existsSync(parentDir)) {
         await fs.promises.mkdir(parentDir, { recursive: true })
       }
@@ -321,9 +331,11 @@ class FileStorage {
 
         // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
         const { default: officeParser } = await import('officeparser')
+
         const data = await officeParser.parseOfficeAsync(filePath, {
           tempFilesLocation: this.tempDir
         })
+
         return data
       } catch (error) {
         logger.error('Failed to read document file:', error as Error)
@@ -404,6 +416,7 @@ class FileStorage {
     const exists = fs.existsSync(requestedPath)
 
     logger.debug(`File name guard: ${fileName} -> ${finalName}, exists: ${exists}`)
+
     return { safeName: finalName, exists }
   }
 
@@ -412,6 +425,7 @@ class FileStorage {
       await assertOutsideManagedStorageMutation(dirPath)
       logger.debug(`Attempting to create directory: ${dirPath}`)
       await fs.promises.mkdir(dirPath, { recursive: true })
+
       return dirPath
     } catch (error) {
       logger.error('Failed to create directory:', error as Error)
@@ -423,6 +437,7 @@ class FileStorage {
     const filePath = this.resolveStoredPath(id)
     const data = await fs.promises.readFile(filePath)
     const mime = `image/${path.extname(filePath).slice(1)}`
+
     return { data, mime }
   }
 
@@ -446,6 +461,7 @@ class FileStorage {
         // If the file is less than 2GB, read the content
         if (stats.size < 2 * 1024 * 1024 * 1024) {
           const content = await readFile(filePath)
+
           return { fileName, filePath, content, size: stats.size }
         }
 
@@ -456,6 +472,7 @@ class FileStorage {
       return null
     } catch (err) {
       logger.error('[IPC - Error] An error occurred opening the file:', err as Error)
+
       return null
     }
   }
@@ -476,7 +493,9 @@ class FileStorage {
         defaultPath: fileName,
         ...options
       }
+
       const parent = resolveSaveDialogParent(event)
+
       const result: SaveDialogReturnValue = parent
         ? await dialog.showSaveDialog(parent, dialogOptions)
         : await dialog.showSaveDialog(dialogOptions)
@@ -491,6 +510,7 @@ class FileStorage {
       return result.filePath
     } catch (err: any) {
       logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
+
       return Promise.reject('An error occurred saving the file: ' + err?.message)
     }
   }
@@ -501,7 +521,9 @@ class FileStorage {
         defaultPath: `${name}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       }
+
       const parent = resolveSaveDialogParent(event)
+
       const result: SaveDialogReturnValue = parent
         ? await dialog.showSaveDialog(parent, dialogOptions)
         : await dialog.showSaveDialog(dialogOptions)
@@ -510,11 +532,13 @@ class FileStorage {
         await assertOutsideManagedStorageMutation(result.filePath)
         const parseResult = parseDataUrl(data)
         await fs.promises.writeFile(result.filePath, parseResult?.data ?? data, 'base64')
+
         return true
       }
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
     }
+
     return false
   }
 
@@ -533,6 +557,7 @@ class FileStorage {
       return null
     } catch (err) {
       logger.error('[IPC - Error] An error occurred selecting the folder:', err as Error)
+
       return null
     }
   }
@@ -561,6 +586,7 @@ class FileStorage {
       // Filter markdown files
       const markdownFiles = filePaths.filter((filePath) => {
         const ext = path.extname(filePath).toLowerCase()
+
         return MARKDOWN_EXTS.includes(ext)
       })
 
@@ -619,6 +645,7 @@ class FileStorage {
 
       // Create folders in order (shallow to deep)
       const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
+
       for (const folder of sortedFolders) {
         try {
           if (!fs.existsSync(folder)) {
@@ -641,6 +668,7 @@ class FileStorage {
             // Read from source and write to target in Main process
             const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
             await fs.promises.writeFile(op.targetPath, content, 'utf-8')
+
             return true
           })
         )

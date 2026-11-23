@@ -102,11 +102,14 @@ function resolveNativeAudioVideoSupport(
   endpointType?: EndpointType
 ): NativeAudioVideoSupport {
   if (NO_NATIVE_AUDIO_VIDEO_PROVIDER_IDS.has(runtimeProviderId)) return { audio: false, video: false }
+
   // Protocol-level denials override otherwise-capable converters.
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES || endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
     return { audio: false, video: false }
   }
+
   if (NATIVE_AUDIO_VIDEO_PROVIDER_IDS.has(runtimeProviderId)) return { audio: true, video: true }
+
   if (OPENAI_CHAT_MEDIA_PROVIDER_IDS.has(runtimeProviderId)) return { audio: true, video: false }
 
   // Multi-backend providers retain their own provider id, so their resolved
@@ -117,6 +120,7 @@ function resolveNativeAudioVideoSupport(
     // working WAV/MP3 input; MIME-aware routing is a separate concern.
     return { audio: true, video: false }
   }
+
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
     return { audio: true, video: true }
   }
@@ -132,20 +136,25 @@ function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProvid
   ) {
     return false
   }
+
   return NATIVE_FILE_PROVIDER_IDS.has(aiSdkProviderId)
 }
 
 function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
   if (!isFirstPartyFileProvider(provider, aiSdkProviderId)) return false
+
   if (aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
     return isOpenAILLMModel(model)
   }
+
   if (aiSdkProviderId === 'anthropic' || aiSdkProviderId === 'anthropic-vertex' || aiSdkProviderId === 'bedrock') {
     return isAnthropicModel(model)
   }
+
   if (aiSdkProviderId === 'google' || aiSdkProviderId === 'google-vertex') {
     return isGeminiModel(model)
   }
+
   return true
 }
 
@@ -155,6 +164,7 @@ export function resolveNativeFileSupport(
   routing: NativeFileRouting
 ): NativeFileSupport {
   const mediaSupport = resolveNativeAudioVideoSupport(routing.runtimeProviderId, routing.endpointType)
+
   return {
     image: isVisionModel(model),
     pdf: supportsNativePdf(provider, model, routing.aiSdkProviderId),

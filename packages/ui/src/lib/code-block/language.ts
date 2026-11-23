@@ -142,6 +142,7 @@ export function getExtensionByLanguage(language: string, languageConfig?: Langua
 
   // Exact match language name
   const directMatch = languages[language]
+
   if (directMatch?.extensions?.[0]) {
     return directMatch.extensions[0]
   }
@@ -189,6 +190,7 @@ function normalizeExtension(language: string, languageConfig?: LanguageConfig) {
 
   // 1. Search for custom extensions
   const customExt = _customLanguageExtensions.get(lowerLanguage)
+
   if (customExt) {
     return customExt
   }
@@ -197,6 +199,7 @@ function normalizeExtension(language: string, languageConfig?: LanguageConfig) {
   // @uiw/codemirror-extensions-langs keys are all lowercase, so a language name
   // that falls through as its own extension (Markdown, TSX, TOML...) must be lowered.
   const linguistExt = getExtensionByLanguage(lang, languageConfig)
+
   if (linguistExt) {
     return linguistExt.slice(1).toLowerCase()
   }
@@ -206,31 +209,39 @@ function normalizeExtension(language: string, languageConfig?: LanguageConfig) {
 }
 
 type Support = Language | LanguageSupport
+
 const languages = new Map<string, Promise<Support | null>>()
 
 export function loadCodeBlockLanguage(language: string, config?: LanguageConfig): Promise<Support | null> {
   const extension = normalizeExtension(language, config)
   let pending = languages.get(extension)
+
   if (!pending) {
     pending = (async () => {
       if (extension === 'dot') return (await import('@viz-js/lang-dot')).dot()
+
       if (extension === 'mmd' || extension === 'mermaid') return (await import('codemirror-lang-mermaid')).mermaid()
       const { loadLanguage } = await import('@uiw/codemirror-extensions-langs')
       const canonical = normalizeCodeLanguage(extension)
+
       const candidates = [
         extension,
         normalizeExtension(canonical),
         ...(CODE_LANGUAGES[canonical as keyof typeof CODE_LANGUAGES] ?? [])
       ]
+
       for (const candidate of candidates) {
         const support = loadLanguage(candidate as Parameters<typeof loadLanguage>[0])
+
         if (support) return support
       }
+
       return null
     })()
     languages.set(extension, pending)
     void pending.catch(() => languages.delete(extension))
   }
+
   return pending
 }
 

@@ -43,12 +43,14 @@ export const buildKnowledgeBaseGroupSections = (
   const sections: KnowledgePageBaseGroupSection[] = []
 
   const defaultGroupItems = groupedBases.get(null)
+
   if (defaultGroupItems || includeEmptyKnownGroups) {
     sections.push({ groupId: null, items: defaultGroupItems ?? [] })
   }
 
   for (const group of groups) {
     const items = groupedBases.get(group.id)
+
     if (items || includeEmptyKnownGroups) {
       sections.push({ groupId: group.id, items: items ?? [] })
     }
@@ -56,6 +58,7 @@ export const buildKnowledgeBaseGroupSections = (
 
   for (const groupId of unknownGroupIds) {
     const items = groupedBases.get(groupId)
+
     if (items) {
       sections.push({ groupId, items })
     }

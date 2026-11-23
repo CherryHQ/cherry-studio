@@ -52,6 +52,7 @@ function createHighlightOverlay(element: HTMLElement, container: HTMLElement): v
   try {
     // Remove previous overlay
     const previousOverlay = document.body.querySelector('.highlight-overlay')
+
     if (previousOverlay) {
       previousOverlay.remove()
     }
@@ -113,6 +114,7 @@ function createHighlightOverlay(element: HTMLElement, container: HTMLElement): v
       container.removeEventListener('scroll', updatePosition)
       overlay.removeEventListener('animationend', handleAnimationEnd)
     }
+
     overlay.addEventListener('animationend', handleAnimationEnd)
   } catch (error) {
     logger.error('Failed to create highlight overlay:', error as Error)
@@ -126,6 +128,7 @@ function scrollAndHighlight(element: HTMLElement, container: HTMLElement): void 
   element.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
 
   let scrollTimeout: NodeJS.Timeout
+
   const handleScroll = () => {
     clearTimeout(scrollTimeout)
     scrollTimeout = setTimeout(() => {
@@ -211,30 +214,38 @@ const RichEditor = ({
         icon: iconMap.get(a.id),
         onClick: a.action
       }))
+
       setTableActionMenu({ show: true, position, items })
     }
   })
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const contentSearchRef = useRef<FindBarRef>(null)
+
   const [contentSearchState, setContentSearchState] = useState<FindBarState>(() => ({
     ...INITIAL_FIND_BAR_STATE
   }))
+
   const [contentSearchCursor, setContentSearchCursor] = useState<{ criteriaKey: string; index: number } | null>(null)
   const [showBackToTop, setShowBackToTop] = useState(false)
+
   const contentSearchFilter = useMemo<NodeFilter>(
     () => ({
       acceptNode(node) {
         const inEditor = node.parentElement?.closest('.ProseMirror')
+
         return inEditor ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
       }
     }),
     []
   )
+
   const deferredContentSearchQuery = useDeferredValue(contentSearchState.query).trim()
   const contentSearchCriteriaKey = `${deferredContentSearchQuery}\u0000${contentSearchState.caseSensitive ? '1' : '0'}${contentSearchState.wholeWord ? '1' : '0'}`
+
   const contentSearchRanges = useMemo(() => {
     const target = scrollContainerRef.current
+
     if (
       !enableContentSearch ||
       !contentSearchState.enabled ||
@@ -263,6 +274,7 @@ const RichEditor = ({
     enableContentSearch,
     markdown
   ])
+
   const contentSearchCurrentIndex =
     contentSearchRanges.length === 0
       ? -1
@@ -277,6 +289,7 @@ const RichEditor = ({
 
   useEffect(() => {
     clearContentSearchHighlights()
+
     if (
       !enableContentSearch ||
       !contentSearchState.enabled ||
@@ -288,11 +301,13 @@ const RichEditor = ({
 
     CSS.highlights.set(SEARCH_MATCHES_HIGHLIGHT, new Highlight(...contentSearchRanges))
     const currentRange = contentSearchRanges[contentSearchCurrentIndex]
+
     if (!currentRange) return
 
     CSS.highlights.set(CURRENT_MATCH_HIGHLIGHT, new Highlight(currentRange))
     const target = scrollContainerRef.current
     const parentElement = currentRange.startContainer.parentElement
+
     if (target && parentElement) {
       scrollElementIntoView(parentElement, target)
     }
@@ -303,12 +318,14 @@ const RichEditor = ({
   const navigateContentSearch = useCallback(
     (delta: 1 | -1) => {
       if (contentSearchRanges.length === 0) return
+
       const nextIndex =
         contentSearchCurrentIndex < 0
           ? delta > 0
             ? 0
             : contentSearchRanges.length - 1
           : (contentSearchCurrentIndex + delta + contentSearchRanges.length) % contentSearchRanges.length
+
       setContentSearchCursor({ criteriaKey: contentSearchCriteriaKey, index: nextIndex })
     },
     [contentSearchCriteriaKey, contentSearchCurrentIndex, contentSearchRanges.length]
@@ -318,12 +335,15 @@ const RichEditor = ({
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (!enableContentSearch) return
       const isModF = (event.metaKey || event.ctrlKey) && (event.key === 'f' || event.key === 'F')
+
       if (isModF) {
         event.preventDefault()
         const selectedText = window.getSelection()?.toString().trim()
         contentSearchRef.current?.enable(selectedText)
+
         return
       }
+
       if (event.key === 'Escape') {
         contentSearchRef.current?.disable()
       }
@@ -355,12 +375,15 @@ const RichEditor = ({
   // Show the back-to-top button once the content is scrolled down far enough
   useEffect(() => {
     const container = scrollContainerRef.current
+
     if (!container) return
 
     const handleScroll = () => {
       setShowBackToTop(container.scrollTop > 240)
     }
+
     container.addEventListener('scroll', handleScroll, { passive: true })
+
     return () => container.removeEventListener('scroll', handleScroll)
   }, [])
 
@@ -398,6 +421,7 @@ const RichEditor = ({
         unregisterToolbarCommand,
         setCommandAvailability
       }
+
       onCommandsReady(commandAPI)
     }
   }, [editor, onCommandsReady])
@@ -406,6 +430,7 @@ const RichEditor = ({
   const handleDragEnd = useCallback((e: DragEvent) => {
     // Clean up draggable attribute from the drag handle element
     const target = e.target as HTMLElement
+
     if (target && target.classList.contains('drag-handle')) {
       target.removeAttribute('draggable')
     }
@@ -505,10 +530,12 @@ const RichEditor = ({
             // 获取当前段落的文本内容
             if (from !== to) {
               const selectedText = editor.state.doc.textBetween(from, to)
+
               if (selectedText.trim()) {
                 const url = selectedText.trim().startsWith('http')
                   ? selectedText.trim()
                   : `https://${selectedText.trim()}`
+
                 userChain().setTextSelection({ from, to }).setEnhancedLink({ href: url }).run()
               }
             } else {
@@ -534,8 +561,10 @@ const RichEditor = ({
               }
             }
           }
+
           break
         }
+
         case 'undo':
           editor.view.focus()
           editor.commands.undo()
@@ -549,6 +578,7 @@ const RichEditor = ({
           // This case is here for completeness but shouldn't be called directly
           break
         }
+
         case 'table':
           editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
           break
@@ -572,6 +602,7 @@ const RichEditor = ({
       getSelection: () => {
         if (!editor) return null
         const { from, to } = editor.state.selection
+
         return { from, to, text: editor.state.doc.textBetween(from, to, '\n') }
       },
       replaceRange: ({ from, to }, text: string) => {
@@ -592,6 +623,7 @@ const RichEditor = ({
         const tr = editor.state.tr.insertText(text, from, to)
         tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(to)), -1))
         editor.view.dispatch(tr)
+
         return true
       },
       setMarkdown: (markdownContent: string) => {
@@ -625,6 +657,7 @@ const RichEditor = ({
 
         try {
           const element = findElementByLine(editor, lineNumber, options?.lineContent)
+
           if (!element) return
 
           if (options?.highlight) {
@@ -733,4 +766,5 @@ const RichEditor = ({
 RichEditor.displayName = 'RichEditor'
 
 export { useRichTextEditorKernel } from './useRichTextEditorKernel'
+
 export default RichEditor

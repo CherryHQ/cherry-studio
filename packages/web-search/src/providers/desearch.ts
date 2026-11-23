@@ -20,7 +20,9 @@ export const desearch: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG['desearch'],
   async execute(context) {
     const { call } = context
+
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
+
     const payload = await requestJson(
       context,
       {
@@ -31,6 +33,7 @@ export const desearch: WebSearchProviderModule = {
       },
       DesearchWebSearchResponseSchema
     )
+
     return payload.data.slice(0, call.config.maxResults).map((item) => ({
       title: item.title?.trim() || '',
       content: item.snippet?.trim() || '',

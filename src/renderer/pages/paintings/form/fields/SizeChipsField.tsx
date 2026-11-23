@@ -33,9 +33,11 @@ function RatioShape({ ratio, selected }: { ratio: Dim; selected: boolean }) {
 
 function RatioThumb({ value, selected }: { value: string; selected: boolean }) {
   const ratio = parseRatio(value)
+
   // Resolution tiers (`1K`/`2K`/`4K`) have no aspect ratio — render the label
   // alone, centered, instead of reserving an empty thumb slot above it.
   if (!ratio) return null
+
   return (
     <span className="flex shrink-0 items-center justify-center" style={{ width: MAX_THUMB, height: MAX_THUMB }}>
       <RatioShape ratio={ratio} selected={selected} />
@@ -53,10 +55,13 @@ function RatioThumb({ value, selected }: { value: string; selected: boolean }) {
 function autoColumns(options: OptionItem[], explicit: number | undefined): number {
   if (explicit) return explicit
   let longest = 0
+
   for (const option of options) {
     const label = deriveChipLabel(String(option.label ?? option.value), String(option.value))
+
     if (label.length > longest) longest = label.length
   }
+
   return longest >= 8 ? 2 : DEFAULT_COLUMNS
 }
 

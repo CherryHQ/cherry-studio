@@ -47,6 +47,7 @@ export function ToolDisclosure({
 
   const toggleKey = (key: string) => {
     const isOpening = !currentActiveKeys.includes(key)
+
     const nextActiveKeys = isOpening
       ? [...currentActiveKeys, key]
       : currentActiveKeys.filter((activeKey) => activeKey !== key)
@@ -56,6 +57,7 @@ export function ToolDisclosure({
         if (activeKey === undefined) {
           setInternalActiveKeys(nextActiveKeys)
         }
+
         onActiveKeyChange?.(nextActiveKeys)
       },
       { enterReadingMode: isOpening }
@@ -125,10 +127,12 @@ function DeferredDisclosureContent({
   useEffect(() => {
     if (!isOpen) {
       setShouldRender(false)
+
       return
     }
 
     const timer = window.setTimeout(() => setShouldRender(true), 0)
+
     return () => window.clearTimeout(timer)
   }, [isOpen])
 

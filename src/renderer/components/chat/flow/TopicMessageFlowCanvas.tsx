@@ -50,8 +50,11 @@ function getMiniMapNodeColor(node: TopicMessageFlowNodeModel) {
   const data = node.data
 
   if (data.isContextBoundary) return 'var(--muted)'
+
   if (data.role === 'user') return 'var(--success)'
+
   if (data.role === 'assistant') return 'var(--info)'
+
   return 'var(--muted)'
 }
 
@@ -73,8 +76,11 @@ function getEdgeStyle(edge: TopicMessageFlowEdgeModel): TopicMessageFlowEdgeMode
 function getRootFocusNode(nodes: TopicMessageFlowNodeModel[]) {
   return nodes.reduce<TopicMessageFlowNodeModel | null>((rootNode, node) => {
     if (!rootNode) return node
+
     if (node.position.y !== rootNode.position.y) return node.position.y < rootNode.position.y ? node : rootNode
+
     if (node.data.isOnActivePath !== rootNode.data.isOnActivePath) return node.data.isOnActivePath ? node : rootNode
+
     return node.position.x < rootNode.position.x ? node : rootNode
   }, null)
 }
@@ -91,6 +97,7 @@ function getNodeCenter(node: TopicMessageFlowNodeModel) {
 
 function getRootFocusViewport(containerWidth: number, centerX: number, positionY: number): Viewport {
   const zoom = rootFocusViewport.zoom
+
   return {
     x: containerWidth / 2 - centerX * zoom,
     y: ROOT_TOP_OFFSET - positionY * zoom,
@@ -110,6 +117,7 @@ const TopicMessageFlowCanvas = ({
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const hasNodes = graph.nodes.length > 0
+
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<
     TopicMessageFlowNodeModel,
     TopicMessageFlowEdgeModel
@@ -156,9 +164,11 @@ const TopicMessageFlowCanvas = ({
   const rootFocusTarget = useMemo(() => {
     const activeNode = graph.activeNodeId ? nodes.find((node) => node.id === graph.activeNodeId) : undefined
     const rootNode = activeNode ?? getRootFocusNode(nodes)
+
     if (!rootNode) return null
 
     const center = getNodeCenter(rootNode)
+
     return {
       key: `${rootNode.id}:${rootNode.position.x}:${rootNode.position.y}`,
       centerX: center.x,
@@ -167,13 +177,16 @@ const TopicMessageFlowCanvas = ({
       positionY: rootNode.position.y
     }
   }, [graph.activeNodeId, nodes])
+
   const rootFocusKey = rootFocusTarget?.key
   const rootFocusCenterX = rootFocusTarget?.centerX
   const rootFocusPositionY = rootFocusTarget?.positionY
   const rootFocusCenterY = rootFocusTarget?.centerY
   const focusActive = rootFocusTarget?.isActive
+
   const focusSignature =
     focusReady === true && rootFocusKey ? `${focusKey ?? 'initial'}:${graph.activeNodeId ?? 'root'}` : null
+
   const [readyViewport, setReadyViewport] = useState<Viewport | null>(null)
   const initialViewportSignatureRef = useRef<string | null>(null)
 
@@ -187,6 +200,7 @@ const TopicMessageFlowCanvas = ({
       rootFocusPositionY === undefined
     )
       return
+
     if (initialViewportSignatureRef.current === focusSignature) return
 
     let frame = 0
@@ -196,8 +210,10 @@ const TopicMessageFlowCanvas = ({
       if (cancelled) return
       const containerWidth = containerRef.current?.clientWidth ?? 0
       const containerHeight = containerRef.current?.clientHeight ?? 0
+
       if (containerWidth <= 0 || containerHeight <= 0) {
         frame = window.requestAnimationFrame(measure)
+
         return
       }
 

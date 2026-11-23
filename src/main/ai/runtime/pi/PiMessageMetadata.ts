@@ -35,9 +35,11 @@ export function resolvePiMcpToolMetadata(
 ) {
   if (!definition?.namespace?.name.startsWith('mcp__')) return undefined
   const separator = definition.label.indexOf('/')
+
   if (separator < 0) return undefined
   const serverId = definition.label.slice(0, separator)
   const server = [...snapshots.values()].find((candidate) => candidate?.id === serverId)
+
   return {
     type: 'mcp' as const,
     name: definition.label.slice(separator + 1),
@@ -49,6 +51,7 @@ export function resolvePiMcpToolMetadata(
 function toolProviderMetadata(toolName: string, nativeTool?: ReturnType<typeof resolvePiMcpToolMetadata>) {
   const parsed = parseFunctionCallToolName(toolName)
   const serverName = parsed ? (CHERRY_SERVER_NAMES.get(parsed.serverPart) ?? parsed.serverPart) : undefined
+
   return {
     cherry: {
       transport: PI_TRANSPORT,
@@ -73,26 +76,34 @@ export class PiMessageMetadata {
 
   decorate(message: CherryUIMessage): CherryUIMessage {
     const artifacts: CherryUIMessage['parts'] = []
+
     const existingCalls = new Set(
       message.parts.flatMap((part) => (part.type === 'dynamic-tool' ? [part.toolCallId] : []))
     )
+
     for (const part of message.parts) {
       if (part.type !== 'dynamic-tool') continue
+
       const result =
         part.state === 'output-available'
           ? part.output
           : part.state === 'output-error'
             ? part.resultProviderMetadata?.pi?.result
             : undefined
+
       const nested = nestedCallsSchema.safeParse(result)
+
       if (!nested.success) continue
+
       for (const call of nested.data.nestedCalls.calls) {
         if (call.status !== 'ok' || existingCalls.has(call.id)) continue
         const metadata = toolProviderMetadata(call.name, this.resolveToolMetadata?.(call.name))
         const tool = metadata.cherry.tool
+
         if (tool.type !== 'mcp' || tool.serverName !== 'cherry-tools' || tool.name !== REPORT_ARTIFACTS_TOOL_NAME)
           continue
         const input = reportArtifactsInputSchema.safeParse(call.arguments)
+
         if (!input.success) continue
         existingCalls.add(call.id)
         artifacts.push({
@@ -108,6 +119,7 @@ export class PiMessageMetadata {
         })
       }
     }
+
     return {
       ...message,
       parts: [
@@ -119,22 +131,26 @@ export class PiMessageMetadata {
 
   private decorateToolPart(part: DynamicToolUIPart): DynamicToolUIPart {
     const metadata = toolProviderMetadata(part.toolName, this.resolveToolMetadata?.(part.toolName))
+
     const decoration = {
       providerExecuted: true,
       callProviderMetadata: { ...metadata, pi: { ...part.callProviderMetadata?.pi, ...metadata.pi } }
     }
+
     if (part.state !== 'output-available') return { ...part, ...decoration }
 
     const toolName = part.toolName
     const result = part.output
     const toolResult = hasToolContent(result) ? result : undefined
     let output = result ?? null
+
     if (toolResult) {
       if (toolName === PI_TOOL_EXEC_TOOL_NAME) output = unwrapMcpContent(toolResult)
       else if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === 'tool_exec') {
         output = toolResult.details ?? toolResult
       } else if (toolName.startsWith('mcp__')) {
         const mcpResult = toolResult.structuredContent
+
         // The automation card renders the REPL's content blocks; its structuredContent is metadata only.
         if (toolName.startsWith('mcp__automation__')) {
           output = mcpResult ?? toolResult
@@ -143,12 +159,14 @@ export class PiMessageMetadata {
             typeof mcpResult === 'object' && mcpResult !== null && 'structuredContent' in mcpResult
               ? mcpResult.structuredContent
               : undefined
+
           output = structuredContent ?? unwrapMcpContent(toolResult)
         }
       } else {
         output = toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult
       }
     }
+
     return { ...part, ...decoration, output, resultProviderMetadata: metadata }
   }
 }
@@ -161,8 +179,10 @@ function hasToolContent(result: unknown): result is z.infer<typeof toolContentSc
 /** Unwrap all-text MCP results so tool cards and citation resolution see the same shape across runtimes. */
 function unwrapMcpContent({ content }: z.infer<typeof toolContentSchema>): Serializable | unknown[] {
   const parsed = textContentSchema.safeParse(content)
+
   if (!parsed.success) return content
   const text = parsed.data.map((block) => block.text).join('\n')
+
   try {
     // SAFETY: Native JSON parsing validates the grammar and constructs only serializable values.
     return JSON.parse(text) as Serializable

@@ -6,7 +6,9 @@ import { PoeLight } from './light'
 
 const Poe = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <PoeLight {...props} className={className} />
+
   if (variant === 'dark') return <PoeDark {...props} className={className} />
+
   return (
     <>
       <PoeLight className={cn('dark:hidden', className)} {...props} />

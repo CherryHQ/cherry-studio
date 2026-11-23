@@ -19,10 +19,12 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
   '/mini-apps': {
     GET: async ({ query }) => {
       const parsed = ListMiniAppsQuerySchema.parse(query ?? {})
+
       return miniAppService.list(parsed)
     },
     POST: async ({ body }) => {
       const parsed = CreateMiniAppSchema.parse(body)
+
       return miniAppService.create(parsed)
     }
   },
@@ -33,10 +35,12 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateMiniAppSchema.parse(body)
+
       return miniAppService.update(params.appId, parsed)
     },
     DELETE: async ({ params }) => {
       miniAppService.delete(params.appId)
+
       return undefined
     }
   },
@@ -45,6 +49,7 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
     PATCH: async ({ params, body }) => {
       const anchor = OrderRequestSchema.parse(body)
       miniAppService.reorder([{ id: params.id, anchor }])
+
       return undefined
     }
   },
@@ -53,6 +58,7 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
     PATCH: async ({ body }) => {
       const { moves } = OrderBatchRequestSchema.parse(body)
       miniAppService.reorder(moves)
+
       return undefined
     }
   }

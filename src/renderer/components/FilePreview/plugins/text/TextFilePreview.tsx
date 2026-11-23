@@ -86,8 +86,11 @@ interface TextPreviewContentProps {
 
 function TextPreviewContent({ filePath, loadState, onLineComment }: TextPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <TextPreviewLoading />
+
   if (loadState.status === 'empty') return <TextPreviewEmpty />
+
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
+
   if (loadState.status === 'error') return <TextPreviewError />
 
   return (
@@ -129,18 +132,23 @@ export default function TextFilePreview({
           typeof sourceMetadata === 'function'
             ? await Promise.resolve().then(sourceMetadata)
             : { kind: 'file', size: sourceMetadata }
+
         if (cancelled || loadedMetadata?.kind !== 'file') return
+
         if (loadedMetadata.size === 0) {
           setLoadState({ status: 'empty' })
+
           return
         }
 
         if (loadedMetadata.size > FILE_EDIT_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
+
           return
         }
 
         const content = await window.api.fs.readText(filePath)
+
         if (!cancelled) setLoadState({ status: 'ready', content })
       } catch (error) {
         if (cancelled) return

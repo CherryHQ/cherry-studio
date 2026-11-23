@@ -25,10 +25,12 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
     ({ error, language }) => {
       const errorMessage = error.message
+
       if (!errorMessage) return Promise.resolve(null)
 
       const cacheKey = aiClassifyCacheKey(errorMessage, language)
       const cached = cacheService.getCasual<Promise<string>>(cacheKey)
+
       if (cached) return cached
 
       const promise = import('@renderer/utils/errorDiagnosis')
@@ -37,7 +39,9 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
           cacheService.deleteCasual(cacheKey)
           throw classificationError
         })
+
       cacheService.setCasual<Promise<string>>(cacheKey, promise, AI_CLASSIFY_TTL_MS)
+
       return promise
     },
     []

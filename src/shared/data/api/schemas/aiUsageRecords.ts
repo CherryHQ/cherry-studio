@@ -19,6 +19,7 @@ export const AI_USAGE_RECORD_AGGREGATE_MAX_LIMIT = 50
 export const AI_USAGE_RECORD_MAX_RANGE_DAYS = 366
 
 const CurrencySchema = z.enum(objectValues(CURRENCY))
+
 const TimeRangeFields = {
   from: z.number().int().nonnegative(),
   to: z.number().int().nonnegative()
@@ -27,10 +28,12 @@ const TimeRangeFields = {
 function validateTimeRange(value: { from: number; to: number }, ctx: z.RefinementCtx): void {
   if (value.to < value.from) {
     ctx.addIssue({ code: 'custom', path: ['to'], message: 'to must be greater than or equal to from' })
+
     return
   }
 
   const maxRangeMs = AI_USAGE_RECORD_MAX_RANGE_DAYS * 24 * 60 * 60 * 1000
+
   if (value.to - value.from > maxRangeMs) {
     ctx.addIssue({
       code: 'custom',
@@ -47,8 +50,11 @@ export const AiUsageRecordListSortBySchema = z.enum([
   'timeFirstTokenMs',
   'tokensPerSecond'
 ])
+
 export type AiUsageRecordListSortBy = z.infer<typeof AiUsageRecordListSortBySchema>
+
 export const AiUsageRecordSortOrderSchema = z.enum(['asc', 'desc'])
+
 export type AiUsageRecordSortOrder = z.infer<typeof AiUsageRecordSortOrderSchema>
 
 export const AiUsageRecordListQuerySchema = z
@@ -68,6 +74,7 @@ export const AiUsageRecordListQuerySchema = z
     if (value.sortBy === 'cost' && value.costCurrency === undefined) {
       ctx.addIssue({ code: 'custom', path: ['costCurrency'], message: 'costCurrency is required for cost sorting' })
     }
+
     if ((value.messageKind === undefined) !== (value.messageId === undefined)) {
       ctx.addIssue({
         code: 'custom',
@@ -76,12 +83,17 @@ export const AiUsageRecordListQuerySchema = z
       })
     }
   })
+
 export type AiUsageRecordListQuery = z.infer<typeof AiUsageRecordListQuerySchema>
+
 export type AiUsageRecordListQueryParams = z.input<typeof AiUsageRecordListQuerySchema> & CursorPaginationParams
 
 export const AiUsageRecordGroupBySchema = z.enum(['provider', 'apiKey', 'model', 'source'])
+
 export type AiUsageRecordGroupBy = z.infer<typeof AiUsageRecordGroupBySchema>
+
 export const AiUsageRecordMetricSchema = z.enum(['tokens', 'requests', 'cost'])
+
 export type AiUsageRecordMetric = z.infer<typeof AiUsageRecordMetricSchema>
 
 const AggregateQueryFields = {
@@ -96,6 +108,7 @@ function validateAggregateQuery(
   ctx: z.RefinementCtx
 ): void {
   validateTimeRange(value, ctx)
+
   if (value.metric === 'cost' && value.currency === undefined) {
     ctx.addIssue({ code: 'custom', path: ['currency'], message: 'currency is required for cost aggregation' })
   }
@@ -107,6 +120,7 @@ export const AiUsageRecordStatsQuerySchema = z
     ...AggregateQueryFields
   })
   .superRefine(validateAggregateQuery)
+
 export type AiUsageRecordStatsQuery = z.infer<typeof AiUsageRecordStatsQuerySchema>
 
 export const AiUsageRecordTimelineQuerySchema = z
@@ -115,6 +129,7 @@ export const AiUsageRecordTimelineQuerySchema = z
     ...AggregateQueryFields
   })
   .superRefine(validateAggregateQuery)
+
 export type AiUsageRecordTimelineQuery = z.infer<typeof AiUsageRecordTimelineQuerySchema>
 
 export interface AiUsageRecordListResponse extends CursorPaginationResponse<AiUsageRecordEntry> {

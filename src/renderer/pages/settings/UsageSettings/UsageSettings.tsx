@@ -69,6 +69,7 @@ import {
 import { useUsageData, useUsageEntriesData } from './useUsageData'
 
 type UsageApiKeyStatsBucket = Extract<AiUsageRecordStatsBucket, { groupBy: 'apiKey' }>
+
 type UsageApiKeyDisplay = Pick<
   UsageApiKeyStatsBucket,
   'apiKeyId' | 'apiKeyLabel' | 'apiKeyMasked' | 'apiKeyAttribution' | 'authMethod'
@@ -95,12 +96,14 @@ const UsageEntriesSection = memo(function UsageEntriesSection({
 }) {
   const [sortBy, setSortBy] = usePersistCache('settings.usage.entry_sort_by')
   const [sortOrder, setSortOrder] = usePersistCache('settings.usage.entry_sort_order')
+
   const { entries, total, isLoading, isRefreshing, hasNext, loadNext } = useUsageEntriesData({
     windowRange: range,
     currency,
     sortBy,
     sortOrder
   })
+
   const handleSort = (nextSortBy: AiUsageRecordListSortBy) => {
     setSortOrder((currentOrder) => (sortBy === nextSortBy && currentOrder === 'desc' ? 'asc' : 'desc'))
     setSortBy(nextSortBy)
@@ -134,6 +137,7 @@ function UsageSettings() {
   const [topCount, setTopCount] = usePersistCache('settings.usage.top_count')
   const [persistedCurrency, setSelectedCurrency] = usePersistCache('settings.usage.currency')
   const selectedCurrency = persistedCurrency ?? undefined
+
   const chartType: UsageChartType =
     selectedChartType === 'pie' ? 'pie' : selectedChartType === 'line' && rollup !== 'total' ? 'line' : 'bar'
 
@@ -173,6 +177,7 @@ function UsageSettings() {
     () => timelineBuckets.filter((bucket) => bucket.requestCount > 0).map((bucket) => bucket.date),
     [timelineBuckets]
   )
+
   const totalTokens = overviewTotals.totalTokens
   const totalRequests = overviewTotals.requestCount
   const previousTotalTokens = previousOverviewTotals.totalTokens
@@ -183,30 +188,37 @@ function UsageSettings() {
   const previousCacheMetrics = useMemo(() => getCacheUsageMetrics([previousOverviewTotals]), [previousOverviewTotals])
   const totalCost = costCurrency ? overviewTotals.totalCost : undefined
   const previousTotalCost = costCurrency ? previousOverviewTotals.totalCost : undefined
+
   const costTrendValues = useMemo(
     () => getTimelineSeries(timelineBuckets, windowRange, (bucket) => bucket.totalCost),
     [timelineBuckets, windowRange]
   )
+
   const requestTrendValues = useMemo(
     () => getTimelineSeries(timelineBuckets, windowRange, (bucket) => bucket.requestCount),
     [timelineBuckets, windowRange]
   )
+
   const tokenTrendValues = useMemo(
     () => getTimelineSeries(timelineBuckets, windowRange, (bucket) => bucket.totalTokens),
     [timelineBuckets, windowRange]
   )
+
   const cacheHitRateTrendValues = useMemo(
     () =>
       getTimelineSeries(timelineBuckets, windowRange, (bucket) => {
         const observableTokens = bucket.totalNoCacheTokens + bucket.totalCacheReadTokens + bucket.totalCacheWriteTokens
+
         return observableTokens > 0 ? bucket.totalCacheReadTokens / observableTokens : 0
       }),
     [timelineBuckets, windowRange]
   )
+
   const cacheHitRateDelta =
     cacheMetrics.hitRate !== undefined && previousCacheMetrics.hitRate !== undefined
       ? cacheMetrics.hitRate - previousCacheMetrics.hitRate
       : undefined
+
   const peakDay = useMemo(
     () =>
       timelineBuckets.reduce<(typeof timelineBuckets)[number] | undefined>(
@@ -215,6 +227,7 @@ function UsageSettings() {
       ),
     [timelineBuckets]
   )
+
   const topModel = useMemo(
     () =>
       overviewBuckets
@@ -232,10 +245,12 @@ function UsageSettings() {
     () => new Intl.DateTimeFormat(i18n.language, { year: 'numeric', month: 'short', day: 'numeric' }),
     [i18n.language]
   )
+
   const monthFormatter = useMemo(
     () => new Intl.DateTimeFormat(i18n.language, { year: 'numeric', month: 'short' }),
     [i18n.language]
   )
+
   const percentFormatter = useMemo(
     () =>
       new Intl.NumberFormat(i18n.language, {
@@ -245,6 +260,7 @@ function UsageSettings() {
       }),
     [i18n.language]
   )
+
   const hitRateFormatter = useMemo(
     () =>
       new Intl.NumberFormat(i18n.language, {
@@ -254,7 +270,9 @@ function UsageSettings() {
       }),
     [i18n.language]
   )
+
   const formatDelta = useCallback((value: number) => percentFormatter.format(value), [percentFormatter])
+
   const entryDateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(i18n.language, {
@@ -264,6 +282,7 @@ function UsageSettings() {
       }),
     [i18n.language]
   )
+
   const entryTimeFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(i18n.language, {
@@ -281,6 +300,7 @@ function UsageSettings() {
       })),
     [t]
   )
+
   const groupByOptions = useMemo(
     () =>
       GROUP_BY_KEYS.map((value) => ({
@@ -289,6 +309,7 @@ function UsageSettings() {
       })),
     [t]
   )
+
   const metricOptions = useMemo(
     () =>
       METRIC_KEYS.map((value) => ({
@@ -297,10 +318,12 @@ function UsageSettings() {
       })),
     [t]
   )
+
   const currencyOptions = useMemo(
     () => costTotals.map((item) => ({ value: item.currency, label: item.currency })),
     [costTotals]
   )
+
   const rollupOptions = useMemo(
     () =>
       ROLLUP_KEYS.map((value) => ({
@@ -309,10 +332,12 @@ function UsageSettings() {
       })),
     [t]
   )
+
   const topCountOptions = useMemo(
     () => TOP_COUNT_KEYS.map((value) => ({ value: String(value), label: String(value) })),
     []
   )
+
   const chartTypeOptions = useMemo(
     () => CHART_TYPE_KEYS.map((value) => ({ value, label: t(CHART_TYPE_LABEL_KEYS[value]) })),
     [t]
@@ -327,11 +352,14 @@ function UsageSettings() {
   const getProviderInfo = useCallback(
     (id: string, snapshotName?: string | null) => {
       const provider = providerMap.get(id)
+
       return { id, name: snapshotName ?? provider?.name ?? id }
     },
     [providerMap]
   )
+
   const getProviderName = (id: string, snapshotName?: string | null) => getProviderInfo(id, snapshotName).name
+
   const getApiKeyLabel = (apiKey: UsageApiKeyDisplay): string => {
     if (apiKey.apiKeyAttribution === 'auth') {
       return apiKey.authMethod
@@ -344,12 +372,15 @@ function UsageSettings() {
     }
 
     const keyLabel = apiKey.apiKeyLabel || apiKey.apiKeyMasked || apiKey.apiKeyId
+
     const attributionLabel =
       apiKey.apiKeyAttribution === 'matched'
         ? t('settings.usage.cards.matchedApiKey')
         : t('settings.usage.cards.explicitApiKey')
+
     return `${keyLabel} · ${attributionLabel}`
   }
+
   const getSourceLabel = (bucket: AiUsageRecordGroupIdentity): string => {
     if (!bucket.sourceType || !bucket.sourceId) {
       return t('settings.usage.cards.unattributedSource')
@@ -357,6 +388,7 @@ function UsageSettings() {
 
     return bucket.sourceName || bucket.sourceId
   }
+
   const getBucketLabel = (bucket: AiUsageRecordGroupIdentity): string => {
     if (groupBy === 'provider') {
       return getProviderName(bucket.providerId ?? '', bucket.providerName)
@@ -364,6 +396,7 @@ function UsageSettings() {
 
     if (groupBy === 'model') {
       const modelName = displayModelId(bucket.modelId)
+
       return modelName || t('settings.usage.cards.none')
     }
 

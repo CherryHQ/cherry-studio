@@ -74,8 +74,10 @@ const logger = loggerService.withContext('McpServer:CherryBuiltinTools')
 async function readGeneratedImages(files: { id: string }[], signal: AbortSignal): Promise<ImageContent[]> {
   const fileManager = application.get('FileManager')
   const blocks: ImageContent[] = []
+
   for (const file of files) {
     if (signal.aborted) break
+
     try {
       const { content, mime } = await fileManager.read(file.id, { encoding: 'base64' })
       blocks.push({ type: 'image', data: content, mimeType: mime })
@@ -83,6 +85,7 @@ async function readGeneratedImages(files: { id: string }[], signal: AbortSignal)
       logger.warn('Failed to read generated image for inline rendering', { id: file.id, error })
     }
   }
+
   return blocks
 }
 
@@ -115,6 +118,7 @@ function registerBuiltinTools(server: McpServer): void {
       const text = paintingModelOutput(result).value
       // On failure `result` is the model-facing note — text only, no image to attach.
       const images = isPaintingError(result) ? [] : await readGeneratedImages(result, signal)
+
       return { content: [{ type: 'text', text }, ...images] }
     }
   )
@@ -127,5 +131,6 @@ export function createCherryToolsServer(options: CherryToolsOptions): McpServer 
   registerAutonomyTools(server, options)
   registerCliTools(server)
   registerDocumentTools(server, options)
+
   return server
 }

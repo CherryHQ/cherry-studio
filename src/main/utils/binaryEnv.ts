@@ -28,14 +28,18 @@ import { isMac, isWin } from '@main/core/platform'
 export function dedupePathSegments(segments: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
+
   for (const segment of segments) {
     const trimmed = segment.trim()
+
     if (!trimmed) continue
     const canonical = canonicalPathSegment(trimmed)
+
     if (seen.has(canonical)) continue
     seen.add(canonical)
     unique.push(trimmed)
   }
+
   return unique
 }
 
@@ -53,8 +57,11 @@ function canonicalPathSegment(segment: string): string {
   // rather than being collapsed into it by the trailing-separator rule.
   const trailingSep = isWin ? /\\+$/ : /\/+$/
   const stripped = normalized.replace(trailingSep, '')
+
   if (stripped.length === 0) return normalized
+
   if (isWin && /^[a-z]:$/i.test(stripped)) return normalized
+
   return stripped
 }
 
@@ -92,6 +99,7 @@ export function getBinarySearchDirs(): string[] {
  */
 export function getBinaryExecutionEnv() {
   const dataDir = binaryDataDir()
+
   return {
     MISE_DATA_DIR: dataDir,
     MISE_CONFIG_DIR: path.join(dataDir, 'config'),
@@ -119,17 +127,22 @@ export function getBinaryExecutionEnv() {
  */
 export function getBinaryIsolatedHomeEnv() {
   const dataDir = binaryDataDir()
+
   const env = {
     HOME: path.join(dataDir, 'home'),
     XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
     XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
     XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state')
   }
+
   let uvCache: { UV_CACHE_DIR: string } | undefined
+
   if (isMac && /\s/u.test(env.XDG_CACHE_HOME)) {
     const uvCacheDir = application.getPath('feature.binary.data.uv_cache')
+
     if (!/\s/u.test(uvCacheDir)) uvCache = { UV_CACHE_DIR: uvCacheDir }
   }
+
   // On Windows, mise's aqua backend runs Sigstore/TUF verification, which resolves
   // its cache/config dirs from %LOCALAPPDATA%/%APPDATA%. The install subprocess
   // strips the user's real values (they aren't in MISE_PASSTHROUGH_ENV), so without
@@ -158,11 +171,15 @@ function mergePathEntries(
   // shadow the merged value when the child process spawns.
   const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
+
   const normalize = (value: string) => {
     const normalized = path.normalize(value)
+
     return isWin ? normalized.toLowerCase() : normalized
   }
+
   const excluded = new Set(excludedEntries.map(normalize))
+
   // Prefixes, retained caller PATH, then suffixes — deduped with first occurrence
   // winning. Explicit exclusions are removed from the caller PATH as well as from
   // either injected side.
@@ -173,10 +190,14 @@ function mergePathEntries(
   ])
     .filter((entry) => !excluded.has(normalize(entry)))
     .join(pathSeparator)
+
   const merged = { ...env }
+
   for (const key of pathLikeKeys) delete merged[key]
   merged[pathKey] = pathValue
+
   if (!isWin) merged.PATH = pathValue
+
   return merged
 }
 
@@ -202,6 +223,7 @@ export function mergeBinaryExecutionEnv(
   extraPathPrefixes: string[] = []
 ): ReturnType<typeof getBinaryExecutionEnv> & Record<string, string> {
   const binaryEnv = getBinaryExecutionEnv()
+
   return {
     ...mergePathPrefixes(env, [binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes]),
     ...binaryEnv

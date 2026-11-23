@@ -80,7 +80,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
       else {
         await this.lanMutex.runExclusive(async () => {
           const host = this.listeningHost()
+
           if (host === '127.0.0.1') application.get('RemoteAccessService').closeIngress()
+
           try {
             await this.apiGateway!.rebind(host)
           } finally {
@@ -123,6 +125,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejection may contain any JavaScript value; the bind-error classifier owns narrowing and other values must propagate unchanged.
       await this.apiGateway.start().catch((error: unknown) => {
         const mapped = mapGatewayBindError(error, endpoint, 'public')
+
         if (mapped !== error) logger.error('Public API gateway listen failed', error as Error)
         throw mapped
       })
@@ -134,6 +137,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
         await this.apiGateway.stop().catch(() => {})
         this.apiGateway = null
       }
+
       this.publishRunningState(false)
       throw error
     }
@@ -143,10 +147,12 @@ export class ApiGatewayService extends BaseService implements Activatable {
     await this.lanMutex.runExclusive(() => {
       application.get('RemoteAccessService').closeIngress()
     })
+
     if (this.apiGateway) {
       await this.apiGateway.stop()
       this.apiGateway = null
     }
+
     this.publishRunningState(false)
     logger.info('API Gateway deactivated')
   }
@@ -170,12 +176,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private publishRunningState(running: boolean): void {
     const config = this.getCurrentConfig()
     const host = running ? this.apiGateway?.getHost() : undefined
+
     const endpoint =
       host && this.apiGateway ? { hosts: this.apiGateway.getHosts(), port: this.apiGateway.getPort() } : null
+
     const remoteReady = !!endpoint && config.enabled && config.host === '0.0.0.0' && host === '0.0.0.0'
     application
       .get('RemoteAccessService')
       .updateDirectEndpoint(remoteReady ? { port: endpoint.port, ipv6: endpoint.hosts.includes('::') } : undefined)
+
     try {
       const cache = application.get('CacheService')
       cache.setShared('feature.api_gateway.running', running)
@@ -187,6 +196,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   private listeningHost(): string {
     const config = this.getCurrentConfig()
+
     return config.enabled && config.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
   }
 
@@ -208,6 +218,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
    */
   private async applyIntent(enabled: boolean): Promise<void> {
     const preferenceService = application.get('PreferenceService')
+
     if (!enabled && this.getCurrentConfig().host === '0.0.0.0') {
       await preferenceService.setMultiple({
         'feature.api_gateway.host': '127.0.0.1',
@@ -216,6 +227,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     } else {
       await preferenceService.set('feature.api_gateway.enabled', enabled)
     }
+
     if (!enabled) await this.lanMutex.runExclusive(() => this.closeRemoteAccess())
     // `subscribeChange` fires only on an actual change, so drive the reconciler here as well.
     await this.converge(enabled)
@@ -223,22 +235,27 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async start(): Promise<void> {
     await this.applyIntent(true)
+
     if (!this.isActivated || !this.isRunning()) {
       const error = this.failureError('Failed to start API Gateway')
       logger.error('Failed to start API Gateway:', error)
       throw error
     }
+
     logger.info('API Gateway started successfully')
   }
 
   async stop(): Promise<ApiGatewayStopOutcome> {
     await this.applyIntent(false)
+
     if (this.isActivated) {
       const error = this.failureError('Failed to stop API Gateway')
       logger.error('Failed to stop API Gateway:', error)
       throw error
     }
+
     logger.info('API Gateway stopped successfully')
+
     return 'stopped'
   }
 
@@ -246,6 +263,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     // Re-create the server (e.g. to apply a new host/port) as a stop→start through the same single
     // reconciler. A re-bind is not an intent change, so the persisted preference is left alone.
     await this.converge(false)
+
     // Re-read the intent before re-activating: another window may have persisted a stop while this
     // restart was queued behind it, and a re-bind must never resurrect a gateway the user disabled.
     if (!this.getCurrentConfig().enabled) {
@@ -253,18 +271,22 @@ export class ApiGatewayService extends BaseService implements Activatable {
       logger.warn('Aborting API Gateway restart: the gateway was disabled meanwhile')
       throw error
     }
+
     await this.converge(true)
+
     if (!this.isActivated || !this.isRunning()) {
       const error = this.failureError('Failed to restart API Gateway')
       logger.error('Failed to restart API Gateway:', error)
       throw error
     }
+
     logger.info('API Gateway restarted successfully')
   }
 
   /** Surface the reconciler's most recent transition error to an IPC caller, or a generic fallback. */
   private failureError(fallback: string): Error {
     const lastError = this.reconciler.getLastError()
+
     return lastError instanceof Error ? lastError : new Error(fallback)
   }
 
@@ -275,15 +297,20 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async setLanEnabled(enabled: boolean): Promise<void> {
     await this.lanMutex.runExclusive(async () => {
       const preferences = application.get('PreferenceService')
+
       if (!enabled) {
         await preferences.set('feature.api_gateway.host', '127.0.0.1')
         await this.closeRemoteAccess()
+
         return
       }
+
       if (!this.getCurrentConfig().enabled || !this.isRunning()) {
         throw new Error('Start the API Gateway in its settings before enabling LAN access')
       }
+
       await preferences.set('feature.api_gateway.host', '0.0.0.0')
+
       if (!this.getCurrentConfig().enabled || !this.isRunning()) {
         await preferences.set('feature.api_gateway.host', '127.0.0.1')
         await this.closeRemoteAccess()
@@ -293,11 +320,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     this.reconciler.request()
     await this.reconciler.flush()
     const target = enabled ? '0.0.0.0' : '127.0.0.1'
+
     if (
       (enabled && !this.getCurrentConfig().enabled) ||
       (this.isActivated ? this.apiGateway?.getHost() !== target : enabled)
     ) {
       const error = this.failureError('Failed to change network access')
+
       if (enabled) {
         await this.lanMutex.runExclusive(async () => {
           await application.get('PreferenceService').set('feature.api_gateway.host', '127.0.0.1')
@@ -306,6 +335,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
         this.reconciler.request()
         await this.reconciler.flush()
       }
+
       throw error
     }
   }
@@ -317,15 +347,19 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async createRemoteInvitation(): Promise<OutputFor<'api_gateway.remote.create_invitation'>> {
     const endpoint = await this.getRemoteEndpoint()
+
     if (endpoint.endpoints.length === 0) throw new Error('No connection address is available')
     const invitation = await application.get('RemoteAccessService').createInvitation()
+
     return { ...endpoint, ...invitation }
   }
 
   async getRemoteEndpoint() {
     const metadata = await getInterfaceMetadata()
     const configured = application.get('PreferenceService').get('feature.remote_access.advertised_endpoint')
+
     if (!this.isRunning()) throw new Error('API Gateway is not running')
+
     if (
       !this.getCurrentConfig().enabled ||
       this.getCurrentConfig().host !== '0.0.0.0' ||
@@ -345,7 +379,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
             port: configured.port,
             security: configured.security
           })
+
     const port = this.apiGateway.getPort()
+
     return {
       advertisedEndpoint,
       endpoints: advertisedEndpoint
@@ -373,6 +409,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     const baseUrl = await this.ensureInternalListener()
     const apiKey = `cs-internal-${uuidv4()}`
     this.scopedCredentials.set(apiKey, scope)
+
     return { baseUrl, apiKey, dispose: () => this.scopedCredentials.delete(apiKey) }
   }
 
@@ -383,6 +420,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       throw error
     })
     await this.internalGateway
+
     return this.internalOrigin!
   }
 
@@ -394,33 +432,40 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private async startInternalGateway(): Promise<ApiGateway> {
     const { ApiGateway } = await import('./server')
     const endpoint = { host: INTERNAL_GATEWAY_HOST, port: 0 }
+
     const gateway = await retry(
       async () => {
         const candidate = new ApiGateway(endpoint, 'internal')
         await candidate.start()
+
         return candidate
       },
       { retries: 2, shouldRetry: isGatewayBindPermissionError }
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejection may contain any JavaScript value; the bind-error classifier owns narrowing and other values must propagate unchanged.
     ).catch((error: unknown) => {
       const mapped = mapGatewayBindError(error, endpoint, 'internal')
+
       if (mapped !== error) logger.error('Internal API gateway listen failed', error as Error)
       throw mapped
     })
+
     this.internalOrigin = gatewayClientOrigin(INTERNAL_GATEWAY_HOST, gateway.getPort())
     logger.info('Internal API gateway started', { origin: this.internalOrigin })
+
     return gateway
   }
 
   /** Whether the request presents an internal credential; external callers never hold one. */
   isInternalRequest(headers: Headers): boolean {
     const token = presentedToken(headers)
+
     return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
   }
 
   /** The scope of a live scoped credential; undefined for every other request. */
   getCredentialScope(headers: Headers): InternalCredentialScope | undefined {
     const token = presentedToken(headers)
+
     return token ? this.scopedCredentials.get(token) : undefined
   }
 
@@ -438,11 +483,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async ensureValidApiKey(): Promise<string> {
     const preferenceService = application.get('PreferenceService')
     let apiKey = preferenceService.get('feature.api_gateway.api_key')
+
     if (typeof apiKey !== 'string' || apiKey.trim() === '') {
       apiKey = `cs-sk-${uuidv4()}`
       await preferenceService.set('feature.api_gateway.api_key', apiKey)
       logger.info('Generated new API key')
     }
+
     return apiKey
   }
 
@@ -457,12 +504,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
     traceContext?: InProcessUsageContext['traceContext']
   ) {
     const current = application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
+
     const usage =
       current && ownerSessionId === sessionId
         ? current
         : { agentSessionId: ownerSessionId, source: current?.source ?? null }
+
     const key = uuidv4()
     this.usageCaptures.set(key, traceContext ? { ...usage, traceContext } : usage)
+
     return {
       headers: {
         ...this.getAgentSessionUsageHeaders(ownerSessionId),
@@ -477,19 +527,25 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Agent session id of an unrestricted internal request; undefined for every other caller. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
+
     if (!token || !isValidToken(token, this.internalApiKey)) return undefined
+
     return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */
   resolveAgentSessionUsage(headers: Headers, responseId?: string): InProcessUsageContext | undefined {
     const sessionId = this.getAgentSessionId(headers)
+
     if (!sessionId) return undefined
     const capture = headers.get(AGENT_USAGE_CAPTURE_HEADER)
+
     if (capture) {
       const usage = this.usageCaptures.get(capture)
+
       return usage?.agentSessionId === sessionId ? usage : undefined
     }
+
     return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
   }
 }

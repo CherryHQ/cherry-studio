@@ -50,9 +50,11 @@ export const SUPPORTED_LANGUAGES = Object.keys(locales) as LanguageVarious[]
 export const resolveSystemLanguage = (locale: string): LanguageVarious => {
   const normalizedLocale = locale.toLowerCase()
   const exactMatch = SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase() === normalizedLocale)
+
   if (exactMatch) return exactMatch
 
   const language = normalizedLocale.split('-')[0]
+
   if (language === 'zh') {
     try {
       return new Intl.Locale(locale).maximize().script === 'Hant' ? 'zh-TW' : 'zh-CN'
@@ -60,6 +62,7 @@ export const resolveSystemLanguage = (locale: string): LanguageVarious => {
       return 'zh-CN'
     }
   }
+
   return SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase().split('-')[0] === language) ?? defaultLanguage
 }
 
@@ -93,17 +96,21 @@ export const getAppLanguage = (): LanguageVarious => {
 export const t = (key: string, params?: Record<string, string | number>, language?: LanguageVarious): string => {
   const resolve = (translation: Record<string, string>): string | undefined => {
     const result = translation[key]
+
     return typeof result === 'string' && !result.startsWith('[to be translated]') ? result : undefined
   }
 
   const value =
     resolve(locales[language ?? getAppLanguage()].translation) ?? resolve(locales[defaultLanguage].translation)
+
   if (value === undefined) {
     return key
   }
+
   if (!params) {
     return value
   }
+
   return value.replace(/\{\{\s*(\w+)\s*\}\}/g, (match: string, name: string) =>
     name in params ? String(params[name]) : match
   )

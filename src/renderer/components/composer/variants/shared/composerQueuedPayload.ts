@@ -37,7 +37,9 @@ export function buildComposerQueuedPayload(
   const text = hasText ? normalizedDraft.text : ''
   const tokenIds = getComposerTokenIds(normalizedDraft.tokens)
   const attachedFiles = files.filter((file) => tokenIds.has(fileTokenId(file)))
+
   if (hasUnsyncedComposerAttachments(files, attachedFiles)) return null
+
   if (requireText ? !hasText : !hasText && attachedFiles.length === 0) return null
 
   const userMessageParts = createComposerUserMessageParts(normalizedDraft)

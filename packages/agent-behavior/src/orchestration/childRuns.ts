@@ -16,14 +16,19 @@ export const SUBAGENT_TOOL_NAME = 'subagent'
 /** D22: a report or partial output over the threshold goes to the output store; the run record keeps the marker. */
 async function shortened(host: HostPorts, call: CallKey, report: RunReport): Promise<RunReport> {
   const threshold = host.settings.offloadThreshold()
+
   const shorten = async (text: string | undefined) =>
     text === undefined || !exceedsThreshold(text, threshold)
       ? text
       : storedMarker(host, { name: offloadName(text), content: text, key: call, tool: SUBAGENT_TOOL_NAME })
+
   const [text, partial] = await Promise.all([shorten(report.report), shorten(report.partial)])
   const result = { ...report }
+
   if (text !== undefined) result.report = text
+
   if (partial !== undefined) result.partial = partial
+
   return result
 }
 
@@ -33,6 +38,7 @@ async function shortened(host: HostPorts, call: CallKey, report: RunReport): Pro
  */
 export async function abandonSpawn(context: Context, parent: ThreadId, call: CallKey): Promise<ToolResultFact> {
   await step(context, parent, (facts) => decideSpawnAbandoned(facts, keys.subagentSpawn(call)))
+
   return { text: TURN_STOPPED, isError: true }
 }
 
@@ -52,11 +58,14 @@ export async function runChild(
 ): Promise<ToolResultFact> {
   const { ports } = context
   const accepted = await ports.helpers.message(child, input, key, run)
+
   // Only a first input from the aborted call that owns the run is withdrawn (H3).
   if (accepted.status === 'withdrawn') return abandonSpawn(context, parent, call)
+
   // A stop recorded before the input arrived (G-C4) still applies: the run it started stops at once.
   if (runStopping((await ports.ledger.read(parent)).history, child, run)) await ports.helpers.stop(child, accepted.run)
   const answer = await ports.helpers.awaitAnswer(child, accepted.run, key)
   const report = await shortened(context.host, call, runReport(answer))
+
   return (await step(context, parent, (facts) => decideRunEnd(facts, child, run, answer, report))).result
 }

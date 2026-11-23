@@ -4,6 +4,7 @@ import { Gpt5ChatLatestLight } from './light'
 
 const Gpt5ChatLatest = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt5ChatLatestLight {...props} className={className} />
+
   return <Gpt5ChatLatestLight {...props} className={className} />
 }
 

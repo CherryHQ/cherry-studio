@@ -83,7 +83,9 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     () => (activeFilePath ? createFilePathHandle(activeFilePath) : undefined),
     [activeFilePath]
   )
+
   const fileSession = useFileEditSession(activeFileHandle, 'notes')
+
   const {
     flush: flushFileDraft,
     prepareMutation,
@@ -91,17 +93,21 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     reload: reloadFileDraft,
     setDraft: setFileDraft
   } = fileSession
+
   // Render from the in-memory draft so a failed save survives normal
   // re-renders and editor-mode changes until retry or explicit discard.
   const currentContent = fileSession.draft
+
   // `unsupported` (oversize / non-UTF-8 / mixed line endings) must block editing
   // like a load error — otherwise the note renders as an editable blank document
   // and input is silently discarded.
   const contentLoadError = useMemo(() => {
     if (fileSession.status === 'error') return fileSession.error
+
     if (fileSession.status === 'unsupported') {
       return new Error(`Unsupported note file (${fileSession.unsupportedReason ?? 'unknown'})`)
     }
+
     return undefined
   }, [fileSession.status, fileSession.error, fileSession.unsupportedReason])
 
@@ -145,6 +151,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     return nodes.map((node) => {
       const normalizedPath = normalizePathValue(node.externalPath)
       const currentNote = noteByPathRef.current.get(normalizedPath)
+
       const merged: NotesTreeNode = {
         ...node,
         externalPath: normalizedPath,
@@ -168,8 +175,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     if (!treeRoot || !notesPath) {
       setNotesTree([])
       setHasProjectedTree(false)
+
       return
     }
+
     const projected = projectNotesTree(treeRoot, notesPath)
     const sorted = sortTree(projected, sortType)
     setNotesTree(mergeTreeState(sorted))
@@ -181,6 +190,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   // Re-merge tree state when note metadata changes
   useEffect(() => {
     noteByPathRef.current = noteByPath
+
     if (notesTree.length > 0) {
       setNotesTree((prev) => mergeTreeState(prev))
     }
@@ -191,6 +201,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   // its content is already up to date when the draft state lands here.
   const tokenCount = useMemo(() => {
     const textContent = editorRef.current?.getContent() || fileSession.draft
+
     return textContent.replace(/<[^>]*>/g, '').length
   }, [fileSession.draft])
 
@@ -209,8 +220,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       if (contentLoadError) {
         logger.warn('Ignored note edit because current file content failed to load', { activeFilePath })
         toast.error(t('notes.save_blocked_load_failed'))
+
         return
       }
+
       // The session debounces the autosave and captures the path internally, so
       // a file switch mid-flight can never write to the wrong file.
       setFileDraft(newMarkdown)
@@ -235,8 +248,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   useEffect(() => {
     if (!fileSession.saveError) return
     const now = Date.now()
+
     if (now - lastSaveFailureToastAtRef.current < SAVE_FAILURE_TOAST_INTERVAL_MS) return
     lastSaveFailureToastAtRef.current = now
+
     if (fileSession.metadataRecoveryPending) {
       toast.warning(t('notes.save_failure.metadata_pending'))
     } else {
@@ -266,15 +281,18 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         const info = await ipcApi.request('app.get_info')
         const defaultPath = info.notesPath
         updateNotesPath(defaultPath)
+
         return
       }
 
       // 验证路径是否有效（处理跨平台恢复场景）
       try {
         const resolved = await resolveNotesPath(notesPath)
+
         if (!resolved.isFallback) {
           return
         }
+
         const defaultPath = resolved.path
 
         logger.warn('Invalid notes path detected, resetting to default', {
@@ -292,6 +310,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
             includeFiles: true,
             includeDirectories: true
           })
+
           if (!entries || entries.length === 0) {
             // 默认目录为空，提示用户需要迁移文件
             toast.warning({
@@ -314,6 +333,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
   const shouldRetainMissingDraft =
     hasProjectedTree && !isTreeLoading && Boolean(activeFilePath) && !activeNode && fileSession.isDirty
+
   const editorNodeId = activeNode?.id ?? (shouldRetainMissingDraft ? activeFilePath : undefined)
 
   // 处理树同步时的状态管理
@@ -387,12 +407,15 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const getTargetFolderPath = useCallback(
     (targetFolderId?: string) => {
       const folderId = targetFolderId || selectedFolderId
+
       if (folderId) {
         const selectedNode = findNode(notesTree, folderId)
+
         if (selectedNode && selectedNode.type === 'folder') {
           return selectedNode.externalPath
         }
       }
+
       return notesPath // 默认返回根目录
     },
     [selectedFolderId, notesTree, notesPath]
@@ -451,8 +474,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const rollbackFileMove = useCallback(async (fromPath: string, toPath: string, nodeType: NotesTreeNode['type']) => {
     if (nodeType === 'folder') {
       await window.api.file.moveDir(fromPath, toPath)
+
       return
     }
+
     await window.api.file.move(fromPath, toPath)
   }, [])
 
@@ -460,9 +485,11 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     async (operation: () => Promise<void>, rollback?: () => Promise<void>) => {
       try {
         await operation()
+
         return true
       } catch (error) {
         logger.error('Failed to sync note metadata after file operation:', error as Error)
+
         if (rollback) {
           try {
             await rollback()
@@ -470,8 +497,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
             logger.error('Failed to rollback note file operation after metadata sync failure:', rollbackError as Error)
           }
         }
+
         toast.error(t('notes.metadata_sync_failed'))
         await refreshTree()
+
         return false
       }
     },
@@ -481,6 +510,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const setFolderExpandedByPath = useCallback(
     (folderPath: string, expanded: boolean) => {
       const folderNode = findNodeByPath(notesTree, normalizePathValue(folderPath))
+
       if (folderNode?.type !== 'folder') {
         return
       }
@@ -496,9 +526,11 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     async (name: string, targetFolderId?: string) => {
       try {
         const targetPath = getTargetFolderPath(targetFolderId)
+
         if (!targetPath) {
           throw new Error('No folder path selected')
         }
+
         await addDir(name, targetPath)
         setFolderExpandedByPath(targetPath, true)
         await refreshTree()
@@ -516,9 +548,11 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         isCreatingNoteRef.current = true
 
         const targetPath = getTargetFolderPath(targetFolderId)
+
         if (!targetPath) {
           throw new Error('No folder path selected')
         }
+
         const { path: notePath } = await addNote(name, '', targetPath)
         setFolderExpandedByPath(targetPath, true)
         setActiveFilePath(AbsoluteFilePathSchema.parse(notePath))
@@ -553,6 +587,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const handleToggleExpanded = useCallback(
     (nodeId: string) => {
       const targetNode = findNode(notesTree, nodeId)
+
       if (!targetNode || targetNode.type !== 'folder') {
         return
       }
@@ -567,6 +602,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const handleToggleStar = useCallback(
     (nodeId: string) => {
       const node = findNode(notesTree, nodeId)
+
       if (!node) {
         return
       }
@@ -584,12 +620,15 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       if (node.type === 'file') {
         if (node.externalPath === activeFilePath) {
           if (notePath) onNoteOpened?.()
+
           return
         }
+
         // Switching the active path re-reads the file through the session.
         requestFileTransition(() => {
           setActiveFilePath(AbsoluteFilePathSchema.parse(node.externalPath))
           setSelectedFolderId(null)
+
           if (notePath) onNoteOpened?.()
         })
       } else if (node.type === 'folder') {
@@ -603,12 +642,14 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   useEffect(() => {
     if (!notePath || !hasProjectedTree || isTreeLoading || isComposing) return
     const node = findNodeByPath(notesTree, normalizePathValue(notePath))
+
     if (node?.type !== 'file') return
     requestFileTransition(() => {
       if (node.externalPath !== activeFilePath) {
         setActiveFilePath(AbsoluteFilePathSchema.parse(node.externalPath))
         setSelectedFolderId(null)
       }
+
       onNoteOpened?.()
     })
   }, [
@@ -627,8 +668,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
       let prepared: PreparedFileMutation | undefined
+
       try {
         const nodeToDelete = findNode(notesTree, nodeId)
+
         if (!nodeToDelete) return
 
         // Persist any pending edit before removing the file so the session's
@@ -650,6 +693,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
         const isActiveNode = normalizedActivePath === normalizedDeletePath
+
         const isActiveDescendant =
           nodeToDelete.type === 'folder' &&
           normalizedActivePath &&
@@ -663,6 +707,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         await refreshTree()
       } catch (error) {
         logger.error('Failed to delete node:', error as Error)
+
         if (error instanceof Error && error.message) {
           toast.error(t('notes.delete_failed'))
         }
@@ -690,15 +735,19 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       let failureReported = false
       let changed = false
       let prepared: PreparedFileMutation | undefined
+
       try {
         isRenamingRef.current = true
 
         const node = findNode(notesTree, nodeId)
+
         if (!node) {
           toast.error(t('notes.rename_failed'))
           failureReported = true
+
           return result
         }
+
         if (node.name === newName) {
           return { ok: true, name: node.name }
         }
@@ -741,8 +790,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           () => rewritePath(oldPath, renamed.path, node.type === 'folder'),
           () => rollbackFileMove(renamed.path, oldPath, node.type)
         )
+
         if (!metadataSynced) {
           failureReported = true
+
           return result
         }
 
@@ -766,13 +817,16 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           await prepared?.finish()
         } catch (error) {
           logger.error('Failed to finish note rename:', error as Error)
+
           if (!failureReported) {
             toast.error(t('notes.rename_failed'))
             result = { ok: false, reason: 'failed' }
           }
         }
+
         if (!changed || !result.ok) isRenamingRef.current = false
       }
+
       return result
     },
     [
@@ -795,10 +849,12 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       try {
         if (!files || files.length === 0) {
           toast.warning(t('notes.no_file_selected'))
+
           return
         }
 
         const targetFolderPath = getTargetFolderPath()
+
         if (!targetFolderPath) {
           throw new Error('No folder path selected')
         }
@@ -807,10 +863,12 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         if (typeof uploadNotes !== 'function') {
           logger.error('uploadNotes function is not available', { uploadNotes })
           toast.error(t('notes.upload_failed'))
+
           return
         }
 
         let result: Awaited<ReturnType<typeof uploadNotes>>
+
         try {
           result = await uploadNotes(files, targetFolderPath)
         } catch (uploadError) {
@@ -822,6 +880,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         if (!result || typeof result !== 'object') {
           logger.error('Invalid upload result:', { result })
           toast.error(t('notes.upload_failed'))
+
           return
         }
 
@@ -829,9 +888,12 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         if (result.fileCount === 0) {
           if (result.failedFiles > 0) {
             toast.error(t('notes.upload_all_failed', { failed: result.failedFiles }))
+
             return
           }
+
           toast.warning(t('notes.no_valid_files'))
+
           return
         }
 
@@ -841,6 +903,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
         if (result.failedFiles > 0) {
           toast.warning(t('notes.upload_partial_failed', { uploaded: result.fileCount, failed: result.failedFiles }))
+
           return
         }
 
@@ -861,6 +924,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       }
 
       let prepared: PreparedFileMutation | undefined
+
       try {
         const sourceNode = findNode(notesTree, sourceNodeId)
         const targetNode = findNode(notesTree, targetNodeId)
@@ -878,6 +942,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         const targetParentNode = position === 'inside' ? targetNode : findParent(notesTree, targetNodeId)
 
         const sourceParentPath = sourceParentNode ? sourceParentNode.externalPath : rootPath
+
         const targetParentPath =
           position === 'inside' ? targetNode.externalPath : targetParentNode ? targetParentNode.externalPath : rootPath
 
@@ -891,6 +956,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           setNotesTree((prev) =>
             reorderTreeNodes(prev, sourceNodeId, targetNodeId, position === 'before' ? 'before' : 'after')
           )
+
           return
         }
 
@@ -923,13 +989,16 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           () => rewritePath(sourceNode.externalPath, destinationPath, sourceNode.type === 'folder'),
           () => rollbackFileMove(destinationPath, sourceNode.externalPath, sourceNode.type)
         )
+
         if (!metadataSynced) {
           return
         }
+
         setFolderExpandedByPath(normalizedTargetParent, true)
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         let nextActivePath: string | undefined
+
         if (normalizedActivePath) {
           if (normalizedActivePath === sourceNode.externalPath) {
             nextActivePath = destinationPath
@@ -984,6 +1053,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       }
 
       const segments = treePath.split('/').filter(Boolean)
+
       if (segments.length === 0) {
         return
       }
@@ -994,6 +1064,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       segments.forEach((_, index) => {
         const currentPath = '/' + segments.slice(0, index + 1).join('/')
         const node = findNodeByPath(nextTree, currentPath)
+
         if (node && node.type === 'folder' && !node.expanded) {
           pathsToAdd.push(node.externalPath)
           nextTree = updateTreeNode(nextTree, node.id, (current) => ({ ...current, expanded: true }))
@@ -1004,6 +1075,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         setNotesTree(nextTree)
         pathsToAdd.forEach((path) => {
           const node = findNodeByPath(notesTree, path)
+
           if (node?.type === 'folder') {
             persistMetadataPatch(node, { isExpanded: true })
           }
@@ -1015,11 +1087,13 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
   const getCurrentNoteContent = useCallback(() => {
     const sourceContent = codeEditorRef.current?.getContent?.()
+
     if (sourceContent !== undefined) {
       return sourceContent
     }
 
     const richContent = editorRef.current?.getMarkdown?.()
+
     return richContent ?? currentContent
   }, [currentContent])
 
@@ -1029,6 +1103,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
       if (!targetNode || targetNode.type !== 'file') {
         logger.warn('Target note not found or not a file', { noteId })
+
         return
       }
 
@@ -1160,6 +1235,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         open={showConflict}
         onOpenChange={(open) => {
           setShowConflict(open)
+
           if (open || conflictResolvedRef.current) return
           void fileSession.keepDraft().catch((error) => {
             logger.error('Failed to keep the note draft after an external change', error as Error)

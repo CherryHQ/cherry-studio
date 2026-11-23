@@ -19,6 +19,7 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
     PUT: async ({ params, body }) => {
       agentSessionService.getConversationById(params.sessionId)
       const parsed = SelectAgentSessionBranchSchema.safeParse(body)
+
       if (!parsed.success) throw toDataApiError(parsed.error)
       agentSessionMessageService.selectBranch(params.sessionId, parsed.data.messageId)
     }
@@ -28,16 +29,20 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
       // Message routes scope like session reads: background sessions are not addressable here.
       agentSessionService.getConversationById(params.sessionId)
       const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
+
       if (!parsed.success) throw toDataApiError(parsed.error)
       const response = agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
+
       const actions = application.get('AgentSessionRuntimeService').getHistoryActions(
         params.sessionId,
         response.items.map((item) => item.id)
       )
+
       const items = response.items.map((item) => ({
         ...item,
         historyActions: actions.get(item.id)
       }))
+
       return { ...response, items }
     }
   },
@@ -45,19 +50,23 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
   '/agent-sessions/:sessionId/messages/:messageId': {
     GET: async ({ params }) => {
       agentSessionService.getConversationById(params.sessionId)
+
       return agentSessionMessageService.getSessionMessage(params.sessionId, params.messageId)
     },
 
     PATCH: async ({ params, body }) => {
       agentSessionService.getConversationById(params.sessionId)
       const parsed = UpdateAgentSessionMessageSchema.safeParse(body)
+
       if (!parsed.success) throw toDataApiError(parsed.error)
+
       return agentSessionMessageService.updateSessionMessage(params.sessionId, params.messageId, parsed.data)
     },
 
     DELETE: async ({ params }) => {
       agentSessionService.getConversationById(params.sessionId)
       agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
+
       return undefined
     }
   }

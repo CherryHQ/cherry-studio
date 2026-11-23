@@ -39,6 +39,7 @@ export async function readMcpResourcePreview({
   const { contents } = await application
     .get('McpRuntimeService')
     .getResource({ serverId, uri, signal, interactionContext, cacheMode: refresh ? 'refresh' : 'use' })
+
   const text = contents
     .map((content: McpResource) => content.text ?? '')
     .filter(Boolean)

@@ -29,6 +29,7 @@ export function useImageCaptureTargets<TTarget>({
     (request: ImageCaptureRequest, target: TTarget) => {
       const startTimerId = window.setTimeout(() => {
         startTimersRef.current.delete(startTimerId)
+
         if (!mountedRef.current) return
         setTargets((current) => [...current, { requestId: request.id, target }])
       }, delayMs)
@@ -38,6 +39,7 @@ export function useImageCaptureTargets<TTarget>({
         .finally(() => {
           window.clearTimeout(startTimerId)
           startTimersRef.current.delete(startTimerId)
+
           if (!mountedRef.current) return
           setTargets((current) => current.filter((candidate) => candidate.requestId !== request.id))
         })
@@ -52,9 +54,11 @@ export function useImageCaptureTargets<TTarget>({
 
     return () => {
       mountedRef.current = false
+
       for (const timerId of startTimers) {
         window.clearTimeout(timerId)
       }
+
       startTimers.clear()
       rejectPendingActions(undefined, new Error(cancelMessage))
     }

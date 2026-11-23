@@ -48,8 +48,10 @@ const isRecord = (value: unknown): value is Schema =>
 function intentFreeProperties(parameters: unknown): Schema | undefined {
   if (!isRecord(parameters) || parameters.type !== 'object') return undefined
   const properties = parameters.properties ?? {}
+
   // A tool that already declares the name owns its meaning, and its calls must keep the argument.
   if (!isRecord(properties) || TOOL_INTENT_ARG in properties) return undefined
+
   return properties
 }
 
@@ -60,6 +62,7 @@ export function withoutToolIntent<Args>(args: Args): Args | Record<string, unkno
   if (!isRecord(args) || !(TOOL_INTENT_ARG in args)) return args
   const rest = { ...args }
   delete rest[TOOL_INTENT_ARG]
+
   return rest
 }
 // oxlint-enable anti-slop/no-known-value-widening
@@ -79,17 +82,21 @@ export function createToolIntent(): <T extends IntentTool<Prepared>, Prepared = 
 ) => T | PreparedTool<T, Prepared> {
   const offered = new WeakMap<object, object>()
   const stripped = new WeakMap<object, object>()
+
   return <T extends IntentTool<Prepared>, Prepared = never>(
     tool: T & IntentTool<Prepared>,
     offer: boolean
   ): T | PreparedTool<T, Prepared> => {
     const wrapped = offer ? offered : stripped
     const known = wrapped.get(tool)
+
     // SAFETY: Entries hold the wrapper constructed for this exact tool identity.
     if (known) return known as PreparedTool<T, Prepared>
     const properties = intentFreeProperties(tool.parameters)
+
     if (!properties) return tool
     const prepare = tool.prepareArguments
+
     const result = {
       ...tool,
       ...(offer && {
@@ -100,10 +107,13 @@ export function createToolIntent(): <T extends IntentTool<Prepared>, Prepared = 
       }),
       prepareArguments: <Args>(args: Args): Prepared | ReturnType<typeof withoutToolIntent<Args>> => {
         const stripped = withoutToolIntent(args)
+
         return prepare ? prepare(stripped) : stripped
       }
     }
+
     wrapped.set(tool, result)
+
     return result
   }
 }

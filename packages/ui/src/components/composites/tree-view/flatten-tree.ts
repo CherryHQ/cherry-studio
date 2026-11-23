@@ -11,18 +11,24 @@ export function flattenTree<T>(
 ): FlatTreeItem<T>[] {
   const out: FlatTreeItem<T>[] = []
   const visitedIds = new Set<string>()
+
   const walk = (nodes: readonly T[], depth: number): void => {
     for (const node of nodes) {
       const id = adapter.getId(node)
+
       if (visitedIds.has(id)) continue
       visitedIds.add(id)
       out.push({ id, node, depth })
+
       if (expandedIds.has(id)) {
         const children = adapter.getChildren(node)
+
         if (children && children.length > 0) walk(children, depth + 1)
       }
     }
   }
+
   walk(data, 0)
+
   return out
 }

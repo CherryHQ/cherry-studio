@@ -8,6 +8,7 @@ function validateReleaseBranchHead({ branchSha, workflowSha }) {
 
 function validatePreparationState({ releasePages, tag }) {
   const matchingReleases = releasePages.flat().filter((release) => release.tag_name === tag)
+
   if (matchingReleases.length > 0) {
     throw new Error(`Release ${tag} already exists; delete or rename it before preparing this version`)
   }
@@ -15,12 +16,15 @@ function validatePreparationState({ releasePages, tag }) {
 
 function validateBuildStart({ branchSha, platform, release, remoteTagSha, tag, workflowSha }) {
   validateReleaseBranchHead({ branchSha, workflowSha })
+
   if (release && release.draft !== true) {
     throw new Error(`Release ${tag} is already published; create a new version instead`)
   }
+
   if (!release && remoteTagSha && remoteTagSha !== workflowSha) {
     throw new Error(`Tag ${tag} exists without a draft release and points to another commit`)
   }
+
   if (platform !== 'all' && (!release || remoteTagSha !== workflowSha)) {
     throw new Error(`A single-platform retry requires an existing draft whose tag already points to ${workflowSha}`)
   }
@@ -28,15 +32,19 @@ function validateBuildStart({ branchSha, platform, release, remoteTagSha, tag, w
 
 function validateDraftUpload({ branchSha, release, tag, workflowSha }) {
   validateReleaseBranchHead({ branchSha, workflowSha })
+
   if (!release) throw new Error(`Draft release ${tag} is missing`)
+
   if (release && release.draft !== true) {
     throw new Error(
       `Release ${tag} was published while its tag was being prepared; refusing any post-publication tag mutation`
     )
   }
+
   if (release && release.tag_name !== tag) {
     throw new Error(`Draft release ${release.tag_name} does not match ${tag}`)
   }
+
   if (release && release.target_commitish !== workflowSha) {
     throw new Error(`Draft release ${tag} does not target ${workflowSha}`)
   }
@@ -45,6 +53,7 @@ function validateDraftUpload({ branchSha, release, tag, workflowSha }) {
 function validateBuildCompletion(state) {
   validateDraftUpload(state)
   const { release, tag } = state
+
   if (release && (!Array.isArray(release.assets) || release.assets.length === 0)) {
     throw new Error(`Draft release ${tag} has no artifacts`)
   }
@@ -54,7 +63,9 @@ function validateDraftArtifacts({ release, files }) {
   const expected = Object.entries(files)
     .filter(([name]) => name.startsWith('global/') || name.startsWith('common/'))
     .map(([name, entry]) => [name.split('/').at(-1), entry.size])
+
   const assets = new Map(release.assets.map((asset) => [asset.name, asset.size]))
+
   if (
     expected.length === 0 ||
     new Set(expected.map(([name]) => name)).size !== expected.length ||
@@ -82,18 +93,23 @@ function validatePublishState({
   if (!release || release.draft !== true) {
     throw new Error(`Release ${tag} must exist and still be a draft before publication`)
   }
+
   if (release.target_commitish !== workflowSha) {
     throw new Error(`Draft release ${tag} does not target ${workflowSha}`)
   }
+
   if (tagSha !== workflowSha || branchSha !== workflowSha) {
     throw new Error('Tag, release branch, and selected workflow commit must be identical before publication')
   }
+
   if (openReleasePullRequests.trim()) {
     throw new Error(`Release branch still has open pull requests:\n${openReleasePullRequests}`)
   }
+
   if (pendingHotfixes.trim()) {
     throw new Error(`Merged hotfix pull requests are still waiting for this release:\n${pendingHotfixes}`)
   }
+
   if (
     !buildRun ||
     buildRun.display_title !== expectedBuildTitle ||
@@ -108,9 +124,11 @@ function validatePublishState({
   ) {
     throw new Error(`No successful all-platform Release build exists for ${workflowSha}`)
   }
+
   if (!Array.isArray(release.assets) || release.assets.length === 0) {
     throw new Error(`Draft release ${tag} has no artifacts`)
   }
+
   if (!release.body?.trim()) {
     throw new Error(`Draft release ${tag} has no release notes`)
   }
@@ -118,6 +136,7 @@ function validatePublishState({
 
 function parseOptionalJson(value, name) {
   if (!value) return null
+
   try {
     return JSON.parse(value)
   } catch (error) {
@@ -127,7 +146,9 @@ function parseOptionalJson(value, name) {
 
 function requiredEnvironment(name) {
   const value = process.env[name]
+
   if (value === undefined) throw new Error(`${name} is required`)
+
   return value
 }
 
@@ -138,6 +159,7 @@ function main() {
 
   if (phase === 'draft-artifacts') {
     validateDraftArtifacts({ release, files: JSON.parse(fs.readFileSync('cos-release.json', 'utf8')).files })
+
     return
   }
 
@@ -147,8 +169,10 @@ function main() {
       releasePages: parseOptionalJson(fs.readFileSync(0).toString('utf8'), 'release list'),
       tag
     })
+
     return
   }
+
   if (phase === 'build-start') {
     validateBuildStart({
       branchSha: requiredEnvironment('BRANCH_SHA'),
@@ -158,8 +182,10 @@ function main() {
       tag,
       workflowSha: requiredEnvironment('WORKFLOW_SHA')
     })
+
     return
   }
+
   if (phase === 'build-completion' || phase === 'draft-upload') {
     const validate = phase === 'draft-upload' ? validateDraftUpload : validateBuildCompletion
     validate({
@@ -168,8 +194,10 @@ function main() {
       tag,
       workflowSha: requiredEnvironment('WORKFLOW_SHA')
     })
+
     return
   }
+
   if (phase === 'publish') {
     validatePublishState({
       branchSha: requiredEnvironment('BRANCH_SHA'),
@@ -184,6 +212,7 @@ function main() {
       tagSha: requiredEnvironment('TAG_SHA'),
       workflowSha: requiredEnvironment('WORKFLOW_SHA')
     })
+
     return
   }
 

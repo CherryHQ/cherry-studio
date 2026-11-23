@@ -31,6 +31,7 @@ function jsonSchemaTypeToJs(schemaType: unknown): string {
 
 function schemaToParamType(prop: PropertySchema): string {
   const enumValues = prop.enum
+
   if (Array.isArray(enumValues) && enumValues.length > 0) {
     return enumValues.map((v) => JSON.stringify(v)).join('|')
   }
@@ -65,6 +66,7 @@ function appendPropertyParams(
   for (const propName of propNames) {
     const rawProp = properties[propName]
     const prop: PropertySchema | undefined = typeof rawProp === 'boolean' ? {} : isRecord(rawProp) ? rawProp : undefined
+
     if (!prop) continue
     const isReq = required.has(propName)
     const jsType = schemaToParamType(prop)
@@ -83,20 +85,25 @@ function appendPropertyParams(
     // Recurse into nested object properties
     if (prop.type === 'object' && isRecord(prop.properties)) {
       const nestedProps = prop.properties
+
       const nestedRequired = new Set<string>(
         Array.isArray(prop.required) ? prop.required.filter((key): key is string => typeof key === 'string') : []
       )
+
       appendPropertyParams(lines, nestedProps, nestedRequired, `${prefix}.${propName}`, depth + 1)
     }
 
     // Recurse into array item properties
     if (prop.type === 'array' && isRecord(prop.items)) {
       const items = prop.items
+
       if (items.type === 'object' && isRecord(items.properties)) {
         const itemProps = items.properties
+
         const itemRequired = new Set<string>(
           Array.isArray(items.required) ? items.required.filter((key): key is string => typeof key === 'string') : []
         )
+
         appendPropertyParams(lines, itemProps, itemRequired, `${prefix}.${propName}[]`, depth + 1)
       }
     }
@@ -115,9 +122,11 @@ export function schemaToJSDoc(toolName: string, description: string | undefined,
   const desc = (description || toolName).trim() || toolName
 
   const rawRequired = schema?.required
+
   const required = new Set<string>(
     Array.isArray(rawRequired) ? rawRequired.filter((key): key is string => typeof key === 'string') : []
   )
+
   const rawProperties = schema?.properties
   const properties = isRecord(rawProperties) ? rawProperties : {}
 

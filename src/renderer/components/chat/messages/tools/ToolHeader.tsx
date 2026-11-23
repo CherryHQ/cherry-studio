@@ -33,7 +33,9 @@ import { AgentToolsType, TO_MARKDOWN_RUNTIME_TOOL_NAME } from './shared/agentToo
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
+
 const SESSION_CREATE_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
+
 export interface ToolActivity {
   label: string
   description?: string
@@ -97,6 +99,7 @@ const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI.get(too
 
 const getAgentToolLabel = (toolName: string, t: Translate): string => {
   const labelKey = TOOL_HEADER_UI.get(toolName)?.labelKey
+
   return labelKey ? t(labelKey) : toolName
 }
 
@@ -105,6 +108,7 @@ function getStringArg(args: unknown, key: string): string | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Streamed native and extension arguments share no field schema; this dynamic read checks the selected value before display.
   const value = (args as Record<string, unknown>)[key]
+
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
@@ -116,6 +120,7 @@ function getStringInput(args: unknown): string | undefined {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Task tools use different ID fields in partial arguments; getStringArg validates each field before interpolation.
 function getTaskIdTarget(args: unknown, t: Translate): string | undefined {
   const taskId = getStringArg(args, 'taskId') ?? getStringArg(args, 'task_id') ?? getStringArg(args, 'shell_id')
+
   return taskId ? t('message.tools.activity.taskId', { id: taskId }) : undefined
 }
 
@@ -126,6 +131,7 @@ function getReadableUrlTarget(t: Translate): string {
 function getReadableFileGroup(text: string | undefined, t: Translate): string | undefined {
   if (!text) return undefined
   const value = text.toLowerCase()
+
   if (
     value.includes('readme') ||
     value.includes('package.json') ||
@@ -136,18 +142,23 @@ function getReadableFileGroup(text: string | undefined, t: Translate): string | 
   ) {
     return t('message.tools.activity.configFiles')
   }
+
   if (value.includes('*.md') || value.includes('.md') || value.includes('markdown') || value.includes('md files')) {
     return t('message.tools.activity.documentFiles')
   }
+
   if (/\.(png|jpe?g|gif|webp|svg|ico)\b/.test(value)) {
     return t('message.tools.activity.imageFiles')
   }
+
   if (value.includes('locales') || value.includes('i18n')) {
     return t('message.tools.activity.translationFiles')
   }
+
   if (/\.(ts|tsx|js|jsx|json|css|go|rs|py|java|kt|swift|cpp|c|h)\b/.test(value)) {
     return t('message.tools.activity.codeFiles')
   }
+
   return undefined
 }
 
@@ -164,19 +175,23 @@ function normalizeCommandPreview(command: string): string {
 
 function truncateCommandPreview(command: string): string {
   const normalized = normalizeCommandPreview(command)
+
   if (normalized.length <= COMMAND_PREVIEW_MAX_LENGTH) return normalized
 
   const maxContentLength = COMMAND_PREVIEW_MAX_LENGTH - 1
   const prefix = normalized.slice(0, maxContentLength)
+
   const separatorIndex = Math.max(
     prefix.lastIndexOf(' && '),
     prefix.lastIndexOf(' || '),
     prefix.lastIndexOf(' ; '),
     prefix.lastIndexOf(' | ')
   )
+
   if (separatorIndex > 0) return `${prefix.slice(0, separatorIndex).trimEnd()}…`
 
   const whitespaceIndex = prefix.lastIndexOf(' ')
+
   if (whitespaceIndex > 0) return `${prefix.slice(0, whitespaceIndex).trimEnd()}…`
 
   return `${prefix}…`
@@ -187,6 +202,7 @@ function getCommandPreview(toolName: string, args: unknown): { text: string; ful
   if (toolName !== AgentToolsType.Bash && toolName !== AgentToolsType.BashOutput) return undefined
 
   const command = getStringArg(args, 'command')
+
   if (!command) return undefined
 
   return {
@@ -197,10 +213,14 @@ function getCommandPreview(toolName: string, args: unknown): { text: string; ful
 
 function getReadableSearchTarget(value: string | undefined, t: Translate): string {
   const text = value?.trim()
+
   if (!text) return t('message.tools.activity.relatedContent')
   const fileGroup = getReadableFileGroup(text, t)
+
   if (fileGroup) return fileGroup
+
   if (SEARCH_PATTERN_META_RE.test(text) || text.length > 48) return t('message.tools.activity.relatedContent')
+
   return text
 }
 
@@ -216,18 +236,23 @@ function getShellWords(command: string | undefined): string[] {
 function getCommandPathTarget(command: string | undefined, t: Translate): string {
   const words = getShellWords(command)
   const firstPath = words.slice(1).find((word) => /[/.]/.test(word) && !/^https?:\/\//i.test(word))
+
   return getReadablePathTarget(firstPath, t) ?? t('message.tools.activity.file')
 }
 
 function getDownloadedTarget(command: string | undefined, t: Translate): string {
   const url = command?.match(/https?:\/\/[^\s'")]+/i)?.[0]
+
   if (!url) return t('message.tools.activity.file')
+
   try {
     const parsed = new URL(url)
     const fileName = parsed.pathname.split('/').filter(Boolean).pop()
+
     if (/\.(?:zip|tar|tgz|gz|bz2|xz|7z|rar)$/i.test(fileName ?? '')) {
       return t('message.tools.activity.archive')
     }
+
     return getReadableFileGroup(fileName, t) ?? t('message.tools.activity.file')
   } catch {
     return t('message.tools.activity.file')
@@ -292,42 +317,60 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
   if (/\b(?:npm|pnpm|yarn|bun|pip3?|poetry|uv|cargo|go|brew)\s+(?:install|add|get)\b/.test(text)) {
     return { label: labels.install, description: t('message.tools.activity.projectDependencies') }
   }
+
   if (/\b(?:npm|pnpm|yarn|bun|pip3?|poetry|uv|cargo|brew)\s+(?:remove|uninstall|rm)\b/.test(text)) {
     return { label: labels.delete, description: t('message.tools.activity.projectDependencies') }
   }
+
   if (/\b(?:npm|pnpm|yarn|bun|pip3?|poetry|uv|cargo|go|brew)\s+(?:list|ls|outdated|update|upgrade)\b/.test(text)) {
     return { label: labels.view, description: t('message.tools.activity.projectDependencies') }
   }
+
   if (/\b(?:curl|wget)\b/.test(text)) {
     return { label: labels.download, description: getDownloadedTarget(command, t) }
   }
+
   if (/\bgit\s+clone\b/.test(text))
     return { label: labels.download, description: t('message.tools.activity.repository') }
+
   if (/\bgit\s+(?:pull|fetch|rebase|merge)\b/.test(text)) {
     return { label: labels.sync, description: t('message.tools.activity.repository') }
   }
+
   if (/\bgit\s+(?:checkout|switch|branch)\b/.test(text)) {
     return { label: labels.switch, description: t('message.tools.activity.branch') }
   }
+
   if (/\bgit\s+(?:status|diff|log|show|blame)\b/.test(text)) {
     return { label: labels.view, description: t('message.tools.activity.projectChanges') }
   }
+
   if (/\bgit\s+commit\b/.test(text))
     return { label: labels.write, description: t('message.tools.activity.projectChanges') }
+
   if (/\bgit\s+push\b/.test(text))
     return { label: labels.upload, description: t('message.tools.activity.projectChanges') }
+
   if (/\bgh\s+(?:api|auth|pr|issue|run|workflow|repo)\b/.test(text)) {
     return { label: labels.view, description: t('message.tools.activity.codeHostInfo') }
   }
+
   if (/\bgit\s+(?:remote|rev-parse|tag|ls-files|submodule)\b/.test(text)) {
     return { label: labels.view, description: t('message.tools.activity.repository') }
   }
+
   if (/\b(?:cp|rsync)\b/.test(text)) return { label: labels.copy, description: getCommandPathTarget(command, t) }
+
   if (/\bmv\b/.test(text)) return { label: labels.move, description: getCommandPathTarget(command, t) }
+
   if (/\b(?:rm|rmdir)\b/.test(text)) return { label: labels.delete, description: getCommandPathTarget(command, t) }
+
   if (/\bmkdir\b/.test(text)) return { label: labels.create, description: t('message.tools.activity.folder') }
+
   if (/\btouch\b/.test(text)) return { label: labels.create, description: getCommandPathTarget(command, t) }
+
   if (/\b(?:unzip|tar)\b/.test(text)) return { label: labels.extract, description: t('message.tools.activity.archive') }
+
   if (
     /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:dev|start|serve)\b|\b(?:cargo|go)\s+run\b|\b(?:vite|next|nuxt|electron-vite)\s+(?:dev|serve)\b|\bdocker\s+compose\s+up\b/.test(
       text
@@ -335,9 +378,11 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
   ) {
     return { label: labels.start, description: t('message.tools.activity.projectTask') }
   }
+
   if (/\b(?:open|xdg-open)\b/.test(text) || /^\s*start\b/i.test(command ?? '')) {
     return { label: labels.open, description: getCommandPathTarget(command, t) }
   }
+
   if (
     /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:build|compile|package)\b|\b(?:vite|next|nuxt|electron-vite)\s+build\b|\b(?:tsup|rollup|webpack|electron-builder)\b/.test(
       text
@@ -345,6 +390,7 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
   ) {
     return { label: labels.build, description: t('message.tools.activity.projectFiles') }
   }
+
   if (
     /(\btest\b|\blint\b|\btypecheck\b|\bcheck\b|\bvitest\b|\bjest\b|\bplaywright\b|\btsc\b|\beslint\b|\bbiome\b)/.test(
       text
@@ -352,26 +398,36 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
   ) {
     return { label: labels.check, description: t('message.tools.activity.projectChecks') }
   }
+
   if (/(\brg\b|\bgrep\b|\bag\b|\bfd\b|\bfind\b|\blocate\b)/.test(text)) {
     return {
       label: labels.search,
       description: description ? getReadableSearchTarget(description, t) : t('message.tools.activity.relatedContent')
     }
   }
+
   if (/\bpwd\b/.test(text)) return { label: labels.view, description: t('message.tools.activity.currentFolder') }
+
   if (/\bcd\b/.test(text)) return { label: labels.switch, description: t('message.tools.activity.folder') }
+
   if (/\b(?:env|printenv|uname|sw_vers|which|where)\b|\bcommand\s+-v\b|\b[\w.-]+\s+(?:--version|-v)\b/.test(text)) {
     return { label: labels.view, description: t('message.tools.activity.environmentInfo') }
   }
+
   if (/(\bcat\b|\bhead\b|\btail\b|\bless\b|\bmore\b|\bsed\s+-n\b|\bawk\b|\bwc\b|\bstat\b|\bdu\b)/.test(text)) {
     return { label: labels.view, description: getCommandPathTarget(command, t) }
   }
+
   const fileGroup = getReadableFileGroup(text, t)
+
   if (fileGroup) return { label: labels.search, description: fileGroup }
+
   if (text.includes('root directory'))
     return { label: labels.view, description: t('message.tools.activity.projectRootFiles') }
+
   if (text.includes('project directory'))
     return { label: labels.view, description: t('message.tools.activity.projectFiles') }
+
   if (/(\bls\b|\btree\b|\blist\b)/.test(text))
     return { label: labels.view, description: t('message.tools.activity.fileList') }
 
@@ -391,9 +447,11 @@ export function getReadableToolActivity(
   if (toolName === 'automation_repl' || toolName === 'mcp__automation__js') {
     return { label: getStringArg(args, 'title') ?? t('message.tools.automation.execute') }
   }
+
   if (toolName === 'automation_repl_reset' || toolName === 'mcp__automation__reset') {
     return { label: t('message.tools.automation.reset') }
   }
+
   const labels = getActivityLabels(active, t)
   const searchText = getStringInput(args) ?? getStringArg(args, 'pattern') ?? getStringArg(args, 'query')
 
@@ -511,6 +569,7 @@ const getToolDescription = (toolName: string, args: unknown, t: Translate): stri
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
 
   const readableDescription = getReadableToolDescription(toolName, args, t)
+
   if (readableDescription) return readableDescription
 
   return (

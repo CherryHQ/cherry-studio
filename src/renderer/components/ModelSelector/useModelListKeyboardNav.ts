@@ -68,19 +68,23 @@ export function useModelListKeyboardNav<TItem extends KeyboardNavigableItem>({
           if (currentIndex >= 0) {
             onSelectItem(items[currentIndex])
           }
+
           return
         case 'Escape':
           onClose()
+
           return
       }
 
       const nextItem = items[nextIndex]
+
       if (nextItem) {
         onFocusItem(nextItem.key)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
+
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [focusedItemKey, items, onClose, onFocusItem, onSelectItem, open, pageSize])
 }

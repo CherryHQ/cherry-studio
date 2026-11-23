@@ -59,6 +59,7 @@ const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json'
 const REASONING_FAMILIES_GEN_PATH = path.join(__dirname, '../src/patterns/reasoning-families.gen.ts')
 const SERVER_TOOL_MODELS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-models.gen.ts')
 const SERVER_TOOL_CONSTRAINTS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-constraints.gen.ts')
+
 const { values: args } = parseArgs({
   options: {
     write: { type: 'boolean' },
@@ -67,8 +68,10 @@ const { values: args } = parseArgs({
     'providers-only': { type: 'boolean' }
   }
 })
+
 const WRITE = args.write
 const REPORT = args.report
+
 // Each artifact's `version` is a hash of its own (version-less, key-sorted) content: equal content ⇒
 // equal version, ANY content change ⇒ new version. Seeders (`PresetProviderSeeder` via `SeedRunner`)
 // skip when the journal version matches, so a date stamp would let a same-day regeneration change
@@ -82,15 +85,19 @@ const REPORT = args.report
  */
 function collectReasoningFamilies(): ReasoningFamilyRule[] {
   const rules: ReasoningFamilyRule[] = []
+
   for (const creator of CREATORS) {
     for (const rule of creator.reasoningFamilies ?? []) {
       const parsed = ReasoningFamilyRuleSchema.safeParse(rule)
+
       if (!parsed.success) {
         throw new Error(`invalid reasoningFamilies rule in creator '${creator.id}': ${parsed.error.message}`)
       }
+
       rules.push(parsed.data)
     }
   }
+
   return rules
 }
 
@@ -108,13 +115,18 @@ function buildReasoningFamiliesGen(): string {
     '',
     'export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = ['
   ]
+
   for (const creator of CREATORS) {
     const rules = creator.reasoningFamilies ?? []
+
     if (rules.length === 0) continue
     lines.push(`  // ${creator.id}`)
+
     for (const rule of rules) lines.push(`  ${JSON.stringify(rule)},`)
   }
+
   lines.push(']', '')
+
   return lines.join('\n')
 }
 
@@ -128,11 +140,14 @@ function buildReasoningFamiliesGen(): string {
  */
 function collectProviderServerToolModels(models: Map<string, any>) {
   const result: Record<string, Partial<Record<ServerTool, Array<{ ids: string[]; endpointTypes?: string[] }>>>> = {}
+
   for (const provider of PROVIDERS) {
     const providerModels = new Map(models)
+
     for (const override of provider.overrides ?? []) {
       if (!override.modelId || !override.name) continue
       const id = canonOf(override.modelId)
+
       if (!providerModels.has(id)) {
         providerModels.set(id, {
           ...override,
@@ -141,9 +156,12 @@ function collectProviderServerToolModels(models: Map<string, any>) {
         })
       }
     }
+
     const tools: Partial<Record<ServerTool, Array<{ ids: string[]; endpointTypes?: string[] }>>> = {}
+
     for (const config of provider.serverTools ?? []) {
       if (config.modelScope !== 'model-dependent') continue
+
       if (!config.modelIdPrefixes?.length && !config.modelIds?.length) {
         throw new Error(`provider '${provider.id}' has model-dependent ${config.id} without model selectors`)
       }
@@ -151,6 +169,7 @@ function collectProviderServerToolModels(models: Map<string, any>) {
       const exactModelIds = new Set(config.modelIds ?? [])
       const explicitImageIds = new Set(config.imageModelIds ?? [])
       const ids: string[] = []
+
       for (const model of providerModels.values()) {
         if (
           !exactModelIds.has(model.id) &&
@@ -161,7 +180,9 @@ function collectProviderServerToolModels(models: Map<string, any>) {
 
         const inputModalities = model.inputModalities ?? ['text']
         const outputModalities = model.outputModalities ?? ['text']
+
         if (!inputModalities.includes('text') || !outputModalities.includes('text')) continue
+
         if (
           config.id === SERVER_TOOL.WEB_SEARCH &&
           model.capabilities?.includes('image-generation') &&
@@ -169,22 +190,28 @@ function collectProviderServerToolModels(models: Map<string, any>) {
         ) {
           continue
         }
+
         ids.push(model.id)
       }
+
       if (ids.length > 0) {
         const entry = { ids: ids.sort() }
+
         if (config.endpointTypes?.length) Object.assign(entry, { endpointTypes: [...config.endpointTypes] })
         ;(tools[config.id] ??= []).push(entry)
       }
     }
+
     if (Object.keys(tools).length > 0) result[provider.id] = tools
   }
+
   return result
 }
 
 /** Runtime artifact for provider-specific model-dependent server-tool eligibility. */
 function buildServerToolModelsGen(models: Map<string, any>): string {
   const modelIds = collectProviderServerToolModels(models)
+
   return [
     '/**',
     ' * GENERATED FILE — DO NOT EDIT.',
@@ -218,12 +245,16 @@ function buildServerToolModelsGen(models: Map<string, any>): string {
 function collectServerToolConstraints(models: Map<string, any>) {
   const functionMixingIds: string[] = []
   const webSearchUnsupportedEfforts: Record<string, string[]> = {}
+
   for (const model of models.values()) {
     const creator = creatorById.get(model.ownedBy)
+
     if (!creator) continue
+
     if ((creator.serverToolFunctionMixing ?? []).some((prefix) => prefixHit(model.id, prefix))) {
       functionMixingIds.push(model.id)
     }
+
     for (const rule of creator.webSearchUnsupportedEfforts ?? []) {
       if (new RegExp(rule.pattern).test(model.id)) {
         webSearchUnsupportedEfforts[model.id] = [
@@ -232,12 +263,14 @@ function collectServerToolConstraints(models: Map<string, any>) {
       }
     }
   }
+
   return { functionMixingIds: functionMixingIds.sort(), webSearchUnsupportedEfforts }
 }
 
 /** Runtime artifact for per-model server-tool constraints. */
 function buildServerToolConstraintsGen(models: Map<string, any>): string {
   const { functionMixingIds, webSearchUnsupportedEfforts } = collectServerToolConstraints(models)
+
   return [
     '/**',
     ' * GENERATED FILE — DO NOT EDIT.',
@@ -268,9 +301,11 @@ function buildServerToolConstraintsGen(models: Map<string, any>): string {
 // host (amazon) wrongly claims them and they fold over the real `deepseek-r1`. Skip ONLY those — the
 // creator supplies them via its own listing / OpenRouter instead.
 const creatorById = new Map(CREATORS.map((l) => [l.id, l]))
+
 const crossVendorHost = (id: string, ownerCreatorId: string | undefined) => {
   const vendor = id.match(/^(?:[a-z]+\.)*([a-z]+)\./)?.[1]
   const creator = vendor && vendor !== ownerCreatorId ? creatorById.get(vendor) : undefined
+
   return !!creator && !(creator.idPrefixes ?? []).some((p) => prefixHit(canonOf(id), p))
 }
 
@@ -278,18 +313,22 @@ const crossVendorHost = (id: string, ownerCreatorId: string | undefined) => {
 async function load<T>(env: string, url: string, schema: ZodType<T>): Promise<T> {
   const cache = process.env[env]
   let raw: unknown
+
   if (cache) {
     raw = JSON.parse(fs.readFileSync(cache, 'utf8'))
   } else {
     const res = await fetch(url)
+
     if (!res.ok) throw new Error(`${url} -> ${res.status}`)
     raw = await res.json()
   }
+
   return schema.parse(raw)
 }
 
 // ── canonical metadata index: canonId → metadata UNIONED across every source ──
 type IndexEntry = { meta: CherryMeta; providers: Set<string> }
+
 type Index = Map<string, IndexEntry>
 
 /**
@@ -300,32 +339,42 @@ type Index = Map<string, IndexEntry>
  */
 function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
   const index: Index = new Map()
+
   const consider = (id: string, mapped: CherryMeta | null, provider: string) => {
     if (!mapped) return
     const k = canonOf(id)
+
     if (!k) return
     const e = index.get(k) ?? { meta: {}, providers: new Set<string>() }
     e.providers.add(provider)
     e.meta = mergeMeta(e.meta, mapped)
     index.set(k, e)
   }
+
   const ownerOf = new Map<string, string>()
+
   for (const l of CREATORS) for (const p of l.modelsDevProviders ?? []) ownerOf.set(p, l.id)
+
   for (const [p, v] of Object.entries(md)) {
     if (!ownerOf.has(p)) continue
+
     for (const [id, m] of Object.entries(v.models ?? {})) {
       if (isModelsDevRoutingAlias(p, id)) continue
+
       if (crossVendorHost(id, ownerOf.get(p))) continue
       consider(id, parseMdEntry(m), p)
     }
   }
+
   const openRouter = PROVIDERS.find((provider) => provider.id === 'openrouter')
+
   const openRouterStandalones = new Set(
     [
       ...(openRouter?.standaloneModelIds ?? []),
       ...(openRouter?.modelTemplates?.flatMap((template) => (template.name ? [template.modelId] : [])) ?? [])
     ].map(canonOf)
   )
+
   for (const m of or.data ?? []) {
     // Provider-declared standalone routes are not creator models.
     if (openRouterStandalones.has(canonOf(m.id))) continue
@@ -337,14 +386,18 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
   // minimax-m3/deepseek-chat stay (their stem isn't a real id). The dup's metadata merges into the real model.
   for (const canonId of [...index.keys()]) {
     const e = index.get(canonId)
+
     if (!e) continue
     const target = stripHostReprefix(canonId, (id) => id !== canonId && index.has(id))
+
     if (target === canonId) continue
     const t = index.get(target)!
     t.meta = mergeMeta(t.meta, e.meta)
+
     for (const p of e.providers) t.providers.add(p)
     index.delete(canonId)
   }
+
   return index
 }
 
@@ -352,18 +405,23 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
 async function assignCreators(index: Index, md: ModelsDevApi): Promise<Map<string, string>> {
   // each creator's models.dev provider listing (the weakest, provider-listing pass)
   const creatorProviderIds = new Map<string, Set<string>>()
+
   for (const creator of CREATORS) {
     if (!creator.modelsDevProviders) continue
     const ids = new Set<string>()
+
     for (const p of creator.modelsDevProviders)
       for (const id of Object.keys(md[p]?.models ?? {}))
         if (!isModelsDevRoutingAlias(p, id) && !crossVendorHost(id, creator.id)) ids.add(canonOf(id))
     creatorProviderIds.set(creator.id, ids)
   }
+
   // each creator's own API list (most native; keyless → empty, falls back to the passes below)
   const creatorFetched = new Map<string, Set<string>>()
+
   for (const creator of CREATORS) {
     if (!creator.fetchModels) continue
+
     try {
       const fetched = await creator.fetchModels()
       creatorFetched.set(creator.id, new Set(fetched.map((f) => canonOf(f.id))))
@@ -374,45 +432,57 @@ async function assignCreators(index: Index, md: ModelsDevApi): Promise<Map<strin
   }
 
   const claimed = new Map<string, string>()
+
   const claim = (id: string, labId: string) => {
     if (!claimed.has(id)) claimed.set(id, labId)
   }
+
   // pass 1 — EXPLICIT identity (the id names the creator): fetchModels, manual, idPrefix.
   // `deepseek-r1-distill-qwen` → deepseek (id) beats alibaba (family `qwen` = base arch).
   for (const creator of CREATORS) {
     for (const id of creatorFetched.get(creator.id) ?? []) claim(id, creator.id)
+
     for (const lm of creator.models ?? []) claim(canonOf(lm.id), creator.id)
   }
+
   for (const canonId of index.keys()) {
     const mostSpecific = CREATORS.flatMap((creator) =>
       (creator.idPrefixes ?? []).filter((prefix) => prefixHit(canonId, prefix)).map((prefix) => ({ creator, prefix }))
     ).sort((a, b) => b.prefix.length - a.prefix.length)[0]
+
     if (mostSpecific) claim(canonId, mostSpecific.creator.id)
   }
+
   // pass 2 — FAMILY (base architecture, weaker than an explicit id).
   for (const creator of CREATORS) {
     if (!creator.families) continue
+
     for (const [canonId, e] of index) {
       const fam = e.meta.family
+
       if (fam && creator.families.some((f) => fam === f || fam.startsWith(f))) claim(canonId, creator.id)
     }
   }
+
   // pass 3 — PROVIDER LISTING (leftovers; `deepseek-v4-flash` hosted by DashScope is already deepseek's).
   // `creatorProviderIds` is built from the RAW models.dev listing, so it still contains ids that `buildIndex`
   // folded away as host re-prefix duplicates (DashScope's `Moonshot-Kimi-K2-Instruct` → `kimi-k2-instruct`).
   // Gate on the post-fold index so a host can't resurrect a folded duplicate under its own ownership.
   for (const creator of CREATORS)
     for (const id of creatorProviderIds.get(creator.id) ?? []) if (index.has(id)) claim(id, creator.id)
+
   return claimed
 }
 
 /** Build the models.json rows from the claims: enrich from the index, apply manual creator models, tag kind. */
 function buildModels(index: Index, claimed: Map<string, string>): Map<string, any> {
   const models = new Map<string, any>()
+
   for (const [canonId, labId] of claimed) {
     const meta = index.has(canonId) ? finalizeMeta(index.get(canonId)!.meta) : {}
     models.set(canonId, { id: canonId, name: meta.name || canonId, ownedBy: labId, ...meta, metadata: {} })
   }
+
   // manual creator models (add + override) — always win
   for (const creator of CREATORS) {
     for (const lm of creator.models ?? []) {
@@ -421,29 +491,36 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
       models.set(id, { ...existing, ...lm, id, ownedBy: creator.id, metadata: existing.metadata ?? {} })
     }
   }
+
   // Creator profile regexes are the membership authority. Upstream sometimes
   // labels non-reasoning siblings (for example Qwen coder SKUs) as adjustable;
   // strip those rows when they do not match their creator's profile rules.
   const reasoningRulesByCreator = new Map(CREATORS.map((creator) => [creator.id, creator.reasoningFamilies ?? []]))
+
   for (const m of models.values()) {
     if (!(m.capabilities ?? []).includes('reasoning')) continue
     const creatorRules = reasoningRulesByCreator.get(m.ownedBy) ?? []
     const belongsToReasoningProfile = matchReasoningMembership(m.id, creatorRules)
     const rejectedByCreatorPattern = matchReasoningTogglePolicy(m.id, creatorRules) === false
+
     if (belongsToReasoningProfile || !rejectedByCreatorPattern) continue
     delete m.reasoning
     m.capabilities = (m.capabilities ?? []).filter((capability: string) => capability !== 'reasoning')
   }
+
   // Family fill — reasoning-capable models with NO reasoning block at all
   // (models.dev has no reasoning_options for them) get their controls from
   // the creator-declared family rules. Ingest-time only: the knowledge ships
   // as data, never as a runtime capability source (#16598).
   const familyRules = collectReasoningFamilies()
+
   for (const m of models.values()) {
     if (m.reasoning || !(m.capabilities ?? []).includes('reasoning')) continue
     const controls = matchReasoningControls(m.id, familyRules)
+
     if (controls) m.reasoning = { controls }
   }
+
   // Completion passes — models.dev frequently reports only the on/off toggle
   // for models whose family has richer knobs (glm's budget, claude-5.x's
   // effort tiers, the -latest aliases). A missing knob makes the request path
@@ -451,21 +528,28 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
   // declaration lacks that control KIND (declared kinds always win).
   for (const m of models.values()) {
     const controls = m.reasoning?.controls
+
     if (!controls?.length) continue
+
     if (matchReasoningTogglePolicy(m.id, familyRules) === false) {
       for (let index = controls.length - 1; index >= 0; index -= 1) {
         if (controls[index].kind === 'toggle') controls.splice(index, 1)
       }
     }
+
     if (!controls.some((c: { kind: string }) => c.kind === 'budget')) {
       const limits = matchTokenLimits(m.id, familyRules)
+
       if (limits) controls.push({ kind: 'budget', min: limits.min, max: limits.max })
     }
+
     if (!controls.some((c: { kind: string }) => c.kind === 'effort')) {
       const inferred = matchReasoningControls(m.id, familyRules)?.find((c) => c.kind === 'effort')
+
       if (inferred) controls.unshift(inferred)
     }
   }
+
   // Reasoning normalization — `controls` is the source of truth: whenever a
   // model declares it (upstream ingest, creator hand-list, or heuristic fill),
   // the legacy pair (supportedEfforts / thinkingTokenLimits) + defaultEffort
@@ -473,28 +557,37 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
   // invariant test).
   for (const m of models.values()) {
     const controls = m.reasoning?.controls
+
     if (!controls?.length) continue
     const wireDialect = matchWireDialect(m.id, familyRules)
     const reasoning = { controls, ...deriveLegacyReasoningFields(controls) }
+
     if (wireDialect) Object.assign(reasoning, { wireDialect })
     m.reasoning = reasoning
   }
+
   // Tag embedding/rerank — models.dev mislabels these as text. `rerank` in the id wins; else `embed` in
   // the id, or the owning creator's declared `kind` (bge/voyage/jina/… whose ids don't say so). Embedders output `vector`.
   const creatorKind = new Map(CREATORS.map((l) => [l.id, l.kind]))
+
   for (const m of models.values()) {
     const kind = /rerank/i.test(m.id) ? 'rerank' : /embed/i.test(m.id) ? 'embedding' : creatorKind.get(m.ownedBy)
+
     if (kind !== 'embedding' && kind !== 'rerank') continue
     m.capabilities = [...new Set([...(m.capabilities ?? []), kind])]
+
     if (kind === 'embedding') m.outputModalities = ['vector']
+
     if (!m.inputModalities?.length) m.inputModalities = ['text']
   }
+
   // Server-tool eligibility is compiled separately from provider declarations.
   // Remove any stale/upstream web-search capability so it cannot become a
   // second runtime source of truth beside that eligibility table.
   for (const m of models.values()) {
     m.capabilities = (m.capabilities ?? []).filter((capability: string) => capability !== 'web-search')
   }
+
   return models
 }
 
@@ -511,10 +604,14 @@ function buildProviders(): ProviderEntry[] {
       delete config.modelIdPrefixes
       delete config.modelIds
       delete config.imageModelIds
+
       return config
     })
+
     const connection = { ...conn }
+
     if (serverTools) connection.serverTools = serverTools
+
     return { ...connection, description: `${conn.name} - AI model provider` }
   })
 }
@@ -535,46 +632,60 @@ function buildProviderModels(
   const openRouterStandaloneIds = new Set(
     PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
   )
+
   const seen = new Set<string>()
   const rows: any[] = []
   const variantsKey = (o: any): string => (o.modelVariants ?? []).slice().sort().join(',')
+
   // Overrides key on `apiModelId` too, so one provider can serve the SAME canonical model under several
   // apiModelIds (e.g. tokenhub's dated 原厂直供 variants alongside the undated id) — `listProviderRegistryModels`
   // turns each surviving row into a distinct selectable model (its unique id derives from apiModelId).
   const addOverride = (raw: any): void => {
     const o = raw.apiModelId ? deriveOverrideModelId(raw) : raw
     const k = `${o.providerId} ${o.modelId} ${o.apiModelId ?? ''} ${variantsKey(o)}`
+
     if (seen.has(k)) return
     seen.add(k)
     rows.push(o)
   }
+
   // md-derived rows key on `modelId`; templates expand into matching rows without replacing upstream identity.
   const addModel = (o: any): void => {
     const k = `${o.providerId} ${o.modelId} ${variantsKey(o)}`
+
     if (seen.has(k)) return
     seen.add(k)
     rows.push(o)
   }
+
   for (const p of PROVIDERS) {
     const modelTemplates = p.modelTemplates ?? []
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
+
     for (const override of p.overrides ?? []) addOverride({ providerId: p.id, ...override })
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
+
     for (const [apiModelId, m] of Object.entries(src)) {
       if (p.modelsDevProvider && isModelsDevRoutingAlias(p.modelsDevProvider, apiModelId)) continue
       const meta = parseMdEntry(m)
+
       if (!meta?.pricing) continue // no pricing → runtime resolves to base, no row needed
       const modelId = canonOf(apiModelId)
+
       if (!modelId) continue
       const template = modelTemplates.find((override) => override.modelId === modelId)
+
       if (template) matchedTemplates.add(template)
       const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
+
       if (!baseIds.has(modelId)) {
         if (!meta.name) continue
         row.name ??= meta.name // vendor-exclusive → standalone
       }
+
       addModel(row)
     }
+
     for (const template of modelTemplates) {
       if (!matchedTemplates.has(template)) addOverride({ providerId: p.id, ...template })
     }
@@ -584,32 +695,40 @@ function buildProviderModels(
   // provider-model row; creator metadata remains provider-neutral.
   for (const entry of orModels.data ?? []) {
     const support = parseOpenRouterReasoning(entry)
+
     if (!support) continue
     const modelId = canonOf(entry.id)
+
     if (!modelId) continue
 
     const exact =
       rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === entry.id) ??
       rows.find((row) => row.providerId === 'openrouter' && row.modelId === modelId)
+
     if (exact) {
       exact.reasoningContracts = mergeOpenRouterReasoningContracts(support, exact.reasoningContracts)
       continue
     }
 
     const meta = parseOrEntry(entry)
+
     if (!baseIds.has(modelId) && !meta?.name) continue
     const identity = { providerId: 'openrouter', modelId, apiModelId: entry.id }
+
     if (!baseIds.has(modelId)) Object.assign(identity, { name: meta?.name })
     addOverride({ ...identity, reasoningContracts: mergeOpenRouterReasoningContracts(support, undefined) })
   }
+
   // OpenRouter's dedicated image catalog publishes typed, per-model parameter descriptors. Keep
   // these as provider overrides: the same canonical model can expose different controls through
   // another provider, and the raw org/model id must remain the API id used for lookup and requests.
   for (const model of orImageModels.data ?? []) {
     const imageGeneration = parseOrImageGeneration(model)
     const modelId = canonOf(model.id)
+
     if (!imageGeneration || !modelId) continue
     const meta = parseOrEntry(model)
+
     const existing =
       rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === model.id) ??
       rows.find(
@@ -619,28 +738,36 @@ function buildProviderModels(
           row.modelId === modelId &&
           row.apiModelId === undefined
       )
+
     const identity = { providerId: 'openrouter', modelId, apiModelId: model.id }
+
     if (!baseIds.has(modelId)) {
       Object.assign(identity, {
         name: existing?.name ?? model.name ?? model.id,
         ownedBy: openRouterStandaloneIds.has(modelId) ? 'openrouter' : (existing?.ownedBy ?? model.id.split('/')[0])
       })
     }
+
     const imageRow = {
       ...identity,
       capabilities: { add: ['image-generation'] },
       endpointTypes: ['openai-image-generation']
     }
+
     if (meta?.inputModalities) Object.assign(imageRow, { inputModalities: meta.inputModalities })
+
     if (meta?.outputModalities) Object.assign(imageRow, { outputModalities: meta.outputModalities })
     Object.assign(imageRow, { imageGeneration })
+
     // `/models` may already have contributed pricing for this exact OpenRouter model. Enrich that
     // row in place so its pricing and the image catalog's controls coexist instead of first-wins
     // deduplication silently dropping one side.
     if (existing) Object.assign(existing, imageRow)
     else addModel(imageRow)
   }
+
   rows.sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
+
   return { overrides: rows }
 }
 
@@ -653,19 +780,24 @@ void (async () => {
       fs.writeFileSync(SERVER_TOOL_MODELS_GEN_PATH, buildServerToolModelsGen(modelMap))
       fs.writeFileSync(SERVER_TOOL_CONSTRAINTS_GEN_PATH, buildServerToolConstraintsGen(modelMap))
     }
+
     return
   }
+
   const md = await load('MODELSDEV_CACHE', 'https://models.dev/api.json', ModelsDevApiSchema)
+
   const [orModels, orImageModels] = await Promise.all([
     load('OPENROUTER_CACHE', 'https://openrouter.ai/api/v1/models', OpenRouterApiSchema),
     load('OPENROUTER_IMAGE_CACHE', 'https://openrouter.ai/api/v1/images/models', OpenRouterApiSchema)
   ])
+
   const or: OpenRouterApi = { data: [...(orModels.data ?? []), ...(orImageModels.data ?? [])] }
 
   const index = buildIndex(md, or)
   const claimed = await assignCreators(index, md)
   let models = buildModels(index, claimed)
   let pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+
   if (args.model?.length) {
     const scoped = scopeModelRefresh(
       {
@@ -675,6 +807,7 @@ void (async () => {
       { models: [...models.values()], overrides: pm.overrides },
       args.model
     )
+
     models = new Map(scoped.models.map((model) => [model.id, model]))
     pm = {
       overrides: scoped.overrides.sort((a, b) =>
@@ -690,6 +823,7 @@ void (async () => {
   console.log(`assigned to a creator: ${models.size}`)
   console.log(`unassigned (no creator claims — dropped): ${unassigned.length}`)
   const byOwner: Record<string, number> = {}
+
   for (const m of models.values()) byOwner[m.ownedBy] = (byOwner[m.ownedBy] || 0) + 1
   console.log(
     'per-creator:',
@@ -699,6 +833,7 @@ void (async () => {
       .map(([o, n]) => `${o}:${n}`)
       .join('  ')
   )
+
   if (REPORT) {
     const lines = unassigned.map((k) => `${index.get(k)!.meta.family || '-'}\t${k}`).sort()
     fs.writeFileSync('/tmp/gen-unassigned.txt', lines.join('\n') + '\n')
@@ -707,25 +842,32 @@ void (async () => {
 
   if (!WRITE) {
     console.log('\nDRY RUN — re-run with --write to generate, --report for /tmp review files.')
+
     return
   }
 
   const serverToolModelsGen = buildServerToolModelsGen(models)
+
   const list = [...models.values()]
     .sort((a, b) => {
       const aKey = `${a.ownedBy ?? ''}\0${a.id}`
       const bKey = `${b.ownedBy ?? ''}\0${b.id}`
+
       return aKey < bKey ? -1 : aKey > bKey ? 1 : 0
     })
     .map((m) => {
       const metadata = m.metadata
       const rest = { ...m }
       delete rest.metadata
+
       if (metadata) rest.metadata = metadata
+
       return rest
     })
+
   const providers = buildProviders()
   const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
+
   if (serviceTierErrors.length > 0) {
     throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)
   }

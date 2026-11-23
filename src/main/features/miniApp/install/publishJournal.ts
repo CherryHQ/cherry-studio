@@ -105,6 +105,7 @@ function treesOf(appId: string) {
 
 function readOne(appId: string): PublishEntry | undefined {
   let parsed: unknown
+
   try {
     parsed = JSON.parse(fs.readFileSync(journalPath(appId), 'utf8'))
   } catch {
@@ -112,37 +113,48 @@ function readOne(appId: string): PublishEntry | undefined {
     // directory the user can still remove.
     return undefined
   }
+
   const result = PublishEntrySchema.safeParse(parsed)
+
   if (!result.success) {
     logger.warn('Discarded a malformed publish journal file', { appId })
+
     return undefined
   }
+
   return result.data
 }
 
 /** Every journal on disk. `readdir` is the index — there is no second list to drift. */
 function readAll(): PublishEntry[] {
   let names: string[]
+
   try {
     names = fs.readdirSync(application.getPath('feature.mini_app.publish_journal'))
   } catch {
     return []
   }
+
   return names.flatMap((name) => {
     if (!name.endsWith('.json')) return []
     // The FILENAME is validated before it is used to build a read path — a stray
     // `../x.json` in this directory must not be able to name a file outside it.
     const appId = MiniAppIdSchema.safeParse(name.slice(0, -'.json'.length))
+
     if (!appId.success) return []
     const entry = readOne(appId.data)
+
     if (!entry) return []
+
     // And the payload must name the file it was found in. `clearPublishJournal` deletes by
     // the PAYLOAD's appId, so a mismatched pair never clears itself: it would repair the
     // other app's trees on every launch, for ever, off a file nothing can retire.
     if (entry.appId !== appId.data) {
       logger.warn('Discarded a publish journal filed under another app', { file: appId.data, entry: entry.appId })
+
       return []
     }
+
     return [entry]
   })
 }
@@ -159,8 +171,10 @@ function readAll(): PublishEntry[] {
 function fsyncJournalDir(target: string): void {
   // Windows moves are write-through and directory handles cannot be fsynced there.
   if (isWin) return
+
   try {
     const dirFd = fs.openSync(path.dirname(target), 'r')
+
     try {
       fs.fsyncSync(dirFd)
     } finally {
@@ -168,6 +182,7 @@ function fsyncJournalDir(target: string): void {
     }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
+
     // ENOENT as well: no directory means no entry left to make durable.
     if (code === 'ENOENT' || shouldSilenceFsyncDirError(code)) return
     logger.warn('fsync(dir) failed for a publish journal; durability not confirmed', { target, code })
@@ -181,6 +196,7 @@ export function writePublishJournal(entry: PublishEntry): void {
   // must not race for one temporary file.
   const tmp = `${target}.${process.pid}.tmp`
   const fd = fs.openSync(tmp, 'w')
+
   try {
     fs.writeSync(fd, JSON.stringify(entry))
     // The bytes before the rename: a durable directory entry pointing at an empty file
@@ -189,6 +205,7 @@ export function writePublishJournal(entry: PublishEntry): void {
   } finally {
     fs.closeSync(fd)
   }
+
   fs.renameSync(tmp, target)
   fsyncJournalDir(target)
 }
@@ -212,6 +229,7 @@ function installedRow(appId: string) {
     .from(miniAppInstallationTable)
     .where(eq(miniAppInstallationTable.appId, appId))
     .all()
+
   return row
 }
 
@@ -229,8 +247,10 @@ function ownedRefCount(appId: string): number {
 
 function isCommitted(entry: PublishEntry): boolean {
   const hash = installedRow(entry.appId)?.contentHash
+
   // An uninstall commits by REMOVING the row, so its witness is absence.
   if (entry.kind === 'uninstall') return hash === undefined
+
   // A clear witnesses itself in the REFERENCE rows, not in the installation row — the app
   // stays installed and its hash never moves. Answering "always committed" here would look
   // harmless (clearing twice is a no-op) but the journal is armed BEFORE the delete, so a
@@ -240,12 +260,14 @@ function isCommitted(entry: PublishEntry): boolean {
   // The degenerate case is benign, unlike `reinstall` below: an app that owned no files
   // reads "committed" because its delete WAS a no-op, so rolling forward is right anyway.
   if (entry.kind === 'clear-data') return ownedRefCount(entry.appId) === 0
+
   // A same-version reinstall writes back the hash the row ALREADY held, so the row answers
   // "committed" from the moment the journal is written — and nothing else the transaction
   // touches is guaranteed to differ either. Treated as uncommitted, which repairs correctly
   // on BOTH sides: the two trees are byte-identical when their hashes agree, so restoring
   // the parked one puts back the same bytes the committed rows describe.
   if (entry.kind === 'reinstall' && entry.contentHash === entry.previousContentHash) return false
+
   return hash === entry.contentHash
 }
 
@@ -262,7 +284,9 @@ async function restore(from: string, to: string): Promise<void> {
 
 async function rollForward(entry: PublishEntry): Promise<void> {
   const t = treesOf(entry.appId)
+
   if (entry.kind === 'rollback') return rm(t.rolling)
+
   if (entry.kind === 'uninstall') {
     await rm(t.install)
     await rm(t.backup)
@@ -276,14 +300,17 @@ async function rollForward(entry: PublishEntry): Promise<void> {
     // computed before the commit, and nothing on disk records it.
     await clearMiniAppPartition(entry.appId)
   }
+
   // A reinstall retains nothing, so its parked tree is one nothing can roll back to —
   // dropped here exactly as the in-process path drops it right after its own commit.
   if (entry.kind === 'reinstall') return rm(t.backup)
+
   if (entry.kind === 'clear-data') {
     // The two stores the in-process path clears after its commit, and the two a crash
     // in between leaves behind: the save file the app would read straight back, and the
     // partition still holding its cookies. The package tree stays — the app is installed.
     await rm(miniAppDataPath(entry.appId))
+
     return clearMiniAppPartition(entry.appId)
   }
   // install / update: the files already are what the committed rows describe, and
@@ -292,6 +319,7 @@ async function rollForward(entry: PublishEntry): Promise<void> {
 
 async function rollBack(entry: PublishEntry): Promise<void> {
   const t = treesOf(entry.appId)
+
   switch (entry.kind) {
     case 'install':
       return rm(t.install)
@@ -304,11 +332,13 @@ async function rollBack(entry: PublishEntry): Promise<void> {
       // The rows still describe the NEW version, so that is the tree to put back; the
       // PREVIOUS one at `install` returns to `.backup` rather than being destroyed.
       if (!fs.existsSync(t.rolling)) return
+
       if (fs.existsSync(t.install) && !fs.existsSync(t.backup)) {
         await fs.promises.rename(t.install, t.backup)
       } else {
         await rm(t.install)
       }
+
       return await fs.promises.rename(t.rolling, t.install)
     case 'uninstall':
       // The delete never committed — the app is still installed, files included.
@@ -329,9 +359,11 @@ async function rollBack(entry: PublishEntry): Promise<void> {
  */
 export async function recoverInterruptedPublishes(): Promise<PublishRecovery[]> {
   const pending = readAll()
+
   if (pending.length === 0) return []
 
   const outcomes: PublishRecovery[] = []
+
   for (const entry of pending) {
     try {
       const committed = isCommitted(entry)
@@ -351,5 +383,6 @@ export async function recoverInterruptedPublishes(): Promise<PublishRecovery[]> 
       outcomes.push({ appId: entry.appId, action: 'failed' })
     }
   }
+
   return outcomes
 }

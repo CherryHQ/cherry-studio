@@ -72,8 +72,10 @@ class ThoughtProcessor {
   public processThought(validatedInput: ThoughtData): CallToolResult {
     const chainId = validatedInput.chainId ?? randomUUID()
     let chain = this.chains.get(chainId)
+
     if (!chain) {
       if (validatedInput.chainId) throw new Error('Unknown or completed chainId. Start a new chain without chainId.')
+
       if (validatedInput.thoughtNumber !== 1)
         throw new Error('Start a new chain with thoughtNumber 1, or pass its chainId.')
       chain = { history: [], branches: new Map() }
@@ -94,6 +96,7 @@ class ThoughtProcessor {
 
     const formattedThought = this.formatThought(validatedInput)
     logger.error(formattedThought)
+
     if (!validatedInput.nextThoughtNeeded) this.chains.delete(chainId)
 
     return {
@@ -124,6 +127,7 @@ const SEQUENTIAL_THINKING_DESCRIPTION = `Step-by-step reasoning in thoughts. Sta
 /** Builtin sequential-thinking endpoint; thought chains are shared across its protocol instances. */
 export function createSequentialThinkingEndpoint(): BuiltinMcpEndpoint {
   const thinking = new ThoughtProcessor()
+
   return {
     createServer: () => {
       const server = new McpServer({ name: 'sequential-thinking-server', version: '0.2.0' })
@@ -132,6 +136,7 @@ export function createSequentialThinkingEndpoint(): BuiltinMcpEndpoint {
         { description: SEQUENTIAL_THINKING_DESCRIPTION, inputSchema: ThoughtDataSchema },
         (args) => thinking.processThought(args)
       )
+
       return server
     },
     close: async () => thinking.close()

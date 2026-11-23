@@ -6,7 +6,9 @@ import { DesearchLight } from './light'
 
 const Desearch = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DesearchLight {...props} className={className} />
+
   if (variant === 'dark') return <DesearchDark {...props} className={className} />
+
   return (
     <>
       <DesearchLight className={cn('dark:hidden', className)} {...props} />

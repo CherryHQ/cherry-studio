@@ -53,11 +53,13 @@ const logger = loggerService.withContext('McpSettings')
 const mcpSettingsRouteApi = getRouteApi('/settings/mcp/settings/$serverId')
 
 type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions'
+
 type McpTabItem = {
   key: TabKey
   label: React.ReactNode
   children: React.ReactNode
 }
+
 type McpToolsCacheKey = `mcp.tools.${string}`
 
 const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
@@ -80,17 +82,21 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
   const [serverType, setServerType] = useState<McpServerType | undefined>(initialFormValues.serverType)
+
   const form = useForm<McpFormValues>({
     resolver: zodResolver(buildMcpSchema(t)) as any,
     defaultValues: initialFormValues
   })
+
   const [loading, setLoading] = useState(false)
   const [isFormChanged, setIsFormChanged] = useState(false)
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('settings')
   const [toolSearchText, setToolSearchText] = useState('')
+
   const tools =
     useSharedCacheValue(serverId ? mcpToolsCacheKey(serverId) : mcpToolsCacheKey('__draft__')) ?? EMPTY_MCP_TOOLS
+
   const runtimeStatus = useMcpRuntimeStatus(server?.id, Boolean(server?.isActive))
 
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
@@ -118,6 +124,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     if (loadedCapabilityTabsRef.current?.serverId !== server.id) {
       loadedCapabilityTabsRef.current = { serverId: server.id, tabs: new Set() }
     }
+
     loadedCapabilityTabsRef.current.tabs.add(tab)
   }
 
@@ -163,10 +170,12 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     if (server?.isActive) {
       try {
         setLoadingServer(server.id)
+
         const [localResources, localTemplates] = await Promise.all([
           ipcApi.request('mcp.server.list_resources', { serverId: server.id }),
           ipcApi.request('mcp.server.list_resource_templates', { serverId: server.id })
         ])
+
         setResources(localResources)
         setTemplates(localTemplates)
       } catch (error) {
@@ -194,6 +203,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   const retryConnection = async () => {
     setLoadingServer(server.id)
+
     try {
       await ipcApi.request('mcp.server.restart', { serverId: server.id })
       await fetchServerVersion()
@@ -209,15 +219,19 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     if (kind === 'prompts') void fetchPrompts()
     else void fetchResources()
   })
+
   useEffect(() => {
     if (!server.isActive) return
     const requestId = crypto.randomUUID()
+
     const unsubscribe = ipcApi.on('mcp.catalog.changed', (event) => {
       if (event.serverId === serverId) refreshCatalog(event.kind)
     })
+
     void ipcApi
       .request('mcp.catalog.observe', { serverId, requestId })
       .catch((error) => logger.warn('MCP catalog observation failed', { error }))
+
     return () => {
       unsubscribe()
       void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)
@@ -231,6 +245,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       setTemplates([])
       setServerVersion(null)
       loadedCapabilityTabsRef.current = null
+
       return
     }
 
@@ -240,12 +255,17 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   useEffect(() => {
     if (!server?.isActive) return
+
     if (activeTab !== 'tools' && activeTab !== 'prompts' && activeTab !== 'resources') return
+
     if (wasCapabilityLoaded(activeTab)) return
 
     markCapabilityLoaded(activeTab)
+
     if (activeTab === 'tools') void fetchTools()
+
     if (activeTab === 'prompts') void fetchPrompts()
+
     if (activeTab === 'resources') void fetchResources()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, server?.id, server?.isActive])
@@ -254,12 +274,16 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   const onSave = async () => {
     if (!server) return
     setLoading(true)
+
     try {
       const isValid = await form.trigger()
+
       if (!isValid) {
         setLoading(false)
+
         return
       }
+
       const values = form.getValues()
 
       const mcpServer: McpServer = {
@@ -291,6 +315,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
+
       setLoading(false)
     } catch (error: any) {
       setLoading(false)
@@ -299,6 +324,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   }
 
   const { removeMcpServer } = useMcpServerMutations(server.id)
+
   const onDeleteMcpServer = useCallback(async () => {
     try {
       const confirmed = await popup.confirm({
@@ -307,6 +333,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         centered: true,
         okButtonProps: { danger: true }
       })
+
       if (!confirmed) return
 
       await removeMcpServer()
@@ -319,22 +346,28 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   const onToggleActive = async (active: boolean) => {
     if (!server) return
+
     if (isFormChanged && active) {
       await onSave()
+
       return
     }
 
     const isValid = await form.trigger()
+
     if (!isValid) {
       return
     }
 
     let serverForUpdate = server
+
     if (active) {
       const trustedServer = await ensureServerTrusted(server)
+
       if (!trustedServer) {
         return
       }
+
       serverForUpdate = trustedServer
     }
 
@@ -343,16 +376,19 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     try {
       if (active) {
         await updateMcpServer({ body: { isActive: true } })
+
         try {
           await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
 
           const serverId = serverForUpdate.id
+
           const [localPrompts, localResources, localTemplates, version] = await Promise.all([
             ipcApi.request('mcp.server.list_prompts', { serverId }),
             ipcApi.request('mcp.server.list_resources', { serverId }),
             ipcApi.request('mcp.server.list_resource_templates', { serverId }),
             ipcApi.request('mcp.server.get_version', { serverId })
           ])
+
           setPrompts(localPrompts)
           setResources(localResources)
           setTemplates(localTemplates)
@@ -376,6 +412,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         setServerVersion(null)
         loadedCapabilityTabsRef.current = null
       }
+
       form.setValue('isActive', active)
     } catch (error: any) {
       void popup.error({
@@ -396,6 +433,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   useEffect(() => {
     if (search.autoEnable !== 'true' || !server) return
+
     if (handledAutoEnableServerIdRef.current === server.id) return
 
     handledAutoEnableServerIdRef.current = server.id
@@ -455,6 +493,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   const runtimeError = server.isActive && runtimeStatus.state === 'error' ? runtimeStatus.lastError : undefined
   const authorizing = server.isActive && runtimeStatus.state === 'connecting' && runtimeStatus.authorizing
+
   const runtimeStatusLabel = {
     disabled: t('settings.mcp.runtimeStatus.disabled', 'Disabled'),
     connecting: authorizing

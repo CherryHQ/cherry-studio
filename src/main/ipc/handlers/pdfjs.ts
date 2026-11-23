@@ -38,6 +38,7 @@ export const pdfjsHandlers: IpcHandlersFor<typeof pdfjsRequestSchemas> = {
     }
 
     const content = new Uint8Array(await readFile(target))
+
     if (content.byteLength > PDFJS_RESOURCE_MAX_BYTES) {
       throw new Error(`pdf.js resource exceeds the size cap: ${name} (${content.byteLength} bytes)`)
     }

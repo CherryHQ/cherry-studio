@@ -20,6 +20,7 @@ interface ChromiumScrollIntoViewOptions extends ScrollIntoViewOptions {
 export function scrollIntoView(element: HTMLElement, options?: ChromiumScrollIntoViewOptions): void {
   if (!element) {
     logger.warn('[scrollIntoView] Unexpected falsy element. Do nothing as fallback.')
+
     return
   }
 
@@ -28,6 +29,7 @@ export function scrollIntoView(element: HTMLElement, options?: ChromiumScrollInt
     block: 'center',
     inline: 'nearest'
   }
+
   element.scrollIntoView(options ?? defaultOptions)
 }
 
@@ -47,6 +49,7 @@ export function scrollElementIntoView(
   if (!scrollContainer) {
     // No container specified, use browser default scrolling
     scrollIntoView(element, { behavior, block: 'center', inline: 'nearest' })
+
     return
   }
 

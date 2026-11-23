@@ -85,6 +85,7 @@ export function createModelPricingDraft(pricing: Model['pricing']): ModelPricing
 
 export function appendModelPricingTier(draft: ModelPricingDraft): ModelPricingDraft {
   const previousTier = draft.tiers.at(-1) ?? createModelPricingDraft(undefined).tiers[0]
+
   return {
     ...draft,
     tiers: [...draft.tiers, { ...previousTier, minInputTokens: '' }]
@@ -130,6 +131,7 @@ export function clearModelPricingDraftError(
 
     const nextErrors = { ...tierErrors }
     delete nextErrors[field]
+
     return nextErrors
   })
 }
@@ -140,12 +142,14 @@ export function isModelPricingCurrencySymbol(value: string): value is ModelPrici
 
 export function getModelPricingCurrencySymbol(pricing: Model['pricing']): ModelPricingCurrencySymbol {
   const flatPrices = pricing ? [pricing.input, pricing.output, pricing.cacheRead, pricing.cacheWrite] : []
+
   const tierPrices = (pricing?.inputTokenTiers ?? []).flatMap((tier) => [
     tier.input,
     tier.output,
     tier.cacheRead,
     tier.cacheWrite
   ])
+
   const currency = [...flatPrices, ...tierPrices].find((price) => price?.currency)?.currency
 
   return CURRENCY_CODE_TO_SYMBOL[currency ?? CURRENCY.USD]
@@ -161,11 +165,13 @@ interface ParsedModelPricingTier {
 
 function parsePrice(value: string, optional: boolean) {
   const trimmedValue = value.trim()
+
   if (optional && trimmedValue === '') {
     return {}
   }
 
   const parsedValue = Number(trimmedValue)
+
   if (trimmedValue === '' || !Number.isFinite(parsedValue) || parsedValue < 0) {
     return { error: 'invalidPrice' } satisfies { error: ModelPricingDraftError }
   }
@@ -176,9 +182,11 @@ function parsePrice(value: string, optional: boolean) {
 function parseModelPricingDraft(draft: ModelPricingDraft) {
   const errors: ModelPricingDraftErrors = draft.tiers.map(() => ({}))
   const tiersToParse = [...draft.tiers]
+
   while (tiersToParse.length > 1 && tiersToParse.at(-1)?.minInputTokens.trim() === '') {
     tiersToParse.pop()
   }
+
   const parsedTiers: ParsedModelPricingTier[] = []
   let previousMinInputTokens = 0
 
@@ -188,6 +196,7 @@ function parseModelPricingDraft(draft: ModelPricingDraft) {
 
     if (index > 0) {
       const parsedMinInputTokens = Number(tier.minInputTokens.trim())
+
       if (
         tier.minInputTokens.trim() === '' ||
         !Number.isSafeInteger(parsedMinInputTokens) ||
@@ -196,9 +205,11 @@ function parseModelPricingDraft(draft: ModelPricingDraft) {
         tierErrors.minInputTokens = 'invalidMinInputTokens'
       } else {
         minInputTokens = parsedMinInputTokens
+
         if (minInputTokens <= previousMinInputTokens) {
           tierErrors.minInputTokens = 'minInputTokensNotIncreasing'
         }
+
         previousMinInputTokens = minInputTokens
       }
     }
@@ -209,8 +220,11 @@ function parseModelPricingDraft(draft: ModelPricingDraft) {
     const cacheWritePrice = parsePrice(tier.cacheWritePrice, true)
 
     if (inputPrice.error) tierErrors.inputPrice = inputPrice.error
+
     if (outputPrice.error) tierErrors.outputPrice = outputPrice.error
+
     if (cacheReadPrice.error) tierErrors.cacheReadPrice = cacheReadPrice.error
+
     if (cacheWritePrice.error) tierErrors.cacheWritePrice = cacheWritePrice.error
 
     const parsed: ParsedModelPricingTier = {
@@ -218,7 +232,9 @@ function parseModelPricingDraft(draft: ModelPricingDraft) {
       inputPrice: inputPrice.value ?? 0,
       outputPrice: outputPrice.value ?? 0
     }
+
     if (cacheReadPrice.value !== undefined) parsed.cacheReadPrice = cacheReadPrice.value
+
     if (cacheWritePrice.value !== undefined) parsed.cacheWritePrice = cacheWritePrice.value
     parsedTiers.push(parsed)
   }
@@ -244,22 +260,27 @@ export function buildModelImagePricing(
   imagePrice?: string
 ) {
   const parsed = imagePrice === undefined ? {} : parsePrice(imagePrice, true)
+
   if (parsed.error) return { error: parsed.error }
 
   // oxlint-disable-next-line no-restricted-globals -- Edit nested pricing tiers independently of saved model configuration.
   const pricing: ModelPricing = structuredClone(
     currentPricing ?? { input: { perMillionTokens: null }, output: { perMillionTokens: null } }
   )
+
   const currency = CURRENCY_SYMBOL_TO_CODE[currencySymbol]
+
   for (const rates of [pricing, ...(pricing.inputTokenTiers ?? [])]) {
     for (const field of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) {
       if (rates[field]) rates[field].currency = currency
     }
   }
+
   if (imagePrice !== undefined) {
     if (parsed.value === undefined) delete pricing.perImage
     else pricing.perImage = { price: parsed.value, unit: 'image' }
   }
+
   return { pricing }
 }
 
@@ -269,6 +290,7 @@ export function buildModelPricingFromDraft(
   currencySymbol: ModelPricingCurrencySymbol
 ) {
   const { errors, tiers } = parseModelPricingDraft(draft)
+
   if (!tiers) {
     return { errors }
   }
@@ -287,8 +309,11 @@ export function buildModelPricingFromDraft(
     input: createPrice(baseTier.inputPrice, currency),
     output: createPrice(baseTier.outputPrice, currency)
   }
+
   if (baseTier.cacheReadPrice !== undefined) pricing.cacheRead = createPrice(baseTier.cacheReadPrice, currency)
+
   if (baseTier.cacheWritePrice !== undefined) pricing.cacheWrite = createPrice(baseTier.cacheWritePrice, currency)
+
   if (additionalTiers.length > 0)
     pricing.inputTokenTiers = additionalTiers.map((tier) => {
       const price: NonNullable<ModelPricing['inputTokenTiers']>[number] = {
@@ -296,8 +321,11 @@ export function buildModelPricingFromDraft(
         input: createPrice(tier.inputPrice, currency),
         output: createPrice(tier.outputPrice, currency)
       }
+
       if (tier.cacheReadPrice !== undefined) price.cacheRead = createPrice(tier.cacheReadPrice, currency)
+
       if (tier.cacheWritePrice !== undefined) price.cacheWrite = createPrice(tier.cacheWritePrice, currency)
+
       return price
     })
 

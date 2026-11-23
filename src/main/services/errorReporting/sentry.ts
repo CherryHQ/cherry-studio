@@ -50,8 +50,10 @@ export function initSentry(): void {
     tracePropagationTargets: [],
     beforeSend: (event, hint) => {
       const filtered = application.getExisting('ErrorReportingService')?.filterEvent(event, hint)
+
       if (!filtered) return null
       const runtime = filtered.tags?.['failure.runtime']
+
       const runtimeVersion =
         runtime === 'claude-code'
           ? dependencies['@anthropic-ai/claude-agent-sdk']
@@ -60,10 +62,13 @@ export function initSentry(): void {
             : runtime === 'ai-sdk'
               ? dependencies.ai
               : undefined
+
       const report = { ...filtered }
       report.tags = { ...filtered.tags }
+
       if (runtimeVersion) report.tags['runtime.version'] = runtimeVersion
       report.user = { ...filtered.user, id: getClientId() }
+
       return sanitizeSentryEvent(report)
     },
     defaultIntegrations: false,
@@ -72,6 +77,7 @@ export function initSentry(): void {
     // reports the user has not consented to send.
     transport: (options) => {
       const transport = Sentry.makeElectronTransport(options)
+
       return {
         flush: (timeout) => transport.flush(timeout),
         send: (envelope) => (consentGranted() ? transport.send(envelope) : Promise.resolve({ statusCode: 200 }))
@@ -83,8 +89,10 @@ export function initSentry(): void {
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native log entries include opaque context; only validated failure facts and checked error identity fields enter the report.
 export function captureLoggedError(info: Record<string, unknown>): void {
   const context = getSentryLogContext(info)
+
   if (!context) return
   context.tags['capture.source'] = 'log'
+
   if (typeof info.stack === 'string') {
     const error = new Error(typeof info.errorMessage === 'string' ? info.errorMessage : 'Operation failed')
     error.name =

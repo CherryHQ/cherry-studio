@@ -31,14 +31,22 @@ import { getApplicationId } from '@main/utils/appEdition'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
+
 requireSingleInstance()
+
 configureChromiumFlags()
+
 configureRemoteDebugging()
+
 initCrashTelemetry()
+
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()
+
 const isolatedRestoreSession = prepareBackupRestoreSession()
+
 initSentry()
+
 // Privileged schemes must be declared before the app is ready, and only ONCE per
 // process — startApp() itself awaits app.whenReady(), so this cannot move in there.
 protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_SCHEME_DECLARATION])
@@ -60,15 +68,18 @@ const startApp = async () => {
   // relocation launch (execute or explain, then relaunch) before any service
   // opens files under the source tree. See services/userDataRelocation/README.md.
   const relocationResult = await runUserDataRelocation()
+
   if (relocationResult === 'handled') return
 
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
   // migration gate reads the DB. An isolated restore launch must relaunch
   // before services can use the path registry's original session snapshot.
   const restoreResult = await runBackupRestoreGate(isolatedRestoreSession)
+
   if (restoreResult === 'handled') return
 
   const upgradeResult = await runLegacyUpgradeGate()
+
   if (upgradeResult === 'handled') return
 
   // The toolkit uses the executable path in development, which can exceed Windows' AUMID limit.

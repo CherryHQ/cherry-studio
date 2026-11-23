@@ -37,6 +37,7 @@ const WindowFooter: FC<FooterProps> = ({ children, content = '', loading = false
     return () => {
       window.removeEventListener('focus', handleWindowFocus)
       window.removeEventListener('blur', handleWindowBlur)
+
       if (hideTimerRef.current) {
         clearTimeout(hideTimerRef.current)
       }

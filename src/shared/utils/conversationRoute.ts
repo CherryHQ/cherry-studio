@@ -12,5 +12,6 @@ export const CONVERSATION_ROUTES = {
 
 export function conversationRouteUrl({ conversationType, conversationId }: ConversationNavigationTarget): string {
   const { path, keyParam } = CONVERSATION_ROUTES[conversationType]
+
   return `${path}?${keyParam}=${encodeURIComponent(conversationId)}`
 }

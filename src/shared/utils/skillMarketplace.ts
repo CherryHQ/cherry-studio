@@ -48,6 +48,7 @@ function getDirectoryPathFromGithubTreeUrl(
 
   try {
     const url = new URL(sourceUrl)
+
     const [owner, repo, type, branch, ...pathParts] = url.pathname
       .split('/')
       .filter(Boolean)
@@ -73,17 +74,21 @@ function getDirectoryPathFromGithubTreeUrl(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- claude-plugins.dev JSON must pass its response schema before skill mapping.
 export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
   const parsed = ClaudePluginsSearchResponseSchema.safeParse(raw)
+
   if (!parsed.success) throw new Error('Invalid claude-plugins.dev search response')
 
   return parsed.data.skills.flatMap((s) => {
     const repoOwner = s.metadata?.repoOwner ?? ''
     const repoName = s.metadata?.repoName ?? ''
+
     const directoryPath =
       normalizeDirectoryPath(s.metadata?.directoryPath) ??
       getDirectoryPathFromGithubTreeUrl(s.sourceUrl, repoOwner, repoName)
+
     // Skip entries without a resolvable install source (repo owner/name are required to clone,
     // directoryPath is required to avoid ambiguous repo scans that may install a different skill).
     if (!repoOwner || !repoName || !directoryPath) return []
+
     return {
       slug: s.id,
       name: s.name,
@@ -145,12 +150,14 @@ export function encodeGithubPath(directoryPath: string): string {
 export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null {
   let url: URL
   let segments: string[]
+
   try {
     const trimmedUrl = rawUrl.trim()
     url = new URL(trimmedUrl)
     const authorityEnd = trimmedUrl.indexOf('/', trimmedUrl.indexOf('://') + 3)
     const rawPath = authorityEnd === -1 ? '' : trimmedUrl.slice(authorityEnd).split(/[?#]/, 1)[0]
     const rawSegments = rawPath.split('/').filter(Boolean).map(decodeURIComponent)
+
     // WHATWG URL parsing removes literal dot segments before exposing `pathname`; inspect the raw
     // path first so accepting a repository-root descriptor does not turn traversal into a valid ref.
     if (rawSegments.some(invalidPathPart)) return null
@@ -163,6 +170,7 @@ export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null 
 
   const host = url.hostname.toLowerCase().replace(/^www\./, '')
   const [owner, rawRepo, ...tail] = segments
+
   // `tree` denotes a directory. GitHub's Raw action uses `/raw/refs/heads/...` and redirects to the
   // raw-content host, so both file routes belong to the same syntax contract.
   const rawRefAndPath =
@@ -171,6 +179,7 @@ export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null 
       : host === 'raw.githubusercontent.com'
         ? tail
         : null
+
   if (!rawRefAndPath) return null
 
   const repo = rawRepo?.replace(/\.git$/i, '')
@@ -185,7 +194,9 @@ export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null 
   }
 
   if (!owner || !repo || !descriptorFileName) return null
+
   if (![owner, repo].every((part) => GITHUB_REPO_PART.test(part))) return null
+
   // A single segment can be a ref selecting a descriptor at the repository root.
   if (refAndPath.length < 1 || refAndPath.some(invalidPathPart)) return null
 
@@ -195,13 +206,16 @@ export function parseGithubSkillUrl(rawUrl: string): GithubSkillLocation | null 
 /** Present a validated GitHub SKILL.md URL as an installable search result. */
 export function buildGithubSkillResult(rawUrl: string): SkillSearchResult | null {
   const location = parseGithubSkillUrl(rawUrl)
+
   if (!location) return null
 
   const { owner, repo, refNamespace, refAndPath, descriptorFileName } = location
   const path = encodeGithubPath(refAndPath.join('/'))
+
   const canonicalUrl = refNamespace
     ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${refNamespace}/${path}/${descriptorFileName}`
     : `https://github.com/${owner}/${repo}/blob/${path}/${descriptorFileName}`
+
   return {
     slug: `${owner}/${repo}/${refNamespace ? `refs/${refNamespace}/` : ''}${refAndPath.join('/')}`,
     name: repo,
@@ -223,24 +237,30 @@ export type ParsedSkillSourceUrl = {
 /** Recover the exact marketplace install handle persisted as a Skill source URL. */
 export function parseSkillSourceUrl(sourceUrl: string): ParsedSkillSourceUrl | null {
   const githubResult = buildGithubSkillResult(sourceUrl)
+
   if (githubResult) {
     return { sourceRegistry: githubResult.sourceRegistry, installSource: githubResult.installSource }
   }
 
   let url: URL
   let pathParts: string[]
+
   try {
     url = new URL(sourceUrl.trim())
     pathParts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
   } catch {
     return null
   }
+
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return null
+
   if (pathParts.some(invalidPathPart)) return null
 
   const host = url.hostname.toLowerCase().replace(/^www\./, '')
+
   if (host === 'skills.sh') {
     const [owner, repo, skillName, ...extraParts] = pathParts
+
     if (
       extraParts.length > 0 ||
       !owner ||
@@ -251,11 +271,13 @@ export function parseSkillSourceUrl(sourceUrl: string): ParsedSkillSourceUrl | n
     ) {
       return null
     }
+
     return { sourceRegistry: 'skills.sh', installSource: `skills.sh:${owner}/${repo}/${skillName}` }
   }
 
   if (host === 'clawhub.ai') {
     const [owner, skillsSegment, slug, ...extraParts] = pathParts
+
     if (
       extraParts.length > 0 ||
       skillsSegment !== 'skills' ||
@@ -266,11 +288,13 @@ export function parseSkillSourceUrl(sourceUrl: string): ParsedSkillSourceUrl | n
     ) {
       return null
     }
+
     return { sourceRegistry: 'clawhub.ai', installSource: `clawhub:${owner}/${slug}` }
   }
 
   if (host === 'github.com') {
     const [owner, repo, treeSegment, branch, ...directoryParts] = pathParts
+
     if (
       treeSegment !== 'tree' ||
       !branch ||
@@ -283,6 +307,7 @@ export function parseSkillSourceUrl(sourceUrl: string): ParsedSkillSourceUrl | n
     ) {
       return null
     }
+
     return {
       sourceRegistry: 'claude-plugins.dev',
       installSource: `claude-plugins:${owner}/${repo}/${directoryParts.join('/')}`
@@ -312,6 +337,7 @@ export function hasSkillRemoteUpdateProvenance(skill: {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- skills.sh JSON must pass its response schema before skill mapping.
 export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
   const parsed = SkillsShSearchResponseSchema.safeParse(raw)
+
   if (!parsed.success) throw new Error('Invalid skills.sh search response')
 
   return parsed.data.skills.map((skill) => ({
@@ -330,6 +356,7 @@ export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Clawhub JSON must pass its response schema before skill mapping.
 export function normalizeClawhub(raw: unknown): SkillSearchResult[] {
   const parsed = ClawhubSearchResponseSchema.safeParse(raw)
+
   if (!parsed.success) throw new Error('Invalid clawhub.ai search response')
 
   return parsed.data.results.flatMap((skill) => {
@@ -355,6 +382,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
     buildUrl: (query) => {
       const url = new URL('https://skills.sh/api/search')
       url.searchParams.set('q', query)
+
       return url.toString()
     },
     normalize: normalizeSkillsSh
@@ -365,6 +393,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
       const url = new URL('https://api.claude-plugins.dev/api/skills/search')
       url.searchParams.set('q', query)
       url.searchParams.set('limit', '20')
+
       return url.toString()
     },
     normalize: normalizeClaudePlugins
@@ -374,6 +403,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
     buildUrl: (query) => {
       const url = new URL('https://clawhub.ai/api/v1/search')
       url.searchParams.set('q', query)
+
       return url.toString()
     },
     normalize: normalizeClawhub
@@ -392,12 +422,15 @@ export async function searchSkillMarketplaces(
   selectedSource?: SkillSearchSource
 ): Promise<SkillSearchResult[]> {
   const trimmed = query.trim()
+
   if (!trimmed) return []
 
   const sources = MARKETPLACE_SOURCES.filter((source) => !selectedSource || source.name === selectedSource)
+
   const settled = await Promise.allSettled(
     sources.map(async (source) => fetchJson(source.buildUrl(trimmed), source.normalize))
   )
+
   const combined: SkillSearchResult[] = []
   let failedSourceCount = 0
 
@@ -415,10 +448,13 @@ export async function searchSkillMarketplaces(
   }
 
   const seen = new Set<string>()
+
   return combined.filter((result) => {
     const key = result.installSource
+
     if (seen.has(key)) return false
     seen.add(key)
+
     return true
   })
 }

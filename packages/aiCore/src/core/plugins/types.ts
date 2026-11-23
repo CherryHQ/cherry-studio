@@ -7,8 +7,11 @@ import type { AiSdkModel, ProviderId } from '../providers/types'
  * 常用的 AI SDK 参数类型（完整版，用于插件泛型）
  */
 export type StreamTextParams = Parameters<typeof streamText>[0]
+
 export type StreamTextResult = ReturnType<typeof streamText>
+
 export type GenerateTextParams = Parameters<typeof generateText>[0]
+
 export type GenerateTextResult = ReturnType<typeof generateText>
 
 /**

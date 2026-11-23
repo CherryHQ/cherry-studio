@@ -68,6 +68,7 @@ const MiniApp: FC<Props> = ({
   const updating = attention?.updating ?? null
   // The dot means "something to do"; an update in flight is shown by the wedge instead.
   const needsAttention = attention !== undefined && updating === null
+
   /**
    * One list, two consumers: the tooltip a pointer user hovers, and the badge's accessible
    * name. The dot is the only place "a permission is waiting" is surfaced on this screen, so
@@ -88,6 +89,7 @@ const MiniApp: FC<Props> = ({
           : null
       ].filter((line): line is string => line !== null)
     : []
+
   const update = useMiniAppUpdate(app.appId, { name: app.name })
   const [pendingOpen, setPendingOpen] = useState(false)
   const [pendingBusy, setPendingBusy] = useState(false)
@@ -96,8 +98,10 @@ const MiniApp: FC<Props> = ({
   const [removingCustom, setRemovingCustom] = useState(false)
   const { isPresent: detailPresent } = useExitPresence(detailOpen ? true : null)
   const { value: updateOffer } = useExitPresence(update.offer)
+
   const currentPendingLeaves =
     pendingOpen && attention && attention.pendingPermissions.length > 0 ? attention.pendingPermissions : null
+
   const { value: pendingLeaves } = useExitPresence(currentPendingLeaves)
   // Calculate display name
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
@@ -113,6 +117,7 @@ const MiniApp: FC<Props> = ({
     e.preventDefault()
     handleClick()
   }
+
   const activationProps =
     variant === 'launchpad'
       ? ({
@@ -129,6 +134,7 @@ const MiniApp: FC<Props> = ({
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mini-app mutations may reject arbitrary values; DataApi guards select structured failures before generic reporting.
   const reportFailure = (fallbackKey: string) => (err: unknown) => {
     const e = toDataApiError(err)
+
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
       toast.error(e.message || t(fallbackKey))
@@ -155,6 +161,7 @@ const MiniApp: FC<Props> = ({
 
   const handleRemoveCustom = async () => {
     setRemovingCustom(true)
+
     try {
       await onRemoveCustom(app.appId)
       toast.success(t('settings.miniApps.custom.remove_success'))
@@ -164,6 +171,7 @@ const MiniApp: FC<Props> = ({
       } else {
         toast.error(t('settings.miniApps.custom.remove_error'))
       }
+
       logger.error('Failed to remove custom mini app:', error as Error)
     } finally {
       setRemovingCustom(false)
@@ -175,6 +183,7 @@ const MiniApp: FC<Props> = ({
 
   const answerPending = async (route: 'mini_app.grant.approve_pending' | 'mini_app.grant.snooze_pending') => {
     setPendingBusy(true)
+
     try {
       await ipcApi.request(route, { appId: app.appId })
       setPendingOpen(false)

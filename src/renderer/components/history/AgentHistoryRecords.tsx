@@ -69,12 +69,14 @@ function AgentHistoryRowState({
   children: (state: HistoryRowState) => ReactElement
 }) {
   useSharedCacheValue(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+
   return children({ isRenaming: false })
 }
 
 function isAgentHistorySessionBusy(sessionId: string): boolean {
   const entry = cacheService.getShared(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
   const flags = classifyTurn(entry?.status)
+
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors?.length ?? 0) > 0
 }
 
@@ -85,14 +87,18 @@ function survivingHistoryNeighbor<T extends { id: string }>(
   neighborBeforeDelete: T | undefined
 ): T | undefined {
   const remaining = refreshed.filter((item) => item.id !== deletedId)
+
   if (neighborBeforeDelete) {
     const stillThere = remaining.find((item) => item.id === neighborBeforeDelete.id)
+
     if (stillThere) return stillThere
   }
+
   if (remaining.length === 0) return undefined
 
   const remainingIds = new Set(remaining.map((item) => item.id))
   const fallback = orderedBeforeDelete.find((item) => item.id !== deletedId && remainingIds.has(item.id))
+
   return fallback ? remaining.find((item) => item.id === fallback.id) : remaining[0]
 }
 
@@ -129,15 +135,18 @@ const AgentHistoryRecords = ({
     restoreSession,
     togglePin
   } = useAgentSessionsSource()
+
   const { agents } = useAgents()
   const { updateSession } = useUpdateSession()
   const { items: optimisticSessions, rename: renameSessionOptimistically } = useOptimisticResourceName(sessions)
 
   const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
+
   const sessionItems = useMemo<SessionListItem[]>(
     () => optimisticSessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
     [isSessionPinned, optimisticSessions]
   )
+
   const sessionItemsRef = useRef(sessionItems)
   const pinIdBySessionIdRef = useRef(pinIdBySessionId)
   const activeRecordIdRef = useRef(activeRecordId)
@@ -152,8 +161,10 @@ const AgentHistoryRecords = ({
     () => sortSessionsForDisplayGroups(sessionItems, { mode: 'time', now: groupNow }),
     [groupNow, sessionItems]
   )
+
   const timeSortedSessionsRef = useRef(timeSortedSessions)
   timeSortedSessionsRef.current = timeSortedSessions
+
   const agentSortedSessions = useMemo(
     () => sortSessionsForDisplayGroups(sessionItems, { agentRankById, mode: 'agent', now: groupNow }),
     [agentRankById, groupNow, sessionItems]
@@ -165,15 +176,19 @@ const AgentHistoryRecords = ({
   streamStatusBySessionIdRef.current = streamStatusBySessionId
 
   const unknownAgentLabel = t('agent.session.group.unknown_agent')
+
   const historySessionLabel = useCallback(
     (name: string | null | undefined) => (name?.trim() ? name : t('common.unnamed')),
     [t]
   )
+
   const statusItems = useMemo(() => buildAgentStatusItems(t), [t])
+
   const agentSources = useMemo(
     () => buildAgentSources(sessionItems, agentById, agentRankById, unknownAgentLabel, t),
     [agentById, agentRankById, sessionItems, t, unknownAgentLabel]
   )
+
   const additionalAgentSourceItems = useMemo(
     () =>
       agentSources
@@ -190,6 +205,7 @@ const AgentHistoryRecords = ({
   const handleSessionSelect = useCallback(
     (session: SessionListItem) => {
       const title = session.name || t('common.unnamed')
+
       if (conversationNav.openConversationTab(session.id, title, { forceNew: true })) return
 
       onRecordSelect?.(session.id)
@@ -203,6 +219,7 @@ const AgentHistoryRecords = ({
       if (isSessionPinned(id)) return
 
       const success = await deleteSession(id)
+
       if (!success) return
 
       if (activeRecordId === id) {
@@ -212,6 +229,7 @@ const AgentHistoryRecords = ({
           id,
           (session) => session.id
         )
+
         onActiveSessionChange?.(nextSession?.id ?? null)
       }
 
@@ -250,6 +268,7 @@ const AgentHistoryRecords = ({
       if (permanentDeleteLockRef.current) return Promise.resolve()
       permanentDeleteLockRef.current = true
       const current = sessionItemsRef.current.find((session) => session.id === id)
+
       return permanentDeletePopup
         .show({
           kind: 'conversation',
@@ -260,6 +279,7 @@ const AgentHistoryRecords = ({
             if (pinIdBySessionIdRef.current.has(id)) {
               throw new Error(t('recycle_bin.delete.pinned'))
             }
+
             if (isAgentHistorySessionBusy(id) || streamStatusBySessionIdRef.current.get(id)?.isPending) {
               throw new Error(t('recycle_bin.delete.busy'))
             }
@@ -267,8 +287,10 @@ const AgentHistoryRecords = ({
             // Hold missing-session recovery until this attempt settles. The by-id NOT_FOUND
             // notification can arrive before the IPC reply and is not user navigation.
             onLocalPermanentDeletePendingChange?.(id)
+
             try {
               const outcome = await deleteSessionWithOutcome(id, { permanent: true, showFeedback: false })
+
               if (outcome.status !== 'succeeded') {
                 await reload().catch((refreshError) => {
                   logger.warn('Failed to refresh sessions after permanent delete failed', refreshError as Error, {
@@ -284,6 +306,7 @@ const AgentHistoryRecords = ({
 
               const activeId = activeRecordIdRef.current
               const clearedDuringDelete = activeId == null && wasActiveAtStart
+
               if (activeId !== id && !clearedDuringDelete) return
 
               const nextSession = survivingHistoryNeighbor(
@@ -292,6 +315,7 @@ const AgentHistoryRecords = ({
                 id,
                 neighborBeforeDelete
               )
+
               onActiveSessionChange?.(nextSession?.id ?? null)
             } finally {
               onLocalPermanentDeletePendingChange?.(null)
@@ -317,9 +341,11 @@ const AgentHistoryRecords = ({
     async (ids: string[]): Promise<HistoryBulkDeleteResult> => {
       const outcomes = await Promise.allSettled(ids.map((id) => deleteSessionWithOutcome(id, { showFeedback: false })))
       const staleIds: string[] = []
+
       const result = outcomes.reduce<HistoryBulkDeleteResult>(
         (summary, outcome, index) => {
           const id = ids[index]
+
           if (outcome.status === 'rejected') {
             summary.failed.push({ id, error: getErrorMessage(outcome.reason) })
           } else if (outcome.value.status === 'succeeded') {
@@ -331,6 +357,7 @@ const AgentHistoryRecords = ({
               error: outcome.value.status === 'failed' ? outcome.value.error : t('recycle_bin.already_moved')
             })
           }
+
           return summary
         },
         { succeeded: [], failed: [] }
@@ -365,11 +392,13 @@ const AgentHistoryRecords = ({
     async (id: string, name: string) => {
       const session = sessionItems.find((candidate) => candidate.id === id)
       const trimmedName = name.trim()
+
       if (!session || !trimmedName || trimmedName === session.name) return
 
       const renamed = await renameSessionOptimistically(session, trimmedName, async () =>
         Boolean(await updateSession({ id, name: trimmedName, isNameManuallyEdited: true }, { showSuccessToast: false }))
       )
+
       if (renamed) {
         toast.success(t('common.saved'))
       }
@@ -406,20 +435,25 @@ const AgentHistoryRecords = ({
       t
     ]
   )
+
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
 
   const getId = useCallback((session: SessionListItem) => session.id, [])
+
   const getSourceId = useCallback(
     (session: SessionListItem) => getSessionAgentSourceId(session, agentById),
     [agentById]
   )
+
   const statusOf = useCallback(
     (session: SessionListItem) => getAgentHistoryStatus(streamStatusBySessionId.get(session.id)),
     [streamStatusBySessionId]
   )
+
   const matchesSearch = useCallback(
     (session: SessionListItem, keywords: string) => {
       const agent = session.agentId ? agentById.get(session.agentId) : undefined
+
       return (
         [session.name, agent?.name].some((value) => value && matchesSearchText(value, keywords)) ||
         Boolean(session.description?.toLowerCase().includes(keywords))
@@ -427,10 +461,12 @@ const AgentHistoryRecords = ({
     },
     [agentById]
   )
+
   const onActiveRecordChange = useCallback(
     (session: SessionListItem | null) => onActiveSessionChange?.(session?.id ?? null),
     [onActiveSessionChange]
   )
+
   const rowDescriptor = useMemo(
     () => ({
       getName: (session: SessionListItem) => historySessionLabel(session.name),
@@ -439,6 +475,7 @@ const AgentHistoryRecords = ({
         (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? unknownAgentLabel,
       renderAvatar: (session: SessionListItem) => {
         const agent = session.agentId ? agentById.get(session.agentId) : undefined
+
         return (
           <AssistantAvatarImage
             src={agent?.avatarSrc}
@@ -463,6 +500,7 @@ const AgentHistoryRecords = ({
       getRowActions: (session: SessionListItem, openRename: (id: string, name: string) => void) => {
         const contextOverride = { startEdit: () => openRename(session.id, session.name ?? '') }
         const actions = sessionMenuPreset.getActions(session, contextOverride)
+
         return {
           actions,
           onAction: (action: ResolvedAction) => sessionMenuPreset.onAction(session, action, contextOverride)
@@ -504,6 +542,7 @@ const AgentHistoryRecords = ({
     renderSourceFilter: (selectedId, onSelect) => {
       const source = selectedId ? agentSources.find((candidate) => candidate.id === selectedId) : undefined
       const agent = selectedId ? agentById.get(selectedId) : undefined
+
       return (
         <HistorySourceFilterField
           label={

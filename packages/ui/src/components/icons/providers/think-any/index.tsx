@@ -6,7 +6,9 @@ import { ThinkAnyLight } from './light'
 
 const ThinkAny = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ThinkAnyLight {...props} className={className} />
+
   if (variant === 'dark') return <ThinkAnyDark {...props} className={className} />
+
   return (
     <>
       <ThinkAnyLight className={cn('dark:hidden', className)} {...props} />

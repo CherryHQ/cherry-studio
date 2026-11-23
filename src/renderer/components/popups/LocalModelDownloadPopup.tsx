@@ -52,6 +52,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, id, description }) => 
   const handleCancel = useCallback(() => {
     if (!downloading) {
       resolve(false)
+
       return
     }
 

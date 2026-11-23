@@ -13,6 +13,7 @@ const normalizeExportText = (text: string): string =>
   text
     .replace(ENTITY_MARKER, (_, payload: string) => {
       const [, label] = JSON.parse(payload) as [string, string, string]
+
       return label
     })
     .replace(URL_MARKER, (_, label: string, target: string) =>
@@ -126,7 +127,9 @@ export class ChatgptImporter implements ConversationImporter {
    */
   private mapRole(chatgptRole: ChatGPTMessage['author']['role']): ImportMessageNode['role'] {
     if (chatgptRole === 'user') return 'user'
+
     if (chatgptRole === 'assistant') return 'assistant'
+
     return 'system'
   }
 
@@ -147,11 +150,14 @@ export class ChatgptImporter implements ConversationImporter {
       .join('\n\n')
 
     const node: Pick<ImportMessageNode, 'sourceId' | 'parentSourceId'> = { sourceId }
+
     if (parentSourceId) node.parentSourceId = parentSourceId
+
     const message: ImportMessageNode = Object.assign(node, {
       role,
       parts: [{ type: 'text', text: content }] satisfies ImportMessageNode['parts']
     })
+
     // Set model for assistant messages to display GPT-5 logo
     if (role === 'assistant')
       message.model = {
@@ -160,6 +166,7 @@ export class ChatgptImporter implements ConversationImporter {
         name: 'GPT-5',
         group: 'gpt-5'
       }
+
     return message
   }
 
@@ -170,10 +177,13 @@ export class ChatgptImporter implements ConversationImporter {
     const importedNodeIds = new Set(
       Object.entries(conversation.mapping).flatMap(([sourceId, node]) => {
         const message = node.message
+
         if (!message || message.author.role === 'tool') return []
+
         return extractTextParts(message.content?.parts).some((part) => part.trim().length > 0) ? [sourceId] : []
       })
     )
+
     // Walk up the parent chain until an imported message is reached, so filtered-out
     // messages (and the export's null-message root sentinel) never leak into the
     // imported tree. The visited set keeps cyclic parent pointers in malformed exports
@@ -181,15 +191,19 @@ export class ChatgptImporter implements ConversationImporter {
     const resolveImportedNodeId = (sourceId?: string): string | undefined => {
       const visited = new Set<string>()
       let candidate = sourceId
+
       while (candidate && !importedNodeIds.has(candidate)) {
         if (visited.has(candidate)) return undefined
         visited.add(candidate)
         candidate = conversation.mapping[candidate]?.parent
       }
+
       return candidate
     }
+
     const messages = Object.entries(conversation.mapping).flatMap(([sourceId, node]) => {
       if (!importedNodeIds.has(sourceId) || !node.message) return []
+
       return [this.createMessage(sourceId, resolveImportedNodeId(node.parent), node.message)]
     })
 

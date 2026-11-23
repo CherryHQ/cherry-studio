@@ -47,6 +47,7 @@ function reconcileModelStatuses(statuses: ModelWithStatus[], models: readonly Mo
 
   for (const status of statuses) {
     const currentModel = currentModels.get(status.model.id)
+
     if (!currentModel || createModelCheckFingerprint(currentModel) !== createModelCheckFingerprint(status.model)) {
       changed = true
       continue
@@ -66,6 +67,7 @@ function reconcileModelStatuses(statuses: ModelWithStatus[], models: readonly Mo
 function createInitialStatuses(models: readonly Model[]) {
   return models.map<ModelWithStatus>((model) => {
     const skipReason = getModelHealthCheckSkipReason(model)
+
     return skipReason
       ? {
           kind: 'skipped',
@@ -110,9 +112,11 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
   const publishStatuses = useCallback((statuses: ModelWithStatus[]) => {
     const nextIds = new Set(statuses.map((status) => status.model.id))
     const staleIds = [...statusesRef.current.map((status) => status.model.id), ...modelsRef.current.map((m) => m.id)]
+
     for (const modelId of staleIds) {
       if (!nextIds.has(modelId)) clearModelHealthStatus(modelId)
     }
+
     statusesRef.current = statuses
     statuses.forEach(writeModelHealthStatus)
   }, [])
@@ -159,17 +163,20 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
           (checkResult, index) => {
             if (runIdRef.current !== runId || controller.signal.aborted) return
             const originalIndex = originalIndexes[index]
+
             if (originalIndex == null) return
 
             statusesRef.current = statusesRef.current.with(originalIndex, checkResult)
             writeModelHealthStatus(checkResult)
           }
         )
+
         if (runIdRef.current !== runId || controller.signal.aborted) return
 
         finalStatuses = [...initialStatuses]
         checkedResults.forEach((result, index) => {
           const originalIndex = originalIndexes[index]
+
           if (originalIndex != null) finalStatuses[originalIndex] = result
         })
         finalStatuses = reconcileModelStatuses(finalStatuses, modelsRef.current)
@@ -213,20 +220,24 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
 
       try {
         const credentials = await prepareCredentials(keySelection, controller.signal)
+
         if (runIdRef.current !== runId || controller.signal.aborted) return false
 
         const runModels = modelsRef.current
 
         if (runModels.length === 0) {
           toast.error({ timeout: 5000, title: i18n.t('settings.provider.no_models_for_check') })
+
           return false
         }
 
         const initialStatuses = createInitialStatuses(runModels)
         const originalIndexes = initialStatuses.flatMap((status, index) => (status.kind === 'skipped' ? [] : [index]))
+
         const checkableModels = originalIndexes
           .map((index) => runModels[index])
           .filter((model): model is Model => !!model)
+
         publishStatuses(initialStatuses)
         setCompletedModelStatuses([])
 
@@ -236,6 +247,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
           setIsChecking(false)
           setCompletedModelStatuses(initialStatuses)
           toast.success(summarizeHealthResults(initialStatuses, provider.name))
+
           return true
         }
 
@@ -250,9 +262,11 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
           isConcurrent,
           timeout
         })
+
         return true
       } catch (error) {
         if (runIdRef.current !== runId || controller.signal.aborted) return false
+
         if (error instanceof ModelCheckCredentialsSaveError) {
           logger.error('Failed to save API keys before all-model check', { providerId, error: error.cause })
         } else if (error instanceof ModelCheckCredentialsError) {
@@ -261,6 +275,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
           logger.error('Failed to prepare all-model check', { providerId, error })
           toast.error(i18n.t('settings.models.check.failed_to_start'))
         }
+
         return false
       } finally {
         if (!backgroundStarted && runIdRef.current === runId) {
@@ -278,6 +293,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
   useEffect(() => {
     publishStatuses([])
     setCompletedModelStatuses([])
+
     return () => {
       abortInFlightCheck()
       publishStatuses([])
@@ -287,6 +303,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
   useEffect(() => {
     if (isChecking) return
     const nextStatuses = reconcileModelStatuses(statusesRef.current, models)
+
     if (nextStatuses !== statusesRef.current) {
       publishStatuses(nextStatuses)
       setCompletedModelStatuses(nextStatuses)

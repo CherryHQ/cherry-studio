@@ -47,9 +47,13 @@ const logger = loggerService.withContext('FilesPage')
 const FILES_PAGE_LIMIT = 100
 
 type ServerSortKey = 'name' | 'size' | 'updatedAt' | 'ext'
+
 type FileMetadataById = OutputFor<'file.batch_get_metadata'>
+
 type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
+
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
+
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
 
 interface EmbeddedFilePreview {
@@ -67,13 +71,16 @@ async function inspectFailedFileIds(
 ): Promise<{ activeInternalIds: Set<FileEntryId>; trashedInternalIds: Set<FileEntryId> }> {
   const activeInternalIds = new Set<FileEntryId>()
   const trashedInternalIds = new Set<FileEntryId>()
+
   for (let index = 0; index < failures.length; index += FILE_DETAIL_LOOKUP_CONCURRENCY) {
     const chunk = failures.slice(index, index + FILE_DETAIL_LOOKUP_CONCURRENCY)
     await Promise.all(
       chunk.map(async ({ id }) => {
         try {
           const current = await dataApiService.get(`/files/entries/${id}`)
+
           if (current.origin !== 'internal') return
+
           if (current.deletedAt == null) activeInternalIds.add(id)
           else trashedInternalIds.add(id)
         } catch {
@@ -82,6 +89,7 @@ async function inspectFailedFileIds(
       })
     )
   }
+
   return { activeInternalIds, trashedInternalIds }
 }
 
@@ -89,6 +97,7 @@ async function requestBatchedInternalEntryCreates(
   paths: readonly AbsoluteFilePath[]
 ): Promise<BatchCreateInternalEntriesResult> {
   const chunks: AbsoluteFilePath[][] = []
+
   for (let i = 0; i < paths.length; i += FILE_IPC_CREATE_BATCH_SIZE) {
     chunks.push(paths.slice(i, i + FILE_IPC_CREATE_BATCH_SIZE))
   }
@@ -114,9 +123,11 @@ async function requestBatchedInternalEntryCreates(
 
 function formatDateTime(timestamp: number): string {
   const date = new Date(timestamp)
+
   if (Number.isNaN(date.getTime())) return '—'
 
   const pad = (value: number) => value.toString().padStart(2, '0')
+
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(
     date.getMinutes()
   )}`
@@ -129,6 +140,7 @@ function displayNameOf(entry: FileEntry): string {
 function stripCurrentExtension(name: string, format: string): string {
   if (!format) return name
   const suffix = `.${format}`
+
   return name.toLowerCase().endsWith(suffix.toLowerCase()) ? name.slice(0, -suffix.length) : name
 }
 
@@ -138,12 +150,14 @@ function canStartInlineRename(file: FileItem | undefined): file is FileItem {
 
 function useStableFileEntries(entries: FileEntry[]): FileEntry[] {
   const stableRef = useRef(entries)
+
   if (
     stableRef.current.length !== entries.length ||
     stableRef.current.some((entry, index) => entry !== entries[index])
   ) {
     stableRef.current = entries
   }
+
   return stableRef.current
 }
 
@@ -176,11 +190,13 @@ function toFileItem(
     danglingState,
     isMissing
   }
+
   if (sourcePath) base.sourcePath = sourcePath
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
     const imagePath = entry.origin === 'external' ? entry.externalPath : physicalPath
+
     return {
       ...base,
       ...originFields,
@@ -199,6 +215,7 @@ function warnMutationFailures(
   if (!result || result.failed.length === 0) return false
 
   logger.warn(`${action} partially failed`, { failed: result.failed })
+
   return true
 }
 
@@ -212,8 +229,11 @@ function reportImportFailures(result: { failed: Array<{ sourceRef: string; error
 function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
   if (event.defaultPrevented) return true
   const target = event.target
+
   if (!(target instanceof HTMLElement)) return false
+
   if (target.isContentEditable) return true
+
   if (target.closest('[data-file-selection-checkbox]')) return false
 
   return Boolean(target.closest('a[href], button, input, select, textarea, [role="button"], [role="menuitem"]'))
@@ -298,6 +318,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   // Sort by raw `ext` server-side so cursor pagination stays globally stable.
   const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
   const activeFileType = filter.kind === 'type' ? filter.value : undefined
+
   const activeFilesQuery = useMemo(
     () => ({
       sortBy: serverSortKey,
@@ -321,6 +342,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     limit: FILES_PAGE_LIMIT,
     swrOptions: { keepPreviousData: true }
   })
+
   const {
     data: fileStats,
     error: fileStatsError,
@@ -332,13 +354,17 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const isFilesLoading = isActiveFilesLoading
   const isFilesRefreshing = isActiveFilesRefreshing
   const entries = useStableFileEntries(useInfiniteFlatItems(activeFilePages))
+
   const activeFilesTotal =
     activeFilePages[0]?.total ?? activeFilePages.reduce((sum, page) => sum + page.items.length, 0)
+
   const previousNonEmptyEntriesRef = useRef<FileEntry[]>([])
+
   const displayEntryCandidate =
     entries.length === 0 && (isFilesLoading || isFilesRefreshing) && previousNonEmptyEntriesRef.current.length > 0
       ? previousNonEmptyEntriesRef.current
       : entries
+
   const displayEntries = useDeferredValue(displayEntryCandidate)
 
   useEffect(() => {
@@ -374,6 +400,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   }, [refreshFileHydration, refetchFileStats, refreshActiveFiles, resetActiveFiles])
 
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
+
   const activeFilterLabel =
     filter.kind === 'library'
       ? t('files.all')
@@ -387,6 +414,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             video: 'files.video'
           }[filter.value]
         )
+
   const hasMoreCurrentFiles = hasMoreActiveFiles
   const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
   const isLoadingMoreCurrentFiles = isLoadingMoreActiveFiles
@@ -409,7 +437,9 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
   const handleContentScroll = useCallback(() => {
     const el = contentScrollRef.current
+
     if (!el) return
+
     if (
       hasMoreCurrentFiles &&
       !isLoadingMoreCurrentFiles &&
@@ -423,8 +453,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const handleOpen = useCallback(
     (file: FileItem) => {
       const imageRequestToken = ++imageRequestTokenRef.current
+
       if (file.type !== 'image' && onEntryIdChange) {
         onEntryIdChange(file.id)
+
         return
       }
 
@@ -435,8 +467,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         .then((physicalPaths) => {
           if (requestRef.current !== requestToken) return
           const filePath = physicalPaths[file.id]
+
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
+
           if (file.type === 'image') {
             // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Image preview can reject any value; normalize only for logging while the user receives the generic localized preview error.
             void ImagePreviewService.show(toSafeFileUrl(normalizedPath, file.format)).catch((error: unknown) => {
@@ -444,8 +478,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
               logger.error('Failed to open image preview', normalized)
               toast.error(t('files.preview.error'))
             })
+
             return
           }
+
           setEmbeddedPreview((current) => ({
             fileName: file.name,
             filePath: normalizedPath,
@@ -465,8 +501,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
   useEffect(() => {
     const requestToken = ++openRequestTokenRef.current
+
     if (!entryId) {
       setEmbeddedPreview(null)
+
       return
     }
 
@@ -477,6 +515,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       .then(([entry, physicalPaths]) => {
         if (openRequestTokenRef.current !== requestToken) return
         const filePath = physicalPaths[entry.id]
+
         if (!filePath) throw new Error(`Physical path is unavailable for file ${entry.id}`)
         setEmbeddedPreview({
           fileName: displayNameOf(entry),
@@ -532,11 +571,13 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         properties: ['openFile', 'multiSelections'],
         filters: [{ name: t('files.all'), extensions: ['*'] }]
       })
+
       if (!selected || selected.length === 0) return
 
       const paths = selected
         .map((file) => AbsoluteFilePathSchema.safeParse(file.path).data)
         .filter((path): path is AbsoluteFilePath => Boolean(path))
+
       await handleImportPaths(paths)
     } catch (error) {
       logger.error('Failed to select files for import', error as Error)
@@ -564,19 +605,24 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     for (const type of ['image', 'video', 'audio', 'text', 'document', 'other'] as FileType[]) {
       counts[`type_${type}`] = 0
     }
+
     for (const { ext, count } of fileStats.extCounts) {
       const type = getFileTypeByExt(ext ?? '')
       counts[`type_${type}`] = (counts[`type_${type}`] ?? 0) + count
     }
+
     return counts
   }, [activeFilesTotal, fileStats])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
+
   const batchDeleteLabel = useMemo(() => {
     if (selectedFiles.length > 0 && selectedFiles.every((file) => file.origin === 'external')) {
       return t('files.remove_from_library')
     }
+
     if (selectedFiles.some((file) => file.origin === 'external')) return t('files.delete_or_remove')
+
     return t('files.delete.label')
   }, [selectedFiles, t])
 
@@ -585,8 +631,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       const anchorIndex = selectionAnchorIdRef.current
         ? filteredFiles.findIndex((file) => file.id === selectionAnchorIdRef.current)
         : -1
+
       const targetIndex = filteredFiles.findIndex((file) => file.id === id)
       const isRangeSelection = shouldSelectRange && anchorIndex >= 0
+
       const selectionIds = isRangeSelection
         ? filteredFiles
             .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
@@ -596,10 +644,12 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       if (!isRangeSelection) selectionAnchorIdRef.current = id
       setSelectedIds((prev) => {
         const next = new Set(prev)
+
         for (const selectionId of selectionIds) {
           if (isChecked) next.add(selectionId)
           else next.delete(selectionId)
         }
+
         return next
       })
     },
@@ -616,6 +666,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         if (checked) return new Set([...prev, ...filteredFiles.map((file) => file.id)])
 
         const visibleIds = new Set(filteredFiles.map((file) => file.id))
+
         return new Set([...prev].filter((id) => !visibleIds.has(id)))
       })
     },
@@ -625,21 +676,26 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const visibleSelectionState = useMemo(() => {
     if (filteredFiles.length === 0) return false
     const selectedVisibleCount = filteredFiles.filter((file) => selectedIds.has(file.id)).length
+
     if (selectedVisibleCount === 0) return false
+
     return selectedVisibleCount === filteredFiles.length ? true : 'indeterminate'
   }, [filteredFiles, selectedIds])
 
   const performDelete = useCallback(
     async (targetIds: Set<string>) => {
       const targets = files.filter((file) => targetIds.has(file.id))
+
       if (targets.length === 0) return
 
       const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
       const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
+
       const [trashResult, removeResult] = await Promise.all([
         requestBatchedFileMutation('file.batch_trash', trashIds),
         requestBatchedFileMutation('file.batch_remove_from_library', removeIds)
       ])
+
       const requestFailed = trashResult.requestFailed || removeResult.requestFailed
 
       try {
@@ -649,10 +705,12 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       }
 
       const { trashedInternalIds: alreadyTrashedIds } = await inspectFailedFileIds(trashResult.failed)
+
       const effectiveTrashResult = {
         ...trashResult,
         failed: trashResult.failed.filter(({ id }) => !alreadyTrashedIds.has(id))
       }
+
       const trashFailed = warnMutationFailures('file trash', effectiveTrashResult)
       const removeFailed = warnMutationFailures('file remove external entries', removeResult)
       const completedIds = new Set([...trashResult.succeeded, ...removeResult.succeeded, ...alreadyTrashedIds])
@@ -666,6 +724,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           )
         )
       }
+
       if (requestFailed) {
         logger.error('Failed to delete files', new Error('One or more file mutation requests failed'))
       }
@@ -678,12 +737,15 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           itemCount: trashedIds.length,
           onUndo: async () => {
             const restoreResult = await requestBatchedFileMutation('file.batch_restore', trashedIds)
+
             try {
               await refetchFiles()
             } catch (error) {
               logger.warn('Failed to refresh files after restore', error as Error)
             }
+
             const { activeInternalIds } = await inspectFailedFileIds(restoreResult.failed)
+
             const reconciledResult = {
               restored: [
                 ...restoreResult.succeeded,
@@ -691,7 +753,9 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
               ],
               failed: restoreResult.failed.filter(({ id }) => !activeInternalIds.has(id))
             }
+
             warnMutationFailures('file restore', reconciledResult)
+
             return reconciledResult
           }
         })
@@ -704,6 +768,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     (targetIds: Set<string>) => {
       if (deleteRequestPendingRef.current) return
       const targets = files.filter((file) => targetIds.has(file.id))
+
       if (targets.length === 0) return
 
       deleteRequestPendingRef.current = true
@@ -712,8 +777,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         try {
           const internalCount = targets.filter((file) => file.origin === 'internal').length
           const externalCount = targets.length - internalCount
+
           if (externalCount === 0) {
             await performDelete(new Set(targets.map((file) => file.id)))
+
             return
           }
 
@@ -739,6 +806,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
                   okButtonProps: { danger: true }
                 }
           )
+
           if (confirmed) await performDelete(new Set(targets.map((file) => file.id)))
         } catch (error) {
           logger.error('Failed to delete files', error as Error)
@@ -760,18 +828,24 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const handleRename = useCallback(
     async (id: string, newName: string) => {
       const file = files.find((item) => item.id === id)
+
       if (!file) {
         setRenamingId(null)
+
         return
       }
 
       const entryName = stripCurrentExtension(newName.trim(), file.format).trim()
+
       if (!entryName) {
         setRenamingId(null)
+
         return
       }
+
       if (entryName === stripCurrentExtension(file.name, file.format).trim()) {
         setRenamingId(null)
+
         return
       }
 
@@ -800,6 +874,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     (id: string) => isSidebarShortcutPinned(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.FILE_ENTRY, id)),
     [isSidebarShortcutPinned]
   )
+
   const handleToggleFileSidebar = useCallback(
     (file: FileItem) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.FILE_ENTRY, file.id)
@@ -829,22 +904,28 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     },
     [sortKey]
   )
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (embeddedPreview || renamingId || shouldIgnoreFileShortcut(e)) return
+
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         e.preventDefault()
+
         if (deleteRequestPending) return
         handleDelete()
       }
+
       if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
         e.preventDefault()
         const selectedId = [...selectedIds][0]
         const selectedFile = files.find((file) => file.id === selectedId)
+
         if (!canStartInlineRename(selectedFile)) return
 
         startInlineRename(selectedFile.id)
       }
+
       if (
         (isMac ? e.metaKey : e.ctrlKey) &&
         !e.shiftKey &&
@@ -857,7 +938,9 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         handleSelectAllVisible(true)
       }
     }
+
     document.addEventListener('keydown', handler)
+
     return () => document.removeEventListener('keydown', handler)
   }, [
     deleteRequestPending,
@@ -896,9 +979,11 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           onDrop={(e) => {
             e.preventDefault()
             setDragOver(false)
+
             const paths = Array.from(e.dataTransfer.files)
               .map((file) => AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file)).data)
               .filter((path): path is AbsoluteFilePath => Boolean(path))
+
             void handleImportPaths(paths)
           }}>
           <PageHeader

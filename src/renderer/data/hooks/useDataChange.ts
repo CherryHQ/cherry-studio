@@ -25,8 +25,10 @@ export function useDataChange(
   useEffect(() => {
     if (endpointsKey === '') return
     const endpointList = endpointsKey.split('\0') as GetMethodApiPaths[]
+
     return dataApiService.onDataChanged?.(endpointList, (effects) => {
       const routeParams = routeParamsRef.current
+
       const matchingEffects = routeParams
         ? effects.filter(
             (effect) =>
@@ -34,6 +36,7 @@ export function useDataChange(
               Object.entries(routeParams).every(([key, value]) => effect.routeParams?.[key] === value)
           )
         : effects
+
       if (matchingEffects.length > 0) listenerRef.current(matchingEffects)
     })
   }, [endpointsKey])

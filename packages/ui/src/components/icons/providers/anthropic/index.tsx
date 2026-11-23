@@ -6,7 +6,9 @@ import { AnthropicLight } from './light'
 
 const Anthropic = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AnthropicLight {...props} className={className} />
+
   if (variant === 'dark') return <AnthropicDark {...props} className={className} />
+
   return (
     <>
       <AnthropicLight className={cn('dark:hidden', className)} {...props} />

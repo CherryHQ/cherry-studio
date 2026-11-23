@@ -45,6 +45,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
     className,
     popoverContentProps
   } = props
+
   const itemsProp = 'items' in props ? props.items : undefined
   const sectionsProp = 'sections' in props ? props.sections : undefined
 
@@ -54,16 +55,21 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
     if (sectionsProp) {
       const offsets: number[] = []
       const flat: T[] = []
+
       for (const section of sectionsProp) {
         offsets.push(flat.length)
         flat.push(...section.items)
       }
+
       return { flatItems: flat, sectionOffsets: offsets }
     }
+
     return { flatItems: itemsProp ?? [], sectionOffsets: [] }
   }, [sectionsProp, itemsProp])
+
   const [internalOpen, setInternalOpen] = useState(false)
   const open = openProp ?? internalOpen
+
   const setOpen = useCallback(
     (next: boolean) => {
       if (openProp === undefined) setInternalOpen(next)
@@ -93,6 +99,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
 
   const selectedSet = useMemo(() => {
     if (mode === 'multi') return new Set(Array.isArray(value) ? value : [])
+
     return new Set(value && typeof value === 'string' ? [value] : [])
   }, [mode, value])
 
@@ -106,11 +113,14 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
     const selectedIdx = flatItems.findIndex((it) => selectedSet.has(it.id) && !it.disabled)
     setActiveIndex(selectedIdx >= 0 ? selectedIdx : firstEnabledIndex)
   }, [flatItems, firstEnabledIndex, selectedSet])
+
   useEffect(() => {
     if (!open) {
       setActiveIndex(-1)
+
       return
     }
+
     initActiveIndex()
   }, [open, flatItems, firstEnabledIndex, initActiveIndex])
 
@@ -119,10 +129,13 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
       if (flatItems.length === 0) return -1
       const total = flatItems.length
       let i = from
+
       for (let n = 0; n < total; n++) {
         i = (i + direction + total) % total
+
         if (!flatItems[i]?.disabled) return i
       }
+
       return -1
     },
     [flatItems]
@@ -131,11 +144,13 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
   const handleSelectItem = useCallback(
     (item: T) => {
       if (item.disabled) return
+
       // `mode` fixes the onChange payload shape (string vs string[]); the toolbar's enabled flag
       // only affects interaction semantics within multi mode (checkbox toggle vs radio-in-array).
       if (mode === 'multi') {
         if (isMultiMode) {
           const current = new Set(Array.isArray(value) ? value : [])
+
           if (current.has(item.id)) current.delete(item.id)
           else current.add(item.id)
           onChange(Array.from(current))
@@ -160,35 +175,46 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
       // for browsers that don't expose `isComposing` on the native event.
       // oxlint-disable-next-line no-deprecated
       if (event.nativeEvent.isComposing || event.keyCode === 229) return
+
       switch (event.key) {
         case 'ArrowDown': {
           event.preventDefault()
           setActiveIndex((i) => step(i < 0 ? -1 : i, 1))
+
           return
         }
+
         case 'ArrowUp': {
           event.preventDefault()
           setActiveIndex((i) => step(i < 0 ? flatItems.length : i, -1))
+
           return
         }
+
         case 'Home': {
           if (flatItems.length === 0) return
           event.preventDefault()
           setActiveIndex(step(-1, 1))
+
           return
         }
+
         case 'End': {
           if (flatItems.length === 0) return
           event.preventDefault()
           setActiveIndex(step(0, -1))
+
           return
         }
+
         case 'Enter': {
           if (activeIndex < 0) return
           const item = flatItems[activeIndex]
+
           if (!item || item.disabled) return
           event.preventDefault()
           handleSelectItem(item)
+
           return
         }
       }
@@ -200,6 +226,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
   useEffect(() => {
     if (activeIndex < 0) return
     const item = flatItems[activeIndex]
+
     if (!item) return
     const el = listRef.current?.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(item.id)}"]`)
     el?.scrollIntoView({ block: 'nearest' })
@@ -211,7 +238,9 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
   const ctxMenuNode = useMemo(() => {
     if (!renderItemContextMenu || !ctxMenu.position) return null
     const target = flatItems.find((it) => it.id === ctxMenu.position!.itemId)
+
     if (!target) return null
+
     return renderItemContextMenu(target, { close: ctxMenu.close })
   }, [renderItemContextMenu, ctxMenu.position, ctxMenu.close, flatItems])
 
@@ -233,6 +262,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
   const renderOptionRow = (item: T, flatIndex: number) => {
     const isSelected = selectedSet.has(item.id)
     const isActive = flatIndex === activeIndex
+
     return (
       <div
         key={item.id}
@@ -271,9 +301,11 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
           // on `detail.originalEvent`. Then delegate to the caller.
           onInteractOutside={(event) => {
             const originalTarget = (event.detail?.originalEvent?.target ?? event.target) as Element | null
+
             if (originalTarget?.closest?.('[data-entity-context-menu-root]')) {
               event.preventDefault()
             }
+
             userOnInteractOutside?.(event)
           }}
           onKeyDown={(event) => {
@@ -286,8 +318,10 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
             if (filterOpen) {
               event.preventDefault()
               setFilterOpen(false)
+
               return
             }
+
             userOnEscapeKeyDown?.(event)
           }}
           // Radix auto-focuses the first focusable on Content mount. When search exists, block the
@@ -299,6 +333,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
               event.preventDefault()
               searchInputRef.current?.focus()
             }
+
             userOnOpenAutoFocus?.(event)
           }}
           className={cn(
@@ -348,6 +383,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
                   ? sectionsProp.map((section, sIdx) => {
                       if (section.items.length === 0) return null
                       const offset = sectionOffsets[sIdx] ?? 0
+
                       return (
                         <div key={section.key} role="group">
                           {section.header != null ? (

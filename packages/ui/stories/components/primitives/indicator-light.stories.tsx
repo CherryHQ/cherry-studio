@@ -34,6 +34,7 @@ const meta: Meta<typeof IndicatorLight> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {

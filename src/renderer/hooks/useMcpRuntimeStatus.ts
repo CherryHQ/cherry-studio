@@ -19,6 +19,7 @@ export function getDefaultMcpRuntimeStatus(isActive: boolean): McpRuntimeStatus 
 export function useMcpRuntimeStatus(serverId: string | undefined, isActive: boolean): McpRuntimeStatus {
   const key = serverId ? mcpStatusCacheKey(serverId) : mcpStatusCacheKey('__draft__')
   const cached = useSharedCacheValue(key)
+
   return cached ?? getDefaultMcpRuntimeStatus(isActive)
 }
 

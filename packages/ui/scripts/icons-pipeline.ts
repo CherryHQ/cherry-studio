@@ -41,6 +41,7 @@ function parseArgs(): PipelineArgs {
   for (const arg of args) {
     if (arg.startsWith('--dir=')) {
       const value = arg.split('=')[1]
+
       if (value === 'providers' || value === 'models') {
         dir = value
       } else {
@@ -67,8 +68,10 @@ function parseArgs(): PipelineArgs {
  */
 async function hasRasterFiles(dir: string): Promise<boolean> {
   const rasterExts = new Set(['.png', '.jpg', '.jpeg'])
+
   try {
     const entries = await fs.readdir(dir)
+
     return entries.some((f) => rasterExts.has(path.extname(f).toLowerCase()))
   } catch {
     return false
@@ -151,6 +154,7 @@ async function main() {
     console.log('─'.repeat(50))
 
     const stepStart = Date.now()
+
     try {
       const exitCode = await runStep('tsx', step.args, uiRoot)
       const durationMs = Date.now() - stepStart
@@ -192,6 +196,7 @@ async function main() {
   console.log(`\n  Total: ${totalMs}ms`)
 
   const failed = results.some((r) => r.status === 'failed')
+
   if (failed) {
     console.log('\n  Pipeline failed. Fix the errors above and re-run.\n')
     process.exit(1)

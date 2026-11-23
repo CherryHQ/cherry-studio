@@ -82,6 +82,7 @@ export class RuntimeExecutor<
     // Some v3 providers (e.g., @openrouter/ai-sdk-provider) expose textEmbeddingModel
     // but not embeddingModel. Patch for AI SDK registry compatibility.
     const provider = config.provider
+
     if (!provider.embeddingModel && provider.textEmbeddingModel) {
       provider.embeddingModel = (modelId: string) => provider.textEmbeddingModel!(modelId)
     }
@@ -158,6 +159,7 @@ export class RuntimeExecutor<
                       const handler = startProviderCall(onProviderCallStart, onProviderCall)
                       const startedAt = performance.now()
                       const result = await doGenerate()
+
                       const event: Omit<
                         Extract<RuntimeProviderCallEvent, { modality: 'image' }>,
                         'metrics' | 'completedAt'
@@ -168,17 +170,20 @@ export class RuntimeExecutor<
                         modelId: activeModel.modelId,
                         imageCount: result.images.length
                       }
+
                       if (result.usage) event.usage = result.usage
                       emitProviderCall(handler, {
                         ...event,
                         metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
                         completedAt: Date.now()
                       })
+
                       return result
                     }
                   }
                 })
               : resolvedModel
+
           return _generateImage({ ...transformedParams, model: observedModel })
         },
         undefined,
@@ -194,6 +199,7 @@ export class RuntimeExecutor<
           error
         )
       }
+
       throw error
     }
   }
@@ -220,6 +226,7 @@ export class RuntimeExecutor<
                 const handler = startProviderCall(onProviderCallStart, onProviderCall)
                 const startedAt = performance.now()
                 const result = await doEmbed()
+
                 const event: Omit<
                   Extract<RuntimeProviderCallEvent, { modality: 'embedding' }>,
                   'metrics' | 'completedAt'
@@ -229,12 +236,14 @@ export class RuntimeExecutor<
                   providerId: this.config.providerId,
                   modelId: model.modelId
                 }
+
                 if (result.usage) event.usage = result.usage
                 emitProviderCall(handler, {
                   ...event,
                   metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
                   completedAt: Date.now()
                 })
+
                 return result
               }
             }
@@ -273,10 +282,12 @@ export class RuntimeExecutor<
                 metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
                 completedAt: Date.now()
               })
+
               return result
             }
           }
         : rerankingModel
+
     return _rerank<VALUE>({ model: observedModel, ...options })
   }
 
@@ -298,6 +309,7 @@ export class RuntimeExecutor<
     if (this.config.modelResolver) {
       return this.config.modelResolver(modelId)
     }
+
     return this.registry.languageModel(`${this.config.providerId}:${modelId}` as `${string}:${string}`)
   }
 
@@ -327,6 +339,7 @@ export class RuntimeExecutor<
             'All providers should be wrapped with wrapProvider to return V3 models.'
         )
       }
+
       return modelOrId
     }
   }

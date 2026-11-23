@@ -9,4 +9,5 @@ import SubWindowApp from './SubWindowApp'
 await prepareWindow({ preference: 'all' })
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
+
 root.render(<SubWindowApp />)

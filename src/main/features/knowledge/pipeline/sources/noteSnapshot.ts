@@ -23,6 +23,7 @@ export function buildNoteSnapshotFile(source: string, content: string, timestamp
     title: getKnowledgeNoteFirstLine(source),
     timestamp
   })
+
   return {
     slug: deriveNoteSnapshotSlug(source),
     fileText: frontmatter + content
@@ -46,5 +47,6 @@ export async function captureNoteSnapshotFile(
 ): Promise<string> {
   const { slug, fileText } = buildNoteSnapshotFile(source, content, new Date().toISOString())
   const relativePath = reserveImportedFileRelativePath(`${slug}.md`, false, reservedPaths)
+
   return await writeFileIntoKnowledgeBaseAt(baseId, relativePath, fileText)
 }

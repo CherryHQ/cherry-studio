@@ -28,9 +28,12 @@ export const bocha: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG['bocha'],
   async execute(context) {
     const { call } = context
+
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
     const body = { query: call.input, count: call.config.maxResults, summary: true }
+
     if (call.config.excludeDomains !== undefined) Object.assign(body, { exclude: call.config.excludeDomains.join(',') })
+
     const payload = await requestJson(
       context,
       {
@@ -42,6 +45,7 @@ export const bocha: WebSearchProviderModule = {
       BochaSearchResponseSchema,
       (value) => checkProviderError(context, value, 'code')
     )
+
     return payload.data.webPages.value.map((item) => ({
       title: item.name,
       content: item.summary || item.snippet || '',

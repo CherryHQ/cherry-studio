@@ -26,11 +26,13 @@ const logger = loggerService.withContext('AgentBrowserRuntimeHost')
 function clearMessageSelection(): void {
   const messages = document.getElementById('messages')
   const selection = window.getSelection()
+
   if (!messages || !selection || selection.isCollapsed) return
 
   for (let index = 0; index < selection.rangeCount; index += 1) {
     if (!selection.getRangeAt(index).intersectsNode(messages)) continue
     selection.removeAllRanges()
+
     return
   }
 }
@@ -39,6 +41,7 @@ function clearMessageSelection(): void {
 export function AgentBrowserRuntimeHost() {
   useIpcOn('browser.guest.ensure_requested', ({ sessionId, url, scope, pageId, action, activate }) => {
     const runtime = scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService
+
     if (action === 'navigate') runtime.navigate(sessionId, pageId, url ?? 'about:blank')
     else runtime.openPage(sessionId, url, undefined, { pageId, activate })
   })
@@ -49,9 +52,11 @@ export function AgentBrowserRuntimeHost() {
   useIpcOn('browser.page.execution', ({ sessionId, scope, pageId, tabId, executing, webviewId }) => {
     const runtime = scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService
     const page = runtime.get(sessionId, pageId)
+
     if (page?.guest && (page.bindingId === tabId || (!page.bindingId && page.guest.getWebContentsId() === webviewId)))
       runtime.update(sessionId, { executing, bindingId: tabId }, pageId)
   })
+
   return (
     <>
       <BrowserRuntimeHost runtime={agentBrowserRuntimeService} />
@@ -67,11 +72,14 @@ function BrowserRuntimeHost({ runtime, scope }: { runtime: AgentBrowserRuntimeSe
     if (scope === 'topic') {
       const app = getSidebarApp('assistants')
       const owners = new Map<string, string>()
+
       for (const tab of tabs) {
         if (tab.type !== 'route' || !app || !tabBelongsToApp(app, tab.url)) continue
         const topicId = app.conversationRoute?.keyFromUrl(tab.url)
+
         if (topicId) owners.set(tab.id, topicId)
       }
+
       runtime.syncOwners(owners)
     } else {
       runtime.reconcileOwners(new Set(tabs.map((tab) => tab.id)))
@@ -80,8 +88,11 @@ function BrowserRuntimeHost({ runtime, scope }: { runtime: AgentBrowserRuntimeSe
   useEffect(() => () => runtime.dispose(), [runtime])
   useDataChange('/agent-sessions', (effects) => {
     const changed = effects.filter((effect) => effect.kind === 'membership')
+
     if (!changed.length) return
+
     if (scope) return
+
     for (const sessionId of runtime.getIds()) {
       if (!changed.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) continue
       void dataApiService.get(`/agent-sessions/${sessionId}`).catch((error) => {
@@ -92,6 +103,7 @@ function BrowserRuntimeHost({ runtime, scope }: { runtime: AgentBrowserRuntimeSe
   })
   useDataChange('/topics', (effects) => {
     if (!scope || !effects.some((effect) => effect.kind === 'membership')) return
+
     for (const sessionId of runtime.getIds()) {
       void dataApiService.get(`/topics/${sessionId}`).catch((error) => {
         if (isDataApiNotFoundError(error)) runtime.close(sessionId)
@@ -115,6 +127,7 @@ function BrowserSessionGuests({
   scope?: 'topic'
 }) {
   const pages = useSyncExternalStore(runtime.subscribe, () => runtime.getPages(sessionId))
+
   return pages.map((page) => (
     <AgentBrowserGuest key={page.pageId} pageId={page.pageId} sessionId={sessionId} runtime={runtime} scope={scope} />
   ))
@@ -135,6 +148,7 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
   const guest = resource?.guest ?? null
   const tabId = useAgentBrowserGuest(sessionId, guest, 0, scope, pageId)
   useEffect(() => runtime.update(sessionId, { bindingId: tabId }, pageId), [runtime, sessionId, pageId, tabId])
+
   const onWebviewChange = useCallback(
     (webview: WebviewTag | null) =>
       runtime.update(
@@ -144,13 +158,16 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
       ),
     [runtime, sessionId, pageId]
   )
+
   const onOverlaysChange = useCallback(
     (overlays: HTMLDivElement | null) => runtime.update(sessionId, { overlays }, pageId),
     [runtime, sessionId, pageId]
   )
+
   if (!resource) return null
   const { sourceUrl, securityProfile, anchor } = resource
   const authorization = getGuestAuthorizationKey(securityProfile, sourceUrl)
+
   return (
     <WebviewSurface
       anchor={anchor}

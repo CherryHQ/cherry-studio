@@ -4,6 +4,7 @@ import { CanvaLight } from './light'
 
 const Canva = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <CanvaLight {...props} className={className} />
+
   return <CanvaLight {...props} className={className} />
 }
 

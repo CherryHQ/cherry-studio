@@ -6,9 +6,11 @@ export function scopeModelRefresh<M extends { id: string }, O extends { modelId:
 ) {
   const selected = new Set(modelIds)
   const generatedIds = new Set(generated.models.map((model) => model.id))
+
   for (const id of selected) {
     if (!generatedIds.has(id)) throw new Error(`Cannot refresh unknown canonical model: ${id}`)
   }
+
   return {
     models: [
       ...current.models.filter((model) => !selected.has(model.id)),

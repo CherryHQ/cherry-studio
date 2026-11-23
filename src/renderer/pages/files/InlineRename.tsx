@@ -23,6 +23,7 @@ export function InlineRename({
       'inlineRenameFocus',
       () => {
         const input = ref.current
+
         if (!input) return
 
         input.focus()
@@ -32,6 +33,7 @@ export function InlineRename({
       0
     )
   }, [setTimeoutTimer, value])
+
   return (
     <Input
       ref={ref}
@@ -41,7 +43,9 @@ export function InlineRename({
         // Browsers that do not set isComposing report an IME keydown as keyCode 229.
         // oxlint-disable-next-line no-deprecated
         if (e.nativeEvent.isComposing || e.keyCode === 229) return
+
         if (e.key === 'Enter' && text.trim()) onConfirm(text.trim())
+
         if (e.key === 'Escape') onCancel()
       }}
       onBlur={() => {

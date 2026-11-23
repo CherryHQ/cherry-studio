@@ -47,8 +47,10 @@ const buildV1Routes = (mcpSessions: McpSessionStore, surface: GatewaySurface) =>
         const failure =
           authorizeApiRequest(headers['x-api-key'], bearer, undefined, request.headers, surface) ??
           authorizeCredentialScope(request, body, surface)
+
         if (!failure) return undefined
         set.status = failure.status
+
         return { error: failure.error }
       }
     })
@@ -97,10 +99,13 @@ export function buildApp({
     // stamping so a rejected LAN request short-circuits cheaply.
     .onRequest(({ request, set }) => {
       const failure = screenLanRequest(request, new URL(request.url).pathname)
+
       if (failure) {
         set.status = 403
+
         return failure
       }
+
       return undefined
     })
     .use(
@@ -157,6 +162,7 @@ export function buildApp({
         const url = new URL(request.url)
         const lang = resolveDocsLanguage(url)
         const html = renderDocsPage(lang, `${url.origin}${OPENAPI_PATH}/json?lang=${lang}`)
+
         return new Response(html, { headers: { 'content-type': 'text/html; charset=utf8' } })
       },
       { detail: { hide: true } }

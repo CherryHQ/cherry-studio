@@ -19,10 +19,12 @@ const EMPTY_CHANNELS: readonly AgentChannelEntity[] = Object.freeze([])
 
 export const useChannels = (type?: AgentChannelType) => {
   const { t } = useTranslation()
+
   const { data, error, isLoading, refetch, mutate } = useQuery('/agent-channels', {
     query: type ? { type } : undefined,
     swrOptions: { keepPreviousData: false }
   })
+
   useDataChange('/agent-channels', () => void refetch())
   const channels = data ?? (EMPTY_CHANNELS as AgentChannelEntity[])
 
@@ -31,10 +33,12 @@ export const useChannels = (type?: AgentChannelType) => {
       try {
         const channel = await ipcApi.request('channel.create', channelData)
         await mutate()
+
         return channel
       } catch (err) {
         logger.error('Failed to create channel', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.createError')))
+
         return null
       }
     },
@@ -46,10 +50,12 @@ export const useChannels = (type?: AgentChannelType) => {
       try {
         const channel = await ipcApi.request('channel.update', { channelId: id, updates })
         await mutate()
+
         return channel
       } catch (err) {
         logger.error('Failed to update channel', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.updateError')))
+
         return null
       }
     },

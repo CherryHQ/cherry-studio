@@ -53,8 +53,11 @@ const TRANSLATE_STREAM_PREFIX = 'translate:'
 // from the stored effort alone drops a parameter over thinking the model was never going to do.
 function reasoningKindFor(effort: ReasoningEffortOption, model: Model): ResolvedReasoningKind {
   const resolved = resolveSelection(normalizeRequestedSelection(effort, model), model)
+
   if (resolved === undefined || resolved === 'default') return 'omit'
+
   if (resolved === 'none') return 'off'
+
   return 'effort'
 }
 
@@ -101,9 +104,11 @@ export class TranslateService {
     if (!req.streamId.startsWith(TRANSLATE_STREAM_PREFIX)) {
       throw new Error(`streamId must be prefixed '${TRANSLATE_STREAM_PREFIX}' (got '${req.streamId}')`)
     }
+
     if (!isTranslateLangCode(req.targetLangCode) || req.targetLangCode === 'unknown') {
       throw new Error(`Invalid target language: ${req.targetLangCode}`)
     }
+
     const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
     const { uniqueModelId, content, model } = this.resolveTranslatePayload(req.text, targetLanguage)
     const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
@@ -129,6 +134,7 @@ export class TranslateService {
       reasoningEffort,
       callOverrides
     })
+
     return { streamId: req.streamId }
   }
 
@@ -152,6 +158,7 @@ export class TranslateService {
   resolveRequestParameters(model: Model) {
     const preferenceService = application.get('PreferenceService')
     const reasoningEffort = preferenceService.get('feature.translate.reasoning_effort')
+
     const settings = {
       temperature: preferenceService.get('feature.translate.temperature'),
       enableTemperature: preferenceService.get('feature.translate.enable_temperature'),
@@ -183,12 +190,15 @@ export class TranslateService {
   resolveTranslatePayload(text: string, targetLanguage: TranslateLanguage): ResolvedPayload {
     const preferenceService = application.get('PreferenceService')
     const modelIdRaw = preferenceService.get('feature.translate.model_id')
+
     if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
+
     const { providerId, modelId } = parseUniqueModelId(modelIdRaw)
     let provider: ReturnType<typeof providerService.getByProviderId> | undefined
     let model: ReturnType<typeof modelService.getByKey> | undefined
+
     try {
       provider = providerService.getByProviderId(providerId)
       model = modelService.getByKey(providerId, modelId)
@@ -196,10 +206,13 @@ export class TranslateService {
       provider = undefined
       model = undefined
     }
+
     if (!provider || !model) {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
+
     const uniqueModelId = createUniqueModelId(providerId, modelId)
+
     const content = isQwenMTModel(model)
       ? text
       : preferenceService

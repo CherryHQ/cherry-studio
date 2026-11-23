@@ -27,6 +27,7 @@ export function UsageModelAvatar({
   size?: number
 }) {
   const modelName = displayModelId(modelId)
+
   const Icon = useIcon(
     useMemo(
       () =>

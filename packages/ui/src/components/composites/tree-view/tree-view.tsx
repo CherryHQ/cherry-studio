@@ -69,15 +69,19 @@ export function TreeView<T>(props: TreeViewProps<T>) {
 
   const flatById = useMemo(() => {
     const map = new Map<string, FlatTreeItem<T>>()
+
     for (const item of flat) map.set(item.id, item)
+
     return map
   }, [flat])
 
   const canHaveChildrenById = useCallback(
     (id: string): boolean => {
       const found = flatById.get(id)
+
       if (!found) return false
       const fn = adapter.canHaveChildren
+
       return fn ? fn(found.node) : true
     },
     [adapter, flatById]
@@ -108,9 +112,11 @@ export function TreeView<T>(props: TreeViewProps<T>) {
   const renderItem = useCallback(
     (index: number) => {
       const item = flat[index]
+
       if (!item) return null
       const children = adapter.getChildren(item.node)
       const hasChildren = !!(children && children.length > 0) || adapter.canHaveChildren?.(item.node) === true
+
       return (
         <TreeRow
           key={item.id}
@@ -131,7 +137,9 @@ export function TreeView<T>(props: TreeViewProps<T>) {
   const isSticky = useCallback(
     (index: number): boolean => {
       const item = flat[index]
+
       if (!item) return false
+
       return adapter.isSticky ? adapter.isSticky(item.node) : false
     },
     [adapter, flat]

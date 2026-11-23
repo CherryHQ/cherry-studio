@@ -63,6 +63,7 @@ function getBaseTag(sourcePath?: string): string {
   }
 
   const directoryHref = pathToFileURL(path.dirname(sourcePath) + path.sep).toString()
+
   return `<base href="${escapeHtml(directoryHref)}" />`
 }
 
@@ -72,6 +73,7 @@ function toDataUrl(html: string): string {
 
 function getDefaultPdfPath(title: string): string {
   const sanitized = sanitizeFilename(title.trim()) || 'document'
+
   return `${sanitized}.pdf`
 }
 
@@ -284,6 +286,7 @@ export class PrintService {
     try {
       await window.loadURL(toDataUrl(buildPrintableHtml(payload)))
       await window.webContents.executeJavaScript(buildRendererReadyScript(), true)
+
       return { windowId, window }
     } catch (error) {
       windowManager.close(windowId)
@@ -297,12 +300,15 @@ export class PrintService {
       defaultPath: getDefaultPdfPath(payload.title),
       filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
     }
+
     // Parented dialog avoids the unparented-save crash with Unicode names.
     // Missing or destroyed caller window falls back to the unparented overload.
     const candidate: BrowserWindow | undefined = senderId
       ? application.get('WindowManager').getWindow(senderId)
       : undefined
+
     const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
+
     const { canceled, filePath } = parent
       ? await dialog.showSaveDialog(parent, dialogOptions)
       : await dialog.showSaveDialog(dialogOptions)
@@ -320,7 +326,9 @@ export class PrintService {
         preferCSSPageSize: true,
         printBackground: true
       })
+
       await fs.writeFile(filePath, pdfData)
+
       return true
     } catch (error) {
       logger.error('Failed to export printable document to PDF', error as Error)
@@ -339,8 +347,10 @@ export class PrintService {
         window.webContents.print({}, (success, failureReason) => {
           if (success || failureReason === 'Print job canceled') {
             resolve()
+
             return
           }
+
           reject(new Error(failureReason || 'Print job failed'))
         })
       })

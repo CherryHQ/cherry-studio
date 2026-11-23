@@ -28,6 +28,7 @@ export function BarVisualizer({
   useEffect(() => {
     const reset = () => bars.current.forEach((bar) => bar?.style.setProperty('height', `${minHeight}%`))
     reset()
+
     if (!analyser || (state !== 'speaking' && state !== 'listening')) return
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -40,24 +41,32 @@ export function BarVisualizer({
     const update = (timestamp: number) => {
       if (timestamp - lastUpdate >= 1000 / 30) {
         analyser.getByteFrequencyData(frequencies)
+
         for (let index = 0; index < barCount; index++) {
           const low = Math.floor((80 * (upperFrequency / 80) ** (index / barCount)) / binWidth)
+
           const high = Math.min(
             frequencies.length,
             Math.max(low + 1, Math.ceil((80 * (upperFrequency / 80) ** ((index + 1) / barCount)) / binWidth))
           )
+
           let total = 0
+
           for (let bin = low; bin < high; bin++) total += frequencies[bin]
           const volume = total / Math.max(1, high - low) / 255
           const height = Math.min(maxHeight, Math.max(minHeight, volume * 100))
           bars.current[index]?.style.setProperty('height', `${height}%`)
         }
+
         lastUpdate = timestamp
       }
+
       frame = requestAnimationFrame(update)
     }
+
     const synchronize = () => {
       cancelAnimationFrame(frame)
+
       if (document.hidden || reducedMotion.matches) reset()
       else frame = requestAnimationFrame(update)
     }
@@ -65,6 +74,7 @@ export function BarVisualizer({
     synchronize()
     document.addEventListener('visibilitychange', synchronize)
     reducedMotion.addEventListener('change', synchronize)
+
     return () => {
       cancelAnimationFrame(frame)
       document.removeEventListener('visibilitychange', synchronize)

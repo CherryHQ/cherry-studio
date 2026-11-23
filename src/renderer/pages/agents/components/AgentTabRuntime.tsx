@@ -39,6 +39,7 @@ export function AgentTabRuntime({
 
   useEffect(() => {
     if (!isActiveTab) return
+
     if (activeSessionId && activeSessionSource === 'query') {
       cacheService.setPersist('ui.agent.last_used_session_id', activeSessionId)
     }

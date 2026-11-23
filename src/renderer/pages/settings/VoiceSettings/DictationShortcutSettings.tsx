@@ -25,11 +25,13 @@ function ShortcutRow({ mode, disabled }: { mode: 'hold' | 'toggle'; disabled: bo
   const [pending, setPending] = useState('')
   const [error, setError] = useState<'conflict' | 'invalid' | 'save_failed'>()
   const preferences = useCommandShortcutPreferences()
+
   const commandContext = new Map(useCommandContextSnapshot())
     .set('chat.active', true)
     .set('topic.exists', true)
     .set('input.composing', false)
     .set('webview.focused', false)
+
   const pressed = useRef(new Map<string, string>())
   useEffect(() => {
     if (disabled) {
@@ -41,26 +43,33 @@ function ShortcutRow({ mode, disabled }: { mode: 'hold' | 'toggle'; disabled: bo
   }, [disabled])
   useEffect(() => {
     if (disabled || !recording) return
+
     const cancel = () => {
       pressed.current.clear()
       setRecording(false)
     }
+
     const visibility = () => {
       if (document.hidden) cancel()
     }
+
     window.addEventListener('blur', cancel)
     document.addEventListener('visibilitychange', visibility)
+
     return () => {
       window.removeEventListener('blur', cancel)
       document.removeEventListener('visibilitychange', visibility)
     }
   }, [disabled, recording])
   const label = t(mode === 'hold' ? 'settings.voice.shortcuts.hold.label' : 'settings.voice.shortcuts.toggle.label')
+
   const description = t(
     mode === 'hold' ? 'settings.voice.shortcuts.hold.description' : 'settings.voice.shortcuts.toggle.description'
   )
+
   const display = (binding: string) =>
     formatDictationShortcut(binding, isMac, t('settings.voice.shortcuts.left'), t('settings.voice.shortcuts.right'))
+
   return (
     <SettingRow id={`setting-voice-dictation-${mode}`} className="scroll-mt-6 flex-wrap gap-3">
       <div className="flex flex-col gap-1">
@@ -110,10 +119,13 @@ function ShortcutRow({ mode, disabled }: { mode: 'hold' | 'toggle'; disabled: bo
             if (disabled || !recording) return
             event.preventDefault()
             event.stopPropagation()
+
             if (event.key === 'Escape') {
               setRecording(false)
+
               return
             }
+
             if (event.repeat) return
             pressed.current.set(event.code, event.key)
             setPending([...pressed.current.keys()].sort().join('+'))
@@ -123,30 +135,39 @@ function ShortcutRow({ mode, disabled }: { mode: 'hold' | 'toggle'; disabled: bo
             event.preventDefault()
             event.stopPropagation()
             const candidate = parseDictationShortcut([...pressed.current.keys()].join('+')).join('+')
+
             const commandConflict = hasDictationCommandConflict(
               candidate,
               { preferences, context: commandContext, platform },
               pressed.current
             )
+
             pressed.current.delete(event.code)
             const eventBinding = getShortcutBindingFromKeyboardEvent(event, platform)
+
             const lostModifier = getDictationShortcutBinding([...pressed.current.keys()].join('+'), platform)
               .filter(isShortcutModifier)
               .some((modifier) => !eventBinding.includes(modifier))
+
             if (!candidate || lostModifier) {
               setError('invalid')
               setRecording(false)
+
               return
             }
+
             const pairConflict =
               mode === 'hold'
                 ? dictationShortcutsConflict(candidate, other)
                 : dictationShortcutsConflict(other, candidate)
+
             if (pairConflict || commandConflict) {
               setError('conflict')
               setRecording(false)
+
               return
             }
+
             void setValue(candidate).catch(() => setError('save_failed'))
             setRecording(false)
           }}>
@@ -175,6 +196,7 @@ export function DictationShortcutSettings({ disabled = false }: { disabled?: boo
   const { t } = useTranslation()
   const [mouseHold, setMouseHold] = usePreference('feature.voice.dictation.mouse_hold_enabled')
   const [saveFailed, setSaveFailed] = useState(false)
+
   return (
     <>
       <SettingRow id="setting-voice-dictation-mouse-hold" className="scroll-mt-6 flex-wrap gap-3">

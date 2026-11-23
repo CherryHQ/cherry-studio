@@ -34,6 +34,7 @@ class Spring {
     this.value = this.target + envelope * (offset * cos + amplitude * sin)
     this.velocity =
       envelope * ((amplitude * frequency - decay * offset) * cos - (offset * frequency + decay * amplitude) * sin)
+
     if (this.settled) this.snap(this.target)
   }
 }
@@ -104,15 +105,20 @@ export class BrowserCursorAnimation {
     this.springs.x.target = this.target.x
     this.springs.y.target = this.target.y
     this.moving = true
+
     if (!this.positioned || !animate || reducedMotion || this.distance < 0.5) {
       this.snapPosition()
+
       if (reducedMotion) {
         for (const spring of Object.values(this.springs)) spring.snap(spring.target)
       }
+
       this.render()
       this.arrive()
     }
+
     this.positioned = true
+
     if (pressed && !reducedMotion) this.springs.scoot.snap(-0.04)
     this.springs.scoot.target = 0
     this.wake()
@@ -128,9 +134,11 @@ export class BrowserCursorAnimation {
       this.springs.scoot.target =
       this.springs.rotation.target =
         0
+
     if (immediate || this.reducedMotion) {
       if (this.frame !== undefined) cancelAnimationFrame(this.frame)
       this.frame = undefined
+
       for (const spring of Object.values(this.springs)) spring.snap(spring.target)
       this.render()
     } else this.wake()
@@ -159,10 +167,13 @@ export class BrowserCursorAnimation {
     this.onArrived()
     this.idleTimer = setTimeout(() => {
       this.idleTimer = undefined
+
       if (this.reducedMotion) {
         this.hide(true)
+
         return
       }
+
       this.idleStart = performance.now()
       this.wake()
     }, 450)
@@ -180,6 +191,7 @@ export class BrowserCursorAnimation {
     this.lastFrame = now
     const s = this.springs
     s.progress.step(seconds)
+
     if (this.moving && this.curved) {
       const p = clamp(s.progress.value, 1)
       const bend = Math.min(80, this.distance * 0.12)
@@ -193,22 +205,28 @@ export class BrowserCursorAnimation {
       s.x.step(seconds)
       s.y.step(seconds)
     }
+
     const envelope = this.moving ? Math.sin(Math.PI * clamp(s.progress.value, 1)) : 0
     s.heading.target = Math.sin(this.direction + Math.PI / 4) * 22 * envelope
     s.stretch.target = this.curved ? envelope * Math.min(0.32, this.distance / 2000) : 0
     s.scoot.target = this.curved ? 0 : envelope * Math.min(0.22, this.distance / 500)
     s.rotation.target = this.curved ? 0 : Math.sin(this.direction) * envelope * 12
+
     if (this.idleStart !== undefined) {
       const progress = clamp((now - this.idleStart) / 750, 1)
       s.rotation.target = Math.sin(progress * Math.PI * 4) * Math.sin(progress * Math.PI) * 5
+
       if (progress === 1) {
         this.idleStart = undefined
         s.visibility.target = 0
       }
     }
+
     for (const spring of [s.heading, s.stretch, s.scoot, s.rotation, s.visibility]) spring.step(seconds)
     this.render()
+
     if (this.moving && (this.curved ? s.progress.settled : s.x.settled && s.y.settled)) this.arrive()
+
     if (this.moving || this.idleStart !== undefined || Object.values(s).some((spring) => !spring.settled)) {
       this.frame = requestAnimationFrame(this.tick)
     }

@@ -47,6 +47,7 @@ const meta: Meta<typeof Combobox> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Mock data - 根据设计稿中的用户选择场景
@@ -386,6 +387,7 @@ export const AllStates: Story = {
 export const AllSizes: Story = {
   render: function AllSizesExample() {
     const [value, setValue] = useState('')
+
     return (
       <div className="flex flex-col gap-4">
         <div>

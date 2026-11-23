@@ -8,6 +8,7 @@ export const useToolManager = (setTools?: ToolRegisterProps['setTools']) => {
     (tool: ActionTool) => {
       setTools?.((prev) => {
         const filtered = prev.filter((t) => t.id !== tool.id)
+
         return [...filtered, tool].sort((a, b) => b.order - a.order)
       })
     },

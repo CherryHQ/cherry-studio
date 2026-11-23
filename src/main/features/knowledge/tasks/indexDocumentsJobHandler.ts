@@ -56,6 +56,7 @@ type LoadedIndexDocumentsInput = {
   base: KnowledgeBase
   item: IndexableKnowledgeItem
 }
+
 type LoadedDocuments = Awaited<ReturnType<typeof loadKnowledgeItemDocuments>>
 
 export function createIndexDocumentsJobHandler(
@@ -79,9 +80,11 @@ export function createIndexDocumentsJobHandler(
       ctx.signal.throwIfAborted()
       // Validate the target before side effects; missing/deleting items can happen after async delete.
       const input = loadIndexDocumentsInputOrSkip(ctx)
+
       if (!input) {
         return
       }
+
       const { base, item } = input
 
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
@@ -98,6 +101,7 @@ export function createIndexDocumentsJobHandler(
       const readableItem = await ensureSnapshot(ctx, item, knowledgeLockManager)
       const documents = await readItemDocuments(ctx, readableItem)
       const chunked = await chunkItemDocuments(base, documents, ctx.signal)
+
       if (chunked.chunks.length === 0) {
         // Completing here would make a scanned/image-only PDF look searchable while
         // persisting an empty material. Reject before embedding or replacement so the
@@ -127,9 +131,11 @@ export function createIndexDocumentsJobHandler(
         // The atomic material rebuild and final status flip must stay together under the base mutation lock.
         reportKnowledgeProgress(ctx, 80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
         const written = await writeItemMaterial(ctx, base, rebuildInput, knowledgeLockManager)
+
         if (!written) return
 
         reportKnowledgeProgress(ctx, 100, { stage: 'done', currentFile: 1, totalFiles: 1 })
+
         return { embedded: rebuildInput.usesEmbeddings }
       } finally {
         lingerEmbeddingProgress(ctx.input.itemId)
@@ -138,9 +144,12 @@ export function createIndexDocumentsJobHandler(
 
     async onSettled(event) {
       await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
+
       if (event.status !== 'completed' || !(event.output as { embedded?: boolean } | undefined)?.embedded) return
+
       try {
         const item = knowledgeItemService.getById(event.input.itemId)
+
         if (item.status === 'deleting') return
         const base = knowledgeBaseService.getById(event.input.baseId)
         await application.get('NotificationService').publish(
@@ -168,18 +177,22 @@ function loadIndexDocumentsInputOrSkip(
   const { baseId, itemId } = ctx.input
 
   let base: KnowledgeBase
+
   try {
     base = knowledgeBaseService.getById(baseId)
   } catch (error) {
     if (isDataApiNotFoundError(error)) {
       logger.info('Skipping index-documents for missing base or item', { baseId, itemId, jobId: ctx.jobId })
       reportKnowledgeProgress(ctx, 100, { stage: 'item-gone', currentFile: 1, totalFiles: 1 })
+
       return null
     }
+
     throw error
   }
 
   const result = resolveLiveKnowledgeItem(itemId)
+
   if ('skip' in result) {
     if (result.skip === 'deleting') {
       logger.info('Skipping index-documents for deleting item', { baseId, itemId, jobId: ctx.jobId })
@@ -188,8 +201,10 @@ function loadIndexDocumentsInputOrSkip(
       logger.info('Skipping index-documents for missing base or item', { baseId, itemId, jobId: ctx.jobId })
       reportKnowledgeProgress(ctx, 100, { stage: 'item-gone', currentFile: 1, totalFiles: 1 })
     }
+
     return null
   }
+
   const { item } = result
 
   if (!isIndexableKnowledgeItem(item)) {
@@ -198,6 +213,7 @@ function loadIndexDocumentsInputOrSkip(
 
   if (item.status === 'completed') {
     reportKnowledgeProgress(ctx, 100, { stage: 'already-completed', currentFile: 1, totalFiles: 1 })
+
     return null
   }
 
@@ -209,6 +225,7 @@ async function readItemDocuments(
   item: IndexableKnowledgeItem
 ): Promise<LoadedDocuments> {
   ctx.signal.throwIfAborted()
+
   return await loadKnowledgeItemDocuments(item)
 }
 
@@ -231,13 +248,16 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
   if (item.type === 'url' && !item.data.relativePath) {
     const { baseId } = item
     const { url } = item.data
+
     return {
       type: 'url',
       produce: async (signal) => {
         const page = await fetchKnowledgeWebPage(url, signal)
+
         if (!page.markdown) {
           throw new Error(`Knowledge URL returned empty markdown: ${url}`)
         }
+
         return page
       },
       capture: ({ markdown, title }, reservedPaths) =>
@@ -248,6 +268,7 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
   if (item.type === 'note' && !item.data.relativePath) {
     const { baseId } = item
     const { source, content } = item.data
+
     return {
       type: 'note',
       // The content is already in hand, so there is no network step — but still
@@ -258,6 +279,7 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
         if (content.trim() === '') {
           throw new Error(`Knowledge note has empty content: ${source}`)
         }
+
         return { markdown: content }
       },
       capture: ({ markdown }, reservedPaths) => captureNoteSnapshotFile(baseId, source, markdown, reservedPaths)
@@ -282,6 +304,7 @@ async function ensureSnapshot(
   knowledgeLockManager: KeyedMutex
 ): Promise<IndexableKnowledgeItem> {
   const spec = resolveSnapshotCaptureSpec(item)
+
   if (!spec) {
     return item
   }
@@ -290,16 +313,20 @@ async function ensureSnapshot(
 
   return await knowledgeLockManager.runExclusive(ctx.input.baseId, async () => {
     const latest = knowledgeItemService.getById(ctx.input.itemId)
+
     if (latest.type !== spec.type || latest.data.relativePath) {
       // Another job captured the snapshot (or the item changed) while we produced.
       return isIndexableKnowledgeItem(latest) ? latest : item
     }
+
     // A deleting row's pending cleanup still unlinks its paths, so the snapshot must not claim them.
     const reservedPaths = collectKnowledgeReservedRelativePaths(
       knowledgeItemService.getItemsByBaseId(ctx.input.baseId, { includeDeleting: true })
     )
+
     const relativePath = await spec.capture(snapshot, reservedPaths)
     const updated = knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)
+
     return isIndexableKnowledgeItem(updated) ? updated : item
   })
 }
@@ -310,6 +337,7 @@ async function chunkItemDocuments(
   signal: AbortSignal
 ): Promise<ChunkedKnowledgeContent> {
   const chunked = chunkKnowledgeDocuments(base, documents)
+
   if (base.embeddingModelId !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID || chunked.chunks.length === 0) {
     return chunked
   }
@@ -331,6 +359,7 @@ async function buildRebuildMaterialInput(
   ctx.signal.throwIfAborted()
 
   const bodyByHash = new Map<string, string>()
+
   for (const chunk of chunked.chunks) {
     bodyByHash.set(hashEmbeddingText(chunk.text), chunk.text)
   }
@@ -342,6 +371,7 @@ async function buildRebuildMaterialInput(
   // resolve to their stored vector at query time and rebuildMaterial keeps them).
   const usesEmbeddings = isCompletedVectorKnowledgeBase(base)
   let embeddings: RebuildMaterialEmbeddingInput[] = []
+
   if (usesEmbeddings) {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = vectorStoreService.getIndexStore(base)
@@ -357,14 +387,17 @@ async function buildRebuildMaterialInput(
       // the exit path applies one (see EMBEDDING_PROGRESS_LINGER_TTL_MS).
       cacheService.setShared(progressKey, 0)
       const vectors: number[][] = []
+
       for (let i = 0; i < missing.length; i += EMBEDDING_PROGRESS_BATCH_SIZE) {
         ctx.signal.throwIfAborted()
         const batch = missing.slice(i, i + EMBEDDING_PROGRESS_BATCH_SIZE)
+
         const batchVectors = await embedKnowledgeTexts(
           base,
           batch.map(([, body]) => body),
           ctx.signal
         )
+
         vectors.push(...batchVectors)
         cacheService.setShared(progressKey, Math.round((vectors.length / missing.length) * 100))
       }
@@ -402,8 +435,10 @@ async function writeItemMaterial(
   return knowledgeLockManager.runExclusive(baseId, async () => {
     ctx.signal.throwIfAborted()
     const result = resolveLiveKnowledgeItem(itemId)
+
     if ('skip' in result) {
       logger.info('Skipping material rebuild for deleting item', { baseId, itemId, jobId: ctx.jobId })
+
       return false
     }
 
@@ -411,6 +446,7 @@ async function writeItemMaterial(
     const store = vectorStoreService.getIndexStore(base)
     store.rebuildMaterial(itemId, input)
     knowledgeItemService.updateStatus(itemId, 'completed')
+
     return true
   })
 }
@@ -427,9 +463,11 @@ function lingerEmbeddingProgress(itemId: string): void {
   const cacheService = application.get('CacheService')
   const progressKey = embeddingProgressCacheKey(itemId)
   const current = cacheService.getShared(progressKey)
+
   if (current === undefined) {
     return
   }
+
   // A same-value write with a new TTL still reaches renderer mirrors (setShared
   // broadcasts TTL-only changes with the absolute expiry), and the main-side GC
   // broadcasts the eventual expiry deletion, so a single write is enough.

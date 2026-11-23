@@ -12,11 +12,13 @@ export function resolveMcpPackageIconUrl(icon: string | undefined, extractDir: s
   if (!icon) {
     return undefined
   }
+
   if (/^(https?:\/\/|file:\/\/)/i.test(icon) || icon.startsWith('/') || /^[A-Za-z]:[\\/]/.test(icon)) {
     return icon
   }
 
   let decodedIcon = icon
+
   try {
     decodedIcon = decodeURIComponent(icon)
   } catch {
@@ -24,6 +26,7 @@ export function resolveMcpPackageIconUrl(icon: string | undefined, extractDir: s
   }
 
   const normalizedIcon = decodedIcon.replace(/\\/g, '/')
+
   if (normalizedIcon.split('/').includes('..')) {
     return undefined
   }

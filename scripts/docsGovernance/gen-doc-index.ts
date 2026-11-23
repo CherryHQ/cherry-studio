@@ -26,11 +26,13 @@ const titleForDomain = (domain: string): string =>
 export const docTitle = (filePath: string): string => {
   const { content } = matter(fs.readFileSync(filePath, 'utf8'))
   const heading = content.match(/^# (.+)$/m)
+
   return heading ? heading[1].trim() : path.basename(filePath, '.md')
 }
 
 const docDescription = (filePath: string): string => {
   const { data } = matter(fs.readFileSync(filePath, 'utf8'))
+
   return typeof data.description === 'string' ? data.description.trim() : ''
 }
 
@@ -40,6 +42,7 @@ const escapeCell = (value: string): string => value.replaceAll('|', '\\|').repla
 const tableRows = (docsDir: string, files: string[]): string[] =>
   files.map((file) => {
     const link = './' + path.relative(docsDir, file).split(path.sep).join('/')
+
     return `| [${escapeCell(docTitle(file))}](${link}) | ${escapeCell(docDescription(file))} |`
   })
 
@@ -49,15 +52,18 @@ const englishDocs = (dir: string): string[] =>
 /** README first, then alphabetical; nested files after top-level ones. */
 const domainOrder = (domainDir: string, files: string[]): string[] => {
   const depth = (file: string) => file.split(path.sep).length
+
   return [...files].sort((a, b) => {
     const aReadme = path.dirname(a) === domainDir && path.basename(a) === 'README.md' ? 0 : 1
     const bReadme = path.dirname(b) === domainDir && path.basename(b) === 'README.md' ? 0 : 1
+
     return aReadme - bReadme || depth(a) - depth(b) || a.localeCompare(b)
   })
 }
 
 export const generateIndex = (repoRoot: string): string => {
   const docsDir = path.join(repoRoot, 'docs/dev')
+
   const lines: string[] = [
     '# Cherry Studio Documentation',
     '',
@@ -80,6 +86,7 @@ export const generateIndex = (repoRoot: string): string => {
   ]
 
   const referencesDir = path.join(docsDir, 'references')
+
   const domains = fs
     .readdirSync(referencesDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -97,22 +104,27 @@ export const generateIndex = (repoRoot: string): string => {
 
 export const generateSourcesIndex = (repoRoot: string): string => {
   const docsDir = path.join(repoRoot, 'docs/dev')
+
   const files = [
     ...englishDocs(path.join(docsDir, 'contrib')),
     ...englishDocs(path.join(docsDir, 'i18n')),
     ...englishDocs(path.join(docsDir, 'references'))
   ]
+
   const documents = files
     .flatMap((file) => {
       const { data } = matter(fs.readFileSync(file, 'utf8'))
+
       const sources = Array.isArray(data.sources)
         ? data.sources.filter((source): source is string => typeof source === 'string')
         : []
+
       return sources.length > 0
         ? [{ path: path.relative(repoRoot, file).split(path.sep).join('/'), sources: [...sources].sort() }]
         : []
     })
     .sort((left, right) => left.path.localeCompare(right.path))
+
   return [
     '{',
     '  "version": 1,',
@@ -131,10 +143,12 @@ export const generateSourcesIndex = (repoRoot: string): string => {
 
 export const writeGeneratedIndexes = (repoRoot: string): void => {
   const docsDir = path.join(repoRoot, 'docs/dev')
+
   const outputs = [
     { path: path.join(docsDir, 'README.md'), content: generateIndex(repoRoot) },
     { path: path.join(docsDir, 'sources-index.json'), content: generateSourcesIndex(repoRoot) }
   ]
+
   const transactionDir = fs.mkdtempSync(path.join(docsDir, '.doc-index-'))
   const prepared: { path: string; staged: string; backup?: string }[] = []
   let committed = 0
@@ -145,6 +159,7 @@ export const writeGeneratedIndexes = (repoRoot: string): void => {
       const backup = path.join(transactionDir, `${index}.old`)
       fs.writeFileSync(staged, output.content)
       const hasFile = fs.existsSync(output.path) && fs.statSync(output.path).isFile()
+
       if (hasFile) fs.copyFileSync(output.path, backup)
       prepared.push({ path: output.path, staged, backup: hasFile ? backup : undefined })
     }
@@ -158,6 +173,7 @@ export const writeGeneratedIndexes = (repoRoot: string): void => {
       if (output.backup) fs.copyFileSync(output.backup, output.path)
       else fs.rmSync(output.path, { force: true })
     }
+
     throw error
   } finally {
     fs.rmSync(transactionDir, { recursive: true, force: true })
@@ -173,11 +189,14 @@ const main = () => {
     const generatedSources = generateSourcesIndex(ROOT)
     const current = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : ''
     const currentSources = fs.existsSync(sourcesPath) ? fs.readFileSync(sourcesPath, 'utf8') : ''
+
     if (current !== generatedIndex || currentSources !== generatedSources) {
       console.error('Documentation indexes are stale — run `pnpm docs:index` and commit the results.')
       process.exit(1)
     }
+
     console.log('Docs index OK.')
+
     return
   }
 

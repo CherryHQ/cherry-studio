@@ -4,6 +4,7 @@ import { GeminiLight } from './light'
 
 const Gemini = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GeminiLight {...props} className={className} />
+
   return <GeminiLight {...props} className={className} />
 }
 

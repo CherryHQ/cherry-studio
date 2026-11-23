@@ -46,6 +46,7 @@ interface ToolbarProps {
 
 /** Space between the selection edge and the toolbar, in CSS px. */
 const GAP = 8
+
 /** Toolbar height estimate in CSS px: border + padding + a 32 px icon button + padding + border. */
 const TOOLBAR_HEIGHT = 38
 
@@ -123,6 +124,7 @@ export const Toolbar = memo(function Toolbar({
   // Guarded because onLayout is a parent setState — unconditional during render is an infinite loop.
   // Deferred because the panel aligns to the toolbar's MEASURED left edge, known only after commit.
   const layoutKey = `${top}:${TOOLBAR_HEIGHT}:${right}:${isBelow}`
+
   if (onLayout && layoutKey !== prevLayoutRef.current) {
     prevLayoutRef.current = layoutKey
     queueMicrotask(() => {
@@ -225,6 +227,7 @@ function SubmitResult({
   useEffect(() => {
     if (!open) return
     void ipcApi.request('screenshot.text_editing', { editing: true })
+
     return () => {
       void ipcApi.request('screenshot.text_editing', { editing: false })
     }
@@ -235,6 +238,7 @@ function SubmitResult({
     sending.current = true
     setPending(true)
     setFailed(false)
+
     try {
       await onSend(text)
       setOpen(false)

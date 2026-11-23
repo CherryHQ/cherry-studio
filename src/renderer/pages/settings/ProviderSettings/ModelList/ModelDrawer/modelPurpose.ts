@@ -43,6 +43,7 @@ export interface ApplyModelPurposeOptions {
 }
 
 type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId'>
+
 type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
 
 function isModelChatEndpointType(endpointType: string | undefined): endpointType is ModelChatEndpointType {
@@ -51,9 +52,11 @@ function isModelChatEndpointType(endpointType: string | undefined): endpointType
 
 function addUnique<T>(items: readonly T[] | undefined, item: T): T[] {
   const next = [...(items ?? [])]
+
   if (!next.includes(item)) {
     next.push(item)
   }
+
   return next
 }
 
@@ -65,9 +68,11 @@ export function getModelDrawerMode(provider: ModelDrawerProvider): ModelDrawerMo
   if (matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')) {
     return 'endpoint-types'
   }
+
   if (provider.presetProviderId == null && !isSystemProviderId(provider.id)) {
     return 'purpose'
   }
+
   return 'legacy'
 }
 
@@ -93,12 +98,15 @@ export function inferModelPurpose(fields: ModelPurposeFields): ModelPurpose {
   if (primaryEndpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) {
     return 'image-edit'
   }
+
   if (primaryEndpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION) {
     return 'image-generation'
   }
+
   if (!primaryEndpointType && fields.capabilities?.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
     return 'image-generation'
   }
+
   return 'chat'
 }
 

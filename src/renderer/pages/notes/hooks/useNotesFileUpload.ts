@@ -16,19 +16,23 @@ interface UseNotesFileUploadProps {
 function readAllEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
   return new Promise((resolve, reject) => {
     const entries: FileSystemEntry[] = []
+
     const readBatch = () => {
       reader.readEntries(
         (batch) => {
           if (batch.length === 0) {
             resolve(entries)
+
             return
           }
+
           entries.push(...batch)
           readBatch()
         },
         (error) => reject(error)
       )
     }
+
     readBatch()
   })
 }
@@ -46,6 +50,7 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
       const processEntry = async (entry: FileSystemEntry, path: string = '') => {
         if (entry.isFile) {
           const fileEntry = entry as FileSystemFileEntry
+
           return new Promise<void>((resolve) => {
             fileEntry.file(
               (file) => {
@@ -76,6 +81,7 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
       if (items.length > 0 && items[0].webkitGetAsEntry()) {
         const promises = items.map((item) => {
           const entry = item.webkitGetAsEntry()
+
           return entry
             ? processEntry(entry).catch((error) => logger.warn('Failed to import a dropped entry', error))
             : Promise.resolve()
@@ -88,6 +94,7 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
         }
       } else {
         const regularFiles = Array.from(e.dataTransfer.files)
+
         if (regularFiles.length > 0) {
           onUploadFiles(regularFiles)
         }
@@ -105,10 +112,12 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
 
     fileInput.onchange = (e) => {
       const target = e.target as HTMLInputElement
+
       if (target.files && target.files.length > 0) {
         const selectedFiles = Array.from(target.files)
         onUploadFiles(selectedFiles)
       }
+
       fileInput.remove()
     }
 
@@ -126,10 +135,12 @@ export const useNotesFileUpload = ({ onUploadFiles, setIsDragOverSidebar }: UseN
 
     folderInput.onchange = (e) => {
       const target = e.target as HTMLInputElement
+
       if (target.files && target.files.length > 0) {
         const selectedFiles = Array.from(target.files)
         onUploadFiles(selectedFiles)
       }
+
       folderInput.remove()
     }
 

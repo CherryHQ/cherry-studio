@@ -19,6 +19,7 @@ export const electronProcessAdapter: ProcessAdapter = {
       disclaim: false,
       respondToAuthRequestsFromMainProcess: false
     })
+
     const { port1, port2 } = new MessageChannelMain()
     let spawnListener: (() => void) | null = null
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Electron port data is untyped; forward it unchanged to ProcessHost's frame validation boundary.

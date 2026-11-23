@@ -67,7 +67,9 @@ export class HermesDashboardService extends BaseService {
 
   getStatus(): ManagedToolStatusState {
     const snapshot = { status: this.status }
+
     if (this.url) Object.assign(snapshot, { url: this.url })
+
     return snapshot
   }
 
@@ -77,6 +79,7 @@ export class HermesDashboardService extends BaseService {
       if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
         throw new Error('Hermes Agent web UI is running, so its configuration cannot be changed')
       }
+
       return write()
     })
   }
@@ -86,6 +89,7 @@ export class HermesDashboardService extends BaseService {
   > {
     const startupAbortController = new AbortController()
     this.startupAbortControllers.add(startupAbortController)
+
     try {
       return await this.operationMutex.runExclusive(async () => {
         if (this.isLifecycleStopping) {
@@ -95,9 +99,11 @@ export class HermesDashboardService extends BaseService {
             message: 'Hermes Dashboard is unavailable during application shutdown'
           }
         }
+
         if (startupAbortController.signal.aborted) {
           return { success: false, reason: 'cancelled', message: 'Hermes Dashboard startup was cancelled' }
         }
+
         if (this.child && this.status === 'running' && this.url) {
           return { success: true, url: this.url }
         }
@@ -108,31 +114,40 @@ export class HermesDashboardService extends BaseService {
           if (this.child) await this.stopOwnedProcessLocked()
           this.updateStatus('starting')
           const runtime = await this.resolveRuntime()
+
           if (startupAbortController.signal.aborted) {
             throw new HermesDashboardStartError('cancelled', 'Hermes Dashboard startup was cancelled')
           }
+
           const port = await findAvailablePort()
+
           if (startupAbortController.signal.aborted) {
             throw new HermesDashboardStartError('cancelled', 'Hermes Dashboard startup was cancelled')
           }
+
           const url = `http://${DASHBOARD_HOST}:${port}`
           await this.spawnAndWaitForReady(runtime, port, url, startupAbortController.signal)
+
           if (!this.child || this.child.exitCode !== null || this.child.signalCode !== null) {
             throw new HermesDashboardStartError(
               'startup_failed',
               'Hermes Dashboard exited immediately after becoming ready'
             )
           }
+
           this.updateStatus('running', url)
+
           return { success: true, url }
         } catch (error) {
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop Hermes Dashboard after launch failure', stopError as Error)
           })
           this.updateStatus('error')
+
           const message = sanitizeDiagnostic(
             error instanceof Error ? error.message : 'Failed to start Hermes Dashboard'
           )
+
           return {
             success: false,
             reason: getStartFailureReason(error, message),
@@ -160,17 +175,22 @@ export class HermesDashboardService extends BaseService {
 
   private async resolveRuntime(): Promise<HermesDashboardRuntime> {
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['hermes'])).hermes
+
     if (snapshot.availability.source === 'none') {
       throw new HermesDashboardStartError('not_installed', 'Hermes is not installed')
     }
+
     const env = snapshot.availability.source === 'system' ? await getRawShellEnv() : await refreshShellEnv()
     const home = await getHermesHome()
+
     // Pin the Dashboard to the same home config writes target, so it reads what
     // Cherry wrote regardless of how Hermes would resolve its default.
     for (const key of Object.keys(env)) {
       if (key.toLowerCase() === 'hermes_home') delete env[key]
     }
+
     env.HERMES_HOME = home
+
     return { env, executablePath: AbsoluteFilePathSchema.parse(snapshot.availability.path), home }
   }
 
@@ -190,9 +210,12 @@ export class HermesDashboardService extends BaseService {
         windowsHide: true
       }
     )
+
     this.child = child
+
     const handleTermination = (code: number | null, childSignal: NodeJS.Signals | null) =>
       this.handleChildTermination(child, code, childSignal)
+
     child.once('exit', handleTermination)
     child.once('close', handleTermination)
     child.on('error', (error) => {
@@ -206,11 +229,14 @@ export class HermesDashboardService extends BaseService {
   private handleChildTermination(child: ChildProcess, code: number | null, signal: NodeJS.Signals | null): void {
     if (this.child !== child) return
     this.child = null
+
     if (this.stoppingChild === child) {
       this.stoppingChild = null
       this.updateStatus('stopped')
+
       return
     }
+
     if (this.status === 'starting' || this.status === 'running') {
       this.updateStatus('error')
       logger.warn('Managed Hermes Dashboard process exited unexpectedly', { code, signal })
@@ -225,18 +251,26 @@ export class HermesDashboardService extends BaseService {
 
   private async stopOwnedProcessLocked(): Promise<void> {
     const child = this.child
+
     if (!child) return
+
     if (!child.pid) {
       this.child = null
+
       if (this.stoppingChild === child) this.stoppingChild = null
+
       return
     }
+
     this.stoppingChild = child
+
     try {
       await terminateProcessTree(child, false, 'Hermes Dashboard')
+
       if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
 
       await terminateProcessTree(child, true, 'Hermes Dashboard')
+
       if (!(await waitForProcessExit(child, FORCE_STOP_TIMEOUT_MS))) {
         throw new Error('Hermes Dashboard did not exit after forced termination')
       }
@@ -255,9 +289,11 @@ async function findAvailablePort(): Promise<number> {
   })
   const address = server.address()
   await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+
   if (!address || typeof address === 'string' || address.port < 1) {
     throw new Error('Failed to allocate a local port for Hermes Dashboard')
   }
+
   return address.port
 }
 
@@ -265,21 +301,27 @@ class HermesHomeMismatchError extends Error {}
 
 async function assertDashboardReady(url: string, expectedHome: AbsoluteFilePath): Promise<void> {
   const response = await fetch(`${url}/api/status`, { signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS) })
+
   if (!response.ok) {
     await response.body?.cancel()
     throw new Error(`Hermes Dashboard returned HTTP ${response.status}`)
   }
+
   // A foreign process can grab the freshly-freed port first; body shape + home check
   // filter accidental squatters but cannot prove the responder is our child process.
   const body = await response.json().catch(() => null)
+
   if (!isHermesStatusBody(body)) {
     throw new Error('Hermes Dashboard health endpoint returned an unrecognized response')
   }
+
   const reportedHome = normalizeHome(body.hermes_home)
+
   if (reportedHome === normalizeHome(expectedHome)) return
   // Symlink aliases only (macOS /tmp, /var): realpath the trusted pin — never the
   // reported string, and only off the fast path (network homes can hang realpath).
   const pinnedCanonicalHome = normalizeHome(await realpath(expectedHome).catch(() => expectedHome))
+
   if (reportedHome !== pinnedCanonicalHome) {
     throw new HermesHomeMismatchError(
       `Hermes Dashboard is using a different configuration home (reported ${body.hermes_home}, expected ${expectedHome})`
@@ -291,6 +333,7 @@ async function assertDashboardReady(url: string, expectedHome: AbsoluteFilePath)
 function normalizeHome(value: string): string {
   // path.win32 keeps the Windows normalization testable from POSIX hosts.
   const resolved = (isWin ? path.win32 : path).resolve(value)
+
   return isWin ? resolved.toLowerCase() : resolved
 }
 
@@ -315,7 +358,9 @@ function sanitizeDiagnostic(value: string): string {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dashboard startup catches process and network failures; only the owned start-error class supplies a structured reason.
 function getStartFailureReason(error: unknown, message: string): HermesDashboardStartFailureReason {
   if (error instanceof HermesDashboardStartError) return error.reason
+
   if (/dashboard startup was cancelled/i.test(message)) return 'cancelled'
+
   return 'startup_failed'
 }
 
@@ -347,12 +392,14 @@ function waitForReady(
       child.stdout?.resume()
       child.stderr?.resume()
     }
+
     const fail = (error: Error) => {
       if (settled) return
       settled = true
       cleanup()
       const rawDiagnostic = [error.message, stderr, stdout].filter(Boolean).join('\n')
       const diagnostic = sanitizeDiagnostic(rawDiagnostic)
+
       if (isMissingDashboardDependencyDiagnostic(rawDiagnostic)) {
         reject(
           new HermesDashboardStartError(
@@ -360,16 +407,20 @@ function waitForReady(
             diagnostic || 'Hermes Dashboard dependencies are missing'
           )
         )
+
         return
       }
+
       reject(new Error(diagnostic || 'Hermes Dashboard failed during startup'))
     }
+
     const succeed = () => {
       if (settled) return
       settled = true
       cleanup()
       resolve()
     }
+
     const checkHealth = () => {
       if (checkingHealth || settled) return
       checkingHealth = true
@@ -384,18 +435,23 @@ function waitForReady(
           checkingHealth = false
         })
     }
+
     const onStdout = (chunk: Buffer) => {
       stdout = appendBounded(stdout, chunk)
     }
+
     const onStderr = (chunk: Buffer) => {
       stderr = appendBounded(stderr, chunk)
     }
+
     const onError = (error: Error) => fail(error)
     const onAbort = () => fail(new Error('Hermes Dashboard startup was cancelled'))
+
     const onClose = (code: number | null, childSignal: NodeJS.Signals | null) =>
       fail(
         new Error(`Hermes Dashboard exited before it was ready (code ${String(code)}, signal ${String(childSignal)})`)
       )
+
     const timeout = setTimeout(() => fail(new Error('Hermes Dashboard startup timed out')), START_TIMEOUT_MS)
     const healthInterval = setInterval(checkHealth, HEALTH_PROBE_INTERVAL_MS)
 
@@ -405,6 +461,7 @@ function waitForReady(
     child.once('exit', onClose)
     child.once('close', onClose)
     signal.addEventListener('abort', onAbort, { once: true })
+
     if (signal.aborted) onAbort()
     else checkHealth()
   })

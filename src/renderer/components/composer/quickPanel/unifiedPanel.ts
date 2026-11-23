@@ -67,12 +67,14 @@ export function prepareComposerQuickPanelSearch({
 }: Pick<ComposerUnifiedPanelResourceContext, 'inputAdapter' | 'queryAnchor' | 'triggerInfo'>) {
   const text = inputAdapter?.getText()
   const cursorOffset = inputAdapter ? (inputAdapter.getCursorOffset?.() ?? text?.length ?? 0) : undefined
+
   let searchAnchor =
     triggerInfo?.type === 'input' ? queryAnchor : (queryAnchor ?? triggerInfo?.position ?? cursorOffset)
 
   if (inputAdapter && triggerInfo?.type === 'input' && queryAnchor !== undefined) {
     const liveText = inputAdapter.getText()
     const rangeEnd = inputAdapter.getCursorOffset?.() ?? liveText.length
+
     if (rangeEnd > queryAnchor) {
       inputAdapter.deleteTriggerRange({ from: queryAnchor, to: rangeEnd })
       inputAdapter.focus()
@@ -123,6 +125,7 @@ function getLauncherDescription(launcher: ComposerToolLauncher) {
   if (launcher.disabled && launcher.disabledReason) {
     return launcher.disabledReason
   }
+
   return launcher.description
 }
 
@@ -179,10 +182,12 @@ const sortUnifiedQuickPanelItems: QuickPanelSortFn = (items, searchText) => {
     }))
     .sort((a, b) => {
       const layerDiff = getUnifiedPanelSortLayer(a.metadata?.section) - getUnifiedPanelSortLayer(b.metadata?.section)
+
       if (layerDiff !== 0) return layerDiff
 
       const orderA = a.metadata?.order ?? a.index
       const orderB = b.metadata?.order ?? b.index
+
       if (orderA !== orderB) return orderA - orderB
 
       return a.index - b.index
@@ -198,9 +203,13 @@ function getUnifiedQuickPanelMatchText(item: QuickPanelListItem) {
   }
 
   const parts: string[] = []
+
   if (typeof item.label === 'string') parts.push(item.label)
+
   if (typeof item.description === 'string') parts.push(item.description)
+
   if (item.searchAliases) parts.push(...item.searchAliases)
+
   return parts.join(' ')
 }
 
@@ -208,6 +217,7 @@ function getPinyinSearchText(matchText: string) {
   const pinyinWords = tinyPinyin.convertToPinyin(matchText, ' ', true).toLowerCase().split(/\s+/).filter(Boolean)
   const pinyinText = pinyinWords.join('')
   const pinyinInitials = pinyinWords.map((word) => word[0] ?? '').join('')
+
   return `${pinyinText} ${pinyinInitials}`
 }
 
@@ -220,17 +230,21 @@ const filterUnifiedQuickPanelItems: QuickPanelFilterFn = (item, searchText, _fuz
   if (!searchText) return !isUnifiedPanelRootSearchItem(item)
 
   const matchText = getUnifiedQuickPanelMatchText(item).toLowerCase()
+
   if (!matchText) return false
 
   const query = searchText.toLowerCase()
+
   if (matchText.includes(query)) return true
 
   if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(matchText)) {
     let pinyinText = pinyinCache.get(item)
+
     if (pinyinText === undefined) {
       pinyinText = getPinyinSearchText(matchText)
       pinyinCache.set(item, pinyinText)
     }
+
     return pinyinText.includes(query)
   }
 
@@ -321,6 +335,7 @@ function createUnifiedPanelListItem(
           searchText,
           triggerInfo
         })
+
         return
       }
 
@@ -349,16 +364,19 @@ function createUnifiedPanelRootSearchItems(
   }
 ): QuickPanelListItem[] {
   const ancestorLauncherIds = new Set(options.ancestorLauncherIds)
+
   if (launcher.disabled || ancestorLauncherIds.has(launcher.id)) return []
   ancestorLauncherIds.add(launcher.id)
 
   const customPanelItems = (launcher.rootSearchItems ?? [])
     .filter((item) => !item.hidden && !item.disabled && !item.isMenu && Boolean(item.action))
     .map(asUnifiedPanelRootSearchItem)
+
   const submenuItems = getUnifiedChildren(launcher, ancestorLauncherIds).flatMap((child) => {
     const childAncestorLauncherIds = new Set(ancestorLauncherIds)
     childAncestorLauncherIds.add(child.id)
     const children = getUnifiedChildren(child, childAncestorLauncherIds)
+
     const childItems =
       (child.kind === 'command' || child.kind === 'dialog') &&
       !child.disabled &&
@@ -397,6 +415,7 @@ function openUnifiedPanelSubmenu(
 ) {
   const nextAncestorLauncherIds = new Set(options.ancestorLauncherIds)
   nextAncestorLauncherIds.add(launcher.id)
+
   const childItems = getUnifiedChildren(launcher, nextAncestorLauncherIds).map((child) =>
     createUnifiedPanelListItem(child, {
       ...options,
@@ -444,6 +463,7 @@ function createUnifiedSectionItems(
     if (!supportsSource && children.length === 0) return []
 
     options.seenLauncherIds.add(launcher.id)
+
     const rootItem = createUnifiedPanelListItem(
       { ...launcher, submenu: getUnifiedChildren(launcher) },
       {
@@ -452,6 +472,7 @@ function createUnifiedSectionItems(
         source: options.source
       }
     )
+
     const rootSearchItems = createUnifiedPanelRootSearchItems(launcher, {
       ...options,
       ancestorLauncherIds: new Set()
@@ -475,6 +496,7 @@ function hasUnifiedSectionItems(
     if (!supportsSource && children.length === 0) return false
 
     seenLauncherIds.add(launcher.id)
+
     return true
   })
 }
@@ -488,10 +510,13 @@ export function hasUnifiedQuickPanelRootContent(
   } = {}
 ) {
   if ((options.leadingItems?.length ?? 0) > 0) return true
+
   if ((options.additionalItems?.length ?? 0) > 0) return true
+
   if ((options.resourceItems?.length ?? 0) > 0) return true
 
   const seenLauncherIds = new Set<string>()
+
   return (
     hasUnifiedSectionItems(launchers, 'popover', seenLauncherIds) ||
     hasUnifiedSectionItems(launchers, 'root-panel', seenLauncherIds)
@@ -518,6 +543,7 @@ export function createUnifiedQuickPanelOpenOptions(
     createUnifiedQuickPanelOpenOptions(launchers, {
       ...options
     })
+
   const seenLauncherIds = new Set<string>()
 
   const primaryItems = createUnifiedSectionItems(launchers, {
@@ -526,6 +552,7 @@ export function createUnifiedQuickPanelOpenOptions(
     seenLauncherIds,
     getRootPanelOptions
   })
+
   // Trailing launchers (e.g. slash commands) render after regular root-panel launchers
   // and caller additional items.
   const commandItems = createUnifiedSectionItems(
@@ -537,6 +564,7 @@ export function createUnifiedQuickPanelOpenOptions(
       getRootPanelOptions
     }
   )
+
   const trailingCommandItems = createUnifiedSectionItems(
     launchers.filter((launcher) => launcher.rootPanelPlacement === 'trailing'),
     {
@@ -546,12 +574,15 @@ export function createUnifiedQuickPanelOpenOptions(
       getRootPanelOptions
     }
   )
+
   // Leading items (e.g. Chat's new-conversation / Agent's new-task shortcuts) go through the same
   // exclusion filter as launchers, so pinning one to the toolbar removes it here too.
   const leadingItems = options.excludedLauncherIds
     ? options.leadingItems?.filter((item) => !item.id || !options.excludedLauncherIds?.has(item.id))
     : options.leadingItems
+
   const nextSortOrder = { value: 0 }
+
   const list = [
     ...tagUnifiedPanelSectionItems(leadingItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),

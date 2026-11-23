@@ -72,8 +72,11 @@ const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Permanent agent deletion rejects arbitrary IPC failures; recognized not-found/busy codes select recovery text while native Error identity is preserved.
 function permanentAgentDeleteError(err: unknown, message: (key: string) => string): Error {
   if (isAgentNotFoundError(err)) return new Error(message('recycle_bin.delete.stale'))
+
   if (isAgentSessionArchiveBusyError(err)) return new Error(message('recycle_bin.delete.busy'))
+
   if (err instanceof Error) return err
+
   return new Error(message('agent.delete.error.failed'))
 }
 
@@ -122,6 +125,7 @@ export function AgentResourceList({
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
+
   const {
     sessions,
     isLoading,
@@ -133,6 +137,7 @@ export function AgentResourceList({
     reload,
     loadLatestSession
   } = agentSessionsSource
+
   const {
     isLoading: isAgentPinsLoading,
     isRefreshing: isAgentPinsRefreshing,
@@ -140,14 +145,17 @@ export function AgentResourceList({
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled })
+
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const restoreAgent = useCallback((agentId: string) => ipcApi.request('ai.agent.restore', { agentId }), [])
+
   const restoreSession = useCallback(
     (sessionId: string) => ipcApi.request('ai.agent.session.restore', { sessionId }),
     []
   )
+
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentsRef = useRef(agents)
@@ -159,32 +167,40 @@ export function AgentResourceList({
   const agentIdSet = useMemo(() => new Set(agents.map((agent) => agent.id)), [agents])
   const hasLoadedAgentMetadata = !isAgentsLoading && !agentsError
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
+
   const {
     shortcuts: sidebarShortcuts,
     setPinned: setSidebarShortcutPinned,
     remove: removeSidebarShortcut
   } = useSidebarShortcuts()
+
   const sidebarAgentFavoriteIdSet = useMemo(
     () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT),
     [sidebarShortcuts]
   )
+
   const getAgentEntityId = useCallback(
     (agentId: string | null | undefined) => {
       if (!agentId) return SESSION_UNKNOWN_AGENT_GROUP_ID
+
       if (!hasLoadedAgentMetadata || agentIdSet.has(agentId)) return agentId
+
       return SESSION_UNKNOWN_AGENT_GROUP_ID
     },
     [agentIdSet, hasLoadedAgentMetadata]
   )
+
   const hasUnlinkedAgentSessions = useMemo(
     () => sessions.some((session) => getAgentEntityId(session.agentId) === SESSION_UNKNOWN_AGENT_GROUP_ID),
     [getAgentEntityId, sessions]
   )
+
   const createSessionForAgent = useCallback(
     (agentId: string) =>
       agentId === SESSION_UNKNOWN_AGENT_GROUP_ID ? Promise.resolve(null) : onCreateSession(agentId),
     [onCreateSession]
   )
+
   const handleActivationError = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent rail load/create operations can reject any value; forward the original failure to central logging and the checked notification formatter.
     (error: unknown) => {
@@ -193,10 +209,12 @@ export function AgentResourceList({
     },
     [t]
   )
+
   const handleCreateSession = useCallback(
     async (agentId: string) => {
       try {
         const session = await createSessionForAgent(agentId)
+
         if (session) onSelectSession(session.id, session)
       } catch (error) {
         handleActivationError(error)
@@ -249,11 +267,14 @@ export function AgentResourceList({
     (session: AgentSessionEntity) => onSelectSession(session.id, session),
     [onSelectSession]
   )
+
   const loadLatestSessionForAgent = useCallback(
     (agentId: string) => loadLatestSession(agentId === SESSION_UNKNOWN_AGENT_GROUP_ID ? null : agentId),
     [loadLatestSession]
   )
+
   const activeAgentEntityId = getAgentEntityId(activeAgentId)
+
   const reorderAgentEntity = useCallback(
     async (agentId: string, anchor: ResourceEntityRailReorderAnchor) => {
       if (agentId === SESSION_UNKNOWN_AGENT_GROUP_ID) return
@@ -262,6 +283,7 @@ export function AgentResourceList({
     },
     [reorderAgent]
   )
+
   const handleReorderError = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent reorder mutations reject arbitrary values; central logging and the notification formatter own interpretation of the failure.
     (error: unknown) => {
@@ -270,6 +292,7 @@ export function AgentResourceList({
     },
     [t]
   )
+
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     activeEntityId: activeAgentEntityId,
@@ -297,6 +320,7 @@ export function AgentResourceList({
       } catch (err) {
         logger.error('Failed to toggle agent pin from classic-layout rail', { agentId, err })
         toast.error(t('common.error'))
+
         return
       }
 
@@ -311,6 +335,7 @@ export function AgentResourceList({
 
   const refreshAfterRestore = useCallback(async () => {
     const outcomes = await Promise.allSettled([refetchAgents(), reload()])
+
     for (const outcome of outcomes) {
       if (outcome.status === 'rejected') {
         logger.warn('Failed to refresh Agent resources after restore from classic-layout rail', {
@@ -328,6 +353,7 @@ export function AgentResourceList({
       const deleteSessionsOnly = mode === 'archive-sessions'
       const currentAgent = agentsRef.current.find((agent) => agent.id === agentId)
       const protectedAgent = isProtectedBuiltinAgentRole(currentAgent?.configuration?.builtin_role)
+
       if (permanent && (agentId === SESSION_UNKNOWN_AGENT_GROUP_ID || !currentAgent || protectedAgent)) {
         return
       }
@@ -341,10 +367,12 @@ export function AgentResourceList({
               invalidate(key)
             )
           )
+
           if (invalidateOutcomes.some((outcome) => outcome.status === 'rejected')) {
             logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId })
           }
         }
+
         const reloadAgentResources = async () => {
           try {
             await Promise.all([...(deleteSessionsOnly ? [] : [refetchAgents()]), reload()])
@@ -352,19 +380,23 @@ export function AgentResourceList({
             logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
           }
         }
+
         const refreshAgentResources = async () => {
           await invalidateAgentResources()
           await reloadAgentResources()
         }
+
         const reconcileDeletedSelection = async (
           deletedSessionIds: string[],
           sessionIdAtStart: string | null | undefined
         ) => {
           const activeSessionIdNow = activeSessionIdRef.current
           const currentSessionWasDeleted = !!activeSessionIdNow && deletedSessionIds.includes(activeSessionIdNow)
+
           // Empty selection only reconciles when the session active at mutation start was deleted.
           const closedTargetRace =
             !activeSessionIdNow && !!sessionIdAtStart && deletedSessionIds.includes(sessionIdAtStart)
+
           if (!currentSessionWasDeleted && !closedTargetRace) return
 
           try {
@@ -376,6 +408,7 @@ export function AgentResourceList({
 
         if (permanent) {
           const liveAgent = agentsRef.current.find((agent) => agent.id === agentId)
+
           if (
             agentId === SESSION_UNKNOWN_AGENT_GROUP_ID ||
             !liveAgent ||
@@ -389,9 +422,11 @@ export function AgentResourceList({
         const activeSessionIdWhenMutationStarted = activeSessionIdRef.current
         setDeletingAgentId(agentId)
         let deletionCommitted = false
+
         try {
           let deletedSessionIds: string[] = []
           let deletionChangedState = false
+
           try {
             if (deleteSessionsOnly) {
               const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
@@ -402,6 +437,7 @@ export function AgentResourceList({
                 agentId,
                 deleteSessions
               })
+
               deletionChangedState = result.deleted
               deletedSessionIds = result.deletedSessionIds ?? []
             } else {
@@ -409,6 +445,7 @@ export function AgentResourceList({
                 agentId,
                 deleteSessions
               })
+
               deletionChangedState = result.deleted
               deletedSessionIds = result.deletedSessionIds ?? []
             }
@@ -423,23 +460,29 @@ export function AgentResourceList({
               await refreshAgentResources()
               throw new Error(t('recycle_bin.delete.stale'))
             }
+
             deletionCommitted = true
+
             if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
             await reconcileDeletedSelection(deletedSessionIds, activeSessionIdWhenMutationStarted)
             await refreshAgentResources()
+
             return
           }
 
           if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
           await invalidateAgentResources()
+
           if (!deletionChangedState) {
             await reloadAgentResources()
             toast.info(t('recycle_bin.already_moved'))
+
             return
           }
 
           await reconcileDeletedSelection(deletedSessionIds, activeSessionIdWhenMutationStarted)
           await reloadAgentResources()
+
           if (deleteSessionsOnly) {
             showRecycleBinBatchUndo({
               itemCount: deletedSessionIds.length,
@@ -478,8 +521,10 @@ export function AgentResourceList({
         } catch (err) {
           if (deletionCommitted) {
             logger.warn('Agent deletion succeeded but a follow-up failed from classic-layout rail', { agentId, err })
+
             return
           }
+
           logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
           throw err
         } finally {
@@ -488,6 +533,7 @@ export function AgentResourceList({
       }
 
       deleteAgentPromptLockRef.current = true
+
       try {
         if (deleteSessionsOnly) {
           await archiveAgentSessionsPopup.show({
@@ -496,6 +542,7 @@ export function AgentResourceList({
             t,
             action: () => performDelete(true)
           })
+
           return
         }
 
@@ -506,6 +553,7 @@ export function AgentResourceList({
             name: agentName,
             action: performDelete
           })
+
           return
         }
 
@@ -538,8 +586,10 @@ export function AgentResourceList({
   const canPermanentDeleteAgent = useCallback(
     (agentId: string) => {
       if (deleteAgentPromptLockRef.current || deletingAgentId !== null) return false
+
       if (agentId === SESSION_UNKNOWN_AGENT_GROUP_ID) return false
       const owner = agentsRef.current.find((agent) => agent.id === agentId)
+
       return !!owner && !isProtectedBuiltinAgentRole(owner.configuration?.builtin_role)
     },
     [deletingAgentId]
@@ -554,6 +604,7 @@ export function AgentResourceList({
       const owner = agentsRef.current.find((agent) => agent.id === item.id)
       const deleteSessionsOnly = isProtectedBuiltinAgentRole(owner?.configuration?.builtin_role)
       const deleteOptions: Pick<Parameters<typeof buildResolvedResourceEntityMenuAction>[0], 'shortcut'> = {}
+
       if (permanentDeleteShortcut) deleteOptions.shortcut = permanentDeleteShortcut
 
       return [
@@ -637,30 +688,43 @@ export function AgentResourceList({
     (item: ResourceEntityRailItem, action: ResolvedAction) => {
       if (action.id === AGENT_ENTITY_EDIT_ACTION_ID) {
         openAgentEditor(item.id)
+
         return
       }
+
       if (action.id === AGENT_ENTITY_TOGGLE_PIN_ACTION_ID) {
         void handleToggleAgentPin(item.id)
+
         return
       }
+
       if (action.id === AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
         const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT, item.id)
+
         if (sidebarAgentFavoriteIdSet.has(item.id)) removeSidebarShortcut(target)
         else setSidebarShortcutPinned(target, true, item.name)
+
         return
       }
+
       if (action.id.startsWith(`${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
         void setAssistantIconType(action.id.slice(AGENT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
+
         return
       }
+
       if (action.id === AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID) {
         void handleArchiveSessions(item.id)
+
         return
       }
+
       if (action.id === AGENT_ENTITY_ARCHIVE_ACTION_ID) {
         void handleDeleteAgent(item.id)
+
         return
       }
+
       if (action.id === AGENT_ENTITY_PERMANENT_DELETE_ACTION_ID) {
         void handleDeleteAgent(item.id, 'permanent')
       }
@@ -680,6 +744,7 @@ export function AgentResourceList({
   const handleSelectedEntityClick = useCallback(
     (item: ResourceEntityRailItem) => {
       if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID || !activeSessionId) return handleSelect(item)
+
       return onSelectedAgentClick?.()
     },
     [activeSessionId, handleSelect, onSelectedAgentClick]

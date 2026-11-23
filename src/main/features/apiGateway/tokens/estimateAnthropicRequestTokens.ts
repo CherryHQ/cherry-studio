@@ -46,6 +46,7 @@ export async function estimateAnthropicRequestTokens(
     // Block elements are only loosely validated (`z.unknown()`, `tools` untyped), so
     // conversion can throw on malformed blocks — degrade instead of surfacing a 500.
     logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
+
     return boundedBodyTokens(body, tokenxTokenizer)
   }
 }
@@ -63,6 +64,7 @@ async function estimateConvertedRequest(
   let dialect: TokenDialect = 'anthropic'
   let caps = ALL_MEDIA
   let resolved: ResolvedGatewayModelAddress | undefined
+
   try {
     resolved = await resolveGatewayModelAddress(body.model, internal)
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
@@ -77,11 +79,15 @@ async function estimateConvertedRequest(
   // could reject the mismatch, or count an oversize raw name generation never transmits.
   if (dialect === 'anthropic' && resolved) {
     const rename = converter.toProviderToolName?.bind(converter)
+
     const request: Parameters<typeof tryRemoteAnthropicCount>[0] = {
       messages: rename ? renameToolUses(body.messages, rename) : body.messages
     }
+
     if (body.system !== undefined) request.system = body.system
+
     if (wireTools !== undefined) request.tools = wireTools as MessageCountTokensParams['tools']
+
     const remote = await tryRemoteAnthropicCount(
       request,
       resolved.provider,
@@ -89,6 +95,7 @@ async function estimateConvertedRequest(
       resolved.apiModelId,
       signal
     )
+
     if (remote !== undefined) return remote
   }
 
@@ -96,6 +103,7 @@ async function estimateConvertedRequest(
   const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps)
   const tokenizer = await getTextTokenizer(dialect)
   const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer }, signal)
+
   return messageTokens + countToolDefs(wireTools, tokenizer)
 }
 
@@ -107,13 +115,17 @@ function renameToolUses(
   return messages.map((msg) => {
     if (!Array.isArray(msg.content)) return msg
     let changed = false
+
     const content = msg.content.map((block) => {
       if (block.type !== 'tool_use' || typeof block.name !== 'string') return block
       const name = rename(block.name)
+
       if (name === block.name) return block
       changed = true
+
       return { ...block, name }
     })
+
     return changed ? { ...msg, content } : msg
   })
 }

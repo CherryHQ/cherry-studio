@@ -33,9 +33,11 @@ export function useCherryAccountSession(enabled = true) {
     async (action: CherryCloudSessionAction) => {
       const requestId = ++requestRef.current
       setPendingAction(action)
+
       try {
         if (action === 'login') await ipcApi.request('cherry_cloud.login.start')
         else await ipcApi.request(action === 'cancel' ? 'cherry_cloud.login.cancel' : 'cherry_cloud.session.revoke')
+
         if (requestId === requestRef.current) await reloadReceipt()
       } catch (error) {
         if (requestId !== requestRef.current) return

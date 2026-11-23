@@ -6,7 +6,9 @@ import { MetasoLight } from './light'
 
 const Metaso = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MetasoLight {...props} className={className} />
+
   if (variant === 'dark') return <MetasoDark {...props} className={className} />
+
   return (
     <>
       <MetasoLight className={cn('dark:hidden', className)} {...props} />

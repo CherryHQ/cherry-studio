@@ -79,10 +79,12 @@ function parseDurationToMinutes(duration: string): number {
   const minMatch = duration.match(/(\d+)\s*m/i)
 
   if (hourMatch) totalMinutes += parseInt(hourMatch[1], 10) * 60
+
   if (minMatch) totalMinutes += parseInt(minMatch[1], 10)
 
   if (totalMinutes === 0) {
     const raw = parseInt(duration, 10)
+
     if (!isNaN(raw) && raw > 0) return raw
     throw new Error(`Invalid duration: "${duration}". Use formats like '30m', '2h', '1h30m'.`)
   }
@@ -143,6 +145,7 @@ const CronInputSchema = z.object({
     ),
   id: z.string().min(1).optional().describe('Job ID (required for update and remove)')
 })
+
 type CronInput = z.output<typeof CronInputSchema>
 
 const NOTIFY_DESCRIPTION =
@@ -166,6 +169,7 @@ const NotifyInputSchema = z.object({
     .optional()
     .describe('Optional explicit destination channel. Omit to deliver to all configured recipients for this turn.')
 })
+
 type NotifyInput = z.output<typeof NotifyInputSchema>
 
 /** Per-adapter-type config schema descriptions (for agent self-documentation). */
@@ -272,6 +276,7 @@ const ConfigInputSchema = z.object({
     .optional()
     .describe('Enable or disable the channel (optional; defaults to true on add, unchanged when omitted on update)')
 })
+
 type ConfigInput = z.output<typeof ConfigInputSchema>
 
 const SessionListInputSchema = z.object({
@@ -330,6 +335,7 @@ const SessionSendInputSchema = z.object({
 
 function assertCurrentSessionIdentity(ctx: AutonomyToolsContext): void {
   const session = agentSessionService.getById(ctx.sessionId)
+
   if (session.agentId !== ctx.agentId) {
     throw new AgentSessionDeliveryRoutingError('SENDER_FORBIDDEN', 'The active runtime no longer owns this Session')
   }
@@ -337,6 +343,7 @@ function assertCurrentSessionIdentity(ctx: AutonomyToolsContext): void {
 
 function assertSessionToolsAuthorized(ctx: AutonomyToolsContext): void {
   const interaction = application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId)
+
   if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') {
     throw new AgentSessionDeliveryRoutingError(
       'SESSION_TOOL_FORBIDDEN',
@@ -353,9 +360,11 @@ async function runSessionTool(
   try {
     assertCurrentSessionIdentity(ctx)
     assertSessionToolsAuthorized(ctx)
+
     return await run()
   } catch (error) {
     if (!(error instanceof AgentSessionDeliveryRoutingError)) throw error
+
     return {
       content: [
         { type: 'text', text: JSON.stringify({ ok: false, error: { code: error.code, message: error.message } }) }
@@ -373,10 +382,12 @@ function listSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionLi
   const agentId = args.agent_id?.trim() || undefined
   const cursor = args.cursor?.trim() || undefined
   const page = agentSessionService.listAddressableByCursor({ agentId, cursor, limit: clampLimit(args.limit, 50) })
+
   const sessions = page.items.map((session) => ({
     ...session,
     isCurrent: session.sessionId === ctx.sessionId
   }))
+
   return {
     content: [{ type: 'text', text: JSON.stringify({ sessions, nextCursor: page.nextCursor }) }]
   }
@@ -393,12 +404,14 @@ function listAgents(): CallToolResult {
     },
     modelConfigured: agent.model !== null
   }))
+
   return { content: [{ type: 'text', text: JSON.stringify({ agents }) }] }
 }
 
 function renameSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionRenameInputSchema>): CallToolResult {
   const sessionId = args.session_id ?? ctx.sessionId
   const updated = agentSessionService.update(sessionId, { name: args.title })
+
   return {
     content: [{ type: 'text', text: JSON.stringify({ sessionId: updated.id, sessionName: updated.name }) }]
   }
@@ -406,10 +419,12 @@ function renameSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionR
 
 function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionSearchInputSchema>): CallToolResult {
   const query = args.query.trim()
+
   if (!query) throw new Error("'query' is required")
   const agentId = args.agent_id?.trim() || undefined
   const limit = clampLimit(args.limit, 20)
   const matches = agentSessionMessageService.searchRanked({ q: query, limit, agentId, addressableOnly: true })
+
   const sessions = new Map<
     string,
     {
@@ -422,6 +437,7 @@ function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof Session
       metadataMatches: Array<{ field: 'name' | 'description'; snippet: string }>
     }
   >()
+
   for (const match of matches) {
     const candidate = sessions.get(match.sessionId) ?? {
       agentId: match.agentId,
@@ -432,9 +448,11 @@ function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof Session
       matches: [],
       metadataMatches: []
     }
+
     candidate.matches.push({ messageId: match.messageId, snippet: match.snippet, createdAt: match.createdAt })
     sessions.set(match.sessionId, candidate)
   }
+
   for (const result of agentSessionService.searchWithMetadataEvidence({
     q: query,
     limit,
@@ -443,10 +461,12 @@ function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof Session
   })) {
     const match = result.item
     const existing = sessions.get(match.id)
+
     if (existing) {
       existing.metadataMatches.push(...result.matches)
       continue
     }
+
     if (sessions.size >= limit) continue
     sessions.set(match.id, {
       agentId: match.target.agentId ?? undefined,
@@ -458,11 +478,13 @@ function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof Session
       metadataMatches: result.matches
     })
   }
+
   return { content: [{ type: 'text', text: JSON.stringify({ sessions: [...sessions.values()] }) }] }
 }
 
 async function readSession(args: z.output<typeof SessionReadInputSchema>): Promise<CallToolResult> {
   const sessionId = args.session_id.trim()
+
   if (args.tool_call_id && !args.message_id) {
     throw new Error("'tool_call_id' requires 'message_id'")
   }
@@ -475,12 +497,16 @@ async function readSession(args: z.output<typeof SessionReadInputSchema>): Promi
     includeSiblings: args.include_siblings,
     messageId: args.message_id
   }
+
   const conversation = conversationEvidence(readConversation(readInput))
+
   if (args.tool_call_id && args.message_id) {
     const topicId = conversation.source === 'agent' ? buildAgentSessionTopicId(sessionId) : sessionId
     const toolResult = await findPersistedToolOutput(topicId, args.message_id, args.tool_call_id)
+
     return { content: [{ type: 'text', text: JSON.stringify({ ...conversation, toolResult }) }] }
   }
+
   return { content: [{ type: 'text', text: JSON.stringify(conversation) }] }
 }
 
@@ -510,6 +536,7 @@ function listSessionDeliveries(
           ]
         : []
     )
+
   return { content: [{ type: 'text', text: JSON.stringify({ deliveries }) }] }
 }
 
@@ -520,7 +547,9 @@ function resolveWorkspaceForNewSession(
   if (!targetAgentId || targetAgentId === ctx.agentId) return ctx.workspaceSource
   // Match a human opening the target Agent: continue that Agent's own last workspace.
   const latest = agentSessionService.getLatestActive({ agentId: targetAgentId })
+
   if (!latest) return ctx.workspaceSource
+
   return latest.workspace.type === AGENT_WORKSPACE_TYPE.USER
     ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: latest.workspaceId }
     : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
@@ -529,18 +558,23 @@ function resolveWorkspaceForNewSession(
 function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionCreateInputSchema>): CallToolResult {
   const content = args.message.trim()
   const title = args.title?.trim() ?? ''
+
   if (!content) throw new Error("'message' is required")
 
   let targetAgentId: string | undefined
+
   if (args.target_agent_id !== undefined) {
     targetAgentId = args.target_agent_id.trim()
+
     if (!targetAgentId) throw new Error("'target_agent_id' must be a non-empty string")
+
     if (!agentService.getAgent(targetAgentId)) {
       throw new AgentSessionDeliveryRoutingError('TARGET_AGENT_DELETED', `Target Agent not found: ${targetAgentId}`)
     }
   }
 
   const service = application.get('AgentSessionDeliveryService')
+
   const input: Parameters<typeof service.acceptWithNewSession>[0] = {
     senderAgentId: ctx.agentId,
     senderSessionId: ctx.sessionId,
@@ -548,8 +582,10 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
     workspace: resolveWorkspaceForNewSession(ctx, targetAgentId),
     content
   }
+
   if (targetAgentId) input.targetAgentId = targetAgentId
   const created = service.acceptWithNewSession(input)
+
   return {
     content: [
       {
@@ -569,7 +605,9 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
 function sendSessionMessage(ctx: AutonomyToolsContext, args: z.output<typeof SessionSendInputSchema>): CallToolResult {
   const receiverSessionId = args.target_session_id.trim()
   const content = args.message.trim()
+
   if (!receiverSessionId) throw new Error("'target_session_id' is required")
+
   if (!content) throw new Error("'message' is required")
 
   const accepted = application.get('AgentSessionDeliveryService').accept({
@@ -579,6 +617,7 @@ function sendSessionMessage(ctx: AutonomyToolsContext, args: z.output<typeof Ses
     content,
     replyPolicy: args.reply ?? 'none'
   })
+
   return {
     content: [
       {
@@ -600,8 +639,11 @@ function getNotifyChannelAccess(
   adapters?: readonly { channelId: string; connected: boolean }[]
 ): 'allowed' | 'not-owned' | 'not-granted' {
   const channel = channelService.getChannel(channelId)
+
   if (!channel || channel.agentId !== ctx.agentId) return 'not-owned'
+
   if (ctx.trustedNotifyChannels.some((trustedChannel) => trustedChannel.id === channelId)) return 'allowed'
+
   // A dropped adapter stays registered for reconnection, so require a live connection here —
   // otherwise this fallback authorizes an offline channel the turn was never granted.
   return ctx.allowAnyOwnedNotifyChannel &&
@@ -623,13 +665,18 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     reuse_session: reuseSession,
     id
   } = args
+
   if (action === 'update' && !id) throw new Error("'id' is required for update")
+
   if (action === 'add' && !name) throw new Error("'name' is required for add")
+
   if (action === 'add' && !message) throw new Error("'message' is required for add")
 
   // Determine trigger shape (cron expression / interval ms / one-shot timestamp)
   const scheduleCount = [cronExpr, every, at].filter(Boolean).length
+
   if (action === 'add' && scheduleCount === 0) throw new Error("One of 'cron', 'every', or 'at' is required")
+
   if (scheduleCount > 1) throw new Error("Use only one of 'cron', 'every', or 'at'")
 
   let trigger: Trigger | undefined
@@ -641,11 +688,13 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     trigger = { kind: 'interval', ms: minutes * 60_000 }
   } else if (at) {
     const date = new Date(at)
+
     if (isNaN(date.getTime())) throw new Error(`Invalid timestamp: "${at}"`)
     trigger = { kind: 'once', at: date.getTime() }
   }
 
   let channelIds = args.channel_ids
+
   if (channelIds === undefined && action === 'add' && ctx.trustedNotifyChannels.length > 0) {
     channelIds = ctx.trustedNotifyChannels.map((channel) => channel.id)
   }
@@ -653,13 +702,16 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
   // Task targets have the same live ownership and turn authority requirements as immediate notifications.
   for (const channelId of channelIds ?? []) {
     const access = getNotifyChannelAccess(ctx, channelId)
+
     if (access === 'not-owned') throw new Error(`Channel "${channelId}" not found`)
+
     if (access === 'not-granted') {
       throw new Error(`Channel "${channelId}" is not a configured notification recipient for this turn`)
     }
   }
 
   const service = application.get('AgentJobsService')
+
   const patch = {
     name,
     prompt: message,
@@ -667,7 +719,9 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     timeoutMinutes,
     channelIds
   } satisfies Parameters<typeof service.updateTask>[2]
+
   if (reuseSession !== undefined) Object.assign(patch, { reuseSession })
+
   const task =
     action === 'add'
       ? service.createTask(ctx.agentId, {
@@ -679,10 +733,12 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
           channelIds: channelIds?.length ? channelIds : undefined
         })
       : service.updateTask(ctx.agentId, id!, patch)
+
   if (!task) throw new Error(`Job "${id}" not found`)
 
   const outcome = action === 'add' ? 'created' : 'updated'
   logger.info(`Cron job ${outcome} via tool`, { agentId: ctx.agentId, taskId: task.id })
+
   return {
     content: [{ type: 'text', text: `Job ${outcome}:\n${JSON.stringify(task, null, 2)}` }]
   }
@@ -704,9 +760,11 @@ async function removeJob(ctx: AutonomyToolsContext, id: string | undefined): Pro
   if (!id) throw new Error("'id' is required for remove")
 
   const deleted = await application.get('AgentJobsService').deleteTask(ctx.agentId, id)
+
   if (!deleted) throw new Error(`Job "${id}" not found`)
 
   logger.info('Cron job removed via tool', { agentId: ctx.agentId, taskId: id })
+
   return {
     content: [{ type: 'text', text: `Job "${id}" removed.` }]
   }
@@ -729,6 +787,7 @@ async function runCron(ctx: AutonomyToolsContext, args: CronInput): Promise<Call
         `${error.message} Names are unique across all Agents, including disabled jobs; cron list only shows this Agent's jobs. Use update with the existing job id to edit your own task, choose a different name, or inspect the conflicting task in Settings > Scheduled Tasks.`
       )
     }
+
     throw error
   }
 }
@@ -736,19 +795,24 @@ async function runCron(ctx: AutonomyToolsContext, args: CronInput): Promise<Call
 async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): Promise<CallToolResult> {
   const message = args.message?.trim()
   const filePath = args.file_path?.trim()
+
   if (!message && !filePath) {
     throw new Error("Provide 'message', 'file_path', or both for notify")
   }
 
   const explicitChannelId = args.channel_id?.trim()
+
   if (args.channel_id !== undefined && !explicitChannelId) {
     throw new Error("'channel_id' must not be empty")
   }
+
   const targetChannelIds = explicitChannelId
     ? [explicitChannelId]
     : ctx.trustedNotifyChannels.map((channel) => channel.id)
+
   const targetChannelIdSet = new Set(targetChannelIds)
   const allAgentAdapters = application.get('ChannelManager').getAgentAdapters(ctx.agentId)
+
   for (const channelId of targetChannelIdSet) {
     if (getNotifyChannelAccess(ctx, channelId, allAgentAdapters) !== 'allowed') {
       throw new Error(`Channel "${channelId}" is not a configured notification recipient for this turn`)
@@ -758,6 +822,7 @@ async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): P
   const adapters = allAgentAdapters.filter((adapter) => targetChannelIdSet.has(adapter.channelId))
   const availableChannelIds = new Set(adapters.map((adapter) => adapter.channelId))
   const unavailableChannelIds = [...targetChannelIdSet].filter((channelId) => !availableChannelIds.has(channelId))
+
   if (unavailableChannelIds.length > 0) {
     const recipients = unavailableChannelIds.join(', ')
     throw new Error(
@@ -800,6 +865,7 @@ async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): P
           recordError(adapter, chatId, 'message', err)
         }
       }
+
       if (file) {
         try {
           await adapter.sendFile(chatId, file)
@@ -812,8 +878,11 @@ async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): P
   }
 
   const parts: string[] = []
+
   if (sanitizedMessage) parts.push(`Message sent to ${messagesSent} chat(s).`)
+
   if (file) parts.push(`File "${file.filename}" sent to ${filesSent} chat(s).`)
+
   if (errors.length > 0) parts.push(`Errors: ${errors.join('; ')}`)
 
   logger.info('Notification sent via notify tool', {
@@ -832,7 +901,9 @@ async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): P
   const deliveryFailed = errors.length > 0 && (messageFailed || fileFailed)
 
   const result: CallToolResult = { content: [{ type: 'text', text: parts.join(' ') }] }
+
   if (deliveryFailed) result.isError = true
+
   return result
 }
 
@@ -840,6 +911,7 @@ async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): P
 
 function configStatus(ctx: AutonomyToolsContext): CallToolResult {
   const agent = agentService.getAgent(ctx.agentId)
+
   if (!agent) throw new Error(`Agent not found: ${ctx.agentId}`)
 
   const config = agent.configuration
@@ -871,6 +943,7 @@ function configStatus(ctx: AutonomyToolsContext): CallToolResult {
   }
 
   logger.info('Config status queried', { agentId: ctx.agentId })
+
   return {
     content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
   }
@@ -881,17 +954,21 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
   const authMode = args.auth_mode ?? 'credentials'
 
   if (!type) throw new Error("'type' is required for add_channel")
+
   if (!name) throw new Error("'name' is required for add_channel")
 
   const schema = CHANNEL_CONFIG_SCHEMAS[type]
+
   if (authMode === 'qr' && type !== 'wechat' && type !== 'feishu') {
     throw new Error(`QR authentication is not supported for ${type} channels`)
   }
+
   if (authMode === 'qr' && enabled === false) {
     throw new Error('QR authentication requires the channel to be enabled')
   }
 
   let cfg: NonNullable<ConfigInput['config']> = rawConfig ?? {}
+
   if (authMode === 'qr' && type === 'wechat') {
     cfg = { ...rawConfig, token_path: '' }
   } else if (authMode === 'qr' && type === 'feishu') {
@@ -920,15 +997,18 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
 
     if (existingChannel) {
       const config = ChannelConfigSchema.parse({ type, ...cfg })
+
       const { qrUrl } = await updateAgentChannelAndWaitForQr(
         existingChannel.id,
         ctx.agentId,
         { name, config, isActive: true },
         30_000
       )
+
       return await configReconnectChannel(ctx, existingChannel.id, qrUrl)
     }
   }
+
   if (authMode === 'credentials') {
     for (const field of schema.required) {
       if (!cfg[field]) {
@@ -945,6 +1025,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
   // and wait only for the QR URL to return it to the agent.
   if (authMode === 'qr') {
     const channelLabel = type === 'wechat' ? 'WeChat' : 'Feishu'
+
     const scanHint =
       type === 'wechat'
         ? 'scan with WeChat to log in'
@@ -962,6 +1043,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
         },
         30_000
       )
+
       const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
       // Extract base64 from data URI: "data:image/png;base64,..."
       const base64 = qrDataUrl.split(',')[1]
@@ -970,6 +1052,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
         agentId: ctx.agentId,
         channelId: newChannel.id
       })
+
       return {
         content: [
           {
@@ -988,6 +1071,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
         agentId: ctx.agentId,
         error: err instanceof Error ? err.message : String(err)
       })
+
       return {
         content: [
           {
@@ -1010,6 +1094,7 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
   })
 
   logger.info('Channel added via config tool', { agentId: ctx.agentId, channelId: newChannel.id, type })
+
   return {
     content: [
       {
@@ -1024,7 +1109,9 @@ async function configAddChannel(ctx: AutonomyToolsContext, args: ConfigInput): P
 function getOwnedChannel(ctx: AutonomyToolsContext, channelId: string | undefined, action: string) {
   if (!channelId) throw new Error(`'channel_id' is required for ${action}`)
   const channel = channelService.getChannel(channelId)
+
   if (!channel || channel.agentId !== ctx.agentId) throw new Error(`Channel "${channelId}" not found`)
+
   return channel
 }
 
@@ -1032,8 +1119,11 @@ function configUpdateChannel(ctx: AutonomyToolsContext, args: ConfigInput): Call
   const existing = getOwnedChannel(ctx, args.channel_id, 'update_channel')
 
   const updates: Parameters<typeof updateAgentChannel>[1] = {}
+
   if (args.name !== undefined) updates.name = args.name
+
   if (args.enabled !== undefined) updates.isActive = args.enabled
+
   if (args.config !== undefined) {
     updates.configPatch = args.config
   }
@@ -1041,6 +1131,7 @@ function configUpdateChannel(ctx: AutonomyToolsContext, args: ConfigInput): Call
   updateAgentChannel(existing.id, updates)
 
   logger.info('Channel updated via config tool', { agentId: ctx.agentId, channelId: existing.id })
+
   return {
     content: [{ type: 'text', text: `Channel "${existing.id}" updated and reloaded.` }]
   }
@@ -1052,6 +1143,7 @@ async function configRemoveChannel(ctx: AutonomyToolsContext, args: ConfigInput)
   await deleteAgentChannel(channel.id)
 
   logger.info('Channel removed via config tool', { agentId: ctx.agentId, channelId: channel.id, type: channel.type })
+
   return {
     content: [{ type: 'text', text: `Channel "${channel.id}" (${channel.name}) removed.` }]
   }
@@ -1069,6 +1161,7 @@ async function configReconnectChannel(
 
   if (!needsQr) {
     await reconnectAgentChannel(channel.id)
+
     return {
       content: [{ type: 'text', text: `Channel "${channel.id}" reconnected.` }]
     }
@@ -1082,6 +1175,7 @@ async function configReconnectChannel(
     const base64 = qrDataUrl.split(',')[1]
 
     logger.info(`${channelLabel} channel reconnect QR generated`, { agentId: ctx.agentId, channelId: channel.id })
+
     return {
       content: [
         {
@@ -1110,11 +1204,13 @@ async function configReconnectChannel(
 
 function configRename(ctx: AutonomyToolsContext, args: ConfigInput): CallToolResult {
   const name = args.name?.trim()
+
   if (!name) throw new Error("'name' is required for rename")
 
   agentService.updateAgent(ctx.agentId, { name })
 
   logger.info('Agent renamed via config tool', { agentId: ctx.agentId, name })
+
   return {
     content: [{ type: 'text', text: `Agent renamed to "${name}".` }]
   }
@@ -1122,17 +1218,21 @@ function configRename(ctx: AutonomyToolsContext, args: ConfigInput): CallToolRes
 
 function configSetBootstrap(ctx: AutonomyToolsContext, completed: boolean): CallToolResult {
   const updated = agentService.updateAgent(ctx.agentId, { configuration: { bootstrap_completed: completed } })
+
   if (!updated) throw new Error(`Agent not found: ${ctx.agentId}`)
 
   logger.info(completed ? 'Bootstrap marked as completed' : 'Bootstrap reset', { agentId: ctx.agentId })
+
   const text = completed
     ? 'Bootstrap is turned off for this agent. Stop onboarding now; future sessions will skip it unless the user asks to reset it.'
     : 'Bootstrap has been reset. The next session will run the onboarding flow.'
+
   return { content: [{ type: 'text', text }] }
 }
 
 function assertConfigMutationAuthorized(ctx: AutonomyToolsContext): void {
   const interaction = application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId)
+
   if (interaction.currentTurn === 'headless') {
     throw new Error(
       'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
@@ -1142,6 +1242,7 @@ function assertConfigMutationAuthorized(ctx: AutonomyToolsContext): void {
 
 async function runConfig(ctx: AutonomyToolsContext, args: ConfigInput): Promise<CallToolResult> {
   if (args.action !== 'status') assertConfigMutationAuthorized(ctx)
+
   switch (args.action) {
     case 'status':
       return configStatus(ctx)
@@ -1166,6 +1267,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
   server.registerTool(CRON_TOOL_NAME, { description: CRON_DESCRIPTION, inputSchema: CronInputSchema }, (args) =>
     runCron(ctx, args)
   )
+
   // Without recipients there is nothing notify could reach, so the tool is not offered at all.
   if (ctx.trustedNotifyChannels.length > 0) {
     const recipients = ctx.trustedNotifyChannels.map((channel) => `${channel.type} (${channel.id})`).join(', ')
@@ -1175,6 +1277,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       (args) => sendNotification(ctx, args)
     )
   }
+
   server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
     runConfig(ctx, args)
   )

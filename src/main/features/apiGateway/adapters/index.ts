@@ -8,6 +8,7 @@
 
 // Factories — the public entry point
 export { type InputParamsMap, MessageConverterFactory } from './factory/MessageConverterFactory'
+
 export { StreamAdapterFactory } from './factory/StreamAdapterFactory'
 
 // Public contract interfaces

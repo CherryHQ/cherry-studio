@@ -42,6 +42,7 @@ export type HandlerResult<T> = T | { data: T; status: SuccessStatusCode }
 export function isCustomStatusResult(result: unknown): result is { data: unknown; status: SuccessStatusCode } {
   if (result === null || typeof result !== 'object' || !('status' in result) || !('data' in result)) return false
   const status = result.status
+
   return typeof status === 'number' && Object.values(SuccessStatus).some((code) => code === status)
 }
 
@@ -347,6 +348,7 @@ import type { ApiSchemas } from './schemas/apiSchemas'
 
 // Re-export for external use
 export type { ConcreteApiPaths } from './paths'
+
 export type { ApiSchemas } from './schemas/apiSchemas'
 
 /**

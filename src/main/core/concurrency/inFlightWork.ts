@@ -19,21 +19,26 @@ const DEFAULT_DRAIN_TIMEOUT_MS = 15_000
 
 export function createInFlightWorkTracker(): InFlightWorkTracker {
   const inFlight = new Set<Promise<unknown>>()
+
   return {
     track(work) {
       inFlight.add(work)
       const done = () => inFlight.delete(work)
       void work.then(done, done)
+
       return work
     },
     async drain({ timeoutMs = DEFAULT_DRAIN_TIMEOUT_MS } = {}) {
       const deadline = Date.now() + timeoutMs
+
       while (inFlight.size > 0) {
         const remaining = deadline - Date.now()
+
         if (remaining <= 0) return false
         // Race the settle round against the deadline: awaiting allSettled
         // alone would block forever on a never-settling promise.
         let timer: ReturnType<typeof setTimeout> | undefined
+
         try {
           const round = await Promise.race([
             Promise.allSettled([...inFlight]).then(() => 'settled' as const),
@@ -41,11 +46,13 @@ export function createInFlightWorkTracker(): InFlightWorkTracker {
               timer = setTimeout(() => resolve('timeout'), remaining)
             })
           ])
+
           if (round === 'timeout') return false
         } finally {
           clearTimeout(timer)
         }
       }
+
       return true
     }
   }

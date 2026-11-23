@@ -91,4 +91,5 @@ const ErrorBoundaryCustomized = ({
 }
 
 export { ErrorBoundaryCustomized as ErrorBoundary }
+
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps }

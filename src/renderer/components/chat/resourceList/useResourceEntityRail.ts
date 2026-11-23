@@ -56,6 +56,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   const [optimisticOrderIds, setOptimisticOrderIds] = useState<readonly string[] | null>(null)
   const loadResourceForOwner = useCallback((item: TEntity) => loadResourceForEntity(item.id), [loadResourceForEntity])
   const createResourceForOwner = useCallback((item: TEntity) => onCreateResource(item.id), [onCreateResource])
+
   const { activateOwnerResource: handleSelect, cancelOwnerResourceActivation } = useOwnerResourceActivation({
     loadResourceForOwner,
     createResourceForOwner,
@@ -82,7 +83,9 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
 
     // Float pinned entities into the rail's "pinned" group at the top, preserving their relative order.
     const pinned = base.filter((entity) => entity.pinned)
+
     if (pinned.length === 0) return base
+
     return [...pinned, ...base.filter((entity) => !entity.pinned)]
   }, [entities, optimisticOrderIds])
 
@@ -97,7 +100,9 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
       const nextIds = items.map((item) => item.id)
       const activeIndex = nextIds.indexOf(activeId)
       const overIndex = nextIds.indexOf(payload.overId)
+
       if (activeIndex < 0 || overIndex < 0) return
+
       if (items[activeIndex]?.reorderable === false || items[overIndex]?.reorderable === false) return
 
       nextIds.splice(activeIndex, 1)
@@ -113,6 +118,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
         // Best-effort resync after the rollback; a transient refetch failure leaves the
         // already-restored order in place, so swallowing it is intentional.
         await refetchEntities().catch(() => undefined)
+
         return
       }
 

@@ -98,16 +98,19 @@ export class JsonFileStorage implements IOAuthStorage {
 
       if (legacy.clientInfo || legacy.tokens || legacy.codeVerifier) {
         const migrated = emptySecretData()
+
         if (legacy.clientInfo) {
           const issuer = legacy.clientInfo.issuer ?? LEGACY_ISSUER
           migrated.clientInfoByIssuer[issuer] = legacy.clientInfo
           migrated.lastIssuer = issuer
         }
+
         if (legacy.tokens) {
           const issuer = legacy.tokens.issuer ?? migrated.lastIssuer ?? LEGACY_ISSUER
           migrated.tokensByIssuer[issuer] = legacy.tokens
           migrated.lastIssuer = issuer
         }
+
         migrated.codeVerifier = legacy.codeVerifier
         this.secretCache = migrated
         await this.writeStorage(validated)
@@ -118,8 +121,10 @@ export class JsonFileStorage implements IOAuthStorage {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         const initial: OAuthStorageData = { lastUpdated: Date.now() }
         await this.writeStorage(initial)
+
         return initial
       }
+
       logger.error('Error reading OAuth storage:', error as Error)
       throw new Error(`Failed to read OAuth storage: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -131,12 +136,15 @@ export class JsonFileStorage implements IOAuthStorage {
     }
 
     const data = await this.readStorage()
+
     // Reading a legacy file may already have migrated its credentials into this cache.
     if (this.secretCache) return this.secretCache
+
     if (data.encryptedCredentials && this.cipher.isAvailable()) {
       try {
         const decrypted: unknown = JSON.parse(this.cipher.decrypt(data.encryptedCredentials))
         this.secretCache = OAuthSecretDataSchema.parse(decrypted)
+
         return this.secretCache
       } catch (error) {
         logger.error('Failed to decrypt OAuth credentials; reauthorization is required', error as Error)
@@ -144,6 +152,7 @@ export class JsonFileStorage implements IOAuthStorage {
     }
 
     this.secretCache = volatileSecrets.get(this.filePath) ?? emptySecretData()
+
     return this.secretCache
   }
 
@@ -155,6 +164,7 @@ export class JsonFileStorage implements IOAuthStorage {
         ...data,
         lastUpdated: Date.now()
       }
+
       if (this.secretCache) {
         if (this.cipher.isAvailable()) {
           nextData.encryptedCredentials = this.cipher.encrypt(JSON.stringify(this.secretCache))
@@ -183,6 +193,7 @@ export class JsonFileStorage implements IOAuthStorage {
 
   async getClientInformation(ctx?: OAuthClientInformationContext): Promise<StoredOAuthClientInformation | undefined> {
     const secrets = await this.readSecrets()
+
     return this.readForIssuer(secrets.clientInfoByIssuer, ctx)
   }
 
@@ -193,15 +204,18 @@ export class JsonFileStorage implements IOAuthStorage {
     const secrets = await this.readSecrets()
     const issuer = this.issuerKey(ctx, info?.issuer)
     this.forgetForIssuer(secrets.clientInfoByIssuer, issuer)
+
     if (info) {
       secrets.clientInfoByIssuer[issuer] = { ...info }
       secrets.lastIssuer = issuer
     }
+
     await this.writeSecrets(secrets)
   }
 
   async getTokens(ctx?: OAuthClientInformationContext): Promise<StoredOAuthTokens | undefined> {
     const secrets = await this.readSecrets()
+
     return this.readForIssuer(secrets.tokensByIssuer, ctx)
   }
 
@@ -209,18 +223,22 @@ export class JsonFileStorage implements IOAuthStorage {
     const secrets = await this.readSecrets()
     const issuer = this.issuerKey(ctx, tokens?.issuer)
     this.forgetForIssuer(secrets.tokensByIssuer, issuer)
+
     if (tokens) {
       secrets.tokensByIssuer[issuer] = { ...tokens }
       secrets.lastIssuer = issuer
     }
+
     await this.writeSecrets(secrets)
   }
 
   async getCodeVerifier(): Promise<string> {
     const verifier = (await this.readSecrets()).codeVerifier
+
     if (!verifier) {
       throw new Error('No code verifier saved for session')
     }
+
     return verifier
   }
 
@@ -257,6 +275,7 @@ export class JsonFileStorage implements IOAuthStorage {
   ): Promise<void> {
     if (scope === 'discovery') {
       await this.saveDiscoveryState(undefined)
+
       return
     }
 
@@ -266,6 +285,7 @@ export class JsonFileStorage implements IOAuthStorage {
       this.secretCache = emptySecretData()
       volatileSecrets.delete(this.filePath)
       await this.writeStorage({ lastUpdated: Date.now() })
+
       return
     }
 
@@ -276,6 +296,7 @@ export class JsonFileStorage implements IOAuthStorage {
     } else if (scope === 'verifier') {
       secrets.codeVerifier = undefined
     }
+
     await this.writeSecrets(secrets)
   }
 }

@@ -22,11 +22,13 @@ function AgentNotificationLabel({ sessionId }: { sessionId: string }) {
     params: { sessionId },
     swrOptions: { shouldRetryOnError: false }
   })
+
   const { data: agent, error: agentError } = useQuery('/agents/:agentId', {
     params: { agentId: session?.agentId ?? '' },
     enabled: !!session?.agentId && !sessionError,
     swrOptions: { shouldRetryOnError: false }
   })
+
   if (sessionError || agentError || !agent?.name) return null
 
   return <NotificationIdentity name={agent.name} emoji={getAgentAvatarFromConfiguration(agent.configuration)} />
@@ -37,11 +39,13 @@ function AssistantNotificationLabel({ topicId }: { topicId: string }) {
     params: { id: topicId },
     swrOptions: { shouldRetryOnError: false }
   })
+
   const { data: assistant, error: assistantError } = useQuery('/assistants/:id', {
     params: { id: topic?.assistantId ?? '' },
     enabled: !!topic?.assistantId && !topicError,
     swrOptions: { shouldRetryOnError: false }
   })
+
   if (topicError || assistantError || !assistant?.name) return null
 
   return <NotificationIdentity name={assistant.name} emoji={assistant.emoji?.trim() || DEFAULT_ASSISTANT_EMOJI} />
@@ -49,11 +53,13 @@ function AssistantNotificationLabel({ topicId }: { topicId: string }) {
 
 export function NotificationTitle({ record }: { record: NotificationRecord }) {
   const result = record.target?.result
+
   const target =
     (record.kind === 'task-completion' || record.kind === 'queue-completion' || result) &&
     record.target?.kind === 'conversation'
       ? record.target
       : undefined
+
   if (!target && !result?.actor) return notificationPreview(record.title, true)
 
   return (

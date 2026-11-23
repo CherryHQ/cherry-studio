@@ -8,9 +8,11 @@ class ContextMenu {
     w.on('context-menu', (_event, properties) => {
       const template: MenuItemConstructorOptions[] = this.createEditMenuItems(properties)
       const filtered = template.filter((item) => item.visible !== false)
+
       if (filtered.length > 0) {
         let template = [...filtered, ...this.createInspectMenuItems(w)]
         const dictionarySuggestions = this.createDictionarySuggestions(properties, w)
+
         if (dictionarySuggestions.length > 0) {
           template = [
             ...dictionarySuggestions,
@@ -20,6 +22,7 @@ class ContextMenu {
             ...template
           ]
         }
+
         const menu = Menu.buildFromTemplate(template)
         menu.popup()
       }

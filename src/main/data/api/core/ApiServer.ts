@@ -39,7 +39,9 @@ export class ApiServer {
     if (ApiServer.instance) {
       throw new Error('ApiServer already initialized')
     }
+
     ApiServer.instance = new ApiServer(handlers)
+
     return ApiServer.instance
   }
 
@@ -50,6 +52,7 @@ export class ApiServer {
     if (!ApiServer.instance) {
       throw new Error('ApiServer not initialized. Call initialize() first.')
     }
+
     return ApiServer.instance
   }
 
@@ -95,6 +98,7 @@ export class ApiServer {
       // Execute handler if middleware didn't set error
       if (!requestContext.response.error) {
         const handlerStart = DATA_API_HANDLER_TIMING_ENABLED ? performance.now() : 0
+
         try {
           await this.executeHandler(requestContext, handlerMatch)
         } finally {
@@ -107,12 +111,15 @@ export class ApiServer {
       // Opt-in timing: devtools reads metadata in dev; diagnostics additionally logs slow requests.
       if (DATA_API_TIMING_ENABLED) {
         const duration = performance.now() - perfStart
+
         const metadata = {
           ...requestContext.response.metadata,
           duration
         }
+
         if (DATA_API_HANDLER_TIMING_ENABLED) Object.assign(metadata, { handlerDuration })
         requestContext.response.metadata = { ...metadata, timestamp: Date.now() }
+
         if (DIAGNOSTICS_ENABLED && duration > SLOW_THRESHOLD_MS.dataApiRequest)
           logger.info(`[Diagnostics/dataapi] ${duration.toFixed(1)}ms ${method} ${path}`)
       }
@@ -132,10 +139,13 @@ export class ApiServer {
 
       const duration = DATA_API_TIMING_ENABLED ? performance.now() - perfStart : undefined
       const timing: Pick<NonNullable<DataResponse['metadata']>, 'duration' | 'handlerDuration'> = {}
+
       if (DATA_API_TIMING_ENABLED) {
         timing.duration = duration
+
         if (DATA_API_HANDLER_TIMING_ENABLED) timing.handlerDuration = handlerDuration
       }
+
       return {
         id: request.id,
         status: apiError.status,
@@ -154,6 +164,7 @@ export class ApiServer {
   ): { handler: HandlerFunction; params: Record<string, string> } | null {
     // Direct lookup first
     const directHandler = (this.handlers as any)[path]?.[method]
+
     if (directHandler) {
       return { handler: directHandler, params: {} }
     }
@@ -162,6 +173,7 @@ export class ApiServer {
     for (const [pattern, methods] of Object.entries(this.handlers)) {
       if (pattern.includes(':') && (methods as any)[method]) {
         const params = this.extractPathParams(pattern, path)
+
         if (params !== null) {
           return { handler: (methods as any)[method], params }
         }
@@ -195,6 +207,7 @@ export class ApiServer {
 
     // Locate the greedy segment (if any) and reject patterns with more than one.
     let greedyIdx = -1
+
     for (let i = 0; i < patternParts.length; i++) {
       if (isGreedy(patternParts[i])) {
         if (greedyIdx !== -1) return null
@@ -206,6 +219,7 @@ export class ApiServer {
     if (greedyIdx === -1) {
       if (patternParts.length !== pathParts.length) return null
       const params: Record<string, string> = {}
+
       for (let i = 0; i < patternParts.length; i++) {
         if (patternParts[i].startsWith(':')) {
           params[patternParts[i].slice(1)] = pathParts[i]
@@ -213,6 +227,7 @@ export class ApiServer {
           return null
         }
       }
+
       return params
     }
 
@@ -238,6 +253,7 @@ export class ApiServer {
     for (let t = 0; t < trailingLen; t++) {
       const patternPart = patternParts[greedyIdx + 1 + t]
       const pathPart = pathParts[greedyEnd + t]
+
       if (patternPart.startsWith(':')) {
         params[patternPart.slice(1)] = pathPart
       } else if (patternPart !== pathPart) {
@@ -299,6 +315,7 @@ export class ApiServer {
       if (result !== undefined) {
         response.data = result
       }
+
       // Infer status code based on HTTP method
       response.status = this.inferStatusCode(context.method!, result !== undefined)
     }
@@ -323,6 +340,7 @@ export class ApiServer {
    */
   getSystemInfo() {
     const handlerPaths = Object.keys(this.handlers)
+
     const handlerCount = handlerPaths.reduce((count, path) => {
       return count + Object.keys((this.handlers as any)[path]).length
     }, 0)

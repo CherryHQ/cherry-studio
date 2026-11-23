@@ -34,5 +34,6 @@ const CHANNEL_TYPE_ICONS: ReadonlyMap<string, string> = new Map([
 
 export const getChannelTypeIcon = (channelType: string | undefined): string | undefined => {
   if (!channelType) return undefined
+
   return CHANNEL_TYPE_ICONS.get(channelType)
 }

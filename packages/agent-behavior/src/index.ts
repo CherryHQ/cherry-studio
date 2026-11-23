@@ -30,7 +30,9 @@ export type {
   GateCall,
   GateFacts
 } from './core/facts'
+
 export { callKeyOf, ENTRY_KINDS } from './core/facts'
+
 export type {
   CallRef,
   ApprovalOutcome,
@@ -50,8 +52,11 @@ export type {
   CompactionReason,
   HostSettingsSnapshot
 } from './core/hostFacts'
+
 export type { EncodedEntry, RawEntry } from './core/entryCodec'
+
 export { decodeEntry, encodeEntry } from './core/entryCodec'
+
 export type {
   TurnInput,
   StopCause,
@@ -64,13 +69,21 @@ export type {
   Effect,
   Step
 } from './core/decisions'
+
 export type { Key } from './core/keys'
+
 export { nativeSummaryKey } from './core/keys'
+
 export { goalForRequest, turnOrigin } from './core/goal/goalHistory'
+
 export { delegationStatus, subagentViews, subagentResults } from './core/subagents/subagentLedger'
+
 export type { DelegationStatus, SubagentResults } from './core/subagents/subagentLedger'
+
 export { DEFAULT_MAX_BACKGROUND, FORK_PLACEHOLDER_RESULT, INTERRUPTED_CALL_RESULT } from './core/subagents/subagentText'
+
 export type { SubagentStop } from './core/driver/lifecycle'
+
 export type {
   TransactResult,
   Ledger,
@@ -103,6 +116,7 @@ export type {
   BoundPorts,
   PortMethod
 } from './ports/harness'
+
 export type {
   ApprovalRequest,
   Approvals,
@@ -117,7 +131,9 @@ export type {
   Settings,
   HostPorts
 } from './ports/host'
+
 export { install } from './orchestration/install'
+
 export {
   TOOL_INTENT_ARG,
   TOOL_INTENT_GUIDE,
@@ -125,11 +141,17 @@ export {
   createToolIntent,
   offersToolIntent
 } from './orchestration/toolIntent'
+
 export type { IntentTool } from './orchestration/toolIntent'
+
 export type { Installation } from './orchestration/install'
+
 export type { Entries } from './orchestration/entries'
+
 export type { SubagentMessageReceipt } from './orchestration/tools/subagents'
+
 export { harnessContract } from './contract/cases'
+
 export type {
   ContractCase,
   ContractHarness,
@@ -138,7 +160,11 @@ export type {
   ScriptedReply,
   ScriptedToolCall
 } from './contract/harness'
+
 export { createFakeHarness } from './fake/fakeHarness'
+
 export type { FakeHarness, FakeHarnessOptions } from './fake/fakeHarness'
+
 export { createScriptedHost } from './fake/scriptedHost'
+
 export type { ScriptedHost, ScriptedHostOptions } from './fake/scriptedHost'

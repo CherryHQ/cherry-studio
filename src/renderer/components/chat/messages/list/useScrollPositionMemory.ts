@@ -66,8 +66,10 @@ export function computeScrollAnchor({
 }: ComputeScrollAnchorArgs): ChatScrollAnchor | null {
   if (following) return null
   const key = getKeyAtIndex(topIndex)
+
   if (!key) return null
   const offset = Math.max(0, scrollOffset - getOffsetAtIndex(topIndex))
+
   return { key, offset }
 }
 
@@ -85,8 +87,10 @@ export function resolveRestoreTarget(
 ): RestoreTarget {
   if (saved) {
     const index = findIndexByKey(saved.key)
+
     if (index >= 0) return { index, align: 'start', offset: saved.offset }
   }
+
   return { index: lastIndex, align: 'end', offset: bottomOffset }
 }
 
@@ -141,13 +145,17 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
 
   const save = useCallback((immediate = false) => {
     const i = inputsRef.current
+
     if (suppressSaveRef.current || !i.topicId) return
     const el = i.scrollerRef.current
     const handle = i.vlistHandleRef.current
+
     if (!el || !handle || i.isAnimating()) return
     const now = Date.now()
+
     if (!immediate && now - lastSaveAtRef.current < SAVE_THROTTLE_MS) return
     lastSaveAtRef.current = now
+
     const anchor = computeScrollAnchor({
       following: i.isFollowing(),
       scrollOffset: el.scrollTop,
@@ -155,6 +163,7 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
       getKeyAtIndex: i.getDataKeyAtIndex,
       getOffsetAtIndex: (index) => handle.getItemOffset(index)
     })
+
     cacheService.set(cacheKeyFor(i.topicId), anchor)
   }, [])
 
@@ -169,20 +178,26 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
     const target = resolveRestoreTarget(saved, i.findDataIndexByKey, i.itemCount - 1, i.bottomPadding)
 
     let settleRaf = 0
+
     const raf = requestAnimationFrame(() => {
       if (!i.shouldRestore()) {
         suppressSaveRef.current = false
+
         return
       }
+
       const el = i.scrollerRef.current
       const handle = i.vlistHandleRef.current
+
       if (target.align === 'end') i.enterFollowingAfterRestore()
       else i.enterReadingForRestore()
+
       if (handle) {
         handle.scrollToIndex(target.index, { align: target.align, offset: target.offset })
       } else if (el && target.align === 'end') {
         el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
       }
+
       // Let the programmatic scroll flush (virtua's scrollToIndex measures then
       // re-positions) before re-enabling saves.
       settleRaf = requestAnimationFrame(() => {
@@ -193,6 +208,7 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
 
     return () => {
       cancelAnimationFrame(raf)
+
       if (settleRaf) cancelAnimationFrame(settleRaf)
     }
   }, [ready])

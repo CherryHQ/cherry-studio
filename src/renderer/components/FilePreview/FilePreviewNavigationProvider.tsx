@@ -18,5 +18,6 @@ export function FilePreviewNavigationProvider({
   workspacePath
 }: FilePreviewNavigationProviderProps) {
   const value = useMemo(() => ({ openFile, workspacePath }), [openFile, workspacePath])
+
   return <FilePreviewNavigationContext value={value}>{children}</FilePreviewNavigationContext>
 }

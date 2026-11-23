@@ -43,6 +43,7 @@ function getModelShortLabel(modelId?: string | null) {
   if (!modelId) return ''
 
   const value = modelId.trim()
+
   if (!value) return ''
 
   return value.split('/').at(-1)?.split(':').at(-1) ?? value
@@ -50,6 +51,7 @@ function getModelShortLabel(modelId?: string | null) {
 
 function formatNodeTime(createdAt: string) {
   const value = dayjs(createdAt)
+
   return value.isValid() ? value.format('MM/DD HH:mm') : createdAt || '-'
 }
 
@@ -57,8 +59,11 @@ function useRoleLabel(role: MessageRole, isContextBoundary?: boolean) {
   const { t } = useTranslation()
 
   if (isContextBoundary) return t('chat.message.new.context')
+
   if (role === 'user') return t('export.user')
+
   if (role === 'assistant') return t('export.assistant')
+
   return t('globalSearch.messageSearch.roles.system')
 }
 
@@ -66,9 +71,13 @@ function useStatusLabel(status: MessageStatus, isAwaitingInput?: boolean) {
   const { t } = useTranslation()
 
   if (isAwaitingInput) return t('chat.message.flow.status.awaiting_input')
+
   if (status === 'pending') return t('common.loading')
+
   if (status === 'success') return t('common.completed')
+
   if (status === 'error') return t('common.error')
+
   return t('agent.tasks.status.paused')
 }
 
@@ -90,6 +99,7 @@ function TopicMessageFlowNodePreviewCard({
   timeLabel
 }: TopicMessageFlowNodePreviewCardProps) {
   const { t } = useTranslation()
+
   const {
     data: message,
     error,
@@ -99,12 +109,14 @@ function TopicMessageFlowNodePreviewCard({
     enabled: open,
     params: { id: messageId }
   })
+
   useDataChange('/messages/:id', (effects) => {
     if (open && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(messageId))) {
       void mutate()
     }
   })
   const uiMessage = useMemo(() => (message ? sharedMessageToUIMessage(message) : null), [message])
+
   const messageItems = useMemo(
     () =>
       uiMessage && message
@@ -116,6 +128,7 @@ function TopicMessageFlowNodePreviewCard({
         : [],
     [message, uiMessage]
   )
+
   const partsByMessageId = useMemo(() => (uiMessage ? uiMessagesToPartsMap([uiMessage]) : {}), [uiMessage])
   const previewMessage = messageItems[0]
 
@@ -192,6 +205,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
 
   const scheduleOpen = useCallback(() => {
     clearCloseTimer()
+
     if (open || hasOpenedDuringHoverRef.current || openTimerPendingRef.current) return
 
     openTimerPendingRef.current = true

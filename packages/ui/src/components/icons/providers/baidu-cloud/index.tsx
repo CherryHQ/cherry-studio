@@ -4,6 +4,7 @@ import { BaiduCloudLight } from './light'
 
 const BaiduCloud = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BaiduCloudLight {...props} className={className} />
+
   return <BaiduCloudLight {...props} className={className} />
 }
 

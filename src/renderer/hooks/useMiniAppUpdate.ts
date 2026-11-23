@@ -13,6 +13,7 @@ const logger = loggerService.withContext('useMiniAppUpdate')
 const errorMessage = (error: unknown): string => {
   try {
     const message = error instanceof Error ? error.message : String(error)
+
     return typeof message === 'string' ? message : getErrorMessage(error)
   } catch {
     return getErrorMessage(error)
@@ -47,14 +48,17 @@ export function useMiniAppUpdate(
   const check = async () => {
     setBusy(true)
     setCurrent(false)
+
     try {
       const status = await ipcApi.request('mini_app.update.check', { appId })
+
       if (status.status === 'current') {
         setOffer(null)
         setCurrent(true)
       } else {
         setOffer(status)
       }
+
       // A check can change the version the host reports (a newer one published since the dot lit).
       options.onChecked?.()
     } catch (e) {
@@ -72,12 +76,15 @@ export function useMiniAppUpdate(
     // would unmount it before it ever saw `busy`, and the download and publish would run
     // with the dialog already gone and nothing on screen saying so.
     setBusy(true)
+
     try {
       const input: InputFor<'mini_app.update.apply'> = {
         appId,
         updateToken
       }
+
       if (decision.consented) input.consented = true
+
       if (addedOptional.length > 0) input.grantedOptional = decision.grantedOptional
       await ipcApi.request('mini_app.update.apply', input)
       toast.success(t('miniApp.install.upgrade_success', { name: options.name, version }))

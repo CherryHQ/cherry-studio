@@ -46,18 +46,22 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {
     try {
       const { canceled, filePaths } = await dialog.showOpenDialog(options)
+
       if (canceled || filePaths.length === 0) {
         return null
       }
+
       return filePaths[0]
     } catch (error: any) {
       logger.error('Failed to select app data path:', error)
+
       return null
     }
   })
 
   handleGuarded(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
     const hasPermission = await hasWritePermission(filePath)
+
     return hasPermission
   })
 
@@ -82,6 +86,7 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
     const { result, cleanupError } = await runManualBackup(() => backupManager.backupToWebdav(event, config))
+
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
@@ -93,6 +98,7 @@ export async function registerIpc() {
     const { result, cleanupError } = await runManualBackup(() =>
       backupManager.backupToLocalDir(event, fileName, config)
     )
+
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
@@ -100,6 +106,7 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToS3, async (event, config) => {
     const { result, cleanupError } = await runManualBackup(() => backupManager.backupToS3(event, config))
+
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))

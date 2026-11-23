@@ -34,14 +34,18 @@ export function RemoteEndpointSettings({
   const save = async (address: string) => {
     let next: AdvertisedRemoteEndpoint | null = null
     const inputUrl = address.trim()
+
     try {
       if (inputUrl) next = { ...advertisedEndpointSchema.parse(parseDirectEndpoint(inputUrl)), inputUrl }
     } catch {
       setInvalid(true)
+
       return
     }
+
     setInvalid(false)
     setSaving(true)
+
     try {
       await onSave(next)
       setValue(inputUrl)

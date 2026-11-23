@@ -43,6 +43,7 @@ import {
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
 export type BuiltinToolApproval = 'auto' | 'required' | 'delegation'
+
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 
 /** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
@@ -138,6 +139,7 @@ const BUILTIN_TOOL_POLICIES = {
 } as const satisfies Record<string, BuiltinToolPolicyEntry>
 
 export const BUILTIN_TOOL_POLICY_ENTRIES: readonly BuiltinToolPolicyEntry[] = Object.values(BUILTIN_TOOL_POLICIES)
+
 export const MOUNTED_TOOL_POLICY_PROVIDERS: ReadonlyMap<string, () => BuiltinToolPolicyEntry[]> = new Map([
   [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies],
   [

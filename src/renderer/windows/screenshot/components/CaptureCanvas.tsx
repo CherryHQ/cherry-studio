@@ -118,6 +118,7 @@ export const CaptureCanvas = memo(function CaptureCanvas({
   // even when the value is unchanged, so merging the two would re-create it on every pointer move.
   useLayoutEffect(() => {
     const canvas = canvasRef.current
+
     if (!canvas) return
     canvas.width = logicalWidth * scaleFactor
     canvas.height = logicalHeight * scaleFactor
@@ -125,9 +126,11 @@ export const CaptureCanvas = memo(function CaptureCanvas({
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current
+
     if (!canvas) return
 
     const ctx = canvas.getContext('2d')
+
     if (!ctx) return
 
     renderCanvas(ctx, image, logicalWidth, logicalHeight, scaleFactor, state.selection, highlightRect)
@@ -140,7 +143,9 @@ export const CaptureCanvas = memo(function CaptureCanvas({
 
   const toCanvasCoords = useCallback((e: ReactPointerEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect()
+
     if (!rect) return null
+
     return { x: e.clientX - rect.left, y: e.clientY - rect.top }
   }, [])
 
@@ -148,6 +153,7 @@ export const CaptureCanvas = memo(function CaptureCanvas({
     (e: ReactPointerEvent) => {
       if (e.button !== 0) return
       const coords = toCanvasCoords(e)
+
       if (!coords) return
 
       if (lockSelection && state.phase === 'selected' && !isPointInSelection(coords.x, coords.y, state.selection)) {
@@ -179,11 +185,13 @@ export const CaptureCanvas = memo(function CaptureCanvas({
   const handlePointerMove = useCallback(
     (e: ReactPointerEvent) => {
       const coords = toCanvasCoords(e)
+
       if (!coords) return
 
       if (pendingWindowRef.current && dragOriginRef.current) {
         const dx = Math.abs(coords.x - dragOriginRef.current.x)
         const dy = Math.abs(coords.y - dragOriginRef.current.y)
+
         if (dx >= DRAG_INTENT_THRESHOLD || dy >= DRAG_INTENT_THRESHOLD) {
           // Start at the ORIGIN, not here: starting at the current point would throw
           // away the first few pixels and the rect would visibly begin off the press.
@@ -259,7 +267,9 @@ export const CaptureCanvas = memo(function CaptureCanvas({
 
   const getCursor = () => {
     if (state.phase === 'selecting') return 'crosshair'
+
     if (state.phase === 'moving') return 'move'
+
     if (
       state.phase === 'selected' &&
       state.pointerPosition &&
@@ -267,6 +277,7 @@ export const CaptureCanvas = memo(function CaptureCanvas({
     ) {
       return 'move'
     }
+
     return 'crosshair'
   }
 

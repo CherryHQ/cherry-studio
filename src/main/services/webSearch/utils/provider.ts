@@ -4,6 +4,7 @@ import { WebSearchConfigError } from '../WebSearchConfigError'
 
 export function resolveProviderApiHost(provider: WebSearchProvider, capability: WebSearchCapability): string {
   const host = provider.capabilities.find((item) => item.feature === capability)?.apiHost?.trim()
+
   if (!host) {
     throw new WebSearchConfigError(
       'api_host_missing',
@@ -12,6 +13,7 @@ export function resolveProviderApiHost(provider: WebSearchProvider, capability: 
   }
 
   let protocol: string
+
   try {
     protocol = new URL(host).protocol
   } catch (cause) {
@@ -45,6 +47,7 @@ export class ApiKeyRotationState {
       if (required) {
         throw new WebSearchConfigError('api_key_missing', `API key is required for provider ${provider.id}`)
       }
+
       return ''
     }
 
@@ -58,6 +61,7 @@ export class ApiKeyRotationState {
     const nextKey = keys[nextIndex]
 
     this.lastUsedKeyByProvider.set(provider.id, nextKey)
+
     return nextKey
   }
 

@@ -6,7 +6,9 @@ import { ParallelLight } from './light'
 
 const Parallel = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ParallelLight {...props} className={className} />
+
   if (variant === 'dark') return <ParallelDark {...props} className={className} />
+
   return (
     <>
       <ParallelLight className={cn('dark:hidden', className)} {...props} />

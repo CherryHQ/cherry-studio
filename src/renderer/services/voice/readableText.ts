@@ -13,6 +13,7 @@ export const SPEECH_ADAPTER_TEXT_LIMIT = 10_000
 export const READABLE_TEXT_CHUNK_LIMIT = 4_000
 
 export type ReadableTextMode = 'document' | 'selection'
+
 export type ReadableTextTrigger = 'manual' | 'auto_read'
 
 export type ReadableTextPlan =
@@ -60,6 +61,7 @@ const skippedHtmlSelectors = [
 
 const imageFormatter: FormatCallback = (element, _walk, builder) => {
   const alt = typeof element.attribs?.alt === 'string' ? element.attribs.alt : ''
+
   if (isMeaningfulImageAlt(alt)) builder.addInline(alt)
 }
 
@@ -89,9 +91,11 @@ const genericImageAlts = new Set([
 
 function isMeaningfulImageAlt(value: string): boolean {
   const alt = normalizeWhitespace(value).toLowerCase()
+
   if (!alt) return false
 
   const isLocator = /^(?:[a-z][a-z\d+.-]*:\/\/|[/\\])|\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(alt)
+
   return !genericImageAlts.has(alt) && !isLocator
 }
 
@@ -151,6 +155,7 @@ function listItemToHtml(node: Extract<RootContent, { type: 'listItem' }>): strin
     .map((child) => (child.type === 'paragraph' ? phrasingToHtml(child.children) : blockToHtml(child)))
     .filter(Boolean)
     .join('<br>')
+
   return `<div>${content}</div>`
 }
 
@@ -222,6 +227,7 @@ export function normalizeReadableText(input: string, options: { mode?: ReadableT
   if (options.mode === 'selection') return normalizeWhitespace(stripCitationMarkers(input))
 
   const tree = markdownParser.runSync(markdownParser.parse(input), input)
+
   return normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(blocksToHtml(tree.children))))
 }
 
@@ -231,26 +237,32 @@ function safeSliceEnd(text: string, start: number, maximumEnd: number): number {
   const next = text.charCodeAt(end)
 
   if (end > start && last >= 0xd800 && last <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end -= 1
+
   return end
 }
 
 function consumeWhitespace(text: string, start: number): number {
   let index = start
+
   while (index < text.length && /\s/.test(text[index])) index += 1
+
   return index
 }
 
 function findChunkBoundary(text: string, start: number, end: number) {
   const paragraph = text.lastIndexOf('\n\n', end - 1)
+
   if (paragraph >= start) return { end: paragraph, next: consumeWhitespace(text, paragraph + 2) }
 
   const line = text.lastIndexOf('\n', end - 1)
+
   if (line >= start) return { end: line, next: consumeWhitespace(text, line + 1) }
 
   for (let index = end - 1; index >= start; index -= 1) {
     const punctuation = text[index]
     const cjkBoundary = /[。！？；]/.test(punctuation)
     const spacedBoundary = /[.!?;]/.test(punctuation) && (index + 1 === text.length || /\s/.test(text[index + 1]))
+
     if (cjkBoundary || spacedBoundary) {
       return { end: index + 1, next: consumeWhitespace(text, index + 1) }
     }
@@ -265,19 +277,24 @@ function findChunkBoundary(text: string, start: number, end: number) {
 
 export function chunkReadableText(text: string, requestedLimit = READABLE_TEXT_CHUNK_LIMIT): string[] {
   const normalized = normalizeWhitespace(text)
+
   if (!normalized) return []
 
   const finiteLimit =
     Number.isFinite(requestedLimit) && requestedLimit >= 2 ? Math.floor(requestedLimit) : READABLE_TEXT_CHUNK_LIMIT
+
   const limit = Math.min(finiteLimit, SPEECH_ADAPTER_TEXT_LIMIT)
   const chunks: string[] = []
   let start = 0
 
   while (start < normalized.length) {
     const hardEnd = safeSliceEnd(normalized, start, start + limit)
+
     const boundary =
       hardEnd === normalized.length ? { end: hardEnd, next: hardEnd } : findChunkBoundary(normalized, start, hardEnd)
+
     const chunk = normalized.slice(start, boundary.end).trim()
+
     if (chunk) chunks.push(chunk)
     start = boundary.next > start ? boundary.next : hardEnd
   }
@@ -296,6 +313,7 @@ export function planReadableText(
     if (options.trigger === 'auto_read') {
       return { status: 'skipped', reason: 'too_long', normalizedLength, chunks: [] }
     }
+
     if (!options.confirmed) return { status: 'confirmation_required', normalizedLength, chunks: [] }
   }
 
@@ -306,12 +324,17 @@ export function planReadableText(
 export function stableReadableTextEnd(input: string): number {
   const tree = markdownParser.parse(input)
   const last = tree.children.at(-1)
+
   if (!last) return 0
   const start = last.position?.start.offset ?? 0
+
   if (last.type !== 'paragraph' || last.children.some((node) => node.type !== 'text')) return start
   const tail = input.slice(start)
+
   if (/[[\]`*_~<>$\\]/u.test(tail)) return start
   let end = start
+
   for (const match of tail.matchAll(/[。！？；]|[.!?;](?=\s)/gu)) end = start + match.index + match[0].length
+
   return end
 }

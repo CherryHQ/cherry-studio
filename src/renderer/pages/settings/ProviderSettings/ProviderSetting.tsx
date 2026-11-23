@@ -36,10 +36,13 @@ function ProviderSettingSections({
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
   const [apiSetupStep, setApiSetupStep] = useState<ProviderApiSetupInitialStep | null>(initialApiSetupStep ?? null)
+
   const requestModelPullGuide = useCallback(() => {
     setModelPullGuideVersion((version) => version + 1)
   }, [])
+
   const openApiSetup = useCallback((initialStep: ProviderApiSetupInitialStep) => setApiSetupStep(initialStep), [])
+
   const closeApiSetup = useCallback(() => {
     setApiSetupStep(null)
     onApiSetupClosed?.()

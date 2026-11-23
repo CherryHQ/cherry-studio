@@ -71,6 +71,7 @@ export function parseVertexAIServiceAccountJson(value: string): VertexAIServiceA
 
   try {
     const parsed = serviceAccountJsonSchema.safeParse(JSON.parse(trimmed))
+
     if (!parsed.success) return undefined
 
     return {

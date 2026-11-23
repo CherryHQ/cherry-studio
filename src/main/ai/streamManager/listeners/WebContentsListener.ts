@@ -76,12 +76,15 @@ export class WebContentsListener implements StreamListener {
   ): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
+
       return
     }
 
     const coalescable = toCoalescable(chunk)
+
     if (coalescable) {
       const next = normalizePending(coalescable, sourceModelId, anchorMessageId, attemptId, sequence)
+
       if (
         this.pending &&
         this.pending.type === next.type &&
@@ -92,18 +95,22 @@ export class WebContentsListener implements StreamListener {
       ) {
         this.pending.text += next.text
         this.pending.sequence = next.sequence
+
         if (
           performance.now() - this.pendingStartedAt >= MAX_COALESCE_AGE_MS ||
           this.pending.text.length >= MAX_COALESCE_CHARS
         ) {
           this.flushPending()
         }
+
         return
       }
+
       this.flushPending()
       this.pending = next
       this.pendingStartedAt = performance.now()
       this.flushTimer = setTimeout(() => this.flushPending(), COALESCE_WINDOW_MS)
+
       return
     }
 
@@ -114,8 +121,10 @@ export class WebContentsListener implements StreamListener {
   onDone(result: StreamDoneResult): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
+
       return
     }
+
     this.flushPending()
     this.emit('ai.stream.done', {
       ...this.resultIdentity(result),
@@ -128,8 +137,10 @@ export class WebContentsListener implements StreamListener {
   onPaused(result: StreamPausedResult): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
+
       return
     }
+
     this.flushPending()
     this.emit('ai.stream.done', {
       ...this.resultIdentity(result),
@@ -142,8 +153,10 @@ export class WebContentsListener implements StreamListener {
   onError(result: StreamErrorResult): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
+
       return
     }
+
     this.flushPending()
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
     this.emit('ai.stream.error', {
@@ -158,16 +171,22 @@ export class WebContentsListener implements StreamListener {
     result: Pick<StreamDoneResult, 'userMessageId' | 'modelId' | 'attemptId' | 'topicAttemptWatermark'>
   ): StreamResultIdentity {
     const identity: StreamResultIdentity = { topicId: this.topicId }
+
     if (result.userMessageId) identity.userMessageId = result.userMessageId
     identity.executionId = result.modelId
+
     if (result.attemptId !== undefined) identity.attemptId = result.attemptId
+
     if (result.topicAttemptWatermark !== undefined) identity.topicAttemptWatermark = result.topicAttemptWatermark
+
     return identity
   }
 
   isAlive(): boolean {
     const alive = !this.wc.isDestroyed()
+
     if (!alive) this.discardPending()
+
     return alive
   }
 
@@ -176,7 +195,9 @@ export class WebContentsListener implements StreamListener {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
     }
+
     const p = this.pending
+
     if (!p) return
     this.pending = null
     this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId, p.attemptId, p.sequence, p.firstSequence)
@@ -187,6 +208,7 @@ export class WebContentsListener implements StreamListener {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
     }
+
     this.pending = null
   }
 
@@ -199,12 +221,16 @@ export class WebContentsListener implements StreamListener {
     firstSequence?: number
   ): void {
     if (this.wc.isDestroyed()) return
+
     const identity: Pick<
       EventPayload<'ai.stream.chunk'>,
       'topicId' | 'executionId' | 'attemptId' | 'sequence' | 'firstSequence'
     > = { topicId: this.topicId, executionId: sourceModelId }
+
     if (attemptId !== undefined) identity.attemptId = attemptId
+
     if (sequence !== undefined) identity.sequence = sequence
+
     if (firstSequence !== undefined) identity.firstSequence = firstSequence
     this.emit('ai.stream.chunk', {
       ...identity,
@@ -227,11 +253,14 @@ export class WebContentsListener implements StreamListener {
 function toCoalescable(chunk: UIMessageChunk): CoalescableChunk | null {
   if (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta') {
     if ('providerMetadata' in chunk && chunk.providerMetadata !== undefined) return null
+
     return chunk as CoalescableChunk
   }
+
   if (chunk.type === 'tool-input-delta') {
     return chunk
   }
+
   return null
 }
 
@@ -254,6 +283,7 @@ function normalizePending(
       text: chunk.inputTextDelta
     }
   }
+
   return {
     type: chunk.type,
     identifier: chunk.id,
@@ -270,5 +300,6 @@ function rebuildChunk(p: PendingDelta): UIMessageChunk {
   if (p.type === 'tool-input-delta') {
     return { type: 'tool-input-delta', toolCallId: p.identifier, inputTextDelta: p.text }
   }
+
   return { type: p.type, id: p.identifier, delta: p.text }
 }

@@ -5,7 +5,10 @@ export function isAutomationSkillAvailable(
   access: { browser: boolean; computer: boolean }
 ): boolean {
   if (skill.source !== 'builtin') return true
+
   if (skill.folderName === 'cherry-browser') return access.browser
+
   if (skill.folderName === 'cherry-computer') return access.computer
+
   return true
 }

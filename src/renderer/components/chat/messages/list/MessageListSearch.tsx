@@ -101,6 +101,7 @@ export const MessageListSearch: FC<Props> = ({
   // excluded from matching anyway. Latch the searched data outside streaming
   // so matches recompute once when the stream settles, not per chunk.
   const searchSourceRef = useRef({ messages, partsByMessageId })
+
   if (!isStreaming) searchSourceRef.current = { messages, partsByMessageId }
   const { messages: searchMessages, partsByMessageId: searchParts } = searchSourceRef.current
 
@@ -134,21 +135,25 @@ export const MessageListSearch: FC<Props> = ({
     () => (cursor?.criteriaKey === criteriaKey ? matches.findIndex((match) => match.key === cursor.matchKey) : -1),
     [criteriaKey, cursor, matches]
   )
+
   const current = currentIndex >= 0 ? matches[currentIndex] : null
   const currentRef = useRef(current)
   currentRef.current = current
 
   const matchesByPartId = useMemo(() => {
     const byPartId = new Map<string, MessageTextSearchMatch[]>()
+
     for (const match of matches) {
       if (match.type !== 'text') continue
       const partMatches = byPartId.get(match.partId)
+
       if (partMatches) {
         partMatches.push(match)
       } else {
         byPartId.set(match.partId, [match])
       }
     }
+
     return byPartId
   }, [matches])
 
@@ -157,12 +162,14 @@ export const MessageListSearch: FC<Props> = ({
       cancelAnimationFrame(settledHighlightFrameRef.current)
       settledHighlightFrameRef.current = null
     }
+
     pendingNavigationRef.current = null
     clearHighlights()
   }, [criteriaKey, enabled])
 
   useEffect(() => {
     const pending = pendingNavigationRef.current
+
     if (pending && !matches.some((match) => match.key === pending.match.key)) {
       pendingNavigationRef.current = null
     }
@@ -170,10 +177,13 @@ export const MessageListSearch: FC<Props> = ({
 
   const rebuildMountedHighlights = useCallback(() => {
     const scope = scopeRef.current
+
     if (!enabled || !trimmedQuery || !scope) {
       clearHighlights()
+
       return
     }
+
     // Live DOM mutations are intentionally ignored. Loaded history remains
     // searchable, and one stable refresh runs after streaming ends.
     if (isStreaming) return
@@ -182,8 +192,10 @@ export const MessageListSearch: FC<Props> = ({
     const searchOptions = { caseSensitive, wholeWord }
     const filter = createMessageSearchNodeFilter()
     const nextRangesByPartId = new Map<string, Range[]>()
+
     for (const [partId, partElement] of mountedParts) {
       const partMatches = matchesByPartId.get(partId)
+
       if (!partMatches) continue
       nextRangesByPartId.set(
         partId,
@@ -192,27 +204,35 @@ export const MessageListSearch: FC<Props> = ({
     }
 
     clearHighlights()
+
     if (supportsCustomHighlights()) {
       const mountedRanges = [...nextRangesByPartId.values()].flat()
+
       if (mountedRanges.length > 0) {
         CSS.highlights.set(MATCHES_HIGHLIGHT, new Highlight(...mountedRanges))
       }
     }
+
     const latestCurrent = currentRef.current
+
     if (latestCurrent?.type !== 'text' || !supportsCustomHighlights()) return
     const currentRange = nextRangesByPartId.get(latestCurrent.partId)?.[latestCurrent.occurrence]
+
     if (currentRange) CSS.highlights.set(CURRENT_HIGHLIGHT, new Highlight(currentRange))
   }, [caseSensitive, enabled, isStreaming, matchesByPartId, scopeRef, trimmedQuery, wholeWord])
 
   const syncPendingNavigation = useCallback(() => {
     const pending = pendingNavigationRef.current
     const scope = scopeRef.current
+
     if (!pending || pending.isWaitingForHighlight || pending.criteriaKey !== criteriaKey || !scope) return
 
     const partElement = getMountedMessagePartElements(scope).get(pending.match.partId)
+
     if (!partElement) return
 
     const partMatchCount = matchesByPartId.get(pending.match.partId)?.length ?? 0
+
     const ranges = findRangesInScope(
       partElement,
       trimmedQuery,
@@ -221,6 +241,7 @@ export const MessageListSearch: FC<Props> = ({
     ).slice(0, partMatchCount)
 
     const range = ranges[pending.match.occurrence]
+
     if (!range) {
       if (pending.match.role === 'user' && requestUserMessagePartExpansion(partElement)) {
         return
@@ -231,6 +252,7 @@ export const MessageListSearch: FC<Props> = ({
       pendingNavigationRef.current = null
       clearCurrentHighlight()
       locateMessage(pending.match.messageId)
+
       return
     }
 
@@ -241,9 +263,11 @@ export const MessageListSearch: FC<Props> = ({
       settledHighlightFrameRef.current = requestAnimationFrame(() => {
         settledHighlightFrameRef.current = null
         const latestPending = pendingNavigationRef.current
+
         if (latestPending?.criteriaKey !== pending.criteriaKey || latestPending.match.key !== pending.match.key) return
 
         pendingNavigationRef.current = null
+
         if (supportsCustomHighlights() && isRangeConnected(range)) {
           CSS.highlights.set(CURRENT_HIGHLIGHT, new Highlight(range))
         }
@@ -277,16 +301,20 @@ export const MessageListSearch: FC<Props> = ({
   useEffect(() => {
     if (!enabled) return
     const scope = scopeRef.current
+
     if (!scope) return
 
     let frame: number | null = null
+
     const observer = new MutationObserver(() => {
       if (frame !== null) return
+
       // Streaming mutates the DOM per chunk; without a pending navigation
       // there is nothing to sync, so skip scheduling work entirely.
       if (isStreaming && !pendingNavigationRef.current) return
       frame = requestAnimationFrame(() => {
         frame = null
+
         if (pendingNavigationRef.current) {
           syncPendingNavigationRef.current()
         } else if (!isStreaming) {
@@ -294,9 +322,12 @@ export const MessageListSearch: FC<Props> = ({
         }
       })
     })
+
     observer.observe(scope, { childList: true, subtree: true, characterData: true })
+
     return () => {
       observer.disconnect()
+
       if (frame !== null) cancelAnimationFrame(frame)
     }
   }, [enabled, isStreaming, scopeRef])
@@ -326,12 +357,14 @@ export const MessageListSearch: FC<Props> = ({
         cancelAnimationFrame(settledHighlightFrameRef.current)
         settledHighlightFrameRef.current = null
       }
+
       clearCurrentHighlight()
       setCursor({ criteriaKey, matchKey: match.key })
 
       if (match.type === 'message-group') {
         pendingNavigationRef.current = null
         locateMessage(match.messageId)
+
         return
       }
 
@@ -339,6 +372,7 @@ export const MessageListSearch: FC<Props> = ({
       setNavigationSequence((sequence) => sequence + 1)
 
       const scope = scopeRef.current
+
       if (!scope || !getMountedMessagePartElements(scope).has(match.partId)) {
         locateMessage(match.messageId)
       }
@@ -349,12 +383,14 @@ export const MessageListSearch: FC<Props> = ({
   const step = useCallback(
     (delta: 1 | -1) => {
       if (matches.length === 0) return
+
       const nextIndex =
         currentIndex >= 0
           ? (currentIndex + delta + matches.length) % matches.length
           : delta > 0
             ? 0
             : matches.length - 1
+
       navigateToMatch(matches[nextIndex])
     },
     [currentIndex, matches, navigateToMatch]

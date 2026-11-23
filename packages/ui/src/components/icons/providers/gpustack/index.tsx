@@ -4,6 +4,7 @@ import { GpustackLight } from './light'
 
 const Gpustack = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GpustackLight {...props} className={className} />
+
   return <GpustackLight {...props} className={className} />
 }
 

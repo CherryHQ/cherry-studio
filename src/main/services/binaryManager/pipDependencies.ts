@@ -8,20 +8,25 @@ import { runUv } from './pythonRuntime'
 /** uv nests pipx environments one level below the install; pyvenv.cfg identifies them on every platform. */
 export async function findToolEnvironment(installPath: string): Promise<string | null> {
   let entries: string[]
+
   try {
     entries = await fsp.readdir(installPath)
   } catch {
     return null
   }
+
   for (const entry of entries) {
     const environment = path.join(installPath, entry)
+
     try {
       await fsp.access(path.join(environment, 'pyvenv.cfg'), fs.constants.F_OK)
+
       return environment
     } catch {
       continue
     }
   }
+
   return null
 }
 
@@ -31,6 +36,7 @@ export async function installToolDependencies(options: {
   env: Record<string, string>
 }): Promise<void> {
   const environment = await findToolEnvironment(options.installPath)
+
   if (!environment) throw new Error(`No Python tool environment found in ${options.installPath}`)
 
   try {

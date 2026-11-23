@@ -28,7 +28,9 @@ import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared
 export type { ReasoningEffort }
 
 type GatewayReasoningEffort = ReasoningEffortOption
+
 type GeminiThinkingConfig = { includeThoughts?: boolean; thinkingBudget?: number; thinkingLevel?: string }
+
 type AnthropicThinkingConfig = NonNullable<MessageCreateParams['thinking']>
 
 function resolveProviderReasoningContext(
@@ -38,6 +40,7 @@ function resolveProviderReasoningContext(
 ) {
   const { endpointType } = resolvedEndpoint
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
+
   return {
     aiSdkProviderId: resolveAiSdkProviderId(provider, endpointType),
     endpointType,
@@ -62,6 +65,7 @@ function buildProviderOptions(
     profile: context.reasoningProfile.wire,
     maxTokens
   })
+
   return buildResolvedReasoningProviderOptions({
     aiSdkProviderId: context.aiSdkProviderId,
     providerOptionsKey: context.providerOptionsKey,
@@ -77,13 +81,16 @@ function resolveNativeAnthropicEffort(
   maxTokens?: number
 ): GatewayReasoningEffort | undefined {
   if (effort == null || effort === 'default') return undefined
+
   const invocation = resolveReasoningInvocation({
     selection: effort,
     model: context.invocationModel,
     profile: context.reasoningProfile.wire,
     maxTokens
   })
+
   const emission = invocation.emissions.find((candidate) => candidate.target === 'effort')
+
   return typeof emission?.value === 'string' ? (emission.value as GatewayReasoningEffort) : undefined
 }
 
@@ -109,6 +116,7 @@ function canPassThroughAnthropicReasoning(
       ) === true
     )
   }
+
   return matchesThinkingType('off') || matchesThinkingType('auto') || matchesThinkingType('effort')
 }
 
@@ -119,10 +127,13 @@ function passThroughAnthropicReasoning(
 ): ProviderOptions | undefined {
   if (!config && effort == null) return undefined
   const anthropic: ProviderOptions['anthropic'] = {}
+
   if (config)
     anthropic.thinking =
       config.type === 'enabled' ? { type: 'enabled', budgetTokens: config.budget_tokens } : { type: config.type }
+
   if (effort != null) anthropic.effort = effort
+
   return { anthropic }
 }
 
@@ -130,10 +141,15 @@ function passThroughAnthropicReasoning(
 function passThroughGeminiThinking(thinkingConfig: GeminiThinkingConfig): ProviderOptions | undefined {
   const { includeThoughts, thinkingBudget, thinkingLevel } = thinkingConfig
   const nativeThinkingConfig: GeminiThinkingConfig = {}
+
   if (typeof thinkingBudget === 'number') nativeThinkingConfig.thinkingBudget = thinkingBudget
+
   if (typeof includeThoughts === 'boolean') nativeThinkingConfig.includeThoughts = includeThoughts
+
   if (typeof thinkingLevel === 'string') nativeThinkingConfig.thinkingLevel = thinkingLevel
+
   if (Object.keys(nativeThinkingConfig).length === 0) return undefined
+
   return { google: { thinkingConfig: nativeThinkingConfig } }
 }
 
@@ -148,12 +164,15 @@ export function mapAnthropicThinkingToProviderOptions(
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { endpointType } = resolvedEndpoint
   let context: ProviderReasoningContext | undefined
+
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+
     if (canPassThroughAnthropicReasoning(context, config)) {
       return passThroughAnthropicReasoning(config, resolveNativeAnthropicEffort(context, effort, maxTokens))
     }
   }
+
   // Ollama's ChatHandler 400s when `think` is true for a model that lacks
   // thinking capability. The SDK default ({type:'adaptive'}) would map to
   // think:true, breaking agent mode for non-thinking models. Only emit think
@@ -161,13 +180,18 @@ export function mapAnthropicThinkingToProviderOptions(
   if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
     if (config?.type !== 'disabled' && effort == null && config?.type !== 'enabled') return undefined
     const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+
     if (config?.type === 'disabled') return buildProviderOptions(context, 'none', maxTokens)
+
     if (effort != null) return buildProviderOptions(context, effort, maxTokens)
+
     if (config?.type === 'enabled') {
       const budgetEffort =
         nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
+
       return buildProviderOptions(context, budgetEffort, maxTokens)
     }
+
     return undefined
   }
 
@@ -178,13 +202,17 @@ export function mapAnthropicThinkingToProviderOptions(
       maxTokens
     )
   }
+
   if (!config) return undefined
   context ??= resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+
   if (config.type === 'disabled') return buildProviderOptions(context, 'none', maxTokens)
+
   if (config.type !== 'enabled') return buildProviderOptions(context, 'auto', maxTokens)
 
   const budgetEffort =
     nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
+
   return buildProviderOptions(context, budgetEffort, maxTokens)
 }
 
@@ -197,13 +225,16 @@ export function mapGeminiThinkingToProviderOptions(
 ): ProviderOptions | undefined {
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { endpointType } = resolvedEndpoint
+
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return passThroughGeminiThinking(thinkingConfig)
 
   const { includeThoughts, thinkingBudget, thinkingLevel } = thinkingConfig
   let effort: GatewayReasoningEffort | undefined
   let context: ProviderReasoningContext | undefined
+
   if (thinkingLevel !== undefined) {
     const parsed = ReasoningEffortOptionSchema.safeParse(thinkingLevel)
+
     if (parsed.success) effort = parsed.data
   } else if (thinkingBudget === -1) effort = 'auto'
   else if (thinkingBudget === 0) effort = 'none'
@@ -214,6 +245,7 @@ export function mapGeminiThinkingToProviderOptions(
   else if (includeThoughts === false) effort = 'none'
 
   if (effort === undefined) return undefined
+
   return buildProviderOptions(
     context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint),
     effort,

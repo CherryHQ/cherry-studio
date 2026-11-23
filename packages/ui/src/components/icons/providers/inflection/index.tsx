@@ -6,7 +6,9 @@ import { InflectionLight } from './light'
 
 const Inflection = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <InflectionLight {...props} className={className} />
+
   if (variant === 'dark') return <InflectionDark {...props} className={className} />
+
   return (
     <>
       <InflectionLight className={cn('dark:hidden', className)} {...props} />

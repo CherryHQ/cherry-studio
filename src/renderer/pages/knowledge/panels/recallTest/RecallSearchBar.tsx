@@ -9,13 +9,16 @@ import { useRecallQuery, useRecallResult } from './RecallTestProvider'
 
 const RecallSearchBar = () => {
   const { t } = useTranslation()
+
   const {
     state: { query, historyItems, isHistoryOpen },
     actions: { setQuery, setHistoryOpen, runSearch }
   } = useRecallQuery()
+
   const {
     state: { isSearching }
   } = useRecallResult()
+
   const canSearch = query.trim().length > 0 && !isSearching
   const hasHistory = historyItems.length > 0
 

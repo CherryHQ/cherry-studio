@@ -51,6 +51,7 @@ export class InfiniteQueryCacheManager {
     provider.inactiveGroups.delete(groupKey)
 
     let isReleased = false
+
     return () => {
       if (isReleased) return
       isReleased = true
@@ -70,9 +71,11 @@ export class InfiniteQueryCacheManager {
     }
 
     group.currentPageKeys = nextPageKeys
+
     for (const pageKey of nextPageKeys) {
       group.pageKeys.add(pageKey)
     }
+
     this.refreshInactiveGroup(provider, group)
   }
 
@@ -85,12 +88,14 @@ export class InfiniteQueryCacheManager {
     pageRequest.count += 1
     group.inFlightPageKeys.set(pageKey, pageRequest)
     this.clearTimer(group, 'evictionTimer')
+
     if (!group.pageKeys.has(pageKey)) {
       group.pageKeys.add(pageKey)
       this.refreshInactiveGroup(provider, group)
     }
 
     let isFinished = false
+
     return (succeeded = true) => {
       if (isFinished) return
       isFinished = true
@@ -98,8 +103,10 @@ export class InfiniteQueryCacheManager {
 
       pageRequest.count -= 1
       pageRequest.succeeded ||= succeeded
+
       if (pageRequest.count === 0) {
         group.inFlightPageKeys.delete(pageKey)
+
         if (!pageRequest.succeeded && !group.currentPageKeys.has(pageKey)) {
           this.deletePage(provider, group, pageKey)
           this.refreshInactiveGroup(provider, group)
@@ -114,6 +121,7 @@ export class InfiniteQueryCacheManager {
 
   private getProvider(cache: Cache): ProviderState {
     const existing = this.providers.get(cache)
+
     if (existing) return existing
 
     const inactiveGroups = new LRUCache<string, CacheGroup>({
@@ -125,18 +133,22 @@ export class InfiniteQueryCacheManager {
       ttlAutopurge: true,
       dispose: (group, _groupKey, reason) => {
         const provider = this.providers.get(cache)
+
         if (provider && (reason === 'evict' || reason === 'expire')) {
           this.requestEviction(provider, group, group.generation)
         }
       }
     })
+
     const provider = { cache, groups: new Map<string, CacheGroup>(), inactiveGroups }
     this.providers.set(cache, provider)
+
     return provider
   }
 
   private getGroup(provider: ProviderState, groupKey: string): CacheGroup {
     const existing = provider.groups.get(groupKey)
+
     if (existing) return existing
 
     const group: CacheGroup = {
@@ -148,18 +160,22 @@ export class InfiniteQueryCacheManager {
       pageKeys: new Set(),
       subscribers: 0
     }
+
     provider.groups.set(groupKey, group)
+
     return group
   }
 
   private release(provider: ProviderState, group: CacheGroup): void {
     group.subscribers = Math.max(0, group.subscribers - 1)
+
     if (group.subscribers > 0) return
 
     const generation = group.generation
     this.clearTimer(group, 'releaseTimer')
     group.releaseTimer = setTimeout(() => {
       group.releaseTimer = undefined
+
       if (group.subscribers > 0 || group.generation !== generation) return
       this.addInactiveGroup(provider, group, generation)
     }, this.options.releaseDelayMs)
@@ -168,6 +184,7 @@ export class InfiniteQueryCacheManager {
   private addInactiveGroup(provider: ProviderState, group: CacheGroup, generation: number): void {
     if (group.pageKeys.size > this.options.maxInactivePages) {
       this.requestEviction(provider, group, generation)
+
       return
     }
 
@@ -176,6 +193,7 @@ export class InfiniteQueryCacheManager {
 
   private refreshInactiveGroup(provider: ProviderState, group: CacheGroup): void {
     if (group.subscribers > 0 || group.evictionGeneration !== undefined) return
+
     if (!provider.inactiveGroups.delete(group.groupKey)) return
 
     this.addInactiveGroup(provider, group, group.generation)
@@ -185,6 +203,7 @@ export class InfiniteQueryCacheManager {
     if (group.subscribers > 0 || group.generation !== generation) return
 
     group.evictionGeneration = generation
+
     if (group.inFlight === 0) {
       this.scheduleEviction(provider, group, generation)
     }
@@ -194,6 +213,7 @@ export class InfiniteQueryCacheManager {
     this.clearTimer(group, 'evictionTimer')
     group.evictionTimer = setTimeout(() => {
       group.evictionTimer = undefined
+
       if (
         group.subscribers > 0 ||
         group.inFlight > 0 ||
@@ -206,6 +226,7 @@ export class InfiniteQueryCacheManager {
       for (const pageKey of group.pageKeys) {
         provider.cache.delete(pageKey)
       }
+
       provider.cache.delete(group.groupKey)
       provider.groups.delete(group.groupKey)
     }, 0)
@@ -223,6 +244,7 @@ export class InfiniteQueryCacheManager {
 
   private clearTimer(group: CacheGroup, timer: 'releaseTimer' | 'evictionTimer'): void {
     const handle = group[timer]
+
     if (handle === undefined) return
     clearTimeout(handle)
     group[timer] = undefined

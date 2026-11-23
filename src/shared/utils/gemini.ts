@@ -13,23 +13,29 @@ export function resolveGeminiBaseUrl(provider: Provider): string {
   // appends /v1beta itself, so return the bare host here.
   if (isApiGatewayProviderId(provider.id)) {
     const configs = provider.endpointConfigs ?? {}
+
     return configs['anthropic-messages']?.baseUrl ?? Object.values(configs)[0]?.baseUrl ?? ''
   }
 
   const dedicated = provider.endpointConfigs?.['google-generate-content']?.baseUrl
+
   if (dedicated) return dedicated
 
   const chatBaseUrl = provider.defaultChatEndpoint
     ? provider.endpointConfigs?.[provider.defaultChatEndpoint]?.baseUrl
     : undefined
+
   // Aggregators serving Gemini under a /gemini sub-path (aihubmix): derive from
   // the user-configured chat baseUrl — dropping a trailing /v1 — so a custom
   // mirror host wins; the static default applies only when nothing is configured.
   const aggregatorBaseUrl = GEMINI_AGGREGATOR_BASE_URLS.get(provider.id)
+
   if (aggregatorBaseUrl) {
     if (!chatBaseUrl) return aggregatorBaseUrl
+
     return `${withoutTrailingSlash(chatBaseUrl).replace(/\/v1$/, '')}/gemini`
   }
+
   // Aggregators allow-listed for Gemini-compatible CLIs (CLI_TOOL_PROVIDER_MAP) without a
   // dedicated google-generate-content endpoint or an entry above (e.g. CherryIN, DMXAPI)
   // proxy every protocol off the same host as their default chat endpoint — mirrors the

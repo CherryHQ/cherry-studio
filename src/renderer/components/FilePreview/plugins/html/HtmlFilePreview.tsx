@@ -24,6 +24,7 @@ import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePrev
 const logger = loggerService.withContext('HtmlFilePreview')
 const HTML_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
 const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
+
 type HtmlFileLoadState =
   | { status: 'error'; error: Error }
   | { status: 'loading' }
@@ -93,7 +94,9 @@ interface HtmlPreviewContentProps {
 
 function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <HtmlPreviewLoading />
+
   if (loadState.status === 'error') return <HtmlPreviewError />
+
   if (loadState.status === 'too_large') return <HtmlPreviewTooLarge />
 
   if (mode === 'source') {
@@ -142,9 +145,11 @@ export default function HtmlFilePreview({
   const sourceMetadata = metadataRequest ?? metadata.size
   const baseUrl = useMemo(() => toSafeFileUrl(filePath, getFilePreviewExtension(filePath)), [filePath])
   const effectiveMode = type === 'artifact' ? 'preview' : mode
+
   const artifactTarget = useMemo(() => {
     const prefix = 'artifact-file:'
     const pathSuffix = filePath.slice(-(WEBVIEW_ANNOTATION_LIMITS.targetId - prefix.length))
+
     return {
       id: `${prefix}${pathSuffix}`,
       label: fileName.slice(0, WEBVIEW_ANNOTATION_LIMITS.targetLabel)
@@ -164,13 +169,17 @@ export default function HtmlFilePreview({
           typeof sourceMetadata === 'function'
             ? await Promise.resolve().then(sourceMetadata)
             : { kind: 'file', size: sourceMetadata }
+
         if (cancelled || loadedMetadata?.kind !== 'file') return
+
         if (loadedMetadata.size > FILE_EDIT_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
+
           return
         }
 
         const content = await window.api.fs.readText(filePath)
+
         // Reload the restricted document even when only its referenced resources changed.
         if (!cancelled) setLoadState({ status: 'ready', content, refreshKey })
       } catch (error) {

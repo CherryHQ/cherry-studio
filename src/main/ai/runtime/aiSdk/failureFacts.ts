@@ -25,15 +25,21 @@ export function classifyAiSdkFailure(error: unknown, depth = 0): FailureFacts {
     reason: 'execution_failed',
     outcome: 'failed'
   }
+
   if (isCancellation(error)) return { ...facts, kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
+
   if (RetryError.isInstance(error) && depth < 3) return classifyAiSdkFailure(error.lastError, depth + 1)
+
   if (error instanceof ProviderTransportError) {
     return { ...facts, source: 'environment', kind: 'expected', reason: error.reason }
   }
+
   if (APICallError.isInstance(error)) {
     return { ...facts, source: 'provider', ...providerFailureFacts(error) }
   }
+
   if (LoadAPIKeyError.isInstance(error)) return { ...facts, source: 'environment', kind: 'expected', reason: 'auth' }
+
   if (
     error instanceof ToolLoopTerminalError ||
     InvalidToolInputError.isInstance(error) ||
@@ -41,6 +47,7 @@ export function classifyAiSdkFailure(error: unknown, depth = 0): FailureFacts {
   ) {
     return { ...facts, source: 'tool', kind: 'expected', reason: 'tool_execution_rejected' }
   }
+
   if (
     InvalidResponseDataError.isInstance(error) ||
     JSONParseError.isInstance(error) ||
@@ -48,8 +55,10 @@ export function classifyAiSdkFailure(error: unknown, depth = 0): FailureFacts {
   ) {
     return { ...facts, source: 'provider', kind: 'reliability', reason: 'invalid_response' }
   }
+
   if (error instanceof TypeError || error instanceof ReferenceError || error instanceof SyntaxError) {
     return { ...facts, kind: 'defect', reason: 'runtime_exception' }
   }
+
   return facts
 }

@@ -126,7 +126,9 @@ function resolveRightPanelEntries<TScope>(
 
   for (const capability of capabilities) {
     const instance = capability.resolve(scope)
+
     if (!instance) continue
+
     if (panelIds.has(instance.id)) throw new Error(`Duplicate right-panel id: ${instance.id}`)
     panelIds.add(instance.id)
     entries.push({
@@ -163,6 +165,7 @@ function updateMountedInstances(
 
   for (const [panelId, instanceKey] of current) {
     const entry = currentEntries.get(panelId)
+
     if (entry && entry.instanceKey === instanceKey && entry.readiness !== 'unavailable') {
       next.set(panelId, instanceKey)
     } else {
@@ -205,11 +208,14 @@ export function RightPanelProvider<TScope>({
   const entries = useMemo(() => resolveRightPanelEntries(capabilities, scope), [capabilities, scope])
   const [open, setOpen] = useState(defaultOpen)
   const [maximized, setMaximized] = useState(false)
+
   const [requestedPanel, setRequestedPanel] = useState<{ id?: string; instanceKey?: string }>(() => {
     const preferred = findEntry(entries, defaultPanelId)
     const entry = preferred && preferred.readiness !== 'unavailable' ? preferred : getDefaultEntry(entries)
+
     return { id: entry?.id, instanceKey: entry?.instanceKey }
   })
+
   const [layoutAnimationPending, setLayoutAnimationPending] = useState(false)
   const [fullWidthActive, setFullWidthActive] = useState(false)
   const [paneResizing, setPaneResizing] = useState(false)
@@ -235,10 +241,12 @@ export function RightPanelProvider<TScope>({
     previousDefaultOpenRef.current = defaultOpen
     const userIntent = consumedUserOpenIntentRef.current !== userOpenIntentSeq
     consumedUserOpenIntentRef.current = userOpenIntentSeq
+
     if (openRef.current === defaultOpen) return
 
     openRef.current = defaultOpen
     setOpen(defaultOpen)
+
     if (defaultOpen) {
       if (userIntent) setUserOpenSeq((seq) => seq + 1)
       setRequestedPanel({ id: defaultPanelId ?? getDefaultEntry(entries)?.id })
@@ -252,10 +260,12 @@ export function RightPanelProvider<TScope>({
 
   const requestedEntry = findEntry(entries, requestedPanel.id)
   const defaultEntry = getDefaultEntry(entries)
+
   const selectionAvailable =
     requestedEntry &&
     requestedEntry.readiness !== 'unavailable' &&
     (requestedPanel.instanceKey === undefined || requestedPanel.instanceKey === requestedEntry.instanceKey)
+
   const activeEntry = selectionAvailable && requestedEntry.readiness === 'ready' ? requestedEntry : undefined
   const presentationOpen = present && open && Boolean(activeEntry)
   const presentationMaximized = presentationOpen && maximized
@@ -271,26 +281,34 @@ export function RightPanelProvider<TScope>({
     (panelId: string) => presentationOpen && activeEntry?.id === panelId,
     [activeEntry?.id, presentationOpen]
   )
+
   const canOpen = useCallback((panelId: string) => findEntry(entries, panelId)?.readiness === 'ready', [entries])
+
   const requestOpen = useCallback((panelId: string, options?: RightPanelOpenOptions) => {
     const wasOpen = openRef.current
     openRef.current = true
     setRequestedPanel({ id: panelId })
     setOpen(true)
+
     if (!wasOpen) {
       setPdfLayoutPending(true)
+
       if (options?.userInitiated) setUserOpenSeq((seq) => seq + 1)
     }
+
     onOpenChangeRef.current?.(true)
   }, [])
+
   const tryOpen = useCallback(
     (panelId: string, options?: RightPanelOpenOptions) => {
       if (!canOpen(panelId)) return false
       requestOpen(panelId, options)
+
       return true
     },
     [canOpen, requestOpen]
   )
+
   const close = useCallback(() => {
     if (!openRef.current) return
     openRef.current = false
@@ -299,6 +317,7 @@ export function RightPanelProvider<TScope>({
     setPdfLayoutPending(false)
     onOpenChangeRef.current?.(false)
   }, [])
+
   useLayoutEffect(() => {
     if (!selectionAvailable) {
       close()
@@ -307,22 +326,27 @@ export function RightPanelProvider<TScope>({
       setRequestedPanel({ id: requestedEntry.id, instanceKey: requestedEntry.instanceKey })
     }
   }, [close, requestedEntry, requestedPanel.instanceKey, selectionAvailable])
+
   const minimize = useCallback(() => {
     setLayoutAnimationPending(true)
     setPdfLayoutPending(false)
     setMaximized(false)
   }, [])
+
   const toggleMaximized = useCallback(() => {
     setLayoutAnimationPending(true)
     setPdfLayoutPending(false)
     setMaximized((current) => !current)
   }, [])
+
   const completeLayoutAnimation = useCallback((mode: RightPaneLayoutMode) => {
     setLayoutAnimationPending(false)
+
     if (mode === 'closed') return
     setPdfLayoutPending(false)
     setPdfLayoutRefreshKey((key) => key + 1)
   }, [])
+
   const reportFullWidthPhase = useCallback((active: boolean) => setFullWidthActive(active), [])
   const reportPaneResizing = useCallback((active: boolean) => setPaneResizing(active), [])
 
@@ -360,6 +384,7 @@ export function RightPanelProvider<TScope>({
       userOpenSeq
     ]
   )
+
   const actions = useMemo<RightPanelControllerActions>(
     () => ({
       canOpen,
@@ -384,6 +409,7 @@ export function RightPanelProvider<TScope>({
       tryOpen
     ]
   )
+
   const renderValue = useMemo<RightPanelRenderContextValue>(
     () => ({ entries, mountedInstances, scope }),
     [entries, mountedInstances, scope]
@@ -414,7 +440,9 @@ export function useRightPanelComposerElevated(): boolean {
 
 export function useRightPanelState(): RightPanelState {
   const state = use(RightPanelStateContext)
+
   if (!state) throw new Error('useRightPanelState must be used within <RightPanelProvider>')
+
   return state
 }
 
@@ -424,7 +452,9 @@ export function useOptionalRightPanelState(): RightPanelState | undefined {
 
 function useRightPanelControllerActions(): RightPanelControllerActions {
   const actions = use(RightPanelActionsContext)
+
   if (!actions) throw new Error('useRightPanelActions must be used within <RightPanelProvider>')
+
   return actions
 }
 
@@ -525,11 +555,14 @@ function RightPanelEntry({
  */
 export function RightPanel() {
   const context = use(RightPanelRenderContext)
+
   if (!context) throw new Error('RightPanel must be used within <RightPanelProvider>')
   const state = useRightPanelState()
+
   const mountedEntries = context.entries.filter(
     (entry) => context.mountedInstances.get(entry.id) === entry.instanceKey && entry.readiness !== 'unavailable'
   )
+
   const activeEntry = findEntry(context.entries, state.activePanelId)
 
   return (
@@ -540,6 +573,7 @@ export function RightPanel() {
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {mountedEntries.map((entry) => {
           const active = state.isActive(entry.id)
+
           return (
             <TooltipSurface key={`${entry.id}:${entry.instanceKey}`} active={active}>
               {/* Switching panels hides the previous one via Activity (display:none): a tooltip
@@ -561,6 +595,7 @@ function RightPanelKeyboardShortcut() {
   const isActiveTab = useIsActiveTab()
   const targetPanelId = state.defaultPanelId
   const enabled = state.presentationEnabled && isActiveTab && Boolean(targetPanelId && actions.canOpen(targetPanelId))
+
   const handleToggle = useCallback(() => {
     if (state.presentationOpen) {
       actions.close()
@@ -570,6 +605,7 @@ function RightPanelKeyboardShortcut() {
   }, [actions, state.presentationOpen, targetPanelId])
 
   useCommandHandler('topic.sidebar.toggle', handleToggle, { enabled })
+
   return null
 }
 
@@ -619,14 +655,19 @@ export function RightPanelShortcut({
   const ready = actions.canOpen(tab)
   const active = state.isActive(tab)
   const tooltipContent = tooltip === false ? false : (tooltip ?? label)
+
   const handleClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       onClick?.(event)
+
       if (event.defaultPrevented) return
+
       if (active) {
         actions.close()
+
         return
       }
+
       actions.tryOpen(tab, { userInitiated: true })
     },
     [actions, active, onClick, tab]

@@ -100,16 +100,20 @@ function estimatePromptTokens(
 ): number {
   const step = steps?.at(-1)
   const anchor = step ? getContextTokens(step.usage, step.providerMetadata) : undefined
+
   if (anchor === undefined) return estimateModelMessages(messages, dialect)
   // Delta = messages appended after the last assistant output (this step's tool results).
   let lastAssistant = -1
+
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === 'assistant') {
       lastAssistant = i
       break
     }
   }
+
   if (lastAssistant === -1) return estimateModelMessages(messages, dialect)
+
   return anchor + estimateModelMessages(messages.slice(lastAssistant + 1), dialect)
 }
 
@@ -124,22 +128,28 @@ export function computeKeepRecentTurns(messages: ModelMessage[], keepBudget: num
   let acc = 0
   let turns = 0
   let i = messages.length - 1
+
   while (i >= 0) {
     if (messages[i].role === 'system') break
     // Pull the trailing tool messages of this turn together with its assistant.
     let turnTokens = 0
+
     while (i >= 0 && messages[i].role === 'tool') {
       turnTokens += estimateMessageTokens(messages[i], dialect)
       i--
     }
+
     if (i >= 0 && messages[i].role !== 'system') {
       turnTokens += estimateMessageTokens(messages[i], dialect)
       i--
     }
+
     acc += turnTokens
     turns += 1
+
     if (acc >= keepBudget) break
   }
+
   return Math.max(turns, 1)
 }
 
@@ -148,17 +158,24 @@ export const inLoopCompactionFeature: RequestFeature = {
   applies: (scope) => {
     if (scope.request.contextOwner === 'caller') return false
     const topicId = scope.request.conversation.topicId
+
     if (!topicId) return false
+
     if (isAgentSessionTopic(topicId)) return false
+
     if (temporaryChatService.hasTopic(topicId)) return false
+
     return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
   },
   contributeModelAdapters: (scope) => {
     const compressor = scope.compressionModel
+
     const window =
       resolveContextWindow(compressor?.contextWindow ?? undefined) ?? resolveContextWindow(scope.model.contextWindow)
+
     if (!compressor || !window) return []
     const maxOutputTokens = resolveCompressionOutputTokens(window)
+
     const middleware = createOverflowRecoveryMiddleware(async (prompt, signal) => {
       const history = fromAISDK(prompt)
       const conversation = history.filter((message) => message.role !== 'system')
@@ -169,6 +186,7 @@ export const inLoopCompactionFeature: RequestFeature = {
       const anchorId = compactionAnchorChunkId()
       let completed = false
       scope.compactionSink?.(anchorId, { status: 'compacting', phase: 'in-loop', startedAt })
+
       try {
         const compacted = await compactHistory(
           history,
@@ -181,11 +199,13 @@ export const inLoopCompactionFeature: RequestFeature = {
             )
           }
         )
+
         const size = (items: typeof history) =>
           items.reduce(
             (sum, message) => sum + message.content.length + JSON.stringify(message.tool_calls ?? []).length,
             0
           )
+
         if (compacted === history || size(compacted) >= size(history)) return undefined
         const completedAt = new Date().toISOString()
         completed = true
@@ -197,6 +217,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           durationMs: Date.parse(completedAt) - Date.parse(startedAt),
           foldedCount: Math.max(0, history.length - compacted.length)
         })
+
         return toAISDK(compacted)
       } catch (error) {
         if (!(signal ?? scope.signal)?.aborted) {
@@ -204,6 +225,7 @@ export const inLoopCompactionFeature: RequestFeature = {
             error: error instanceof Error ? error.message : String(error)
           })
         }
+
         throw error
       } finally {
         if (!completed) {
@@ -216,6 +238,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         }
       }
     })
+
     return [
       definePlugin({
         name: 'context-overflow-recovery',
@@ -228,6 +251,7 @@ export const inLoopCompactionFeature: RequestFeature = {
   },
   contributeHooks: (scope) => {
     const compressor = scope.compressionModel
+
     // `applies()` already guards compressionModel; this narrows the type.
     if (!compressor) return {}
     const model = compressor.languageModel
@@ -237,12 +261,15 @@ export const inLoopCompactionFeature: RequestFeature = {
     // `estimate <= NaN` is false, so the hook fired on EVERY step. With no
     // window, contribute no hook at all.
     const contextWindow = resolveContextWindow(scope.model.contextWindow)
+
     if (contextWindow === null) {
       logger.warn('model declares no contextWindow — in-loop compaction disabled for this request', {
         modelId: scope.model.id
       })
+
       return {}
     }
+
     // Against the room the PROMPT actually has, not the whole window: whatever
     // this request declares as max_tokens is billed alongside the input.
     const inputRoom = resolveInputRoom(
@@ -255,6 +282,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         scope.endpointType
       )
     )
+
     const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)
     const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // The trigger/keep budgets above belong to the REQUEST model (they describe
@@ -283,12 +311,15 @@ export const inLoopCompactionFeature: RequestFeature = {
     // A compressor that keeps failing (bad key, exhausted quota, dead endpoint)
     // must not re-fail on every step; one failure disables it for this request.
     let compactionDisabled = false
+
     return {
       prepareStep: async ({ messages, steps }) => {
         const candidate = foldCache
           ? [...foldCache.compactedPrefix, ...messages.slice(foldCache.consumedCount)]
           : messages
+
         if (compactionDisabled) return foldCache ? { messages: candidate } : undefined
+
         // Compact only when strictly over the trigger (`<=` is a no-op), matching the
         // turn-start comparison so the two paths never disagree at estimate === trigger.
         // Once a fold is active the usage anchor covers the ORIGINAL prompt and would
@@ -296,10 +327,12 @@ export const inLoopCompactionFeature: RequestFeature = {
         const estimate = foldCache
           ? foldCache.prefixTokens + estimateModelMessages(messages.slice(foldCache.consumedCount), dialect)
           : estimatePromptTokens(messages, steps, dialect)
+
         if (estimate <= trigger) {
           // A previously folded view that still fits is served as-is — zero LLM calls.
           return foldCache ? { messages: candidate } : undefined
         }
+
         const keepRecentTurns = computeKeepRecentTurns(candidate, keepBudget, dialect)
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
@@ -314,6 +347,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         const anchorId = compactionAnchorChunkId()
         scope.compactionSink?.(anchorId, { status: 'compacting', phase: 'in-loop', startedAt })
         let compacted: ModelMessage[]
+
         try {
           compacted = await compactModelMessages(candidate, model, {
             keepRecentTurns,
@@ -344,8 +378,10 @@ export const inLoopCompactionFeature: RequestFeature = {
             startedAt,
             completedAt: new Date().toISOString()
           })
+
           return foldCache ? { messages: candidate } : undefined
         }
+
         // `compactModelMessages` returns the SAME reference when there was nothing old
         // enough to summarize or the summarizer produced no text. Settling that as `done`
         // is what made a no-op read as a completed compaction in the UI — preTokens ===
@@ -358,8 +394,10 @@ export const inLoopCompactionFeature: RequestFeature = {
             startedAt,
             completedAt: new Date().toISOString()
           })
+
           return foldCache ? { messages: candidate } : undefined
         }
+
         const completedAt = new Date().toISOString()
         const postTokens = estimateModelMessages(compacted, dialect)
         scope.compactionSink?.(anchorId, {
@@ -373,6 +411,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           foldedCount: Math.max(0, candidate.length - compacted.length)
         })
         foldCache = { consumedCount: messages.length, compactedPrefix: compacted, prefixTokens: postTokens }
+
         return { messages: compacted }
       }
     }

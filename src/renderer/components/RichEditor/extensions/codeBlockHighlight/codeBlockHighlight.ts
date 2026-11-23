@@ -9,6 +9,7 @@ export interface CodeBlockHighlightOptions extends CodeBlockOptions {
   defaultLanguage: string
   theme: string
 }
+
 export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
   addOptions() {
     return {
@@ -35,7 +36,9 @@ export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
         type: this.type,
         getAttributes: (match) => {
           const inputLanguage = match[1]?.toLowerCase().trim()
+
           if (!inputLanguage) return {}
+
           return { language: inputLanguage }
         }
       }),
@@ -45,7 +48,9 @@ export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
         type: this.type,
         getAttributes: (match) => {
           const inputLanguage = match[1]?.toLowerCase().trim()
+
           if (!inputLanguage) return {}
+
           return { language: inputLanguage }
         }
       })
@@ -62,6 +67,7 @@ export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
         if (this.editor.isActive(this.name)) {
           return this.editor.commands.insertContent('  ')
         }
+
         return false
       },
       'Shift-Tab': () => {
@@ -80,12 +86,14 @@ export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
           // Check if line starts with spaces that can be removed
           if (currentLine.startsWith('  ')) {
             const lineStart = start + 1 + beforeCursor.length - currentLine.length
+
             return this.editor.commands.deleteRange({
               from: lineStart,
               to: lineStart + 2
             })
           }
         }
+
         return false
       }
     }
@@ -117,8 +125,10 @@ export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
             // Insert newline with same indentation
             const tr = view.state.tr.insertText('\n' + indent, selection.from, selection.to)
             view.dispatch(tr)
+
             return true
           }
+
           return false
         }
       }

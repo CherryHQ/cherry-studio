@@ -13,16 +13,20 @@ const failureFactsSchema = z.object({
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error-reporting metadata is untrusted until failureFactsSchema validates its discriminants.
 export function parseFailureFacts(value: unknown): FailureFacts | undefined {
   const parsed = failureFactsSchema.safeParse(value)
+
   return parsed.success ? parsed.data : undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native and SDK cancellation failures are untyped; only readable recognized name/code markers establish cancellation.
 export function isCancellation(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
+
   try {
     const name = 'name' in error ? error.name : undefined
+
     if (name === 'AbortError' || name === 'CanceledError') return true
     const code = 'code' in error ? error.code : undefined
+
     return code === 'ABORT_ERR' || code === 'ERR_CANCELED'
   } catch {
     return false
@@ -31,6 +35,7 @@ export function isCancellation(error: unknown): boolean {
 
 export function shouldReportFailure(facts: FailureFacts): boolean {
   if (facts.kind === 'expected' || facts.outcome === 'cancelled') return false
+
   return facts.outcome !== 'retrying' || facts.kind === 'defect'
 }
 

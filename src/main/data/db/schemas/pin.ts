@@ -39,4 +39,5 @@ export const pinTable = sqliteTable(
 )
 
 export type InsertPinRow = typeof pinTable.$inferInsert
+
 export type PinRow = typeof pinTable.$inferSelect

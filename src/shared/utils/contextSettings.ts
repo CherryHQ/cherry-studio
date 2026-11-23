@@ -14,5 +14,6 @@ import {
  */
 export function clampThresholdPercent(value: number | null | undefined): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_CONTEXT_SETTINGS.compress.thresholdPercent
+
   return Math.min(MAX_COMPRESS_THRESHOLD_PERCENT, Math.max(MIN_COMPRESS_THRESHOLD_PERCENT, Math.floor(value)))
 }

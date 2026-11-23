@@ -42,6 +42,7 @@ export function abandonLeftovers(type: string, handler: JobHandler, leftoverJobI
       .getActiveByType(type)
       .filter((row) => leftoverJobIds.has(row.id) && strategyOf(row, handler) === 'abandon')
       .map((row) => row.id)
+
     if (ids.length === 0) return
     jobService.cancelByIds(ids, cancelledByRecovery)
     logger.info('Abandon recovery: cancelled leftovers', { type, count: ids.length })
@@ -96,6 +97,7 @@ export function runStartupRecovery(
     // Above the cancelRequested override and every strategy, so none of them
     // ever touches a job of this process (#16291).
     const active = rows.filter((r) => !isOwnedByCurrentLaunch(r.id))
+
     if (active.length === 0) continue
 
     // 1. cancelRequested → cancelled, regardless of strategy. Includes pending
@@ -109,6 +111,7 @@ export function runStartupRecovery(
     const cancelRequestedIds = active
       .filter((r) => r.cancelRequested && (r.status === 'running' || r.status === 'delayed' || r.status === 'pending'))
       .map((r) => r.id)
+
     if (cancelRequestedIds.length) {
       jobService.cancelByIds(cancelRequestedIds, cancelledByRecovery)
       stats.cancelled += cancelRequestedIds.length
@@ -125,30 +128,38 @@ export function runStartupRecovery(
     if (retried.length) {
       const runningIds = retried.filter((r) => r.status === 'running').map((r) => r.id)
       const delayedCount = retried.filter((r) => r.status === 'delayed').length
+
       if (runningIds.length) {
         jobService.resetToPendingByIds(runningIds)
         stats.pendingReset += runningIds.length
       }
+
       stats.delayedKept += delayedCount
+
       if (runningIds.length || delayedCount) {
         logger.info('Retry recovery', { type, reset: runningIds.length, delayedKept: delayedCount })
       }
     }
+
     if (singletons.length) {
       // An instance this launch owns supersedes every leftover. Otherwise keep the newest one:
       // singletons keep the createdAt DESC order of the jobService read.
       const ownsInstance = rows.some((r) => isOwnedByCurrentLaunch(r.id) && strategyOf(r, handler) === 'singleton')
       const keep = ownsInstance ? undefined : singletons[0]
+
       if (keep?.status === 'running') {
         jobService.resetToPendingByIds([keep.id])
         stats.pendingReset += 1
       }
+
       if (keep) stats.singletonKept += 1
       const toCancelIds = singletons.filter((r) => r !== keep).map((r) => r.id)
+
       if (toCancelIds.length) {
         jobService.cancelByIds(toCancelIds, cancelledByRecovery)
         stats.cancelled += toCancelIds.length
       }
+
       logger.info('Singleton recovery', {
         type,
         keptId: keep?.id ?? null,
@@ -165,6 +176,7 @@ export function runStartupRecovery(
   const allActive = jobService.getStaleActive()
   const orphans = allActive.filter((r) => !handlers.has(r.type))
   const orphanIds = orphans.map((r) => r.id)
+
   if (orphanIds.length) {
     jobService.cancelByIds(orphanIds, {
       code: JOB_ERROR_CODES.CANCELLED,

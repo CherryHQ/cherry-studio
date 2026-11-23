@@ -40,9 +40,11 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
     if (error instanceof AgentSessionEditError) {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, error.reason, { reason: error.reason })
     }
+
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
     }
+
     throw error
   }
 }
@@ -55,6 +57,7 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
  */
 function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
   if (senderId == null) return undefined
+
   return application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
@@ -72,6 +75,7 @@ async function exposeAgentTaskError<T>(op: () => T | Promise<T>): Promise<T> {
     if (e instanceof Error && (e as { code?: string }).code === JOB_ERROR_CODES.SCHEDULE_TRIGGER_INVALID) {
       throw new IpcError(aiErrorCodes.AI_AGENT_TASK_TRIGGER_INVALID, e.message)
     }
+
     throw e
   }
 }
@@ -87,6 +91,7 @@ async function restoreAgentSession(sessionId: string) {
     if (isDataApiError(e) && e.code === ErrorCode.NOT_FOUND) {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, e.message)
     }
+
     throw e
   }
 }
@@ -100,12 +105,15 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
         sessionIds: error.sessionIds
       })
     }
+
     if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
       const operation = (error.details as { operation?: string } | undefined)?.operation
+
       if (operation === 'delete pinned session') {
         throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_PINNED, error.message)
       }
     }
+
     throw error
   }
 }
@@ -116,9 +124,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').abortPromptPrediction(sessionId, requestId),
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
+
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
+
     const send = (update: MessageProjectionUpdate) =>
       application.get('IpcApiService').send(senderId, 'ai.projection.changed', { subscriptionId, update })
+
     return target.kind === 'topic'
       ? application.get('AiStreamManager').attachProjection(sender, target.topicId, subscriptionId, send)
       : application
@@ -127,7 +138,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.projection.detach': async ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
+
     if (!sender) return
+
     if (target.kind === 'topic') application.get('AiStreamManager').detachProjection(sender, subscriptionId)
     else application.get('AgentSessionRuntimeService').detachChild(sender, subscriptionId)
   },
@@ -140,6 +153,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // A renderer one-shot call has no topic; it is its own conversation.
   'ai.text.generate': ({ requestId, ...request }) => {
     const generate = { ...request, conversation: { id: `one-shot:${randomUUID()}` } }
+
     return exposeAiError('ai.text.generate', () =>
       requestId
         ? application.get('AiService').runTextRequest(requestId, generate)
@@ -167,18 +181,23 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.stream.open': async (request, { senderId }) => {
     if (!senderId) throw new Error('ai.stream.open requires a managed window')
     const wc = senderWebContents(senderId)
+
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
+
     return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatchCommand(dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
+
     if (!wc) throw new Error('ai.stream.attach requires a managed window')
+
     return application.get('AiStreamManager').attach(wc, request)
   },
   'ai.stream.detach': async (request, { senderId }) => {
     // Best-effort: a gone window has no listener to remove, so a missing WebContents is a no-op.
     const wc = senderWebContents(senderId)
+
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
   'ai.stream.abort': async ({ topicId }) => {
@@ -189,7 +208,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.tool.get_result': async ({ topicId, messageId, toolCallId }) => {
     // Active stream first: it is the only source holding the value before the message persists.
     const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
+
     if (live.found) return live
+
     return findPersistedToolOutput(topicId, messageId, toolCallId)
   },
   // The continuation dispatch streams to the caller window, so it needs that window's WebContents.
@@ -205,6 +226,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, error.message)
       }
+
       throw error
     }
   },
@@ -230,6 +252,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       if (isDataApiResourceNotFoundError(error, 'Workspace')) {
         throw new IpcError(aiErrorCodes.AI_AGENT_WORKSPACE_NOT_FOUND, error.message)
       }
+
       throw error
     }
   },
@@ -266,10 +289,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       }
     } catch (error) {
       logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
+
       const failure =
         error instanceof AgentSessionForkError || error instanceof AgentSessionForkSourceError
           ? error.reason
           : undefined
+
       const reason = isAgentSessionForkFailureReason(failure) ? failure : 'operation_failed'
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
@@ -283,13 +308,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
   'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
     const wc = senderWebContents(senderId)
+
     if (!wc) return
     application.get('AgentSessionRuntimeService').setPendingInputCount(wc, sessionId, count)
   },
   'ai.agent.session.edit_resend': ({ sessionId, target, ...input }, { senderId }) =>
     exposeAiStreamAdmission(async () => {
       const wc = senderWebContents(senderId)
+
       if (!senderId || !wc) throw new Error('Edit and resend requires a managed window')
+
       try {
         return await application.get('AiStreamManager').dispatchCommand({
           ...input,
@@ -303,9 +331,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
           if (error.reason === 'unsupported_checkpoint') {
             throw new AgentSessionEditError('checkpoint_unsupported')
           }
+
           const reason = isAgentSessionForkFailureReason(error.reason) ? error.reason : 'operation_failed'
           throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
         }
+
         throw error
       }
     }),
@@ -339,25 +369,33 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.task.update': ({ agentId, taskId, patch }) =>
     exposeAgentTaskError(async () => {
       const updated = application.get('AgentJobsService').updateTask(agentId, taskId, patch)
+
       if (!updated) throw agentTaskNotFound(taskId)
+
       return updated
     }),
   'ai.agent.task.pause': async ({ agentId, taskId }) => {
     const paused = await application.get('AgentJobsService').pauseTask(agentId, taskId)
+
     if (!paused) throw agentTaskNotFound(taskId)
+
     return paused
   },
   'ai.agent.task.resume': async ({ agentId, taskId }) => {
     const resumed = application.get('AgentJobsService').resumeTask(agentId, taskId)
+
     if (!resumed) throw agentTaskNotFound(taskId)
+
     return resumed
   },
   'ai.agent.task.delete': async ({ agentId, taskId }) => {
     const deleted = await application.get('AgentJobsService').deleteTask(agentId, taskId)
+
     if (!deleted) throw agentTaskNotFound(taskId)
   },
   'ai.agent.task.run': async ({ agentId, taskId }) => {
     const fired = await application.get('AgentJobsService').runTask(agentId, taskId)
+
     if (!fired) throw agentTaskNotFound(taskId)
   },
   'ai.temporary_topic.create': async (dto) => temporaryChatService.createTopic(dto),

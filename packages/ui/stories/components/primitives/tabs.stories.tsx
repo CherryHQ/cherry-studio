@@ -33,6 +33,7 @@ const meta: Meta<typeof Tabs> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default (Segmented Control Style)

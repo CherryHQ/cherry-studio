@@ -65,6 +65,7 @@ export function countStaleSelectedModelIds(
     }
 
     seen.add(modelId)
+
     if (!resolvedIdSet.has(modelId)) {
       staleCount += 1
     }
@@ -93,9 +94,11 @@ export function computeCollapsedSelection(
   rawSelectedModelIds: readonly UniqueModelId[]
 ): UniqueModelId[] | null {
   const collapsed = resolvedSelectedModelIds.slice(0, 1)
+
   if (areSelectedIdsEqual(collapsed, rawSelectedModelIds)) {
     return null
   }
+
   return collapsed
 }
 

@@ -38,9 +38,11 @@ export function WorkflowTool({ input, output }: ToolRendererProps<typeof AgentTo
   const name = result?.workflowName ?? input?.name
   const target = name ?? (result?.taskId ? t('message.tools.activity.taskId', { id: result.taskId }) : undefined)
   const script = input?.script
+
   const hasDetails = Boolean(
     script || result?.summary || result?.warning || result?.error || result?.runId || result?.scriptPath
   )
+
   const copyScript = () => {
     if (!script || !actions?.copyText) return
     Promise.resolve(actions.copyText(script, { successMessage: t('common.copied') }))

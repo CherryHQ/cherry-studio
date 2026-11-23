@@ -12,5 +12,6 @@ export const ScrollViewportOwnershipProvider = ({
   scrollContainerRef: RefObject<HTMLElement | null>
 }) => {
   const value = useMemo(() => ({ scrollContainerRef }), [scrollContainerRef])
+
   return <ScrollViewportOwnershipContext value={value}>{children}</ScrollViewportOwnershipContext>
 }

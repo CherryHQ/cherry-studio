@@ -56,22 +56,28 @@ import { getMachineCode } from './machineCode'
 import { trackCherryCloudAnalyticsEvent } from './subscriptionAnalytics'
 
 const logger = loggerService.withContext('CherryCloudService')
+
 const PRODUCTION_API_ORIGINS = {
   cn: 'https://cloud.cherryai.com.cn',
   global: 'https://cloud.cherryai.com'
 } as const
+
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
+
 type CherryCloudDevice = ReturnType<typeof createDeviceKeyPair>
+
 type AuthorizationOperation = {
   controller: AbortController
   cancelled: boolean
   completion: Signal<LoginSettlement>
 }
+
 type LoginSettlement = CherryCloudLoginResult | { outcome: 'failed'; error: unknown }
+
 type PendingAuthorization = {
   authorizationId: string
   state: string
@@ -79,6 +85,7 @@ type PendingAuthorization = {
   expiresAt: string
   operation: AuthorizationOperation
 }
+
 type ProductSession = {
   accessToken: string
   accessExpiresAt: number
@@ -89,23 +96,28 @@ type ProductSession = {
   accountId: string
   displayName: string | null
 }
+
 type CherryCloudState = {
   device: CherryCloudDevice | null
   pending: PendingAuthorization | null
   session: ProductSession | null
 }
+
 function emptyState(): CherryCloudState {
   return { device: null, pending: null, session: null }
 }
 
 export function resolveCherryCloudApiOrigin(): string {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+
   if (configuredOrigin) return new URL(configuredOrigin).origin
+
   return PRODUCTION_API_ORIGINS[getAppEdition()]
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
   if (process.platform === 'darwin' || process.platform === 'linux') return process.platform
+
   if (process.platform === 'win32') return 'windows'
   throw new Error(`Cherry Cloud login is not supported on ${process.platform}`)
 }
@@ -170,6 +182,7 @@ function isAccountDisabled(response: Response): boolean {
 
 function requiresLogin(response: Response): boolean {
   const code = response.headers.get('Cherry-Error-Code')
+
   return response.status === 401 && (code === 'SESSION_EXPIRED' || code === 'REAUTH_REQUIRED')
 }
 
@@ -183,10 +196,13 @@ function discardResponse(response: Response): void {
 
 function abortable<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise<T> {
   if (!signal) return promise
+
   if (signal.aborted) {
     void promise.catch(() => undefined)
+
     return Promise.reject(signal.reason)
   }
+
   return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => reject(signal.reason)
     signal.addEventListener('abort', onAbort, { once: true })
@@ -249,11 +265,13 @@ export class CherryCloudService extends BaseService {
     // A plan can end while the machine sleeps, so the snapshot taken before sleep is not reused.
     this.registerDisposable(application.get('PowerService').onResume(() => (this.modelSyncCache = null)))
     await this.restoreSession()
+
     if (this.cloudState.session) void this.syncEntitledModels().catch(() => undefined)
   }
 
   protected onStop(): void {
     const operation = this.authorizationOperation
+
     if (operation) operation.cancelled = true
     this.lifecycleGeneration += 1
     this.invalidateAccountRefreshes()
@@ -265,14 +283,17 @@ export class CherryCloudService extends BaseService {
     this.clearSessionExpiryTimer()
     this.loopbackCallback?.dispose()
     this.loopbackCallback = null
+
     if (this.cloudState.session) this.sessionGeneration += 1
     this.cloudState = emptyState()
     this.machineCode = null
     this.resetAccountFacts()
+
     if (operation) {
       this.settleAuthorization(operation, { outcome: 'stopped', status: this.currentStatus() })
       operation.controller.abort()
     }
+
     this.authorizationOperation = null
     this.loginPromise = null
     this.subscriptionPromise = null
@@ -285,6 +306,7 @@ export class CherryCloudService extends BaseService {
 
   public async getStatus(): Promise<CherryCloudStatus> {
     await this.pruneExpiredState()
+
     return this.currentStatus()
   }
 
@@ -299,55 +321,68 @@ export class CherryCloudService extends BaseService {
 
   public startLogin(): Promise<CherryCloudLoginResult> {
     if (this.loginPromise) return this.loginPromise.promise
+
     const operation: AuthorizationOperation = {
       controller: new AbortController(),
       cancelled: false,
       completion: new Signal<LoginSettlement>()
     }
+
     this.authorizationOperation = operation
+
     const login = Promise.resolve(operation.completion)
       .then((result) => {
         if (result.outcome === 'failed') throw result.error
+
         return result
       })
       .finally(() => {
         if (this.loginPromise?.promise === login) this.loginPromise = null
         operation.completion.dispose()
       })
+
     this.loginPromise = { operation, promise: login }
     void this.createLogin(operation)
       .then((status) => {
         if (status.phase === 'signed-in') this.settleAuthorization(operation, { outcome: 'signed-in', status })
       })
       .catch((error) => this.settleAuthorization(operation, { outcome: 'failed', error }))
+
     return login
   }
 
   public async cancelLogin(): Promise<CherryCloudStatus> {
     const operation = this.authorizationOperation
+
     if (!operation) return this.getStatus()
     operation.cancelled = true
     const pending = this.cloudState.pending
+
     if (pending?.operation === operation) this.clearPendingAuthorization(pending, 'cancelled')
     else {
       this.authorizationOperation = null
       operation.controller.abort()
       this.settleAuthorization(operation, { outcome: 'cancelled', status: this.currentStatus() })
     }
+
     this.loopbackCallback?.dispose()
     this.loopbackCallback = null
+
     return this.currentStatus()
   }
 
   private settleAuthorization(operation: AuthorizationOperation, result: LoginSettlement): void {
     if (operation.completion.isResolved) return
+
     if (this.loginPromise?.operation === operation) this.loginPromise = null
     operation.completion.resolve(result)
+
     if (this.authorizationOperation === operation) this.authorizationOperation = null
   }
 
   private settleActiveAuthorization(outcome: 'stopped'): void {
     const operation = this.authorizationOperation
+
     if (!operation) return
     operation.cancelled = true
     this.settleAuthorization(operation, { outcome, status: this.currentStatus() })
@@ -359,6 +394,7 @@ export class CherryCloudService extends BaseService {
     const current = await this.getStatus()
     this.assertLifecycleGeneration(lifecycleGeneration)
     this.assertAuthorizationOperation(operation)
+
     if (current.phase !== 'signed-out') return current
 
     const machineCode = await getMachineCode()
@@ -368,11 +404,14 @@ export class CherryCloudService extends BaseService {
     const device = this.getOrCreateDevice()
     const secrets = createAuthorizationSecrets()
     const loopbackCallback = await this.openLoopbackCallback(lifecycleGeneration, operation)
+
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       loopbackCallback.dispose()
+
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
       this.assertLifecycleGeneration(lifecycleGeneration)
     }
+
     let pending: PendingAuthorization | null = null
 
     try {
@@ -385,13 +424,16 @@ export class CherryCloudService extends BaseService {
         platform: platformName(),
         client_version: app.getVersion().replace(/^v/, '')
       }
+
       if (loopbackCallback) Object.assign(body, { callback_port: loopbackCallback.port })
+
       const created = await this.postJson(
         '/api/v1/desktop/authorizations',
         body,
         createDesktopAuthorizationResponseSchema,
         operation.controller.signal
       )
+
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
       loopbackCallback.setExpiresAt(created.expires_at)
@@ -408,16 +450,21 @@ export class CherryCloudService extends BaseService {
 
       await shell.openExternal(created.authorization_url)
       this.assertLifecycleGeneration(lifecycleGeneration)
+
       if (!operation.completion.isResolved) this.assertAuthorizationOperation(operation)
     } catch (error) {
       if (operation.completion.isResolved) return this.currentStatus()
       loopbackCallback.dispose()
+
       if (this.loopbackCallback === loopbackCallback) this.loopbackCallback = null
+
       if (pending) this.clearPendingAuthorization(pending, null)
       else {
         operation.controller.abort()
+
         if (this.authorizationOperation === operation) this.authorizationOperation = null
       }
+
       this.assertLifecycleGeneration(lifecycleGeneration)
       throw error
     }
@@ -430,19 +477,25 @@ export class CherryCloudService extends BaseService {
     operation: AuthorizationOperation
   ): Promise<CherryCloudLoopbackCallback> {
     this.loopbackCallback?.dispose()
+
     const receiver = await CherryCloudLoopbackCallback.open(async (url) => {
       await this.handleCallback(url)
+
       if (this.loopbackCallback === receiver) this.loopbackCallback = null
     }, resolveCherryCloudApiOrigin())
+
     if (this.lifecycleGeneration !== lifecycleGeneration) {
       receiver.dispose()
       this.assertLifecycleGeneration(lifecycleGeneration)
     }
+
     if (!this.isAuthorizationOperationActive(operation)) {
       receiver.dispose()
       throw new Error('Cherry Cloud authorization is no longer active')
     }
+
     this.loopbackCallback = receiver
+
     return receiver
   }
 
@@ -450,9 +503,11 @@ export class CherryCloudService extends BaseService {
     if (this.cloudState.device) return this.cloudState.device
 
     const stored = cherryAccountCredentialStore.get()
+
     if (stored) {
       const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
       this.cloudState = { ...this.cloudState, device }
+
       return device
     }
 
@@ -464,6 +519,7 @@ export class CherryCloudService extends BaseService {
       session: null
     })
     this.cloudState = { ...this.cloudState, device }
+
     return device
   }
 
@@ -475,6 +531,7 @@ export class CherryCloudService extends BaseService {
     const pending = this.cloudState.pending
     const authorizationId = url.searchParams.get('authorization_id')
     const callbackState = url.searchParams.get('state')
+
     if (!pending || authorizationId !== pending.authorizationId || callbackState !== pending.state) {
       throw new Error('Cherry Cloud callback does not match an active authorization')
     }
@@ -493,10 +550,12 @@ export class CherryCloudService extends BaseService {
 
     if (url.searchParams.has('error')) {
       this.clearPendingAuthorization(pending)
+
       return
     }
 
     const handoffCode = url.searchParams.get('handoff_code')
+
     if (!handoffCode) {
       this.clearPendingAuthorization(pending)
       throw new Error('Cherry Cloud callback is missing the handoff code')
@@ -505,11 +564,13 @@ export class CherryCloudService extends BaseService {
     const exchange = this.exchangeCallback(pending, handoffCode).finally(() => {
       if (this.exchangePromise?.promise === exchange) this.exchangePromise = null
     })
+
     this.exchangePromise = {
       authorizationId: pending.authorizationId,
       state: pending.state,
       promise: exchange
     }
+
     return exchange
   }
 
@@ -525,6 +586,7 @@ export class CherryCloudService extends BaseService {
         exchangeDesktopAuthorizationResponseSchema,
         pending.operation.controller.signal
       )
+
       if (
         !this.isAuthorizationOperationActive(pending.operation) ||
         this.cloudState.pending !== pending ||
@@ -534,6 +596,7 @@ export class CherryCloudService extends BaseService {
       }
 
       const tokenSet = exchanged.token_set
+
       const session = {
         accessToken: tokenSet.access_token,
         accessExpiresAt: accessExpiresAt(tokenSet.expires_in),
@@ -544,11 +607,14 @@ export class CherryCloudService extends BaseService {
         accountId: exchanged.account.account.id,
         displayName: exchanged.account.account.display_name ?? null
       }
+
       const device = this.cloudState.device
+
       if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
 
       this.persistSession(device, session)
       this.clearPendingExpiryTimer()
+
       if (this.authorizationOperation === pending.operation) this.authorizationOperation = null
       this.invalidateModelSync()
       this.sessionGeneration += 1
@@ -574,6 +640,7 @@ export class CherryCloudService extends BaseService {
       void this.syncEntitledModels().catch(() => undefined)
     } catch (error) {
       this.clearPendingAuthorization(pending, null)
+
       if (pending.operation.cancelled) return
       this.settleAuthorization(
         pending.operation,
@@ -581,6 +648,7 @@ export class CherryCloudService extends BaseService {
           ? { outcome: 'rejected', status: this.currentStatus() }
           : { outcome: 'failed', error }
       )
+
       if (error instanceof CherryCloudAuthorizationRejectedError) this.reportSignOut('login_rejected')
       throw error
     }
@@ -591,32 +659,40 @@ export class CherryCloudService extends BaseService {
     outcome: 'cancelled' | 'expired' | 'rejected' | null = 'rejected'
   ): void {
     const current = this.cloudState.pending
+
     if (!current || current.authorizationId !== pending.authorizationId || current.state !== pending.state) return
 
     this.clearPendingExpiryTimer()
     current.operation.controller.abort()
+
     if (this.authorizationOperation === current.operation) this.authorizationOperation = null
     this.cloudState = { ...this.cloudState, pending: null }
     this.emitStatus()
+
     if (outcome) this.settleAuthorization(current.operation, { outcome, status: this.currentStatus() })
   }
 
   private schedulePendingExpiry(pending: PendingAuthorization): void {
     this.clearPendingExpiryTimer()
     const remaining = Date.parse(pending.expiresAt) - Date.now()
+
     const timer = setTimeout(
       () => {
         if (this.cloudState.pending !== pending) return
+
         if (Date.parse(pending.expiresAt) > Date.now()) {
           this.schedulePendingExpiry(pending)
+
           return
         }
+
         this.loopbackCallback?.dispose()
         this.loopbackCallback = null
         this.clearPendingAuthorization(pending, 'expired')
       },
       Math.max(0, Math.min(remaining, 2_147_483_647))
     )
+
     timer.unref()
     this.pendingExpiryTimer = timer
   }
@@ -630,13 +706,17 @@ export class CherryCloudService extends BaseService {
   private scheduleSessionExpiry(session: ProductSession): void {
     this.clearSessionExpiryTimer()
     const remaining = session.sessionExpiresAt - Date.now()
+
     const timer = setTimeout(
       () => {
         if (this.cloudState.session !== session) return
+
         if (session.sessionExpiresAt > Date.now()) {
           this.scheduleSessionExpiry(session)
+
           return
         }
+
         void this.clearSession(session, 'expired').catch((error) => {
           logger.warn('Cherry Cloud Session expiry cleanup failed', {
             reason: error instanceof Error ? error.message : String(error)
@@ -645,6 +725,7 @@ export class CherryCloudService extends BaseService {
       },
       Math.max(0, Math.min(remaining, 2_147_483_647))
     )
+
     timer.unref()
     this.sessionExpiryTimer = timer
   }
@@ -679,13 +760,17 @@ export class CherryCloudService extends BaseService {
 
   private currentStatus(): CherryCloudStatus {
     const scope = { scopeId: this.getCurrentScopeId(), revision: this.revision }
+
     if (this.cloudState.session) {
       const { accountId, displayName } = this.cloudState.session
+
       return { ...scope, phase: 'signed-in', accountId, displayName }
     }
+
     if (this.cloudState.pending) {
       return { ...scope, phase: 'authorizing', accountId: null, displayName: null }
     }
+
     return { ...scope, phase: 'signed-out', accountId: null, displayName: null }
   }
 
@@ -717,6 +802,7 @@ export class CherryCloudService extends BaseService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Endpoint fetch/schema failures and Promise.allSettled rejection reasons must become receipt errors while retaining the last successful value.
   private failedFact<T>(fact: CherryCloudEndpointFact<T>, error: unknown): CherryCloudEndpointFact<T> {
     const message = error instanceof Error ? error.message : String(error)
+
     return fact.freshness === 'unknown'
       ? { freshness: 'unknown', error: message }
       : { freshness: 'stale', value: fact.value, observedRevision: fact.observedRevision, error: message }
@@ -727,6 +813,7 @@ export class CherryCloudService extends BaseService {
     this.receiptReason = reason
     const receipt = this.getAccountReceipt()
     application.get('IpcApiService').broadcast('cherry_cloud.account_changed', receipt)
+
     return receipt
   }
 
@@ -741,22 +828,29 @@ export class CherryCloudService extends BaseService {
   }): Promise<CherryCloudAccountRefreshResult> {
     const controller = new AbortController()
     this.accountRefreshes.add(controller)
+
     const deadline = AbortSignal.any([
       controller.signal,
       AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS),
       ...(signal ? [signal] : [])
     ])
+
     const interrupted = (): CherryCloudAccountRefreshResult => ({
       outcome: !this.isCurrentScope(scopeId) ? 'superseded' : 'aborted',
       status: this.currentStatus()
     })
+
     const task = this.accountRefreshQueue.queue(async (): Promise<CherryCloudAccountRefreshResult> => {
       if (!this.isCurrentScope(scopeId)) return { outcome: 'superseded', status: this.currentStatus() }
+
       if (deadline.aborted) return interrupted()
       await this.pruneExpiredState()
+
       if (!this.isCurrentScope(scopeId)) return { outcome: 'superseded', status: this.currentStatus() }
+
       if (!this.cloudState.session) return { outcome: 'signed-out', status: this.currentStatus() }
       const generation = this.sessionGeneration
+
       const results = await abortable(
         Promise.allSettled([
           this.getAuthenticatedJson('/api/v1/account', accountSnapshotSchema, { signal: deadline }),
@@ -768,10 +862,12 @@ export class CherryCloudService extends BaseService {
         ]),
         deadline
       )
+
       if (!this.isCurrentScope(scopeId)) return { outcome: 'superseded', status: this.currentStatus() }
       deadline.throwIfAborted()
       const [account, catalog, plans] = results
       const nextRevision = this.revision + 1
+
       const nextAccount: CherryCloudAccountReceipt['account'] =
         account.status === 'fulfilled'
           ? { freshness: 'fresh' }
@@ -779,9 +875,11 @@ export class CherryCloudService extends BaseService {
               freshness: this.accountFact.freshness === 'unknown' ? 'unknown' : 'stale',
               error: account.reason instanceof Error ? account.reason.message : String(account.reason)
             }
+
       let nextModels: CherryCloudAccountReceipt['models']
       let nextCache: typeof this.modelSyncCache = null
       let succeeded = results.every((result) => result.status === 'fulfilled')
+
       if (account.status === 'fulfilled' && catalog.status === 'fulfilled') {
         try {
           const value = this.projectEntitledModels(account.value, catalog.value)
@@ -801,17 +899,21 @@ export class CherryCloudService extends BaseService {
               : 'Model catalog unavailable'
         )
       }
+
       const nextPlans: CherryCloudAccountReceipt['plans'] =
         plans.status === 'fulfilled'
           ? { freshness: 'fresh', value: plans.value, observedRevision: nextRevision }
           : this.failedFact(this.plansFact, plans.reason)
+
       this.accountFact = nextAccount
       this.modelFact = nextModels
       this.plansFact = nextPlans
       this.modelSyncCache = nextCache
       const receipt = this.publishAccountReceipt(reason)
+
       return { outcome: succeeded ? 'refreshed' : 'failed', receipt }
     })
+
     try {
       return await abortable(task, deadline)
     } catch (error) {
@@ -833,6 +935,7 @@ export class CherryCloudService extends BaseService {
       status.scopeId
     ).catch(() => undefined)
     const sender = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
+
     if (
       !sender ||
       sender.isDestroyed() ||
@@ -840,12 +943,15 @@ export class CherryCloudService extends BaseService {
       !this.isCurrentScope(status.scopeId)
     )
       return
+
     if (!this.subscriptionPromise) {
       const subscription = this.startSubscriptionOnce(input, senderId, status).finally(() => {
         if (this.subscriptionPromise === subscription) this.subscriptionPromise = null
       })
+
       this.subscriptionPromise = subscription
     }
+
     return this.subscriptionPromise
   }
 
@@ -856,6 +962,7 @@ export class CherryCloudService extends BaseService {
   ): Promise<void> {
     if (status.phase !== 'signed-in') {
       let result: CherryCloudLoginResult
+
       try {
         result = await this.startLogin()
       } catch (error) {
@@ -875,6 +982,7 @@ export class CherryCloudService extends BaseService {
         ).catch(() => undefined)
         throw error
       }
+
       void trackCherryCloudAnalyticsEvent(
         {
           event: 'subscription_sign_in_result',
@@ -883,11 +991,14 @@ export class CherryCloudService extends BaseService {
         },
         result.status.scopeId
       ).catch(() => undefined)
+
       if (result.outcome !== 'signed-in') return
       status = result.status
     }
+
     try {
       const result = await this.openAccountPortal({ scopeId: status.scopeId, entrySource: source, flowId }, senderId)
+
       if (result.outcome === 'opened')
         void trackCherryCloudAnalyticsEvent(
           { event: 'subscription_portal_open', source, via, flowId, result: 'success' },
@@ -908,13 +1019,17 @@ export class CherryCloudService extends BaseService {
   ): Promise<{ outcome: 'opened' | 'superseded' }> {
     await this.pruneExpiredState()
     const sender = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
+
     if (!sender || sender.isDestroyed() || !this.isCurrentScope(input.scopeId) || !this.cloudState.session)
       return { outcome: 'superseded' }
     const url = new URL('/account/plans', this.getAccountOrigin())
     url.searchParams.set('entry', 'desktop')
+
     if (input.entrySource) url.searchParams.set('entry_source', input.entrySource)
+
     if (input.flowId) url.searchParams.set('flow_id', input.flowId)
     await abortable(shell.openExternal(url.toString()), AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS))
+
     return { outcome: 'opened' }
   }
 
@@ -933,22 +1048,29 @@ export class CherryCloudService extends BaseService {
     const generation = this.sessionGeneration
     const scopeId = this.getCurrentScopeId()
     await this.pruneExpiredState()
+
     if (!this.isCurrentScope(scopeId)) throw new DOMException('Cherry Cloud model sync was superseded', 'AbortError')
+
     if (this.modelSyncPromise?.generation === generation) return this.modelSyncPromise.promise
     const controller = new AbortController()
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)])
+
     const task = this.accountRefreshQueue.queue(async () => {
       signal.throwIfAborted()
+
       if (!this.isCurrentScope(scopeId)) throw new DOMException('Cherry Cloud model sync was superseded', 'AbortError')
+
       try {
         const result = await abortable(this.syncEntitledModelsOnce(generation, signal), signal)
         signal.throwIfAborted()
+
         if (!this.isCurrentScope(scopeId))
           throw new DOMException('Cherry Cloud model sync was superseded', 'AbortError')
         this.modelSyncCache = { generation, syncedAt: performance.now(), result }
         this.modelFact = { freshness: 'fresh', value: result, observedRevision: this.revision + 1 }
         this.accountFact = this.cloudState.session ? { freshness: 'fresh' } : { freshness: 'unknown', error: null }
         this.publishAccountReceipt('models')
+
         return result
       } catch (error) {
         if (!controller.signal.aborted && this.isCurrentScope(scopeId)) {
@@ -958,19 +1080,24 @@ export class CherryCloudService extends BaseService {
             reason: error instanceof Error ? error.message : String(error)
           })
         }
+
         throw error
       }
     })
+
     const sync = abortable(task, signal).finally(() => {
       if (this.modelSyncPromise?.promise === sync) this.modelSyncPromise = null
     })
+
     this.modelSyncPromise = { controller, generation, promise: sync }
+
     return sync
   }
 
   public async syncEntitledModelsIfStale(): Promise<CherryCloudModelSyncResult> {
     await this.pruneExpiredState()
     const cached = this.modelSyncCache
+
     // Monotonic time, so moving the system clock back cannot keep a snapshot alive.
     if (
       cached?.generation === this.sessionGeneration &&
@@ -978,6 +1105,7 @@ export class CherryCloudService extends BaseService {
     ) {
       return cached.result
     }
+
     return this.syncEntitledModels()
   }
 
@@ -987,7 +1115,9 @@ export class CherryCloudService extends BaseService {
       redirect: 'error',
       signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
     })
+
     if (!response.ok) throw new Error(`Cherry Cloud plan catalog request failed (${response.status})`)
+
     return cherryCloudPublicPlanCatalogSchema.parse(await response.json())
   }
 
@@ -1011,7 +1141,9 @@ export class CherryCloudService extends BaseService {
         signal
       })
     ])
+
     signal.throwIfAborted()
+
     if (this.sessionGeneration !== sessionGeneration || !this.cloudState.session) {
       throw new DOMException('Cherry Cloud model sync was superseded', 'AbortError')
     }
@@ -1025,21 +1157,27 @@ export class CherryCloudService extends BaseService {
   ): CherryCloudModelSyncResult {
     const activeEntitlements = account.entitlements.filter((entitlement) => entitlement.status === 'active')
     const entitledModelIds = new Set(activeEntitlements.flatMap((entitlement) => entitlement.model_ids))
+
     const freeApiModelIds = new Set(
       activeEntitlements.filter((entitlement) => entitlement.is_free).flatMap((entitlement) => entitlement.model_ids)
     )
+
     const paidApiModelIds = new Set(
       activeEntitlements.filter((entitlement) => !entitlement.is_free).flatMap((entitlement) => entitlement.model_ids)
     )
+
     const models = catalog.data.filter((model) => entitledModelIds.has(model.id))
     const quotaAvailableByModelId = new Map<string, boolean>()
+
     for (const pool of account.quota_pools) {
       // Settled usage only: remaining_units also subtracts in-flight reservations, which free up within seconds.
       const poolAvailable = pool.windows.every((window) => window.used_units < window.limit_units)
+
       for (const modelId of pool.model_ids) {
         quotaAvailableByModelId.set(modelId, (quotaAvailableByModelId.get(modelId) ?? false) || poolAvailable)
       }
     }
+
     const quotaExhaustedModelIds = [
       ...new Set(
         models
@@ -1047,14 +1185,19 @@ export class CherryCloudService extends BaseService {
           .map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
       )
     ]
+
     const agentModelIds: CherryCloudModelSyncResult['availableModelIds']['agent'] = []
     const generalModelIds: CherryCloudModelSyncResult['availableModelIds']['general'] = []
     const freeModelIds: CherryCloudModelSyncResult['freeModelIds'] = []
+
     for (const model of models) {
       const uniqueModelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)
+
       if (freeApiModelIds.has(model.id) && !paidApiModelIds.has(model.id)) freeModelIds.push(uniqueModelId)
       const features = new Set(model.available_features)
+
       if (features.has('agent')) agentModelIds.push(uniqueModelId)
+
       if (features.has('chat') && features.has('translate')) {
         generalModelIds.push(uniqueModelId)
       } else if (features.has('chat') || features.has('translate')) {
@@ -1065,7 +1208,9 @@ export class CherryCloudService extends BaseService {
         })
       }
     }
+
     this.reconcileEntitledModels(models)
+
     return {
       entitledModelIds: models.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)),
       freeModelIds: [...new Set(freeModelIds)],
@@ -1094,8 +1239,10 @@ export class CherryCloudService extends BaseService {
         t('notification.cherry_cloud.login_rejected_message')
       ]
     }
+
     const [title, message] = notices[reason]
     const now = Date.now()
+
     try {
       void application
         .get('NotificationService')
@@ -1157,12 +1304,16 @@ export class CherryCloudService extends BaseService {
         currentByModelId.get(model.id)?.capabilities ??
         []
     }))
+
     const remoteByModelId = new Map(reconciledModels.map((model) => [model.id, model]))
     const missing = reconciledModels.filter((model) => !currentByModelId.has(model.id))
+
     const updates = current.flatMap((model) => {
       const modelId = parseUniqueModelId(model.id).modelId
       const remote = remoteByModelId.get(modelId)
+
       if (!remote) return []
+
       if (
         model.name === remote.display_name &&
         model.group === CHERRY_CLOUD_MODEL_GROUP &&
@@ -1177,6 +1328,7 @@ export class CherryCloudService extends BaseService {
       ) {
         return []
       }
+
       return [
         {
           modelId,
@@ -1211,11 +1363,13 @@ export class CherryCloudService extends BaseService {
         }))
       )
     }
+
     if (updates.length > 0) {
       modelService.bulkUpdate(
         updates.map(({ modelId, patch }) => ({ providerId: CHERRY_CLOUD_PROVIDER_ID, modelId, patch }))
       )
     }
+
     if (missing.length > 0 || updates.length > 0) {
       notifyDataApiDataChange([{ endpoint: '/models', kind: 'membership' }])
     }
@@ -1225,12 +1379,16 @@ export class CherryCloudService extends BaseService {
     init?.signal?.throwIfAborted()
     const initialSession = this.cloudState.session
     let session: ProductSession
+
     try {
       session = await abortable(this.activeSession(), init?.signal)
     } catch (error) {
       init?.signal?.throwIfAborted()
+
       if (error instanceof CherryCloudRefreshError) return error.response.clone()
+
       if (!(error instanceof CherryCloudSessionRequiredError)) throw error
+
       return new Response(
         JSON.stringify({
           type: 'error',
@@ -1239,60 +1397,82 @@ export class CherryCloudService extends BaseService {
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
     }
+
     const url = this.resolveRequestUrl(path)
     const headers = new Headers(init?.headers)
+
     const idempotencyKey =
       url.pathname === '/v1/messages' || url.pathname === '/v1/chat/completions'
         ? (headers.get('Idempotency-Key') ?? createIdempotencyKey())
         : undefined
+
     const generation = this.sessionGeneration
     let response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
+
     if (isAccountDisabled(response)) {
       await this.clearSession(session, 'disabled')
+
       return response
     }
+
     if (requiresLogin(response)) {
       await this.clearSession(session, signOutReason(response))
+
       return response
     }
+
     const currentSession = this.cloudState.session
+
     if (generation !== this.sessionGeneration || !currentSession) return response
 
     // Cloud strips upstream Cherry-* headers, so upstream 401 bodies cannot invalidate the login.
     const code = response.headers.get('Cherry-Error-Code')
+
     // The snapshot let this request through, so the next check asks the server again.
     if ((response.status === 403 && code === 'ENTITLEMENT_INACTIVE') || isQuotaRefusal(response)) {
       this.modelSyncCache = null
     }
+
     if (idempotencyKey && isQuotaRefusal(response)) {
       this.refreshAfterQuotaRefusal()
+
       return response
     }
+
     const refreshRequired = response.status === 401 && code === 'AUTH_REQUIRED'
     const replayed = response.status === 409 && code === 'REQUEST_REPLAYED'
+
     if (!refreshRequired && !replayed) return response
+
     if (refreshRequired && session !== initialSession) return response
+
     if (replayed) session = currentSession
 
     try {
       init?.signal?.throwIfAborted()
+
       if (refreshRequired) {
         session = await abortable(this.activeSession(currentSession === session, currentSession), init?.signal)
       }
+
       init?.signal?.throwIfAborted()
     } catch (error) {
       if (error instanceof CherryCloudSessionRequiredError) return response
       discardResponse(response)
       init?.signal?.throwIfAborted()
+
       if (error instanceof CherryCloudRefreshError) return error.response.clone()
       throw error
     }
+
     if (generation !== this.sessionGeneration || !this.cloudState.session) return response
     session = this.cloudState.session
 
     discardResponse(response)
     response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
+
     if (requiresLogin(response)) await this.clearSession(session, signOutReason(response))
+
     if (
       idempotencyKey &&
       isQuotaRefusal(response) &&
@@ -1302,16 +1482,20 @@ export class CherryCloudService extends BaseService {
       this.modelSyncCache = null
       this.refreshAfterQuotaRefusal()
     }
+
     return response
   }
 
   /** The refusal itself is the server's verdict; the refresh only updates the snapshot, so nothing waits on it. */
   private refreshAfterQuotaRefusal(): void {
     const scopeId = this.getCurrentScopeId()
+
     if (this.quotaRefusalRefresh?.scopeId === scopeId) return
+
     const promise: Promise<void> = this.refreshAccount({ scopeId, reason: 'quota_refusal' })
       .then((result) => {
         if (result.outcome === 'refreshed') return
+
         const causes =
           result.outcome === 'failed'
             ? {
@@ -1320,6 +1504,7 @@ export class CherryCloudService extends BaseService {
                 plans: 'error' in result.receipt.plans ? result.receipt.plans.error : null
               }
             : {}
+
         logger.warn('Cherry Cloud account refresh after a quota refusal did not complete', {
           outcome: result.outcome,
           ...causes
@@ -1329,12 +1514,14 @@ export class CherryCloudService extends BaseService {
       .finally(() => {
         if (this.quotaRefusalRefresh?.promise === promise) this.quotaRefusalRefresh = null
       })
+
     this.quotaRefusalRefresh = { scopeId, promise }
   }
 
   public async revokeCurrentSession(): Promise<CherryCloudStatus> {
     await this.pruneExpiredState()
     const session = this.cloudState.session
+
     if (!session) return this.currentStatus()
     await this.clearSession(session)
 
@@ -1370,12 +1557,15 @@ export class CherryCloudService extends BaseService {
   ): Promise<T> {
     const generation = this.sessionGeneration
     const response = await this.authenticatedFetch(path, { method: 'GET', ...init })
+
     if (!response.ok) throw new Error(`Cherry Cloud request failed (${response.status})`)
     const body = await response.json()
+
     // A response that outlived its session belongs to another account; never hand it to the caller.
     if (generation !== this.sessionGeneration) {
       throw new DOMException('Cherry Cloud request was superseded by a session change', 'AbortError')
     }
+
     return schema.parse(body)
   }
 
@@ -1383,21 +1573,28 @@ export class CherryCloudService extends BaseService {
     const generation = this.sessionGeneration
     await this.pruneExpiredState()
     const session = this.cloudState.session
+
     if (!session || generation !== this.sessionGeneration) throw new CherryCloudSessionRequiredError()
+
     if (expectedSession && session !== expectedSession) return session
+
     if (!forceRefresh && session.accessExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > Date.now()) return session
+
     if (this.refreshPromise?.session === session) return this.refreshPromise.promise
 
     const refresh = this.refreshSession(session).finally(() => {
       if (this.refreshPromise?.promise === refresh) this.refreshPromise = null
     })
+
     this.refreshPromise = { session, promise: refresh }
+
     return refresh
   }
 
   private async refreshSession(session: ProductSession): Promise<ProductSession> {
     const body = JSON.stringify({ session_id: session.sessionId, refresh_token: session.refreshToken })
     const url = new URL('/api/v1/product-sessions/refresh', `${resolveCherryCloudApiOrigin()}/`)
+
     const response = await this.signedFetch(
       url,
       {
@@ -1411,27 +1608,34 @@ export class CherryCloudService extends BaseService {
         bearer: false
       }
     )
+
     if (!response.ok) {
       if (isAccountDisabled(response)) {
         await this.clearSession(session, 'disabled')
         throw new CherryCloudRefreshError(response)
       }
+
       if (
         requiresLogin(response) ||
         (response.status === 401 && response.headers.get('Cherry-Error-Code') === 'AUTH_REQUIRED')
       ) {
         await this.clearSession(session, signOutReason(response))
       }
+
       throw new CherryCloudRefreshError(response)
     }
+
     const refreshPayload = refreshProductSessionResponseSchema.safeParse(await response.json())
+
     if (!refreshPayload.success) {
       logger.warn('Cherry Cloud session refresh response is invalid', {
         issues: refreshPayload.error.issues.map((issue) => ({ code: issue.code, path: issue.path.join('.') }))
       })
       throw new Error('Cherry Cloud session refresh returned an invalid response')
     }
+
     const refreshed = refreshPayload.data.token_set
+
     const next = {
       ...session,
       accessToken: refreshed.access_token,
@@ -1440,11 +1644,15 @@ export class CherryCloudService extends BaseService {
       sessionId: refreshed.session_id,
       sessionExpiresAt: Date.parse(refreshed.session_expires_at)
     }
+
     if (this.cloudState.session !== session) {
       throw new Error('Cherry Cloud session changed while refresh was in progress')
     }
+
     const device = this.cloudState.device
+
     if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
+
     try {
       this.persistSession(device, next)
     } catch (error) {
@@ -1455,16 +1663,21 @@ export class CherryCloudService extends BaseService {
           reason: clearError instanceof Error ? clearError.message : String(clearError)
         })
       }
+
       throw error
     }
+
     this.cloudState = { ...this.cloudState, session: next }
     this.scheduleSessionExpiry(next)
+
     return next
   }
 
   private async clearSession(expectedSession?: ProductSession, reason?: SignOutReason): Promise<void> {
     const currentSession = this.cloudState.session
+
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
+
     if (reason) this.reportSignOut(reason)
 
     cherryAccountCredentialStore.clearSession()
@@ -1490,9 +1703,11 @@ export class CherryCloudService extends BaseService {
 
   private resolveRequestUrl(path: string): URL {
     const url = new URL(path, `${resolveCherryCloudApiOrigin()}/`)
+
     if (url.origin !== new URL(resolveCherryCloudApiOrigin()).origin) {
       throw new Error('Cherry Cloud signed requests must stay on the configured API origin')
     }
+
     return url
   }
 
@@ -1504,14 +1719,17 @@ export class CherryCloudService extends BaseService {
   ): Promise<Response> {
     init?.signal?.throwIfAborted()
     const device = this.cloudState.device
+
     if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
     const machineCode = this.machineCode ?? (await getMachineCode())
     init?.signal?.throwIfAborted()
+
     if (this.cloudState.device !== device) throw new Error('Cherry Cloud device credentials changed')
     this.machineCode = machineCode
     const method = (init?.method ?? 'GET').toUpperCase()
     const body = Buffer.from(init?.body ?? '', 'utf8')
     const headers = new Headers(init?.headers)
+
     for (const name of [
       'Cherry-Device-ID',
       'Cherry-Machine-Code',
@@ -1523,12 +1741,16 @@ export class CherryCloudService extends BaseService {
     ]) {
       headers.delete(name)
     }
+
     headers.delete('Content-Encoding')
     headers.set('Cherry-Device-ID', session.deviceId)
+
     if (options.bearer) headers.set('Authorization', `Bearer ${session.accessToken}`)
     else headers.delete('Authorization')
+
     if (options.idempotencyKey) headers.set('Idempotency-Key', options.idempotencyKey)
     const requestTarget = `${url.pathname}${url.search}`
+
     const signature = createDeviceSignature({
       privateKey: device.privateKey,
       machineCode,
@@ -1537,6 +1759,7 @@ export class CherryCloudService extends BaseService {
       body,
       idempotencyKey: options.idempotencyKey
     })
+
     for (const [name, value] of Object.entries(signature)) headers.set(name, value)
 
     return net.fetch(url.toString(), {
@@ -1552,12 +1775,15 @@ export class CherryCloudService extends BaseService {
     const now = Date.now()
     const pending = this.cloudState.pending
     const session = this.cloudState.session
+
     if (pending && Date.parse(pending.expiresAt) <= now) this.clearPendingAuthorization(pending, 'expired')
+
     if (session && session.sessionExpiresAt <= now) await this.clearSession(session, 'expired')
   }
 
   private async restoreSession(): Promise<void> {
     const stored = cherryAccountCredentialStore.get()
+
     if (!stored) return
 
     const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
@@ -1579,7 +1805,9 @@ export class CherryCloudService extends BaseService {
           }
         : null
     }
+
     if (this.cloudState.session) this.sessionGeneration += 1
+
     if (this.cloudState.session) this.scheduleSessionExpiry(this.cloudState.session)
     await this.pruneExpiredState()
   }
@@ -1603,17 +1831,22 @@ export class CherryCloudService extends BaseService {
 
   private async postJson<T>(path: string, body: Serializable, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
     const clientSecret = import.meta.env.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET
+
     if (!clientSecret) {
       logger.warn('Cherry Cloud client secret is not configured')
       throw new CherryCloudLoginUnavailableError()
     }
+
     const bodyString = JSON.stringify(body)
+
     const signature = new SignatureClient('cherry-studio', clientSecret).generateSignature({
       method: 'POST',
       path,
       body: bodyString
     })
+
     let response: Response
+
     try {
       const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
       response = await net.fetch(`${resolveCherryCloudApiOrigin()}${path}`, {
@@ -1631,21 +1864,27 @@ export class CherryCloudService extends BaseService {
       })
       throw new CherryCloudLoginUnavailableError()
     }
+
     if (response.status === 426) throw new CherryCloudUpgradeRequiredError()
+
     if (response.status === 404 || response.status >= 500) {
       logger.warn('Cherry Cloud login service returned an unavailable response', { path, status: response.status })
       throw new CherryCloudLoginUnavailableError()
     }
+
     if (isAccountDisabled(response)) {
       this.reportSignOut('disabled')
       throw new Error('Cherry Cloud account is disabled')
     }
+
     if (response.status === 400 && response.headers.get('Cherry-Error-Code') === 'AUTHORIZATION_INVALID') {
       throw new CherryCloudAuthorizationRejectedError()
     }
+
     if (!response.ok) {
       throw new Error(`Cherry Cloud login request failed (${response.status})`)
     }
+
     try {
       return schema.parse(await response.json())
     } catch {

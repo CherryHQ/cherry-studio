@@ -33,6 +33,7 @@ export function useWebSearchProviderCheck({ provider, capability }: UseWebSearch
 
     const probeUrl =
       provider.id === 'querit' && capability === 'fetchUrls' ? QUERIT_FETCH_CHECK_URL : WEB_SEARCH_CHECK_URL
+
     const runCheck = async () => {
       if (capability === 'fetchUrls') {
         await ipcApi.request('web_search.fetch_urls', { providerId: provider.id, urls: [probeUrl] })
@@ -53,6 +54,7 @@ export function useWebSearchProviderCheck({ provider, capability }: UseWebSearch
         setChecking(false)
         logger.error('Web search provider check failed', error as Error)
         const errorMessage = error instanceof Error ? error.message : String(error)
+
         if (error instanceof IpcError && error.code === webSearchErrorCodes.WEB_SEARCH_PAGE_FETCH_FAILED) {
           toast.error({
             title: t('settings.tool.websearch.check_failed'),

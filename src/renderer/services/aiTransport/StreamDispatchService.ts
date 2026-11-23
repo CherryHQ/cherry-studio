@@ -23,7 +23,9 @@ class StreamDispatchService {
 
   private notify(result: StreamDispatchResult): void {
     const subs = this.listeners.get(result.topicId)
+
     if (!subs) return
+
     for (const cb of [...subs]) {
       try {
         cb(result)
@@ -35,8 +37,10 @@ class StreamDispatchService {
 
   async dispatch(topicId: string, request: AiStreamOpenRequest): Promise<StreamDispatchResult> {
     let result: StreamDispatchResult
+
     try {
       const ack = await ipcApi.request('ai.stream.open', request)
+
       if (ack.mode === 'blocked') toast.error(getStreamBlockedMessage(ack))
       result = { ok: true, topicId, ack }
     } catch (error) {
@@ -44,19 +48,25 @@ class StreamDispatchService {
       logger.error('streamOpen IPC failed', err)
       result = { ok: false, topicId, error: err }
     }
+
     this.notify(result)
+
     return result
   }
 
   subscribe(topicId: string, listener: Listener): () => void {
     let subs = this.listeners.get(topicId)
+
     if (!subs) {
       subs = new Set()
       this.listeners.set(topicId, subs)
     }
+
     subs.add(listener)
+
     return () => {
       subs.delete(listener)
+
       if (subs.size === 0) this.listeners.delete(topicId)
     }
   }

@@ -4,6 +4,7 @@ import { MistralLight } from './light'
 
 const Mistral = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MistralLight {...props} className={className} />
+
   return <MistralLight {...props} className={className} />
 }
 

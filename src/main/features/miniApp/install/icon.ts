@@ -34,19 +34,24 @@ const ICON_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
  */
 export async function assertSupportedIconBytes<T extends Uint8Array>(bytes: T): Promise<T> {
   const type = await fileTypeFromBuffer(bytes)
+
   if (type === undefined || !ICON_MIME_TYPES.has(type.mime)) {
     throw new Error(`Mini app icon must be PNG, JPEG or WebP, not ${type?.mime ?? 'an unrecognised format'}`)
   }
+
   return bytes
 }
 
 async function readContainedIcon(installPath: string, iconRel: string): Promise<Uint8Array<ArrayBuffer> | undefined> {
   const root = await fs.promises.realpath(installPath)
   const real = await fs.promises.realpath(path.join(root, iconRel))
+
   if (real !== root && !real.startsWith(root + path.sep)) {
     logger.warn('Package icon resolves outside the package root', { installPath, iconRel })
+
     return undefined
   }
+
   return assertSupportedIconBytes(new Uint8Array(await fs.promises.readFile(real)))
 }
 
@@ -55,13 +60,16 @@ export async function applyPackagedIcon(appId: string, installPath: string, mani
   if (manifest.icon) {
     try {
       const data = await readContainedIcon(installPath, manifest.icon.path)
+
       if (data) {
         await setInstalledMiniAppLogo(appId, { kind: 'image', data })
+
         return
       }
     } catch (error) {
       logger.warn('Failed to apply packaged icon, falling back to default', error as Error)
     }
   }
+
   await setInstalledMiniAppLogo(appId, { kind: 'default' })
 }

@@ -125,6 +125,7 @@ function toolbarAvailability(
 ) {
   return (context: MessageMenuBarActionContext): ActionAvailabilityInput => {
     const visible = isVisible(context)
+
     return {
       visible,
       enabled: visible && !(context.isProcessing && STREAMING_DISABLED_BUTTON_IDS.has(id))
@@ -162,9 +163,11 @@ function registerToolbarAction(
   }
 ) {
   const { renderToolbar, ...actionDescriptor } = descriptor
+
   if (renderToolbar) {
     toolbarRenderers.set(actionDescriptor.id, renderToolbar)
   }
+
   registerAction({
     ...actionDescriptor,
     order: toolbarOrder.get(actionDescriptor.id) ?? 0,
@@ -174,14 +177,17 @@ function registerToolbarAction(
 
 function getMessageCaptureRef(context: MessageMenuBarActionContext): RefObject<HTMLElement | null> {
   const getRenderedMessageElement = context.getRenderedMessageElement
+
   if (!getRenderedMessageElement) return context.messageContainerRef
 
   return {
     get current() {
       const element = getRenderedMessageElement(context.message.id)
+
       if (!element) {
         throw new Error('Message is no longer available for image capture')
       }
+
       return element
     }
   }
@@ -189,6 +195,7 @@ function getMessageCaptureRef(context: MessageMenuBarActionContext): RefObject<H
 
 async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, capture: () => Promise<T>): Promise<T> {
   const release = context.acquireMessageCaptureLease?.(context.message.id)
+
   try {
     return await capture()
   } finally {
@@ -198,6 +205,7 @@ async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, 
 
 registerCommand('message.copy', async ({ actions, mainTextContent, messageParts, setCopied, t }) => {
   const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(messageParts) : null
+
   if (richContent) {
     // Match the plain copy path's text/plain normalization; the private fragment
     // keeps the original text so paste restoration stays lossless.
@@ -213,6 +221,7 @@ registerCommand('message.copy', async ({ actions, mainTextContent, messageParts,
       successMessage: t('message.copied')
     })
   }
+
   setCopied(true)
 })
 
@@ -253,6 +262,7 @@ registerCommand('message.newBranch', async ({ actions, message, t }) => {
   await actions.startMessageBranch?.(message.id)
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
 })
+
 registerCommand('message.forkSession', async ({ actions, message }) => {
   await actions.forkSession?.run(message.id)
 })
@@ -305,13 +315,17 @@ registerCommand('message.copyImage', async (context) => {
 registerCommand('message.exportImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
+
     const imageData = await exportService.captureScrollableAsDataUrl(
       getMessageCaptureRef(context),
       CHAT_CAPTURE_BACKDROP_VARIABLE
     )
+
     const title = await getMessageTitle(context.messageForExport)
+
     if (!title || !imageData || !context.actions.saveImage) {
       context.actions.notifyError?.(context.t('message.error.unknown'))
+
       return
     }
 
@@ -319,6 +333,7 @@ registerCommand('message.exportImage', async (context) => {
     // an unsanitized name pre-fills the save dialog with Windows-reserved
     // characters and disables its Save button. Mirrors the topic image export.
     const success = await context.actions.saveImage(removeSpecialCharactersForFileName(title), imageData)
+
     if (success) {
       context.actions.notifySuccess?.(context.t('chat.topics.export.image_saved'))
     } else {
@@ -389,6 +404,7 @@ registerToolbarAction({
   icon: <Volume2 className="size-4.5" strokeWidth={1.75} />,
   availability: ({ isAssistantMessage, isProcessing, message, messageParts }) => {
     const visible = isAssistantMessage && message.status === 'success' && !isProcessing && hasTextParts(messageParts)
+
     return { visible, enabled: visible }
   }
 })
@@ -426,9 +442,11 @@ registerToolbarAction({
     const canTranslate =
       !!context.actions.translateMessage &&
       (context.translateLanguages.length > 0 || !!context.actions.requestTranslationLanguages)
+
     const canCopyTranslation = context.hasTranslationBlocks && !!context.actions.copyText
     const canRemoveTranslation = context.hasTranslationBlocks && !!context.actions.removeMessageTranslation
     const canAbortTranslation = context.isTranslating && !!context.actions.abortMessageTranslation
+
     const visible =
       !context.isUserMessage && (canTranslate || canCopyTranslation || canRemoveTranslation || canAbortTranslation)
 
@@ -481,10 +499,12 @@ registerToolbarAction({
   availability: ({ actions, isProcessing, message, t }) => {
     const visible = !!actions.deleteMessage
     const deleteAvailability = actions.getMessageDeleteAvailability?.(message.id) ?? { enabled: true }
+
     const reason = getMessageDeleteUnavailableText(
       deleteAvailability.enabled ? undefined : deleteAvailability.reason,
       t
     )
+
     return {
       visible,
       enabled: visible && !isProcessing && deleteAvailability.enabled,
@@ -523,6 +543,7 @@ registerAction({
   surface: 'menu',
   availability: ({ actions, isAssistantMessage }) => {
     if (!actions.startMessageBranch || !isAssistantMessage) return false
+
     return true
   }
 })
@@ -661,6 +682,7 @@ export function resolveMessageMenuBarTranslationItems(
 
   if (items.length === 0 && actions.translateMessage && actions.requestTranslationLanguages) {
     const retryTranslationLanguages = actions.retryTranslationLanguages
+
     if (context.translationLanguagesStatus === 'error' && retryTranslationLanguages) {
       items.push({
         key: 'translate-retry',
@@ -735,6 +757,7 @@ export function resolveMessageMenuBarToolbarActions(
 ): MessageMenuBarResolvedToolbarAction[] {
   return messageMenuBarActionRegistry.resolve(context, 'toolbar').map((action) => {
     const renderToolbar = toolbarRenderers.get(action.id)
+
     return renderToolbar ? { ...action, renderToolbar } : action
   })
 }
@@ -753,6 +776,7 @@ export async function executeMessageMenuBarAction(
     return await messageMenuBarActionRegistry.execute(actionId, context)
   } catch (error) {
     notifyCommandError(actionId, context, error)
+
     return false
   }
 }

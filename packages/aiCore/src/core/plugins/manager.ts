@@ -15,6 +15,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
    */
   use(plugin: AiPlugin<TParams, TResult>): this {
     this.plugins = this.sortPlugins([...this.plugins, plugin])
+
     return this
   }
 
@@ -23,6 +24,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
    */
   remove(pluginName: string): this {
     this.plugins = this.plugins.filter((p) => p.name !== pluginName)
+
     return this
   }
 
@@ -57,13 +59,16 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
   ): Promise<T | null> {
     for (const plugin of this.plugins) {
       const hook = plugin[hookName]
+
       if (hook) {
         const result = await hook(arg, context)
+
         if (result !== null && result !== undefined) {
           return result as T
         }
       }
     }
+
     return null
   }
 
@@ -106,6 +111,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
   async executeConfigureContext(context: AiRequestContext<TParams, TResult>): Promise<void> {
     for (const plugin of this.plugins) {
       const hook = plugin.configureContext
+
       if (hook) {
         await hook(context)
       }
@@ -124,6 +130,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
     const promises = this.plugins
       .map((plugin) => {
         const hook = plugin[hookName]
+
         if (!hook) return null
 
         if (hookName === 'onError' && error !== undefined) {
@@ -133,6 +140,7 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
         } else if (hookName === 'onRequestStart') {
           return Promise.resolve((hook as NonNullable<typeof plugin.onRequestStart>)(context))
         }
+
         return null
       })
       .filter((promise): promise is Promise<void> => promise !== null)

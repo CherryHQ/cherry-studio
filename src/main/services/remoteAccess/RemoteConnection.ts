@@ -68,6 +68,7 @@ export class RemoteConnection {
       )
         throw new RemoteRpcError('INVALID_CONNECTION_STATE', 'Hello must confirm the authenticated version offer')
       this.hello = true
+
       return {
         protocolVersion: channel.protocolVersion,
         agentFailureVersion: 1,
@@ -87,59 +88,74 @@ export class RemoteConnection {
         heartbeatMs: remoteLimits.heartbeatMs
       }
     })
+
     const authenticate = (deviceId: string, accessToken?: string) => {
       this.requireHello()
       const authorization = apiGatewayPairedDeviceService.getRemoteAuthorization(deviceId, channel.remoteIdentity)
+
       if (!authorization) throw new RemoteRpcError('UNAUTHENTICATED', 'Device has no approved capabilities')
+
       if (accessToken) tokens.validate(accessToken, deviceId, channel.remoteIdentity, authorization)
       const result = tokens.issue(deviceId, channel.remoteIdentity, authorization)
       this.authentication = { deviceId, authorization, expiresAt: Date.parse(result.expiresAt) }
+
       return { ...result, deviceId }
     }
+
     this.rpc.addMethod(
       'connection.authenticate',
       connectionSchemas['connection.authenticate'],
       ({ deviceId, accessToken }) => {
         if (this.authentication)
           throw new RemoteRpcError('INVALID_CONNECTION_STATE', 'Connection is already authenticated')
+
         return authenticate(deviceId, accessToken)
       }
     )
     this.rpc.addMethod('connection.refresh', connectionSchemas['connection.refresh'], () => {
       const auth = this.requireAuthentication(true)
+
       return authenticate(auth.deviceId)
     })
     this.rpc.addMethod('connection.endpoints', connectionSchemas['connection.endpoints'], async ({ domain }) => {
       this.requireCapability(domain)
       const snapshot = await getEndpoints()
       this.requireCapability(domain)
+
       return snapshot
     })
     this.rpc.addMethod('connection.ping', connectionSchemas['connection.ping'], ({ nonce }) => {
       this.requireHello()
+
       return { nonce, serverTime: new Date().toISOString() }
     })
     this.rpc.addMethod('pairing.claim', pairingSchemas['pairing.claim'], (input) => {
       this.requireHello()
+
       if (this.authentication)
         throw new RemoteRpcError('INVALID_CONNECTION_STATE', 'Connection is already authenticated')
       const result = pairing.claimInvitation(channel.remoteIdentity, input)
       onClaim()
+
       return result
     })
     this.rpc.addMethod('pairing.get', pairingSchemas['pairing.get'], ({ claimId }) => {
       this.requireHello()
       const result = pairing.get(claimId, channel.remoteIdentity)
+
       if (result.status !== 'approved') return result
+
       return { status: 'approved' as const, ...authenticate(result.deviceId) }
     })
     this.rpc.addMethod('configuration.export.prepare', configurationMethods['configuration.export.prepare'], () => {
       this.requireCapability('configuration')
       const bytes = Buffer.from(JSON.stringify(getProviderExportPayload()))
+
       if (bytes.length > remoteLimits.globalCheckpointBytes)
         throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Configuration export exceeds the size limit')
       const exportId = randomUUID()
       this.exported = { exportId, bytes, expiresAt: Date.now() + remoteLimits.checkpointMs }
+
       return { exportId, byteLength: String(bytes.length), sha256: createHash('sha256').update(bytes).digest('hex') }
     })
     this.rpc.addMethod(
@@ -148,11 +164,14 @@ export class RemoteConnection {
       ({ exportId, offset, maxBytes }) => {
         this.requireCapability('configuration')
         const exported = this.exported
+
         if (!exported || exported.exportId !== exportId || exported.expiresAt <= Date.now())
           throw new RemoteRpcError('NOT_FOUND', 'Configuration export expired')
+
         if (BigInt(offset) > BigInt(exported.bytes.length))
           throw new RemoteRpcError('NOT_FOUND', 'Offset exceeds export length')
         const bytes = exported.bytes.subarray(Number(offset), Number(offset) + maxBytes)
+
         return {
           exportId,
           offset,
@@ -177,6 +196,7 @@ export class RemoteConnection {
     this.incomingUploads.add(input.requestId)
     this.incomingUploadBytes += input.bytes.length
     let params: UploadAck
+
     try {
       const owner = { ...this.requireCapability('agent'), peerIdentity: this.channel.remoteIdentity }
       const state = await this.hub.uploads.write(owner, input)
@@ -199,13 +219,16 @@ export class RemoteConnection {
       this.incomingUploads.delete(input.requestId)
       this.incomingUploadBytes -= input.bytes.length
     }
+
     await this.send({ jsonrpc: '2.0', method: 'agent.uploads.ack', params })
   }
 
   requireCapability(domain: RemoteCapability) {
     const auth = this.requireAuthentication()
     const grant = auth.authorization.grants.find((value) => value.domain === domain)
+
     if (!grant) throw new RemoteRpcError('FORBIDDEN', 'Capability was not approved during pairing')
+
     return { deviceId: auth.deviceId, grantId: grant.grantId }
   }
 
@@ -216,12 +239,16 @@ export class RemoteConnection {
   private requireAuthentication(refresh = false) {
     this.requireHello()
     const auth = this.authentication
+
     if (!auth) throw new RemoteRpcError('UNAUTHENTICATED', 'Device authentication is required')
+
     if (auth.expiresAt + (refresh ? remoteLimits.refreshGraceMs : 0) <= Date.now())
       throw new RemoteRpcError('TOKEN_EXPIRED', 'Device token expired')
     const current = apiGatewayPairedDeviceService.getRemoteAuthorization(auth.deviceId, this.channel.remoteIdentity)
+
     if (!current || !sameAuthorization(current, auth.authorization))
       throw new RemoteRpcError('GRANT_REVOKED', 'Device authorization changed')
+
     return auth
   }
 
@@ -240,8 +267,10 @@ export class RemoteConnection {
   ): Promise<void> {
     const write = this.writes.then(() => {
       this.checkAuthorization(false)
+
       return this.channel.write(value)
     })
+
     // Keep the chain resolved: a rejected link would make every later send skip
     // `channel.write` and silently drop the rest of the connection's traffic.
     this.writes = write.then(
@@ -249,6 +278,7 @@ export class RemoteConnection {
       () => undefined
     )
     void write.catch(() => {})
+
     return write
   }
   dispose(): void {

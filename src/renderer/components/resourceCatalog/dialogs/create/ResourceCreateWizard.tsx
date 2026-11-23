@@ -51,6 +51,7 @@ function getDefaultValues(
   initialValues: ResourceCreateWizardProps['initialValues'] = {}
 ): ResourceCreateWizardFormValues {
   const agentType = kind === 'agent' ? 'pi-durable' : 'claude-code'
+
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
@@ -145,9 +146,11 @@ export function ResourceCreateWizard({
   initialValues
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
+
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: getDefaultValues(kind, initialName, initialValues)
   })
+
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
   const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
@@ -155,6 +158,7 @@ export function ResourceCreateWizard({
   const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
+
   const selectableDefaultModelId =
     open &&
     defaultModel?.isEnabled &&
@@ -164,6 +168,7 @@ export function ResourceCreateWizard({
     isModelSelectable(defaultModel)
       ? defaultModel.id
       : null
+
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [imagePending, setImagePending] = useState(false)
@@ -184,10 +189,12 @@ export function ResourceCreateWizard({
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const systemPrompt = { id: 'system-prompt' as const, label: t('library.config.prompt.label') }
     const knowledge = { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
+
     if (kind === 'assistant') return [basic, systemPrompt, knowledge]
 
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
     const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
+
     return [basic, systemPrompt, ...(caps.skills ? [capability] : []), ...(caps.knowledgeBases ? [knowledge] : [])]
   }, [agentType, kind, t])
 
@@ -213,9 +220,11 @@ export function ResourceCreateWizard({
 
   useEffect(() => {
     const previous = lastHandledResetKeyRef.current
+
     if (previous?.kind === kind && previous.open === open) return
 
     lastHandledResetKeyRef.current = { kind, open }
+
     if (!open) return
 
     resetForOpen()
@@ -227,11 +236,13 @@ export function ResourceCreateWizard({
   useEffect(() => {
     if (!open) {
       autoSelectedDefaultModelIdRef.current = null
+
       return
     }
 
     const currentModelId = form.getValues('modelId')
     const autoSelectedModelId = autoSelectedDefaultModelIdRef.current
+
     if (
       autoSelectedModelId &&
       currentModelId === autoSelectedModelId &&
@@ -239,6 +250,7 @@ export function ResourceCreateWizard({
     ) {
       autoSelectedDefaultModelIdRef.current = null
       form.setValue('modelId', null, { shouldDirty: false, shouldTouch: false })
+
       return
     }
 
@@ -246,6 +258,7 @@ export function ResourceCreateWizard({
       if (autoSelectedModelId && currentModelId !== autoSelectedModelId) {
         autoSelectedDefaultModelIdRef.current = null
       }
+
       return
     }
 
@@ -258,25 +271,32 @@ export function ResourceCreateWizard({
   const goNext = () => {
     if (stepIndex === 0) {
       const { name, modelId } = form.getValues()
+
       if (!(name.trim().length > 0 && modelId)) return
     }
+
     setStepIndex((index) => Math.min(index + 1, steps.length - 1))
   }
+
   const goBack = () => setStepIndex((index) => Math.max(index - 1, 0))
 
   const runPendingCloseAction = useCallback(() => {
     const action = pendingCloseActionRef.current
+
     if (!action) return
 
     pendingCloseActionRef.current = null
     action()
   }, [])
+
   const closeBeforeAction = useCallback(
     (action: () => void) => {
       pendingCloseActionRef.current = action
+
       if (!open) {
         setDialogKey((key) => key + 1)
         runPendingCloseAction()
+
         return
       }
 
@@ -292,14 +312,17 @@ export function ResourceCreateWizard({
     }
 
     const frameId = window.requestAnimationFrame(runPendingCloseAction)
+
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
   const submitForm = form.handleSubmit(async (values) => {
     if (!values.modelId) return
     form.clearErrors('root')
+
     try {
       const avatar: Pick<ResourceCreateWizardValues, 'avatar' | 'avatarImage'> = { avatar: values.avatar }
+
       if (kind === 'agent' && values.avatarImage) avatar.avatarImage = values.avatarImage
       await onSubmit({
         ...avatar,
@@ -315,12 +338,15 @@ export function ResourceCreateWizard({
     } catch (error) {
       const message =
         error instanceof Error && error.message ? error.message : t('library.config.dialogs.create.submit_failed')
+
       form.setError('root', { message })
     }
   })
+
   const handleCreate = async () => {
     if (submitPendingRef.current || submitting || imagePending) return
     submitPendingRef.current = true
+
     try {
       await submitForm()
     } finally {
@@ -331,6 +357,7 @@ export function ResourceCreateWizard({
   const title = t(
     kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
   )
+
   const currentStep = steps[Math.min(stepIndex, steps.length - 1)]
 
   return (
@@ -359,6 +386,7 @@ export function ResourceCreateWizard({
                 {steps.map((step, index) => {
                   const active = index === stepIndex
                   const done = index < stepIndex
+
                   return (
                     <li key={step.id}>
                       <MenuItem

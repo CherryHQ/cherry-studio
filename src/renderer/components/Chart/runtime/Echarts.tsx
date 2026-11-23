@@ -33,19 +33,24 @@ export function Echarts({
 
   useEffect(() => {
     const container = containerRef.current
+
     if (!container) return
 
     const instance = echarts.init(container, undefined, { renderer: 'canvas' })
     instanceRef.current = instance
     let hasSized = container.clientWidth > 0 && container.clientHeight > 0
+
     const resizeObserver = new ResizeObserver(() => {
       if (container.clientWidth === 0 || container.clientHeight === 0) return
+
       if (!hasSized && appliedOptionRef.current) {
         instance.setOption(appliedOptionRef.current.option, appliedOptionRef.current.settings)
       }
+
       hasSized = true
       instance.resize()
     })
+
     resizeObserver.observe(container)
 
     return () => {
@@ -59,16 +64,20 @@ export function Echarts({
     if (loading) return
 
     const aria = { enabled: true, label: { description: ariaLabel } }
+
     const nextOption: EChartsCoreOption = option.baseOption
       ? { ...option, baseOption: { ...option.baseOption, aria } }
       : { ...option, aria }
+
     const hasTimeline = option.baseOption !== undefined
+
     const settings: SetOptionOpts = {
       lazyUpdate: true,
       replaceMerge: hasTimeline
         ? ['series', 'dataZoom', 'grid', 'xAxis', 'yAxis']
         : ['series', 'dataZoom', 'timeline', 'grid', 'xAxis', 'yAxis', 'legend']
     }
+
     appliedOptionRef.current = { option: nextOption, settings }
     instanceRef.current?.setOption(nextOption, settings)
   }, [ariaLabel, loading, option])

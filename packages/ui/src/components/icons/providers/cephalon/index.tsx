@@ -6,7 +6,9 @@ import { CephalonLight } from './light'
 
 const Cephalon = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <CephalonLight {...props} className={className} />
+
   if (variant === 'dark') return <CephalonDark {...props} className={className} />
+
   return (
     <>
       <CephalonLight className={cn('dark:hidden', className)} {...props} />

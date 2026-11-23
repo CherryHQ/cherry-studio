@@ -6,7 +6,9 @@ import { MacosLight } from './light'
 
 const Macos = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MacosLight {...props} className={className} />
+
   if (variant === 'dark') return <MacosDark {...props} className={className} />
+
   return (
     <>
       <MacosLight className={cn('dark:hidden', className)} {...props} />

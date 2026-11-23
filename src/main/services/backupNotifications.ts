@@ -12,6 +12,7 @@ export function publishBackupResult(
   createdAt = Date.now()
 ): void {
   const outcome = status === 'succeeded' ? 'success' : status
+
   try {
     const title =
       status === 'succeeded'
@@ -19,6 +20,7 @@ export function publishBackupResult(
         : status === 'warning'
           ? t('notification.center.backup_warning')
           : t('notification.center.backup_failed')
+
     void application
       .get('NotificationService')
       .publish(
@@ -41,14 +43,18 @@ export function publishBackupResult(
 
 export async function runManualBackup<T>(operation: () => Promise<T>): Promise<T> {
   const eventKey = `backup:manual:${randomUUID()}`
+
   try {
     const result = await operation()
+
     const workflow =
       result && typeof result === 'object' ? (result as { result?: unknown; cleanupError?: unknown }) : undefined
+
     publishBackupResult(
       eventKey,
       workflow?.result === false ? 'failed' : workflow?.cleanupError ? 'warning' : 'succeeded'
     )
+
     return result
   } catch (error) {
     publishBackupResult(eventKey, 'failed')

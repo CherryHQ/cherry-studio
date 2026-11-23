@@ -65,12 +65,14 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
         }
       }
     }
+
     return
   }, [visible, scrollContainer])
 
   useEffect(() => {
     if (visible && containerRef.current) {
       const textarea = containerRef.current.querySelector('textarea')
+
       if (textarea) {
         textarea.focus()
         // Position cursor at the end of the text
@@ -84,6 +86,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
 
   const handleSubmit = () => {
     const trimmed = value.trim()
+
     if (trimmed) {
       onSubmit(trimmed)
     }
@@ -99,6 +102,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
 
   const getPositionStyles = (): React.CSSProperties => {
     const position = retainedPosition?.position
+
     if (position) {
       const dialogHeight = 200
       const spaceBelow = window.innerHeight - position.y

@@ -44,9 +44,13 @@ import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
+
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
+
 type KnowledgeBaseListSortBy = NonNullable<ListKnowledgeBasesQuery['sortBy']>
+
 type KnowledgeBaseOffsetListQuery = Omit<ListKnowledgeBasesQuery, 'cursor'> & { page: number }
+
 type KnowledgeBaseDiscoveryQuery = {
   limit: number
   cursor?: string
@@ -54,7 +58,9 @@ type KnowledgeBaseDiscoveryQuery = {
   groupId?: string
   restrictedIds?: readonly [string, ...string[]]
 }
+
 type KnowledgeBaseDiscoveryPage = CursorPaginationResponse<KnowledgeBase> & { total: number }
+
 type KnowledgeBaseListFilters = {
   groupId?: string
   ids?: readonly string[]
@@ -68,11 +74,13 @@ function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: strin
   if (groupId == null) return
 
   const group = groupService.findByIdTx(tx, groupId)
+
   if (!group) {
     throw DataApiErrorFactory.validation({
       groupId: [`Knowledge base group not found: ${groupId}`]
     })
   }
+
   if (group.entityType !== 'knowledge') {
     throw DataApiErrorFactory.validation({
       groupId: [`Knowledge base group must have entityType 'knowledge': ${groupId}`]
@@ -82,6 +90,7 @@ function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: strin
 
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   const clean = nullsToUndefined(row)
+
   return KnowledgeBaseSchema.parse({
     ...clean,
     groupId: row.groupId,
@@ -97,10 +106,12 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
 
 function buildSearchPredicate(search: string | undefined, includeItemSources = false): SQL | undefined {
   const trimmed = search?.trim()
+
   if (!trimmed) return undefined
 
   const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
   const nameMatch = sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+
   if (!includeItemSources) return nameMatch
 
   const itemSourceMatch = sql`EXISTS (
@@ -128,19 +139,25 @@ function buildListFilterConditions(
 ): SQL[] {
   const conditions: SQL[] = []
   const search = buildSearchPredicate(query.search, filters.includeItemSourcesInSearch)
+
   if (search) conditions.push(search)
+
   if (query.updatedAtFrom !== undefined) {
     conditions.push(gte(knowledgeBaseTable.updatedAt, Date.parse(query.updatedAtFrom)))
   }
+
   if (query.ids !== undefined) {
     conditions.push(inArray(knowledgeBaseTable.id, query.ids))
   }
+
   if (filters.groupId !== undefined) {
     conditions.push(eq(knowledgeBaseTable.groupId, filters.groupId))
   }
+
   if (filters.ids !== undefined) {
     conditions.push(filters.ids.length > 0 ? inArray(knowledgeBaseTable.id, [...filters.ids]) : sql`0`)
   }
+
   return conditions
 }
 
@@ -182,6 +199,7 @@ export class KnowledgeBaseService {
     }
 
     this.embeddingModelsBeingRemoved.add(modelId)
+
     try {
       const [inUse] = this.db
         .select({ id: knowledgeBaseTable.id })
@@ -189,8 +207,10 @@ export class KnowledgeBaseService {
         .where(eq(knowledgeBaseTable.embeddingModelId, modelId))
         .limit(1)
         .all()
+
       if (inUse) {
         this.embeddingModelsBeingRemoved.delete(modelId)
+
         return undefined
       }
     } catch (error) {
@@ -199,6 +219,7 @@ export class KnowledgeBaseService {
     }
 
     let released = false
+
     return () => {
       if (released) return
       released = true
@@ -215,7 +236,9 @@ export class KnowledgeBaseService {
   search(query: { q: string; limit: number; updatedAtFrom?: number }): KnowledgeBaseEntitySearchItem[] {
     const conditions: SQL[] = []
     const search = buildSearchPredicate(query.q)
+
     if (search) conditions.push(search)
+
     if (query.updatedAtFrom !== undefined) {
       conditions.push(gte(knowledgeBaseTable.updatedAt, query.updatedAtFrom))
     }
@@ -261,6 +284,7 @@ export class KnowledgeBaseService {
     const sortOrder = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
     const orderFn = sortOrder === 'asc' ? asc : desc
     const sortColumn = getListSortColumn(sortBy)
+
     const rows = this.db
       .select({
         base: knowledgeBaseTable,
@@ -277,6 +301,7 @@ export class KnowledgeBaseService {
       .limit(limit)
       .offset(offset)
       .all()
+
     const [{ count }] = this.db
       .select({ count: sql<number>`count(*)` })
       .from(knowledgeBaseTable)
@@ -296,10 +321,14 @@ export class KnowledgeBaseService {
 
   listForDiscovery(query: KnowledgeBaseDiscoveryQuery): KnowledgeBaseDiscoveryPage {
     const cursorQuery: ListKnowledgeBasesQuery = { limit: query.limit }
+
     if (query.cursor) cursorQuery.cursor = query.cursor
+
     if (query.query) cursorQuery.search = query.query
     const filters: Omit<KnowledgeBaseListFilters, 'includeItemSourcesInSearch'> = {}
+
     if (query.groupId) filters.groupId = query.groupId
+
     if (query.restrictedIds) filters.ids = query.restrictedIds
     const page = this.listCursorWithFilters(cursorQuery, { ...filters, includeItemSourcesInSearch: true })
 
@@ -307,7 +336,9 @@ export class KnowledgeBaseService {
       items: page.items.map(knowledgeBaseListItemToBase),
       total: page.total
     }
+
     if (page.nextCursor) result.nextCursor = page.nextCursor
+
     return result
   }
 
@@ -321,15 +352,19 @@ export class KnowledgeBaseService {
     const sortOrder = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
     const sortColumn = getListSortColumn(sortBy)
     const ordering = keysetOrdering(sortColumn, knowledgeBaseTable.id, { major: sortOrder, tie: sortOrder })
+
     const cursor =
       sortBy === 'name' || sortBy === 'orderKey'
         ? decodeListCursor(query.cursor, asStringKey, 'knowledge-base')
         : decodeListCursor(query.cursor, asNumericKey, 'knowledge-base')
+
     const conditions = [...filterConditions]
+
     if (cursor) conditions.push(ordering.where(cursor))
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const filterWhereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined
+
     const rows = this.db
       .select({
         base: knowledgeBaseTable,
@@ -345,11 +380,13 @@ export class KnowledgeBaseService {
       .orderBy(...ordering.orderBy)
       .limit(limit + 1)
       .all()
+
     const [{ count }] = this.db
       .select({ count: sql<number>`count(*)` })
       .from(knowledgeBaseTable)
       .where(filterWhereClause)
       .all()
+
     const pageRows = rows.slice(0, limit)
     const tail = pageRows.at(-1)
 
@@ -380,12 +417,14 @@ export class KnowledgeBaseService {
     // no dimensions and is forced to lexical search regardless of any requested mode.
     const embeddingModelId = dto.embeddingModelId?.trim() || null
     const usesEmbeddings = embeddingModelId !== null
+
     const createConfig = {
       chunkSize: dto.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: dto.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
       chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR
     }
+
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'orderKey' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
@@ -410,7 +449,9 @@ export class KnowledgeBaseService {
       threshold: createValues.threshold ?? undefined,
       documentCount: createValues.documentCount ?? undefined
     }
+
     const createValidation = KnowledgeBaseWriteSchema.safeParse(createCandidate)
+
     if (!createValidation.success) {
       throw toDataApiError(createValidation.error, 'create knowledge base')
     }
@@ -419,6 +460,7 @@ export class KnowledgeBaseService {
 
     const row = application.get('DbService').withWriteTx((tx) => {
       validateKnowledgeBaseGroupTx(tx, dto.groupId)
+
       return insertWithOrderKey(tx, knowledgeBaseTable, createValues, {
         pkColumn: knowledgeBaseTable.id,
         position: 'first',
@@ -427,6 +469,7 @@ export class KnowledgeBaseService {
     })
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
+
     return rowToKnowledgeBase(row)
   }
 
@@ -445,6 +488,7 @@ export class KnowledgeBaseService {
 
     const nextEmbeddingModelId =
       dto.embeddingModelId !== undefined ? dto.embeddingModelId?.trim() || null : existing.embeddingModelId
+
     const nextDimensions = dto.dimensions !== undefined ? dto.dimensions : existing.dimensions
     const embeddingModelChanged = nextEmbeddingModelId !== existing.embeddingModelId
     const dimensionsChanged = nextDimensions !== existing.dimensions
@@ -497,6 +541,7 @@ export class KnowledgeBaseService {
     void _orderKey
     void _createdAt
     void _updatedAt
+
     const updateCandidate = {
       ...existingConfig,
       embeddingModelId: nextEmbeddingModelId,
@@ -506,46 +551,61 @@ export class KnowledgeBaseService {
       chunkStrategy: nextConfig.chunkStrategy,
       chunkSeparator: nextConfig.chunkSeparator
     }
+
     const updateValidation = KnowledgeBaseWriteSchema.safeParse(updateCandidate)
+
     if (!updateValidation.success) {
       throw toDataApiError(updateValidation.error, 'update knowledge base')
     }
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
+
     if (dto.name !== undefined) {
       const nextName = dto.name.trim()
+
       if (nextName !== existing.name) updates.name = nextName
     }
+
     if (dto.groupId !== undefined && dto.groupId !== existing.groupId) {
       updates.groupId = dto.groupId
     }
+
     if (embeddingModelChanged) {
       updates.embeddingModelId = nextEmbeddingModelId
     }
+
     if (dimensionsChanged) {
       updates.dimensions = nextDimensions
     }
+
     if (dto.rerankModelId !== undefined && dto.rerankModelId !== existing.rerankModelId) {
       updates.rerankModelId = dto.rerankModelId
     }
+
     if (dto.fileProcessorId !== undefined && dto.fileProcessorId !== existing.fileProcessorId) {
       updates.fileProcessorId = dto.fileProcessorId
     }
+
     if (nextConfig.chunkSize !== existing.chunkSize) {
       updates.chunkSize = nextConfig.chunkSize
     }
+
     if (nextConfig.chunkOverlap !== existing.chunkOverlap) {
       updates.chunkOverlap = nextConfig.chunkOverlap
     }
+
     if (nextConfig.chunkStrategy !== existing.chunkStrategy) {
       updates.chunkStrategy = nextConfig.chunkStrategy
     }
+
     if (nextConfig.chunkSeparator !== existing.chunkSeparator) {
       updates.chunkSeparator = nextConfig.chunkSeparator
     }
+
     if (dto.threshold !== undefined && dto.threshold !== existing.threshold) {
       updates.threshold = dto.threshold
     }
+
     if (dto.documentCount !== undefined && dto.documentCount !== existing.documentCount) {
       updates.documentCount = dto.documentCount
     }
@@ -561,7 +621,9 @@ export class KnowledgeBaseService {
     if (dto.groupId !== undefined) {
       validateKnowledgeBaseGroupTx(tx, dto.groupId)
     }
+
     let [updated] = tx.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
+
     if (updated && dto.groupId !== undefined && dto.groupId !== existing.groupId) {
       applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
         pkColumn: knowledgeBaseTable.id,
@@ -569,11 +631,13 @@ export class KnowledgeBaseService {
       })
       updated = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()!
     }
+
     if (!updated) {
       throw DataApiErrorFactory.notFound('KnowledgeBase', id)
     }
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
+
     return rowToKnowledgeBase(updated)
   }
 
@@ -584,6 +648,7 @@ export class KnowledgeBaseService {
       .where(eq(knowledgeBaseTable.groupId, groupId))
       .orderBy(asc(knowledgeBaseTable.orderKey), asc(knowledgeBaseTable.id))
       .all()
+
     for (const { id } of rows) {
       tx.update(knowledgeBaseTable).set({ groupId: null }).where(eq(knowledgeBaseTable.id, id)).run()
       applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
@@ -596,12 +661,15 @@ export class KnowledgeBaseService {
   reorder(id: string, { anchor, groupId }: ReorderKnowledgeBaseDto): void {
     application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()
+
       if (!existing) throw DataApiErrorFactory.notFound('KnowledgeBase', id)
       const targetGroupId = groupId === undefined ? existing.groupId : groupId
       validateKnowledgeBaseGroupTx(tx, targetGroupId)
+
       if (targetGroupId !== existing.groupId) {
         tx.update(knowledgeBaseTable).set({ groupId: targetGroupId }).where(eq(knowledgeBaseTable.id, id)).run()
       }
+
       applyMoves(tx, knowledgeBaseTable, [{ id, anchor }], {
         pkColumn: knowledgeBaseTable.id,
         scope:
@@ -635,4 +703,5 @@ export class KnowledgeBaseService {
 }
 
 export const knowledgeBaseService = new KnowledgeBaseService()
+
 registerDataService('KnowledgeBaseService', knowledgeBaseService)

@@ -21,6 +21,7 @@ export function resolvePath(_base: string, _relative: string): string {
 
 function normalizePathForComparison(value: string): string {
   const resolved = path.resolve(value)
+
   return isMac || isWin ? resolved.toLowerCase() : resolved
 }
 
@@ -45,8 +46,10 @@ function normalizePathForComparison(value: string): string {
 export function isPathInside(child: string, parent: string): boolean {
   const a = normalizePathForComparison(child)
   const b = normalizePathForComparison(parent)
+
   if (a === b) return false
   const rel = path.relative(b, a)
+
   return rel.length > 0 && !isOutsidePath(rel)
 }
 
@@ -100,8 +103,10 @@ export async function canonicalizePathForContainment(
     return await realpath(target)
   } catch (error) {
     if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+
     try {
       await lstat(target)
+
       return undefined
     } catch (statError) {
       if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
@@ -109,18 +114,23 @@ export async function canonicalizePathForContainment(
   }
 
   let parent = path.dirname(target)
+
   while (true) {
     try {
       return path.resolve(await realpath(parent), path.relative(parent, target))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+
       try {
         await lstat(parent)
+
         return undefined
       } catch (statError) {
         if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
       }
+
       const next = path.dirname(parent)
+
       if (next === parent) return undefined
       parent = next
     }
@@ -131,6 +141,7 @@ export async function canonicalizePathForContainment(
 export async function canWrite(target: AbsoluteFilePath): Promise<boolean> {
   try {
     await access(target, constants.W_OK)
+
     return true
   } catch {
     return false

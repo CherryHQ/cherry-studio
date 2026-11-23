@@ -47,18 +47,22 @@ const MultiSelectActionPopup: FC<Props> = ({
   onClose
 }) => {
   const { t } = useTranslation()
+
   const exportItems = useMemo<CommandContextMenuExtraItem[]>(() => {
     if (!onExport) return []
+
     const toItem = ({ target, labelKey }: (typeof messageExportTargets)[number]): CommandContextMenuExtraItem => ({
       type: 'item',
       id: `multi-select-export.${target}`,
       label: t(labelKey),
       onSelect: () => onExport(target)
     })
+
     const enabledTargets = messageExportTargets.filter(({ option }) => exportMenuOptions?.[option])
     const fileItems = enabledTargets.filter(({ group }) => group === 'file').map(toItem)
     const externalItems = enabledTargets.filter(({ group }) => group === 'external').map(toItem)
     const separator: CommandContextMenuExtraItem = { type: 'separator' }
+
     return [...fileItems, ...(fileItems.length > 0 && externalItems.length > 0 ? [separator] : []), ...externalItems]
   }, [exportMenuOptions, onExport, t])
 

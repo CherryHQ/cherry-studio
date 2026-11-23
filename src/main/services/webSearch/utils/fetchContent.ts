@@ -90,6 +90,7 @@ export async function fetchSearchResultContents(
     }
 
     const fallbackResult = getFallbackResult?.(urls[index], index)
+
     return fallbackResult ? [fallbackResult] : []
   })
 

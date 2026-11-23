@@ -18,12 +18,14 @@ interface ModelCheckStatusProps {
 
 function getSkipText(result: Extract<ModelWithStatus, { kind: 'skipped' }>, t: ReturnType<typeof useTranslation>['t']) {
   if (result.skipReason.kind === 'unsupported_probe') return t('settings.models.check.skip_reason_unsupported_probe')
+
   const output =
     result.skipReason.output === 'image'
       ? t('settings.models.check.generation_output_image')
       : result.skipReason.output === 'video'
         ? t('settings.models.check.generation_output_video')
         : t('settings.models.check.generation_output_audio')
+
   return t('settings.models.check.skip_reason_generation_cost', {
     output
   })
@@ -54,7 +56,9 @@ export default function ModelCheckStatus({ result, apiKeyEntries, savingKeyId, o
         : partial
           ? t('settings.models.check.keys_failed_count', { failed: failedCount, total: result.keyResults.length })
           : t('settings.models.check.failed')
+
   const Icon = result.kind === 'skipped' ? Info : result.kind === 'ok' ? CheckCircle2 : partial ? CircleAlert : CircleX
+
   const color =
     result.kind === 'ok'
       ? 'text-success'

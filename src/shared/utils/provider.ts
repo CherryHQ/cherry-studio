@@ -119,6 +119,7 @@ export function isGeminiWebSearchProvider(provider: Provider): boolean {
  */
 function servesGeminiNativeWebTools(provider: Provider): boolean {
   if (isGeminiWebSearchProvider(provider)) return true
+
   return (provider.serverTools ?? []).some((tool) => tool.vendors?.includes('gemini'))
 }
 
@@ -161,6 +162,7 @@ export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
  */
 export function isLoginBasedProvider(provider: Pick<Provider, 'authMethods'>): boolean {
   const methods = provider.authMethods
+
   return methods !== undefined && methods.length > 0 && !methods.includes('api-key')
 }
 
@@ -206,6 +208,7 @@ export function resolveEndpointDialect(
   endpointType: EndpointType | undefined
 ): Required<EndpointDialect> {
   const declared = endpointType ? provider.endpointConfigs?.[endpointType]?.dialect : undefined
+
   return {
     streamOptions: declared?.streamOptions ?? true,
     developerRole: declared?.developerRole ?? false,
@@ -227,12 +230,14 @@ function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): bool
   // `google/gemini-3-pro-preview` matches nothing, silently withholding the tool from
   // every namespaced model whose vendor slug differs from its namespace.
   const vendor = matchVendor(getLowerBaseModelName(getRawModelId(model)))
+
   return vendor !== undefined && tool.vendors.includes(vendor)
 }
 
 /** Whether the host serves this tool over the effective endpoint protocol. */
 function serverToolServesEndpoint(tool: ServerToolConfig, endpointType: EndpointType | undefined): boolean {
   if (!tool.endpointTypes?.length) return true
+
   return endpointType !== undefined && tool.endpointTypes.includes(endpointType)
 }
 
@@ -291,12 +296,15 @@ function isBuiltinServerToolAvailable(
   endpointType?: EndpointType
 ): boolean {
   const endpoint = resolveServerToolEndpoint(model, provider, endpointType)
+
   const declarations =
     provider.serverTools?.filter(
       (tool) =>
         tool.id === toolId && serverToolServesModelVendor(tool, model) && serverToolServesEndpoint(tool, endpoint)
     ) ?? []
+
   if (declarations.length === 0) return false
+
   if (isNonChatModel(model)) return false
 
   if (
@@ -305,14 +313,17 @@ function isBuiltinServerToolAvailable(
   ) {
     const rawId = getRawModelId(model)
     const canonicalId = normalizeModelId(rawId)
+
     // Catalog normalization collapses dated aliases; these tools are documented only for the named SKUs.
     if (canonicalId === 'deepseek-v4-1-flash' && rawId !== 'deepseek-v4.1-flash-1017') return false
+
     if (canonicalId === 'deepseek-v4-flash' && rawId !== 'deepseek-v4-flash-0731') return false
   }
 
   if (toolId === SERVER_TOOL.WEB_SEARCH && matchesPreset(provider, 'dashscope')) {
     const rawId = getRawModelId(model)
     const hostedModel = DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.find((row) => row.canonicalId === normalizeModelId(rawId))
+
     if (
       hostedModel &&
       ((endpoint !== ENDPOINT_TYPE.OPENAI_RESPONSES && endpoint !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) ||
@@ -368,8 +379,10 @@ export function resolveWebToolRoutes(
   const supportsClientTools = isFunctionCallingModel(model)
   const clientSearchAvailable = options.webSearchEnabled && supportsClientTools && options.clientSearchAvailable
   const clientFetchAvailable = options.webSearchEnabled && supportsClientTools && options.clientFetchAvailable
+
   const serverSearchEligible =
     options.webSearchEnabled && provider ? isBuiltinWebSearchAvailable(model, provider, options.endpointType) : false
+
   const serverFetchEligible =
     options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider, options.endpointType) : false
 
@@ -379,7 +392,9 @@ export function resolveWebToolRoutes(
     servesGeminiNativeWebTools(provider) &&
     isGeminiModel(model) &&
     !supportsServerToolFunctionMixing(getRawModelId(model))
+
   const googleToolConflict = options.hasFunctionToolSignals === true && googleFunctionToolMixingUnsupported
+
   const openaiMinimalConflict =
     options.reasoningEffort !== undefined &&
     provider !== undefined &&
@@ -393,6 +408,7 @@ export function resolveWebToolRoutes(
     if (options.modelToolsPreferred) {
       return serverAvailable ? 'server' : clientAvailable ? 'client' : 'none'
     }
+
     return clientAvailable ? 'client' : serverAvailable ? 'server' : 'none'
   }
 
@@ -418,6 +434,7 @@ export function resolveWebToolRoutes(
     coordinatedGoogleConflict = true
     const clientCoverage = Number(clientSearchAvailable) + Number(clientFetchAvailable)
     const serverCoverage = Number(serverSearchAvailable) + Number(serverFetchAvailable)
+
     const selectedSide: Exclude<WebToolRoute, 'none'> =
       clientCoverage === serverCoverage
         ? options.modelToolsPreferred
@@ -428,12 +445,15 @@ export function resolveWebToolRoutes(
           : 'server'
 
     webSearch = selectedSide === 'client' ? (clientSearchAvailable ? 'client' : 'none') : 'server'
+
     if (selectedSide === 'server' && !serverSearchAvailable) webSearch = 'none'
     webFetch = selectedSide === 'client' ? (clientFetchAvailable ? 'client' : 'none') : 'server'
+
     if (selectedSide === 'server' && !serverFetchAvailable) webFetch = 'none'
   }
 
   const reasons: NonNullable<WebToolRoutes['reasons']> = {}
+
   if (webSearch === 'none') {
     reasons.webSearch =
       (serverSearchEligible && googleToolConflict) ||
@@ -445,6 +465,7 @@ export function resolveWebToolRoutes(
             ? 'model-unsupported'
             : 'no-backend'
   }
+
   if (webFetch === 'none') {
     reasons.webFetch =
       (serverFetchEligible && googleToolConflict) ||
@@ -456,7 +477,9 @@ export function resolveWebToolRoutes(
   }
 
   const routes: WebToolRoutes = { webSearch, webFetch }
+
   if (Object.keys(reasons).length > 0) routes.reasons = reasons
+
   return routes
 }
 
@@ -479,15 +502,18 @@ export function finalizeWebToolRoutes(
   }
 
   let next = routes
+
   if (next.webFetch === 'server') {
     next = { ...next, webFetch: 'none', reasons: { ...next.reasons, webFetch: 'gemini-function-tool-conflict' } }
   }
+
   // Search only conflicts when the injected tool is Google's own — gemini/vertex directly, plus the
   // gateways that resolve the same google factory. OpenRouter serves gemini models with its own
   // search, which tolerates function tools.
   if (next.webSearch === 'server' && servesGeminiNativeWebTools(provider)) {
     next = { ...next, webSearch: 'none', reasons: { ...next.reasons, webSearch: 'gemini-function-tool-conflict' } }
   }
+
   return next
 }
 
@@ -530,5 +556,6 @@ export function isSupportAnthropicPromptCacheProvider(provider: Provider): boole
  */
 export function sanitizeProviderName(name: string, fallback: string): string {
   const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
+
   return sanitized || fallback
 }

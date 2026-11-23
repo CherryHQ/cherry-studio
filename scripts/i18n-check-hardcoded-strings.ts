@@ -12,7 +12,9 @@ const RENDERER_DIR = path.join(__dirname, '../src/renderer')
 const MAIN_DIR = path.join(__dirname, '../src/main')
 const FILE_PREVIEW_DIR = path.join(__dirname, '../packages/file-preview/src')
 const SOURCE_DIRECTORIES = { renderer: RENDERER_DIR, main: MAIN_DIR, 'file-preview': FILE_PREVIEW_DIR }
+
 type FindingSource = keyof typeof SOURCE_DIRECTORIES
+
 const EXTENSIONS = ['.tsx', '.ts']
 const IGNORED_DIRS = ['__tests__', 'node_modules', 'i18n', 'locales', 'types', 'assets']
 const IGNORED_FILES = ['*.test.ts', '*.test.tsx', '*.d.ts', '*prompts*.ts']
@@ -76,7 +78,9 @@ function hasCJK(text: string): boolean {
 
 function hasEnglishUIText(text: string): boolean {
   const words = text.trim().split(/\s+/)
+
   if (words.length < 2 || words.length > 6) return false
+
   return /^[A-Z][a-z]+(\s+[A-Za-z]+){1,5}$/.test(text.trim())
 }
 
@@ -102,6 +106,7 @@ function shouldSkipNode(node: Node): boolean {
 
   while (current) {
     const parent = current.getParent()
+
     if (!parent) break
 
     if (Node.isImportDeclaration(parent) || Node.isExportDeclaration(parent)) {
@@ -110,10 +115,13 @@ function shouldSkipNode(node: Node): boolean {
 
     if (Node.isCallExpression(parent)) {
       const callText = parent.getExpression().getText()
+
       if (/^(logger|console)\.(log|error|warn|info|debug|silly|trace|withContext)/.test(callText)) {
         return true
       }
+
       const callee = parent.getExpression()
+
       if (Node.isIdentifier(callee) && callee.getText() === 't') {
         return true
       }
@@ -134,6 +142,7 @@ function shouldSkipNode(node: Node): boolean {
     // Native language names should stay in native form
     if (Node.isVariableDeclaration(parent)) {
       const varName = parent.getName()
+
       if (/language|locale/i.test(varName)) {
         return true
       }
@@ -147,6 +156,7 @@ function shouldSkipNode(node: Node): boolean {
 
 function isToastFirstArgument(node: Node): boolean {
   const call = node.getParent()
+
   return (
     !!call &&
     Node.isCallExpression(call) &&
@@ -157,6 +167,7 @@ function isToastFirstArgument(node: Node): boolean {
 
 function getToastText(node: Node): string | undefined {
   let text: string
+
   if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
     text = node.getLiteralValue()
   } else if (Node.isTemplateExpression(node)) {
@@ -168,18 +179,22 @@ function getToastText(node: Node): string | undefined {
   }
 
   const parent = node.getParent()
+
   const isToastText =
     isToastFirstArgument(node) ||
     (!!parent &&
       Node.isPropertyAssignment(parent) &&
       TOAST_TEXT_PROPERTIES.includes(parent.getName()) &&
       isToastFirstArgument(parent.getParentOrThrow()))
+
   return isToastText && /\p{L}/u.test(text) ? text : undefined
 }
 
 function isNonUIString(text: string): boolean {
   if (text.length === 0) return true
+
   if (/^\d+$/.test(text)) return true
+
   return false
 }
 
@@ -193,6 +208,7 @@ const CODE_CONTEXT = {
 
 function isInCodeContext(node: Node): boolean {
   const parent = node.getParent()
+
   if (!parent) return false
 
   if (Node.isTaggedTemplateExpression(parent)) {
@@ -201,16 +217,19 @@ function isInCodeContext(node: Node): boolean {
 
   if (Node.isVariableDeclaration(parent)) {
     const name = parent.getName()
+
     return CODE_CONTEXT.cssNames.test(name) || CODE_CONTEXT.codeNames.test(name)
   }
 
   if (Node.isPropertyAssignment(parent)) {
     const name = parent.getName()
+
     return CODE_CONTEXT.cssNames.test(name) || CODE_CONTEXT.codeNames.test(name)
   }
 
   if (Node.isJsxExpression(parent)) {
     const attr = parent.getParent()
+
     if (attr && Node.isJsxAttribute(attr)) {
       return CODE_CONTEXT.jsxAttrs.has(attr.getNameNode().getText())
     }
@@ -218,16 +237,20 @@ function isInCodeContext(node: Node): boolean {
 
   // Traverse up for code execution calls (handles string concatenation)
   let current: Node | undefined = parent
+
   while (current) {
     if (Node.isCallExpression(current)) {
       if (CODE_CONTEXT.execCalls.test(current.getExpression().getText())) {
         return true
       }
+
       break
     }
+
     if (!Node.isBinaryExpression(current) && !Node.isParenthesizedExpression(current)) {
       break
     }
+
     current = current.getParent()
   }
 
@@ -236,11 +259,13 @@ function isInCodeContext(node: Node): boolean {
 
 function getJsxElementName(attrNode: Node): string | null {
   const parent = attrNode.getParent()
+
   if (!parent) return null
 
   if (Node.isJsxOpeningElement(parent) || Node.isJsxSelfClosingElement(parent)) {
     return parent.getTagNameNode().getText()
   }
+
   return null
 }
 
@@ -248,10 +273,13 @@ function shouldCheckAttribute(attrName: string, elementName: string | null): boo
   if (UI_ATTRIBUTES.includes(attrName)) {
     return true
   }
+
   const allowedComponents = CONTEXT_SENSITIVE_ATTRIBUTES.get(attrName)
+
   if (allowedComponents && elementName) {
     return allowedComponents.includes(elementName)
   }
+
   return false
 }
 
@@ -290,24 +318,30 @@ class HardcodedStringDetector {
       !Node.isNoSubstitutionTemplateLiteral(node)
     )
       return
+
     if (shouldSkipNode(node)) return
 
     // Toast text is always user-visible, so a literal there blocks in every language.
     const toastText = getToastText(node)
+
     if (toastText !== undefined) {
       findings.push(createFinding(node, sourceFile, hasCJK(toastText) ? 'chinese' : 'english', source, 'ToastCall'))
+
       return
     }
 
     if (Node.isJsxText(node)) {
       const text = node.getText().trim()
+
       if (text && hasCJK(text)) {
         // Skip SVG internal elements
         const parent = node.getParent()
+
         if (parent && (Node.isJsxElement(parent) || Node.isJsxSelfClosingElement(parent))) {
           const tagName = Node.isJsxElement(parent)
             ? parent.getOpeningElement().getTagNameNode().getText()
             : parent.getTagNameNode().getText()
+
           if (['title', 'desc', 'text', 'tspan'].includes(tagName)) {
             return
           }
@@ -316,10 +350,13 @@ class HardcodedStringDetector {
           if (['SelectItem', 'Option', 'MenuItem'].includes(tagName)) {
             const jsxElement = Node.isJsxElement(parent) ? parent.getOpeningElement() : parent
             const valueAttr = jsxElement.getAttribute('value')
+
             if (valueAttr && Node.isJsxAttribute(valueAttr)) {
               const initializer = valueAttr.getInitializer()
+
               if (initializer && Node.isStringLiteral(initializer)) {
                 const value = initializer.getLiteralValue()
+
                 // Language/locale codes like 'zh-CN', 'en-US', 'ja-JP', etc.
                 if (/^[a-z]{2}(-[A-Z]{2})?$/.test(value)) {
                   return
@@ -328,6 +365,7 @@ class HardcodedStringDetector {
             }
           }
         }
+
         findings.push(createFinding(node, sourceFile, 'chinese', source, 'JsxText'))
       }
     }
@@ -338,8 +376,10 @@ class HardcodedStringDetector {
 
       if (shouldCheckAttribute(attrName, elementName)) {
         const initializer = node.getInitializer()
+
         if (initializer && Node.isStringLiteral(initializer)) {
           const value = initializer.getLiteralValue()
+
           if (!isNonUIString(value)) {
             if (hasCJK(value)) {
               findings.push(createFinding(node, sourceFile, 'chinese', source, 'JsxAttribute'))
@@ -355,12 +395,14 @@ class HardcodedStringDetector {
       if (isInCodeContext(node)) return
 
       const value = node.getLiteralValue()
+
       if (isNonUIString(value)) return
 
       const parent = node.getParent()
 
       if (parent && Node.isPropertyAssignment(parent)) {
         const propName = parent.getName()
+
         if (UI_PROPERTIES.includes(propName)) {
           if (hasCJK(value)) {
             findings.push(createFinding(node, sourceFile, 'chinese', source, 'PropertyAssignment'))
@@ -370,6 +412,7 @@ class HardcodedStringDetector {
 
       if (parent && Node.isCallExpression(parent)) {
         const callText = parent.getExpression().getText()
+
         if (/^(window\.toast|message|Modal|notification)\.(success|error|warning|info|confirm)/.test(callText)) {
           if (hasCJK(value)) {
             findings.push(createFinding(node, sourceFile, 'chinese', source, 'CallExpression'))
@@ -382,6 +425,7 @@ class HardcodedStringDetector {
       if (isInCodeContext(node)) return
 
       const text = node.getText()
+
       if (hasCJK(text)) {
         findings.push(createFinding(node, sourceFile, 'chinese', source, 'TemplateLiteral'))
       }
@@ -397,6 +441,7 @@ function shouldSkipFile(filePath: string, baseDir: string): boolean {
   }
 
   const fileName = path.basename(filePath)
+
   if (IGNORED_FILE_PATTERNS.some((regex) => regex.test(fileName))) {
     return true
   }
@@ -488,6 +533,7 @@ function formatFindings(findings: Finding[]): string {
   if (filePreviewFindings.length > 0) {
     output += '\n📦 File Preview Package:\n'
     output += '-'.repeat(50) + '\n'
+
     for (const finding of filePreviewFindings) {
       const relativePath = path.relative(FILE_PREVIEW_DIR, finding.file)
       output += `\n📍 ${relativePath}:${finding.line} [${finding.nodeType}, ${finding.type}]\n`

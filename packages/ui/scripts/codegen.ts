@@ -55,12 +55,15 @@ export function generateIconIndex(opts: {
   const darkImport = hasDark ? `import { ${darkName} } from './dark'\n` : ''
   const lightClassName = usesCurrentColor ? `cn('text-foreground', className)` : 'className'
   const darkClassName = usesCurrentColor ? `cn('text-foreground', className)` : 'className'
+
   const autoLightClassName = usesCurrentColor
     ? `cn('text-foreground dark:hidden', className)`
     : `cn('dark:hidden', className)`
+
   const autoDarkClassName = usesCurrentColor
     ? `cn('text-foreground hidden dark:block', className)`
     : `cn('hidden dark:block', className)`
+
   const autoRender = hasDark
     ? `return (
     <>
@@ -69,9 +72,11 @@ export function generateIconIndex(opts: {
     </>
   )`
     : `return <${lightName} {...props} className={${lightClassName}} />`
+
   const darkVariantRender = hasDark
     ? `  if (variant === 'dark') return <${darkName} {...props} className={${darkClassName}} />\n`
     : ''
+
   const cnImport = hasDark || usesCurrentColor ? `import { cn } from '../../../../lib/utils'\n` : ''
 
   const content = `${cnImport}import type { CompoundIcon, CompoundIconProps } from '../../types'
@@ -88,6 +93,7 @@ ${avatarField}  colorPrimary: '${colorPrimary}'
 
 export default ${colorName}Icon
 `
+
   fs.writeFileSync(outPath, content)
 }
 
@@ -137,6 +143,7 @@ export function generateAvatar(opts: {
   const fallbackClasses = ['text-foreground', variant === 'neutral-background' ? 'bg-background' : '']
     .filter(Boolean)
     .join(' ')
+
   const iconRender = hasDark
     ? `<${colorName}Light
           className="dark:hidden"
@@ -227,9 +234,11 @@ export function generateBarrelIndex(opts: { outPath: string; entries: IconCompon
   if (header) {
     sf.addStatements((writer) => {
       writer.writeLine(`/**`)
+
       for (const line of header.split('\n')) {
         writer.writeLine(` * ${line}`)
       }
+
       writer.writeLine(` */`)
     })
   }
@@ -299,6 +308,7 @@ export function generateMetaCatalog(opts: {
   const objectBody = entries
     .map(({ dirName, colorName }) => {
       const key = /^\d/.test(dirName) || dirName.includes('-') ? `'${dirName}'` : dirName
+
       return `  ${key}: ${metaAlias(colorName)}`
     })
     .join(',\n')
@@ -363,6 +373,7 @@ export function generateIconLoaders(opts: {
     .map((entry) => {
       const { dirName, colorName } = entry
       const key = /^\d/.test(dirName) || dirName.includes('-') ? `'${dirName}'` : dirName
+
       return `  ${key}: () => import('${getIconModulePath(entry)}').then(({ ${colorName}Icon }) => ${colorName}Icon)`
     })
     .join(',\n')
@@ -441,6 +452,7 @@ export function generateCatalog(opts: {
   const objectBody = entries
     .map(({ dirName, colorName }) => {
       const key = /^\d/.test(dirName) || dirName.includes('-') ? `'${dirName}'` : dirName
+
       return `  ${key}: ${colorName}Icon`
     })
     .join(',\n')

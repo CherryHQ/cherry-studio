@@ -13,6 +13,7 @@ const AssistantHistoryRecords = lazy(() => import('./AssistantHistoryRecords'))
 // user just opened looking frozen.
 function HistoryRecordsLoading() {
   const { t } = useTranslation()
+
   return (
     <div role="status" aria-live="polite" className="flex min-w-0 flex-1 flex-col gap-3 p-4">
       <span className="sr-only">{t('common.loading')}</span>

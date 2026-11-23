@@ -4,6 +4,7 @@ import { DifyLight } from './light'
 
 const Dify = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DifyLight {...props} className={className} />
+
   return <DifyLight {...props} className={className} />
 }
 

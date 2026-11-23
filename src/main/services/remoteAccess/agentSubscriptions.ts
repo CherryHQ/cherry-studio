@@ -48,10 +48,12 @@ export class AgentSubscriptions {
       if (existing.sessionId === input.sessionId && existing.phase !== 'reset')
         throw new RemoteRpcError('CONFLICT', 'Session already has a subscription on this connection')
     }
+
     if (this.subscriptions.size >= remoteLimits.subscriptions)
       throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Too many subscriptions')
     const journal = this.hub.journal(input.sessionId)
     const expiresAt = Date.now() + remoteLimits.checkpointMs
+
     const subscription: Subscription = {
       id: randomUUID(),
       sessionId: input.sessionId,
@@ -67,8 +69,10 @@ export class AgentSubscriptions {
       pump: Promise.resolve(),
       unobserve: () => {}
     }
+
     const cursor = input.cursor
     const current = journal.cursor
+
     const reason = !cursor
       ? 'no cursor'
       : cursor.sessionId !== input.sessionId || cursor.streamEpoch !== journal.epoch
@@ -78,10 +82,12 @@ export class AgentSubscriptions {
           : Number(cursor.seq) + 1 < journal.firstRetainedSeq
             ? 'replay window evicted'
             : undefined
+
     if (cursor && !reason) {
       subscription.cursorSeq = Number(cursor.seq)
       subscription.unobserve = journal.observe(() => this.schedule(subscription))
       this.subscriptions.set(subscription.id, subscription)
+
       return {
         subscriptionId: subscription.id,
         mode: 'replay',
@@ -90,11 +96,13 @@ export class AgentSubscriptions {
         leaseExpiresAt: new Date(expiresAt).toISOString()
       }
     }
+
     const checkpoint = journal.capture()
     subscription.cursorSeq = Number(checkpoint.descriptor.cursor.seq)
     subscription.checkpoint = checkpoint
     subscription.unobserve = journal.observe(() => this.schedule(subscription))
     this.subscriptions.set(subscription.id, subscription)
+
     return {
       subscriptionId: subscription.id,
       mode: 'checkpoint',
@@ -106,35 +114,45 @@ export class AgentSubscriptions {
   readCheckpoint(input: AgentParams<'agent.checkpoints.read'>): AgentCheckpointPage {
     const subscription = this.require(input.subscriptionId)
     const checkpoint = subscription.checkpoint
+
     if (subscription.phase !== 'prepared' || !checkpoint || checkpoint.descriptor.checkpointId !== input.checkpointId)
       throw new RemoteRpcError('NOT_FOUND', 'Checkpoint is not available')
+
     if (subscription.expiresAt <= Date.now()) throw new RemoteRpcError('CHECKPOINT_EXPIRED', 'Checkpoint lease expired')
     const index = input.pageCursor === undefined ? 0 : Number(input.pageCursor)
     const page = Number.isSafeInteger(index) ? checkpoint.pages[index] : undefined
+
     if (!page) throw new RemoteRpcError('NOT_FOUND', 'Checkpoint page not found')
+
     return page
   }
 
   /** Switches to live delivery; the caller must send the reply before `commit` releases the suffix. */
   activate(input: AgentParams<'agent.subscriptions.activate'>) {
     const subscription = this.require(input.subscriptionId)
+
     if (subscription.phase !== 'prepared')
       throw new RemoteRpcError('CONFLICT', 'Subscription is not awaiting activation')
+
     if (subscription.expiresAt <= Date.now()) {
       this.reset(subscription, 'CHECKPOINT_EXPIRED')
       throw new RemoteRpcError('CHECKPOINT_EXPIRED', 'Preparation lease expired')
     }
+
     const { appliedCursor } = input
+
     if (
       appliedCursor.sessionId !== subscription.sessionId ||
       appliedCursor.streamEpoch !== subscription.epoch ||
       Number(appliedCursor.seq) !== subscription.cursorSeq
     )
       throw new RemoteRpcError('CONFLICT', 'Applied cursor does not match the prepared cursor')
+
     if (!this.intact(subscription)) {
       this.reset(subscription, 'RESET_REQUIRED')
       throw new RemoteRpcError('RESET_REQUIRED', 'Replay suffix is no longer retained')
     }
+
     return {
       result: {
         subscriptionId: subscription.id,
@@ -154,6 +172,7 @@ export class AgentSubscriptions {
   ack(input: AgentParams<'agent.subscriptions.ack'>): AgentResult<'agent.subscriptions.ack'> {
     const subscription = this.require(input.subscriptionId)
     const seq = Number(input.cursor.seq)
+
     if (
       subscription.phase !== 'active' ||
       input.cursor.sessionId !== subscription.sessionId ||
@@ -162,19 +181,23 @@ export class AgentSubscriptions {
       seq > subscription.lastSent
     )
       throw new RemoteRpcError('CONFLICT', 'Cursor is outside the delivered window')
+
     for (const [sentSeq, bytes] of subscription.sent) {
       if (sentSeq <= seq) {
         subscription.unackedBytes -= bytes
         subscription.sent.delete(sentSeq)
       }
     }
+
     subscription.lastAck = seq
     this.schedule(subscription)
+
     return { acknowledged: { sessionId: subscription.sessionId, streamEpoch: subscription.epoch, seq: String(seq) } }
   }
 
   close(subscriptionId: string): void {
     const subscription = this.subscriptions.get(subscriptionId)
+
     if (!subscription) return
     subscription.unobserve()
     subscription.phase = 'reset'
@@ -187,8 +210,10 @@ export class AgentSubscriptions {
         subscription.sessionId === sessionId
           ? subscription.checkpoint?.content.get(`${contentId}:${revision}`)
           : undefined
+
       if (bytes) return bytes
     }
+
     return undefined
   }
 
@@ -205,12 +230,15 @@ export class AgentSubscriptions {
 
   private require(subscriptionId: string): Subscription {
     const subscription = this.subscriptions.get(subscriptionId)
+
     if (!subscription) throw new RemoteRpcError('NOT_FOUND', 'Unknown subscription')
+
     return subscription
   }
 
   private intact(subscription: Subscription): boolean {
     const from = subscription.phase === 'active' ? subscription.lastSent : subscription.cursorSeq
+
     return subscription.journal.epoch === subscription.epoch && subscription.journal.firstRetainedSeq <= from + 1
   }
 
@@ -241,16 +269,21 @@ export class AgentSubscriptions {
     while (subscription.phase === 'active' && subscription.unackedBytes < remoteLimits.unackedBytes) {
       if (!this.intact(subscription)) {
         this.reset(subscription, 'RESET_REQUIRED')
+
         return
       }
+
       const events = subscription.journal.eventsAfter(subscription.lastSent, BATCH_BYTES)
+
       if (!events.length) return
+
       const params = {
         subscriptionId: subscription.id,
         sessionId: subscription.sessionId,
         streamEpoch: subscription.epoch,
         events
       }
+
       const bytes = Buffer.byteLength(JSON.stringify(params))
       const lastSeq = Number(events[events.length - 1].seq)
       subscription.lastSent = lastSeq

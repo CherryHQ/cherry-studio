@@ -49,9 +49,11 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
 
   // Then, check template patterns
   const schemaKeys = Object.keys(DefaultUseCache) as Array<keyof UseCacheSchema>
+
   for (const schemaKey of schemaKeys) {
     if (isTemplateKey(schemaKey)) {
       const regex = templateToRegex(schemaKey)
+
       if (regex.test(key)) {
         return schemaKey
       }
@@ -83,9 +85,11 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
  */
 function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUseCacheValue<K> | undefined {
   const schemaKey = findMatchingUseCacheSchemaKey(key)
+
   if (schemaKey) {
     return DefaultUseCache[schemaKey] as InferUseCacheValue<K>
   }
+
   return undefined
 }
 
@@ -101,9 +105,11 @@ function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUseCacheVa
  */
 function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
   const schemaKey = findMatchingSharedCacheSchemaKey(key)
+
   if (schemaKey) {
     return DefaultSharedCache[schemaKey] as InferSharedCacheValue<K>
   }
+
   return undefined
 }
 
@@ -194,6 +200,7 @@ export function useCache<K extends UseCacheKey>(
    */
   useEffect(() => {
     cacheService.registerHook(key)
+
     return () => cacheService.unregisterHook(key)
   }, [key])
 
@@ -307,6 +314,7 @@ export function useSharedCache<K extends SharedCacheKey>(
 
     if (initValue === undefined) {
       const defaultValue = getSharedCacheDefaultValue(key)
+
       if (defaultValue !== undefined) {
         cacheService.setShared(key, defaultValue)
       }
@@ -321,6 +329,7 @@ export function useSharedCache<K extends SharedCacheKey>(
    */
   useEffect(() => {
     cacheService.registerHook(key)
+
     return () => cacheService.unregisterHook(key)
   }, [key])
 
@@ -349,6 +358,7 @@ export function useSharedCache<K extends SharedCacheKey>(
         const prev = (cacheService.getShared(key) ?? initValue ?? getSharedCacheDefaultValue(key)) as ReadonlyValue<
           InferSharedCacheValue<K>
         >
+
         cacheService.setShared(key, newValue(prev))
       } else {
         cacheService.setShared(key, newValue)
@@ -434,10 +444,12 @@ type SharedCacheValues<Keys extends readonly SharedCacheKey[]> = {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Selectors return unrelated domain values; the default comparator accepts any selection and compares only validated arrays/plain objects beyond Object.is.
 function shallowEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true
+
   if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false
 
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+
     return a.every((item, index) => Object.is(item, b[index]))
   }
 
@@ -445,7 +457,9 @@ function shallowEqual(a: unknown, b: unknown): boolean {
 
   const keysA = Object.keys(a)
   const keysB = Object.keys(b)
+
   if (keysA.length !== keysB.length) return false
+
   return keysA.every(
     (key) =>
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Both containers are verified plain objects; selector-owned field values remain opaque for identity comparison.
@@ -484,6 +498,7 @@ function useCacheKeysSelector<Key extends string, Value, Values, Selection>(
   // rebuilds the subscription set and the snapshot closure together, keeping
   // the subscription set and the snapshot read set the same by construction.
   const keysDep = keys.join(CACHE_KEYS_DEP_SEPARATOR)
+
   const stableKeys = useMemo<readonly Key[]>(
     () => [...keys],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the content identity of `keys`
@@ -493,6 +508,7 @@ function useCacheKeysSelector<Key extends string, Value, Values, Selection>(
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
       const disposers = stableKeys.map((key) => subscribeKey(key, onStoreChange))
+
       return () => disposers.forEach((dispose) => dispose())
     },
     [stableKeys, subscribeKey]
@@ -508,6 +524,7 @@ function useCacheKeysSelector<Key extends string, Value, Values, Selection>(
     return () => {
       const nextValues = stableKeys.map((key) => readKey(key))
       const prevValues = cachedValues
+
       if (
         prevValues !== undefined &&
         nextValues.length === prevValues.length &&
@@ -517,6 +534,7 @@ function useCacheKeysSelector<Key extends string, Value, Values, Selection>(
       }
 
       cachedValues = nextValues
+
       return nextValues
     }
   }, [stableKeys, readKey]) as () => Values
@@ -657,6 +675,7 @@ export function usePersistCache<K extends RendererPersistCacheKey>(
    */
   useEffect(() => {
     cacheService.registerHook(key)
+
     return () => cacheService.unregisterHook(key)
   }, [key])
 

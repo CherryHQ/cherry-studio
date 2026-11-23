@@ -26,6 +26,7 @@ const logger = loggerService.withContext('TraceStorageService')
 // growing memory without bound; the oldest buffered span is evicted first (Map insertion order).
 const MAX_PENDING_EVENT_SPANS = 1000
 const MAX_PENDING_EVENTS_PER_SPAN = 200
+
 // A single OTLP request can carry ~10 MiB of decompressed plaintext (raw request/response bodies,
 // tool I/O), so the count caps above don't bound memory — one buffered span could hold megabytes.
 // Cap the total retained bytes too and evict oldest-first until under budget.
@@ -59,7 +60,9 @@ const MAX_SPAN_EVENT_BYTES = 2 * 1024 * 1024
 
 function sumEventBytes(events: TimedEvent[]): number {
   let total = 0
+
   for (const event of events) total += estimateEventBytes(event)
+
   return total
 }
 
@@ -72,6 +75,7 @@ function sumEventBytes(events: TimedEvent[]): number {
 function capSpanEvents(events: TimedEvent[], bytes: number) {
   let dropped = 0
   let retained = bytes
+
   while (
     events.length - dropped > 0 &&
     (events.length - dropped > MAX_SPAN_EVENTS || retained > MAX_SPAN_EVENT_BYTES)
@@ -79,6 +83,7 @@ function capSpanEvents(events: TimedEvent[], bytes: number) {
     retained -= estimateEventBytes(events[dropped])
     dropped++
   }
+
   return { events: dropped > 0 ? events.slice(dropped) : events, bytes: Math.max(0, retained) }
 }
 
@@ -86,20 +91,26 @@ function capSpanEventArray(events: TimedEvent[] | undefined) {
   if (!events || events.length === 0) return { events, bytes: 0 }
   const retained: TimedEvent[] = []
   let bytes = 0
+
   for (const event of events) {
     const eventBytes = estimateEventBytes(event)
+
     if (eventBytes > MAX_SPAN_EVENT_BYTES) continue
     retained.push(event)
     bytes += eventBytes
   }
+
   return capSpanEvents(retained, bytes)
 }
 
 /** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
 function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity[] {
   const byId = new Map<string, SpanEntity>()
+
   for (const span of base) byId.set(span.id, span)
+
   for (const span of overrides) byId.set(span.id, span)
+
   return Array.from(byId.values())
 }
 
@@ -114,8 +125,10 @@ function encodeTraceSegment(value: string): string {
   const escaped = value
     .replace(/%/g, '%25')
     .replace(/[<>:"/\\|?*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)
+
   return Array.from(escaped, (char) => {
     const code = char.charCodeAt(0)
+
     return code < 0x20 || code === 0x7f ? `%${code.toString(16).toUpperCase().padStart(2, '0')}` : char
   }).join('')
 }
@@ -147,6 +160,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     logger.info(
       `Developer mode is ${enabled ? 'enabled' : 'disabled'}, trace storage ${enabled ? 'activated' : 'skipped'}`
     )
+
     if (enabled) {
       await this.activate()
     }
@@ -186,10 +200,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!this.isActivated) return
     const spanId = span.spanContext().spanId
     const spanEntity = this.store.getSpan(spanId)
+
     if (!spanEntity) {
       // Missing on end means the start span was evicted or never recorded (e.g. flush race);
       // the captured end status/body would otherwise be lost silently.
       logger.warn('endSpan: span not found in store', { spanId })
+
       return
     }
 
@@ -212,6 +228,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   async cleanLocalData() {
     this.store.clear()
     this.clearPendingEvents()
+
     try {
       await fs.rm(this.traceRootDir(), { recursive: true, force: true })
     } catch (err) {
@@ -226,6 +243,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!this.isActivated) return
 
     const traceIds = this.store.getTraceIdsByTopic(topicId)
+
     for (const traceId of traceIds) {
       await this.flushTrace(topicId, traceId)
     }
@@ -234,6 +252,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   setTopicId(traceId: string, topicId: string): void {
     if (!this.isActivated) return
     this.store.registerTraceMeta(traceId, { topicId })
+
     // Backfill spans stored before this trace's topic was known — e.g. spans a prewarmed warm query
     // exported before the live connection reached prepareTrace(). Without this they keep an undefined
     // topicId and stay invisible to getSpans()/flushTrace(), which both filter on topicId === query.
@@ -249,6 +268,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!this.isActivated) return
     this.applyTraceMeta(entity)
     const existing = this.store.getSpan(entity.id)
+
     if (existing) {
       // Preserve events already on the span (incl. orphan log events drained earlier): a later
       // /v1/traces export carrying empty/partial events must not drop them. Merge into the incoming
@@ -261,6 +281,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       this.setRetainedEvents(entity, entity.events)
       this.addEntity(entity)
     }
+
     this.updateModelName(entity)
     // Claude Code spans land here via /v1/traces; attach any log events that arrived first.
     this.drainPendingEvents(entity.id)
@@ -276,16 +297,20 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   addSpanEvent(_traceId: string, spanId: string, event: TimedEvent): void {
     if (!this.isActivated) return
     const span = this.store.getSpan(spanId)
+
     if (!span) {
       this.bufferPendingEvent(spanId, event)
+
       return
     }
+
     this.appendEventsToSpan(span, [event])
   }
 
   private appendEventsToSpan(span: SpanEntity, events: TimedEvent[]): void {
     if (events.length === 0) return
     const incoming = capSpanEventArray(events)
+
     if (!incoming.events || incoming.events.length === 0) return
     const existing = Array.isArray(span.events) ? span.events : []
     const before = this.spanEventBytes.get(span) ?? sumEventBytes(existing)
@@ -305,15 +330,18 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private bufferPendingEvent(spanId: string, event: TimedEvent): void {
     let events = this.pendingEvents.get(spanId)
+
     if (!events) {
       // Evict the oldest buffered span (insertion order) once over the span-count cap.
       if (this.pendingEvents.size >= MAX_PENDING_EVENT_SPANS) this.evictOldestPendingSpan()
       events = []
       this.pendingEvents.set(spanId, events)
     }
+
     if (events.length >= MAX_PENDING_EVENTS_PER_SPAN) return
     events.push(event)
     this.pendingEventBytes += estimateEventBytes(event)
+
     // Evict oldest buffered spans until retained plaintext fits the byte budget. A single oversized
     // orphan is dropped too: it may never receive a parent span and cannot be allowed to pin memory.
     while (this.pendingEventBytes > MAX_PENDING_EVENT_BYTES && this.pendingEvents.size > 0) {
@@ -323,16 +351,21 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private evictOldestPendingSpan(): void {
     const oldest = this.pendingEvents.keys().next().value
+
     if (oldest !== undefined) this.removePendingSpan(oldest)
   }
 
   /** Remove a span's buffered events, keeping pendingEventBytes balanced. Returns the removed events. */
   private removePendingSpan(spanId: string): TimedEvent[] | undefined {
     const events = this.pendingEvents.get(spanId)
+
     if (!events) return undefined
     this.pendingEvents.delete(spanId)
+
     for (const event of events) this.pendingEventBytes -= estimateEventBytes(event)
+
     if (this.pendingEventBytes < 0) this.pendingEventBytes = 0
+
     return events
   }
 
@@ -344,8 +377,10 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   /** Drain buffered orphan events onto a span that has just been stored. No-op when none buffered. */
   private drainPendingEvents(spanId: string): void {
     const events = this.removePendingSpan(spanId)
+
     if (!events) return
     const span = this.store.getSpan(spanId)
+
     if (!span) return
     this.appendEventsToSpan(span, events)
   }
@@ -359,6 +394,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   async getSpans(topicId: string, traceId: string) {
     const live = this.store.getSpans({ topicId, traceId })
     const history = await this.getHistoryData(topicId, traceId)
+
     // Return OTel-faithful spans merged across history + live; display-only re-parenting of warm
     // claude_code spans under their owning ai.turn is done in the renderer trace viewer.
     return mergeSpansById(history, live)
@@ -387,6 +423,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     // Take the live snapshot after the async history read so the returned revision covers every
     // in-memory mutation included in this reset response.
     const liveSnapshot = this.store.getSpanChanges(query)
+
     return {
       cursor: { historyVersion, liveRevision: liveSnapshot.revision },
       reset: true,
@@ -402,6 +439,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private applyTraceMeta(entity: SpanEntity): void {
     const meta = this.store.getTraceMeta(entity.traceId)
     const topicId = entity.topicId ?? meta?.topicId ?? this.getStringAttribute(entity, 'trace.topicId')
+
     const modelName =
       entity.modelName ??
       this.getStringAttribute(entity, 'trace.modelName') ??
@@ -419,14 +457,17 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private getStringAttribute(entity: SpanEntity, key: string): string | undefined {
     const value = entity.attributes?.[key]
+
     return value === undefined || value === null ? undefined : value.toString()
   }
 
   private updateModelName(entity: SpanEntity) {
     let modelName = entity.modelName || entity.attributes?.modelName?.toString()
+
     if (!modelName && entity.parentId) {
       modelName = this.store.getSpan(entity.parentId)?.modelName
     }
+
     entity.modelName = modelName
     this.applyTraceMeta(entity)
     this.store.setSpan(entity)
@@ -435,6 +476,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private updateEntity(entity: SpanEntity): void {
     this.applyTraceMeta(entity)
     const savedEntity = this.store.getSpan(entity.id)
+
     if (!savedEntity) return
 
     // SAFETY: retain typed span fields while copying opaque historical extension keys.
@@ -446,10 +488,13 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
     Object.keys(incoming).forEach((key) => {
       const value = incoming[key]
+
       if (value === undefined) {
         target[key] = value
+
         return
       }
+
       if (key === 'attributes') {
         this.mergeAttributes(savedEntity, entity.attributes)
       } else {
@@ -467,24 +512,32 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
    */
   private mergeEvents(saved: TimedEvent[] | undefined, incoming: TimedEvent[] | undefined): TimedEvent[] | undefined {
     if (!incoming || incoming.length === 0) return saved
+
     if (!saved || saved.length === 0) return incoming
+
     const eventKey = (event: TimedEvent) =>
       `${event.name}@${Array.isArray(event.time) ? `${event.time[0]}.${event.time[1]}` : String(event.time)}`
+
     const seen = new Set<string>()
     const merged: TimedEvent[] = []
+
     for (const event of [...saved, ...incoming]) {
       const key = eventKey(event)
+
       if (seen.has(key)) continue
       seen.add(key)
       merged.push(event)
     }
+
     return merged
   }
 
   private mergeAttributes(savedEntity: SpanEntity, value: SpanEntity['attributes']): void {
     const savedAttrs = savedEntity.attributes || {}
+
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       savedEntity.attributes = value
+
       return
     }
 
@@ -493,6 +546,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       // A `{`-prefixed string is not guaranteed to be valid JSON; an unguarded parse would
       // throw and silently drop the whole span. Fall back to the raw value on parse failure.
       let jsonData: unknown = rawValue
+
       if (typeof rawValue === 'string' && rawValue.startsWith('{')) {
         try {
           jsonData = JSON.parse(rawValue)
@@ -500,6 +554,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
           jsonData = rawValue
         }
       }
+
       if (
         savedAttrs[attrKey] !== undefined &&
         typeof jsonData === 'object' &&
@@ -517,6 +572,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private async flushTrace(topicId: string, traceId: string) {
     const spans = this.store.getSpans({ topicId, traceId })
+
     if (spans.length === 0) return
     await this.writeTraceFile(spans, topicId, traceId)
     // Clear exactly what we wrote — not the whole traceId. Spans of this trace that have no
@@ -531,48 +587,61 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     // plaintext by design) and userData can be world-readable on Linux (0755).
     await fs.mkdir(dirPath, { recursive: true, mode: 0o700 })
     const filePath = this.traceFilePath(topicId, traceId)
+
     const replacements = new Map(
       spans.flatMap((span) => (span.topicId === topicId && span.traceId === traceId ? [[span.id, span] as const] : []))
     )
+
     // Pre-encoding history was written to the raw path; carry it forward so the upgrade keeps it.
     const legacyPath = this.legacyTraceFilePath(topicId, traceId)
     const legacyExists = legacyPath !== null && (await this.fileExists(legacyPath).catch(() => false))
     const historySize = await this.historyFileSize(filePath)
+
     // Only measure for trimming when the file is already over budget — the common case pays nothing.
     const dropped =
       historySize !== null && historySize > MAX_TRACE_FILE_BYTES
         ? await this.countExpiredHistorySpans(filePath, topicId, traceId)
         : 0
+
     if (dropped > 0) {
       logger.info('Trimming trace history to the retention budget', { topicId, traceId, dropped })
     }
+
     // Write to a temp file then rename (atomic on the same filesystem) so a crash mid-write
     // can't truncate previously flushed history. Stream the prior file one line at a time instead
     // of parsing and serializing the complete trace into several large in-memory copies.
     const tmpPath = `${filePath}.${process.pid}.tmp`
     let output: FileHandle | undefined
+
     try {
       output = await fs.open(tmpPath, 'w', 0o600)
       const handle = output
       const seenIds = new Set<string>()
+
       const carryOver = async (existing: SpanEntity, line: string) => {
         if (existing.topicId !== topicId || existing.traceId !== traceId || seenIds.has(existing.id)) return
         seenIds.add(existing.id)
         const replacement = replacements.get(existing.id)
+
         // A span this flush re-writes is current data, so retention never trims it.
         if (seenIds.size <= dropped && !replacement) return
         await this.writeSpanLine(handle, replacement ?? line)
         replacements.delete(existing.id)
       }
+
       if (historySize !== null) await this.forEachSpanLine(filePath, carryOver)
+
       // Encoded file first so it wins on duplicate ids; the legacy tail converges away below.
       if (legacyPath && legacyExists) await this.forEachSpanLine(legacyPath, carryOver)
+
       for (const span of replacements.values()) {
         await this.writeSpanLine(output, span)
       }
+
       await output.close()
       output = undefined
       await fs.rename(tmpPath, filePath)
+
       // Converge on the encoded path. Best-effort so a stale legacy file never fails a flush;
       // rmdir only succeeds once the last legacy trace file of the topic is gone.
       if (legacyPath && legacyExists) {
@@ -590,8 +659,10 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private async writeSpanLine(output: FileHandle, span: SpanEntity | string): Promise<void> {
     const content = Buffer.from(`${typeof span === 'string' ? span : JSON.stringify(span)}\n`)
     let offset = 0
+
     while (offset < content.length) {
       const { bytesWritten } = await output.write(content, offset, content.length - offset, null)
+
       if (bytesWritten === 0) throw new Error('TraceStorageService: failed to make progress writing trace file')
       offset += bytesWritten
     }
@@ -614,11 +685,13 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
     let retained = 0
     let dropped = sizes.length
+
     for (let index = sizes.length - 1; index >= 0; index--) {
       if (retained + sizes[index] > MAX_TRACE_FILE_BYTES) break
       retained += sizes[index]
       dropped = index
     }
+
     return dropped
   }
 
@@ -626,10 +699,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     const filePath = this.traceFilePath(topicId, traceId)
     const history = await this.readHistoryFile(filePath, topicId, traceId)
     const legacyPath = this.legacyTraceFilePath(topicId, traceId)
+
     if (!legacyPath) return history
     // Pre-encoding histories live at the raw path on POSIX. Windows never wrote them (mkdir
     // failed), so anything unreadable there is treated as absent, never fatal to the viewer.
     const legacy = await this.readHistoryFile(legacyPath, topicId, traceId).catch(() => [])
+
     return mergeSpansById(legacy, history)
   }
 
@@ -639,6 +714,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     }
 
     const spans: SpanEntity[] = []
+
     try {
       await this.forEachSpanLine(filePath, (span) => {
         if (span.topicId === topicId && span.traceId === traceId) spans.push(span)
@@ -648,6 +724,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       logger.error('Failed to read trace history file', err as Error, { filePath })
       throw err
     }
+
     return spans
   }
 
@@ -662,9 +739,11 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   ): Promise<void> {
     const input = createReadStream(filePath, { encoding: 'utf8' })
     const lines = createInterface({ input, crlfDelay: Infinity })
+
     try {
       for await (const line of lines) {
         const span = this.parseSpanLine(line)
+
         if (span) await visit(span, line.trim())
       }
     } finally {
@@ -675,11 +754,14 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private parseSpanLine(line: string): SpanEntity | undefined {
     const trimmed = line.trim()
+
     if (!trimmed) return undefined
+
     try {
       return JSON.parse(trimmed) as SpanEntity
     } catch (error) {
       logger.error('Failed to parse trace history line', error as Error, { lineLength: trimmed.length })
+
       return undefined
     }
   }
@@ -687,22 +769,27 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private async getHistoryVersion(topicId: string, traceId: string): Promise<string | null> {
     const filePath = this.traceFilePath(topicId, traceId)
     let version: string | null = null
+
     try {
       const stats = await fs.stat(filePath, { bigint: true })
       version = `${stats.mtimeNs}:${stats.size}`
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error
     }
+
     // Include the legacy file so the viewer resyncs when pre-encoding history appears or migrates
     // away. Unreadable there (e.g. `:` on Windows) just means no legacy history.
     const legacyPath = this.legacyTraceFilePath(topicId, traceId)
+
     const legacyVersion = legacyPath
       ? await fs.stat(legacyPath, { bigint: true }).then(
           (stats) => `${stats.mtimeNs}:${stats.size}`,
           () => null as string | null
         )
       : null
+
     if (version === null) return legacyVersion
+
     return legacyVersion === null ? version : `${version}|${legacyVersion}`
   }
 
@@ -730,11 +817,13 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private traceTopicDir(topicId: string): string {
     this.assertSafeSegment(topicId, 'topicId')
+
     return path.join(this.traceRootDir(), encodeTraceSegment(topicId))
   }
 
   private traceFilePath(topicId: string, traceId: string): string {
     this.assertSafeSegment(traceId, 'traceId')
+
     return path.join(this.traceTopicDir(topicId), encodeTraceSegment(traceId))
   }
 
@@ -742,6 +831,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   // unchanged, so safe ids pay for one string comparison and no extra filesystem access.
   private legacyTraceFilePath(topicId: string, traceId: string): string | null {
     const legacy = path.join(this.traceRootDir(), topicId, traceId)
+
     return legacy === this.traceFilePath(topicId, traceId) ? null : legacy
   }
 
@@ -758,6 +848,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private async fileExists(filePath: string) {
     try {
       await fs.access(filePath)
+
       return true
     } catch (err) {
       // Only a genuinely-missing file means "no history". Surface anything else (e.g. EACCES)

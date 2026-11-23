@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../types'
+
 const GithubCopilotCli: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="16 24.958 88 70.083" {...props}>
     <path
@@ -11,5 +12,7 @@ const GithubCopilotCli: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
+
 export { GithubCopilotCli }
+
 export default GithubCopilotCli

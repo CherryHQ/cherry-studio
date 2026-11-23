@@ -16,6 +16,7 @@ import type {
 
 export async function readContextUsage(conversation: Conversation): Promise<OperationResult<ThreadContextUsage>> {
   const usage = await conversation.contextUsage(BACKGROUND_CONTEXT)
+
   if (!usage)
     return {
       status: 'unknown',
@@ -24,13 +25,16 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
   const system = getCurrentSystemMessage(usage.messages)
   const categories: ContextCategory[] = []
   const resources: ContextResource[] = []
+
   for (const part of measureSystemContext(system, usage.deferred)) {
     const key = categoryKeys.get(part.kind) ?? 'other'
     const occupancy = part.state === 'deferred' ? 'deferred' : 'included'
     const id = `${key}:${occupancy}`
     const category = categories.find((category) => category.id === id)
+
     if (category) categories[categories.indexOf(category)] = { ...category, tokens: category.tokens + part.tokens }
     else categories.push({ id, key, occupancy, tokens: part.tokens, precision: 'estimated' })
+
     if (part.state)
       resources.push({
         id: `tool:${part.id}`,
@@ -54,6 +58,7 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
           }
         })
   }
+
   categories.push({
     id: 'messages',
     key: 'messages',
@@ -63,6 +68,7 @@ export async function readContextUsage(conversation: Conversation): Promise<Oper
       .filter((message) => message.role !== 'system')
       .reduce((sum, message) => sum + estimateMessageTokens(message), 0)
   })
+
   return {
     status: 'confirmed',
     value: {

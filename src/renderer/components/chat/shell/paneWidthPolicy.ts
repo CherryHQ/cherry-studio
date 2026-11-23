@@ -13,6 +13,7 @@ const DEFAULT_PANE_MIN = ARTIFACT_RIGHT_PANE_MIN_WIDTH
  */
 export function resolveDockedPaneWidth(available: number, resolvedWidth: number, paneMin = DEFAULT_PANE_MIN): number {
   if (available <= 0) return 0
+
   return Math.max(
     Math.min(resolvedWidth, available - CENTER_MIN),
     Math.min(paneMin, (available * paneMin) / (paneMin + CHAT_CENTER_FLOOR_WIDTH))
@@ -26,6 +27,7 @@ export function resolveDockedPaneWidth(available: number, resolvedWidth: number,
 export function buildDockedPaneWidthExpression(resolvedWidth: number | string, paneMin = DEFAULT_PANE_MIN): string {
   const resolved = typeof resolvedWidth === 'number' ? `${resolvedWidth}px` : resolvedWidth
   const total = paneMin + CHAT_CENTER_FLOOR_WIDTH
+
   return `max(min(${resolved}, calc(100% - ${CENTER_MIN}px)), min(${paneMin}px, calc(100% * ${paneMin} / ${total})))`
 }
 
@@ -56,6 +58,7 @@ export function predictCenterWidth({
   paneMin
 }: PredictCenterWidthInput): number {
   const available = shellWidth - listWidth
+
   return available - (paneOpen ? resolveDockedPaneWidth(available, paneWidth, paneMin) : 0)
 }
 
@@ -64,6 +67,8 @@ const RESTORE_HYSTERESIS = 4
 /** Level-based collapse with a small restore hysteresis against float jitter. */
 export function evaluateAutoCollapse(predictedCenter: number, currentlyCollapsed: boolean): boolean {
   if (predictedCenter < CENTER_MIN) return true
+
   if (predictedCenter >= CENTER_MIN + RESTORE_HYSTERESIS) return false
+
   return currentlyCollapsed
 }

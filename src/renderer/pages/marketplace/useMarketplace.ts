@@ -21,15 +21,20 @@ export async function loadMarketplaceSkills(): Promise<MarketplaceSkill[]> {
   const items = new Map<string, MarketplaceSkill>()
   const limit = 100
   let offset = 0
+
   while (true) {
     const page = await ipcApi.request('skill.marketplace.list', { offset, limit })
+
     if (page.pagination.offset !== offset || (page.pagination.hasMore && !page.items.length)) {
       throw new Error('Invalid CherryIN pagination')
     }
+
     for (const item of page.items) items.set(item.id, item)
+
     if (!page.pagination.hasMore) break
     offset += page.pagination.limit
   }
+
   return [...items.values()]
 }
 
@@ -38,18 +43,22 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
   const { cache, mutate } = useSWRConfig()
   const [persistedCatalog, setPersistedCatalog] = usePersistCache('feature.marketplace.skill_catalog')
   const [sourceSummary, setSourceSummary] = useState<{ sourceId: string; skipped: number } | null>(null)
+
   const cached = useSWR(
     sourceId ? ['skill.subscription.cache', sourceId] : null,
     ([, id]) => ipcApi.request('skill.subscription.list', { sourceId: id }),
     { revalidateOnFocus: false, shouldRetryOnError: false }
   )
+
   const catalogKey = sourceId ? ['skill.subscription.catalog', sourceId] : 'skill.marketplace.list'
+
   const catalog = useSWR<MarketplaceSkill[]>(
     active ? catalogKey : null,
     async () => {
       if (!sourceId) return loadMarketplaceSkills()
       const snapshot = await ipcApi.request('skill.subscription.refresh', { sourceId })
       setSourceSummary({ sourceId, skipped: snapshot.skipped })
+
       return snapshot.items
     },
     {
@@ -61,6 +70,7 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
       }
     }
   )
+
   const installed = useInstalledSkills()
   const mutateCatalog = catalog.mutate
   useReconcileSkillsOnOpen(true)
@@ -68,6 +78,7 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
   const pending = useRef(new Set<string>())
   const [mutating, setMutating] = useState<ReadonlySet<string>>(() => new Set())
   const [failures, setFailures] = useState<Record<string, MarketplaceInstallResult['failed']>>({})
+
   const installedSources = useMemo(
     () =>
       new Map(
@@ -77,6 +88,7 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
       ),
     [installed.skills]
   )
+
   const installedMembers = useCallback(
     (skill: MarketplaceSkill) => {
       if (skill.subscription) {
@@ -84,24 +96,30 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
           ? skill.members
           : [...installedSources.values()].flatMap((local) => {
               if (!local.sourceUrl?.startsWith(skill.subscription!.url + '#')) return []
+
               try {
                 return [{ path: decodeURIComponent(new URL(local.sourceUrl).hash.slice(1)), name: local.name }]
               } catch {
                 return []
               }
             })
+
         return members.flatMap((member) => {
           const local = installedSources.get(skillInstallIdentity(subscriptionMemberSource(skill, member.path)))
+
           return local ? [{ ...member, skillId: local.id }] : []
         })
       }
+
       return (
         skill.membersKnown
           ? skill.members
           : [...installedSources.values()].flatMap((local) => {
               if (local.namespace !== marketplaceSkillNamespace(skill.id) || !local.sourceUrl) return []
+
               try {
                 const path = decodeURIComponent(new URL(local.sourceUrl).hash.slice(1))
+
                 return [{ path, name: local.name }]
               } catch {
                 return []
@@ -109,18 +127,22 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
             })
       ).flatMap((member) => {
         const local = installedSources.get(marketplaceSkillSource(skill.id, member.path))
+
         return local?.namespace === marketplaceSkillNamespace(skill.id) ? [{ ...member, skillId: local.id }] : []
       })
     },
     [installedSources]
   )
+
   const installedCount = useCallback((skill: MarketplaceSkill) => installedMembers(skill).length, [installedMembers])
+
   // Root provenance identifies older single-skill installs without downloading again.
   // Legacy collections need a ZIP manifest before their completeness can be known.
   const items = useMemo(
     () =>
       catalog.data?.map((skill) => {
         const local = skill.subscription ? undefined : installedSources.get(marketplaceSkillSource(skill.id, ''))
+
         return !skill.membersKnown && local?.namespace === marketplaceSkillNamespace(skill.id)
           ? { ...skill, membersKnown: true, isCollection: false, members: [{ path: '', name: local.name }] }
           : skill
@@ -135,6 +157,7 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
       setMutating(new Set(pending.current))
       setFailures((current) => ({ ...current, [skill.id]: [] }))
       const name = localizeMarketplaceText(skill.name, i18n.language)
+
       try {
         if (action === 'install') {
           const result = skill.subscription
@@ -143,11 +166,13 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
                 itemId: skill.id
               })
             : await ipcApi.request('skill.marketplace.install', { id: skill.id })
+
           const contents = {
             members: result.members,
             membersKnown: true,
             isCollection: result.members.some((m) => m.path !== '')
           }
+
           await Promise.all([
             mutateCatalog((items) => items?.map((item) => (item.id === skill.id ? { ...item, ...contents } : item)), {
               revalidate: false
@@ -161,6 +186,7 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
             )
           ])
           setFailures((current) => ({ ...current, [skill.id]: result.failed }))
+
           if (result.failed.length) {
             toast.error(
               t('marketplace.partial_install', {
@@ -171,13 +197,16 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
           } else {
             toast.success(t('settings.skills.installSuccess', { name }))
           }
+
           return result.failed.length === 0
         }
 
         const failed: MarketplaceInstallResult['failed'] = []
+
         for (const member of installedMembers(skill)) {
           try {
             const result = await ipcApi.request('skill.uninstall', { skillId: member.skillId })
+
             if (!result.success) throw result.error
           } catch (error) {
             failed.push({
@@ -187,13 +216,16 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
             })
           }
         }
+
         setFailures((current) => ({ ...current, [skill.id]: failed }))
+
         if (failed.length) {
           logger.warn('Marketplace uninstall failed', { id: skill.id, failed })
           toast.error(t('common.delete_failed'))
         } else {
           toast.success(t('common.success'))
         }
+
         return failed.length === 0
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -202,6 +234,7 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
         toast.error(
           `${t(action === 'install' ? 'settings.skills.installFailed' : 'common.delete_failed', { name })}: ${message}`
         )
+
         return false
       } finally {
         try {
@@ -209,6 +242,7 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
         } catch (error) {
           logger.warn('Failed to refresh installed skills', { error })
         }
+
         pending.current.delete(skill.id)
         setMutating(new Set(pending.current))
       }

@@ -81,9 +81,11 @@ export class BootConfigService {
    */
   public set<K extends BootConfigKey>(key: K, value: BootConfigSchema[K]): void {
     const parsed = bootConfigSchema.shape[key].safeParse(value)
+
     if (!parsed.success) {
       throw new Error(`Invalid boot config value for "${key}": ${parsed.error.message}`)
     }
+
     const validValue = parsed.data as BootConfigSchema[K]
     const previousValue = this.config[key]
     this.config[key] = validValue
@@ -165,6 +167,7 @@ export class BootConfigService {
     if (!this.listeners.has(key)) {
       this.listeners.set(key, new Set())
     }
+
     this.listeners.get(key)!.add(listener as BootConfigChangeListener)
 
     return () => {
@@ -191,6 +194,7 @@ export class BootConfigService {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
+
     if (!this.dirty) return
     this.writeToDisk()
     this.dirty = false
@@ -225,6 +229,7 @@ export class BootConfigService {
     previousValue?: BootConfigSchema[K]
   ): void {
     const listeners = this.listeners.get(key)
+
     if (!listeners) return
 
     const payload: BootConfigChangePayload<K> = { key, value, previousValue }
@@ -246,6 +251,7 @@ export class BootConfigService {
     try {
       if (!fs.existsSync(this.filePath)) {
         logger.info(`Boot config file not found at ${this.filePath}, using defaults`)
+
         return { ...DefaultBootConfig }
       }
 
@@ -254,10 +260,12 @@ export class BootConfigService {
       try {
         const parsed: JSONValue = JSON.parse(content)
         const { config, invalidKeys, invalidRoot } = this.mergeDefaults(parsed)
+
         if (invalidRoot || invalidKeys.length > 0) {
           const message = invalidRoot
             ? 'root value is not an object'
             : `values failed schema validation: ${invalidKeys.join(', ')}`
+
           this.loadError = {
             type: 'validation_error',
             message,
@@ -270,6 +278,7 @@ export class BootConfigService {
         } else {
           logger.info(`Boot config loaded from ${this.filePath}`)
         }
+
         return config
       } catch (parseError) {
         const errorMessage = parseError instanceof Error ? parseError.message : String(parseError)
@@ -280,6 +289,7 @@ export class BootConfigService {
           rawContent: content
         }
         logger.error(`Failed to parse boot config file ${this.filePath}: ${errorMessage}`)
+
         return { ...DefaultBootConfig }
       }
     } catch (error) {
@@ -290,6 +300,7 @@ export class BootConfigService {
         filePath: this.filePath
       }
       logger.error(`Failed to read boot config file ${this.filePath}: ${errorMessage}`)
+
       return { ...DefaultBootConfig }
     }
   }
@@ -301,8 +312,10 @@ export class BootConfigService {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
     }
+
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null
+
       // Auto-save is best-effort: it runs from a timer callback, so a failure
       // must not throw (that would be an unhandled exception). Log and keep the
       // dirty flag so a later persist()/flush() can retry.
@@ -323,6 +336,7 @@ export class BootConfigService {
    */
   private writeToDisk(): void {
     const diff: Partial<BootConfigSchema> = {}
+
     for (const key of Object.keys(this.config) as BootConfigKey[]) {
       if (this.config[key] !== DefaultBootConfig[key]) {
         Object.assign(diff, { [key]: this.config[key] })
@@ -344,10 +358,12 @@ export class BootConfigService {
           throw error
         }
       }
+
       return
     }
 
     const dir = path.dirname(this.filePath)
+
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
     }
@@ -379,6 +395,7 @@ export class BootConfigService {
     for (const key of Object.keys(config) as BootConfigKey[]) {
       if (!(key in loaded)) continue
       const parsed = bootConfigSchema.shape[key].safeParse(loaded[key])
+
       if (parsed.success) {
         Object.assign(config, { [key]: parsed.data })
       } else {

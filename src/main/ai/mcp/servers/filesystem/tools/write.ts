@@ -25,6 +25,7 @@ export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, bas
 
   // Create parent directory if it doesn't exist
   const parentDir = path.dirname(validPath)
+
   try {
     await fs.mkdir(parentDir, { recursive: true })
   } catch (error: any) {
@@ -35,6 +36,7 @@ export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, bas
 
   // Check if file exists (for logging)
   let isOverwrite = false
+
   try {
     await fs.stat(validPath)
     isOverwrite = true

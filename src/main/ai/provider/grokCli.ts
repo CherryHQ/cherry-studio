@@ -35,20 +35,27 @@ const GROK_VERSION_FLOOR = '1.0.13'
 export function pickGrokClientVersion(fileContents: string | null, floor: string = GROK_VERSION_FLOOR): string {
   if (typeof fileContents !== 'string' || fileContents.length === 0) return floor
   let parsed: unknown
+
   try {
     parsed = JSON.parse(fileContents)
   } catch {
     return floor
   }
+
   if (!parsed || typeof parsed !== 'object') return floor
   const obj = parsed as { stable_version?: unknown; version?: unknown }
+
   const candidate =
     typeof obj.stable_version === 'string' ? obj.stable_version : typeof obj.version === 'string' ? obj.version : null
+
   if (!candidate) return floor
   const trimmed = candidate.trim()
+
   if (!validSemver(trimmed)) return floor
+
   if (gte(trimmed, floor)) return trimmed
   logger.warn(`Installed Grok CLI ${trimmed} is below required floor ${floor}; clamping header.`)
+
   return floor
 }
 
@@ -64,17 +71,21 @@ export function pickGrokClientVersion(fileContents: string | null, floor: string
  */
 export function resolveGrokClientVersion(): string {
   const override = process.env.GROK_CLIENT_VERSION_OVERRIDE?.trim()
+
   if (override) return override
   const filePath = application.getPath('external.grok.version_file')
   let raw: string
+
   try {
     raw = fs.readFileSync(filePath, 'utf8')
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       logger.warn(`Failed to read ${filePath}; using floor ${GROK_VERSION_FLOOR}.`, err as Error)
     }
+
     return GROK_VERSION_FLOOR
   }
+
   return pickGrokClientVersion(raw)
 }
 
@@ -94,13 +105,17 @@ export function normalizeGrokModelId(modelId: string): string {
 
 function textFromResponsesContent(content: JSONValue | undefined): string {
   if (typeof content === 'string') return content
+
   if (!Array.isArray(content)) return ''
+
   return content
     .map((part) => {
       if (typeof part === 'string') return part
+
       if (part && typeof part === 'object' && 'text' in part && typeof part.text === 'string') {
         return part.text
       }
+
       return ''
     })
     .filter(Boolean)
@@ -116,14 +131,20 @@ export function rewriteGrokCliResponsesBody(json: JSONObject): JSONObject {
     const instructionParts: string[] = []
     json.input = json.input.filter((item) => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return true
+
       // Unsigned reasoning from other providers cannot be replayed to the proxy.
       if (item.type === 'reasoning') return typeof item.encrypted_content === 'string' && !!item.encrypted_content
+
       if (typeof item.content === 'string' && item.content.length === 0) return false
+
       if (item.role !== 'developer' && item.role !== 'system') return true
       const text = textFromResponsesContent(item.content).trim()
+
       if (text) instructionParts.push(text)
+
       return false
     })
+
     if (instructionParts.length > 0) {
       json.instructions = [json.instructions, ...instructionParts]
         .filter((part) => typeof part === 'string' && part)
@@ -139,6 +160,7 @@ export function rewriteGrokCliResponsesBody(json: JSONObject): JSONObject {
   const modelId = normalizeGrokModelId(typeof json.model === 'string' ? json.model : '')
   const reasoning = json.reasoning
   const effort = reasoning && typeof reasoning === 'object' && !Array.isArray(reasoning) ? reasoning.effort : undefined
+
   // Legacy CLI models reject effort; newer models receive the already-resolved effort.
   if (modelId && modelId !== 'grok-build' && modelId !== 'grok-composer-2.5-fast' && effort) {
     json.reasoning = { effort }
@@ -172,6 +194,8 @@ export function buildGrokCliRequestHeaders(base: HeadersInit | undefined, creds:
   headers.set('x-authenticateresponse', 'authenticate-response')
   headers.set('x-grok-client-mode', 'interactive')
   const modelOverride = normalizeGrokModelId(creds.modelId)
+
   if (modelOverride) headers.set('x-grok-model-override', modelOverride)
+
   return headers
 }

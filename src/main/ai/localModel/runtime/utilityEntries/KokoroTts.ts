@@ -34,6 +34,7 @@ export class KokoroTts {
 
   async synthesize(input: TtsInferenceContract['methods']['synthesize']['input'], signal: AbortSignal) {
     signal.throwIfAborted()
+
     if (!this.model) {
       try {
         const dataDir = join(input.modelDir, 'espeak-ng-data')
@@ -62,7 +63,9 @@ export class KokoroTts {
         })
       }
     }
+
     signal.throwIfAborted()
+
     const audio = this.model.generate({
       text: input.text,
       sid: Number(input.voice),
@@ -70,8 +73,11 @@ export class KokoroTts {
       // Electron's V8 sandbox requires audio buffers owned by the JavaScript runtime.
       enableExternalBuffer: false
     })
+
     signal.throwIfAborted()
+
     if (!audio.samples.length || audio.sampleRate <= 0) throw new Error('Speech output is empty')
+
     if (audio.samples.length > 300 * audio.sampleRate) throw new Error('Speech output exceeds five minutes')
     this.runtime.writeWave(input.outputPath, audio)
   }

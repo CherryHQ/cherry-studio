@@ -44,6 +44,7 @@ export function useTextInput(
           maxWidth: selection.x + selection.width - textInputPosition.x
         })
       }
+
       setTextInputPosition(null)
     },
     [textInputPosition, selection, commitDrawing, annotationState.color, annotationState.fontSize]

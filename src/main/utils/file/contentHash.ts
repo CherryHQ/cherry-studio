@@ -24,6 +24,7 @@ export function hashContent(data: Uint8Array | string): ContentHash {
 /** Create an incremental XXH3-64 hasher with the same output as {@link hashContent}. */
 export function createContentHasher(): ContentHasher {
   const hasher = xxh3.Xxh3.withSeed(SEED)
+
   return {
     update(chunk) {
       hasher.update(chunk)
@@ -42,5 +43,6 @@ export interface ParsedContentHash {
 /** Parse a validated `{algorithm}:{lowercase hex}` hash without throwing. */
 export function parseContentHash(value: string): ParsedContentHash | null {
   const match = CONTENT_HASH_PATTERN.exec(value)
+
   return match ? { algo: match[1], hex: match[2] } : null
 }

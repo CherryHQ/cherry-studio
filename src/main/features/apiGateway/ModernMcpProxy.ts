@@ -31,6 +31,7 @@ export class ModernMcpProxy {
     })
     this.catalogSubscription = application.get('McpRuntimeService').onCatalogChanged(({ serverId, kind }) => {
       if (serverId !== server.id) return
+
       if (kind === 'prompts') this.handler.notify.promptsChanged()
       else this.handler.notify.resourcesChanged()
     })
@@ -38,8 +39,10 @@ export class ModernMcpProxy {
 
   private async createServer(config: McpServer): Promise<Server> {
     const runtime = application.get('McpRuntimeService')
+
     // Connected servers skip the per-request liveness probe; the factory runs on every request.
     if (!runtime.getConnectedServerCapabilities(config.id)) await runtime.getServerCapabilities(config.id)
+
     const server = new Server(
       { name: config.name, version: '2.0.0' },
       {
@@ -51,6 +54,7 @@ export class ModernMcpProxy {
         instructions: application.get('McpRuntimeService').getConnectedServerInstructions(config.id)?.text
       }
     )
+
     server.setRequestHandler('tools/list', async () => ({
       // The route warms the catalog before tools/list, and list_changed keeps it fresh.
       tools: application.get('McpCatalogService').listTools(config.id).map(stripCatalogFields),
@@ -74,6 +78,7 @@ export class ModernMcpProxy {
       ttlMs: 0,
       cacheScope: 'private'
     }))
+
     const forward = <M extends McpForwardMethod>(
       method: M,
       params: Parameters<McpConnection['forwardRequest']>[1],
@@ -81,8 +86,11 @@ export class ModernMcpProxy {
     ): Promise<ResultTypeMap[M] | InputRequiredResult> => {
       const progressToken = context.mcpReq._meta?.progressToken
       const request = { ...params }
+
       if (context.mcpReq.inputResponses !== undefined) request.inputResponses = context.mcpReq.inputResponses
+
       if (context.mcpReq.requestState() !== undefined) request.requestState = context.mcpReq.requestState()
+
       return application.get('McpRuntimeService').forwardRequest(config.id, method, request, {
         signal: context.mcpReq.signal,
         capabilities: context.mcpReq.envelope?.[CLIENT_CAPABILITIES_META_KEY] ?? {},
@@ -92,6 +100,7 @@ export class ModernMcpProxy {
             : (progress, total) => {
                 this.lastActivityAt = Date.now()
                 const params = { progressToken, progress }
+
                 if (total !== undefined) Object.assign(params, { total })
                 void context.mcpReq
                   .notify({
@@ -102,9 +111,11 @@ export class ModernMcpProxy {
               }
       }) as Promise<ResultTypeMap[M] | InputRequiredResult>
     }
+
     server.setRequestHandler('tools/call', (request, context) => forward('tools/call', request.params, context))
     server.setRequestHandler('prompts/get', (request, context) => forward('prompts/get', request.params, context))
     server.setRequestHandler('resources/read', (request, context) => forward('resources/read', request.params, context))
+
     return server
   }
 
@@ -112,6 +123,7 @@ export class ModernMcpProxy {
   async fetch(request: Request, parsedBody?: unknown): Promise<Response> {
     this.lastActivityAt = Date.now()
     const response = await this.handler.fetch(request, { parsedBody })
+
     if (!response.body) return response
 
     const body = response.body.pipeThrough(
@@ -122,6 +134,7 @@ export class ModernMcpProxy {
         }
       })
     )
+
     return new Response(body, {
       status: response.status,
       statusText: response.statusText,

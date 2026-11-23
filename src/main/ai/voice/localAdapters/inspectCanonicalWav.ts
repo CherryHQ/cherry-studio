@@ -20,8 +20,10 @@ function invalidAudio(): never {
 
 export function inspectCanonicalWav(audio: Uint8Array) {
   if (audio.byteLength > MAX_CANONICAL_WAV_BYTES) invalidAudio()
+
   if (audio.byteLength < 12) invalidAudio()
   const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength)
+
   if (
     !matchesTag(audio, 0, 'RIFF') ||
     view.getUint32(4, true) !== audio.byteLength - 8 ||
@@ -40,11 +42,13 @@ export function inspectCanonicalWav(audio: Uint8Array) {
     const chunkSize = view.getUint32(offset + 4, true)
     const payloadOffset = offset + 8
     const paddedSize = chunkSize + (chunkSize % 2)
+
     if (paddedSize > audio.byteLength - payloadOffset) invalidAudio()
 
     if (matchesTag(audio, offset, 'fmt ')) {
       if (foundFormat || chunkSize < 16) invalidAudio()
       foundFormat = true
+
       if (
         view.getUint16(payloadOffset, true) !== PCM_FORMAT ||
         view.getUint16(payloadOffset + 2, true) !== CHANNELS ||
@@ -65,5 +69,6 @@ export function inspectCanonicalWav(audio: Uint8Array) {
   }
 
   if (!foundFormat || dataSize === undefined || dataSize === 0 || dataSize % BLOCK_ALIGN !== 0) invalidAudio()
+
   return { durationSeconds: dataSize / BYTE_RATE, dataOffset, dataBytes: dataSize }
 }

@@ -22,8 +22,10 @@ export async function downloadImages(urls: string[], options?: DownloadImagesOpt
         if (!url?.trim()) {
           logger.error('Image URL is empty, possibly due to prohibited prompt')
           toast.warning(i18next.t('message.empty_url'))
+
           return null
         }
+
         const entry =
           allowBase64DataUrls && url.startsWith('data:image')
             ? await window.api.file.createInternalEntry({
@@ -36,9 +38,11 @@ export async function downloadImages(urls: string[], options?: DownloadImagesOpt
                 url: url as `http://${string}` | `https://${string}`,
                 cleanupPolicy: 'delete_when_unreferenced'
               })
+
         return await fileEntryToMetadata(entry)
       } catch (error) {
         logger.error(`Failed to download image: ${error}`)
+
         if (
           error instanceof Error &&
           (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
@@ -47,6 +51,7 @@ export async function downloadImages(urls: string[], options?: DownloadImagesOpt
         } else if (showProxyWarning) {
           toast.warning(i18next.t('paintings.proxy_required'))
         }
+
         return null
       }
     })

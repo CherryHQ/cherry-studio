@@ -6,7 +6,9 @@ import { NomicLight } from './light'
 
 const Nomic = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <NomicLight {...props} className={className} />
+
   if (variant === 'dark') return <NomicDark {...props} className={className} />
+
   return (
     <>
       <NomicLight className={cn('dark:hidden', className)} {...props} />

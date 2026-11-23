@@ -38,6 +38,7 @@ function hasUtf8Bom(bytes: Uint8Array): boolean {
 export function decodeFileText(bytes: Uint8Array): DecodedFileText {
   const hasBom = hasUtf8Bom(bytes)
   let content: string
+
   try {
     content = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
   } catch {
@@ -49,6 +50,7 @@ export function decodeFileText(bytes: Uint8Array): DecodedFileText {
 
   const withoutCrlf = content.replace(/\r\n/g, '')
   const hasCrlf = content.includes('\r\n')
+
   if (withoutCrlf.includes('\r') || (hasCrlf && withoutCrlf.includes('\n'))) {
     throw new UnsupportedFileTextError('mixed-line-endings')
   }
@@ -64,10 +66,12 @@ export function decodeFileText(bytes: Uint8Array): DecodedFileText {
 export function encodeFileText(content: string, lineEnding: FileTextLineEnding, hasBom: boolean): Uint8Array {
   const normalized = content.replace(/\r\n?/g, '\n')
   const encoded = new TextEncoder().encode(lineEnding === 'crlf' ? normalized.replace(/\n/g, '\r\n') : normalized)
+
   if (!hasBom) return encoded
 
   const withBom = new Uint8Array(UTF8_BOM.length + encoded.length)
   withBom.set(UTF8_BOM)
   withBom.set(encoded, UTF8_BOM.length)
+
   return withBom
 }

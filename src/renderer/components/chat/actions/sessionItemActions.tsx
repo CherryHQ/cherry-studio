@@ -294,6 +294,7 @@ sessionActionRegistry.registerCommand({
   id: 'session.delete-permanently',
   run: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => {
     if (!onDeletePermanently || pinned || isBusy || isDeleting) return
+
     return onDeletePermanently()
   }
 })

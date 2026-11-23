@@ -7,10 +7,14 @@ export const Route = createFileRoute('/app/scheduled-tasks')({
   validateSearch: (search: Record<string, unknown>) => {
     // oxlint-disable-next-line anti-slop/no-known-value-widening -- Validated optional search fields are added independently; preserve omission for router navigation.
     const params: { taskId?: string; runId?: string; notificationId?: string } = {}
+
     if (typeof search.taskId === 'string' && search.taskId.trim()) params.taskId = search.taskId
+
     if (typeof search.notificationId === 'string' && search.notificationId.trim())
       params.notificationId = search.notificationId
+
     if (typeof search.runId === 'string' && search.runId.trim()) params.runId = search.runId
+
     return params
   },
   component: ScheduledTasksPage

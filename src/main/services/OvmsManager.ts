@@ -59,6 +59,7 @@ export class OvmsManager extends BaseService {
 
       if (!processStdout.trim()) {
         logger.info(`Process with PID ${pid} is not running`)
+
         return { success: true, message: `Process with PID ${pid} is not running` }
       }
 
@@ -98,6 +99,7 @@ export class OvmsManager extends BaseService {
 
         if (!checkStdout.trim()) {
           logger.info(`Process with PID ${pid} has disappeared`)
+
           return { success: true, message: `Process ${pid} and all child processes terminated successfully` }
         }
 
@@ -106,9 +108,11 @@ export class OvmsManager extends BaseService {
       }
 
       logger.warn(`Process with PID ${pid} did not disappear within timeout`)
+
       return { success: false, message: `Process ${pid} did not disappear within 5 seconds` }
     } catch (error) {
       logger.error(`Failed to terminate process ${pid}:`, error as Error)
+
       return { success: false, message: `Failed to terminate process ${pid}` }
     }
   }
@@ -128,9 +132,11 @@ export class OvmsManager extends BaseService {
       this.ovms = null
 
       logger.info('OVMS process stopped successfully')
+
       return { success: true, message: 'OVMS process stopped successfully' }
     } catch (error) {
       logger.error(`Failed to stop OVMS process: ${error}`)
+
       return { success: false, message: 'Failed to stop OVMS process' }
     }
   }
@@ -165,6 +171,7 @@ export class OvmsManager extends BaseService {
       // Check if run.bat exists
       if (!(await fs.pathExists(runBatPath))) {
         logger.error(`run.bat not found at: ${runBatPath}`)
+
         return { success: false, message: 'run.bat not found' }
       }
 
@@ -177,9 +184,11 @@ export class OvmsManager extends BaseService {
       })
 
       logger.info('OVMS started successfully')
+
       return { success: true }
     } catch (error) {
       logger.error(`Failed to run OVMS: ${error}`)
+
       return { success: false, message: 'Failed to run OVMS' }
     }
   }
@@ -195,6 +204,7 @@ export class OvmsManager extends BaseService {
       // Check if OVMS executable exists
       if (!(await fs.pathExists(ovmsPath))) {
         logger.info(`OVMS executable not found at: ${ovmsPath}`)
+
         return 'not-installed'
       }
 
@@ -204,6 +214,7 @@ export class OvmsManager extends BaseService {
 
       if (!stdout.trim()) {
         logger.info('OVMS process not running')
+
         return 'not-running'
       }
 
@@ -212,13 +223,16 @@ export class OvmsManager extends BaseService {
 
       if (processList.length > 0) {
         logger.info('OVMS process is running')
+
         return 'running'
       } else {
         logger.info('OVMS process not running')
+
         return 'not-running'
       }
     } catch (error) {
       logger.info(`Failed to check OVMS status: ${error}`)
+
       return 'not-running'
     }
   }
@@ -233,8 +247,10 @@ export class OvmsManager extends BaseService {
 
     if (!stdout.trim()) {
       logger.error('Command to find OVMS process returned no output')
+
       return false
     }
+
     logger.debug(`OVMS process output: ${stdout}`)
 
     const processes = JSON.parse(stdout)
@@ -247,6 +263,7 @@ export class OvmsManager extends BaseService {
         path: process.Path,
         workingDirectory: path.dirname(process.Path)
       }
+
       return true
     }
 
@@ -261,19 +278,24 @@ export class OvmsManager extends BaseService {
   public async isNameAndIDAvalid(modelName: string, modelId: string): Promise<boolean> {
     if (!modelName || !modelId) {
       logger.error('Model name and ID cannot be empty')
+
       return false
     }
 
     const configPath = path.join(application.getPath('feature.ovms.ovms'), 'models', 'config.json')
+
     try {
       if (!(await fs.pathExists(configPath))) {
         logger.warn(`Config file does not exist: ${configPath}`)
+
         return false
       }
 
       const config: OvmsConfig = await fs.readJson(configPath)
+
       if (!config.mediapipe_config_list) {
         logger.warn(`No mediapipe_config_list found in config: ${configPath}`)
+
         return false
       }
 
@@ -281,12 +303,15 @@ export class OvmsManager extends BaseService {
       const exists = config.mediapipe_config_list.some(
         (model) => model.name === modelName || model.base_path === modelId
       )
+
       if (exists) {
         logger.warn(`Model with name "${modelName}" or ID "${modelId}" already exists in the config`)
+
         return false
       }
     } catch (error) {
       logger.error(`Failed to check model existence: ${error}`)
+
       return false
     }
 
@@ -295,6 +320,7 @@ export class OvmsManager extends BaseService {
 
   private async applyModelPath(modelDirPath: string): Promise<boolean> {
     const patchDir = application.getPath('feature.ovms.patch')
+
     if (!(await fs.pathExists(patchDir))) {
       return true
     }
@@ -303,6 +329,7 @@ export class OvmsManager extends BaseService {
 
     // get all sub directories in patchDir
     const patchs = await fs.readdir(patchDir)
+
     for (const patch of patchs) {
       const fullPatchPath = path.join(patchDir, patch)
 
@@ -311,6 +338,7 @@ export class OvmsManager extends BaseService {
           // copy all files from fullPath to modelDirPath
           try {
             const files = await fs.readdir(fullPatchPath)
+
             for (const file of files) {
               const srcFile = path.join(fullPatchPath, file)
               const destFile = path.join(modelDirPath, file)
@@ -318,9 +346,12 @@ export class OvmsManager extends BaseService {
             }
           } catch (error) {
             logger.error(`Failed to copy files from ${fullPatchPath} to ${modelDirPath}: ${error}`)
+
             return false
           }
+
           logger.info(`Applied patchs for model ${modelId}`)
+
           return true
         }
       }
@@ -352,8 +383,10 @@ export class OvmsManager extends BaseService {
     // crafted id (e.g. `..`) escape the models directory into an arbitrary path
     // that the failure-cleanup fs.remove below would then delete.
     const modelsRoot = path.resolve(modelsDir)
+
     if (!path.resolve(pathModel).startsWith(modelsRoot + path.sep)) {
       logger.error(`Rejected model id outside models directory: ${modelId}`)
+
       return { success: false, message: 'Invalid model ID' }
     }
 
@@ -361,6 +394,7 @@ export class OvmsManager extends BaseService {
       // check the ovdnDir+'models'+modelId exist or not
       if (await fs.pathExists(pathModel)) {
         logger.error(`Model with ID ${modelId} already exists`)
+
         return { success: false, message: 'Model ID already exists!' }
       }
 
@@ -374,6 +408,7 @@ export class OvmsManager extends BaseService {
       // a distinct argv element (execFile runs with shell: false), so user-supplied
       // values can never be interpreted as shell syntax.
       const ovdndPath = path.join(ovdndDir, 'ovdnd.exe')
+
       const args = [
         '--pull',
         '--model_repository_path',
@@ -411,7 +446,9 @@ export class OvmsManager extends BaseService {
         logger.info(`Removing failed model directory: ${pathModel}`)
         await fs.remove(pathModel)
       }
+
       logger.error(`Failed to add model: ${error}`)
+
       return {
         success: false,
         message: `Download model ${modelId} failed, please check following items and try it again:<p>- the model id</p><p>- network connection and proxy</p>`
@@ -421,15 +458,18 @@ export class OvmsManager extends BaseService {
     // Update config file
     if (!(await this.updateModelConfig(modelName, modelId))) {
       logger.error('Failed to update model config')
+
       return { success: false, message: 'Failed to update model config' }
     }
 
     if (!(await this.applyModelPath(pathModel))) {
       logger.error('Failed to apply model patchs')
+
       return { success: false, message: 'Failed to apply model patchs' }
     }
 
     logger.info(`Model ${modelName} added successfully with ID ${modelId}`)
+
     return { success: true }
   }
 
@@ -445,6 +485,7 @@ export class OvmsManager extends BaseService {
 
       if (!stdout.trim()) {
         logger.info('ovdnd process is not running')
+
         return { success: true, message: 'Model download process is not running' }
       }
 
@@ -453,6 +494,7 @@ export class OvmsManager extends BaseService {
 
       if (processList.length === 0) {
         logger.info('ovdnd process is not running')
+
         return { success: true, message: 'Model download process is not running' }
       }
 
@@ -462,9 +504,11 @@ export class OvmsManager extends BaseService {
       }
 
       logger.info('Model download process stopped successfully')
+
       return { success: true, message: 'Model download process stopped successfully' }
     } catch (error) {
       logger.error(`Failed to stop model download process: ${error}`)
+
       return { success: false, message: 'Failed to stop model download process' }
     }
   }
@@ -480,18 +524,22 @@ export class OvmsManager extends BaseService {
     try {
       if (!(await fs.pathExists(configPath))) {
         logger.warn(`Config file does not exist: ${configPath}`)
+
         return false
       }
 
       const config: OvmsConfig = await fs.readJson(configPath)
+
       if (!config.mediapipe_config_list) {
         logger.warn('No mediapipe_config_list found in config')
+
         return false
       }
 
       return config.mediapipe_config_list.some((model) => model.base_path === modelId)
     } catch (error) {
       logger.error(`Failed to check model existence: ${error}`)
+
       return false
     }
   }
@@ -542,8 +590,10 @@ export class OvmsManager extends BaseService {
       logger.info(`Config file updated: ${configPath}`)
     } catch (error) {
       logger.error(`Failed to update model config: ${error}`)
+
       return false
     }
+
     return true
   }
 
@@ -558,18 +608,22 @@ export class OvmsManager extends BaseService {
     try {
       if (!(await fs.pathExists(configPath))) {
         logger.warn(`Config file does not exist: ${configPath}`)
+
         return []
       }
 
       const config: OvmsConfig = await fs.readJson(configPath)
+
       if (!config.mediapipe_config_list) {
         logger.warn('No mediapipe_config_list found in config')
+
         return []
       }
 
       // Filter models for image generation (SD, Stable-Diffusion, Stable Diffusion, FLUX)
       const imageGenerationModels = config.mediapipe_config_list.filter((model) => {
         const modelName = model.name.toLowerCase()
+
         return (
           modelName.startsWith('sd') ||
           modelName.startsWith('stable-diffusion') ||
@@ -579,9 +633,11 @@ export class OvmsManager extends BaseService {
       })
 
       logger.info(`Found ${imageGenerationModels.length} image generation models`)
+
       return imageGenerationModels
     } catch (error) {
       logger.error(`Failed to get models: ${error}`)
+
       return []
     }
   }

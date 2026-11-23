@@ -19,8 +19,10 @@ function evalInInspectedWindow(expression) {
     chrome.devtools.inspectedWindow.eval(expression, (result, exceptionInfo) => {
       if (exceptionInfo) {
         resolve(undefined)
+
         return
       }
+
       resolve(result)
     })
   })
@@ -50,7 +52,9 @@ function getSearchText(event) {
 
 function filteredEvents() {
   const query = filterEl.value.trim().toLowerCase()
+
   if (!query) return events
+
   return events.filter((event) => getSearchText(event).includes(query))
 }
 
@@ -74,6 +78,7 @@ function renderRows(force = false) {
   countEl.textContent = `${events.length} requests`
 
   const nextSignature = getRowsSignature(visible)
+
   if (!force && nextSignature === rowsSignature) return
 
   rowsEl.replaceChildren()
@@ -82,6 +87,7 @@ function renderRows(force = false) {
   for (const event of visible) {
     const tr = document.createElement('tr')
     tr.dataset.id = event.id
+
     if (event.id === selectedId) tr.classList.add('selected')
 
     const cells = [
@@ -97,7 +103,9 @@ function renderRows(force = false) {
     for (const cell of cells) {
       const td = document.createElement('td')
       td.textContent = String(cell.text)
+
       if (cell.className) td.className = cell.className
+
       if (cell.title) td.title = cell.title
       tr.appendChild(td)
     }
@@ -115,6 +123,7 @@ function renderRows(force = false) {
 
 function renderDetails(event, force = false) {
   const nextSignature = JSON.stringify(event)
+
   if (!force && nextSignature === detailsSignature) return
 
   detailsSignature = nextSignature
@@ -141,9 +150,11 @@ function renderDetails(event, force = false) {
     },
     { copyable: true }
   )
+
   if (event.error) {
     appendSection('Error', event.error)
   }
+
   appendSection('Timing', {
     clientDuration: formatDuration(event.clientDuration),
     mainDuration: formatDuration(event.mainDuration),
@@ -154,6 +165,7 @@ function renderDetails(event, force = false) {
 async function copyText(text) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text)
+
     return
   }
 
@@ -182,6 +194,7 @@ function appendSection(title, payload, options = {}) {
   pre.textContent = JSON.stringify(payload, null, 2)
 
   header.appendChild(heading)
+
   if (options.copyable) {
     const copyButton = document.createElement('button')
     copyButton.type = 'button'
@@ -194,6 +207,7 @@ function appendSection(title, payload, options = {}) {
       } catch {
         copyButton.textContent = 'Failed'
       }
+
       setTimeout(() => {
         copyButton.textContent = 'Copy'
       }, COPY_FEEDBACK_DURATION_MS)
@@ -209,16 +223,21 @@ async function refresh() {
   const snapshot = await evalInInspectedWindow(
     'window.__CHERRY_DATA_API_DEVTOOLS__ ? window.__CHERRY_DATA_API_DEVTOOLS__.snapshotSummary() : []'
   )
+
   events = Array.isArray(snapshot) ? snapshot : []
   renderRows()
+
   if (selectedId) {
     const requestedId = selectedId
     const summary = events.find((event) => event.id === requestedId)
     const nextSummarySignature = JSON.stringify(summary)
+
     if (!summary || nextSummarySignature === selectedSummarySignature) return
+
     const selectedEvent = await evalInInspectedWindow(
       `window.__CHERRY_DATA_API_DEVTOOLS__ && window.__CHERRY_DATA_API_DEVTOOLS__.getEvent(${JSON.stringify(requestedId)})`
     )
+
     if (selectedId === requestedId && selectedEvent?.id === requestedId) {
       selectedSummarySignature = nextSummarySignature
       renderDetails(selectedEvent)
@@ -230,18 +249,22 @@ filterEl.addEventListener('input', () => renderRows())
 
 rowsEl.addEventListener('pointerdown', async (pointerEvent) => {
   const target = pointerEvent.target
+
   if (!(target instanceof Element)) return
 
   const row = target.closest('tr[data-id]')
+
   if (!row || !rowsEl.contains(row)) return
 
   selectedId = row.dataset.id
   const requestedId = selectedId
   const nextSummarySignature = JSON.stringify(events.find((event) => event.id === requestedId))
   renderRows(true)
+
   const selectedEvent = await evalInInspectedWindow(
     `window.__CHERRY_DATA_API_DEVTOOLS__ && window.__CHERRY_DATA_API_DEVTOOLS__.getEvent(${JSON.stringify(requestedId)})`
   )
+
   if (selectedId === requestedId && selectedEvent?.id === requestedId) {
     selectedSummarySignature = nextSummarySignature
     renderDetails(selectedEvent, true)
@@ -274,11 +297,14 @@ async function syncCaptureState() {
   const options = await evalInInspectedWindow(
     'window.__CHERRY_DATA_API_DEVTOOLS__ && window.__CHERRY_DATA_API_DEVTOOLS__.setOptions({})'
   )
+
   if (options && typeof options.capturePayloads === 'boolean') {
     capturePayloadsEl.checked = options.capturePayloads
   }
 }
 
 setInterval(refresh, 500)
+
 void syncCaptureState()
+
 void refresh()

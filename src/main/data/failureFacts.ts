@@ -5,6 +5,7 @@ import { isCancellation } from '@shared/utils/errorReporting'
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Database calls and wrapped storage failures can throw any value; inspect bounded cause chains for recognized SQLite codes without changing the failure.
 export function classifyDatabaseFailure(error: unknown): FailureFacts {
   let cause = error
+
   for (let depth = 0; depth < 5 && cause && typeof cause === 'object'; depth++) {
     if ('code' in cause && typeof cause.code === 'string' && /^SQLITE_[A-Z_]+$/.test(cause.code)) {
       return {
@@ -14,8 +15,10 @@ export function classifyDatabaseFailure(error: unknown): FailureFacts {
         outcome: 'failed'
       }
     }
+
     cause = 'cause' in cause ? cause.cause : undefined
   }
+
   return { source: 'application', kind: 'reliability', reason: 'database_failed', outcome: 'failed' }
 }
 
@@ -24,6 +27,7 @@ export function classifyDataApiFailure(error: unknown, apiError: DataApiError): 
   if (isCancellation(error)) {
     return { source: 'application', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
   }
+
   if (
     apiError.code === ErrorCode.NOT_FOUND &&
     apiError.details &&
@@ -32,6 +36,7 @@ export function classifyDataApiFailure(error: unknown, apiError: DataApiError): 
   ) {
     return { source: 'application', kind: 'defect', reason: 'data_handler_missing', outcome: 'failed' }
   }
+
   if (
     [
       ErrorCode.BAD_REQUEST,
@@ -48,11 +53,15 @@ export function classifyDataApiFailure(error: unknown, apiError: DataApiError): 
   ) {
     return { source: 'application', kind: 'expected', reason: apiError.code.toLowerCase(), outcome: 'failed' }
   }
+
   const database = classifyDatabaseFailure(error)
+
   if (database.reason !== 'database_failed') return database
+
   if ([ErrorCode.DATA_INCONSISTENT, ErrorCode.DATABASE_ERROR, ErrorCode.MIGRATION_ERROR].includes(apiError.code)) {
     return { ...database, reason: apiError.code.toLowerCase() }
   }
+
   return {
     source: 'application',
     kind:

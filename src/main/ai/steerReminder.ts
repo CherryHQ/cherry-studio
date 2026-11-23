@@ -14,6 +14,7 @@ export function wrapSteerReminder(text: string): string {
   // steer containing `</system-reminder>` can't terminate the wrapper and forge reminder-priority
   // instructions. Only the exact delimiter is touched; ordinary `<`/`>` in the message are preserved.
   const safe = defangSystemReminderTags(text)
+
   return [
     SYSTEM_REMINDER_OPEN,
     'The user sent the following message:',
@@ -33,11 +34,14 @@ export function extractSystemReminderBodies(text: string): string[] {
 
   while (searchFrom < text.length) {
     const openIndex = text.indexOf(SYSTEM_REMINDER_OPEN, searchFrom)
+
     if (openIndex === -1) break
     const bodyStart = openIndex + SYSTEM_REMINDER_OPEN.length
     const closeIndex = text.indexOf(SYSTEM_REMINDER_CLOSE, bodyStart)
+
     if (closeIndex === -1) break
     const body = text.slice(bodyStart, closeIndex).trim()
+
     if (body) bodies.push(body)
     searchFrom = closeIndex + SYSTEM_REMINDER_CLOSE.length
   }
@@ -47,10 +51,13 @@ export function extractSystemReminderBodies(text: string): string[] {
 
 function markerPrefixSuffixLength(text: string, markers: readonly string[]): number {
   const maxLength = Math.max(...markers.map((marker) => marker.length - 1))
+
   for (let length = Math.min(text.length, maxLength); length > 0; length--) {
     const suffix = text.slice(-length)
+
     if (markers.some((marker) => marker.startsWith(suffix))) return length
   }
+
   return 0
 }
 
@@ -72,6 +79,7 @@ export class SystemReminderTextFilter {
     while (this.pending) {
       if (this.insideReminder) {
         const closeIndex = this.pending.indexOf(SYSTEM_REMINDER_CLOSE)
+
         if (closeIndex === -1) return safe
         this.pending = this.pending.slice(closeIndex + SYSTEM_REMINDER_CLOSE.length)
         this.insideReminder = false
@@ -81,13 +89,16 @@ export class SystemReminderTextFilter {
       const markers = [SYSTEM_REMINDER_OPEN, ...this.reminderBodies].filter(Boolean)
       let marker = ''
       let markerIndex = -1
+
       for (const candidate of markers) {
         const candidateIndex = this.pending.indexOf(candidate)
+
         if (candidateIndex !== -1 && (markerIndex === -1 || candidateIndex < markerIndex)) {
           marker = candidate
           markerIndex = candidateIndex
         }
       }
+
       if (markerIndex !== -1) {
         safe += this.pending.slice(0, markerIndex)
         this.pending = this.pending.slice(markerIndex + marker.length)
@@ -98,6 +109,7 @@ export class SystemReminderTextFilter {
       const retainedLength = markerPrefixSuffixLength(this.pending, markers)
       safe += this.pending.slice(0, this.pending.length - retainedLength)
       this.pending = this.pending.slice(this.pending.length - retainedLength)
+
       return safe
     }
 
@@ -108,6 +120,7 @@ export class SystemReminderTextFilter {
     const pending = this.insideReminder ? SYSTEM_REMINDER_OPEN + this.pending : this.pending
     this.pending = ''
     this.insideReminder = false
+
     return pending
   }
 }

@@ -20,6 +20,8 @@ export function useImageGenerationSupport(
     params: { providerId: providerId ?? '__none__', modelId: modelId ?? '__none__' },
     enabled: Boolean(providerId && modelId)
   })
+
   useDataChange('/providers/:providerId/models/:modelId*/image-generation-support', () => void refetch())
+
   return data ?? undefined
 }

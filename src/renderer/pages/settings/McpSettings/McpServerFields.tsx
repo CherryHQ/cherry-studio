@@ -52,12 +52,14 @@ export const buildMcpSchema = (t: (key: string) => string) =>
       if ((value.serverType === 'sse' || value.serverType === 'streamableHttp') && !value.baseUrl?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['baseUrl'], message: t('settings.mcp.url') })
       }
+
       if (resolveMcpConfigTransportType(value.serverType, value.name) === 'stdio' && !value.command?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: t('settings.mcp.command') })
       }
     })
 
 export type McpFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
+
 export type McpForm = UseFormReturn<McpFormValues>
 
 export function resolveMcpConfigTransportType(type: McpServer['type'], name: string): McpServer['type'] {
@@ -123,12 +125,15 @@ export const PipRegistry: Registry[] = [
 
 export const registryForCommand = (command: string): Registry[] | undefined => {
   if (command.includes('uv') || command.includes('uvx')) return PipRegistry
+
   if (command.includes('npx') || command.includes('bun') || command.includes('bunx')) return NpmRegistry
+
   return undefined
 }
 
 const getInitialRegistryState = (server?: Pick<McpServer, 'command' | 'registryUrl'>) => {
   const registry = server?.command ? registryForCommand(server.command) : undefined
+
   const isCustom =
     Boolean(server?.registryUrl) && Boolean(registry) && !registry?.some((reg) => reg.url === server?.registryUrl)
 
@@ -159,6 +164,7 @@ export function useMcpRegistryState(
         setSelectedRegistryType('')
         setCustomRegistryUrl('')
         form.setValue('registryUrl', '')
+
         if (registryUrl) onChanged?.()
       }
 
@@ -177,14 +183,17 @@ export function useMcpRegistryState(
     (url: string) => {
       if (url === 'custom') {
         setSelectedRegistryType('custom')
+
         return
       }
 
       setSelectedRegistryType('')
       setCustomRegistryUrl('')
+
       if (registryForCommand(form.getValues('command') || '')) {
         form.setValue('registryUrl', url)
       }
+
       onChanged?.()
     },
     [form, onChanged]
@@ -261,6 +270,7 @@ export function toMcpServerFields(values: McpFormValues): Partial<McpServer> {
     fields.command = values.command
     fields.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
   }
+
   // Env is not stdio-only: hosted built-ins such as QVeris keep their API key here whatever
   // transport they use, so it must round-trip instead of being dropped on save.
   fields.env = parseKeyValueString(values.env ?? '')
@@ -559,6 +569,7 @@ export function McpTransportFields({
 /** Runtime behaviour: long-running flag and request timeout. */
 export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: FieldsProps) {
   const { t } = useTranslation()
+
   const rowClassName = inlineCards
     ? inlineSettingItemClassName
     : 'flex min-w-0 flex-row items-center justify-between gap-4'

@@ -12,6 +12,7 @@ import CaptureOverlay from './CaptureOverlay'
 // creation-time language. No `useCustomCss` on purpose — see windows/README.md.
 function ScreenshotRuntime(): null {
   useLanguageSync()
+
   return null
 }
 
@@ -27,6 +28,7 @@ function DismissOnFatalError(): null {
   useEffect(() => {
     void ipcApi.request('screenshot.cancel')
   }, [])
+
   return null
 }
 

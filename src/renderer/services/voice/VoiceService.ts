@@ -24,7 +24,9 @@ import { enumerateMicrophones, microphoneErrorReason, type MicrophoneDevice } fr
 import { getDefaultVoiceLanguage } from './voiceLanguage'
 
 type VoiceRoute = keyof typeof voiceRequestSchemas
+
 export type VoiceCommandEvent = Extract<VoiceSessionEvent, { type: 'command' }>
+
 type VoiceStateEvent = Extract<VoiceSessionEvent, { type: 'state' }>
 
 interface VoiceIpc {
@@ -137,7 +139,9 @@ export class VoiceDomainError extends Error {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Voice IPC requests and subscription setup can throw arbitrary values; this boundary classifies IpcError before mapping a voice-domain reason.
 function toVoiceDomainError(error: unknown): VoiceDomainError {
   if (error instanceof VoiceDomainError) return error
+
   if (error instanceof IpcError) return new VoiceDomainError(reasonByCode.get(error.code) ?? 'operation_failed')
+
   return new VoiceDomainError('operation_failed')
 }
 
@@ -191,12 +195,16 @@ export class VoiceService {
     captured?: ResolvedTranscriptionPreferences | null
   ): Promise<ResolvedTranscriptionPreferences | null> {
     const input = captured === undefined ? await this.readTranscriptionPreferenceInput() : captured
+
     if (input === null) return null
+
     const resolved = await this.resolveTranscriptionConfiguration({
       ...(input.modelId && { modelId: input.modelId }),
       language: input.language
     })
+
     if (resolved.status.status !== 'ready') throw new VoiceDomainError(resolved.status.reason ?? 'model_required')
+
     return {
       modelId: resolved.modelId,
       language: resolved.language,
@@ -209,27 +217,34 @@ export class VoiceService {
 
   async readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences | null> {
     const preferences = await this.readTranscriptionPreferences()
+
     if (isVoiceRecognitionOff(preferences.modelId)) return null
     const storedModelId = preferences.modelId.trim()
     let modelId: LocalTranscriptionModelId | undefined
+
     if (storedModelId) {
       if (!isTranscriptionModelId(storedModelId)) throw new VoiceDomainError('unsupported')
       modelId = storedModelId
     }
+
     const locale = this.optionalLanguage(preferences.language)
+
     const language: ResolvedTranscriptionPreferences['language'] = locale
       ? { source: TranscriptionLanguageSource.Explicit, locale }
       : {
           source: TranscriptionLanguageSource.Interface,
           locale: getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
         }
+
     return { modelId, language }
   }
 
   async readSpeechPreferenceInput(): Promise<SpeechPreferenceInput> {
     const preferences = await this.readSpeechPreferences()
     const modelId = preferences.modelId.trim()
+
     if (modelId && !isSpeechModelId(modelId)) throw new VoiceDomainError('unsupported')
+
     if (
       !Number.isFinite(preferences.speed) ||
       preferences.speed < MIN_SPEECH_SPEED ||
@@ -237,9 +252,12 @@ export class VoiceService {
     ) {
       throw new VoiceDomainError('invalid_request')
     }
+
     const voice = preferences.voice.trim()
+
     const language =
       this.optionalLanguage(preferences.language) ?? getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
+
     return {
       ...(modelId && { modelId: modelId as LocalSpeechModelId }),
       ...(voice && { voice }),
@@ -250,14 +268,17 @@ export class VoiceService {
 
   async resolveSpeechPreferences(): Promise<ResolvedSpeechPreferences> {
     const input = await this.readSpeechPreferenceInput()
+
     const resolved = await this.resolveSpeechConfiguration({
       ...(input.modelId && { modelId: input.modelId }),
       ...(input.voice && { voice: input.voice }),
       language: input.language,
       speed: input.speed
     })
+
     if (!resolved.modelId || !resolved.voice || resolved.status.status !== 'ready')
       throw new VoiceDomainError(resolved.status.reason ?? 'voice_unavailable')
+
     return { modelId: resolved.modelId, voice: resolved.voice, language: resolved.language, speed: resolved.speed }
   }
 
@@ -283,6 +304,7 @@ export class VoiceService {
       this.ownerWindow.addEventListener('beforeunload', this.handleBeforeUnload)
     } catch (error) {
       this.detach(generation)
+
       return Promise.reject(toVoiceDomainError(error))
     }
 
@@ -295,15 +317,19 @@ export class VoiceService {
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Initialization may reject from IPC or its state-application continuation; this observer only detaches owned subscriptions and rethrows the original failure.
       .catch((error: unknown) => {
         this.detach(generation)
+
         if (this.initialization?.generation === generation) this.initialization = undefined
         throw error
       })
+
     this.initialization = { generation, promise: initialization }
+
     return initialization
   }
 
   subscribe = (listener: () => void): (() => void) => {
     this.stateListeners.add(listener)
+
     return () => this.stateListeners.delete(listener)
   }
 
@@ -311,11 +337,13 @@ export class VoiceService {
 
   subscribeCommands = (listener: (event: VoiceCommandEvent) => void): (() => void) => {
     this.commandListeners.add(listener)
+
     return () => this.commandListeners.delete(listener)
   }
 
   subscribeInterruptions = (listener: () => void): (() => void) => {
     this.interruptionListeners.add(listener)
+
     return () => this.interruptionListeners.delete(listener)
   }
 
@@ -356,7 +384,9 @@ export class VoiceService {
   ): VoiceOperation<OutputFor<'ai.transcription.asset.install'>> {
     const { sessionId = this.createId(), requestId = this.createId(), ...payload } = input
     const reservation = this.reserveSession(sessionId, 'install')
+
     if (!reservation) return this.rejectedOperation(sessionId, requestId, 'busy')
+
     return {
       sessionId,
       requestId,
@@ -379,13 +409,16 @@ export class VoiceService {
     const operation = this.startRecording({ source: 'settings' })
     const interrupted = new AbortController()
     const lifetime = AbortSignal.any([signal, interrupted.signal])
+
     const unsubscribe = this.subscribe(() => {
       if (this.snapshot.phase === 'idle' || this.snapshot.sessionId !== operation.sessionId) interrupted.abort()
     })
+
     const unsubscribeInterruption = this.subscribeInterruptions(() => interrupted.abort())
     let stream: MediaStream | undefined
     let context: AudioContext | undefined
     let timer: ReturnType<typeof setInterval> | undefined
+
     try {
       await operation.result
       lifetime.throwIfAborted()
@@ -412,25 +445,30 @@ export class VoiceService {
       await new Promise<void>((resolve, reject) => {
         const stop = () => resolve()
         lifetime.addEventListener('abort', stop, { once: true })
+
         for (const track of stream!.getTracks())
           track.onended = () => {
             lifetime.removeEventListener('abort', stop)
             reject(new VoiceDomainError('microphone_unavailable'))
           }
+
         if (lifetime.aborted) stop()
       })
     } catch (error) {
       if (lifetime.aborted) return
+
       if (error instanceof VoiceDomainError) throw error
       throw new VoiceDomainError(microphoneErrorReason(error))
     } finally {
       unsubscribe()
       unsubscribeInterruption()
+
       if (timer !== undefined) clearInterval(timer)
       stream?.getTracks().forEach((track) => {
         track.onended = null
         track.stop()
       })
+
       try {
         await context?.close()
       } finally {
@@ -454,7 +492,9 @@ export class VoiceService {
   startRecording(input: StartRecordingInput = {}): VoiceOperation<OutputFor<'ai.voice.recording.start'>> {
     const { sessionId = this.createId(), requestId = this.createId(), ...payload } = input
     const admission = this.beginAdmission(sessionId, 'recording')
+
     if (!admission) return this.rejectedOperation(sessionId, requestId, 'busy')
+
     const result = this.invoke(() =>
       this.ipc.request('ai.voice.recording.start', { sessionId, requestId, ...payload })
     ).then(
@@ -463,11 +503,14 @@ export class VoiceService {
           await this.discardMaterialized(sessionId, admission.token)
           throw new VoiceDomainError('aborted')
         }
+
         this.applyState(state)
+
         if (this.pendingAdmissions.get(sessionId)?.token === admission.token) {
           if (this.snapshot.revision === admission.revision) this.promoteAdmission(sessionId, admission.token)
           else this.releasePendingAdmission(sessionId, admission.token)
         }
+
         return state
       },
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Recording admission can reject; this handler releases the matching reservation and propagates the failure without assuming its shape.
@@ -477,10 +520,12 @@ export class VoiceService {
           await this.discardTombstone(sessionId, admission.token)
           throw new VoiceDomainError('aborted')
         }
+
         this.releasePendingAdmission(sessionId, admission.token)
         throw error
       }
     )
+
     return { sessionId, requestId, result }
   }
 
@@ -498,15 +543,19 @@ export class VoiceService {
     let resolveReady!: () => void
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The ready barrier must forward the arbitrary rejection value from transcription startup without asserting an Error instance.
     let rejectReady!: (error: unknown) => void
+
     const ready = new Promise<void>((resolve, reject) => {
       resolveReady = resolve
       rejectReady = reject
     })
+
     const unsubscribe = this.ipc.on('ai.voice.transcript_event', (event) => {
       if (event.sessionId !== identity.sessionId || event.requestId !== identity.requestId) return
+
       if (event.type === 'ready') resolveReady()
       else onRevision(event.update)
     })
+
     const result = this.invoke(() => this.ipc.request('ai.voice.transcription.start', { ...input, ...identity }))
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Transcription startup may reject before the ready event; this handler forwards that failure to both startup barriers.
       .catch((error: unknown) => {
@@ -514,8 +563,10 @@ export class VoiceService {
         throw error
       })
       .finally(unsubscribe)
+
     void result.catch(() => undefined)
     void ready.catch(() => undefined)
+
     return {
       ...identity,
       ready,
@@ -530,6 +581,7 @@ export class VoiceService {
 
   transcribe(input: TranscriptionInput): VoiceOperation<OutputFor<'ai.transcription.generate'>> {
     const { requestId = this.createId(), ...payload } = input
+
     return {
       sessionId: input.sessionId,
       requestId,
@@ -543,14 +595,17 @@ export class VoiceService {
 
   abortTranscription(operation: Pick<VoiceOperation<unknown>, 'sessionId' | 'requestId'>): Promise<void> {
     const { sessionId, requestId } = operation
+
     return this.invoke(() => this.ipc.request('ai.transcription.abort', { sessionId, requestId }))
   }
 
   generateSpeech(input: SpeechInput): VoiceOperation<OutputFor<'ai.speech.generate'>> {
     const { sessionId = this.createId(), requestId = this.createId(), ...payload } = input
     const prepared = this.prepareSpeech(sessionId, input)
+
     if (!prepared) return this.rejectedOperation(sessionId, requestId, 'busy')
     const { admission, reservation, sequence, speechToken } = prepared
+
     return {
       sessionId,
       requestId,
@@ -560,22 +615,27 @@ export class VoiceService {
             await this.discardMaterialized(sessionId, reservation.token)
             throw new VoiceDomainError('aborted')
           }
+
           sequence.activeSpeechToken = undefined
           sequence.outputId = result.output.id
+
           if (admission && this.pendingAdmissions.get(sessionId)?.token === admission.token) {
             if (this.snapshot.revision === admission.revision) this.promoteAdmission(sessionId, admission.token)
             else this.releasePendingAdmission(sessionId, admission.token)
           }
+
           return result
         },
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Speech generation rejection must release only its own admission and preserve the original failure unless lifecycle cancellation wins.
         async (error: unknown) => {
           if (sequence.activeSpeechToken === speechToken) sequence.activeSpeechToken = undefined
+
           if (reservation.generation !== this.lifecycleGeneration) {
             this.releasePendingMaterialization(sessionId, reservation.token)
             await this.discardTombstone(sessionId, reservation.token)
             throw new VoiceDomainError('aborted')
           }
+
           if (admission) this.releasePendingAdmission(sessionId, admission.token)
           throw error
         }
@@ -593,6 +653,7 @@ export class VoiceService {
 
   subscribeStream = (listener: (event: SpeechStreamEvent) => void): (() => void) => {
     this.streamListeners.add(listener)
+
     return () => this.streamListeners.delete(listener)
   }
 
@@ -606,12 +667,14 @@ export class VoiceService {
 
   abortSpeech(operation: Pick<VoiceOperation<unknown>, 'sessionId' | 'requestId'>): Promise<void> {
     const { sessionId, requestId } = operation
+
     return this.invoke(() => this.ipc.request('ai.speech.abort', { sessionId, requestId }))
   }
 
   releaseOutput(input: InputFor<'ai.voice.output.release'>): Promise<void> {
     const reservation = this.reservations.get(input.sessionId)
     const sequence = this.speechSequences.get(input.sessionId)
+
     if (
       !reservation ||
       reservation.kind !== 'speech' ||
@@ -622,25 +685,31 @@ export class VoiceService {
     ) {
       return Promise.reject(new VoiceDomainError('busy'))
     }
+
     const releaseToken = Symbol(input.sessionId)
     sequence.activeReleaseToken = releaseToken
+
     return this.invoke(() => this.ipc.request('ai.voice.output.release', input)).then(
       () => {
         if (reservation.generation !== this.lifecycleGeneration) {
           throw new VoiceDomainError('aborted')
         }
+
         if (this.isReservationCurrent(input.sessionId, reservation) && sequence.activeReleaseToken === releaseToken) {
           sequence.activeReleaseToken = undefined
           sequence.outputId = undefined
+
           if (sequence.nextChunkIndex !== undefined) sequence.nextChunkIndex += 1
         }
       },
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Output-release failure is an arbitrary rejection; this handler clears its matching token and rethrows without inspecting the payload.
       (error: unknown) => {
         if (sequence.activeReleaseToken === releaseToken) sequence.activeReleaseToken = undefined
+
         if (reservation.generation !== this.lifecycleGeneration) {
           throw new VoiceDomainError('aborted')
         }
+
         throw error
       }
     )
@@ -649,6 +718,7 @@ export class VoiceService {
   reportPlayback(input: InputFor<'ai.voice.playback.report'>): Promise<OutputFor<'ai.voice.playback.report'>> {
     return this.invoke(() => this.ipc.request('ai.voice.playback.report', input)).then((state) => {
       this.applyState(state)
+
       return state
     })
   }
@@ -656,6 +726,7 @@ export class VoiceService {
   controlPlayback(input: InputFor<'ai.voice.playback.control'>): Promise<OutputFor<'ai.voice.playback.control'>> {
     return this.invoke(() => this.ipc.request('ai.voice.playback.control', input)).then((state) => {
       this.applyState(state)
+
       return state
     })
   }
@@ -663,38 +734,51 @@ export class VoiceService {
   async discardSession(sessionId: string): Promise<void> {
     const reservation = this.reservations.get(sessionId)
     await this.invoke(() => this.ipc.request('ai.voice.session.discard', { sessionId }))
+
     if (reservation) this.releaseOwnedSession(sessionId, reservation.token)
   }
 
   async teardown(): Promise<void> {
     const tombstones = this.beginTeardown()
+
     const results = await Promise.allSettled(
       tombstones.map(([sessionId, token]) => this.discardTombstone(sessionId, token))
     )
+
     const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+
     if (failure) throw failure.reason
   }
 
   private handleEvent(generation: number, event: VoiceSessionEvent): void {
     if (generation !== this.lifecycleGeneration || this.subscriptionGeneration !== generation) return
+
     if (event.type === 'state') {
       this.applyState(event)
+
       return
     }
+
     if (event.type === 'interruption') {
       this.interruptionListeners.forEach((listener) => listener())
+
       return
     }
+
     if (event.playback) {
       if (this.reservations.get(event.sessionId)?.kind !== 'speech') return
       const previous = this.commandRevisions.get(event.sessionId) ?? -1
+
       // Lease revocation is terminal even when it reuses the latest playback command revision.
       if (event.command !== 'stop' && event.playback.commandRevision <= previous) return
       this.commandRevisions.set(event.sessionId, event.playback.commandRevision)
       this.commandListeners.forEach((listener) => listener(event))
+
       return
     }
+
     if (event.revision < this.snapshot.revision || event.sessionId !== this.currentOwnedSessionId) return
+
     if (this.snapshot.phase === 'idle' || this.snapshot.sessionId !== event.sessionId) return
     this.commandListeners.forEach((listener) => listener(event))
   }
@@ -708,6 +792,7 @@ export class VoiceService {
 
   private applyState(state: VoiceSessionState | VoiceStateEvent): boolean {
     if (state.revision <= this.snapshot.revision) return false
+
     if (!('type' in state)) {
       this.snapshot = state
     } else if (state.phase === 'idle') {
@@ -723,8 +808,10 @@ export class VoiceService {
         ...(state.reason && { reason: state.reason })
       }
     }
+
     this.reconcileOwnership(this.snapshot)
     this.stateListeners.forEach((listener) => listener())
+
     return true
   }
 
@@ -742,24 +829,30 @@ export class VoiceService {
     if (this.reservations.has(sessionId) || this.tombstones.has(sessionId)) return undefined
     const reservation = { token: Symbol(sessionId), generation: this.lifecycleGeneration, kind }
     this.reservations.set(sessionId, reservation)
+
     return reservation
   }
 
   private beginAdmission(sessionId: string, kind: 'recording' | 'speech'): PendingAdmission | undefined {
     const reservation = this.reserveSession(sessionId, kind)
+
     if (!reservation) return undefined
     const admission = { ...reservation, revision: this.snapshot.revision }
     this.pendingAdmissions.set(sessionId, admission)
+
     return admission
   }
 
   private promoteAdmission(sessionId: string, token: symbol): void {
     if (this.pendingAdmissions.get(sessionId)?.token !== token) return
     const previous = this.currentOwnedSessionId
+
     if (previous && previous !== sessionId) {
       const previousReservation = this.reservations.get(previous)
+
       if (previousReservation) this.releaseOwnedSession(previous, previousReservation.token)
     }
+
     this.pendingAdmissions.delete(sessionId)
     this.currentOwnedSessionId = sessionId
   }
@@ -767,13 +860,16 @@ export class VoiceService {
   private releasePendingAdmission(sessionId: string, token: symbol): void {
     if (this.pendingAdmissions.get(sessionId)?.token !== token) return
     this.pendingAdmissions.delete(sessionId)
+
     if (this.currentOwnedSessionId !== sessionId) this.releaseReservation(sessionId, token)
   }
 
   private releaseOwnedSession(sessionId: string, token: symbol): void {
     if (this.reservations.get(sessionId)?.token !== token) return
+
     if (this.pendingAdmissions.get(sessionId)?.token === token) this.pendingAdmissions.delete(sessionId)
     this.releaseReservation(sessionId, token)
+
     if (this.currentOwnedSessionId === sessionId) this.currentOwnedSessionId = undefined
   }
 
@@ -781,6 +877,7 @@ export class VoiceService {
     if (this.reservations.get(sessionId)?.token !== token) return
     this.reservations.delete(sessionId)
     this.commandRevisions.delete(sessionId)
+
     if (this.speechSequences.get(sessionId)?.reservationToken === token) this.speechSequences.delete(sessionId)
   }
 
@@ -803,17 +900,24 @@ export class VoiceService {
     if (state.phase === 'idle') {
       if (this.currentOwnedSessionId) {
         const reservation = this.reservations.get(this.currentOwnedSessionId)
+
         if (reservation) this.releaseOwnedSession(this.currentOwnedSessionId, reservation.token)
       }
+
       return
     }
+
     const admission = this.pendingAdmissions.get(state.sessionId)
+
     if (admission) {
       this.promoteAdmission(state.sessionId, admission.token)
+
       return
     }
+
     if (this.currentOwnedSessionId && this.currentOwnedSessionId !== state.sessionId) {
       const reservation = this.reservations.get(this.currentOwnedSessionId)
+
       if (reservation) this.releaseOwnedSession(this.currentOwnedSessionId, reservation.token)
     }
   }
@@ -828,9 +932,11 @@ export class VoiceService {
     this.interruptionListeners.clear()
     this.reservations.forEach((reservation, sessionId) => {
       const sequence = this.speechSequences.get(sessionId)
+
       if (this.pendingAdmissions.get(sessionId)?.token === reservation.token || sequence?.activeSpeechToken) {
         this.pendingMaterializations.set(sessionId, reservation.token)
       }
+
       this.tombstones.set(sessionId, reservation.token)
     })
     this.pendingAdmissions.clear()
@@ -838,6 +944,7 @@ export class VoiceService {
     this.speechSequences.clear()
     this.commandRevisions.clear()
     this.currentOwnedSessionId = undefined
+
     return [...this.tombstones.entries()]
   }
 
@@ -875,6 +982,7 @@ export class VoiceService {
     } else {
       if (input.chunkIndex !== undefined && input.chunkIndex !== 0) return undefined
       admission = this.beginAdmission(sessionId, 'speech')
+
       if (!admission) return undefined
       reservation = admission
       sequence = {
@@ -887,6 +995,7 @@ export class VoiceService {
 
     const speechToken = Symbol(sessionId)
     sequence.activeSpeechToken = speechToken
+
     return { admission, reservation, sequence, speechToken }
   }
 
@@ -898,6 +1007,7 @@ export class VoiceService {
 
   private async discardTombstone(sessionId: string, token: symbol): Promise<void> {
     await this.invoke(() => this.ipc.request('ai.voice.session.discard', { sessionId }))
+
     if (this.pendingMaterializations.get(sessionId) !== token) this.releaseTombstone(sessionId, token)
   }
 
@@ -918,6 +1028,7 @@ export class VoiceService {
 
   private optionalLanguage(value: string): string | undefined {
     const language = value.trim()
+
     return language && language.toLowerCase() !== 'auto' ? language : undefined
   }
 }

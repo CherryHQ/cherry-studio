@@ -36,12 +36,16 @@ import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
+
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+
 export const GLOBAL_INSTALL_PLAN_DENIAL =
   'Plan mode is read-only: global package installation is not allowed. Exit plan mode before retrying.'
+
 export const GLOBAL_INSTALL_UNATTENDED_DENIAL =
   'Global package installation requires approval and cannot run without a responder. Retry interactively or use Full Access.'
+
 export const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
@@ -63,20 +67,25 @@ export function approvalRequiredRuntimeNames(mountedServers: ReadonlySet<string>
 
 function bashCommand(ctx: ToolGuardContext): string | undefined {
   const command = ctx.input?.command
+
   return typeof command === 'string' && command.trim() ? command : undefined
 }
 
 const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
   const command = bashCommand(ctx)
+
   if (!command) return null
   const reason = detectGlobalInstall(command)
+
   return reason ? { evidence: reason } : null
 }
 
 const miseMutationCommand = (ctx: ToolGuardContext): GuardHit | null => {
   const command = bashCommand(ctx)
+
   if (!command) return null
   const reason = detectMiseMutation(command)
+
   return reason ? { evidence: reason } : null
 }
 
@@ -89,38 +98,49 @@ const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | nu
     workspacePath: ctx.cwd,
     signal: ctx.signal
   })
+
   return decision ? {} : null
 }
 
 const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
   if (ctx.supportsImages !== false) return null
   const requestedPath = ctx.input?.file_path
+
   if (typeof requestedPath !== 'string' || !imageExts.includes(path.extname(requestedPath).toLowerCase())) return null
+
   return { evidence: requestedPath }
 }
 
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
+
   if (!pathField) return null
   const requestedPath = ctx.input?.[pathField]
+
   // Glob/Grep intentionally omit `path` to search from cwd. Let the SDK validate missing or
   // malformed required fields for the other tools rather than duplicating their schemas here.
   if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
+
   if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath)) return null
+
   return { evidence: requestedPath }
 }
 
 const skillWithAbsentDependency = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   const skillName = ctx.input?.skill
+
   if (typeof skillName !== 'string' || !skillName) return null
   const { deny } = await checkSkillRuntimeDependencies(skillName, ctx.cwd, ctx.pluginDirectories)
+
   return deny ? { evidence: deny } : null
 }
 
 const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
   const command = bashCommand(ctx)
+
   if (!command) return null
   const run = ctx.bashNoProgressRun?.(command)
+
   // Hard tier only: the soft tier (a one-shot warning at BASH_NO_PROGRESS_THRESHOLD) lives in the
   // hook plane, the same split as skill-dependency's deny/advisory halves.
   return run !== undefined && run >= BASH_NO_PROGRESS_HARD_THRESHOLD ? { evidence: String(run) } : null
@@ -128,6 +148,7 @@ const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
 
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
   const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)
+
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
@@ -139,7 +160,9 @@ export function shellToolDialect(toolName: string): CommandDialect | undefined {
 function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefined {
   const command = bashCommand(ctx)
   const dialect = shellToolDialect(ctx.toolName)
+
   if (!dialect || !command) return undefined
+
   return checkCommand({
     command,
     dialect,
@@ -156,6 +179,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: {
       when: async (ctx) => {
         const decision = await commandDecision(ctx)
+
         return decision?.effect === 'deny' ? { evidence: decision.reason } : null
       }
     },
@@ -168,6 +192,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: {
       when: async (ctx) => {
         const decision = await commandDecision(ctx)
+
         return decision?.effect === 'ask' ? { evidence: decision.reason } : null
       }
     },

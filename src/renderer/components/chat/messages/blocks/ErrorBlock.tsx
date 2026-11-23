@@ -41,21 +41,27 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { navigateToRoute } = useMessageListActions()
 
   const claudeCodeExit = getClaudeCodeExitInfo(error)
+
   if (claudeCodeExit) {
     const { reference, exitCode, exitSignal } = claudeCodeExit
+
     if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+
     if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+
     return t('error.claude_code_exit.start', { reference })
   }
 
   const i18nKey = error && 'i18nKey' in error ? `error.${error.i18nKey}` : ''
   const errorKey = `error.${error?.message}`
   const localModelFailure = getLocalModelResolutionFailure(error)
+
   const errorStatus =
     error && ('status' in error || 'statusCode' in error) ? error.status || error.statusCode : undefined
 
   if (i18n.exists(i18nKey)) {
     const providerId = error && 'providerId' in error ? error.providerId : undefined
+
     if (providerId && typeof providerId === 'string') {
       return (
         <Trans
@@ -78,14 +84,18 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         />
       )
     }
+
     // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
     // its values may embed a verbatim provider diagnostic.
     const detailKey = error?.detailI18nKey
+
     if (typeof detailKey === 'string' && detailKey) {
       const detailFullKey = `error.${detailKey}`
+
       if (i18n.exists(detailFullKey)) {
         // SAFETY: attachmentRouting emits string interpolation values; error serialization preserves that map.
         const detailValues = error?.detailI18nValues as Record<string, string> | undefined
+
         return (
           <span>
             {t(i18nKey)} {t(detailFullKey, detailValues)}
@@ -93,6 +103,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         )
       }
     }
+
     return t(i18nKey)
   }
 
@@ -122,6 +133,7 @@ const MessageErrorInfo: React.FC<{
 }> = ({ partId, error, message }) => {
   const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
     useMessageListActions()
+
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
   const [aiSummary, setAiSummary] = useState<string>('')
@@ -140,6 +152,7 @@ const MessageErrorInfo: React.FC<{
   const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, classification.category)
   const cherryCloudQuotaRejection = cloudPresentation.quota
   const cherryCloudQuotaText = cherryCloudQuotaRejection ? cloudPresentation.text : ''
+
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
   // pattern-matched category heading, which can name the wrong subsystem entirely (an
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
@@ -147,14 +160,19 @@ const MessageErrorInfo: React.FC<{
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
     if (cherryCloudQuotaRejection) return t('models.detail.quota_insufficient_for_request')
+
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
+
       if (!modelId) return t('code.select_provider_model')
+
       return t('error.diagnosis.model_unavailable', {
         model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
       })
     }
+
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
   }, [
     cherryCloudQuotaRejection,
@@ -185,9 +203,11 @@ const MessageErrorInfo: React.FC<{
     })
       .then((result) => {
         const summary = typeof result === 'string' ? result : (result?.summary ?? '')
+
         if (!cancelled && summary) setAiSummary(summary)
       })
       .catch(() => {})
+
     return () => {
       cancelled = true
     }
@@ -235,6 +255,7 @@ const MessageErrorInfo: React.FC<{
 
   const onNavigate = (e: React.MouseEvent) => {
     e.stopPropagation()
+
     if (classification.navTarget) {
       void navigateErrorTarget?.(classification.navTarget)
     }

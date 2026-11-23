@@ -4,6 +4,7 @@ import { TavilyLight } from './light'
 
 const Tavily = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TavilyLight {...props} className={className} />
+
   return <TavilyLight {...props} className={className} />
 }
 

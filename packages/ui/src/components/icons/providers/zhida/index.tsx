@@ -6,7 +6,9 @@ import { ZhidaLight } from './light'
 
 const Zhida = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ZhidaLight {...props} className={className} />
+
   if (variant === 'dark') return <ZhidaDark {...props} className={className} />
+
   return (
     <>
       <ZhidaLight className={cn('dark:hidden', className)} {...props} />

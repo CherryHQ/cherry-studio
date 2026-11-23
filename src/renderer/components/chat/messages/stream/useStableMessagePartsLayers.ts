@@ -56,12 +56,17 @@ interface StableMessagePartsLayersCache {
 
 function partsContentEqual(a: CherryMessagePart[], b: CherryMessagePart[]): boolean {
   if (a === b) return true
+
   if (a.length !== b.length) return false
+
   for (let i = 0; i < a.length; i++) {
     const previousPart = a[i]
     const nextPart = b[i]
+
     if (previousPart === nextPart) continue
+
     if (previousPart.type !== 'data-translation' || nextPart.type !== 'data-translation') return false
+
     if (
       previousPart.id !== nextPart.id ||
       previousPart.data.content !== nextPart.data.content ||
@@ -72,6 +77,7 @@ function partsContentEqual(a: CherryMessagePart[], b: CherryMessagePart[]): bool
       return false
     }
   }
+
   return true
 }
 
@@ -100,8 +106,10 @@ export function useStableMessagePartsLayers(
     for (const message of messages) {
       const baseParts = (message.parts ?? []) as CherryMessagePart[]
       const previousHistoryParts = previousHistory[message.id]
+
       const historyParts =
         previousHistoryParts && partsContentEqual(previousHistoryParts, baseParts) ? previousHistoryParts : baseParts
+
       nextHistory[message.id] = historyParts
       historyChanged ||= historyParts !== previousHistoryParts
 
@@ -110,10 +118,12 @@ export function useStableMessagePartsLayers(
       hasExecutionOverlay ||= usesExecutionOverlay
       const currentCandidate = usesExecutionOverlay ? executionParts : historyParts
       const previousCurrentParts = previousCurrent[message.id]
+
       const currentParts =
         previousCurrentParts && partsContentEqual(previousCurrentParts, currentCandidate)
           ? previousCurrentParts
           : currentCandidate
+
       nextCurrent[message.id] = currentParts
       currentChanged ||= currentParts !== previousCurrentParts
     }
@@ -122,10 +132,12 @@ export function useStableMessagePartsLayers(
       if (messageId in nextCurrent || executionParts.length === 0) continue
       hasExecutionOverlay = true
       const previousCurrentParts = previousCurrent[messageId]
+
       const currentParts =
         previousCurrentParts && partsContentEqual(previousCurrentParts, executionParts)
           ? previousCurrentParts
           : executionParts
+
       nextCurrent[messageId] = currentParts
       currentChanged ||= currentParts !== previousCurrentParts
     }
@@ -141,6 +153,7 @@ export function useStableMessagePartsLayers(
 
     const historyPartsByMessageId = historyChanged ? nextHistory : previousHistory
     let partsByMessageId = previousCurrent
+
     if (!hasExecutionOverlay) {
       partsByMessageId = historyPartsByMessageId
     } else if (currentChanged) {
@@ -157,6 +170,7 @@ export function useStableMessagePartsLayers(
 
     const value = { historyPartsByMessageId, partsByMessageId }
     cacheRef.current = { messageCount: messages.length, value }
+
     return value
   }, [messages, overlay])
 }

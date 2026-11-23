@@ -16,22 +16,27 @@ export class CoalescingTask {
   run(task: Task): Promise<void> {
     if (this.active) {
       this.pending = task
+
       return this.active
     }
+
     const result = Promise.withResolvers<void>()
     this.active = result.promise
     void this.drain(task, result)
+
     return result.promise
   }
 
   private async drain(task: Task, result: PromiseWithResolvers<void>): Promise<void> {
     try {
       let current: Task | undefined = task
+
       while (current) {
         this.pending = undefined
         await current()
         current = this.pending
       }
+
       this.active = undefined
       result.resolve()
     } catch (error) {

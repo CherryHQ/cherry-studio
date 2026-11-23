@@ -50,6 +50,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => topicService.purgeExpiredTx(tx, cutoffMs, limit))
+
       return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => topicService.notifyPurged(purgedIds))
     }
   },
@@ -57,6 +58,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
     name: 'session',
     purgeExpired: async (cutoffMs, limit) => {
       const batch = await application.get('AgentLifecycleService').purgeExpiredSessions(cutoffMs, limit)
+
       return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {})
     }
   },
@@ -64,6 +66,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
     name: 'agent',
     purgeExpired: async (cutoffMs, limit) => {
       const batch = await application.get('AgentLifecycleService').purgeExpiredAgents(cutoffMs, limit)
+
       return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {})
     }
   },
@@ -73,6 +76,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit))
+
       return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => {
         assistantDataService.notifyReadModelChange(purgedIds, 'membership')
         promptService.notifyTargetBindingsChanged()
@@ -85,6 +89,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => paintingService.purgeExpiredTx(tx, cutoffMs, limit))
+
       return completedPurgeBatch(purgedIds, purgedIds.length === limit, () =>
         paintingService.notifyReadModelChange(purgedIds, 'membership')
       )
@@ -96,6 +101,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => fileEntryService.purgeExpiredTx(tx, cutoffMs, limit))
+
       return completedPurgeBatch(purgedIds, purgedIds.length === limit, () =>
         notifyDataApiDataChange([
           { endpoint: '/files/entries', kind: 'membership', entityIds: purgedIds },
@@ -122,6 +128,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     // Retention 0 disables the row purge, not disk reclamation: permanent deletes still
     // strand runtime state, and skipping the sweeps would leave it there forever.
     const retentionDisabled = !emptyAll && retentionDays === 0
+
     if (retentionDisabled) logger.info('Trash auto-purge disabled (retention_days = 0) — sweeping residue only')
 
     // MAX_SAFE_INTEGER + strict `deletedAt < cutoff` captures rows moved to the Recycle Bin "now".
@@ -133,6 +140,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       ctx.signal.throwIfAborted()
       const purgedIds: string[] = []
       let batch: PurgeBatch
+
       // DB-only domains keep each synchronous transaction short; Session additionally
       // drains its runtime before entering the transaction.
       do {
@@ -141,12 +149,15 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
         ctx.signal.throwIfAborted()
         batch = await domain.purgeExpired(cutoffMs, PURGE_BATCH_SIZE)
         purgedIds.push(...batch.purgedIds)
+
         // A later batch may fail after this transaction has already committed.
         if (batch.purgedIds.length > 0) batch.notifyPurged()
       } while (batch.hasMore)
+
       purged[domain.name] = purgedIds.length
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))
     }
+
     const retainedReferencedFileCount = emptyAll ? fileEntryService.getStats().trashTotal : 0
 
     // Schedule reconciliation strictly AFTER all transactions committed. It runs even
@@ -162,8 +173,10 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     // The sweeps walk the whole agents/files tree, so a cancel arriving here would
     // otherwise go unobserved until they finish.
     let reclaimed = true
+
     try {
       const report = await application.get('FileManager').runSweep()
+
       // The sweep aborts itself when the residue looks like a restore, and caps entry
       // cleanup per pass — reporting an unqualified success would hide leftover blobs.
       if (report.outcome !== 'completed' || report.entryCleanup.hasPendingWork) {
@@ -178,11 +191,14 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       reclaimed = false
       logger.warn('File orphan sweep failed — residue retried next purge run', { error })
     }
+
     ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 2) / totalSteps) * 100))
 
     ctx.signal.throwIfAborted()
+
     try {
       const { failedDrivers } = await application.get('AgentLifecycleService').sweepOrphans(ctx.signal)
+
       if (failedDrivers.length > 0) {
         reclaimed = false
         logger.warn('Agent orphan sweep left runtime residue', { failedDrivers })
@@ -193,6 +209,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       reclaimed = false
       logger.warn('Agent orphan sweep failed — residue retried next purge run', { error })
     }
+
     ctx.reportProgress(100)
 
     logger.info('Trash purge complete', {
@@ -202,6 +219,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       retainedReferencedFileCount,
       retentionDisabled
     })
+
     return { skipped: retentionDisabled, purged, reclaimed, retainedReferencedFileCount }
   }
 }

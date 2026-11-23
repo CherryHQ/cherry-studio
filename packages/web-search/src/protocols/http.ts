@@ -9,6 +9,7 @@ export function apiUrl(apiHost: string, path: string): string {
 
 export function bearer(context: ProtocolContext): Record<string, string> {
   const key = context.call.credentials?.apiKey
+
   return key ? { Authorization: `Bearer ${key}` } : {}
 }
 
@@ -35,9 +36,11 @@ export function invalidResponse(context: ProtocolContext, code: string, message:
 
 function safeText(context: ProtocolContext, value: string | number | undefined, limit: number): string {
   let text = typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+
   for (const secret of [context.call.credentials?.apiKey, context.call.credentials?.basicAuth?.password]) {
     if (secret) text = text.split(secret).join('[redacted]')
   }
+
   return text.trim().slice(0, limit)
 }
 
@@ -59,21 +62,28 @@ export async function requestText(
     signal: context.call.signal,
     timeoutMs: context.call.timeoutMs
   })
+
   if (context.call.signal?.aborted) throw context.call.signal.reason
+
   if (response.status < 200 || response.status >= 300) {
     let decoded: z.infer<typeof errorSchema> | undefined
+
     try {
       const parsed = errorSchema.safeParse(JSON.parse(response.bodyText))
+
       if (parsed.success) decoded = parsed.data
     } catch {
       /* Error bodies can be plain text. */
     }
+
     const error = decoded?.error
+
     const message = safeText(
       context,
       decoded?.message ?? decoded?.error_msg ?? decoded?.msg ?? (typeof error === 'string' ? error : error?.message),
       500
     )
+
     throw new WebSearchError({
       ...context.call,
       kind: 'http',
@@ -85,6 +95,7 @@ export async function requestText(
       requestId: safeText(context, response.headers['x-request-id'], 128) || undefined
     })
   }
+
   return response
 }
 
@@ -96,22 +107,29 @@ export async function requestJson<T>(
   checkError?: (payload: unknown) => void
 ): Promise<T> {
   const defaults: Record<string, string> = {}
+
   if (request.body !== undefined) defaults['Content-Type'] = 'application/json'
+
   const response = await requestText(context, {
     ...request,
     headers: { ...defaults, ...request.headers },
     body: request.body === undefined ? undefined : JSON.stringify(request.body)
   })
+
   let payload: unknown
+
   try {
     payload = JSON.parse(response.bodyText)
   } catch {
     throw invalidResponse(context, 'invalid_json', `${context.call.providerId} returned invalid JSON`)
   }
+
   checkError?.(payload)
   const parsed = schema.safeParse(payload)
+
   if (!parsed.success)
     throw invalidResponse(context, 'schema_mismatch', `${context.call.providerId} response validation failed`)
+
   return parsed.data
 }
 
@@ -122,8 +140,10 @@ export function checkProviderError(
   field: 'code' | 'error_code' | 'success'
 ): void {
   const parsed = errorSchema.extend({ success: z.boolean().optional() }).safeParse(payload)
+
   if (!parsed.success) return
   const value = parsed.data[field]
+
   if (value === undefined || (field === 'success' ? value !== false : value === 200)) return
   throw protocolError(
     context,

@@ -175,12 +175,15 @@ export function validateFileName(
     if (WINDOWS_CONTROL_CHARS.test(fileName)) {
       return { valid: false, error: 'File name cannot contain ASCII control characters.' }
     }
+
     if (WINDOWS_INVALID_CHARS.test(fileName)) {
       return { valid: false, error: 'File name contains characters not supported by Windows: < > : " / \\ | ? *' }
     }
+
     if (WINDOWS_RESERVED_NAMES.test(fileName)) {
       return { valid: false, error: 'File name is a Windows reserved name.' }
     }
+
     if (fileName.endsWith('.') || fileName.endsWith(' ')) {
       return { valid: false, error: 'File name cannot end with a dot or a space' }
     }

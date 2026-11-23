@@ -65,6 +65,7 @@ const tabsListVariants = cva('inline-flex items-center justify-center', {
 
 function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
   const { variant, orientation } = React.use(TabsContext)
+
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
@@ -154,6 +155,7 @@ const tabsTriggerVariants = cva(
 
 function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   const { variant, orientation } = React.use(TabsContext)
+
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"

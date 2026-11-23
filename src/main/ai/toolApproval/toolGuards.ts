@@ -107,6 +107,7 @@ export interface ToolGuardDecision {
 
 function appliesToAgent(rule: ToolGuardRule, ctx: ToolGuardContext): boolean {
   if (!rule.appliesTo) return true
+
   return ctx.builtinRole !== undefined && rule.appliesTo.roles.includes(ctx.builtinRole)
 }
 
@@ -123,11 +124,14 @@ function matchesHeadlessPredicate(predicate: HeadlessPredicate, interaction: Too
 
 async function matchRule(rule: ToolGuardRule, ctx: ToolGuardContext): Promise<GuardHit | null> {
   if (rule.match.tool && rule.match.tool !== ctx.toolName) return null
+
   if (!rule.match.when) return {}
+
   try {
     return await rule.match.when(ctx)
   } catch (error) {
     logger.error('Guard condition threw — treating as no match', { ruleId: rule.id, toolName: ctx.toolName, error })
+
     return null
   }
 }
@@ -150,6 +154,7 @@ export async function evaluateToolGuards(
   for (const [index, rule] of rules.entries()) {
     if (!appliesToAgent(rule, ctx)) continue
     const hit = await matchRule(rule, ctx)
+
     if (!hit) continue
 
     // The headless override is evaluated independently of the bypass skip: an unattended turn has
@@ -159,10 +164,12 @@ export async function evaluateToolGuards(
       if (!(bypass && rule.headless.skipHeadlessDenyInBypass)) {
         candidates.push({ effect: 'deny', reason: rule.headless.reason, ruleId: rule.id, index })
       }
+
       continue
     }
 
     if (rule.effect === undefined) continue
+
     if (bypass && rule.bypassBehavior === 'skipInteractiveEffect') continue
     const reason = typeof rule.reason === 'function' ? rule.reason(hit, ctx) : rule.reason
     candidates.push({ effect: rule.effect, reason, ruleId: rule.id, index })
@@ -171,9 +178,11 @@ export async function evaluateToolGuards(
   if (candidates.length === 0) return undefined
   candidates.sort((a, b) => {
     if (a.effect !== b.effect) return a.effect === 'deny' ? -1 : 1
+
     return a.index - b.index
   })
   const { effect, reason, ruleId } = candidates[0]
+
   return { effect, reason, ruleId }
 }
 
@@ -181,18 +190,23 @@ export async function evaluateToolGuards(
 export function validateToolGuardRules(rules: readonly ToolGuardRule[]): string[] {
   const problems: string[] = []
   const seen = new Set<string>()
+
   for (const rule of rules) {
     if (seen.has(rule.id)) problems.push(`duplicate rule id: ${rule.id}`)
     seen.add(rule.id)
+
     if (!rule.match.tool && !rule.match.when) {
       problems.push(`rule ${rule.id} matches nothing (no tool, no condition)`)
     }
+
     if (rule.effect === undefined && !rule.headless) {
       problems.push(`rule ${rule.id} has neither an effect nor a headless override`)
     }
+
     if (rule.effect !== undefined && rule.headless?.skipHeadlessDenyInBypass && rule.bypassBehavior === 'enforce') {
       problems.push(`rule ${rule.id} enforces its effect under bypass but skips its headless deny there`)
     }
   }
+
   return problems
 }

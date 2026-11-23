@@ -4,6 +4,7 @@ import { NvidiaLight } from './light'
 
 const Nvidia = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <NvidiaLight {...props} className={className} />
+
   return <NvidiaLight {...props} className={className} />
 }
 

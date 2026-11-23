@@ -4,6 +4,7 @@ import { BilibiliLight } from './light'
 
 const Bilibili = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BilibiliLight {...props} className={className} />
+
   return <BilibiliLight {...props} className={className} />
 }
 

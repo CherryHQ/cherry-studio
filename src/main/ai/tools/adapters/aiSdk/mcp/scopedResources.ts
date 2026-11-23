@@ -46,23 +46,28 @@ function toResourceEntry(resource: McpResource): McpResourceEntry {
 /** Every resource the given servers publish. A server that fails to list is logged and skipped. */
 export async function listScopedMcpResources(servers: readonly McpServer[]): Promise<McpResourceListOutput> {
   const catalog = application.get('McpCatalogService')
+
   const results = await Promise.allSettled(
     servers.map(async (server) => {
       const [resources, resourceTemplates] = await Promise.all([
         catalog.listResources(server.id),
         catalog.listResourceTemplates(server.id)
       ])
+
       return { resources: resources.map(toResourceEntry), resourceTemplates }
     })
   )
+
   const listings = results.flatMap((result, index) => {
     if (result.status === 'fulfilled') return [result.value]
     logger.warn('Failed to list resources for an MCP server', {
       serverId: servers[index].id,
       error: result.reason
     })
+
     return []
   })
+
   return {
     resources: listings.flatMap((listing) => listing.resources),
     resourceTemplates: listings.flatMap((listing) => listing.resourceTemplates)
@@ -73,10 +78,13 @@ async function persistResourceBlob(content: McpResource & { blob: string }): Pro
   const data = Buffer.from(content.blob, 'base64')
   const mimeType = content.mimeType || 'application/octet-stream'
   const extension = mimeToExt(mimeType.split(';')[0].trim()) ?? 'bin'
+
   const blobSavedTo = AbsoluteFilePathSchema.parse(
     application.getPath('feature.mcp.resource_results.temp', `${randomUUID()}.${extension}`)
   )
+
   await atomicWriteFile(blobSavedTo, data, { mode: 0o600 })
+
   return {
     uri: content.uri,
     mimeType: content.mimeType,
@@ -90,9 +98,11 @@ export async function readScopedMcpResource(
   { serverId, uri, offset = 0, charCap, signal, interactionContext, embeddedResources }: ReadScopedMcpResourceOptions
 ): Promise<McpResourceReadResult> {
   const embedded = embeddedResources?.get(mcpToolResourceKey(serverId, uri))
+
   const server =
     servers.find((candidate) => candidate.id === serverId) ??
     (embedded && { id: embedded.serverId, name: embedded.serverName })
+
   if (!server) {
     return { error: `MCP server ${serverId} is not available in this conversation.` }
   }
@@ -100,10 +110,12 @@ export async function readScopedMcpResource(
   // Embedded resources are already in the conversation; only remote reads require catalog admission.
   if (!embedded) {
     let published = false
+
     try {
       const catalog = application.get('McpCatalogService')
       const resources = await catalog.listResources(server.id)
       published = resources.some((resource) => resource.uri === uri)
+
       if (!published) {
         const templates = await catalog.listResourceTemplates(server.id)
         published = templates.some(({ uriTemplate }) => {
@@ -116,8 +128,10 @@ export async function readScopedMcpResource(
       }
     } catch (error) {
       logger.warn('Failed to list resources while validating a read', { serverId: server.id, error })
+
       return { error: `Could not reach ${server.name} to verify ${uri}.` }
     }
+
     if (!published) {
       return { error: `${server.name} does not publish ${uri}. Call mcp_resource_list first.` }
     }
@@ -131,6 +145,7 @@ export async function readScopedMcpResource(
             .get('McpRuntimeService')
             .getResource({ serverId: server.id, uri, signal, interactionContext })
         ).contents
+
     const full = contents
       .map(
         (content: McpResource) =>
@@ -138,14 +153,17 @@ export async function readScopedMcpResource(
       )
       .filter(Boolean)
       .join('\n')
+
     const blobs = await Promise.all(
       contents
         .filter((content: McpResource): content is McpResource & { blob: string } => typeof content.blob === 'string')
         .map(persistResourceBlob)
     )
+
     const start = Math.min(offset, full.length)
     const text = full.slice(start, start + charCap)
     const end = start + text.length
+
     return {
       uri,
       serverId: server.id,
@@ -158,6 +176,7 @@ export async function readScopedMcpResource(
     }
   } catch (error) {
     logger.warn('Failed to read or persist an MCP resource', { serverId: server.id, uri, error })
+
     return { error: `Failed to read ${uri} from ${server.name}: ${(error as Error).message}` }
   }
 }

@@ -58,6 +58,7 @@ export class SubWindowService extends BaseService {
   protected async onInit() {
     this.registerIpcHandlers()
     this.registerZoomTracking()
+
     if (isWin || isLinux) {
       // Registry gives Windows and Linux sub-windows WCO; covers pre-warmed standbys like registerZoomTracking.
       this.registerDisposable(
@@ -85,8 +86,10 @@ export class SubWindowService extends BaseService {
             window.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
           }
         }
+
         window.on('will-resize', reapplyZoom)
         window.on('restore', reapplyZoom)
+
         if (isLinux) {
           window.on('resize', reapplyZoom)
         }
@@ -107,22 +110,27 @@ export class SubWindowService extends BaseService {
       // but we want to move the sub window identified by tabId.
       const targetWindowId = this.tabIdToWindowId.get(payload.tabId)
       const win = (targetWindowId && wm.getWindow(targetWindowId)) || BrowserWindow.fromWebContents(event.sender)
+
       if (win && !win.isDestroyed()) {
         const x = Math.round(payload.x)
         const y = Math.round(payload.y)
         this.moveWindow(win, x, y)
+
         if (!win.isVisible()) {
           win.show()
         }
+
         // Only apply opacity when the sub window is dragging its own tab (preparing to reattach).
         // Keep object-identity compare: wm.getWindow() returns the same BrowserWindow instance
         // that BrowserWindow.fromWebContents(sender) returns for the same webContents.
         const senderWindow = BrowserWindow.fromWebContents(event.sender)
+
         if (senderWindow === win && win.getOpacity() !== 0.85) {
           win.setOpacity(0.85)
         }
       }
     }
+
     ipcMain.on(IpcChannel.Tab_MoveWindow, onMoveWindow)
     this.registerDisposable(() => ipcMain.removeListener(IpcChannel.Tab_MoveWindow, onMoveWindow))
   }
@@ -135,9 +143,11 @@ export class SubWindowService extends BaseService {
   private moveWindow(win: BrowserWindow, x: number, y: number) {
     if (USE_CONTENT_BOUNDS_MOVE) {
       const state = this.windowState.get(win.id)
+
       if (state) {
         state.lastMoveAt = Date.now()
       }
+
       const { width, height } = state ?? { width: SUB_WINDOW_DEFAULT_WIDTH, height: SUB_WINDOW_DEFAULT_HEIGHT }
       win.setContentBounds({ x, y, width, height })
     } else {
@@ -157,6 +167,7 @@ export class SubWindowService extends BaseService {
       if (!win.isDestroyed()) {
         const { width, height } = win.getContentBounds()
         const state = this.windowState.get(win.id)
+
         if (state) {
           state.width = width
           state.height = height
@@ -167,6 +178,7 @@ export class SubWindowService extends BaseService {
     win.on('resize', () => {
       if (win.isDestroyed()) return
       const state = this.windowState.get(win.id)
+
       if (!state || Date.now() - state.lastMoveAt < MOVE_RESIZE_IGNORE_MS) return
       const { width, height } = win.getContentBounds()
       state.width = width
@@ -217,8 +229,10 @@ export class SubWindowService extends BaseService {
 
     const windowId = wm.open(WindowType.SubWindow, { initData, options })
     const win = wm.getWindow(windowId)
+
     if (!win) {
       logger.error('wm.open returned windowId but getWindow is undefined', { windowId, tabId })
+
       return windowId
     }
 
@@ -248,6 +262,7 @@ export class SubWindowService extends BaseService {
     })
 
     logger.info(`Created sub window for tab ${tabId}`, { windowId, url, title, type, isPinned })
+
     return windowId
   }
 
@@ -276,6 +291,7 @@ export class SubWindowService extends BaseService {
   public setAlwaysOnTop(senderId: WindowId | null, pinned: boolean): boolean {
     if (!this.isSubWindowSender(senderId)) return false
     application.get('WindowManager').behavior.setAlwaysOnTop(senderId, pinned)
+
     return true
   }
 }

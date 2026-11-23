@@ -16,6 +16,7 @@ const keys: ReadonlyMap<string, ContextCategoryKey> = new Map([
   ['mcp_tools_deferred', 'mcp-tools'],
   ['system_tools_deferred', 'system-tools']
 ])
+
 const names: ReadonlyMap<string, string> = new Map([
   ['System prompt', 'system_prompt'],
   ['System tools', 'system_tools'],
@@ -28,6 +29,7 @@ const names: ReadonlyMap<string, string> = new Map([
   ['Skills', 'skills'],
   ['Custom agents', 'custom_agents']
 ])
+
 const estimated = (tokens: number) => ({ tokens, precision: 'estimated' as const })
 
 export function normalizeContextUsage(
@@ -38,6 +40,7 @@ export function normalizeContextUsage(
     .filter((row) => row.kind !== 'free' && row.kind !== 'buffer')
     .map((row) => {
       const id = (row.id && keys.has(row.id) ? row.id : names.get(row.name)) ?? row.name
+
       return {
         id,
         key: keys.get(id) ?? 'other',
@@ -46,8 +49,10 @@ export function normalizeContextUsage(
         ...estimated(row.tokens)
       }
     })
+
   const buffers = native.categories.filter((row) => row.kind === 'buffer')
   const reserved = buffers.length === 1 ? estimated(buffers[0].tokens) : undefined
+
   const resources: ContextResource[] = [
     ...(native.mcpTools ?? []).map((tool): ContextResource => {
       const resource: ContextResource = {
@@ -57,7 +62,9 @@ export function normalizeContextUsage(
         source: tool.serverName,
         count: estimated(tool.tokens)
       }
+
       if (tool.isLoaded !== undefined) Object.assign(resource, { state: tool.isLoaded ? 'loaded' : 'deferred' })
+
       return resource
     }),
     ...(native.memoryFiles ?? []).map((file) => ({
@@ -82,6 +89,7 @@ export function normalizeContextUsage(
       count: estimated(skill.tokens)
     }))
   ]
+
   return {
     model: native.model,
     revision: createHash('sha256')

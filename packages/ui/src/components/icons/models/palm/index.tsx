@@ -4,6 +4,7 @@ import { PalmLight } from './light'
 
 const Palm = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <PalmLight {...props} className={className} />
+
   return <PalmLight {...props} className={className} />
 }
 

@@ -67,8 +67,10 @@ export function MessageEditingProvider({ children }: { children: ReactNode }) {
 
 export function useMessageEditing() {
   const context = use(MessageEditingContext)
+
   if (!context) {
     throw new Error('useMessageEditing must be used within a MessageEditingProvider')
   }
+
   return context
 }

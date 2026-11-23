@@ -65,7 +65,9 @@ export interface AgentPurgeImpact {
 export type AgentLifecycleState = 'active' | 'trashed' | 'missing'
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
+
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
+
 type AgentCreateInput = AgentBase & {
   type: AgentType
   skillIds?: string[]
@@ -90,18 +92,23 @@ export interface EnsureBuiltinAgentResult {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search projections read stored configuration before sanitation; only recognized builtin-role markers may select a localized description.
 function getAgentDescription(id: string, description: string, configuration: unknown): string {
   if (description) return description
+
   if (typeof configuration === 'object' && configuration !== null) {
     const builtinRole = (configuration as { builtin_role?: unknown }).builtin_role
+
     if (builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT) {
       return t('agent.builtin.cherry_assistant.description')
     }
+
     if (id === CHERRY_SUPPORT_AGENT_ID && builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) {
       return t('agent.builtin.cherry_support.description')
     }
+
     if (builtinRole === BUILTIN_AGENT_ROLE.DOCTOR) {
       return t('agent.builtin.cherry_doctor.description')
     }
   }
+
   return ''
 }
 
@@ -111,6 +118,7 @@ const notDoctorAgent: SQL = sql`coalesce(json_extract(${agentsTable.configuratio
 /** Support also requires its reserved ID, so a legacy marker on another Agent never matches. */
 function builtinRolePredicate(builtinRole: string): SQL {
   const roleMatch = sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+
   return builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
     ? and(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID), roleMatch)!
     : roleMatch
@@ -125,6 +133,7 @@ function buildAgentSearchPredicate(search: string): SQL {
   const assistantDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.ASSISTANT} AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
   const supportDescriptionMatch = sql`${agentsTable.id} = ${CHERRY_SUPPORT_AGENT_ID} AND ${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.SUPPORT} AND ${t('agent.builtin.cherry_support.description')} LIKE ${pattern} ESCAPE '\\'`
   const doctorDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.DOCTOR} AND ${t('agent.builtin.cherry_doctor.description')} LIKE ${pattern} ESCAPE '\\'`
+
   return or(nameMatch, descriptionMatch, assistantDescriptionMatch, supportDescriptionMatch, doctorDescriptionMatch)!
 }
 
@@ -140,6 +149,7 @@ function matchesBuiltinRole(
   expectedRole: unknown
 ): boolean {
   if (!configuration || typeof configuration !== 'object') return expectedRole === undefined
+
   return (configuration as { builtin_role?: unknown }).builtin_role === expectedRole
 }
 
@@ -147,10 +157,13 @@ function matchesBuiltinRole(
 function removeUntrustedSupportRole(id: string, configuration: unknown): AgentRow['configuration'] {
   const next: AgentRow['configuration'] =
     configuration && typeof configuration === 'object' && !Array.isArray(configuration) ? { ...configuration } : {}
+
   if (id === CHERRY_SUPPORT_AGENT_ID || !matchesBuiltinRole(configuration, BUILTIN_AGENT_ROLE.SUPPORT)) {
     return next
   }
+
   delete next.builtin_role
+
   return next
 }
 
@@ -171,6 +184,7 @@ function applyAgentConfigurationPatch(
 
   for (const [key, value] of Object.entries(patch ?? {})) {
     if (key === 'builtin_role') continue
+
     if (value === undefined) {
       delete next[key]
     } else {
@@ -184,12 +198,15 @@ function applyAgentConfigurationPatch(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Database configuration is raw versioned JSON; sanitize known fields before projecting an agent entity.
 function parseConfiguration(raw: unknown, agentId: string): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
+
   if (invalidKeys.length > 0) {
     logger.warn('Agent configuration drift detected; dropping invalid keys', { invalidKeys })
   }
+
   if (agentId !== CHERRY_SUPPORT_AGENT_ID && data?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT) {
     delete data.builtin_role
   }
+
   return data
 }
 
@@ -197,6 +214,7 @@ function parseConfiguration(raw: unknown, agentId: string): AgentConfiguration |
 function getAgentAvatar(configuration: unknown): string | undefined {
   if (!configuration || typeof configuration !== 'object') return undefined
   const avatar = (configuration as { avatar?: unknown }).avatar
+
   return typeof avatar === 'string' ? avatar : undefined
 }
 
@@ -208,8 +226,10 @@ function rowToAgent(
   avatarFileId?: FileEntryId
 ): AgentEntity {
   const clean = nullsToUndefined(row)
+
   if (avatarFileId)
     Object.assign(clean, { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) })
+
   return {
     ...clean,
     mcps,
@@ -233,21 +253,26 @@ function rowToAgent(
  */
 function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[]> {
   if (agentIds.length === 0) return new Map()
+
   const rows = tx
     .select({ agentId: agentMcpServerTable.agentId, mcpServerId: agentMcpServerTable.mcpServerId })
     .from(agentMcpServerTable)
     .where(inArray(agentMcpServerTable.agentId, agentIds))
     .orderBy(asc(agentMcpServerTable.agentId), asc(agentMcpServerTable.createdAt))
     .all()
+
   const map = new Map<string, string[]>()
+
   for (const row of rows) {
     const list = map.get(row.agentId)
+
     if (list) {
       list.push(row.mcpServerId)
     } else {
       map.set(row.agentId, [row.mcpServerId])
     }
   }
+
   return map
 }
 
@@ -258,6 +283,7 @@ function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[
  */
 function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[]> {
   if (agentIds.length === 0) return new Map()
+
   const rows = tx
     .select({ agentId: agentKnowledgeBaseTable.agentId, knowledgeBaseId: agentKnowledgeBaseTable.knowledgeBaseId })
     .from(agentKnowledgeBaseTable)
@@ -268,15 +294,19 @@ function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<strin
       asc(agentKnowledgeBaseTable.knowledgeBaseId)
     )
     .all()
+
   const map = new Map<string, string[]>()
+
   for (const row of rows) {
     const list = map.get(row.agentId)
+
     if (list) {
       list.push(row.knowledgeBaseId)
     } else {
       map.set(row.agentId, [row.knowledgeBaseId])
     }
   }
+
   return map
 }
 
@@ -311,11 +341,13 @@ export class AgentService {
 
   setAvatarEmojiTx(tx: DbOrTx, agentId: string, emoji: string): void {
     this.assertActiveTx(tx, agentId)
+
     const row = tx
       .select({ configuration: agentsTable.configuration })
       .from(agentsTable)
       .where(eq(agentsTable.id, agentId))
       .get()!
+
     tx.update(agentsTable)
       .set({ configuration: { ...row.configuration, avatar: emoji } })
       .where(eq(agentsTable.id, agentId))
@@ -325,6 +357,7 @@ export class AgentService {
 
   private avatarIds(tx: DbOrTx, ids: string[]): Map<string, FileEntryId> {
     if (!ids.length) return new Map()
+
     return new Map(
       tx
         .select({ id: agentAvatarFileRefTable.sourceId, fileId: agentAvatarFileRefTable.fileEntryId })
@@ -352,6 +385,7 @@ export class AgentService {
     // Prompt bindings deliberately survive trashing and disappear only at retention purge.
     promptService.notifyTargetBindingsChanged()
     agentSessionService.notifyReadModelChange(impact.affectedSessionIds, 'projection')
+
     if (impact.affectedChannelIds.length > 0) {
       const affectedChannelIds = [...new Set(impact.affectedChannelIds)]
       notifyDataApiDataChange([
@@ -373,6 +407,7 @@ export class AgentService {
         'configuration.builtin_role is reserved for system agents'
       )
     }
+
     const mcps = req.mcps ?? []
     const knowledgeBaseIds = req.knowledgeBaseIds ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
@@ -405,6 +440,7 @@ export class AgentService {
         throw DataApiErrorFactory.notFound('Skill', skillId)
       }
     }
+
     this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), knowledgeBaseIds)
 
     const row = withSqliteErrors(
@@ -413,29 +449,35 @@ export class AgentService {
           getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
           const result = this.createAgentTx(tx, id, insertData, 'first')
+
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
             tx.insert(agentMcpServerTable)
               .values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
               .run()
           }
+
           // Insert junction rows for knowledge base associations
           if (knowledgeBaseIds.length > 0) {
             tx.insert(agentKnowledgeBaseTable)
               .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
               .run()
           }
+
           // Enable the selected global skills for the new agent. DB-only: workspace
           // symlinks don't exist yet (no session/workspace at create time) and get
           // reconciled later by SkillService when a workspace appears.
           for (const skillId of skillIds) {
             globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
+
           if (avatarFileId) this.setAvatarSlotTx(tx, id, avatarFileId)
+
           return result
         }),
       defaultHandlersFor('Agent', id)
     )
+
     if (!row) {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
@@ -443,6 +485,7 @@ export class AgentService {
     const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds, avatarFileId)
     notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
     this._onAgentCreated.fire({ agentId: id, agent })
+
     return agent
   }
 
@@ -458,12 +501,16 @@ export class AgentService {
         'Cherry Support must use its reserved system identity'
       )
     }
+
     insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id, position })
     const [agent] = tx.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1).all()
+
     if (!agent) return null
+
     const modelName = agent.model
       ? (modelService.getNamesByUniqueIdsTx(tx, [agent.model]).get(agent.model) ?? null)
       : null
+
     return { agent, modelName }
   }
 
@@ -479,12 +526,14 @@ export class AgentService {
     options: { includeDeleted?: boolean } = {}
   ): AgentRow | null {
     const roleCondition = builtinRolePredicate(builtinRole)
+
     const [agent] = tx
       .select()
       .from(agentsTable)
       .where(options.includeDeleted ? roleCondition : and(isNull(agentsTable.deletedAt), roleCondition))
       .limit(1)
       .all()
+
     return agent ?? null
   }
 
@@ -500,6 +549,7 @@ export class AgentService {
         )
       )
       .all()
+
     for (const row of rows) {
       tx.update(agentsTable)
         .set({ configuration: removeUntrustedSupportRole(row.id, row.configuration) })
@@ -511,21 +561,27 @@ export class AgentService {
   /** Claim the reserved Support ID without replacing user-owned fields or relations. */
   claimBuiltinSupportIdentityTx(tx: DbOrTx, options: { restoreDeleted?: boolean } = {}): AgentRow | null {
     const [existing] = tx.select().from(agentsTable).where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID)).limit(1).all()
+
     if (!existing) return null
 
     const shouldRestore = options.restoreDeleted === true && existing.deletedAt !== null
+
     if (matchesBuiltinRole(existing.configuration, BUILTIN_AGENT_ROLE.SUPPORT) && !shouldRestore) {
       return existing
     }
+
     const configuration =
       existing.configuration && typeof existing.configuration === 'object' && !Array.isArray(existing.configuration)
         ? { ...existing.configuration, builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
         : { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
+
     const updates: Pick<typeof agentsTable.$inferInsert, 'configuration' | 'deletedAt'> = { configuration }
+
     if (shouldRestore) updates.deletedAt = null
     tx.update(agentsTable).set(updates).where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID)).run()
 
     const [claimed] = tx.select().from(agentsTable).where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID)).limit(1).all()
+
     return claimed ?? null
   }
 
@@ -539,8 +595,10 @@ export class AgentService {
    */
   ensureBuiltinAgentTx(tx: DbOrTx, input: EnsureBuiltinAgentInput): EnsureBuiltinAgentResult {
     let restored = false
+
     if (input.builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) {
       this.clearUntrustedBuiltinSupportRolesTx(tx)
+
       // Detect the restore before claiming: claimBuiltinSupportIdentityTx
       // clears deletedAt but does not report whether it did.
       const [preClaim] = tx
@@ -549,17 +607,21 @@ export class AgentService {
         .where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID))
         .limit(1)
         .all()
+
       this.claimBuiltinSupportIdentityTx(tx, { restoreDeleted: true })
       restored = preClaim?.deletedAt != null
     }
+
     const existing = this.findBuiltinAgentByRoleTx(tx, input.builtinRole)
 
     if (existing) {
       const mcps = fetchMcpsForAgents(tx, [existing.id]).get(existing.id) ?? []
       const knowledgeBaseIds = fetchKnowledgeBasesForAgents(tx, [existing.id]).get(existing.id) ?? []
+
       const modelName = existing.model
         ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
         : null
+
       return {
         agent: rowToAgent(
           existing,
@@ -576,6 +638,7 @@ export class AgentService {
     const preferredModel = input.preferredModelId ? modelService.findByIdTx(tx, input.preferredModelId) : null
     const model = preferredModel && isGatewayRoutableModel(preferredModel) ? input.preferredModelId : null
     const agentId = input.builtinRole === BUILTIN_AGENT_ROLE.SUPPORT ? CHERRY_SUPPORT_AGENT_ID : uuidv4()
+
     const created = this.createAgentTx(tx, agentId, {
       id: agentId,
       type: input.type,
@@ -619,11 +682,13 @@ export class AgentService {
     if (result.created || result.restored) {
       this.emitAgentCreated(result.agent)
     }
+
     return result.agent
   }
 
   private findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): AgentRow | undefined {
     const database = application.get('DbService').getDb()
+
     const whereClause = options.includeDeleted
       ? eq(agentsTable.id, id)
       : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
@@ -635,18 +700,22 @@ export class AgentService {
 
   getAgent(id: string): AgentEntity | null {
     const database = application.get('DbService').getDb()
+
     const [agent] = database
       .select()
       .from(agentsTable)
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!agent) return null
     const mcpsMap = fetchMcpsForAgents(database, [id])
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, [id])
+
     const modelName = agent.model
       ? (modelService.getNamesByUniqueIdsTx(database, [agent.model]).get(agent.model) ?? null)
       : null
+
     return rowToAgent(
       agent,
       modelName,
@@ -665,11 +734,15 @@ export class AgentService {
       options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt),
       notDoctorAgent
     ]
+
     if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
+
     if (options.builtinRole) conditions.push(builtinRolePredicate(options.builtinRole))
+
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }
+
     const whereClause = and(...conditions)
 
     const totalResult = database.select({ count: count() }).from(agentsTable).where(whereClause).all()
@@ -685,8 +758,10 @@ export class AgentService {
         orderKey: agentsTable.orderKey
       })
     )
+
     const sortField = sortByToColumn.get(sortBy) ?? agentsTable.createdAt
     const orderFn = sortOrder === 'asc' ? asc : desc
+
     const orderByClauses =
       sortBy === 'updatedAt'
         ? [orderFn(sortField), orderFn(agentsTable.id)]
@@ -720,12 +795,14 @@ export class AgentService {
     const agentIds = result.map((row) => row.agent.id)
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+
     const modelNames = modelService.getNamesByUniqueIdsTx(
       database,
       result.map((row) => row.agent.model)
     )
 
     const avatarIds = this.avatarIds(database, agentIds)
+
     const agents = result.map((row) =>
       rowToAgent(
         row.agent,
@@ -742,6 +819,7 @@ export class AgentService {
   search(options: { q: string; limit: number; updatedAtFrom?: number }): AgentEntitySearchItem[] {
     const database = application.get('DbService').getDb()
     const conditions: SQL[] = [isNull(agentsTable.deletedAt), notDoctorAgent, buildAgentSearchPredicate(options.q)]
+
     if (options.updatedAtFrom !== undefined) {
       conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
@@ -793,6 +871,7 @@ export class AgentService {
         }
       }
     }
+
     if (newKnowledgeBaseIds !== undefined) {
       this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
     }
@@ -806,6 +885,7 @@ export class AgentService {
             .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
             .limit(1)
             .all()
+
           if (!current) throw DataApiErrorFactory.notFound('Agent', id)
 
           const updateData: Partial<AgentRow> = {
@@ -818,23 +898,29 @@ export class AgentService {
           // Configuration is handled separately as a first-level JSON PATCH.
           for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
             if (field === 'mcps' || field === 'knowledgeBaseIds' || field === 'configuration') continue
+
             if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
             const value = updates[field as keyof typeof updates]
+
             if (value === undefined) continue
             Object.assign(updateData, { [field]: value })
           }
 
           const configurationPatch = updates.configuration
           const modelChanged = updates.model !== undefined && updates.model !== current.model
+
           const reasoningEffortPatched =
             configurationPatch !== undefined &&
             Object.prototype.hasOwnProperty.call(configurationPatch, 'reasoning_effort')
+
           const reasoningEffortRemoved = reasoningEffortPatched && configurationPatch?.reasoning_effort === undefined
 
           if (configurationPatch !== undefined || modelChanged) {
             const persistedConfiguration = removeUntrustedSupportRole(current.id, current.configuration)
+
             const incomingRole =
               configurationPatch && typeof configurationPatch === 'object' ? configurationPatch.builtin_role : undefined
+
             if (incomingRole !== undefined && !matchesBuiltinRole(persistedConfiguration, incomingRole)) {
               throw DataApiErrorFactory.invalidOperation(
                 'update agent',
@@ -843,42 +929,52 @@ export class AgentService {
             }
 
             const nextConfiguration = applyAgentConfigurationPatch(persistedConfiguration, configurationPatch)
+
             // Normalize a reasoning-effort patch against the model the caller is actually steering: with a session-level model override the agent's own model is unchanged, and validating against it would drop an effort the session's effective model supports (cherry-pr-review inv_98911732422a84bf).
             const effectiveModelId =
               updates.reasoningValidationModelId ?? (updates.model !== undefined ? updates.model : current.model)
+
             if (!reasoningEffortRemoved && effectiveModelId && (modelChanged || reasoningEffortPatched)) {
               const nextModel = modelService.findByIdTx(tx, effectiveModelId)
+
               if (nextModel) {
                 const currentEffort = parseConfiguration(nextConfiguration, current.id)?.reasoning_effort ?? 'default'
                 nextConfiguration.reasoning_effort =
                   resolveReasoningEffortForModel(nextModel, currentEffort) ?? 'default'
               }
             }
+
             updateData.configuration = nextConfiguration
           }
 
           if (newKnowledgeBaseIds !== undefined) {
             this.assertKnowledgeBasesExistTx(tx, newKnowledgeBaseIds)
           }
+
           this.updateAgentTx(tx, id, updateData)
+
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
             tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.agentId, id)).run()
+
             if (newMcps.length > 0) {
               tx.insert(agentMcpServerTable)
                 .values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
                 .run()
             }
           }
+
           // Replace knowledge base associations if provided
           if (newKnowledgeBaseIds !== undefined) {
             tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id)).run()
+
             if (newKnowledgeBaseIds.length > 0) {
               tx.insert(agentKnowledgeBaseTable)
                 .values(newKnowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
                 .run()
             }
           }
+
           if (newSkillUpdates !== undefined) {
             getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
           }
@@ -887,10 +983,12 @@ export class AgentService {
     )
 
     const updated = this.getAgent(id)
+
     if (updated) {
       this.notifyReadModelChange([id], 'projection')
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
+
     return updated
   }
 
@@ -901,10 +999,13 @@ export class AgentService {
   deleteAgent(id: string, options: { deleteSessions?: boolean; permanent?: boolean } = {}) {
     const impact = application.get('DbService').withWriteTx((tx) => this.deleteAgentStateTx(tx, id, options))
     this.notifyDeleted(id, impact)
+
     const result: Pick<typeof impact, 'deleted'> & Partial<Pick<typeof impact, 'deletedSessionIds'>> = {
       deleted: impact.deleted
     }
+
     if (impact.deletedSessionIds) result.deletedSessionIds = impact.deletedSessionIds
+
     return result
   }
 
@@ -915,6 +1016,7 @@ export class AgentService {
   ) {
     const permanent = options.permanent === true
     const deleteSessions = options.deleteSessions === true && (!permanent || options.targetState === 'active')
+
     const affectedChannelIds = permanent
       ? tx
           .select({ id: agentChannelTable.id })
@@ -923,6 +1025,7 @@ export class AgentService {
           .all()
           .map((row) => row.id)
       : []
+
     const result = (() => {
       const [agent] = tx
         .select({ id: agentsTable.id })
@@ -934,12 +1037,14 @@ export class AgentService {
         )
         .limit(1)
         .all()
+
       if (!agent) return { rowsAffected: 0, sessionImpact: undefined }
 
       if (permanent) {
         const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
           deleteSessions
         })
+
         return {
           ...this.deleteAgentTx(tx, id),
           sessionImpact: {
@@ -951,6 +1056,7 @@ export class AgentService {
 
       const trashedAt = Date.now()
       const sessionIds = agentSessionService.listIdsByAgentTx(tx, id)
+
       const trashed =
         options.deleteSessions === true
           ? agentSessionService.trashByAgentIdTx(tx, id, {
@@ -967,12 +1073,15 @@ export class AgentService {
                 sessionIds
               )
             }
+
       const result = tx
         .update(agentsTable)
         .set({ deletedAt: trashedAt })
         .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
         .run()
+
       pinService.purgeForEntityTx(tx, 'agent', id)
+
       return {
         rowsAffected: result.changes,
         sessionImpact: {
@@ -984,6 +1093,7 @@ export class AgentService {
         }
       }
     })()
+
     return {
       deleted: result.rowsAffected > 0,
       deletedSessionIds:
@@ -1007,6 +1117,7 @@ export class AgentService {
     agentTaskService.notifyReadModelChange(impact.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(impact.deliveryResults)
     agentSessionService.notifyReadModelChange(impact.affectedSessionIds, impact.changeKind)
+
     if (impact.affectedChannelIds.length > 0)
       notifyDataApiDataChange([
         { endpoint: '/agent-channels', kind: 'projection', entityIds: impact.affectedChannelIds },
@@ -1021,6 +1132,7 @@ export class AgentService {
     pinService.purgeForEntityTx(tx, 'agent', id)
     promptService.purgeForTargetTx(tx, 'agent', id)
     const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
+
     return { rowsAffected: result.changes }
   }
 
@@ -1032,6 +1144,7 @@ export class AgentService {
     const { agent, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => this.restoreAgentTx(tx, id))
     agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
     this.notifyReadModelChange([id], 'membership')
+
     return agent
   }
 
@@ -1042,6 +1155,7 @@ export class AgentService {
       .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!target || target.deletedAt === null) throw DataApiErrorFactory.notFound('Agent', id)
 
     const restoredSessionIds = agentSessionService.restoreTrashedWithAgentTx(tx, id, target.deletedAt)
@@ -1052,11 +1166,14 @@ export class AgentService {
       .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
       .returning()
       .all()
+
     if (!row) throw DataApiErrorFactory.notFound('Agent', id)
     const database = tx
+
     const modelName = row.model
       ? (modelService.getNamesByUniqueIdsTx(database, [row.model]).get(row.model) ?? null)
       : null
+
     const agent = rowToAgent(
       row,
       modelName,
@@ -1064,7 +1181,9 @@ export class AgentService {
       fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? [],
       this.avatarIds(database, [id]).get(id)
     )
+
     logger.info('Restored agent', { id })
+
     return { agent, restoredSessionIds }
   }
 
@@ -1075,7 +1194,9 @@ export class AgentService {
       .where(and(isNotNull(agentsTable.deletedAt), lt(agentsTable.deletedAt, cutoffMs)))
       .limit(limit)
       .all()
+
     const purgedIds = rows.map((row) => row.id)
+
     if (purgedIds.length === 0) return { purgedIds, affectedSessionIds: [], affectedChannelIds: [] }
 
     const affectedSessionIds = tx
@@ -1085,6 +1206,7 @@ export class AgentService {
       .orderBy(asc(agentSessionTable.id))
       .all()
       .map((row) => row.id)
+
     const affectedChannelIds = tx
       .select({ id: agentChannelTable.id })
       .from(agentChannelTable)
@@ -1094,17 +1216,21 @@ export class AgentService {
       .map((row) => row.id)
 
     for (const id of purgedIds) this.deleteAgentTx(tx, id)
+
     return { purgedIds, affectedSessionIds, affectedChannelIds }
   }
 
   agentExists(id: string): boolean {
     const result = this.findAgentRow(id)
+
     return !!result
   }
 
   getLifecycleState(id: string): AgentLifecycleState {
     const row = this.findAgentRow(id, { includeDeleted: true })
+
     if (!row) return 'missing'
+
     return row.deletedAt == null ? 'active' : 'trashed'
   }
 
@@ -1122,6 +1248,7 @@ export class AgentService {
 
   isExpiredTrash(id: string, cutoffMs: number): boolean {
     const row = this.findAgentRow(id, { includeDeleted: true })
+
     return row?.deletedAt != null && row.deletedAt < cutoffMs
   }
 
@@ -1141,6 +1268,7 @@ export class AgentService {
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!target) throw DataApiErrorFactory.notFound('Agent', id)
 
     applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id })
@@ -1153,11 +1281,13 @@ export class AgentService {
 
   reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {
     const ids = moves.map((m) => m.id)
+
     const targets = tx
       .select({ id: agentsTable.id })
       .from(agentsTable)
       .where(and(inArray(agentsTable.id, ids), isNull(agentsTable.deletedAt)))
       .all()
+
     if (targets.length !== ids.length) {
       const found = new Set(targets.map((t) => t.id))
       const missing = ids.find((id) => !found.has(id)) ?? ids[0]
@@ -1174,18 +1304,23 @@ export class AgentService {
   emitAgentUpdatedForIds(agentIds: string[], relation: AgentRelationField): void {
     if (agentIds.length === 0) return
     const database = application.get('DbService').getDb()
+
     const rows = database
       .select()
       .from(agentsTable)
       .where(and(inArray(agentsTable.id, agentIds), isNull(agentsTable.deletedAt)))
       .all()
+
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
     const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+
     const modelNames = modelService.getNamesByUniqueIdsTx(
       database,
       rows.map((row) => row.model)
     )
+
     const avatarIds = this.avatarIds(database, agentIds)
+
     for (const row of rows) {
       const agent = rowToAgent(
         row,
@@ -1194,14 +1329,17 @@ export class AgentService {
         knowledgeBasesMap.get(row.id) ?? [],
         avatarIds.get(row.id)
       )
+
       const updates: UpdateAgentDto =
         relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }
+
       this._onAgentUpdated.fire({ agentId: agent.id, updates, agent })
     }
   }
 
   private assertKnowledgeBasesExistTx(tx: DbOrTx, knowledgeBaseIds: readonly string[]): void {
     const uniqueIds = [...new Set(knowledgeBaseIds)]
+
     if (uniqueIds.length === 0) return
 
     const existing = tx
@@ -1209,8 +1347,10 @@ export class AgentService {
       .from(knowledgeBaseTable)
       .where(inArray(knowledgeBaseTable.id, uniqueIds))
       .all()
+
     const existingIds = new Set(existing.map((row) => row.id))
     const missingId = uniqueIds.find((id) => !existingIds.has(id))
+
     if (missingId) throw DataApiErrorFactory.notFound('KnowledgeBase', missingId)
   }
 
@@ -1228,6 +1368,7 @@ export class AgentService {
       .from(agentMcpServerTable)
       .where(eq(agentMcpServerTable.mcpServerId, mcpServerId))
       .all()
+
     const affectedIds = [...new Set(referenced.map((r) => r.agentId))]
 
     // Delete junction rows explicitly so we can identify affected agent IDs
@@ -1244,6 +1385,7 @@ export class AgentService {
       .from(agentKnowledgeBaseTable)
       .where(eq(agentKnowledgeBaseTable.knowledgeBaseId, knowledgeBaseId))
       .all()
+
     const affectedIds = [...new Set(referenced.map((row) => row.agentId))]
 
     tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.knowledgeBaseId, knowledgeBaseId)).run()

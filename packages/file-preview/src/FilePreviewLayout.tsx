@@ -31,6 +31,7 @@ function FilePreviewContent({
 }) {
   const { options } = usePreviewHost()
   const reserveInset = composerInset && !(scrollsInternally && options?.bottomInset === 'content')
+
   return (
     // Leave room for a host's floating composer without reserving a scrollbar gutter.
     <ScrollArea

@@ -8,7 +8,9 @@ export const SIDEBAR_FULL_THRESHOLD = 120
 
 export function getSidebarLayout(width: number): SidebarLayout {
   if (width < SIDEBAR_HIDDEN_THRESHOLD) return 'hidden'
+
   if (width < SIDEBAR_FULL_THRESHOLD) return 'icon'
+
   return 'full'
 }
 
@@ -22,6 +24,7 @@ export function isIntermediateSidebarWidth(width: number): boolean {
 // Persist-time: collapses intermediate widths to the icon width.
 export function normalizeSidebarWidth(width: number): number {
   if (isIntermediateSidebarWidth(width)) return SIDEBAR_ICON_WIDTH
+
   return width
 }
 
@@ -29,6 +32,8 @@ export function normalizeSidebarWidth(width: number): number {
 // icon branch below) so the live drag preview follows the cursor.
 export function getSidebarDisplayWidth(width: number): number {
   if (isIntermediateSidebarWidth(width)) return width
+
   if (getSidebarLayout(width) === 'icon') return SIDEBAR_ICON_WIDTH
+
   return width
 }

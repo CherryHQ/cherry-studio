@@ -55,6 +55,7 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
   // that the live DB does not claim yet — exactly what this sweep would delete.
   if (hasPendingRestore()) {
     logger.info('agent-orphan-sweep skipped — restore pending')
+
     return { removed: [], failedDrivers: [] }
   }
 
@@ -70,6 +71,7 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       .all()
       .map((row) => row.id)
   )
+
   const claimedWorkspaces = new Set(
     db
       .select({ path: agentWorkspaceTable.path })
@@ -86,7 +88,9 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
     // Per entry: the roots can hold thousands of dirs, and a recursive rm is slow
     // enough that a cancel arriving mid-walk must not wait for the whole tree.
     signal?.throwIfAborted()
+
     if (!entry.isDirectory() || !AGENT_DIR_NAME.test(entry.name) || agentIds.has(entry.name)) continue
+
     if (await reclaim(path.resolve(agentsRoot, entry.name), removed, options)) agentDirs++
   }
 
@@ -94,8 +98,10 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
     if (!dateEntry.isDirectory()) continue
     const dateDir = path.resolve(workspacesRoot, dateEntry.name)
     const candidates = new Set<string>()
+
     for (const sessionEntry of await listEntries(dateDir)) {
       signal?.throwIfAborted()
+
       if (
         !sessionEntry.isDirectory() &&
         !WORKSPACE_STORAGE_SUFFIXES.some((suffix) => sessionEntry.name.endsWith(suffix))
@@ -104,19 +110,25 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       const sessionDir = path.resolve(dateDir, sessionEntry.name)
       const suffix = WORKSPACE_STORAGE_SUFFIXES.find((suffix) => sessionDir.endsWith(suffix))
       const workspace = suffix ? sessionDir.slice(0, -suffix.length) : sessionDir
+
       if (!claimedWorkspaces.has(workspace)) candidates.add(workspace)
     }
+
     for (const workspace of candidates) {
       signal?.throwIfAborted()
+
       try {
         const artifacts = await agentWorkspaceStorageService.reclaimOrphanWorkspace(workspace, options)
         removed.push(...artifacts)
+
         if (artifacts.length) workspaceDirs++
       } catch (error) {
         logger.warn('Workspace orphan cleanup retained for retry', { workspace, error })
       }
     }
+
     const release = agentWorkspaceStorageService.reserveWorkspaceStorage([dateDir])
+
     if (release) {
       try {
         await removeIfEmpty(dateDir, removed)
@@ -130,6 +142,7 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
   const { runtimeSessions, failedDrivers } = await reclaimRuntimeSessions(removed, options, signal)
 
   logger.info('agent-orphan-sweep', { event: 'agent-orphan-sweep', agentDirs, workspaceDirs, runtimeSessions })
+
   return { removed, failedDrivers }
 }
 
@@ -144,17 +157,20 @@ async function reclaimRuntimeSessions(
   signal?: AbortSignal
 ): Promise<{ runtimeSessions: Record<string, number>; failedDrivers: string[] }> {
   const drivers = runtimeDriverRegistry.getAgentSessionDrivers().filter((driver) => driver.reclaimOrphanSessions)
+
   if (drivers.length === 0) return { runtimeSessions: {}, failedDrivers: [] }
 
   const keptResumeTokens = new Set([
     ...agentSessionMessageService.listAllRuntimeResumeTokens(),
     ...application.get('AgentSessionRuntimeService').listClaimedResumeTokens()
   ])
+
   const runtimeSessions: Record<string, number> = {}
   const failedDrivers: string[] = []
 
   for (const driver of drivers) {
     signal?.throwIfAborted()
+
     try {
       const result = await driver.reclaimOrphanSessions!(keptResumeTokens, options)
       removed.push(...result.removed)
@@ -172,18 +188,24 @@ export async function reclaimPurgedRuntimeSessions(purgedResumeTokens: ReadonlyS
   if (purgedResumeTokens.size === 0) return
 
   let claimedResumeTokens: ReadonlySet<string>
+
   try {
     claimedResumeTokens = application.get('AgentSessionRuntimeService').listClaimedResumeTokens()
   } catch (error) {
     logger.warn('Could not read active runtime claims — purged session artifacts left for sweep', { error })
+
     return
   }
+
   const tokensToReclaim = new Set([...purgedResumeTokens].filter((token) => !claimedResumeTokens.has(token)))
+
   if (tokensToReclaim.size === 0) return
 
   const removed: string[] = []
+
   for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
     if (!driver.reclaimPurgedSessions) continue
+
     try {
       const result = await driver.reclaimPurgedSessions(tokensToReclaim)
       removed.push(...result.removed)
@@ -191,12 +213,14 @@ export async function reclaimPurgedRuntimeSessions(purgedResumeTokens: ReadonlyS
       logger.warn('Purged runtime session reclaim failed — residue retried next sweep', { runtime: driver.type, error })
     }
   }
+
   logger.info('agent-purge-reclaim', { tokens: tokensToReclaim.size, removed })
 }
 
 async function reclaim(dirPath: string, removed: string[], options: OrphanSessionReclaimOptions): Promise<boolean> {
   if (!(await reclaimStale(dirPath, options))) return false
   removed.push(dirPath)
+
   return true
 }
 

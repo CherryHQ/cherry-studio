@@ -116,7 +116,9 @@ export const cherryCloudAccountPlansSchema = z.looseObject({
 })
 
 export type CherryCloudAccountPlans = z.infer<typeof cherryCloudAccountPlansSchema>
+
 export type CherryCloudPlanModel = z.infer<typeof cherryCloudPlanModelSchema>
+
 export type CherryCloudPublicPlanCatalog = z.infer<typeof cherryCloudPublicPlanCatalogSchema>
 
 const subscriptionEntrySourceSchema = z.enum([
@@ -127,9 +129,11 @@ const subscriptionEntrySourceSchema = z.enum([
   'quota_notice',
   'avatar_dot'
 ])
+
 // A Subscribe click reached through another touchpoint's prompt, e.g. the avatar dot leading into the account panel.
 const subscriptionEntryViaSchema = z.enum(['avatar_dot'])
 const quotaModelTypeSchema = z.enum(['free', 'paid'])
+
 // One id per Subscribe click, also handed to the account portal so web and server events of the same purchase can be joined.
 const subscriptionFlowIdSchema = z.uuid()
 
@@ -185,13 +189,16 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
 ])
 
 export type CherryCloudAnalyticsEvent = z.infer<typeof cherryCloudAnalyticsEventSchema>
+
 export type SubscriptionEntrySource = z.infer<typeof subscriptionEntrySourceSchema>
+
 export type SubscriptionEntryVia = z.infer<typeof subscriptionEntryViaSchema>
 
 const cherryCloudLoginResultSchema = z.strictObject({
   outcome: z.enum(['signed-in', 'cancelled', 'expired', 'rejected', 'stopped']),
   status: cherryCloudStatusSchema
 })
+
 export type CherryCloudLoginResult = z.infer<typeof cherryCloudLoginResultSchema>
 
 function endpointFactSchema<TSchema extends z.ZodType>(value: TSchema) {
@@ -216,6 +223,7 @@ export const cherryCloudRefreshReasonSchema = z.enum([
   'models',
   'quota_refusal'
 ])
+
 export type CherryCloudRefreshReason = z.infer<typeof cherryCloudRefreshReasonSchema>
 
 export const cherryCloudAccountReceiptSchema = z.strictObject({
@@ -228,6 +236,7 @@ export const cherryCloudAccountReceiptSchema = z.strictObject({
   models: endpointFactSchema(cherryCloudModelSyncResultSchema),
   plans: endpointFactSchema(cherryCloudAccountPlansSchema)
 })
+
 export type CherryCloudAccountReceipt = z.infer<typeof cherryCloudAccountReceiptSchema>
 
 const cherryCloudAccountRefreshResultSchema = z.discriminatedUnion('outcome', [
@@ -235,6 +244,7 @@ const cherryCloudAccountRefreshResultSchema = z.discriminatedUnion('outcome', [
   z.strictObject({ outcome: z.literal('failed'), receipt: cherryCloudAccountReceiptSchema }),
   z.strictObject({ outcome: z.enum(['superseded', 'aborted', 'signed-out']), status: cherryCloudStatusSchema })
 ])
+
 export type CherryCloudAccountRefreshResult = z.infer<typeof cherryCloudAccountRefreshResultSchema>
 
 export const cherryCloudRequestSchemas = {

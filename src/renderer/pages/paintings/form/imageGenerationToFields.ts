@@ -82,6 +82,7 @@ const KEY_LABELS: Record<CanonicalParamKey, { title: string; tooltip?: string }>
 // the three size-bearing keys so a `size`/`aspectRatio`/`imageResolution` field
 // that offers `auto` localizes it consistently across chips and the prompt bar.
 const SIZE_AUTO_OPTION = { auto: 'paintings.image_size_options.auto' }
+
 const OPTION_LABELS: Partial<Record<CanonicalParamKey, Record<string, string>>> = {
   size: SIZE_AUTO_OPTION,
   aspectRatio: SIZE_AUTO_OPTION,
@@ -167,8 +168,10 @@ const OPTION_LABELS: Partial<Record<CanonicalParamKey, Record<string, string>>> 
 function toOptions(key: string, values: readonly string[]): OptionItem[] {
   // SAFETY: the own-key check proves this runtime registry key belongs to the canonical label catalog.
   const labelMap = Object.hasOwn(OPTION_LABELS, key) ? OPTION_LABELS[key as CanonicalParamKey] : undefined
+
   return values.map((v) => {
     const labelKey = labelMap && Object.hasOwn(labelMap, v) ? labelMap[v] : undefined
+
     return labelKey ? { labelKey, value: v } : { label: v, value: v }
   })
 }
@@ -176,6 +179,7 @@ function toOptions(key: string, values: readonly string[]): OptionItem[] {
 function specToField(key: string, spec: SupportSpec, allSupports: Record<string, SupportSpec>): BaseConfigItem | null {
   // SAFETY: only an own key of the exhaustive canonical catalog is used as CanonicalParamKey.
   const labels = Object.hasOwn(KEY_LABELS, key) ? KEY_LABELS[key as CanonicalParamKey] : { title: key }
+
   switch (spec.type) {
     case 'switch':
       return { type: 'switch', key, ...labels, initialValue: spec.default ?? false }
@@ -190,9 +194,12 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
         max: spec.max,
         initialValue: spec.default ?? spec.min
       }
+
       if (spec.step !== undefined) item.step = spec.step
+
       return item
     }
+
     case 'enum': {
       const renderAsChips = spec.render === 'chips'
       // A sibling `size`-type spec lets the user pick arbitrary width × height.
@@ -202,12 +209,15 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
       const customSizePairedKey = customSizeSpec?.type === 'size' ? (customSizeSpec.pairedEnumKey ?? 'size') : undefined
       const pairedSize = customSizePairedKey === key
       const options: OptionItem[] = toOptions(key, spec.options)
+
       if (pairedSize) {
         const customOption = { labelKey: 'paintings.custom_size', value: 'custom' }
         const customIndex = options.findIndex((option) => option.value === 'custom')
+
         if (customIndex >= 0) options[customIndex] = customOption
         else options.push(customOption)
       }
+
       if (renderAsChips) {
         return {
           type: 'sizeChips',
@@ -218,10 +228,13 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
           columns: spec.columns ?? 3
         }
       }
+
       return { type: 'select', key, ...labels, options, initialValue: spec.default }
     }
+
     case 'size': {
       const pairedKey = spec.pairedEnumKey
+
       const item: CustomSizeConfigItem = {
         type: 'customSize',
         key,
@@ -236,10 +249,13 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
         },
         condition: pairedKey ? (painting: PaintingParams) => painting[pairedKey] === 'custom' : undefined
       }
+
       return item
     }
+
     default: {
       const _exhaustive: never = spec
+
       return _exhaustive
     }
   }
@@ -261,6 +277,7 @@ export function imageGenerationToFields(
   opts?: { mode?: ImageGenerationMode }
 ): BaseConfigItem[] {
   const allModes = support?.modes
+
   if (!allModes) return []
   const requested = opts?.mode ?? 'generate'
   // Edit-only / upscale-only / remix-only models declare a single non-generate
@@ -271,19 +288,25 @@ export function imageGenerationToFields(
   // to see.
   const fallbackKey = Object.keys(allModes)[0] as ImageGenerationMode | undefined
   const supports = allModes[requested]?.supports ?? (fallbackKey ? allModes[fallbackKey]?.supports : undefined)
+
   if (!supports) return []
   const items: BaseConfigItem[] = []
+
   for (const [key, spec] of Object.entries(supports)) {
     const item = specToField(key, spec, supports)
+
     if (item) {
       if (key === 'size' && supports.frameCount) {
         item.condition = (params) => params.outputFormat !== 'gif'
       }
+
       if (key === 'frameCount' || key === 'frameDurationMs') {
         item.condition = (params) => params.outputFormat === 'gif'
       }
+
       items.push(item)
     }
   }
+
   return items
 }

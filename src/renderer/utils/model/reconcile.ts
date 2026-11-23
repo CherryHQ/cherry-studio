@@ -41,7 +41,9 @@ export function reconcileReasoningEffortForModel(
   currentEffort: ReasoningEffortOption | undefined
 ): ReasoningEffortPatch | null {
   const nextEffort = resolveReasoningEffortForModel(nextModel, currentEffort)
+
   if (nextEffort === currentEffort) return null
+
   return { reasoning_effort: nextEffort }
 }
 
@@ -51,6 +53,8 @@ export function reconcileWebSearchForModel(
   provider: Provider | undefined
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
+
   if (canModelUseAssistantWebSearch(nextModel, provider)) return null
+
   return { enableWebSearch: false }
 }

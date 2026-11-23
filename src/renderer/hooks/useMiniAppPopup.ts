@@ -13,8 +13,10 @@ export { toTransientMiniApp } from '@renderer/utils/miniAppDescriptor'
 function openExternalMiniAppUrl(url: string) {
   try {
     const parsed = new URL(url)
+
     if (parsed.protocol === 'file:') {
       void ipcApi.request('system.shell.open_path', fileUrlToPath(parsed))
+
       return
     }
   } catch {
@@ -29,6 +31,7 @@ export const useMiniAppPopup = () => {
   const openTab = tabs?.openTab
   const [, setSplit] = useCache('mini_app.split')
   const openMiniAppInSplit = useCallback((app: MiniApp) => setSplit({ appId: app.appId }), [setSplit])
+
   const openSmartMiniApp = useCallback(
     (config: MiniAppInput) => {
       if (!openTab) return openExternalMiniAppUrl(config.url)
@@ -41,7 +44,9 @@ export const useMiniAppPopup = () => {
     },
     [openTab]
   )
+
   const openSplit = useCallback(() => setSplit({ appId: null }), [setSplit])
   const closeSplit = useCallback(() => setSplit(null), [setSplit])
+
   return { openMiniAppInSplit, openSmartMiniApp, openSplit, closeSplit }
 }

@@ -29,22 +29,31 @@ export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
 export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
 export const AgentKnowledgeBaseIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
+
 export const AgentSkillUpdateSchema = z.strictObject({
   skillId: z.string().min(1),
   isEnabled: z.boolean()
 })
+
 export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transform((items) => {
   const bySkillId = new Map<string, z.infer<typeof AgentSkillUpdateSchema>>()
+
   for (const item of items) bySkillId.set(item.skillId, item)
+
   return Array.from(bySkillId.values())
 })
+
 export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
+
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
+
 export const AGENT_TYPES = ['claude-code', 'pi', 'pi-durable'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
+
 export type AgentType = z.infer<typeof AgentTypeSchema>
+
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
@@ -74,6 +83,7 @@ export const AgentConfigurationSchema = z
   // and may contain keys written by older or newer versions of the app. Unknown fields must
   // survive a round-trip through parse() so they are not silently dropped on the next save.
   .loose()
+
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
 /**
@@ -89,20 +99,25 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored configuration JSON can drift across versions; validate known fields while preserving unrelated extension keys.
 export function sanitizeAgentConfiguration(raw: unknown) {
   if (raw == null) return { data: undefined, invalidKeys: [] }
+
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     return { data: undefined, invalidKeys: ['<root>'] }
   }
+
   const parsed = AgentConfigurationSchema.safeParse(raw)
+
   if (parsed.success) return { data: parsed.data, invalidKeys: [] }
 
   const invalidKeys = Array.from(
     new Set(parsed.error.issues.map((i) => i.path[0]).filter((p): p is string => typeof p === 'string'))
   )
+
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Extension values are unvalidated and may be native; preserve own fields for the second schema parse.
   const entries = Object.entries(raw as Record<string, unknown>)
   const filtered = Object.fromEntries(entries.filter(([key]) => !invalidKeys.includes(key)))
   const reparsed = AgentConfigurationSchema.safeParse(filtered)
   const data: AgentConfiguration = reparsed.success ? reparsed.data : {}
+
   return {
     data,
     invalidKeys
@@ -128,6 +143,7 @@ export const AgentBaseSchema = z.strictObject({
   disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()
 })
+
 export type AgentBase = z.infer<typeof AgentBaseSchema>
 
 /** Pick-set for agent mutable fields — used for DTO derivation and service update logic. */
@@ -192,11 +208,14 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   createdAt: z.string(),
   updatedAt: z.string()
 })
+
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
+
 export type TaskRunSummary =
   | { status: 'queued' }
   | { status: 'running' }
   | { status: 'completed' | 'failed' | 'cancelled'; finishedAt: string }
+
 export type ScheduledTaskListItem = ScheduledTaskEntity & { runSummary: TaskRunSummary | null }
 
 export const TaskRunLogEntitySchema = z.strictObject({
@@ -211,6 +230,7 @@ export const TaskRunLogEntitySchema = z.strictObject({
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })
+
 export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
 // ============================================================================
@@ -241,6 +261,7 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).pa
    */
   skillUpdates: AgentSkillUpdateListSchema.optional()
 })
+
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // Agent creation and task command schemas live on IpcApi (`ai.agent.*` in
@@ -254,6 +275,7 @@ export const ListQuerySchema = z.strictObject({
   page: z.number().int().positive().optional(),
   limit: z.number().int().positive().max(500).optional()
 })
+
 export type ListQuery = z.infer<typeof ListQuerySchema>
 
 export const ListTasksQuerySchema = ListQuerySchema.extend({
@@ -261,6 +283,7 @@ export const ListTasksQuerySchema = ListQuerySchema.extend({
     .union([ScheduledTaskEntitySchema.shape.status, z.array(ScheduledTaskEntitySchema.shape.status).min(1)])
     .optional()
 })
+
 export type ListTasksQuery = z.infer<typeof ListTasksQuerySchema>
 
 export const AGENTS_DEFAULT_PAGE = 1
@@ -286,7 +309,9 @@ export const ListAgentsQuerySchema = z.strictObject({
   /** Positive integer, max {@link AGENTS_MAX_LIMIT}, defaults to {@link AGENTS_DEFAULT_LIMIT}. */
   limit: z.int().positive().max(AGENTS_MAX_LIMIT).default(AGENTS_DEFAULT_LIMIT)
 })
+
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
+
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 
 // ============================================================================

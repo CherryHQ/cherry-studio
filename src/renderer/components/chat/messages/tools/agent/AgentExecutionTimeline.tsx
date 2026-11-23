@@ -23,6 +23,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
   // A steer routes later task events to a continuation message, so only subagent cards read the complete map.
   const taskPartsMap = isSubagentTool ? use(PartsContext) : null
+
   const taskStatus = useMemo(
     () =>
       taskPartsMap
@@ -32,8 +33,10 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   )
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
+
   const parsedPartialArgs = useMemo(() => {
     if (!deferredPartialArguments) return undefined
+
     try {
       return parsePartialJson(deferredPartialArguments)
     } catch {
@@ -49,7 +52,9 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
     if (toolResponse.approval?.approved === false) {
       return <ToolApprovalOutcome approval={toolResponse.approval} />
     }
+
     const isLoading = status === 'streaming' || status === 'invoking'
+
     return (
       <StreamingContext value={isLoading}>
         <AskUserQuestionCard toolResponse={toolResponse} />
@@ -64,6 +69,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   }
 
   const isLoading = effectiveStatus === 'streaming' || effectiveStatus === 'invoking'
+
   return (
     <>
       <AgentToolCallCard

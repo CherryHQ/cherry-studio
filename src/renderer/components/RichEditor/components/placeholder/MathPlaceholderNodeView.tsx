@@ -14,6 +14,7 @@ const MathPlaceholderNodeView: React.FC<NodeViewProps> = ({ node, deleteNode, ed
     const mathType = node.attrs.mathType || 'block'
 
     let position: { x: number; y: number; top: number } | undefined
+
     if (wrapperRef.current) {
       const rect = wrapperRef.current.getBoundingClientRect()
       position = {
@@ -41,6 +42,7 @@ const MathPlaceholderNodeView: React.FC<NodeViewProps> = ({ node, deleteNode, ed
             if (!hasCreatedMath) {
               hasCreatedMath = true
               deleteNode()
+
               if (mathType === 'block') {
                 editor.chain().insertBlockMath({ latex: formula }).run()
               } else {
@@ -57,6 +59,7 @@ const MathPlaceholderNodeView: React.FC<NodeViewProps> = ({ node, deleteNode, ed
         }
       }
     })
+
     window.dispatchEvent(event)
   }, [node.attrs.mathType, deleteNode, editor])
 

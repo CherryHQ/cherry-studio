@@ -22,6 +22,7 @@ export class NodeTracer {
       defaultConfig.headers = config.headers || defaultConfig.headers
       defaultConfig.defaultTracerName = config.defaultTracerName || defaultConfig.defaultTracerName
     }
+
     this.spanProcessor = spanProcessor || new BatchSpanProcessor(this.getExporter())
     this.provider = new NodeTracerProvider({
       spanProcessors: [this.spanProcessor]
@@ -40,6 +41,7 @@ export class NodeTracer {
         headers: config.headers || undefined
       })
     }
+
     return new ConsoleSpanExporter()
   }
 

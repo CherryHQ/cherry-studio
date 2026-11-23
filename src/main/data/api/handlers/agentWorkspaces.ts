@@ -17,7 +17,9 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAgentWorkspaceSchema.safeParse(body)
+
       if (!parsed.success) throw toDataApiError(parsed.error)
+
       return agentWorkspaceService.update(params.workspaceId, parsed.data)
     }
   },
@@ -32,6 +34,7 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
       agentWorkspaceService.reorder(params.id, parsed)
+
       return undefined
     }
   },
@@ -40,6 +43,7 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       agentWorkspaceService.reorderBatch(parsed.moves)
+
       return undefined
     }
   }

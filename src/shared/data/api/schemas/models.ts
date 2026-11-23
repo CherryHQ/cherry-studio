@@ -30,6 +30,7 @@ export const ListModelsQuerySchema = z.object({
   /** Filter by enabled status */
   enabled: z.boolean().optional()
 })
+
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 /** DTO for creating a new model */
@@ -73,6 +74,7 @@ export const CreateModelSchema = z.strictObject({
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })
+
 export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
 export const MODELS_BATCH_MAX_ITEMS = 500
@@ -88,6 +90,7 @@ export const MODELS_RECONCILE_MAX_ITEMS = 5000
  * convenience is handled by higher layers such as renderer hooks.
  */
 export const CreateModelsSchema = z.array(CreateModelSchema).min(1).max(MODELS_BATCH_MAX_ITEMS)
+
 export type CreateModelsDto = z.infer<typeof CreateModelsSchema>
 
 /** DTO for updating an existing model — CreateModelDto minus identity fields, all optional, plus status fields */
@@ -107,6 +110,7 @@ export const UpdateModelSchema = CreateModelSchema.omit({
     isDeprecated: z.boolean().optional(),
     notes: z.string().optional()
   })
+
 export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
 
 /**
@@ -119,6 +123,7 @@ export const BulkUpdateModelItemSchema = z.object({
   uniqueModelId: UniqueModelIdSchema,
   patch: UpdateModelSchema
 })
+
 export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
 
 /**
@@ -129,6 +134,7 @@ export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
  * the row-level `PATCH /models/:uniqueModelId*` endpoint.
  */
 export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).max(MODELS_BULK_UPDATE_MAX_ITEMS)
+
 export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
 
 const DeleteModelsIdsQueryValueSchema = z.union([
@@ -141,6 +147,7 @@ const DeleteModelsIdsQueryValueSchema = z.union([
 export const DeleteModelsQuerySchema = z.strictObject({
   ids: DeleteModelsIdsQueryValueSchema
 })
+
 export type DeleteModelsQuery = z.input<typeof DeleteModelsQuerySchema>
 
 /**
@@ -157,6 +164,7 @@ export const ReconcileProviderModelsSchema = z.strictObject({
   toAdd: z.array(CreateModelSchema).max(MODELS_RECONCILE_MAX_ITEMS),
   toRemove: z.array(UniqueModelIdSchema).max(MODELS_RECONCILE_MAX_ITEMS)
 })
+
 export type ReconcileProviderModelsDto = z.infer<typeof ReconcileProviderModelsSchema>
 
 /** Query parameters for resolving raw SDK model IDs against registry presets */
@@ -166,6 +174,7 @@ export const ResolveProviderModelsQuerySchema = z.strictObject({
    */
   ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
 })
+
 export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQuerySchema>
 
 /**

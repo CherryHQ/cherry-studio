@@ -43,20 +43,24 @@ export function buildCreateSessionSeedIndex(
 
     const parsedLastActivityAtMs = Date.parse(session.lastActivityAt)
     const lastActivityAtMs = Number.isFinite(parsedLastActivityAtMs) ? parsedLastActivityAtMs : Number.NEGATIVE_INFINITY
+
     if (!latestSession || lastActivityAtMs > latestSession.lastActivityAtMs) {
       latestSession = { session, lastActivityAtMs }
     }
 
     const groupId = getGroupId(session)
+
     if (!groupId) continue
 
     const latestGroupSession = latestSessionByGroupId.get(groupId)
+
     if (!latestGroupSession || lastActivityAtMs > latestGroupSession.lastActivityAtMs) {
       latestSessionByGroupId.set(groupId, { session, lastActivityAtMs })
     }
   }
 
   const byGroupId = new Map<string, CreateSessionSeed | null>()
+
   for (const [groupId, candidate] of latestSessionByGroupId) {
     byGroupId.set(groupId, buildCreateSessionSeed(candidate.session))
   }
@@ -74,6 +78,7 @@ export function createSessionSeedPreservesFileWorkspace(
   if (seed.workspace?.type === AGENT_WORKSPACE_TYPE.USER) {
     return activeSession.workspaceId === seed.workspace.workspaceId
   }
+
   // A path-only seed may be promoted to a persisted workspace id, and each
   // system session owns a distinct generated-files directory. Only an exact
   // existing user workspace id proves that the file session survives.

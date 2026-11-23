@@ -47,14 +47,17 @@ export class KnowledgeVectorStoreService extends BaseService {
     assertVectorStoreReadyBase(base)
 
     const cached = this.instanceCache.get(base.id)
+
     if (cached) {
       logger.debug('Reusing cached knowledge index store', { baseId: base.id })
+
       return cached
     }
 
     const store = this.openIndexStore(base)
     this.instanceCache.set(base.id, store)
     logger.info('Opened knowledge index store', { baseId: base.id, cacheSize: this.instanceCache.size })
+
     return store
   }
 
@@ -66,12 +69,14 @@ export class KnowledgeVectorStoreService extends BaseService {
     // store file or cache entry, so it falls through to `undefined` and cleanup
     // proceeds; if a file unexpectedly exists, getIndexStore still asserts.
     const cached = this.instanceCache.get(base.id)
+
     if (cached) {
       return cached
     }
 
     if (!this.storeFileExists(base.id)) {
       logger.debug('Knowledge index store does not exist on disk', { baseId: base.id })
+
       return undefined
     }
 
@@ -146,6 +151,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
 
     const items = knowledgeItemService.getItemsByBaseId(baseId)
+
     if (items.some((item) => isIndexableKnowledgeItem(item) && item.status === 'completed')) {
       logger.error(
         'Index store mounted with zero materials while the base has completed items — the index file was deleted, blanked or replaced; search will return empty results until the base is reindexed',
@@ -161,6 +167,7 @@ export class KnowledgeVectorStoreService extends BaseService {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return false
       }
+
       throw error
     }
   }
@@ -169,6 +176,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     if (!store) {
       return
     }
+
     store.close()
   }
 }

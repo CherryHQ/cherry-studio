@@ -45,6 +45,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
     try {
       const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
       const savedPath = await window.api.file.save(fileName, htmlContent)
+
       if (!savedPath) return
 
       toast.success(t('message.download.success'))

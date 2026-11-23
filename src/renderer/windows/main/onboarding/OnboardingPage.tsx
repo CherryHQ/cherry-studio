@@ -48,8 +48,11 @@ import { isNonChatModel } from '@shared/utils/model'
 import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
+
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
+
 type PrivacyChoiceAction = () => void | Promise<void>
+
 interface OnboardingPageProps {
   enableCherryAccountLogin?: boolean
 }
@@ -59,6 +62,7 @@ const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 const isOnboardingModel = (model: Model) => !isManagedCherryProviderId(model.providerId) && !isNonChatModel(model)
+
 const ONBOARDING_PREFERENCE_KEYS = {
   providerSetupStatus: 'app.onboarding.provider_setup.status',
   dataCollectionEnabled: 'app.privacy.data_collection.enabled',
@@ -69,6 +73,7 @@ function OnboardingProviderSettings() {
   const router = useMemo(() => {
     const routeTree = createRootRoute({ component: () => <ProviderSettingsPage /> })
     const history = createMemoryHistory({ initialEntries: ['/'] })
+
     return createRouter({ routeTree, history })
   }, [])
 
@@ -81,10 +86,12 @@ export default function OnboardingPage({
   const { t } = useTranslation()
   const appEdition = getAppEdition()
   const [language, setLanguage] = usePreference('app.language')
+
   const [{ policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
+
   const { addApiKey, updateProvider } = useProvider('cherryin')
   const { syncProviderModels } = useProviderModelSync('cherryin')
   const { providers: enabledProviders, isLoading: isProvidersLoading } = useProviders({ enabled: true })
@@ -103,6 +110,7 @@ export default function OnboardingPage({
   const hasRoutedCloudLoginRef = useRef(false)
   const isCnEdition = appEdition === 'cn'
   const shouldUseCherryAccountLogin = isCnEdition && enableCherryAccountLogin
+
   const {
     status: cloudStatus,
     login: handleCherryCloudLogin,
@@ -110,19 +118,26 @@ export default function OnboardingPage({
     isCancellingLogin: isCancellingCloudLogin,
     isAuthorizing: isCloudAuthorizing
   } = useCherryAccountSession(shouldUseCherryAccountLogin)
+
   cloudStatusRef.current = cloudStatus
+
   const eligibleProviderIds = new Set(
     enabledProviders.filter((provider) => !isManagedCherryProviderId(provider.id)).map((provider) => provider.id)
   )
+
   const canCompleteModelSetup = [defaultModel, quickModel, translateModel].every(
     (model) => model && eligibleProviderIds.has(model.providerId) && isOnboardingModel(model)
   )
+
   const hasEligibleProvider = eligibleProviderIds.size > 0
+
   const hasEligibleModel = enabledModels.some(
     (model) => eligibleProviderIds.has(model.providerId) && isOnboardingModel(model)
   )
+
   const isProviderSetupLoading = isProvidersLoading || isModelsLoading
   const canContinueProviderSetup = !isProviderSetupLoading && hasEligibleProvider && hasEligibleModel
+
   const providerSetupHint = !isProviderSetupLoading
     ? !hasEligibleProvider
       ? t('onboarding.provider_setup.missing_provider')
@@ -130,12 +145,15 @@ export default function OnboardingPage({
         ? t('onboarding.provider_setup.missing_model')
         : null
     : null
+
   const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
+
   const displayLanguage = isAppLanguage(language)
     ? language
     : isAppLanguage(resolvedLanguage)
       ? resolvedLanguage
       : defaultLanguage
+
   const displayLanguageLabel = appLanguageOptions.find((option) => option.value === displayLanguage)?.label
 
   const updateSeededAgentModels = useCallback(async (modelId: UniqueModelId) => {
@@ -145,11 +163,13 @@ export default function OnboardingPage({
 
     do {
       const response = await dataApiService.get('/agents', { query: { limit, page } })
+
       const officialAgents = response.items.filter(
         (agent) =>
           isProtectedBuiltinAgentRole(agent.configuration?.builtin_role) &&
           (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
       )
+
       await Promise.all(
         officialAgents.map((agent) => dataApiService.patch(`/agents/${agent.id}`, { body: { model: modelId } }))
       )
@@ -164,6 +184,7 @@ export default function OnboardingPage({
         .get('/assistants', { query: { limit: 2 } })
         .then(async ({ items, total }) => {
           const assistant = total === 1 ? items[0] : undefined
+
           if (assistant?.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
             await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
           }
@@ -183,6 +204,7 @@ export default function OnboardingPage({
 
   const persistPrivacyChoice = useCallback(async (): Promise<boolean> => {
     setIsUpdatingPrivacy(true)
+
     try {
       if (privacyAccepted && policyVersion === LATEST_PRIVACY_POLICY_VERSION) {
         return true
@@ -193,9 +215,11 @@ export default function OnboardingPage({
           ? { policyVersion: LATEST_PRIVACY_POLICY_VERSION }
           : { dataCollectionEnabled: false, policyVersion: '' }
       )
+
       return true
     } catch {
       toast.error(t('onboarding.privacy.update_failed'))
+
       return false
     } finally {
       setIsUpdatingPrivacy(false)
@@ -205,17 +229,21 @@ export default function OnboardingPage({
   const updatePrivacyAcceptance = useCallback(
     async (accepted: boolean): Promise<boolean> => {
       setPrivacyAccepted(accepted)
+
       if (accepted) {
         return true
       }
 
       setIsUpdatingPrivacy(true)
+
       try {
         await updateOnboardingPreferences({ dataCollectionEnabled: false, policyVersion: '' })
+
         return true
       } catch {
         setPrivacyAccepted(true)
         toast.error(t('onboarding.privacy.update_failed'))
+
         return false
       } finally {
         setIsUpdatingPrivacy(false)
@@ -236,13 +264,16 @@ export default function OnboardingPage({
   const complete = useCallback(
     async (status: OnboardingCompletionStatus) => {
       setIsCompleting(true)
+
       try {
         if (!(await persistPrivacyChoice())) {
           return
         }
+
         if (status === 'completed' && defaultModel) {
           await updateSeededResourceModels(defaultModel)
         }
+
         await updateOnboardingPreferences({ providerSetupStatus: status })
       } catch {
         toast.error(t('onboarding.toast.complete_failed'))
@@ -256,9 +287,11 @@ export default function OnboardingPage({
   const completeWithCloudAgentModel = useCallback(
     async (modelId: UniqueModelId, expectedStatus: CherryCloudStatus) => {
       setIsCompleting(true)
+
       try {
         if (!(await persistPrivacyChoice()) || expectedStatus.scopeId !== cloudStatusRef.current?.scopeId) return
         await updateSeededAgentModels(modelId)
+
         if (expectedStatus.scopeId !== cloudStatusRef.current?.scopeId) return
         await updateOnboardingPreferences({ providerSetupStatus: 'skipped' })
       } catch {
@@ -281,8 +314,10 @@ export default function OnboardingPage({
     if (!shouldUseCherryAccountLogin || cloudStatus?.phase !== 'signed-in') {
       hasRoutedCloudLoginRef.current = false
       setShowNoCloudModelsDialog(false)
+
       return
     }
+
     if (isProviderSetupLoading || hasRoutedCloudLoginRef.current) return
 
     hasRoutedCloudLoginRef.current = true
@@ -294,6 +329,7 @@ export default function OnboardingPage({
 
         const exhaustedModelIds = new Set(quotaExhaustedModelIds)
         const agentModelId = availableModelIds.agent.find((modelId) => !exhaustedModelIds.has(modelId))
+
         if (agentModelId) {
           void completeWithCloudAgentModel(agentModelId, expectedStatus)
         } else {
@@ -361,16 +397,20 @@ export default function OnboardingPage({
         },
         { oauthServer: CHERRYIN_OAUTH_SERVER }
       )
+
       if (loginAttemptRef.current !== attemptId) return
 
       const cherryInModels = await syncProviderModels()
+
       if (loginAttemptRef.current !== attemptId) return
 
       if (!cherryInModels.some((model) => model.isEnabled)) {
         toast.error(t('onboarding.provider_setup.missing_model'))
         setStep('provider')
+
         return
       }
+
       toast.success(t('onboarding.toast.connected'))
       setStep('select-model')
     } catch {
@@ -383,12 +423,14 @@ export default function OnboardingPage({
           window.clearTimeout(loginLoadingTimeoutRef.current)
           loginLoadingTimeoutRef.current = null
         }
+
         setIsLoggingIn(false)
       }
     }
   }, [addApiKey, syncProviderModels, t, updateProvider])
 
   const isPrimaryLoginPending = shouldUseCherryAccountLogin ? isCloudAuthorizing : isLoggingIn
+
   const primaryLoginLabel = shouldUseCherryAccountLogin
     ? cloudStatus?.phase === 'signed-in'
       ? t('settings.provider.cherry_cloud.logged_in')

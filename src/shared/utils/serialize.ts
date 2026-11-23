@@ -39,6 +39,7 @@ export function safeSerialize(
       if (onError === 'error') {
         throw new Error(`Failed to stringify serializable value: ${err instanceof Error ? err.message : err}`)
       }
+
       return null
     }
   }
@@ -80,16 +81,23 @@ function tryLenientSerialize(value: unknown, space?: string | number): string {
         if (seen.has(val)) {
           return '[Circular]'
         }
+
         seen.add(val)
       }
 
       // 处理特殊类型
       if (val instanceof Date) return val.toISOString()
+
       if (val instanceof RegExp) return `{RegExp: "${val.toString()}"}`
+
       if (typeof val === 'function') return `[Function: ${val.name || 'anonymous'}]`
+
       if (typeof val === 'symbol') return `Symbol(${String(val.description)})`
+
       if (val instanceof Map) return Object.fromEntries(val.entries())
+
       if (val instanceof Set) return Array.from(val)
+
       if (val === undefined) return '[undefined]'
 
       return val

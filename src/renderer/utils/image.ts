@@ -11,6 +11,7 @@ import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 
 const logger = loggerService.withContext('Utils:image')
 const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
+
 /**
  * Marker applied to the capture root while html-to-image clones it. Capture-only
  * CSS (see markdown.css) keys off this attribute, e.g. to unclip inner scroll
@@ -31,20 +32,26 @@ export class ImageCaptureEvent extends Event {
 
 async function prepareCaptureContents(root: HTMLElement): Promise<() => Promise<void>> {
   const event = new ImageCaptureEvent()
+
   for (const element of [root, ...root.querySelectorAll('[data-image-capture-content]')]) {
     element.dispatchEvent(event)
   }
+
   const results = await Promise.allSettled(event.preparations)
+
   const restore = async () => {
     for (const result of results.toReversed()) {
       if (result.status === 'fulfilled') await result.value()
     }
   }
+
   const failed = results.find((result) => result.status === 'rejected')
+
   if (failed) {
     await restore()
     throw failed.reason
   }
+
   return restore
 }
 
@@ -58,6 +65,7 @@ const loadHtmlToImage = () => {
     htmlToImagePromise = undefined
     throw error
   })
+
   return htmlToImagePromise
 }
 
@@ -71,6 +79,7 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
         reject(new Error('Failed to encode image blob'))
       }
     }
+
     reader.onerror = () => reject(reader.error ?? new Error('Failed to read image blob'))
     reader.readAsDataURL(blob)
   })
@@ -79,8 +88,10 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
 /** Per-source cap on a remote-image fetch, and the shared budget for the whole inline stage. */
 const REMOTE_INLINE_SOURCE_TIMEOUT_MS = 10_000
 const REMOTE_INLINE_STAGE_BUDGET_MS = 20_000
+
 /** In-flight remote fetches; kept under Chromium's per-host limit so this pass never bursts harder than the page load did. */
 const REMOTE_INLINE_CONCURRENCY = 4
+
 /** Cap on waiting for a swapped-in data URL to settle — data URLs decode locally, so this is generous. */
 const INLINE_SWAP_SETTLE_TIMEOUT_MS = 2_000
 
@@ -91,7 +102,9 @@ const INLINE_SWAP_SETTLE_TIMEOUT_MS = 2_000
 const isVisibleInCapture = (image: HTMLImageElement, root: HTMLElement): boolean => {
   for (let node: Element | null = image; node; node = node.parentElement) {
     if (node === root) return true
+
     if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) return false
+
     if (
       node instanceof HTMLElement &&
       (node.style.display === 'none' || window.getComputedStyle(node).display === 'none')
@@ -99,6 +112,7 @@ const isVisibleInCapture = (image: HTMLImageElement, root: HTMLElement): boolean
       return false
     }
   }
+
   return true
 }
 
@@ -109,12 +123,14 @@ const isVisibleInCapture = (image: HTMLImageElement, root: HTMLElement): boolean
 const waitForSwapSettle = (image: HTMLImageElement): Promise<void> =>
   new Promise((resolve) => {
     if (image.complete && image.naturalWidth > 0) return resolve()
+
     const done = () => {
       clearTimeout(timer)
       image.removeEventListener('load', done)
       image.removeEventListener('error', done)
       resolve()
     }
+
     const timer = setTimeout(done, INLINE_SWAP_SETTLE_TIMEOUT_MS)
     image.addEventListener('load', done, { once: true })
     image.addEventListener('error', done, { once: true })
@@ -143,6 +159,7 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
     src: image.getAttribute('src'),
     srcset: image.getAttribute('srcset')
   }))
+
   const stageDeadline = Date.now() + REMOTE_INLINE_STAGE_BUDGET_MS
   const dataUrlBySource = new Map<string, string>()
   const queue = [...new Set(originalSources.map(({ source }) => source))]
@@ -150,12 +167,15 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
   const drainQueue = async () => {
     for (let source = queue.shift(); source !== undefined; source = queue.shift()) {
       const budget = Math.min(REMOTE_INLINE_SOURCE_TIMEOUT_MS, stageDeadline - Date.now())
+
       if (budget <= 0) {
         logger.warn('Remote-image inline budget exhausted, using placeholder', { source })
         continue
       }
+
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), budget)
+
       try {
         const blob = await getImageBlobFromSource(source, { signal: controller.signal })
         dataUrlBySource.set(source, await blobToDataUrl(blob))
@@ -166,12 +186,14 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
       }
     }
   }
+
   await Promise.all(Array.from({ length: Math.min(REMOTE_INLINE_CONCURRENCY, queue.length) }, drainQueue))
 
   await Promise.all(
     originalSources.map(({ image, source }) => {
       image.removeAttribute('srcset')
       image.src = dataUrlBySource.get(source) ?? TRANSPARENT_IMAGE_PLACEHOLDER
+
       return waitForSwapSettle(image)
     })
   )
@@ -183,6 +205,7 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
       } else {
         image.setAttribute('src', src)
       }
+
       if (srcset === null) {
         image.removeAttribute('srcset')
       } else {
@@ -203,12 +226,14 @@ async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
     src: image.getAttribute('src'),
     srcset: image.getAttribute('srcset')
   }))
+
   const dataUrlBySource = new Map<string, Promise<string>>()
 
   await Promise.all(
     originalSources.map(async ({ image }) => {
       const source = image.src
       let dataUrlPromise = dataUrlBySource.get(source)
+
       if (!dataUrlPromise) {
         dataUrlPromise = getImageBlobFromSource(source).then(blobToDataUrl)
         dataUrlBySource.set(source, dataUrlPromise)
@@ -231,6 +256,7 @@ async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
       } else {
         image.setAttribute('src', src)
       }
+
       if (srcset === null) {
         image.removeAttribute('srcset')
       } else {
@@ -256,6 +282,7 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
 
 /** Target square dimension for a normalized entity image (mirrors main-side sharp). */
 const ENTITY_IMAGE_DIMENSION = 128
+
 /** Max original entity-image upload accepted in the renderer (avatar / logo). */
 export const MAX_ENTITY_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
@@ -277,6 +304,7 @@ export function checkEntityImageSize(file: File): string | null {
 export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
   try {
     const bitmap = await createImageBitmap(file)
+
     try {
       // Cover crop: sample the largest centered square, scale it to 128×128.
       const side = Math.min(bitmap.width, bitmap.height)
@@ -286,10 +314,13 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
       canvas.width = ENTITY_IMAGE_DIMENSION
       canvas.height = ENTITY_IMAGE_DIMENSION
       const ctx = canvas.getContext('2d')
+
       if (!ctx) throw new Error('no 2d context')
       ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION)
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp'))
+
       if (!blob) throw new Error('toBlob returned null')
+
       return new Uint8Array(await blob.arrayBuffer())
     } finally {
       bitmap.close()
@@ -308,19 +339,23 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
 export async function captureElement(elRef: React.RefObject<HTMLElement | null>) {
   if (elRef.current) {
     let restoreContents: (() => Promise<void>) | undefined
+
     try {
       const htmlToImage = await loadHtmlToImage()
       restoreContents = await prepareCaptureContents(elRef.current)
       const canvas = await htmlToImage.toCanvas(elRef.current)
       const imageData = canvas.toDataURL('image/png')
+
       return imageData
     } catch (error) {
       logger.error('Error capturing element:', error as Error)
+
       return Promise.reject()
     } finally {
       await restoreContents?.()
     }
   }
+
   return Promise.resolve(undefined)
 }
 
@@ -363,6 +398,7 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
 
       // check if the size of the element is too large
       const MAX_ALLOWED_DIMENSION = 32767 // the maximum allowed pixel size
+
       if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
         // utils must not toast (it would import the renderer services layer); reject
         // with the message so the calling component surfaces it.
@@ -375,17 +411,21 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
           if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) {
             return false
           }
+
           if (node.style.display === 'none') {
             return false
           }
+
           if (window.getComputedStyle(node).display === 'none') {
             return false
           }
         }
+
         return true
       }
 
       const fontEmbedCSS = await buildFontEmbedCSS()
+
       const captureOptions = {
         filter: filterHiddenElements,
         backgroundColor: getComputedStyle(el).getPropertyValue(backdropVariable),
@@ -413,6 +453,7 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
       const warmupCanvas = await htmlToImage.toCanvas(el, captureOptions)
       warmupCanvas.width = 0
       warmupCanvas.height = 0
+
       return await htmlToImage.toCanvas(el, captureOptions)
     } catch (error) {
       logger.error('Error capturing scrollable element:', error as Error)
@@ -423,6 +464,7 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
       } else {
         el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, captureMarker)
       }
+
       restoreLocalImageSources?.()
       restoreRemoteImages?.()
       await restoreContents?.()
@@ -449,27 +491,36 @@ async function buildFontEmbedCSS(): Promise<string> {
   if (fontEmbedCSSCache !== undefined) return fontEmbedCSSCache
 
   const blocks: Array<{ cssText: string; base: string }> = []
+
   for (const sheet of document.styleSheets) {
     let rules: CSSRuleList
+
     try {
       rules = sheet.cssRules
     } catch {
       continue // cross-origin sheet: its fonts are remote urls, not ours
     }
+
     const base = sheet.href ?? location.href
+
     const walk = (list: CSSRuleList) => {
       for (const rule of list) {
         if (rule.cssText?.startsWith('@font-face')) {
           blocks.push({ cssText: rule.cssText, base })
         }
+
         const nested = (rule as CSSMediaRule).cssRules
+
         if (nested) walk(nested)
       }
     }
+
     walk(rules)
   }
+
   if (blocks.length === 0) {
     fontEmbedCSSCache = ''
+
     return fontEmbedCSSCache
   }
 
@@ -479,24 +530,30 @@ async function buildFontEmbedCSS(): Promise<string> {
   const readAsDataUrl = async (url: string, base: string): Promise<string | undefined> => {
     try {
       const abs = new URL(url, base).href
+
       if (!abs.startsWith('file:')) return undefined
       const path = fileUrlToPath(abs as FileUrlString)
       let b64 = b64ByPath.get(path)
+
       if (b64 === undefined) {
         const { content, mime } = await ipcApi.request('file.read', {
           handle: createFilePathHandle(AbsoluteFilePathSchema.parse(path)),
           options: { mode: 'full', encoding: 'binary' }
         })
+
         const bytes = content instanceof Uint8Array ? content : new Uint8Array(content)
         let bin = ''
         const chunkSize = 0x8000
+
         for (let i = 0; i < bytes.length; i += chunkSize) {
           bin += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
         }
+
         b64 = btoa(bin)
         b64ByPath.set(path, b64)
         mimeByPath.set(path, mime || 'application/octet-stream')
       }
+
       return `url(data:${mimeByPath.get(path)};base64,${b64})`
     } catch {
       return undefined // unreadable font: keep the original url; that family falls back
@@ -509,22 +566,27 @@ async function buildFontEmbedCSS(): Promise<string> {
     blocks.map(async ({ cssText, base }) => {
       const urls = [...cssText.matchAll(/url\((['"]?)([^)'"]+)\1\)/g)].flatMap((m) => {
         const u = m[2]
+
         return !u.startsWith('data:') ? [u] : []
       })
+
       const dataUrlByUrl = new Map<string, string | undefined>()
       await Promise.all(urls.map(async (u) => dataUrlByUrl.set(u, await readAsDataUrl(u, base))))
       let out = cssText
+
       for (const [u, dataUrl] of dataUrlByUrl) {
         if (!dataUrl) continue
         out = out.split(`url("${u}")`).join(dataUrl)
         out = out.split(`url('${u}')`).join(dataUrl)
         out = out.split(`url(${u})`).join(dataUrl)
       }
+
       return out
     })
   )
 
   fontEmbedCSSCache = inlined.join('\n\n')
+
   return fontEmbedCSSCache
 }
 
@@ -543,10 +605,12 @@ export const captureScrollableImage = async (
   backdropVariable?: string
 ): Promise<string | undefined> => {
   const el = elRef.current
+
   if (!el) return undefined
 
   await waitForCaptureAssets(el)
   const canvas = await captureScrollableElement(el, backdropVariable)
+
   return canvas?.toDataURL('image/png')
 }
 
@@ -571,13 +635,16 @@ export const captureScrollableAsDataUrl = async (
  */
 export function dataUrlToBlob(dataUrl: string): Blob {
   const parsed = parseDataUrl(dataUrl)
+
   if (!parsed?.isBase64) {
     throw new Error('dataUrlToBlob expects a base64 data URL')
   }
 
   const binary = atob(parsed.data)
   const bytes = new Uint8Array(binary.length)
+
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+
   return new Blob([bytes], { type: parsed.mediaType })
 }
 
@@ -593,6 +660,7 @@ export const captureScrollableAsBlob = async (
   backdropVariable?: string
 ) => {
   const dataUrl = await captureScrollableImage(elRef, backdropVariable)
+
   if (dataUrl) {
     func(dataUrlToBlob(dataUrl))
   }
@@ -625,13 +693,16 @@ export async function waitForCaptureAssets(root: HTMLElement | null, timeoutMs =
 
   const collectPending = (): HTMLImageElement[] => {
     const pending: HTMLImageElement[] = []
+
     for (const img of root.querySelectorAll('img')) {
       if (img.loading === 'lazy') img.loading = 'eager'
+
       if (!img.complete && !waited.has(img)) {
         waited.add(img)
         pending.push(img)
       }
     }
+
     return pending
   }
 
@@ -642,8 +713,10 @@ export async function waitForCaptureAssets(root: HTMLElement | null, timeoutMs =
     })
 
   let idle = false
+
   while (Date.now() < deadline) {
     const pending = collectPending()
+
     if (pending.length === 0) {
       if (idle) return
       // Nothing in flight right now — give late mounters one recheck
@@ -652,6 +725,7 @@ export async function waitForCaptureAssets(root: HTMLElement | null, timeoutMs =
       await sleep(CAPTURE_SETTLE_RECHECK_MS)
       continue
     }
+
     idle = false
     await Promise.race([Promise.all(pending.map(waitForImage)), sleep(Math.max(0, deadline - Date.now()))])
   }
@@ -664,6 +738,7 @@ export async function captureScrollableIframe(
   iframeRef: React.RefObject<HTMLIFrameElement | null>
 ): Promise<HTMLCanvasElement | undefined> {
   const iframe = iframeRef.current
+
   if (!iframe?.contentDocument?.defaultView) return undefined
 
   const doc = iframe.contentDocument
@@ -678,6 +753,7 @@ export async function captureScrollableIframe(
       // transform: none !important;
     }`
     doc.head.appendChild(style)
+
     return style
   }
 
@@ -690,8 +766,10 @@ export async function captureScrollableIframe(
     const fetchAsDataUrl = async (url: string): Promise<string> => {
       try {
         const res = await fetch(url, { mode: 'cors', credentials: 'omit' })
+
         if (!res.ok) return url
         const blob = await res.blob()
+
         return new Promise((resolve) => {
           const reader = new FileReader()
           reader.onloadend = () => resolve(reader.result as string)
@@ -713,8 +791,10 @@ export async function captureScrollableIframe(
 
         let urlMatch: RegExpExecArray | null
         fontUrlRegex.lastIndex = 0
+
         while ((urlMatch = fontUrlRegex.exec(block)) !== null) {
           const url = urlMatch[2]
+
           if (!url.startsWith('data:') && fontExtRegex.test(url)) {
             try {
               const absoluteUrl = new URL(url, baseUrl).href
@@ -729,6 +809,7 @@ export async function captureScrollableIframe(
         const dataUrls = await Promise.all(
           fontUrls.map(async ([original, url]) => {
             const dataUrl = await fetchAsDataUrl(url)
+
             return [original, `url(${dataUrl})`] as const
           })
         )
@@ -750,8 +831,10 @@ export async function captureScrollableIframe(
     await Promise.all(
       Array.from(externalSheets).map(async (link) => {
         if (!link.href) return
+
         try {
           const res = await fetch(link.href, { mode: 'cors', credentials: 'omit' })
+
           if (res.ok) {
             const cssText = await res.text()
             const blocks = await processCss(cssText, link.href)
@@ -784,6 +867,7 @@ export async function captureScrollableIframe(
     style.setAttribute('data-cs-inline-fonts', 'true')
     style.textContent = css
     doc.head.appendChild(style)
+
     return style
   }
 
@@ -800,6 +884,7 @@ export async function captureScrollableIframe(
     // 将字体 CSS 注入到 iframe 文档中，确保注册到 FontFaceSet
     if (fontEmbedCSS && fontEmbedCSS.trim().length > 0) {
       injectedFontStyle = createFontStyle(fontEmbedCSS)
+
       // 访问一次以避免被标记为未使用
       if (injectedFontStyle.parentNode == null) {
         doc.head.appendChild(injectedFontStyle)
@@ -849,6 +934,7 @@ export async function captureScrollableIframe(
     })
   } catch (error) {
     logger.error('Error capturing iframe:', error as Error)
+
     return undefined
   } finally {
     injectedFontStyle?.remove()
@@ -862,6 +948,7 @@ export const captureScrollableIframeAsDataUrl = async (iframeRef: React.RefObjec
     if (canvas) {
       return canvas.toDataURL('image/png')
     }
+
     return Promise.resolve(undefined)
   })
 }
@@ -959,6 +1046,7 @@ export const svgToPngBlob = (svgElement: SVGElement, scale = 3): Promise<Blob> =
  */
 export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   const svgData = new XMLSerializer().serializeToString(svgElement)
+
   return new Blob([svgData], { type: 'image/svg+xml' })
 }
 
@@ -967,6 +1055,7 @@ const INTRINSIC_SVG_LENGTH = /^\s*\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:px|
 const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
   if (value === null || !INTRINSIC_SVG_LENGTH.test(value)) return false
   const length = Number.parseFloat(value)
+
   return Number.isFinite(length) && length > 0
 }
 
@@ -979,6 +1068,7 @@ const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
  */
 const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
   const clone = svgElement.cloneNode(true) as SVGElement
+
   if (
     hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
     hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
@@ -991,6 +1081,7 @@ const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
     ?.trim()
     .split(/[\s,]+/)
     .map(Number)
+
   if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
     clone.setAttribute('width', String(viewBox[2]))
     clone.setAttribute('height', String(viewBox[3]))
@@ -1017,6 +1108,7 @@ export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePr
       options.format === 'svg'
         ? svgToSvgBlob(createStandaloneSvgPreview(input))
         : await svgToPngBlob(input, options.scale || 3)
+
     return URL.createObjectURL(blob)
   }
 
@@ -1089,6 +1181,7 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
   // 如果缺少 viewBox 属性，测量元素尺寸来创建
   if (!hasViewBox) {
     const renderedSize = measureElementSize(element)
+
     if (renderedSize.width > 0 && renderedSize.height > 0) {
       measuredWidth = renderedSize.width
       element.setAttribute('viewBox', `0 0 ${renderedSize.width} ${renderedSize.height}`)
@@ -1126,12 +1219,17 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
 export function isKatexGeneratedSvg(node: HastElement | undefined): boolean {
   if (!node || node.tagName !== 'svg') return false
   const properties = node.properties ?? {}
+
   if (properties.id !== undefined || properties.className !== undefined) return false
+
   if (properties.width !== '400em') return false
   const preserveAspectRatio = properties.preserveAspectRatio
+
   if (typeof preserveAspectRatio !== 'string' || !preserveAspectRatio.endsWith(' slice')) return false
   const viewBox = properties.viewBox
+
   if (typeof viewBox !== 'string' || !/^\s*0\s+0\s+400000\s+\d+\s*$/.test(viewBox)) return false
+
   return !node.children.some(
     (child) => child.type === 'element' && (child.tagName === 'text' || child.tagName === 'tspan')
   )
@@ -1161,12 +1259,14 @@ export const convertImageToPng = async (blob: Blob): Promise<Blob> => {
         if (!ctx) {
           URL.revokeObjectURL(url)
           reject(new Error('Failed to get canvas context'))
+
           return
         }
 
         ctx.drawImage(img, 0, 0)
         canvas.toBlob((pngBlob) => {
           URL.revokeObjectURL(url)
+
           if (pngBlob) {
             resolve(pngBlob)
           } else {
@@ -1198,6 +1298,7 @@ export const transformImageToPng = async (
     const rotation = ((transform.rotation % 360) + 360) % 360
     const radians = (rotation * Math.PI) / 180
     const canvas = document.createElement('canvas')
+
     if (rotation % 90 === 0) {
       const swapsDimensions = rotation === 90 || rotation === 270
       canvas.width = swapsDimensions ? bitmap.height : bitmap.width
@@ -1208,6 +1309,7 @@ export const transformImageToPng = async (
       canvas.width = Math.ceil(bitmap.width * cosine + bitmap.height * sine)
       canvas.height = Math.ceil(bitmap.width * sine + bitmap.height * cosine)
     }
+
     const ctx = canvas.getContext('2d')
 
     if (!ctx) {
@@ -1243,6 +1345,7 @@ function decodeDataUrlBytes(data: string): Uint8Array {
 
   for (let index = 0; index < data.length;) {
     const hexByte = data[index] === '%' ? data.slice(index + 1, index + 3) : ''
+
     if (/^[\da-fA-F]{2}$/.test(hexByte)) {
       bytes.push(Number.parseInt(hexByte, 16))
       index += 3
@@ -1250,9 +1353,11 @@ function decodeDataUrlBytes(data: string): Uint8Array {
     }
 
     const codePoint = data.codePointAt(index)
+
     if (codePoint == null) {
       break
     }
+
     const char = String.fromCodePoint(codePoint)
     bytes.push(...encoder.encode(char))
     index += char.length
@@ -1270,46 +1375,57 @@ function decodeDataUrlBytes(data: string): Uint8Array {
 export async function getImageBlobFromSource(src: string, options?: { signal?: AbortSignal }): Promise<Blob> {
   if (src.startsWith('data:')) {
     const parseResult = parseDataUrl(src)
+
     if (!parseResult || !parseResult.mediaType) {
       throw new Error('Invalid image data URL')
     }
+
     const byteArray = parseResult.isBase64
       ? Base64.toUint8Array(parseResult.data)
       : decodeDataUrlBytes(parseResult.data)
+
     return assertImageBlob(new Blob([byteArray.slice()], { type: parseResult.mediaType }), src)
   }
 
   if (src.startsWith('file://')) {
     const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
+
     const { content, mime } = await ipcApi.request('file.read', {
       handle: createFilePathHandle(path),
       options: { mode: 'full', encoding: 'binary' }
     })
+
     return assertImageBlob(new Blob([content.slice()], { type: mime }), src)
   }
 
   const response = await fetch(src, { signal: options?.signal })
+
   // An error page (404/500 HTML) is not an image — fail so callers can skip/report it.
   if (!response.ok) {
     throw new Error(`Failed to fetch image: ${response.status} ${src}`)
   }
+
   const blob = await response.blob()
+
   return assertImageBlob(blob, src)
 }
 
 /** Reject explicit non-image responses such as proxy/login pages. */
 function assertImageBlob(blob: Blob, src: string): Blob {
   const type = blob.type.trim()
+
   // Missing or generic MIME leaves image recognition to the browser decoder.
   if (type && type !== 'application/octet-stream' && !type.startsWith('image/')) {
     throw new Error(`Source is not an image (content type ${type}): ${src}`)
   }
+
   return blob
 }
 
 export async function copyImageToClipboard(src: string): Promise<void> {
   const blob = await getImageBlobFromSource(src)
   const pngBlob = await convertImageToPng(blob)
+
   const item = new ClipboardItem({
     'image/png': pngBlob
   })

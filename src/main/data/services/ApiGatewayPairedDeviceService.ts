@@ -28,15 +28,20 @@ function rowToApiGatewayPairedDevice(row: ApiGatewayPairedDeviceRow): ApiGateway
     name: row.name,
     platform: row.platform
   }
+
   if (row.peerIdentity)
     device.remoteAccess = { capabilities: authorizationFor(row).grants.map((grant) => grant.domain) }
+
   return { ...device, createdAt: timestampToISO(row.createdAt), updatedAt: timestampToISO(row.updatedAt) }
 }
 
 function authorizationFor(row: ApiGatewayPairedDeviceRow): RemoteAuthorization {
   const grants: RemoteAuthorization['grants'] = []
+
   if (row.configurationGrantId) grants.push({ domain: 'configuration', grantId: row.configurationGrantId })
+
   if (row.agentGrantId) grants.push({ domain: 'agent', grantId: row.agentGrantId })
+
   return { grants }
 }
 
@@ -56,23 +61,28 @@ export class ApiGatewayPairedDeviceService {
 
   approveRemote(input: ApiGatewayPairedDeviceMetadata & { peerIdentity: string; capabilities: RemoteCapability[] }) {
     const parsed = ApiGatewayPairedDeviceMetadataSchema.safeParse({ name: input.name, platform: input.platform })
+
     if (!parsed.success) throw toDataApiError(parsed.error, 'approve paired device')
     const metadata = parsed.data
     const capabilities = remoteCapabilitiesSchema.parse(input.capabilities)
+
     if (!input.peerIdentity || input.peerIdentity.length > 256)
       throw DataApiErrorFactory.invalidOperation('Invalid device identity')
+
     const row = application.get('DbService').withWriteTx((tx) => {
       const existing = tx
         .select()
         .from(apiGatewayPairedDeviceTable)
         .where(eq(apiGatewayPairedDeviceTable.peerIdentity, input.peerIdentity))
         .get()
+
       const values = {
         ...metadata,
         peerIdentity: input.peerIdentity,
         configurationGrantId: capabilities.includes('configuration') ? randomUUID() : null,
         agentGrantId: capabilities.includes('agent') ? randomUUID() : null
       }
+
       return existing
         ? tx
             .update(apiGatewayPairedDeviceTable)
@@ -82,8 +92,10 @@ export class ApiGatewayPairedDeviceService {
             .get()
         : tx.insert(apiGatewayPairedDeviceTable).values(values).returning().get()
     })
+
     const device = rowToApiGatewayPairedDevice(row)
     notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [device.id] }])
+
     return { device, authorization: authorizationFor(row) }
   }
 
@@ -95,19 +107,23 @@ export class ApiGatewayPairedDeviceService {
         and(eq(apiGatewayPairedDeviceTable.id, deviceId), eq(apiGatewayPairedDeviceTable.peerIdentity, peerIdentity))
       )
       .get()
+
     if (!row) return undefined
     const authorization = authorizationFor(row)
+
     return authorization.grants.length ? authorization : undefined
   }
 
   revokeRemoteCapability(deviceId: string, capability: RemoteCapability): void {
     const values = capability === 'agent' ? { agentGrantId: null } : { configurationGrantId: null }
+
     const row = this.db
       .update(apiGatewayPairedDeviceTable)
       .set(values)
       .where(eq(apiGatewayPairedDeviceTable.id, deviceId))
       .returning()
       .get()
+
     if (!row) throw DataApiErrorFactory.notFound('ApiGatewayPairedDevice', deviceId)
     notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [deviceId] }])
   }
@@ -118,6 +134,7 @@ export class ApiGatewayPairedDeviceService {
       .where(eq(apiGatewayPairedDeviceTable.id, id))
       .returning()
       .all()
+
     if (!row) throw DataApiErrorFactory.notFound('ApiGatewayPairedDevice', id)
 
     notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [id] }])

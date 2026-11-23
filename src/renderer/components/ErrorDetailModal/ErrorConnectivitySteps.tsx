@@ -18,6 +18,7 @@ export function isConnectivityCheckId(id: DoctorCheckId): boolean {
 export function actionRequiredRows(controller: DoctorController): DoctorRow[] {
   return controller.viewModel.rows.filter((row) => {
     const result = row.result
+
     return (
       result &&
       (result.status === 'warn' || result.status === 'fail') &&
@@ -29,20 +30,26 @@ export function actionRequiredRows(controller: DoctorController): DoctorRow[] {
 
 function actionRequiredNavigateTargets(rows: readonly DoctorRow[]): ReadonlySet<DoctorNavigateTarget> {
   const targets = new Set<DoctorNavigateTarget>()
+
   for (const row of rows) {
     if (isConnectivityCheckId(row.id)) continue
     const result = row.result
+
     if (!result || (result.status !== 'warn' && result.status !== 'fail')) continue
+
     if (result.attribution !== 'user-fixable') continue
+
     for (const action of row.actions) {
       if (action.kind === 'navigate') targets.add(action.target)
     }
   }
+
   return targets
 }
 
 function withoutCoveredNavigates(row: DoctorRow, covered: ReadonlySet<DoctorNavigateTarget>): DoctorRow {
   const actions = row.actions.filter((action) => action.kind !== 'navigate' || !covered.has(action.target))
+
   return actions.length === row.actions.length ? row : { ...row, actions }
 }
 
@@ -68,12 +75,15 @@ function resolveConnectivitySteps(controller: DoctorController): readonly Connec
   return DOCTOR_CONNECTIVITY_CHECK_IDS.map((id) => {
     const pending = pendingById.get(id)
     const row = rowById.get(id)
+
     if (pending) {
       return { id, pending, result: row?.result, status: 'pending' as const }
     }
+
     if (row) {
       return { id, result: row.result, status: row.status }
     }
+
     return { id, status: terminal || viewModel.status === 'running' ? ('skip' as const) : ('pending' as const) }
   })
 }
@@ -85,12 +95,17 @@ function stepDetail(
   pending?: DoctorPendingCheck
 ): string {
   if (pending) return t(pending.confirmation.messageKey, pending.confirmation.params)
+
   if (!result) return t(DOCTOR_STATUS_LABEL_KEYS[status])
+
   if (result.status === 'error') return t('settings.doctor.checks.error')
+
   if (result.status === 'skip' && 'skippedBy' in result) {
     return t('settings.doctor.checks.skipped', { check: t(doctorCheckTitleKey(result.skippedBy)) })
   }
+
   if (!result.detail) return t(DOCTOR_STATUS_LABEL_KEYS[result.status])
+
   return t(doctorCheckDetailKey(result.id, result.detail.variant), doctorCheckDetailParams(t, result.detail.params))
 }
 
@@ -131,6 +146,7 @@ export function ErrorConnectivitySteps({ controller }: ErrorConnectivityStepsPro
         const detail = stepDetail(t, step.result, step.status, step.pending)
         const row = rowById.get(step.id)
         const actionRow = row ? withoutCoveredNavigates(row, coveredNavigates) : undefined
+
         return (
           <AccordionItem key={step.id} value={`doctor-${step.id}`} className="px-4">
             <AccordionTrigger className="rounded-none py-3 font-normal hover:bg-transparent focus:bg-transparent focus-visible:bg-transparent">
@@ -155,6 +171,7 @@ export function ErrorConnectivitySteps({ controller }: ErrorConnectivityStepsPro
                     disabled={controller.isInteracting}
                     onClick={() => {
                       const pending = step.pending
+
                       if (pending) void controller.confirmCheck(pending)
                     }}>
                     {t('settings.doctor.actions.confirm_check')}

@@ -42,6 +42,7 @@ export function SidebarSortableList<T>({
       clearTimeout(suppressClickTimeoutRef.current)
       suppressClickTimeoutRef.current = null
     }
+
     suppressClickRef.current = false
     draggedItemIdRef.current = null
   }, [])
@@ -51,6 +52,7 @@ export function SidebarSortableList<T>({
       clearTimeout(suppressClickTimeoutRef.current)
       suppressClickTimeoutRef.current = null
     }
+
     draggedItemIdRef.current = String(event.activeId)
     suppressClickRef.current = true
   }, [])
@@ -65,8 +67,10 @@ export function SidebarSortableList<T>({
     (item, handler) => (event) => {
       if (String(item) === draggedItemIdRef.current && suppressClickRef.current) {
         clearClickSuppression()
+
         return
       }
+
       handler?.(event)
     },
     [clearClickSuppression]

@@ -274,18 +274,22 @@ export function getFileIconName(filePath: string): string {
 
   // Check exact filename match first
   const filenameIcon = filenameMap.get(filename) ?? filenameMap.get(lowerFilename)
+
   if (filenameIcon) return filenameIcon
 
   // Check compound extensions (e.g. .d.ts, .spec.ts)
   const parts = filename.split('.')
+
   if (parts.length > 2) {
     const compoundExt = parts.slice(-2).join('.').toLowerCase()
     const compoundIcon = extensionMap.get(compoundExt)
+
     if (compoundIcon) return compoundIcon
   }
 
   // Check simple extension
   const ext = parts.pop()?.toLowerCase()
+
   if (ext) return extensionMap.get(ext) ?? DEFAULT_ICON
 
   return DEFAULT_ICON

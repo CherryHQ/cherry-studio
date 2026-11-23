@@ -26,6 +26,7 @@ export const KnowledgeEmbeddingModelSelect = (props: KnowledgeEmbeddingModelSele
 
       if (modelId !== LOCAL_EMBEDDING_UNIQUE_MODEL_ID || status === 'ready' || status === 'downloading') {
         onChange(modelId)
+
         return
       }
 
@@ -34,6 +35,7 @@ export const KnowledgeEmbeddingModelSelect = (props: KnowledgeEmbeddingModelSele
         id: DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding,
         description: t('settings.dependencies.localModels.embedding.subtitle')
       })
+
       if (!downloaded) {
         return
       }

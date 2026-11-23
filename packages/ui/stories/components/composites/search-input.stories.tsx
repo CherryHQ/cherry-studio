@@ -23,11 +23,13 @@ const meta: Meta<typeof SearchInput> = {
 }
 
 export default meta
+
 type Story = StoryObj
 
 export const Default: Story = {
   render: function DefaultExample() {
     const [value, setValue] = useState('')
+
     return (
       <div className="w-80">
         <SearchInput
@@ -45,6 +47,7 @@ export const Default: Story = {
 export const WithoutClearButton: Story = {
   render: function NoClearExample() {
     const [value, setValue] = useState('')
+
     return (
       <div className="w-80">
         <SearchInput value={value} placeholder="Search" onChange={(e) => setValue(e.target.value)} />

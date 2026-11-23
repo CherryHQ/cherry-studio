@@ -42,14 +42,19 @@ export const MAX_FILE_SIZE_BYTES = 100 * MB
 
 function normalizeImageContentType(contentType: string | null): string | null {
   const mediaType = contentType?.split(';')[0]?.trim().toLowerCase()
+
   if (!mediaType || !/^image\/[a-z0-9.+-]+$/.test(mediaType)) return null
+
   if (mediaType === 'image/octet-stream') return null
+
   if (mediaType === 'image/jpg') return 'image/jpeg'
+
   return mediaType
 }
 
 function trustedImageMimeFromExt(ext: string | null | undefined): string | null {
   if (!ext) return null
+
   return TRUSTED_REMOTE_IMAGE_EXT_TO_MIME.get(ext.replace(/^\./, '').toLowerCase()) ?? null
 }
 
@@ -58,7 +63,9 @@ function extFromFilename(filename: string | null | undefined): string | null {
   const cleanName = filename.trim().replace(/[/\\]+$/, '')
   const lastSegment = cleanName.split(/[/\\]/).pop()
   const dot = lastSegment?.lastIndexOf('.') ?? -1
+
   if (!lastSegment || dot <= 0 || dot === lastSegment.length - 1) return null
+
   return lastSegment.slice(dot + 1)
 }
 
@@ -66,9 +73,11 @@ export function filenameFromContentDisposition(contentDisposition: string | null
   if (!contentDisposition) return null
 
   const encodedMatch = /(?:^|;)\s*filename\*=([^;]+)/i.exec(contentDisposition)
+
   if (encodedMatch?.[1]) {
     const value = encodedMatch[1].trim().replace(/^"|"$/g, '')
     const encodedFilename = value.includes("''") ? value.slice(value.indexOf("''") + 2) : value
+
     try {
       return decodeURIComponent(encodedFilename)
     } catch {
@@ -77,6 +86,7 @@ export function filenameFromContentDisposition(contentDisposition: string | null
   }
 
   const filenameMatch = /(?:^|;)\s*filename=(?:"([^"]+)"|([^;]+))/i.exec(contentDisposition)
+
   return filenameMatch?.[1] ?? filenameMatch?.[2]?.trim() ?? null
 }
 
@@ -90,6 +100,7 @@ function trustedImageMimeFromUrl(url: string): string | null {
 
 async function resolveTrustedImageMime(buffer: Buffer, response: Response, url: string): Promise<string | null> {
   const fileType = await fileTypeFromBuffer(buffer)
+
   if (fileType) return fileType.mime.startsWith('image/') ? fileType.mime : null
 
   return (
@@ -110,26 +121,34 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
     // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
     const safeUrl = sanitizeRemoteUrl(url)
     const response = await net.fetch(safeUrl)
+
     if (!response.ok) {
       logger.warn('Failed to download image', { url, status: response.status })
+
       return null
     }
 
     const contentLength = response.headers.get('content-length')
+
     if (contentLength && parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) {
       logger.warn('Image too large, skipping download', { url, size: contentLength })
+
       return null
     }
 
     const buffer = Buffer.from(await response.arrayBuffer())
+
     if (buffer.length > MAX_FILE_SIZE_BYTES) {
       logger.warn('Image too large after download', { url, size: buffer.length })
+
       return null
     }
 
     const mediaType = await resolveTrustedImageMime(buffer, response, safeUrl)
+
     if (!mediaType) {
       logger.warn('Downloaded image response has no trustworthy image format', { url })
+
       return null
     }
 
@@ -139,6 +158,7 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
       url,
       error: error instanceof Error ? error.message : String(error)
     })
+
     return null
   }
 }
@@ -151,20 +171,26 @@ export async function downloadFileAsBase64(url: string, filename: string): Promi
   try {
     // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
     const response = await net.fetch(sanitizeRemoteUrl(url))
+
     if (!response.ok) {
       logger.warn('Failed to download file', { url, filename, status: response.status })
+
       return null
     }
 
     const contentLength = response.headers.get('content-length')
+
     if (contentLength && parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) {
       logger.warn('File too large, skipping download', { filename, size: contentLength })
+
       return null
     }
 
     const buffer = Buffer.from(await response.arrayBuffer())
+
     if (buffer.length > MAX_FILE_SIZE_BYTES) {
       logger.warn('File too large after download', { filename, size: buffer.length })
+
       return null
     }
 
@@ -183,6 +209,7 @@ export async function downloadFileAsBase64(url: string, filename: string): Promi
       filename,
       error: error instanceof Error ? error.message : String(error)
     })
+
     return null
   }
 }

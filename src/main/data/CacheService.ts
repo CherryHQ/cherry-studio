@@ -69,16 +69,20 @@ class CacheNotifier {
    */
   subscribe(subscriptionKey: string, callback: CacheSubscriptionCallback): () => void {
     let set = this.subscriptions.get(subscriptionKey)
+
     if (!set) {
       set = new Set()
       this.subscriptions.set(subscriptionKey, set)
     }
+
     set.add(callback)
 
     return () => {
       const current = this.subscriptions.get(subscriptionKey)
+
       if (!current) return
       current.delete(callback)
+
       if (current.size === 0) {
         this.subscriptions.delete(subscriptionKey)
       }
@@ -94,6 +98,7 @@ class CacheNotifier {
   notify(concreteKey: string, newValue: unknown, oldValue: unknown): void {
     // Exact match path: O(1) hash lookup
     const exact = this.subscriptions.get(concreteKey)
+
     if (exact && exact.size > 0) {
       this.invokeAll(exact, concreteKey, newValue, oldValue)
     }
@@ -101,8 +106,10 @@ class CacheNotifier {
     // Template match path: iterate only keys that contain ${...}
     for (const [subscriptionKey, set] of this.subscriptions) {
       if (subscriptionKey === concreteKey) continue
+
       if (!isTemplateKey(subscriptionKey)) continue
       const regex = templateToRegex(subscriptionKey)
+
       if (regex.test(concreteKey)) {
         this.invokeAll(set, concreteKey, newValue, oldValue)
       }
@@ -125,10 +132,13 @@ class CacheNotifier {
     if (subscriptionKey) {
       return this.subscriptions.get(subscriptionKey)?.size ?? 0
     }
+
     let total = 0
+
     for (const set of this.subscriptions.values()) {
       total += set.size
     }
+
     return total
   }
 
@@ -147,6 +157,7 @@ class CacheNotifier {
   ): void {
     // Snapshot to allow callbacks to (un)subscribe without breaking iteration
     const callbacks = [...set]
+
     for (const callback of callbacks) {
       try {
         callback(newValue, oldValue, concreteKey)
@@ -280,8 +291,11 @@ export class CacheService extends BaseService {
    */
   private peekInternalEntry(key: string): CacheEntry | undefined {
     const entry = this.cache.get(key)
+
     if (!entry) return undefined
+
     if (entry.expireAt && Date.now() > entry.expireAt) return undefined
+
     return entry
   }
 
@@ -291,8 +305,11 @@ export class CacheService extends BaseService {
    */
   private peekSharedEntry(key: string): CacheEntry | undefined {
     const entry = this.sharedCache.get(key)
+
     if (!entry) return undefined
+
     if (entry.expireAt && Date.now() > entry.expireAt) return undefined
+
     return entry
   }
 
@@ -301,11 +318,13 @@ export class CacheService extends BaseService {
    */
   get<T>(key: string): T | undefined {
     const entry = this.cache.get(key)
+
     if (!entry) return undefined
 
     // Check TTL (lazy cleanup)
     if (entry.expireAt && Date.now() > entry.expireAt) {
       this.cache.delete(key)
+
       return undefined
     }
 
@@ -317,6 +336,7 @@ export class CacheService extends BaseService {
    */
   set<T>(key: string, value: T, ttl?: number): void {
     const oldValue = this.peekInternalEntry(key)?.value
+
     const entry: CacheEntry<T> = {
       value,
       expireAt: ttl ? Date.now() + ttl : undefined
@@ -336,11 +356,13 @@ export class CacheService extends BaseService {
    */
   has(key: string): boolean {
     const entry = this.cache.get(key)
+
     if (!entry) return false
 
     // Check TTL
     if (entry.expireAt && Date.now() > entry.expireAt) {
       this.cache.delete(key)
+
       return false
     }
 
@@ -388,6 +410,7 @@ export class CacheService extends BaseService {
       key,
       value: undefined // undefined means deletion
     })
+
     return true
   }
 
@@ -398,11 +421,13 @@ export class CacheService extends BaseService {
    */
   getShared<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
     const entry = this.sharedCache.get(key)
+
     if (!entry) return undefined
 
     // Check TTL (lazy cleanup)
     if (entry.expireAt && Date.now() > entry.expireAt) {
       this.evictShared(key)
+
       return undefined
     }
 
@@ -440,6 +465,7 @@ export class CacheService extends BaseService {
           expireAt
         })
       }
+
       return
     }
 
@@ -461,11 +487,13 @@ export class CacheService extends BaseService {
    */
   hasShared<K extends SharedCacheKey>(key: K): boolean {
     const entry = this.sharedCache.get(key)
+
     if (!entry) return false
 
     // Check TTL
     if (entry.expireAt && Date.now() > entry.expireAt) {
       this.evictShared(key)
+
       return false
     }
 
@@ -486,6 +514,7 @@ export class CacheService extends BaseService {
       // route through the unified eviction outlet (delete + tombstone
       // broadcast). A truly absent key stays a silent no-op.
       this.evictShared(key)
+
       return true
     }
 
@@ -574,6 +603,7 @@ export class CacheService extends BaseService {
         this.evictShared(key)
         continue
       }
+
       entries.push([key, entry])
     }
 
@@ -615,6 +645,7 @@ export class CacheService extends BaseService {
     if (this.persistCache.has(key)) {
       return this.persistCache.get(key) as MainPersistCacheSchema[K]
     }
+
     return DefaultMainPersistCache[key]
   }
 
@@ -628,9 +659,11 @@ export class CacheService extends BaseService {
    */
   setPersist<K extends MainPersistCacheKey>(key: K, value: MainPersistCacheSchema[K]): void {
     const oldValue = this.getPersist(key)
+
     if (isEqual(oldValue, value)) {
       return
     }
+
     this.persistCache.set(key, value)
     this.schedulePersistSave()
     this.persistNotifier.notify(key, value, oldValue)
@@ -691,6 +724,7 @@ export class CacheService extends BaseService {
    */
   private loadPersist(): void {
     this.persistCache.clear()
+
     for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
       this.persistCache.set(key, DefaultMainPersistCache[key])
     }
@@ -699,10 +733,12 @@ export class CacheService extends BaseService {
       if (!fs.existsSync(this.persistFilePath)) return
 
       const parsed: JSONValue = JSON.parse(fs.readFileSync(this.persistFilePath, 'utf-8'))
+
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         // Adopt known schema keys only — unknown/stale keys are pruned so the
         // "fixed keys only" contract holds and renamed keys don't linger on disk.
         const record = parsed
+
         for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
           if (key in record) {
             this.persistCache.set(key, record[key])
@@ -721,6 +757,7 @@ export class CacheService extends BaseService {
     if (this.persistSaveTimer) {
       clearTimeout(this.persistSaveTimer)
     }
+
     this.persistSaveTimer = setTimeout(() => {
       this.persistSaveTimer = null
       this.savePersistSync()
@@ -734,9 +771,11 @@ export class CacheService extends BaseService {
    */
   private savePersistSync(options: { throwOnError?: boolean } = {}): void {
     const tempPath = `${this.persistFilePath}.tmp`
+
     try {
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Persist values include unvalidated disk entries; JSON.stringify owns their conversion, omission and backup failure behavior.
       const snapshot: Record<string, unknown> = {}
+
       for (const [key, value] of this.persistCache.entries()) {
         snapshot[key] = value
       }
@@ -750,7 +789,9 @@ export class CacheService extends BaseService {
       } catch {
         // Best-effort cleanup; preserve the original persistence error.
       }
+
       logger.error(`Failed to save persist cache to ${this.persistFilePath}`, error as Error)
+
       if (options.throwOnError) {
         throw error
       }
@@ -767,6 +808,7 @@ export class CacheService extends BaseService {
       clearTimeout(this.persistSaveTimer)
       this.persistSaveTimer = null
       this.savePersistSync()
+
       return
     }
 
@@ -784,6 +826,7 @@ export class CacheService extends BaseService {
    */
   public flushPersistForBackup(): void {
     const hadPendingSave = this.persistSaveTimer !== null
+
     if (this.persistSaveTimer) {
       clearTimeout(this.persistSaveTimer)
       this.persistSaveTimer = null
@@ -795,6 +838,7 @@ export class CacheService extends BaseService {
       if (hadPendingSave) {
         this.schedulePersistSave()
       }
+
       throw error
     }
   }
@@ -806,6 +850,7 @@ export class CacheService extends BaseService {
    */
   private broadcastSync(message: CacheSyncMessage, senderWindowId?: number): void {
     const windows = BrowserWindow.getAllWindows()
+
     for (const window of windows) {
       if (!window.isDestroyed() && window.id !== senderWindowId) {
         window.webContents.send(IpcChannel.Cache_Sync, message)
@@ -839,6 +884,7 @@ export class CacheService extends BaseService {
             value: message.value,
             expireAt: message.expireAt
           }
+
           this.sharedCache.set(message.key, entry)
         }
 
@@ -850,6 +896,7 @@ export class CacheService extends BaseService {
         if (!isEqual(oldValue, message.value)) {
           this.sharedNotifier.notify(message.key, message.value, oldValue)
         }
+
         return
       }
 
@@ -862,6 +909,7 @@ export class CacheService extends BaseService {
       if (!this.isTrustedSender(event, IpcChannel.Cache_GetAllShared)) {
         throw new Error(`Rejected cache request from untrusted sender: ${IpcChannel.Cache_GetAllShared}`)
       }
+
       return this.getAllShared()
     })
 
@@ -880,6 +928,7 @@ export class CacheService extends BaseService {
       senderType: event.sender?.getType(),
       senderUrl: event.senderFrame?.url
     })
+
     return false
   }
 }

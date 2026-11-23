@@ -26,6 +26,7 @@ class LocalEmbeddingModel implements EmbeddingModelV3 {
     options: Parameters<EmbeddingModelV3['doEmbed']>[0]
   ): Promise<Awaited<ReturnType<EmbeddingModelV3['doEmbed']>>> {
     const embeddings = await embedTexts(options.values, options.abortSignal)
+
     return { embeddings, warnings: [] }
   }
 }
@@ -50,6 +51,7 @@ export interface LocalEmbeddingProviderSettings {
 // oxlint-disable-next-line no-unused-vars
 export function createLocalEmbeddingProvider(_settings: LocalEmbeddingProviderSettings = {}): ProviderV3 {
   const embeddingModel = (modelId: string): EmbeddingModelV3 => new LocalEmbeddingModel(modelId)
+
   const unsupported = (capability: string) => (): never => {
     throw new Error(`local-embedding provider only supports text embeddings, not ${capability}`)
   }

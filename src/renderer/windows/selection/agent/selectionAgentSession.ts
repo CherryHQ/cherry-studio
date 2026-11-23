@@ -22,9 +22,12 @@ export function getSelectionAgentTarget(action: AgentSelectionAction): Selection
 export async function createSelectionAgentSession({ agentId, workspace }: SelectionAgentTarget): Promise<string> {
   if (!agentId) {
     const { sessionId } = await ipcApi.request('ai.agent.assistant_session.create', { workspace })
+
     return sessionId
   }
+
   const session = await dataApiService.post('/agent-sessions', { body: { agentId, name: '', workspace } })
+
   return session.id
 }
 

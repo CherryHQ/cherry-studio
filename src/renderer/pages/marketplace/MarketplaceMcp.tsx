@@ -71,6 +71,7 @@ const builtinMcpIcons: Partial<Record<McpServerPreset['name'], LucideIcon>> = {
 function BuiltinMcpIcon({ name, large = false }: { name: McpServerPreset['name']; large?: boolean }) {
   const Icon = builtinMcpIcons[name] ?? Wrench
   const displayConfig = getIconDisplayConfig('mini-app', 'mcp')
+
   return (
     <span
       aria-hidden="true"
@@ -131,29 +132,37 @@ export function MarketplaceMcp({
   const presets = catalog.presets.filter((preset) => matches([preset.name, description(preset)]))
   const visible = (preview ? presets.slice(0, 6) : presets).map((preset) => ({ ...preset, id: preset.name }))
   const busy = selected ? catalog.adding.has(selected.name) : false
+
   const configure = (id: string) => {
     setSelected(null)
     openSettingsTab(`/settings/mcp/settings/${id}`)
   }
+
   const add = async (preset: McpServerPreset) => {
     const existing = catalog.findInstalled(preset)
+
     if (existing) {
       configure(existing.id)
+
       return
     }
+
     try {
       const server = await catalog.add(preset)
       toast.success(t('settings.mcp.addSuccess'))
+
       if (preset.shouldConfig) configure(server.id)
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('settings.mcp.addError')))
     }
   }
+
   const action = (preset: McpServerPreset, full = false) => {
     const installed = catalog.findInstalled(preset)
     const adding = catalog.adding.has(preset.name)
     const label = t(installed ? 'marketplace.configure' : 'common.add')
     const Action = full ? Button : MarketplaceCardAction
+
     return (
       <Action
         size={full ? 'sm' : 'icon-sm'}
@@ -173,9 +182,11 @@ export function MarketplaceMcp({
       </Action>
     )
   }
+
   if (moreSources) {
     const providers = MCP_PROVIDER_ENTRIES.filter((provider) => matches([getProviderDisplayName(provider, t)]))
     const markets = MCP_MARKETS.filter((market) => matches([market.name, t(market.descriptionKey)]))
+
     return (
       <>
         <Dialog open={Boolean(selectedProvider) && active} onOpenChange={(open) => !open && onProviderChange()}>
@@ -262,6 +273,7 @@ export function MarketplaceMcp({
       </>
     )
   }
+
   return (
     <>
       <MarketplaceLoadState

@@ -10,9 +10,11 @@ export function parseConfiguredModelId(
   modelId: string | null | undefined
 ): { uniqueModelId: UniqueModelId; providerId: string; modelId: string } | null {
   const result = UniqueModelIdSchema.safeParse(modelId)
+
   if (!result.success) {
     return null
   }
+
   return { uniqueModelId: result.data, ...parseUniqueModelId(result.data) }
 }
 
@@ -23,9 +25,11 @@ export function resolveCliConfigApplyContext(
   gatewayModels?: Map<UniqueModelId, Model>
 ): { modelId: UniqueModelId; providerId: string; rawModelId: string; writePrimaryModel: boolean } | null {
   const config = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
+
   if (cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)) {
     const detailedModelId = getClaudeContextModelId(providerId, config, gatewayModels)
     const parsedDetailedModelId = parseConfiguredModelId(detailedModelId)
+
     if (detailedModelId && parsedDetailedModelId) {
       return {
         modelId: parsedDetailedModelId.uniqueModelId,
@@ -37,7 +41,9 @@ export function resolveCliConfigApplyContext(
   }
 
   const parsedModelId = parseConfiguredModelId(providerConfig?.modelId)
+
   if (!parsedModelId) return null
+
   return {
     modelId: parsedModelId.uniqueModelId,
     providerId: parsedModelId.providerId,

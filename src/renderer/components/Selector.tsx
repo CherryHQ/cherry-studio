@@ -80,6 +80,7 @@ const Selector = <V extends string | number>({
     if (multiple) {
       return (value as V[]) || []
     }
+
     return value !== undefined ? [value as V] : []
   }, [value, multiple])
 
@@ -87,21 +88,29 @@ const Selector = <V extends string | number>({
     if (selectedValues.length > 0) {
       const findLabels = (opts: SelectorOption<V>[]): (string | ReactNode)[] => {
         const labels: (string | ReactNode)[] = []
+
         for (const opt of opts) {
           if (selectedValues.some((v) => isSameValue(v, opt.value))) {
             labels.push(opt.label)
           }
+
           if (opt.options) {
             labels.push(...findLabels(opt.options))
           }
         }
+
         return labels
       }
+
       const labels = findLabels(options)
+
       if (labels.length === 0) return placeholder
+
       if (labels.length === 1) return labels[0]
+
       return t('common.selectedItems', { count: labels.length })
     }
+
     return placeholder
   }, [selectedValues, placeholder, options, t])
 
@@ -124,10 +133,13 @@ const Selector = <V extends string | number>({
 
     if (multiple) {
       const isSelected = selectedValues.some((selectedValue) => isSameValue(selectedValue, option.value))
+
       const newValues = isSelected
         ? selectedValues.filter((selectedValue) => !isSameValue(selectedValue, option.value))
         : [...selectedValues, option.value]
+
       ;(onChange as MultipleSelectorProps<V>['onChange'])(newValues)
+
       return
     }
 
