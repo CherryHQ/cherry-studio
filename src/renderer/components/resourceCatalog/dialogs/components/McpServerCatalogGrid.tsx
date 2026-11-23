@@ -47,6 +47,7 @@ function getServerState(server: McpServer, status: McpRuntimeStatus | undefined)
 
 export function McpServerCatalogGrid({
   enabledIds,
+  disabled = false,
   emptyLabel,
   onOpenSettings,
   onToggle,
@@ -54,6 +55,7 @@ export function McpServerCatalogGrid({
   title
 }: {
   enabledIds: ReadonlySet<string>
+  disabled?: boolean
   emptyLabel: string
   onOpenSettings?: () => void
   onToggle: (id: string, enabled: boolean) => void
@@ -113,6 +115,7 @@ export function McpServerCatalogGrid({
         <CatalogToggleGrid
           items={catalog}
           enabledIds={enabledIds}
+          disabled={disabled}
           loading={isLoading}
           onToggle={onToggle}
           emptyLabel={emptyLabel}

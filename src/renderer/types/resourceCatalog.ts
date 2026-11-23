@@ -24,6 +24,7 @@ export type ResourceCreateValues = {
   description: string
   prompt: string
   knowledgeBaseIds: string[]
+  reviewedMcpServerIds?: string[]
   skillIds: string[]
 }
 

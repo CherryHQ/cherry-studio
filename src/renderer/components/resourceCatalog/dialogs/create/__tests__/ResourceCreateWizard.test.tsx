@@ -11,6 +11,8 @@ import type { Provider } from '@shared/data/types/provider'
 
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
 
+const mcpStepState = vi.hoisted(() => ({ pending: false }))
+
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
   defaultProvider: { id: 'provider', name: 'Provider', isEnabled: true } as Provider | undefined,
@@ -60,6 +62,18 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; SystemPromptStep fills the prompt.
+vi.mock('../steps/McpStep', async () => {
+  const { useEffect } = await import('react')
+  return {
+    McpStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => {
+      useEffect(() => {
+        if (!mcpStepState.pending) form.setValue('reviewedMcpServerIds', [])
+      }, [form])
+      return null
+    }
+  }
+})
+
 vi.mock('../steps/BasicInfoStep', async () => {
   const { useWatch } = await vi.importActual<typeof ReactHookForm>('react-hook-form')
 
@@ -214,10 +228,8 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   await user.click(screen.getByRole('textbox', { name: 'draft prompt' }))
   await user.paste(draft.prompt)
   await user.click(screen.getByRole('button', { name: NEXT }))
-  if (kind === 'agent') {
-    expect(screen.getByTestId('capability-step')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: NEXT }))
-  }
+  if (kind === 'agent') expect(screen.getByTestId('capability-step')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: NEXT }))
   await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
 }
 
@@ -244,6 +256,7 @@ function expectDefaults(kind: ResourceCreateWizardKind, name = '') {
 afterEach(() => {
   cleanup()
   onSubmitSpy.mockReset()
+  mcpStepState.pending = false
   modelHook.defaultModel = undefined
   modelHook.defaultProvider = { id: 'provider', name: 'Provider', isEnabled: true } as Provider
   modelHook.agentModelFilter.mockReset()
@@ -252,6 +265,36 @@ afterEach(() => {
 })
 
 describe('ResourceCreateWizard', () => {
+  it('blocks unresolved MCP selection without blocking back or cancel', async () => {
+    const user = userEvent.setup()
+    mcpStepState.pending = true
+    modelHook.defaultModel = makeModel()
+    const onOpenChange = vi.fn()
+    const onSubmit = vi.fn()
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        initialName="New assistant"
+        onOpenChange={onOpenChange}
+        onSubmit={onSubmit}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+    expect(screen.getByRole('button', { name: CANCEL })).toBeEnabled()
+    const back = screen.getByRole('button', { name: 'library.config.dialogs.create.back' })
+    expect(back).toBeEnabled()
+    await user.click(back)
+    expect(screen.getByRole('textbox', { name: 'draft prompt' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: CANCEL }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('preserves image bytes across steps and a failed submit, guards repeated activation, and resets on reopen', async () => {
     const user = userEvent.setup()
     modelHook.defaultModel = makeModel()
@@ -430,6 +473,7 @@ describe('ResourceCreateWizard', () => {
 
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(onSubmit).toHaveBeenCalledWith(
@@ -450,6 +494,7 @@ describe('ResourceCreateWizard', () => {
     // Name + default model are both set, so the first step is already cleared.
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
@@ -522,7 +567,8 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: 'fill system prompt' }))
 
-    // Step 2 → 3 (assistant: knowledge)
+    // Review MCP defaults before continuing to knowledge.
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
 
@@ -541,6 +587,7 @@ describe('ResourceCreateWizard', () => {
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))

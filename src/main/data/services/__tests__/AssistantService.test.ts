@@ -544,6 +544,139 @@ describe('AssistantDataService', () => {
     })
   })
 
+  describe('new-assistant MCP defaults', () => {
+    async function seedDefaultMcpSelection() {
+      await dbh.db.insert(mcpServerTable).values([
+        { id: 'default-a', name: 'Default A', isActive: true },
+        { id: 'default-b', name: 'Default B', isActive: false },
+        { id: 'default-c', name: 'Default C', isActive: true },
+        { id: 'browser-default', name: '@cherry/browser', type: 'inMemory', isActive: true }
+      ])
+      MockMainPreferenceServiceUtils.setPreferenceValue('assistant.default_mcp_server_ids', [
+        'default-c',
+        'default-b',
+        'removed-server',
+        'default-a',
+        'default-c'
+      ])
+    }
+
+    it('inherits only existing active defaults and returns the stored bindings', async () => {
+      await seedDefaultMcpSelection()
+
+      const created = assistantDataService.create({ name: 'Default tools' })
+
+      expect(new Set(created.mcpServerIds)).toEqual(new Set(['default-c', 'default-a']))
+      expect(new Set(assistantDataService.getById(created.id).mcpServerIds)).toEqual(
+        new Set(['default-c', 'default-a'])
+      )
+      expect(created.settings.mcpMode).toBe('manual')
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('assistant.default_mcp_server_ids')).toEqual([
+        'default-c',
+        'default-b',
+        'removed-server',
+        'default-a',
+        'default-c'
+      ])
+    })
+
+    it('never inherits the browser-only MCP server', async () => {
+      await seedDefaultMcpSelection()
+      const created = assistantDataService.create({
+        name: 'No browser',
+        reviewedMcpServerIds: ['browser-default', 'default-a']
+      })
+      expect(created.mcpServerIds).toEqual(['default-a'])
+    })
+
+    it('uses the reviewed inherited snapshot rather than a later global default', async () => {
+      await seedDefaultMcpSelection()
+      MockMainPreferenceServiceUtils.setPreferenceValue('assistant.default_mcp_server_ids', ['default-a'])
+
+      const created = assistantDataService.create({ name: 'Reviewed defaults', reviewedMcpServerIds: ['default-c'] })
+
+      expect(created.mcpServerIds).toEqual(['default-c'])
+      expect(assistantDataService.getById(created.id).mcpServerIds).toEqual(['default-c'])
+    })
+
+    it('revalidates inherited snapshots at insertion and preserves explicit clearing', async () => {
+      await seedDefaultMcpSelection()
+      const reviewedMcpServerIds = ['default-b', 'removed-server', 'default-c']
+
+      const created = assistantDataService.create({ name: 'Stale defaults', reviewedMcpServerIds })
+      const cleared = assistantDataService.create({ name: 'Cleared defaults', reviewedMcpServerIds, mcpServerIds: [] })
+      const empty = assistantDataService.create({ name: 'Reviewed empty', reviewedMcpServerIds: [] })
+
+      expect(created.mcpServerIds).toEqual(['default-c'])
+      expect(cleared.mcpServerIds).toEqual([])
+      expect(empty.mcpServerIds).toEqual([])
+    })
+
+    it('keeps the empty default opt-in and preserves an explicitly disabled MCP mode', () => {
+      const created = assistantDataService.create({ name: 'No defaults' })
+      const disabled = assistantDataService.create({
+        name: 'MCP off',
+        settings: { ...DEFAULT_ASSISTANT_SETTINGS, mcpMode: 'disabled' }
+      })
+
+      expect(created.mcpServerIds).toEqual([])
+      expect(created.settings.mcpMode).toBe('manual')
+      expect(disabled.settings.mcpMode).toBe('disabled')
+    })
+
+    it('treats an explicit empty selection as an override rather than reapplying the preference', async () => {
+      await seedDefaultMcpSelection()
+
+      const created = assistantDataService.create({ name: 'No tools', mcpServerIds: [] })
+
+      expect(created.mcpServerIds).toEqual([])
+      expect(assistantDataService.getById(created.id).mcpServerIds).toEqual([])
+    })
+
+    it('preserves explicit selections instead of merging or replacing them with defaults', async () => {
+      await seedDefaultMcpSelection()
+
+      const created = assistantDataService.create({ name: 'Explicit tools', mcpServerIds: ['default-b'] })
+
+      expect(created.mcpServerIds).toEqual(['default-b'])
+      expect(assistantDataService.getById(created.id).mcpServerIds).toEqual(['default-b'])
+    })
+
+    it('keeps assistant edits and later preference changes independent', async () => {
+      await seedDefaultMcpSelection()
+      const first = assistantDataService.create({ name: 'First' })
+      MockMainPreferenceServiceUtils.setPreferenceValue('assistant.default_mcp_server_ids', ['default-a'])
+      expect(new Set(assistantDataService.getById(first.id).mcpServerIds)).toEqual(new Set(['default-c', 'default-a']))
+      const second = assistantDataService.create({ name: 'Second' })
+      assistantDataService.update(first.id, { mcpServerIds: [] })
+
+      expect(assistantDataService.getById(first.id).mcpServerIds).toEqual([])
+      expect(assistantDataService.getById(second.id).mcpServerIds).toEqual(['default-a'])
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('assistant.default_mcp_server_ids')).toEqual([
+        'default-a'
+      ])
+    })
+
+    it('does not apply new-assistant defaults to imports or copies', async () => {
+      await seedDefaultMcpSelection()
+      const source = assistantDataService.create({ name: 'Source', mcpServerIds: ['default-b'] })
+
+      const imported = assistantDataService.createFromImport({ name: 'Imported' })
+      const copied = assistantDataService.duplicate(source.id, { name: 'Copied' })
+
+      expect(imported.mcpServerIds).toEqual([])
+      expect(copied.mcpServerIds).toEqual(['default-b'])
+    })
+
+    it('rolls back inherited bindings and the assistant when another relation cannot be inserted', async () => {
+      await seedDefaultMcpSelection()
+
+      expect(() => assistantDataService.create({ name: 'Invalid KB', knowledgeBaseIds: ['missing-kb'] })).toThrow()
+      expect(dbh.db.select().from(assistantTable).all()).toEqual([])
+      expect(dbh.db.select().from(assistantMcpServerTable).all()).toEqual([])
+    })
+  })
+
   describe('create', () => {
     it('should create and return assistant with generated id', async () => {
       const result = assistantDataService.create({ name: 'test-assistant' })

@@ -25,6 +25,16 @@ describe('resource create DTO mapping', () => {
     })
     expect(buildCreateAssistantDto({ ...values, avatarImage })).not.toHaveProperty('avatarImage')
   })
+  it('carries a reviewed selection, including clearing, without leaking assistant bindings into Agent creation', () => {
+    expect(buildCreateAssistantDto({ ...values, reviewedMcpServerIds: ['mcp-a'] })).toMatchObject({
+      reviewedMcpServerIds: ['mcp-a']
+    })
+    expect(buildCreateAssistantDto({ ...values, reviewedMcpServerIds: [] })).toMatchObject({ reviewedMcpServerIds: [] })
+    expect(buildCreateAgentCommand({ ...values, reviewedMcpServerIds: ['mcp-a'] })).not.toHaveProperty(
+      'reviewedMcpServerIds'
+    )
+  })
+
   it('maps every assistant-specific field', () => {
     expect(buildCreateAssistantDto(values)).toEqual({
       name: 'Researcher',

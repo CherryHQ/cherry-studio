@@ -21,6 +21,7 @@ import {
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
+import { McpStep } from './steps/McpStep'
 import { SystemPromptStep } from './steps/SystemPromptStep'
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
 
@@ -38,7 +39,7 @@ type ResourceCreateWizardProps = {
   initialValues?: Partial<Pick<ResourceCreateWizardFormValues, 'name' | 'description' | 'avatar' | 'prompt'>>
 }
 
-type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
+type StepId = 'basic' | 'system-prompt' | 'mcp' | 'knowledge' | 'capability'
 
 /** The avatar a brand-new resource starts with — exported so callers can preview what they'd create. */
 export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
@@ -75,6 +76,7 @@ function WizardFooter({
   isLast,
   isSubmitting,
   imagePending,
+  selectionRequired,
   onCancel,
   onBack,
   onNext,
@@ -85,21 +87,26 @@ function WizardFooter({
   isLast: boolean
   isSubmitting: boolean
   imagePending: boolean
+  selectionRequired: boolean
   onCancel: () => void
   onBack: () => void
   onNext: () => void
   onCreate: () => void
 }) {
   const { t } = useTranslation()
-  const [name, modelId] = useWatch({ control: form.control, name: ['name', 'modelId'] })
+  const [name, modelId, reviewedMcpServerIds] = useWatch({
+    control: form.control,
+    name: ['name', 'modelId', 'reviewedMcpServerIds']
+  })
+  const selectionPending = selectionRequired && reviewedMcpServerIds === undefined
   const submitting = isSubmitting || form.formState.isSubmitting
   const rootError = form.formState.errors.root?.message
   const basicValid = (name?.trim().length ?? 0) > 0 && Boolean(modelId)
-  const canProceed = stepIndex !== 0 || basicValid
+  const canProceed = (stepIndex !== 0 || basicValid) && !selectionPending
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
-      {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
+    <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-6 py-3">
+      {rootError ? <span className="mr-auto text-xs text-destructive">{rootError}</span> : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
@@ -109,7 +116,11 @@ function WizardFooter({
         </Button>
       ) : null}
       {isLast ? (
-        <Button type="button" loading={submitting} disabled={!basicValid || imagePending} onClick={onCreate}>
+        <Button
+          type="button"
+          loading={submitting}
+          disabled={!basicValid || imagePending || selectionPending}
+          onClick={onCreate}>
           {t('library.config.dialogs.create.submit')}
         </Button>
       ) : (
@@ -184,7 +195,8 @@ export function ResourceCreateWizard({
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const systemPrompt = { id: 'system-prompt' as const, label: t('library.config.prompt.label') }
     const knowledge = { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
-    if (kind === 'assistant') return [basic, systemPrompt, knowledge]
+    if (kind === 'assistant')
+      return [basic, systemPrompt, { id: 'mcp' as const, label: t('settings.mcp.title') }, knowledge]
 
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
     const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
@@ -256,6 +268,7 @@ export function ResourceCreateWizard({
   const isLast = stepIndex === steps.length - 1
 
   const goNext = () => {
+    if (steps[stepIndex]?.id === 'mcp' && form.getValues('reviewedMcpServerIds') === undefined) return
     if (stepIndex === 0) {
       const { name, modelId } = form.getValues()
       if (!(name.trim().length > 0 && modelId)) return
@@ -309,6 +322,7 @@ export function ResourceCreateWizard({
         description: values.description.trim(),
         prompt: values.prompt.trim(),
         knowledgeBaseIds: values.knowledgeBaseIds,
+        ...(kind === 'assistant' ? { reviewedMcpServerIds: values.reviewedMcpServerIds } : {}),
         skillIds: values.skillIds
       })
     } catch (error) {
@@ -319,6 +333,7 @@ export function ResourceCreateWizard({
   })
   const handleCreate = async () => {
     if (submitPendingRef.current || submitting || imagePending) return
+    if (kind === 'assistant' && form.getValues('reviewedMcpServerIds') === undefined) return
     submitPendingRef.current = true
     try {
       await submitForm()
@@ -354,7 +369,7 @@ export function ResourceCreateWizard({
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1">
               {/* Step rail */}
-              <ol className="w-48 shrink-0 space-y-1 border-border border-r-[0.5px] bg-background-subtle p-3">
+              <ol className="w-48 shrink-0 space-y-1 border-r-[0.5px] border-border bg-background-subtle p-3">
                 {steps.map((step, index) => {
                   const active = index === stepIndex
                   const done = index < stepIndex
@@ -364,7 +379,7 @@ export function ResourceCreateWizard({
                         icon={
                           <span
                             className={cn(
-                              'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px]',
+                              'flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-medium',
                               active
                                 ? 'bg-foreground text-background'
                                 : done
@@ -406,6 +421,9 @@ export function ResourceCreateWizard({
                 {currentStep.id === 'system-prompt' ? (
                   <SystemPromptStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
+                {currentStep.id === 'mcp' ? (
+                  <McpStep form={form} active={open} disabled={submitting} portalContainer={dialogContentElement} />
+                ) : null}
                 {currentStep.id === 'knowledge' ? (
                   <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
                 ) : null}
@@ -421,6 +439,7 @@ export function ResourceCreateWizard({
               isLast={isLast}
               isSubmitting={isSubmitting}
               imagePending={imagePending}
+              selectionRequired={kind === 'assistant' && currentStep.id === 'mcp'}
               onCancel={() => !submitPendingRef.current && !submitting && onOpenChange(false)}
               onBack={goBack}
               onNext={goNext}

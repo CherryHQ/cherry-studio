@@ -259,3 +259,9 @@ manual recovery path does not itself perform an automatic retry or compaction.
 |---|---|
 | [Composer Rich Clipboard](./composer-rich-clipboard.md) | Private clipboard format that preserves composer tokens across copy/paste, its restore rules, and ownership boundaries |
 | [Message Tree](./message-tree.md) | The topic message-tree model: adjacency list, virtual root, sibling groups, invariants, delete semantics, consumer contract |
+
+## Default MCP servers for new assistants
+
+In Settings > General, choose **Default MCP servers for new assistants**. The default is empty. New assistant creation includes an MCP Servers step showing the inherited selection before saving. Change or clear that selection for just the new assistant; it does not change the global default.
+
+Only existing active servers are inherited. Deleted, inactive and browser-only servers are skipped without changing the saved preference. A failed preference read blocks creation until retry, rather than silently creating with an empty set. The reviewed selection is stable if another window changes the default while the wizard is open, and active state is checked again at creation. Existing assistants, copies and imports are unchanged.

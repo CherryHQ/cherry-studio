@@ -13,6 +13,7 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { assistantAvatarFileRefTable } from '@data/db/schemas/fileRelations'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { pinTable } from '@data/db/schemas/pin'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -29,6 +30,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { isBrowserMcpServer } from '@shared/utils/mcp'
 
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
@@ -455,19 +457,45 @@ export class AssistantDataService {
    *
    * `mcpServerIds` and `knowledgeBaseIds` land inside the same
    * transaction as the insert — one failed binding rolls the assistant row
-   * back so callers never observe a half-written record.
+   * back so callers never observe a half-written record. Reviewed create-time selections take
+   * precedence over global defaults; both are filtered to active servers in this transaction.
+   * Explicit `mcpServerIds` bypasses inheritance. Import/copy use `createTx` directly.
    */
   create(dto: CreateAssistantDto): Assistant {
     this.validateName(dto.name)
 
-    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+    const { reviewedMcpServerIds, ...createDto } = dto
+    const {
+      assistant: row,
+      modelName,
+      mcpServerIds
+    } = application.get('DbService').withWriteTx((tx) => {
+      let mcpServerIds = createDto.mcpServerIds
+      if (mcpServerIds === undefined) {
+        const configuredIds =
+          reviewedMcpServerIds ?? application.get('PreferenceService').get('assistant.default_mcp_server_ids')
+        const activeIds = new Set(
+          configuredIds.length > 0
+            ? tx
+                .select({ id: mcpServerTable.id, name: mcpServerTable.name, type: mcpServerTable.type })
+                .from(mcpServerTable)
+                .where(eq(mcpServerTable.isActive, true))
+                .all()
+                .filter((server) => !isBrowserMcpServer({ name: server.name, type: server.type ?? undefined }))
+                .map((server) => server.id)
+            : []
+        )
+        mcpServerIds = [...new Set(configuredIds)].filter((id) => activeIds.has(id))
+      }
+      return { ...this.createTx(tx, { ...createDto, mcpServerIds }), mcpServerIds }
+    })
 
     logger.info('Created assistant', { id: row.id, name: row.name })
 
     return rowToAssistant(
       row,
       {
-        mcpServerIds: [...new Set(dto.mcpServerIds ?? [])],
+        mcpServerIds: [...new Set(mcpServerIds)],
         knowledgeBaseIds: [...new Set(dto.knowledgeBaseIds ?? [])]
       },
       modelName

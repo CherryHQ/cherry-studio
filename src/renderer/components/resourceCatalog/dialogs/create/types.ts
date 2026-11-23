@@ -24,7 +24,9 @@ export type ResourceCreateWizardFormValues = {
   permissionMode: AgentPermissionMode
   modelId: UniqueModelId | null
   prompt: string
-  // assistant step 3 / agent step 4
+  // assistant step 3, undefined until the inherited selection is reviewed
+  reviewedMcpServerIds?: string[]
+  // assistant step 4 / agent step 4
   knowledgeBaseIds: string[]
   // agent step 3
   skillIds: string[]

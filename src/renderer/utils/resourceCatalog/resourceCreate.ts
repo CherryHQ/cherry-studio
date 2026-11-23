@@ -11,7 +11,8 @@ export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAss
     modelId: values.modelId,
     description: values.description,
     prompt: values.prompt,
-    knowledgeBaseIds: values.knowledgeBaseIds
+    knowledgeBaseIds: values.knowledgeBaseIds,
+    ...(values.reviewedMcpServerIds !== undefined ? { reviewedMcpServerIds: values.reviewedMcpServerIds } : {})
   }
 }
 

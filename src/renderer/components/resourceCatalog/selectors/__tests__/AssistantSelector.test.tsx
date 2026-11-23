@@ -206,9 +206,19 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
+
 import { toast } from '@renderer/services/toast'
 
 import { AssistantSelector } from '../AssistantSelector'
+
+const MCP_RESPONSE = {
+  items: [{ id: 'mcp-a', name: 'MCP tools', isActive: true, type: 'stdio' }],
+  total: 1,
+  page: 1,
+  limit: 1
+}
 
 const ALPHA_ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const BETA_ASSISTANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -298,10 +308,19 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  mockPreferenceState.set('assistant.default_mcp_server_ids', ['mcp-a'])
+  MockDataApiUtils.setCustomResponse('/mcp-servers', 'GET', MCP_RESPONSE)
   useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
     const enabled = path !== '/assistants' || options?.enabled !== false
     if (path === '/assistants' && enabled) assistantReadMock()
-    const data = enabled ? (path === '/assistants/:id' ? ASSISTANTS_RESPONSE.items[0] : ASSISTANTS_RESPONSE) : undefined
+    const data =
+      path === '/mcp-servers'
+        ? MCP_RESPONSE
+        : enabled
+          ? path === '/assistants/:id'
+            ? ASSISTANTS_RESPONSE.items[0]
+            : ASSISTANTS_RESPONSE
+          : undefined
     return {
       data,
       isLoading: false,
@@ -509,6 +528,8 @@ describe('AssistantSelector', () => {
     })
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(await screen.findByRole('switch', { name: 'MCP tools' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
@@ -516,6 +537,7 @@ describe('AssistantSelector', () => {
         body: expect.objectContaining({
           name: 'Created Assistant',
           modelId: MODEL.id,
+          reviewedMcpServerIds: ['mcp-a'],
           description: 'Created from selector'
         })
       })
@@ -542,6 +564,8 @@ describe('AssistantSelector', () => {
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(await screen.findByRole('switch', { name: 'MCP tools' })).toBeChecked()
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
@@ -620,6 +644,8 @@ describe('AssistantSelector', () => {
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(await screen.findByRole('switch', { name: 'MCP tools' })).toBeChecked()
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Create' }))
 

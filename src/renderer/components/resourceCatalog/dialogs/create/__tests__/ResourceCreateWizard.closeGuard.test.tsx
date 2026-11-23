@@ -65,6 +65,18 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
 }))
 
 // Only BasicInfoStep needs behavior — it fills the fields that gate navigation.
+vi.mock('../steps/McpStep', async () => {
+  const { useEffect } = await import('react')
+  return {
+    McpStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => {
+      useEffect(() => {
+        form.setValue('reviewedMcpServerIds', [])
+      }, [form])
+      return null
+    }
+  }
+})
+
 vi.mock('../steps/BasicInfoStep', () => ({
   BasicInfoStep: ({
     form,
@@ -244,6 +256,7 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
@@ -284,6 +297,7 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
 
     rerender(
@@ -306,6 +320,7 @@ describe('ResourceCreateWizard close protection', () => {
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))

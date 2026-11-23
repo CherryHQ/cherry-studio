@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-17-default-mcp-selection-for-new-assistants.md
+2026-11-17-default-mcp-selection-for-new-assistants.md: d230f946d94bc478cafe5afa79168e3045f47e2b
+2026-11-17-default-mcp-selection-for-new-assistants.zh.md: 9350427f4233908d96c042c89bbbe268e390f207

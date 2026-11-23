@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "assistant.default_mcp_server_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "MCP servers inherited by newly created assistants when no explicit selection is supplied"
+    },
+    {
       "targetKey": "agent.input.suggestions.enabled",
       "type": "boolean",
       "defaultValue": true,
