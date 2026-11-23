@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +17,7 @@ import { ResourceDeleteConfirmDialog } from '../ResourceDeleteConfirmDialog'
 const mocks = vi.hoisted(() => ({
   deleteAssistant: vi.fn(),
   getActiveResource: vi.fn(),
+  openDetail: vi.fn(),
   deletePrompt: vi.fn(),
   closeConversationTabs: vi.fn(),
   invalidate: vi.fn(),
@@ -95,6 +96,10 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
   ...(await importOriginal<typeof RecycleBinFeedback>()),
   showRecycleBinUndo: mocks.showRecycleBinUndo
+}))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => mocks.openDetail(request),
+  showDetailOpenFailed: vi.fn()
 }))
 vi.mock('@renderer/services/toast', () => ({
   toast: {
@@ -432,7 +437,8 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 
-  it('keeps the skill dialog open after a failed uninstall and allows retry without a second fault', async () => {
+  // The modal traps focus, so the failure's Details must live inside it, not in the global toast.
+  it('keeps the skill dialog open with keyboard-reachable Details after a failed uninstall, then retries', async () => {
     const user = userEvent.setup()
     const failure = new Error('skill uninstall failed')
     const reasons: unknown[] = []
@@ -448,25 +454,25 @@ describe('ResourceDeleteConfirmDialog', () => {
       render(<ResourceDeleteConfirmDialog resource={createResource('skill')} onClose={onClose} />)
       await user.click(screen.getByRole('button', { name: 'Uninstall' }))
 
+      const dialog = screen.getByRole('dialog')
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('common.delete_failed')
+      const details = within(dialog).getByRole('button', { name: 'common.detail' })
+      for (let step = 0; step < 10 && document.activeElement !== details; step++) await user.tab()
+      expect(details).toHaveFocus()
+      await user.keyboard('{Enter}')
       await waitFor(() =>
-        expect(mocks.toastError).toHaveBeenCalledWith(
+        expect(mocks.openDetail).toHaveBeenCalledWith(
           expect.objectContaining({
-            title: 'common.delete_failed',
-            cause: failure,
-            data: expect.objectContaining({
-              localizedErrorMessage: 'common.delete_failed',
-              errorContext: expect.objectContaining({
-                message: 'skill uninstall failed',
-                source: 'resource',
-                operation: 'resource.delete',
-                recordId: 'skill-1'
-              })
+            localizedErrorMessage: 'common.delete_failed',
+            context: expect.objectContaining({
+              message: 'skill uninstall failed',
+              source: 'resource',
+              operation: 'resource.delete',
+              recordId: 'skill-1'
             })
           })
         )
       )
-      expect(mocks.toastError).toHaveBeenCalledTimes(1)
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
       expect(onClose).not.toHaveBeenCalled()
       expect(reasons).toEqual([])
 

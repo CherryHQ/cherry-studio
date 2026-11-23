@@ -1,5 +1,6 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
@@ -76,16 +77,36 @@ describe('WorkspaceDeleteConfirmDialog reference preview', () => {
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalledWith(expect.objectContaining({ error: cause })))
   })
-  it('titles a failed delete with the translated conclusion and keeps the raw text as the cause', async () => {
+  // The modal traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps a failed delete inside the dialog with keyboard-reachable Details for the raw cause', async () => {
+    const user = userEvent.setup()
     const cause = new Error('SQLITE_BUSY: database is locked')
     vi.mocked(ipcApi.request).mockRejectedValueOnce(cause)
     MockUseDataApiUtils.mockQueryResult('/agent-workspaces/:workspaceId/references', { data: emptyReferences })
-    render(<WorkspaceDeleteConfirmDialog workspace={workspace} onDeleted={vi.fn()} onClose={vi.fn()} />)
+    const onClose = vi.fn()
+    render(<WorkspaceDeleteConfirmDialog workspace={workspace} onDeleted={vi.fn()} onClose={onClose} />)
 
     fireEvent.click(await screen.findByRole('button', { name: i18n.t('common.delete') }))
 
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith({ title: i18n.t('agent.session.workdir.delete.error.failed'), cause })
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      i18n.t('agent.session.workdir.delete.error.failed')
     )
+    within(dialog)
+      .getByRole('button', { name: i18n.t('common.detail') })
+      .focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(detailMocks.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: cause,
+          message: i18n.t('agent.session.workdir.delete.error.failed'),
+          operation: 'workspace.delete',
+          recordId: 'ws-1'
+        })
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })

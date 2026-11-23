@@ -85,6 +85,8 @@ export function WorkspaceDeleteConfirmDialog({
 }: WorkspaceDeleteConfirmDialogProps) {
   const { t } = useTranslation()
   const [isPending, setIsPending] = useState(false)
+  // The modal traps focus, so the failure it stays open for keeps its Details inside it.
+  const [deleteFailure, setDeleteFailure] = useState<{ cause: unknown } | null>(null)
   const isPendingRef = useRef(false)
   const closeConversationTabs = useCloseConversationTabs()
   const invalidateCache = useInvalidateCache()
@@ -105,6 +107,7 @@ export function WorkspaceDeleteConfirmDialog({
     if (!canConfirm || isPendingRef.current) return
     isPendingRef.current = true
     setIsPending(true)
+    setDeleteFailure(null)
     let hasSucceeded = false
     try {
       const result = await ipcApi.request('ai.agent.workspace.delete', { workspaceId: workspace.id })
@@ -137,7 +140,7 @@ export function WorkspaceDeleteConfirmDialog({
       hasSucceeded = true
     } catch (error) {
       logger.error('Failed to delete workspace', error as Error, { workspaceId: workspace.id })
-      toast.error({ title: t('agent.session.workdir.delete.error.failed'), cause: error })
+      setDeleteFailure({ cause: error })
     } finally {
       isPendingRef.current = false
       setIsPending(false)
@@ -205,6 +208,21 @@ export function WorkspaceDeleteConfirmDialog({
           <p className="mt-0.5 break-all font-mono text-foreground">{workspace.path}</p>
         </div>
       </div>
+      {deleteFailure ? (
+        <ErrorNotice
+          variant="inline"
+          title={t('agent.session.workdir.delete.error.failed')}
+          detail={
+            <ErrorDetailAction
+              error={deleteFailure.cause}
+              message={t('agent.session.workdir.delete.error.failed')}
+              source="agent.workspace"
+              operation="workspace.delete"
+              recordId={workspace.id}
+            />
+          }
+        />
+      ) : null}
     </div>
   ) : referencesError ? (
     referencesErrorNotice

@@ -1,5 +1,5 @@
 import { MockDataApiService } from '@test-mocks/renderer/DataApiService'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import { SWRConfig } from 'swr'
@@ -12,6 +12,7 @@ import { toast } from '@renderer/services/toast'
 
 const mocks = vi.hoisted(() => ({
   importConversations: vi.fn(),
+  openDetail: vi.fn(),
   openFile: vi.fn()
 }))
 
@@ -25,6 +26,11 @@ vi.mock('@renderer/services/import', () => ({
   }
 }))
 
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => mocks.openDetail(request),
+  showDetailOpenFailed: vi.fn()
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ error: vi.fn(), warn: vi.fn() })
@@ -35,33 +41,45 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Alert: ({ description, message }: { description?: ReactNode; message?: ReactNode }) => (
-    <div role="status">
-      {message}
-      {description}
-    </div>
-  ),
-  Button: ({
-    children,
-    disabled,
-    loading,
-    variant,
-    ...props
-  }: ComponentProps<'button'> & { loading?: boolean; variant?: string }) => {
-    void variant
-    return (
-      <button {...props} type="button" disabled={disabled || loading} aria-busy={loading || undefined}>
+// The real dialog keeps its focus trap, so keyboard reachability is checked against the shipped modal.
+vi.mock('@cherrystudio/ui', async () => {
+  const { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } =
+    await import('@cherrystudio/ui/components/primitives/dialog')
+  return {
+    Alert: ({
+      children,
+      description,
+      message,
+      role,
+      type
+    }: PropsWithChildren<{ description?: ReactNode; message?: ReactNode; role?: string; type?: string }>) => (
+      <div role={role ?? (type === 'error' ? 'alert' : 'status')}>
+        {message}
+        {description}
         {children}
-      </button>
-    )
-  },
-  Dialog: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (open ? children : null),
-  DialogContent: ({ children }: PropsWithChildren) => <div role="dialog">{children}</div>,
-  DialogFooter: ({ children }: PropsWithChildren) => <footer>{children}</footer>,
-  DialogHeader: ({ children }: PropsWithChildren) => <header>{children}</header>,
-  DialogTitle: ({ children }: PropsWithChildren) => <h2>{children}</h2>
-}))
+      </div>
+    ),
+    Button: ({
+      children,
+      disabled,
+      loading,
+      variant,
+      ...props
+    }: ComponentProps<'button'> & { loading?: boolean; variant?: string }) => {
+      void variant
+      return (
+        <button {...props} type="button" disabled={disabled || loading} aria-busy={loading || undefined}>
+          {children}
+        </button>
+      )
+    },
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle
+  }
+})
 
 import ImportPopup from '../ImportPopup'
 
@@ -143,7 +161,8 @@ describe('ImportPopup', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('shows a translated import failure and keeps the service error', async () => {
+  // The dialog traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps a rejected import open with a keyboard-reachable Details entry inside the dialog', async () => {
     const user = userEvent.setup()
     mocks.openFile.mockResolvedValue({ content: '[]' })
     mocks.importConversations.mockResolvedValue({
@@ -160,23 +179,26 @@ describe('ImportPopup', () => {
 
     await user.click(await screen.findByRole('button', { name: 'import.chatgpt.button' }))
 
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('import.chatgpt.error.unknown')
+    const details = within(dialog).getByRole('button', { name: 'common.detail' })
+    for (let step = 0; step < 10 && document.activeElement !== details; step++) {
+      await user.tab()
+      expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    }
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() =>
+      expect(mocks.openDetail).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            errorContext: expect.objectContaining({ message: 'database unavailable', operation: 'import.chatgpt' }),
-            localizedErrorMessage: 'import.chatgpt.error.unknown'
-          }),
-          title: 'import.chatgpt.error.unknown'
+          context: expect.objectContaining({ message: 'database unavailable', operation: 'import.chatgpt' }),
+          localizedErrorMessage: 'import.chatgpt.error.unknown'
         })
       )
-    })
-    // The service only returned text, so no renderer-side stack may be fabricated for it.
-    expect(toast.error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ errorContext: expect.not.objectContaining({ stack: expect.anything() }) })
-      })
     )
+    // The service only returned text, so no renderer-side stack may be fabricated for it.
+    expect(mocks.openDetail.mock.calls[0][0].context).not.toHaveProperty('stack')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 

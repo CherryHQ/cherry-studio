@@ -19,6 +19,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
@@ -52,6 +53,12 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const [activeSource, setActiveSource] = useState<SkillSearchSource>(DEFAULT_SEARCH_SOURCE)
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
   const [searchDebouncing, setSearchDebouncing] = useState(false)
+  // The modal traps focus, so a failed install keeps its Details inside it rather than in a toast.
+  const [installFailure, setInstallFailure] = useState<{
+    message: string
+    cause: unknown
+    installSource: string
+  } | null>(null)
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const urlErrorId = useId()
@@ -70,6 +77,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
     setSubmittedUrl('')
     setActiveSource(DEFAULT_SEARCH_SOURCE)
     setInstalledSources(new Set())
+    setInstallFailure(null)
     setSearchDebouncing(false)
     pendingInstallSourcesRef.current.clear()
     clear()
@@ -145,13 +153,14 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
       }
 
       pendingInstallSourcesRef.current.add(result.installSource)
+      setInstallFailure((current) => (current?.installSource === result.installSource ? null : current))
       try {
         const { skill, cause } = await install(result.installSource)
         if (!skill) {
-          toast.error({
-            title: t('settings.skills.installFailed', { name: result.name }),
+          setInstallFailure({
+            message: t('settings.skills.installFailed', { name: result.name }),
             cause,
-            data: { source: 'skills', operation: 'skill.install', recordId: result.installSource }
+            installSource: result.installSource
           })
           return
         }
@@ -232,6 +241,27 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
             </div>
           </div>
         </div>
+
+        {installFailure ? (
+          <div className="shrink-0 px-6 pt-3">
+            <ErrorNotice
+              variant="inline"
+              title={installFailure.message}
+              onDismiss={() => setInstallFailure(null)}
+              detail={
+                installFailure.cause !== undefined ? (
+                  <ErrorDetailAction
+                    error={installFailure.cause}
+                    message={installFailure.message}
+                    source="skills"
+                    operation="skill.install"
+                    recordId={installFailure.installSource}
+                  />
+                ) : undefined
+              }
+            />
+          </div>
+        ) : null}
 
         <div className="flex min-h-0 flex-1 flex-col">
           <SkillSearchBody

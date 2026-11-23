@@ -13,10 +13,16 @@ const searchMock = vi.fn()
 const clearMock = vi.fn()
 const installMock = vi.fn()
 const isInstallingMock = vi.fn()
-const { toastSuccess, toastError, virtualRowKeysMock } = vi.hoisted(() => ({
+const { openDetail, toastSuccess, toastError, virtualRowKeysMock } = vi.hoisted(() => ({
+  openDetail: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   virtualRowKeysMock: vi.fn()
+}))
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => openDetail(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -80,6 +86,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ children, role }: { children?: ReactNode; role?: string }) => <div role={role ?? 'alert'}>{children}</div>,
   Button: ({
     children,
     loading,
@@ -506,7 +513,8 @@ describe('SkillMarketplaceDialog', () => {
     })
   })
 
-  it('tells the user why a marketplace install failed without closing', async () => {
+  // The modal traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps a failed marketplace install in the dialog with keyboard-reachable Details', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     const cause = new Error('clone failed')
@@ -516,13 +524,24 @@ describe('SkillMarketplaceDialog', () => {
     typeSearchQuery('code')
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
 
-    await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith({
-        title: 'settings.skills.installFailed:React Skill',
-        cause,
-        data: { source: 'skills', operation: 'skill.install', recordId: 'skills.sh:vercel/skills/react-skill' }
-      })
-    })
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('settings.skills.installFailed:React Skill')
+    within(dialog).getByRole('button', { name: 'common.detail' }).focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(openDetail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localizedErrorMessage: 'settings.skills.installFailed:React Skill',
+          context: expect.objectContaining({
+            message: 'clone failed',
+            source: 'skills',
+            operation: 'skill.install',
+            recordId: 'skills.sh:vercel/skills/react-skill'
+          })
+        })
+      )
+    )
+    expect(toastError).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 })

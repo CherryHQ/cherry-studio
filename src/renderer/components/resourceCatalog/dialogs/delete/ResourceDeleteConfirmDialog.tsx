@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DeleteConversationOwnerConfirmDialog } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import {
@@ -220,24 +222,23 @@ const DeleteDialogContent: FC<{
 }> = ({ resource, open, onClose, onDelete }) => {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
+  // The modal traps focus, so the failure it stays open for keeps its Details inside it.
+  const [failure, setFailure] = useState<{ cause: unknown } | null>(null)
 
   const handleConfirm = useCallback(async () => {
+    setFailure(null)
     setPending(true)
     try {
       await onDelete()
       return true
     } catch (error) {
-      toastAppError(t('common.delete_failed'), error, {
-        source: 'resource',
-        operation: 'resource.delete',
-        recordId: resource.id
-      })
+      setFailure({ cause: error })
       // ConfirmDialog stays open when this resolves false; a rejection is a second fault.
       return false
     } finally {
       setPending(false)
     }
-  }, [onDelete, resource.id, t])
+  }, [onDelete])
 
   const title = t(resource.type === 'skill' ? 'library.delete.skill.title' : 'settings.prompts.delete')
   const description = t(resource.type === 'skill' ? 'library.delete.skill.content' : 'settings.prompts.deleteConfirm')
@@ -253,6 +254,23 @@ const DeleteDialogContent: FC<{
       description={description}
       confirmText={confirmText}
       cancelText={t('common.cancel')}
+      content={
+        failure ? (
+          <ErrorNotice
+            variant="inline"
+            title={t('common.delete_failed')}
+            detail={
+              <ErrorDetailAction
+                error={failure.cause}
+                message={t('common.delete_failed')}
+                source="resource"
+                operation="resource.delete"
+                recordId={resource.id}
+              />
+            }
+          />
+        ) : undefined
+      }
       destructive
       confirmLoading={pending}
       onConfirm={handleConfirm}
