@@ -21,8 +21,8 @@ TIMEOUT = 300
 def client():
     profile = ClientProfile(httpProfile=HttpProfile(reqTimeout=930))
     credentials = credential.Credential(
-        os.environ["TENCENT_SECRET_ID"], os.environ["TENCENT_SECRET_KEY"],
-        os.environ.get("TENCENT_SESSION_TOKEN"),
+        os.environ["TENCENT_CLOUD_SECRET_ID"], os.environ["TENCENT_CLOUD_SECRET_KEY"],
+        os.environ.get("TENCENT_CLOUD_SESSION_TOKEN"),
     )
     return scf_client.ScfClient(credentials, REGION, profile)
 
