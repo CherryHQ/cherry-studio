@@ -1,5 +1,6 @@
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import { useCallback, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
@@ -56,6 +57,26 @@ describe('ObsidianSettings', () => {
     expect(await screen.findByText('No Obsidian vaults found')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Details' })).not.toBeInTheDocument()
     expect(screen.queryByText('Failed to fetch Obsidian vault')).not.toBeInTheDocument()
+  })
+
+  it('stops choosing a default vault after the preference write is rejected and rolled back', async () => {
+    requestMock.mockResolvedValue([{ path: '/vaults/work', name: 'Work' }])
+    mockUsePreference.mockImplementation(() => {
+      const [value, setValue] = useState('')
+      const setVault = useCallback(async (vaultName: string) => {
+        setValue(vaultName)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        setValue('')
+        throw new Error('disk denied')
+      }, [])
+      return [value, setVault] as never
+    })
+
+    render(<ObsidianSettings />)
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 100)))
+    expect(toast.error).toHaveBeenCalledTimes(1)
   })
 
   it('reports a preference write failure without losing the thrown cause', async () => {
