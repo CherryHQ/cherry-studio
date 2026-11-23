@@ -80,6 +80,31 @@ describe('useDebouncedRender', () => {
     expect(result.current.cause).toBe('renderer crashed')
   })
 
+  // The failure overlay would cover the newer diagram that already rendered.
+  it('ignores a failure from an older render that settles after a newer one succeeded', async () => {
+    let rejectOlder: (error: Error) => void = () => {}
+    const renderFunction = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((_, reject) => (rejectOlder = reject)))
+      .mockResolvedValueOnce(undefined)
+    const { result } = renderHook(() => useDebouncedRender('', renderFunction, { debounceDelay: 100 }))
+    result.current.containerRef.current = document.createElement('div')
+
+    act(() => {
+      result.current.triggerImmediateRender('older')
+    })
+    await act(async () => {
+      result.current.triggerImmediateRender('newer')
+    })
+    await act(async () => {
+      rejectOlder(new Error('PlantUML server unavailable'))
+    })
+
+    expect(result.current.error).toBeNull()
+    expect(result.current.cause).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+  })
+
   it('cancels pending renders', async () => {
     const renderFunction = vi.fn(async () => {})
     const { result } = renderHook(() => useDebouncedRender('', renderFunction, { debounceDelay: 100 }))

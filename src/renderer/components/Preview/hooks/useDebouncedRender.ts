@@ -66,6 +66,8 @@ export const useDebouncedRender = (
   const [error, setError] = useState<string | null>(null)
   const [cause, setCause] = useState<unknown>(null)
   const [isLoading, setIsLoading] = useState(false)
+  // Only the latest request may commit state; an older one can settle after it.
+  const requestIdRef = useRef(0)
 
   // 包装渲染函数，添加容器检查和错误处理
   const wrappedRenderFunction = useCallback(
@@ -80,21 +82,24 @@ export const useDebouncedRender = (
         throw new Error('Container element not available')
       }
 
+      const requestId = ++requestIdRef.current
       try {
         setIsLoading(true)
 
         await renderFunction(content, containerRef.current)
 
+        if (requestId !== requestIdRef.current) return
         // 渲染成功，确保清除错误状态
         setError(null)
         setCause(null)
       } catch (caught) {
         const errorMessage = caught instanceof Error ? caught.message : i18n.t('preview.render.unknown')
         logger.error(errorMessage)
+        if (requestId !== requestIdRef.current) return
         setCause(caught)
         setError(errorMessage)
       } finally {
-        setIsLoading(false)
+        if (requestId === requestIdRef.current) setIsLoading(false)
       }
     },
     [renderFunction, shouldRender]
