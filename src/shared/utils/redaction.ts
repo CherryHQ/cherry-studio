@@ -218,12 +218,38 @@ export function redactLiteral(text: string, secret: string | undefined): string 
   return text.split(secret).join(REDACTED)
 }
 
+// Matches are found in the original text and overlapping spans merged, so masking one secret
+// never breaks the match of a longer or overlapping one and leaks its remainder.
+function maskLiteralSpans(text: string, secrets: readonly string[], replacement: string): string {
+  const spans: Array<[number, number]> = []
+  for (const secret of secrets) {
+    if (!secret) continue
+    for (let at = text.indexOf(secret); at !== -1; at = text.indexOf(secret, at + 1)) {
+      spans.push([at, at + secret.length])
+    }
+  }
+  if (spans.length === 0) return text
+  spans.sort((left, right) => left[0] - right[0])
+  let masked = ''
+  let cursor = 0
+  let [start, end] = spans[0]
+  for (const [nextStart, nextEnd] of spans.slice(1)) {
+    if (nextStart < end) {
+      end = Math.max(end, nextEnd)
+      continue
+    }
+    masked += text.slice(cursor, start) + replacement
+    cursor = end
+    start = nextStart
+    end = nextEnd
+  }
+  return masked + text.slice(cursor, start) + replacement + text.slice(end)
+}
+
 /** Redact exact runtime-known secret literals from every string nested in a JSON-like value. */
 export function redactSecretLiterals<T>(value: T, secrets: readonly string[], replacement: string = REDACTED): T {
   const redact = (val: unknown): unknown => {
-    if (typeof val === 'string') {
-      return secrets.reduce((text, secret) => (secret ? text.split(secret).join(replacement) : text), val)
-    }
+    if (typeof val === 'string') return maskLiteralSpans(val, secrets, replacement)
     if (Array.isArray(val)) return val.map(redact)
     if (val && typeof val === 'object') {
       return Object.fromEntries(Object.entries(val).map(([key, item]) => [key, redact(item)]))

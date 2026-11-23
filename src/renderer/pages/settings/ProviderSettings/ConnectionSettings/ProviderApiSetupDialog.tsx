@@ -186,13 +186,16 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     }, DIALOG_UNMOUNT_DELAY_MS)
   }, [clearCloseTimer, onClose])
 
+  const extraHeaders = provider?.settings?.extraHeaders
   const createError = useCallback(
     (kind: SetupErrorKind, fallbackKey: string, cause: unknown): SetupError => {
       const storedKeys = apiKeysData?.keys
       const canSafelyShowDiagnostic = apiKey.trim().length > 0 || storedKeys !== undefined
       const details = getProviderSetupErrorDetails(cause, [
         ...parseProviderApiKeys(apiKey),
-        ...storedApiKeyEntries.map((entry) => entry.key)
+        ...storedApiKeyEntries.map((entry) => entry.key),
+        // Requests also send the custom headers; v1-migrated values may not be strings.
+        ...Object.values(extraHeaders ?? {}).filter((value) => typeof value === 'string')
       ])
       return {
         kind,
@@ -200,7 +203,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         diagnostic: canSafelyShowDiagnostic ? details.diagnostic : undefined
       }
     },
-    [apiKey, apiKeysData?.keys, storedApiKeyEntries, t]
+    [apiKey, apiKeysData?.keys, extraHeaders, storedApiKeyEntries, t]
   )
 
   const keepProviderDisabled = useCallback(async () => {

@@ -33,6 +33,7 @@ let provider: {
   presetProviderId?: string
   isEnabled: boolean
   apiKeys: Array<{ id: string; isEnabled: boolean }>
+  settings?: { extraHeaders?: Record<string, string> }
 } = {
   id: 'openai',
   name: 'OpenAI',
@@ -560,6 +561,39 @@ describe('ProviderApiSetupDialog', () => {
     expect(JSON.stringify(request)).not.toContain(typedKey)
     expect(request.errorContext.providerId).toBe('openai')
     expect(request.errorContext.statusCode).toBe(401)
+  })
+
+  // Model discovery also sends the custom headers, and a shorter typed key must not split a longer stored one.
+  it('keeps every credential the request sent out of the diagnostic detail', async () => {
+    const headerToken = 'hdr-Hd83kLq0ZpW1'
+    const storedKey = 'gw7Qx9LmZ2vR4nT8'
+    const typedKey = 'gw7Qx9Lm'
+    provider = { ...provider, settings: { extraHeaders: { 'X-Gateway-Token': headerToken } } }
+    storedApiKeys = [{ id: 'saved-key', key: storedKey, isEnabled: true }]
+    const echo = `rejected ${storedKey} with token ${headerToken}`
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_REQUEST_FAILED, echo, {
+        name: 'AI_APICallError',
+        message: echo,
+        stack: `AI_APICallError: ${echo}`,
+        statusCode: 401,
+        responseBody: `{"error":"${echo}"}`
+      })
+    )
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
+
+    await waitFor(() => expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue(storedKey))
+    fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: typedKey } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(showErrorDetailPopup).toHaveBeenCalled())
+    const report = JSON.stringify(showErrorDetailPopup.mock.calls[0]?.[0])
+    expect(report).not.toContain(headerToken)
+    expect(report).not.toContain('Z2vR4nT8')
+    expect(report).toContain('rejected')
   })
 
   it('shows a localized reason for a recognized model-loading error', async () => {
