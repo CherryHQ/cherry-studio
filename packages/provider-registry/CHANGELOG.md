@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.8.2
+
+### Patch Changes
+
+- [#25206](https://github.com/CherryHQ/cherry-studio/pull/25206) [`2bd7725`](https://github.com/CherryHQ/cherry-studio/commit/2bd772550b6d16825687853f3d35f63fd018028a) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Default Ollama chat to its native endpoint so disabling reasoning sends the correct request option.
+
 ## 0.8.1
 
 ### Patch Changes
