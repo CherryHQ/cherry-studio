@@ -82,6 +82,32 @@ describe('KnowledgeItemService', () => {
         type: 'url',
         data: { source: 'https://example.com/root', url: 'https://example.com/root', crawl }
       })
+    it('retains an explicitly selected URL child for refresh but not owner-only refresh or delete', () => {
+      const root = addOwner()
+      const [child] = service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, ['https://example.com/child'])
+      expect(
+        service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [root.id, child.id], { preserveUrlChildren: true })
+      ).toEqual([root.id, child.id])
+      expect(service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [root.id], { preserveUrlChildren: true })).toEqual([
+        root.id
+      ])
+      expect(service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [root.id, child.id])).toEqual([root.id])
+    })
+    it('rolls back interrupted child failure if owner reconciliation cannot commit', () => {
+      const root = addOwner()
+      const [child] = service.prepareUrlCrawl(KNOWLEDGE_BASE_ID, root.id, ['https://example.com/child'])
+      dbh.sqlite.exec(
+        `CREATE TRIGGER fail_url_rollup BEFORE UPDATE OF data ON knowledge_item WHEN OLD.id = '${root.id}' BEGIN SELECT RAISE(ABORT, 'injected recovery interruption'); END`
+      )
+      try {
+        expect(() => service.failInterruptedItems('Interrupted')).toThrow(/injected recovery interruption/)
+        expect(service.getById(child.id).status).toBe('processing')
+      } finally {
+        dbh.sqlite.exec('DROP TRIGGER fail_url_rollup')
+      }
+      service.failInterruptedItems('Interrupted')
+      expect(service.getById(root.id)).toMatchObject({ data: { crawlProgress: { active: 0, failed: 1 } } })
+    })
     it('atomically creates only 19 deduplicated same-origin children and expands only once', () => {
       const root = addOwner()
       const urls = [

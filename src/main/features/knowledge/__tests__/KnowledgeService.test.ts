@@ -2014,7 +2014,9 @@ describe('KnowledgeService', () => {
     await service.reindexItems('kb-1', ['dir-1', 'note-1'])
 
     expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenNthCalledWith(1, 'kb-1', ['dir-1', 'note-1'])
-    expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenNthCalledWith(2, 'kb-1', ['dir-1', 'note-1'])
+    expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenNthCalledWith(2, 'kb-1', ['dir-1', 'note-1'], {
+      preserveUrlChildren: true
+    })
 
     expect(enqueueTxMock).toHaveBeenNthCalledWith(
       1,
@@ -2902,7 +2904,9 @@ describe('KnowledgeService', () => {
 
       const result = await service.refreshConcepts('kb-1', [CONCEPT_ID])
 
-      expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID])
+      expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID], {
+        preserveUrlChildren: true
+      })
       expect(enqueueMock.mock.calls.map((call) => call[0])).toContain('knowledge.reindex-subtree')
       expect(result).toEqual({ applied: [CONCEPT_ID], notFound: [] })
     })

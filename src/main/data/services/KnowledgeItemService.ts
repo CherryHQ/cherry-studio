@@ -263,7 +263,11 @@ export class KnowledgeItemService {
     return this.getItemsByBaseId(baseId, { groupId: null })
   }
 
-  getOutermostSelectedItemIds(baseId: string, itemIds: string[]): string[] {
+  getOutermostSelectedItemIds(
+    baseId: string,
+    itemIds: string[],
+    options: { preserveUrlChildren?: boolean } = {}
+  ): string[] {
     const selectedIds = [...new Set(itemIds)]
     if (selectedIds.length === 0) {
       return []
@@ -310,7 +314,13 @@ export class KnowledgeItemService {
     `)
     const selectedIdSet = new Set(selectedIds)
     const nestedIdSet = new Set(
-      ancestorRows.filter((row) => selectedIdSet.has(row.ancestorId)).map((row) => row.selectedId)
+      ancestorRows
+        .filter(
+          (row) =>
+            selectedIdSet.has(row.ancestorId) &&
+            (!options.preserveUrlChildren || this.getById(row.ancestorId).type !== 'url')
+        )
+        .map((row) => row.selectedId)
     )
 
     return selectedIds.filter((itemId) => !nestedIdSet.has(itemId))
@@ -352,8 +362,8 @@ export class KnowledgeItemService {
    * A single UPDATE covers leaves and their ancestor containers together: a
    * container with an in-flight descendant is itself in-flight
    * (`reconcileContainers` keeps it `processing` while any child is active), so
-   * failing every in-flight row leaves no completed container pointing at a
-   * failed child — the rollup invariant holds without a separate reconcile pass.
+   * failing every in-flight row preserves ordinary container status. URL-owner progress
+   * is reconciled in the same transaction so interruption cannot strand an active count.
    *
    * @returns the number of items marked failed.
    */
@@ -365,21 +375,28 @@ export class KnowledgeItemService {
       })
     }
 
-    const db = application.get('DbService').getDb()
-    const updatedRows = db
-      .update(knowledgeItemTable)
-      .set({ status: 'failed', error: reason })
-      .where(inArray(knowledgeItemTable.status, [...KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES]))
-      .returning({ id: knowledgeItemTable.id, baseId: knowledgeItemTable.baseId, groupId: knowledgeItemTable.groupId })
-      .all()
-
-    // Only URL rollups differ from the pre-crawl invariant: their owner may already be completed.
-    // Reconcile those owners (and their ancestors), leaving ordinary interrupted diagnostics intact.
-    for (const row of updatedRows) {
-      if (!row.groupId) continue
-      const parent = this.getById(row.groupId)
-      if (parent.type === 'url') this.reconcileContainers(row.baseId, [row.groupId])
-    }
+    const updatedRows = application.get('DbService').withWriteTx((tx) => {
+      const rows = tx
+        .update(knowledgeItemTable)
+        .set({ status: 'failed', error: reason })
+        .where(inArray(knowledgeItemTable.status, [...KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES]))
+        .returning({
+          id: knowledgeItemTable.id,
+          baseId: knowledgeItemTable.baseId,
+          groupId: knowledgeItemTable.groupId
+        })
+        .all()
+      for (const row of rows) {
+        if (!row.groupId) continue
+        const parent = tx
+          .select({ type: knowledgeItemTable.type })
+          .from(knowledgeItemTable)
+          .where(eq(knowledgeItemTable.id, row.groupId))
+          .get()
+        if (parent?.type === 'url') this.reconcileContainersTx(tx, row.baseId, [row.groupId])
+      }
+      return rows
+    })
     if (updatedRows.length > 0) {
       logger.info('Marked interrupted knowledge items as failed', { count: updatedRows.length })
     }

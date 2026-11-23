@@ -286,7 +286,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
     assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
-    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds, { preserveUrlChildren: true })
     if (rootItemIds.length === 0) {
       return
     }

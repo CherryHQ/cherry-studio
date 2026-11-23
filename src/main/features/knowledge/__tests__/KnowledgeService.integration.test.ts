@@ -162,6 +162,26 @@ describe('KnowledgeService integration', () => {
     ])
   })
 
+  it('queues both explicitly selected crawl owner and child for reacquisition', async () => {
+    const { knowledgeItemService } = await import('@data/services/KnowledgeItemService')
+    const service = new KnowledgeService()
+    dbh.db
+      .update(knowledgeBaseTable)
+      .set({ status: 'completed', error: null })
+      .where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
+      .run()
+    const root = knowledgeItemService.createActive(SOURCE_BASE_ID, {
+      type: 'url',
+      data: { source: 'https://example.com', url: 'https://example.com', crawl: true }
+    })
+    const [child] = knowledgeItemService.prepareUrlCrawl(SOURCE_BASE_ID, root.id, ['https://example.com/child'])
+    knowledgeItemService.updateStatus(root.id, 'completed')
+    knowledgeItemService.updateStatus(child.id, 'completed')
+    await service.reindexItems(SOURCE_BASE_ID, [root.id, child.id])
+    const jobs = enqueueMock.mock.calls.filter((call) => call[0] === 'knowledge.reindex-subtree')
+    expect(jobs.map((call) => call[1].rootItemIds)).toEqual([[root.id], [child.id]])
+  })
+
   it('restores a failed base into a new base and enqueues indexing for restored roots', async () => {
     const service = new KnowledgeService()
 
