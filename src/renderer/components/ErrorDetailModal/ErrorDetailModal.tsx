@@ -869,6 +869,7 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams): Promise<vo
           void DoctorPopup.show({
             initialPanel: 'report',
             initialDescription,
+            ...(incident && 'topicId' in incident ? { chatTopicId: incident.topicId } : {}),
             ...(reportContext ? { errorContext: reportContext } : {}),
             ...(snapshot ? { aiDiagnosis: snapshot } : {})
           })

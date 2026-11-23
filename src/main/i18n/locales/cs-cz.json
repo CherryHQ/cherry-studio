@@ -240,6 +240,7 @@
   "file_processing.errors.open_mineru_unreachable": "Nelze se připojit k Open MinerU. Ověřte, že server běží a adresa je správná.",
   "file_processing.errors.pdf_page_limit_exceeded": "Tento PDF překračuje limit {{maxPages}} stran aktuální služby pro zpracování dokumentů. PDF ručně rozdělte a přidejte jej znovu.",
   "knowledge.source.invalid_url": "Zadejte platnou URL začínající na http:// nebo https://.",
+  "mcp.skills.dynamic": "Dynamické dovednosti MCP nejsou podporovány, protože jejich soubory nelze ověřit podle pevného manifestu.",
   "notification.action_required.agent": "Agent potřebuje vaši odpověď",
   "notification.action_required.assistant": "Asistent potřebuje vaši odpověď",
   "notification.center.backup_failed": "Zálohování selhalo",

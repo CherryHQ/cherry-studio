@@ -35,12 +35,18 @@ async function main() {
   const stop = () =>
     (stopping ??= (async () => {
       const entries = mock.journal.getAll()
+      const unmatched = entries.filter((entry) => !entry.response.fixture || entry.response.status >= 400)
       writeFileSync(
         join(paths.logs, 'aimock-summary.json'),
         JSON.stringify({
           version: AIMOCK_VERSION,
           requests: entries.length,
-          unmatched: entries.filter((entry) => !entry.response.fixture || entry.response.status >= 400).length
+          unmatched: unmatched.length,
+          unmatchedRequests: unmatched.map(({ timestamp, response }) => ({
+            time: new Date(timestamp).toISOString(),
+            status: response.status,
+            matchedFixture: response.fixture !== null
+          }))
         })
       )
       await mock.stop()

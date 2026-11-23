@@ -14,9 +14,10 @@ import { findListeningPid, MAIN_INSPECTOR_PORT } from '../../../../scripts/e2e/r
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
-import { dismissTransientDialogs, selectSidebarApp } from '../helpers/navigation'
+import { dismissTransientDialogs } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
+import { prepareScenario } from '../setup'
 
 // Real HTTP faults exercise the production transport/classifier; no production account is charged.
 export async function errorRecovery(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
@@ -28,6 +29,7 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
   const authError = 'Incorrect API key provided. MP17_AUTH_DETAIL.'
   const privateResponseDetail = 'MP17_PRIVATE_RESPONSE_PAYLOAD'
   const contextError = 'maximum context length exceeded: MP17_CONTEXT_DETAIL'
+  const namingEnabled = await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))
   const upstream = await startMockChatServer()
   testInfo.annotations.push({
     type: 'data-source',
@@ -83,12 +85,6 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
       res.end('MP17 fixture transport failed')
     })
   })
-  gateway.listen(0, '127.0.0.1')
-  await once(gateway, 'listening')
-  const address = gateway.address()
-  if (!address || typeof address === 'string') throw new Error('MP17 HTTP fixture did not bind')
-  const baseUrl = `http://127.0.0.1:${address.port}/v1`
-  const namingEnabled = await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))
   let assistantId: string | undefined
   let mcpId: string | undefined
   const screenshot = async (name: string) => {
@@ -121,6 +117,11 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
   }
 
   try {
+    gateway.listen(0, '127.0.0.1')
+    await once(gateway, 'listening')
+    const address = gateway.address()
+    if (!address || typeof address === 'string') throw new Error('MP17 HTTP fixture did not bind')
+    const baseUrl = `http://127.0.0.1:${address.port}/v1`
     await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
     const provider = await page.evaluate(
       ({ providerId, providerName, baseUrl, validKey }) =>
@@ -174,8 +175,19 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     )
     expect(assistant.status).toBe(201)
     assistantId = AssistantSchema.parse(assistant.data).id
+    const setupTopic = await page.evaluate(
+      (assistantId) =>
+        window.api.dataApi.request({
+          id: 'mp17-setup-topic',
+          method: 'POST',
+          path: '/topics',
+          body: { name: 'Recovery setup', assistantId }
+        }),
+      assistantId
+    )
+    expect(setupTopic.status).toBe(201)
     await page.reload()
-    await selectSidebarApp(page, 'Chat')
+    await prepareScenario(page)
     const row = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await row.hover()
     await row.getByRole('button', { name: 'New Chat', exact: true }).press('Enter')
@@ -270,7 +282,7 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     )
     const inspector = targets.find((target) => target.type === 'node')?.webSocketDebuggerUrl
     if (!inspector) throw new Error('Owned main-process inspector is unavailable for billing navigation')
-    // Forward the real shell call and record its successful completion, as an external effect.
+    // Capture the billing destination without opening a tab in the default browser.
     await evaluateCdpExpression(
       inspector,
       `(() => {
@@ -278,10 +290,8 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
       const original = shell.openExternal
       const capture = { original, url: undefined }
       globalThis.__mp17Billing = capture
-      shell.openExternal = async (url, ...args) => {
-        const result = await original.call(shell, url, ...args)
+      shell.openExternal = async (url) => {
         capture.url = url
-        return result
       }
     })()`
     )
@@ -347,32 +357,38 @@ export async function errorRecovery(app: RegressionApp, page: Page, testInfo: Te
     )
     await screenshot('MP-17 MCP recovery destination')
   } finally {
-    await page.evaluate(
-      async ({ providerId, validKey, assistantId, mcpId, namingEnabled }) => {
-        await window.api.preference.set('topic.naming.enabled', namingEnabled)
-        await window.api.dataApi.request({
-          id: 'mp17-restore',
-          method: 'PATCH',
-          path: `/providers/${providerId}/api-keys/mp17-key`,
-          body: { key: validKey }
-        })
-        if (mcpId) await window.api.ipcApi.request('mcp.server.remove', { serverId: mcpId })
-        if (assistantId) {
-          const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
-            assistantId,
-            deleteTopics: true
-          })) as IpcResult<{ deleted: boolean }>
-          if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
-            throw new Error('cleanup left the case assistant in the trash')
-        }
-        await window.api.dataApi.request({ id: 'mp17-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
-      },
-      { providerId, validKey, assistantId, mcpId, namingEnabled }
-    )
-    await upstream.close()
-    await new Promise<void>((resolve, reject) => {
-      gateway.close((error) => (error ? reject(error) : resolve()))
-      gateway.closeAllConnections()
-    })
+    try {
+      await page.evaluate(
+        async ({ providerId, validKey, assistantId, mcpId, namingEnabled }) => {
+          await window.api.preference.set('topic.naming.enabled', namingEnabled)
+          await window.api.dataApi.request({
+            id: 'mp17-restore',
+            method: 'PATCH',
+            path: `/providers/${providerId}/api-keys/mp17-key`,
+            body: { key: validKey }
+          })
+          if (mcpId) await window.api.ipcApi.request('mcp.server.remove', { serverId: mcpId })
+          if (assistantId) {
+            const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
+              assistantId,
+              deleteTopics: true
+            })) as IpcResult<{ deleted: boolean }>
+            if (!permanentlyDeletedAssistant.ok || !permanentlyDeletedAssistant.data.deleted)
+              throw new Error('cleanup left the case assistant in the trash')
+          }
+          await window.api.dataApi.request({ id: 'mp17-cleanup', method: 'DELETE', path: `/providers/${providerId}` })
+        },
+        { providerId, validKey, assistantId, mcpId, namingEnabled }
+      )
+    } finally {
+      await Promise.all([
+        upstream.close(),
+        gateway.listening &&
+          new Promise<void>((resolve, reject) => {
+            gateway.close((error) => (error ? reject(error) : resolve()))
+            gateway.closeAllConnections()
+          })
+      ])
+    }
   }
 }
