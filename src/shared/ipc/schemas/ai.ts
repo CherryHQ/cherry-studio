@@ -709,7 +709,7 @@ export const aiRequestSchemas = {
  */
 export type AiEventSchemas = {
   'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
-  'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo | null }
+  'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo | null; clearSnapshots?: boolean }
   'ai.agent.import.progress': AgentImportSnapshot
   'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus

@@ -24,6 +24,16 @@ function upsertSnapshot(
   )
 }
 
+function deleteSnapshot(
+  previous: Record<string, LocalOptionSnapshot>,
+  sessionId: string
+): Record<string, LocalOptionSnapshot> {
+  if (!(sessionId in previous)) return previous
+  const next = { ...previous }
+  delete next[sessionId]
+  return next
+}
+
 export function useLocalAgentSessionInfo(
   sessionId: string,
   enabled: boolean,
@@ -35,10 +45,14 @@ export function useLocalAgentSessionInfo(
   const scope = useMemo(() => ({ sessionId, enabled }), [sessionId, enabled])
   const [live, setLive] = useState<{ scope: typeof scope; info: LocalAgentSessionInfo } | null>(null)
 
-  const accept = useEffectEvent((info: LocalAgentSessionInfo | null, source: typeof scope) => {
+  const accept = useEffectEvent((info: LocalAgentSessionInfo | null, source: typeof scope, clearSnapshots = false) => {
     if (source !== scope) return
     if (!info) {
       setLive(null)
+      if (clearSnapshots) {
+        setSnapshots((previous) => deleteSnapshot(previous, sessionId))
+        setPersistedSnapshots((previous) => deleteSnapshot(previous, sessionId))
+      }
       return
     }
     setLive({ scope, info })
@@ -59,7 +73,7 @@ export function useLocalAgentSessionInfo(
     const unsubscribe = ipcApi.on('ai.local_agents.session_updated', (event) => {
       if (cancelled || event.sessionId !== sessionId) return
       receivedUpdate = true
-      accept(event.info, scope)
+      accept(event.info, scope, event.clearSnapshots)
     })
     void ipcApi
       .request('ai.local_agents.session_info', { sessionId })

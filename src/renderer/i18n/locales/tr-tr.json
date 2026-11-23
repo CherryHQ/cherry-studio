@@ -2564,6 +2564,7 @@
   "local_agents.sign_in": "Oturum aç",
   "local_agents.sign_in_required": "Devam etmek için oturum açın",
   "local_agents.signed_in": "Oturum açıldı",
+  "local_agents.thinking_on": "Açık",
   "local_agents.thinking_on_default": "Açık (varsayılan)",
   "local_agents.title": "Ajan hizmetleri",
   "local_agents.tool_result_unknown": "Sonuç bildirilmedi",

@@ -2565,6 +2565,7 @@
   "local_agents.sign_in": "Přihlásit se",
   "local_agents.sign_in_required": "Pokračujte přihlášením",
   "local_agents.signed_in": "Přihlášeno",
+  "local_agents.thinking_on": "Zapnuto",
   "local_agents.thinking_on_default": "Zapnuto (výchozí)",
   "local_agents.title": "Služby agentů",
   "local_agents.tool_result_unknown": "Výsledek nebyl nahlášen",

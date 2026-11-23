@@ -2564,6 +2564,7 @@
   "local_agents.sign_in": "Accedi",
   "local_agents.sign_in_required": "Accedi per continuare",
   "local_agents.signed_in": "Accesso effettuato",
+  "local_agents.thinking_on": "Attivo",
   "local_agents.thinking_on_default": "Attivo (predefinito)",
   "local_agents.title": "Servizi agente",
   "local_agents.tool_result_unknown": "Risultato non riportato",

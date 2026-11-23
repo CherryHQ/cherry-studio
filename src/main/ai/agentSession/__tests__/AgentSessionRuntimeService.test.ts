@@ -5277,6 +5277,32 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getLocalSessionInfo('session-1')).toMatchObject({ resume: true })
     })
 
+    it('clears cached session option snapshots when a local agent fails due to a missing host or CLI', async () => {
+      const hostError = Object.assign(new Error('ZCode host missing'), { code: 'LOCAL_AGENT_HOST_REQUIRED' })
+      const connect = vi.fn().mockRejectedValue(hostError)
+      runtimeDriverRegistry.register({ type: 'local', connect, validateSession: vi.fn() })
+      mocks.getSessionById.mockReturnValue({
+        id: 'session-zcode',
+        agentId: 'agent-zcode',
+        workspace: { path: '/workspace' }
+      })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-zcode',
+        type: 'local',
+        model: baseTurnInput.modelId,
+        configuration: { localRuntime: { presetId: 'zcode', env: {} } }
+      })
+
+      const service = new AgentSessionRuntimeService()
+      mocks.broadcast.mockClear()
+      await expect(service.primeConnection('session-zcode', { rethrow: true })).rejects.toThrow('ZCode host missing')
+      expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
+        sessionId: 'session-zcode',
+        info: null,
+        clearSnapshots: true
+      })
+    })
+
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const events = createAsyncQueue<any>()

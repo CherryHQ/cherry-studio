@@ -2564,6 +2564,7 @@
   "local_agents.sign_in": "Σύνδεση",
   "local_agents.sign_in_required": "Συνδεθείτε για συνέχεια",
   "local_agents.signed_in": "Έχετε συνδεθεί",
+  "local_agents.thinking_on": "Ενεργό",
   "local_agents.thinking_on_default": "Ενεργό (προεπιλογή)",
   "local_agents.title": "Υπηρεσίες πρακτόρων",
   "local_agents.tool_result_unknown": "Δεν αναφέρθηκε αποτέλεσμα",

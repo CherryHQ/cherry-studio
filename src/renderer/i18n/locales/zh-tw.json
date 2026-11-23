@@ -2564,6 +2564,7 @@
   "local_agents.sign_in": "登入",
   "local_agents.sign_in_required": "請先登入",
   "local_agents.signed_in": "已登入",
+  "local_agents.thinking_on": "開啟",
   "local_agents.thinking_on_default": "開啟（預設）",
   "local_agents.title": "智慧體服務",
   "local_agents.tool_result_unknown": "結果未回報",

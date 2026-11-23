@@ -25,7 +25,7 @@ const first: LocalAgentSessionInfo = {
   }
 }
 const next = { ...first, mode: { ...first.mode!, currentValue: 'plan' } }
-let publish: (event: { sessionId: string; info: LocalAgentSessionInfo | null }) => void
+let publish: (event: { sessionId: string; info: LocalAgentSessionInfo | null; clearSnapshots?: boolean }) => void
 
 beforeEach(() => {
   MockCacheUtils.resetMocks()
@@ -126,6 +126,35 @@ describe('local agent session option cache', () => {
     expect(view.result.current.options?.mode).toEqual(first.mode)
     act(() => publish({ sessionId: 'one', info: { models: [], images: false, resume: true } }))
     expect(view.result.current.options?.mode).toBeUndefined()
+  })
+
+  it('clears memory and persisted snapshots only when signaled with clearSnapshots', async () => {
+    vi.mocked(ipcApi.request).mockResolvedValue(first)
+    const other = renderHook(() => useLocalAgentSessionInfo('other', true, 'acp'))
+    await waitFor(() => expect(other.result.current.info).toEqual(first))
+    other.unmount()
+
+    const target = renderHook(() => useLocalAgentSessionInfo('stale-session', true, 'acp'))
+    await waitFor(() => expect(target.result.current.info).toEqual(first))
+
+    act(() => publish({ sessionId: 'stale-session', info: null }))
+    expect(target.result.current.info).toBeNull()
+    expect(target.result.current.options?.mode).toEqual(first.mode)
+
+    act(() => publish({ sessionId: 'stale-session', info: null, clearSnapshots: true }))
+    expect(target.result.current.info).toBeNull()
+    expect(target.result.current.options).toBeUndefined()
+    expect(
+      cacheService.getCasual<Record<string, unknown>>('agent.session.local_options')?.['stale-session']
+    ).toBeUndefined()
+    expect(cacheService.getCasual<Record<string, unknown>>('agent.session.local_options')?.other).toBeDefined()
+
+    cacheService.setCasual('agent.session.local_options', {})
+    vi.mocked(ipcApi.request).mockResolvedValue(null)
+    const reopened = renderHook(() => useLocalAgentSessionInfo('stale-session', true, 'acp'))
+    expect(reopened.result.current.options).toBeUndefined()
+    const reopenedOther = renderHook(() => useLocalAgentSessionInfo('other', true, 'acp'))
+    expect(reopenedOther.result.current.options?.mode).toEqual(first.mode)
   })
 
   it('persists option snapshots across memory reset and provides pre-connect defaults for Claude and Codex', async () => {

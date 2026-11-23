@@ -18,6 +18,7 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
 const NATIVE_EFFORT_LABEL_KEYS: Record<string, string> = {
   Balanced: 'local_agents.config.balanced',
   Deep: 'local_agents.config.deep',
+  On: 'local_agents.thinking_on',
   'On (default)': 'local_agents.thinking_on_default'
 }
 
@@ -25,5 +26,7 @@ export function reasoningEffortLabel(value: string, t: TFunction, nativeName?: s
   if (Object.hasOwn(EFFORT_LABEL_KEYS, value)) return t(EFFORT_LABEL_KEYS[value as ThinkingOption])
   if (value === 'off') return t('assistants.settings.reasoning_effort.off')
   const name = nativeName ?? value
-  return Object.hasOwn(NATIVE_EFFORT_LABEL_KEYS, name) ? t(NATIVE_EFFORT_LABEL_KEYS[name]) : name
+  if (Object.hasOwn(NATIVE_EFFORT_LABEL_KEYS, name)) return t(NATIVE_EFFORT_LABEL_KEYS[name])
+  if (value === 'on') return t('local_agents.thinking_on')
+  return name
 }

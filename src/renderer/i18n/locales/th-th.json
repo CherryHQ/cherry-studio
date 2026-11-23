@@ -2564,6 +2564,7 @@
   "local_agents.sign_in": "เข้าสู่ระบบ",
   "local_agents.sign_in_required": "เข้าสู่ระบบเพื่อดำเนินการต่อ",
   "local_agents.signed_in": "ลงชื่อเข้าใช้แล้ว",
+  "local_agents.thinking_on": "เปิด",
   "local_agents.thinking_on_default": "เปิด (ค่าเริ่มต้น)",
   "local_agents.title": "บริการเอเจนต์",
   "local_agents.tool_result_unknown": "ไม่มีรายงานผลลัพธ์",

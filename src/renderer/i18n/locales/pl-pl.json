@@ -2588,6 +2588,7 @@
   "local_agents.sign_in": "Zaloguj się",
   "local_agents.sign_in_required": "Zaloguj się, aby kontynuować",
   "local_agents.signed_in": "Zalogowano",
+  "local_agents.thinking_on": "Włączone",
   "local_agents.thinking_on_default": "Włączone (domyślnie)",
   "local_agents.title": "Usługi agentów",
   "local_agents.tool_result_unknown": "Wynik nie został zgłoszony",

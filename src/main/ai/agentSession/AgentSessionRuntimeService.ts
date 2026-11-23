@@ -168,6 +168,19 @@ const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remo
 type NativeInputState = Extract<AgentRuntimeEvent, { type: 'input-state' }>['input']
 /** Shown on a card whose requesting runtime went away before the user could answer it. */
 const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
+const LOCAL_CAPABILITY_RESET_ERROR_CODES = new Set(['LOCAL_AGENT_HOST_REQUIRED', 'LOCAL_AGENT_NOT_INSTALLED'])
+
+function isMissingLocalAgentRuntimeError(error: unknown): boolean {
+  let current: unknown = error
+  const seen = new Set<unknown>()
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current)
+    const code = (current as { code?: unknown }).code
+    if (typeof code === 'string' && LOCAL_CAPABILITY_RESET_ERROR_CODES.has(code)) return true
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -2514,29 +2527,37 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     entry.localWorkingDirectory = target.localWorkingDirectory
 
-    const connection = await driver.connect({
-      sessionId: entry.sessionId,
-      agentId: entry.agentId,
-      modelId: target.modelId,
-      reasoningEffort: target.reasoningEffort,
-      serviceTier: target.serviceTier,
-      knowledgeBaseIds: target.knowledgeBaseIds,
-      fastMode: target.fastMode,
-      headless: target.headless,
-      resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry, target.modelId),
-      nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
-      branchHead: entry.branchHead,
-      onSteerInjected: (inputIds) => {
-        if (this.isCurrentGeneration(entry, attemptId))
-          this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
-      },
-      onInputPrepared: (inputId, contextId) => {
-        if (!this.isCurrentGeneration(entry, attemptId)) return
-        const pending = entry.pendingInputs?.get(inputId)
-        if (pending?.generation === attemptId) pending.contextId = contextId
+    let connection: AgentRuntimeConnection
+    try {
+      connection = await driver.connect({
+        sessionId: entry.sessionId,
+        agentId: entry.agentId,
+        modelId: target.modelId,
+        reasoningEffort: target.reasoningEffort,
+        serviceTier: target.serviceTier,
+        knowledgeBaseIds: target.knowledgeBaseIds,
+        fastMode: target.fastMode,
+        headless: target.headless,
+        resumeToken: entry.lastResumeToken,
+        trace: this.sessionTraceContext(entry, target.modelId),
+        nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
+        branchHead: entry.branchHead,
+        onSteerInjected: (inputIds) => {
+          if (this.isCurrentGeneration(entry, attemptId))
+            this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
+        },
+        onInputPrepared: (inputId, contextId) => {
+          if (!this.isCurrentGeneration(entry, attemptId)) return
+          const pending = entry.pendingInputs?.get(inputId)
+          if (pending?.generation === attemptId) pending.contextId = contextId
+        }
+      })
+    } catch (error) {
+      if (entry.agentType === 'local' && isMissingLocalAgentRuntimeError(error)) {
+        this.publishLocalSessionInfo(entry, null, { clearSnapshots: true })
       }
-    })
+      throw error
+    }
     const attempt = this.connectionAttempts.get(entry.sessionId)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
     if (!this.isCurrentEntry(entry) || entry.closing || !this.connectionTargetEquals(entry, target)) {
@@ -4323,9 +4344,17 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /** Push the live capabilities, or null when the connection that owned them is gone. */
-  private publishLocalSessionInfo(entry: AgentSessionRuntimeEntry, info: LocalAgentSessionInfo | null): void {
+  private publishLocalSessionInfo(
+    entry: AgentSessionRuntimeEntry,
+    info: LocalAgentSessionInfo | null,
+    options?: { clearSnapshots?: boolean }
+  ): void {
     if (this.isShuttingDown) return
-    application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId: entry.sessionId, info })
+    application.get('IpcApiService').broadcast('ai.local_agents.session_updated', {
+      sessionId: entry.sessionId,
+      info,
+      ...(options?.clearSnapshots ? { clearSnapshots: true } : {})
+    })
   }
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {

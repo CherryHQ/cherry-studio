@@ -2565,6 +2565,7 @@
   "local_agents.sign_in": "Autentificare",
   "local_agents.sign_in_required": "Autentificați-vă pentru a continua",
   "local_agents.signed_in": "Autentificat",
+  "local_agents.thinking_on": "Activat",
   "local_agents.thinking_on_default": "Activat (implicit)",
   "local_agents.title": "Servicii de agenți",
   "local_agents.tool_result_unknown": "Rezultat neraportat",

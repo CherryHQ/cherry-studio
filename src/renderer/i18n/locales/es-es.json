@@ -2564,6 +2564,7 @@
   "local_agents.sign_in": "Iniciar sesión",
   "local_agents.sign_in_required": "Inicie sesión para continuar",
   "local_agents.signed_in": "Sesión iniciada",
+  "local_agents.thinking_on": "Activado",
   "local_agents.thinking_on_default": "Activado (predeterminado)",
   "local_agents.title": "Servicios de agentes",
   "local_agents.tool_result_unknown": "Resultado no informado",

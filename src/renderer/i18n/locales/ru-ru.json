@@ -2566,6 +2566,7 @@
   "local_agents.sign_in": "Войти",
   "local_agents.sign_in_required": "Войдите, чтобы продолжить",
   "local_agents.signed_in": "Вход выполнен",
+  "local_agents.thinking_on": "Включено",
   "local_agents.thinking_on_default": "Включено (по умолчанию)",
   "local_agents.title": "Сервисы агентов",
   "local_agents.tool_result_unknown": "Результат не сообщён",

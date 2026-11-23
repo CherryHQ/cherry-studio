@@ -203,6 +203,8 @@ describe('installed agent translations', () => {
       i18n.t('assistants.settings.reasoning_effort.off')
     )
     expect(reasoningEffortLabel('custom', i18n.t, 'Project thinking')).toBe('Project thinking')
+    expect(reasoningEffortLabel('on', i18n.t, 'On')).toBe(i18n.t('local_agents.thinking_on'))
+    expect(reasoningEffortLabel('on', i18n.t, 'on')).toBe(i18n.t('local_agents.thinking_on'))
     expect(reasoningEffortLabel('enabled', i18n.t, 'On (default)')).toBe(i18n.t('local_agents.thinking_on_default'))
   })
 

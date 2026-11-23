@@ -2564,6 +2564,7 @@
   "local_agents.sign_in": "로그인",
   "local_agents.sign_in_required": "계속하려면 로그인하세요",
   "local_agents.signed_in": "로그인됨",
+  "local_agents.thinking_on": "켜짐",
   "local_agents.thinking_on_default": "켜짐(기본값)",
   "local_agents.title": "에이전트 서비스",
   "local_agents.tool_result_unknown": "결과가 보고되지 않음",

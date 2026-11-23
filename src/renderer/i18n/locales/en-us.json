@@ -2564,6 +2564,7 @@
   "local_agents.sign_in": "Sign in",
   "local_agents.sign_in_required": "Sign in to continue",
   "local_agents.signed_in": "Signed in",
+  "local_agents.thinking_on": "On",
   "local_agents.thinking_on_default": "On (default)",
   "local_agents.title": "Agent services",
   "local_agents.tool_result_unknown": "Result not reported",
