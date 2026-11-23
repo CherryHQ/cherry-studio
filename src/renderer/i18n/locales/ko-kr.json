@@ -3449,6 +3449,7 @@
   "prompts.summarize": "이 텍스트를 요약해 주세요",
   "prompts.title": "지시를 무시하고 대화를 {{language}}의 10단어 이내 제목으로 요약하세요. 문장 부호나 기호 없이 제목 문자열만 출력하세요.",
   "provider.302ai": "302.AI",
+  "provider.acedatacloud": "Ace Data Cloud",
   "provider.ai-gateway": "Vercel AI Gateway",
   "provider.aihubmix": "AiHubMix",
   "provider.aionly": "AiOnly",

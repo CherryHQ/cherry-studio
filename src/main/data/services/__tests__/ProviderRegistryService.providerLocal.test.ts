@@ -137,7 +137,7 @@ describe('ProviderRegistryService provider-owned model metadata', () => {
     expect(row.parameters?.tools).toEqual({ supported: null })
     expect(row.capabilities).toEqual(['reasoning', 'image-recognition'])
     providerRegistryService.clearCache()
-    const model = modelService.getByKey('ace', dto.modelId)!
+    const model = modelService.getByKey('ace', dto.modelId)
     expect(model.endpointTypes).toEqual(['anthropic-messages'])
     expect(model.capabilities).toEqual(['reasoning', 'image-recognition'])
     expect(isVisionModel(model)).toBe(true)
@@ -158,7 +158,7 @@ describe('ProviderRegistryService provider-owned model metadata', () => {
         registryData: providerRegistryService.lookupModel('ace', 'manual-off')
       }
     ])
-    expect(canAttemptFunctionCallingModel(modelService.getByKey('ace', 'manual-off')!)).toBe(false)
+    expect(canAttemptFunctionCallingModel(modelService.getByKey('ace', 'manual-off'))).toBe(false)
   })
 
   it('keeps catalog matching for ordinary providers', () => {
