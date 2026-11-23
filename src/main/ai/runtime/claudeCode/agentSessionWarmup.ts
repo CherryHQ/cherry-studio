@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
-import { z } from 'zod'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'

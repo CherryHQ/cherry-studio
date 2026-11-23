@@ -101,7 +101,10 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
       const { gateway: rawGateway, ...otherProviderOptions } = providerOptions ?? {}
       const { imageResolution, ...gateway } = rawGateway ?? {}
       const existingGoogle = providerOptions?.google ?? {}
-      const existingImageConfig = isJSONObject(existingGoogle.imageConfig) ? existingGoogle.imageConfig : {}
+      const existingImageConfig =
+        !Array.isArray(existingGoogle.imageConfig) && isJSONObject(existingGoogle.imageConfig)
+          ? existingGoogle.imageConfig
+          : {}
       const imageDefaults: JSONObject = {}
       if (typeof imageResolution === 'string' && imageResolution !== 'auto') imageDefaults.imageSize = imageResolution
       const imageConfig: JSONObject = { ...imageDefaults, ...existingImageConfig }

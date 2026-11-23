@@ -31,6 +31,7 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
     args.primaryCredentialReceipt
   )
   return keys.map((key) => async () => {
+    // eslint-disable-next-line prefer-const -- The callback registered during parameter construction must see undefined until the usage plugin exists.
     let repairUsagePlugins: AiPlugin[] | undefined
     const built = await buildAgentParams({
       request: { ...args.request, apiKeyOverride: key.key },

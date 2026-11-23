@@ -91,7 +91,7 @@ export const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
   logger.info('Detect language by franc')
   const iso3 = franc(inputText)
 
-  const isoMap: ReadonlyMap<string, TranslateLangCode> = new Map([
+  const isoMap: ReadonlyMap<string, TranslateLangCode> = new Map<string, TranslateLangCode>([
     ['cmn', BUILTIN_LANGUAGE.zhCN.langCode],
     ['jpn', BUILTIN_LANGUAGE.jaJP.langCode],
     ['kor', BUILTIN_LANGUAGE.koKR.langCode],

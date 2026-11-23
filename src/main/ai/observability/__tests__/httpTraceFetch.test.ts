@@ -28,7 +28,13 @@ function fakeTracer() {
 describe('createHttpTraceFetch', () => {
   it.each([
     ['plain object', { ['__proto__']: 'visible', Authorization: 'Bearer private' }],
-    ['Headers instance', new Headers({ ['__proto__']: 'visible', Authorization: 'Bearer private' })],
+    [
+      'Headers instance',
+      new Headers([
+        ['__proto__', 'visible'],
+        ['Authorization', 'Bearer private']
+      ])
+    ],
     [
       'tuple-array init',
       [

@@ -94,7 +94,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     throw new Error(i18n.t('settings.models.manage.sync_pull_failed'))
   }
 
-  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
+  const resolveModelsPath = `/providers/${providerId}/models:resolve` as const satisfies ProviderResolveModelsPath
   const resolved = await dataApiService.get(resolveModelsPath, { query: { ids: modelIds } })
 
   const resolvedMap = new Map<string, Model>()
