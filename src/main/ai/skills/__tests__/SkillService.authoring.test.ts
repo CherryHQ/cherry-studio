@@ -929,6 +929,24 @@ describe('SkillService authoring and remote updates', () => {
     }
   )
 
+  it('reports up_to_date with local changes for a legacy baseline with edited managed files and unchanged source', async () => {
+    const skillDir = path.join(skillsRoot, 'writer')
+    await writeSkill(skillDir, { supportingContent: 'echo baseline\n' })
+    const legacyBaseline = await installer.computeLegacyContentHash(skillDir)
+    await seedSkill(SKILL_ID, 'writer', { contentHash: legacyBaseline })
+    // Upstream is unchanged: same version and content as the pre-upgrade baseline.
+    fetchRemoteSkillMock.mockImplementation(() => createFetchedSkill('1.0.0', 'echo baseline\n'))
+    // Edit a managed file after install.
+    await fs.promises.writeFile(path.join(skillDir, 'scripts', 'run.sh'), 'echo local\n', 'utf-8')
+
+    const check = await new SkillService().checkRemoteUpdate(SKILL_ID)
+    // The v2 source hash can never equal the legacy baseline, but comparing in the
+    // baseline's format shows the source is unchanged: must not offer a destructive
+    // update that would replace the managed edit with the original upstream files.
+    expect(check).toMatchObject({ state: 'up_to_date', localChanges: true })
+    await expect(fs.promises.readFile(path.join(skillDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo local\n')
+  })
+
   it('preserves a baseline-matching replacement when obsolete-backup staging fails', async () => {
     const destPath = path.join(skillsRoot, 'writer')
     const backupPath = path.join(skillsRoot, '.writer.bak')

@@ -35,7 +35,8 @@ import {
   hasSkillRemoteUpdateProvenance,
   isSkillDirectoryContentHash,
   parseSkillSourceUrl,
-  SKILL_DIRECTORY_CONTENT_HASH_PREFIX
+  SKILL_DIRECTORY_CONTENT_HASH_PREFIX,
+  SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2
 } from '@shared/utils/skillMarketplace'
 import { skillInstallIdentity, subscriptionMemberSource } from '@shared/utils/skillSubscription'
 
@@ -1468,6 +1469,30 @@ export class SkillService {
         this.installer.computeContentHash(fetched.skillDir),
         parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
+      if (this.isLegacyContentBaseline(skill.contentHash)) {
+        // A `directory-sha256:` baseline never equals a `directory-sha256-v2:` hash,
+        // so without a baseline-format comparison an unchanged upstream source plus a
+        // managed edit would incorrectly report `available` and allow a destructive
+        // overwrite of the edit with the original upstream files. Compare the source
+        // in the baseline's format first: unchanged source + edited managed tree is
+        // `up_to_date` with `localChanges`, matching the pre-migration behavior.
+        // Untouched managed trees fall through to the v2 path below so a mode-only
+        // source change is still offered as a clean update.
+        try {
+          const [remoteLegacyHash, legacyCurrentHash] = await Promise.all([
+            this.installer.computeLegacyContentHash(fetched.skillDir),
+            this.installer.computeLegacyContentHash(this.getSkillStoragePath(skill.folderName))
+          ])
+          if (remoteLegacyHash === skill.contentHash && legacyCurrentHash !== skill.contentHash) {
+            return { state: 'up_to_date', localChanges: true, remoteVersion: metadata.version ?? null }
+          }
+        } catch (error) {
+          logger.warn('Failed to compare legacy skill baseline for update check', {
+            skillId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
       if (remoteHash === skill.contentHash) {
         const localChanges = currentHash !== skill.contentHash
         return { state: 'up_to_date', localChanges, remoteVersion: metadata.version ?? null }
@@ -1516,6 +1541,19 @@ export class SkillService {
   }
 
   /**
+   * A pre-migration install baseline uses the unversioned `directory-sha256:` prefix.
+   * The versioned `directory-sha256-v2:` prefix starts with the same characters, so
+   * the v2 exclusion must be checked explicitly; otherwise every new baseline would
+   * also look legacy and take the one-time migration fallback.
+   */
+  private isLegacyContentBaseline(baselineHash: string): boolean {
+    return (
+      baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX) &&
+      !baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2)
+    )
+  }
+
+  /**
    * Decide whether the managed tree is truly edited. A pre-executability baseline
    * (no mode bits, raw sort, on-disk descriptor casing) differs from the current
    * fingerprint even when the user changed nothing, so an untouched legacy install
@@ -1536,10 +1574,11 @@ export class SkillService {
     baselineHash: string
   ): Promise<boolean> {
     if (currentHash === baselineHash) return false
-    // Only legacy (`directory-sha256:`) baselines qualify for the migration
-    // fallback. New (`directory-sha256-v2:`) baselines already include modes,
-    // so any fingerprint difference is a real local edit.
-    if (!baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX)) return true
+    // Only legacy (`directory-sha256:` without the `-v2` suffix) baselines qualify
+    // for the migration fallback. New (`directory-sha256-v2:`) baselines already
+    // include modes, so any fingerprint difference is a real local edit. Note the
+    // v2 prefix starts with the legacy prefix, so the v2 check must come first.
+    if (!this.isLegacyContentBaseline(baselineHash)) return true
     try {
       const legacyCurrentHash = await this.installer.computeLegacyContentHash(this.getSkillStoragePath(folderName))
       if (legacyCurrentHash === baselineHash) return false
@@ -1569,6 +1608,14 @@ export class SkillService {
         this.installer.computeContentHash(fetched.skillDir),
         parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
+      // Baseline-format source hash for legacy installs: a `directory-sha256:` baseline
+      // never equals a v2 hash, so Apply must also compare in the baseline's format.
+      // Otherwise a stale `available` revision (upstream unchanged + managed edit) could
+      // still wipe the edit even with explicit overwrite.
+      const initialIsLegacyBaseline = this.isLegacyContentBaseline(skill.contentHash)
+      const remoteLegacyHash = initialIsLegacyBaseline
+        ? await this.installer.computeLegacyContentHash(fetched.skillDir)
+        : null
 
       return await this.mutationLock.runExclusive(() =>
         runPathMutationExclusive(async () => {
@@ -1593,6 +1640,16 @@ export class SkillService {
           })
           if (revision !== options.revision || remoteHash === currentSkill.contentHash) {
             throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
+          }
+          if (
+            remoteLegacyHash !== null &&
+            remoteLegacyHash === currentSkill.contentHash &&
+            this.isLegacyContentBaseline(currentSkill.contentHash)
+          ) {
+            const legacyCurrentHash = await this.installer.computeLegacyContentHash(destination)
+            if (legacyCurrentHash !== currentSkill.contentHash) {
+              throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
+            }
           }
 
           const hasLocalChanges = await this.hasManagedLocalChanges(
