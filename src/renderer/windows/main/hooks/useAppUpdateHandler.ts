@@ -103,8 +103,9 @@ export function useAppUpdateHandler() {
   useIpcOn('app.updater.download_progress', (progress) => {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
     if (!otherCheck()) appUpdateCheckService.markUpdateProgress()
+    // 100% is not terminal: verification follows, and only `downloaded` or `error` ends the download.
     updateAppUpdateState({
-      downloading: progress.percent < 100,
+      downloading: true,
       downloadProgress: progress.percent
     })
   })

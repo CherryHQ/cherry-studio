@@ -139,7 +139,7 @@ describe('useAppUpdateHandler', () => {
     vi.useRealTimers()
   })
 
-  it('updates download state without duplicating the main-owned version notification', () => {
+  it('keeps the download busy at 100% until the updater reports a terminal result', () => {
     renderHook(() => useAppUpdateHandler())
 
     emit('app.updater.available', releaseInfo)
@@ -154,8 +154,9 @@ describe('useAppUpdateHandler', () => {
       available: true,
       lastErrorKey: null
     })
+    // Verification still runs after the transfer, and the service still rejects clicks until it ends.
     expect(mocks.updateAppUpdateState).toHaveBeenNthCalledWith(2, {
-      downloading: false,
+      downloading: true,
       downloadProgress: 100
     })
   })
