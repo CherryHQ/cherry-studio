@@ -69,15 +69,15 @@ describe('LocalAgentPermissionControl', () => {
     )
 
     const trigger = screen.getByRole('button', { name: '权限审批' })
-    expect(trigger).toHaveTextContent('默认 · 本机环境')
+    expect(trigger).toHaveTextContent('逐次确认 · 本机环境')
     expect(trigger.className).toContain('text-warning-subtle-foreground')
 
     await user.click(trigger)
     expect(screen.getByText('仅对当前会话生效')).toBeVisible()
-    expect(screen.getByRole('menuitemradio', { name: '计划' })).toBeVisible()
-    expect(screen.getByRole('menuitemradio', { name: '沙箱环境' })).toBeVisible()
+    expect(screen.getByRole('menuitemradio', { name: /^仅规划/ })).toBeVisible()
+    expect(screen.getByRole('menuitemradio', { name: /^沙箱环境/ })).toBeVisible()
 
-    await user.click(screen.getByRole('menuitemradio', { name: '计划' }))
+    await user.click(screen.getByRole('menuitemradio', { name: /^仅规划/ }))
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_mode', {
         sessionId: 'session',
@@ -120,7 +120,7 @@ describe('LocalAgentPermissionControl', () => {
     )
 
     await user.click(screen.getByRole('button', { name: '权限审批' }))
-    await user.click(screen.getByRole('menuitemradio', { name: '自动执行（高风险）' }))
+    await user.click(screen.getByRole('menuitemradio', { name: /^完全访问/ }))
     expect(ipcApi.request).not.toHaveBeenCalled()
     expect(await screen.findByRole('dialog')).toHaveTextContent('Copilot Local')
     await user.click(screen.getByRole('button', { name: '取消' }))

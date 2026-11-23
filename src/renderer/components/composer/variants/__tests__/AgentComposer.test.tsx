@@ -644,6 +644,10 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   )
 }))
 
+vi.mock('@renderer/components/LocalAgentModelSelector', () => ({
+  LocalAgentModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
+}))
+
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
     <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
@@ -1644,7 +1648,7 @@ describe('AgentComposer', () => {
     view.rerender(<AgentComposer {...props} sessionId="session-plan-safe" />)
     await waitFor(() =>
       expect(getControls().getByRole('button', { name: 'code.adv.permission_mode' })).toHaveTextContent(
-        'local_agents.modes.plan'
+        'agent.settings.tooling.permissionMode.plan.title'
       )
     )
     act(() => mocks.surfaceProps?.onShiftTab?.())
@@ -1687,8 +1691,49 @@ describe('AgentComposer', () => {
         isStreaming={false}
       />
     )
-    const option = screen.getByRole('menuitemradio', { name: 'Review edits' })
+    const option = screen.getByRole('menuitemradio', {
+      name: /agent\.settings\.tooling\.permissionMode\.acceptEdits\.title/
+    })
     expect(option).toBeEnabled()
+  })
+
+  it('routes non-permission local modes such as pi thinking levels into LocalAgentConfigControl', async () => {
+    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
+      'session-pi': {
+        mode: {
+          id: 'mode',
+          currentValue: 'medium',
+          options: [
+            { value: 'off', name: 'Thinking: off' },
+            { value: 'medium', name: 'Thinking: medium' }
+          ]
+        }
+      }
+    })
+    mocks.ipcApiRequest.mockResolvedValue(null)
+    render(
+      <AgentComposer
+        sessionId="session-pi"
+        agentId="agent-pi"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          configuration: { localRuntime: { protocol: 'acp', presetId: 'pi-acp' } } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    expect(getControls().queryByRole('button', { name: 'code.adv.permission_mode' })).not.toBeInTheDocument()
+    const configBtn = getControls().getByRole('button', { name: 'local_agents.configuration' })
+    expect(configBtn).toBeInTheDocument()
+    expect(
+      getControls().getByRole('menuitemradio', { name: 'assistants.settings.reasoning_effort.medium' })
+    ).toBeVisible()
   })
 
   it('uses the controlled session, agent, and model context', () => {

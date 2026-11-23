@@ -75,7 +75,8 @@ import { getPermissionModeCards } from '@renderer/utils/agent'
 import {
   findLocalDefaultNonPlanOption,
   findLocalPlanModeOption,
-  isHighRiskLocalOption
+  isHighRiskLocalOption,
+  isUnifiedLocalPermissionMode
 } from '@renderer/utils/agent/localAgentLabels'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
@@ -671,8 +672,10 @@ const AgentComposerInner = ({
   const usesCherryPermissionMode = !!agent && agent.type !== 'local'
   const supportsPlan =
     usesCherryPermissionMode && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
+  const localPresetId = agent?.configuration?.localRuntime?.presetId
   const localMode = agent?.type === 'local' ? localOptions?.mode : undefined
-  const localPlanOption = findLocalPlanModeOption(localMode)
+  const hasUnifiedPermissionMode = isUnifiedLocalPermissionMode(localMode, localPresetId)
+  const localPlanOption = hasUnifiedPermissionMode ? findLocalPlanModeOption(localMode) : undefined
   const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
   const localPlanSwitchInFlightRef = useRef(false)
   useEffect(() => {
@@ -1790,8 +1793,8 @@ const AgentComposerInner = ({
             sessionId={sessionId}
             agentId={agent.id}
             agentName={agent.name.trim() || undefined}
-            presetId={agent.configuration?.localRuntime?.presetId}
-            mode={localOptions?.mode}
+            presetId={localPresetId}
+            mode={hasUnifiedPermissionMode ? localOptions?.mode : undefined}
             securityOptions={localSecurityOptions}
             disabled={isStreaming}
           />
@@ -1799,8 +1802,9 @@ const AgentComposerInner = ({
             key={`config:${sessionId}`}
             sessionId={sessionId}
             agentName={agent.name.trim() || undefined}
-            presetId={agent.configuration?.localRuntime?.presetId}
+            presetId={localPresetId}
             options={localNonPermissionOptions}
+            mode={hasUnifiedPermissionMode ? undefined : localOptions?.mode}
             thoughtLevel={localOptions?.thoughtLevel}
             disabled={isStreaming}
           />

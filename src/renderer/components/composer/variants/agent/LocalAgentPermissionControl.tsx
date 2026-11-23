@@ -1,4 +1,4 @@
-import { ChevronDown, ExternalLink, FolderPen, Route, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { ChevronDown, ExternalLink, FolderPen, Hand, Route, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,10 +20,10 @@ import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import {
-  getLocalOptionRiskLevel,
   isHighRiskLocalOption,
   localAgentConfigOptions,
-  localAgentModeOptions
+  localAgentModeOptions,
+  resolveUnifiedLocalPermissionModes
 } from '@renderer/utils/agent/localAgentLabels'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 
@@ -82,14 +82,20 @@ export function LocalAgentPermissionControl({
       .find((choice) => choice.value === value)?.name
   }
 
-  const modeOptions = mode ? localAgentModeOptions(mode, t, presetId) : []
+  const unifiedMode = resolveUnifiedLocalPermissionModes(mode, t, presetId)
   const localizedSecurityOptions = localAgentConfigOptions(securityOptions, presetId, t)
 
   const rows: Array<{ kind: 'mode' | 'config'; option: LocalAgentConfigOption }> = []
-  if (mode && modeOptions.length > 1) {
+  if (unifiedMode) {
     rows.push({
       kind: 'mode',
-      option: { ...mode, type: 'select', name: t('local_agents.mode'), options: modeOptions }
+      option: {
+        id: unifiedMode.id,
+        currentValue: unifiedMode.currentValue,
+        type: 'select',
+        name: t('local_agents.mode'),
+        options: unifiedMode.options
+      }
     })
   }
   for (const option of localizedSecurityOptions) {
@@ -105,14 +111,6 @@ export function LocalAgentPermissionControl({
 
   if (!rows.length) return null
 
-  const modeRisk = mode
-    ? getLocalOptionRiskLevel({
-        kind: 'mode',
-        optionId: mode.id,
-        value: mode.currentValue,
-        name: findRawChoiceName('mode', mode.id, mode.currentValue)
-      })
-    : undefined
   const hasHighRiskSecurity = localizedSecurityOptions.some(
     (option) =>
       option.id !== mode?.id &&
@@ -123,7 +121,8 @@ export function LocalAgentPermissionControl({
         name: findRawChoiceName('config', option.id, option.currentValue)
       })
   )
-  const riskLevel = modeRisk === 'full_access' || hasHighRiskSecurity ? 'full_access' : (modeRisk ?? 'ask')
+  const canonicalMode = unifiedMode?.currentCanonicalMode
+  const isFullAccess = hasHighRiskSecurity || canonicalMode === 'bypassPermissions'
 
   const selectedName = (option: LocalAgentConfigOption) =>
     option.type === 'boolean'
@@ -132,7 +131,12 @@ export function LocalAgentPermissionControl({
           .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
           .find((choice) => choice.value === option.currentValue)?.name ?? option.currentValue)
 
-  const currentModeLabel = modeOptions.find((option) => option.value === mode?.currentValue)?.name ?? mode?.currentValue
+  const fallbackModeLabel =
+    mode &&
+    (localAgentModeOptions(mode, t, presetId).find((option) => option.value === mode.currentValue)?.name ??
+      mode.currentValue)
+  const currentModeLabel =
+    unifiedMode?.options.find((option) => option.value === unifiedMode.currentValue)?.name ?? fallbackModeLabel
   const highRiskSecuritySummary = rows
     .filter(
       (row) =>
@@ -169,6 +173,16 @@ export function LocalAgentPermissionControl({
 
   const handleSelectValue = (kind: 'mode' | 'config', option: LocalAgentConfigOption, nextValue: string | boolean) => {
     if (disabled || saving || nextValue === option.currentValue) return
+    if (kind === 'mode') {
+      const selectedOption = unifiedMode?.options.find((choice) => choice.value === nextValue)
+      if (selectedOption?.dangerous) {
+        setMenuOpen(false)
+        setPendingHighRisk({ kind, configId: option.id, value: nextValue })
+        return
+      }
+      void change(kind, option.id, nextValue)
+      return
+    }
     const rawName = findRawChoiceName(kind, option.id, nextValue)
     if (isHighRiskLocalOption({ kind, optionId: option.id, value: nextValue, name: rawName })) {
       setMenuOpen(false)
@@ -195,16 +209,17 @@ export function LocalAgentPermissionControl({
     </DropdownMenuRadioItem>
   )
 
-  const icon =
-    riskLevel === 'full_access' ? (
-      <ShieldAlert className="lucide-custom size-3.5 shrink-0" />
-    ) : riskLevel === 'readonly' ? (
-      <Route className="lucide-custom size-3.5 shrink-0" />
-    ) : riskLevel === 'auto_edit' ? (
-      <FolderPen className="lucide-custom size-3.5 shrink-0" />
-    ) : (
-      <ShieldCheck className="lucide-custom size-3.5 shrink-0" />
-    )
+  const icon = isFullAccess ? (
+    <ShieldAlert className="lucide-custom size-3.5 shrink-0" />
+  ) : canonicalMode === 'plan' ? (
+    <Route className="lucide-custom size-3.5 shrink-0" />
+  ) : canonicalMode === 'acceptEdits' ? (
+    <FolderPen className="lucide-custom size-3.5 shrink-0" />
+  ) : canonicalMode === 'auto' ? (
+    <ShieldCheck className="lucide-custom size-3.5 shrink-0" />
+  ) : (
+    <Hand className="lucide-custom size-3.5 shrink-0" />
+  )
 
   const settingsTargetId = presetId ?? agentId
 
@@ -215,7 +230,7 @@ export function LocalAgentPermissionControl({
           <Button
             variant="ghost"
             size="sm"
-            className={cn(triggerClass, riskLevel === 'full_access' && 'text-warning-subtle-foreground')}
+            className={cn(triggerClass, isFullAccess && 'text-warning-subtle-foreground')}
             aria-label={t('code.adv.permission_mode')}>
             {icon}
             <span className="truncate">{triggerLabel}</span>

@@ -11,8 +11,10 @@ import {
   findLocalPlanModeOption,
   getLocalOptionRiskLevel,
   isHighRiskLocalOption,
+  isUnifiedLocalPermissionMode,
   localAgentConfigOptions,
-  localAgentModeOptions
+  localAgentModeOptions,
+  resolveUnifiedLocalPermissionModes
 } from '../localAgentLabels'
 
 const i18n = createInstance()
@@ -327,5 +329,176 @@ describe('installed agent translations', () => {
       'qwen'
     )
     expect(qwenLocalized[0]?.name).toBe(zh['code.adv.permission_modes.auto_edit'])
+  })
+
+  it('projects agent-specific permission modes into canonical tiers with capability filtering', () => {
+    const claude = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'claude-mode',
+        currentValue: 'default',
+        options: [
+          { value: 'bypassPermissions', name: 'Bypass Permissions' },
+          { value: 'auto', name: 'Auto' },
+          { value: 'default', name: 'Default' },
+          { value: 'plan', name: 'Plan' },
+          { value: 'acceptEdits', name: 'Accept Edits' }
+        ]
+      },
+      i18n.t,
+      'claude'
+    )
+    expect(claude?.currentCanonicalMode).toBe('default')
+    expect(claude?.options.map((o) => [o.canonicalMode, o.value, o.name, o.dangerous])).toEqual([
+      ['plan', 'plan', zh['agent.settings.tooling.permissionMode.plan.title'], false],
+      ['default', 'default', zh['agent.settings.tooling.permissionMode.default.title'], false],
+      ['acceptEdits', 'acceptEdits', zh['agent.settings.tooling.permissionMode.acceptEdits.title'], false],
+      ['auto', 'auto', zh['agent.settings.tooling.permissionMode.auto.title'], false],
+      [
+        'bypassPermissions',
+        'bypassPermissions',
+        zh['agent.settings.tooling.permissionMode.bypassPermissions.title'],
+        true
+      ]
+    ])
+
+    const codex = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'codex-mode',
+        currentValue: 'workspace',
+        options: [
+          { value: 'readOnly', name: 'Read Only' },
+          { value: 'workspace', name: 'Workspace' },
+          { value: 'fullAccess', name: 'Full Access' }
+        ]
+      },
+      i18n.t,
+      'codex'
+    )
+    expect(codex?.currentCanonicalMode).toBe('acceptEdits')
+    expect(codex?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['plan', 'readOnly'],
+      ['acceptEdits', 'workspace'],
+      ['bypassPermissions', 'fullAccess']
+    ])
+
+    const dsh = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'dsh-mode',
+        currentValue: 'workspace-write',
+        options: [
+          { value: 'read-only', name: 'Read Only' },
+          { value: 'workspace-write', name: 'Workspace' },
+          { value: 'danger-full-access', name: 'Full Access' }
+        ]
+      },
+      i18n.t,
+      'deepseek-harness'
+    )
+    expect(dsh?.currentCanonicalMode).toBe('acceptEdits')
+    expect(dsh?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['plan', 'read-only'],
+      ['acceptEdits', 'workspace-write'],
+      ['bypassPermissions', 'danger-full-access']
+    ])
+
+    // ZCode deduplicates build + edit into acceptEdits, preserving active 'build' when selected.
+    const zcodeBuild = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'mode',
+        currentValue: 'build',
+        options: [
+          { value: 'plan', name: 'plan' },
+          { value: 'build', name: 'build' },
+          { value: 'edit', name: 'edit' },
+          { value: 'guarded', name: 'guarded' },
+          { value: 'yolo', name: 'yolo' }
+        ]
+      },
+      i18n.t,
+      'zcode'
+    )
+    expect(zcodeBuild?.currentCanonicalMode).toBe('acceptEdits')
+    expect(zcodeBuild?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['plan', 'plan'],
+      ['default', 'guarded'],
+      ['acceptEdits', 'build'],
+      ['bypassPermissions', 'yolo']
+    ])
+
+    // Codebuddy omits unmapped niche modes (dontAsk / delegate) and preserves the 5 canonical tiers.
+    const codebuddy = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'mode',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Default' },
+          { value: 'acceptEdits', name: 'Accept Edits' },
+          { value: 'plan', name: 'Plan' },
+          { value: 'auto', name: 'Auto' },
+          { value: 'dontAsk', name: "Don't Ask" },
+          { value: 'bypassPermissions', name: 'Bypass Permissions' },
+          { value: 'delegate', name: 'Delegate' }
+        ]
+      },
+      i18n.t,
+      'codebuddy-code'
+    )
+    expect(codebuddy?.options.map((o) => o.canonicalMode)).toEqual([
+      'plan',
+      'default',
+      'acceptEdits',
+      'auto',
+      'bypassPermissions'
+    ])
+
+    // Preset overrides for `agent`: Copilot maps to 'default', Cursor maps to 'acceptEdits'.
+    const copilot = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'mode',
+        currentValue: 'agent',
+        options: [
+          { value: 'agent', name: 'Agent' },
+          { value: 'plan', name: 'Plan' },
+          { value: 'autopilot', name: 'Autopilot' }
+        ]
+      },
+      i18n.t,
+      'copilot'
+    )
+    expect(copilot?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['plan', 'plan'],
+      ['default', 'agent'],
+      ['bypassPermissions', 'autopilot']
+    ])
+
+    const cursor = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'mode',
+        currentValue: 'agent',
+        options: [
+          { value: 'agent', name: 'Agent' },
+          { value: 'plan', name: 'Plan' },
+          { value: 'ask', name: 'Ask' }
+        ]
+      },
+      i18n.t,
+      'cursor'
+    )
+    expect(cursor?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['plan', 'plan'],
+      ['acceptEdits', 'agent']
+    ])
+
+    // Pi uses ACP mode for thinking effort rather than permissions.
+    const piMode = {
+      id: 'mode',
+      currentValue: 'medium',
+      options: [
+        { value: 'off', name: 'Thinking: off' },
+        { value: 'medium', name: 'Thinking: medium' }
+      ]
+    }
+    expect(isUnifiedLocalPermissionMode(piMode, 'pi-acp')).toBe(false)
+    expect(resolveUnifiedLocalPermissionModes(piMode, i18n.t, 'pi-acp')).toBeUndefined()
   })
 })

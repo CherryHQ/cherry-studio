@@ -39,6 +39,230 @@ const HIGH_RISK_MODE_IDENTIFIERS = new Set([
 const UNSANDBOXED_VALUES = new Set(['false', 'off', 'disabled', 'none', 'local', 'local_environment'])
 const UNSANDBOXED_NAMES = new Set(['local environment', 'local'])
 
+export type LocalCanonicalPermissionMode = 'plan' | 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions'
+
+export interface UnifiedLocalPermissionOption {
+  canonicalMode: LocalCanonicalPermissionMode
+  value: string
+  name: string
+  description: string
+  dangerous: boolean
+}
+
+export interface UnifiedLocalPermissionProjection {
+  id: string
+  currentValue: string
+  currentCanonicalMode?: LocalCanonicalPermissionMode
+  options: UnifiedLocalPermissionOption[]
+}
+
+const CANONICAL_PERMISSION_MODE_ORDER: readonly LocalCanonicalPermissionMode[] = [
+  'plan',
+  'default',
+  'acceptEdits',
+  'auto',
+  'bypassPermissions'
+]
+
+const CANONICAL_PERMISSION_MODE_SPECS: Record<
+  LocalCanonicalPermissionMode,
+  { titleKey: string; titleFallback: string; descriptionKey: string; descriptionFallback: string; dangerous: boolean }
+> = {
+  plan: {
+    titleKey: 'agent.settings.tooling.permissionMode.plan.title',
+    titleFallback: 'Plan Only',
+    descriptionKey: 'agent.settings.tooling.permissionMode.plan.description',
+    descriptionFallback: 'Plans without editing files. Only read-only or vetted commands run.',
+    dangerous: false
+  },
+  default: {
+    titleKey: 'agent.settings.tooling.permissionMode.default.title',
+    titleFallback: 'Ask Before Acting',
+    descriptionKey: 'agent.settings.tooling.permissionMode.default.description',
+    descriptionFallback: 'Asks before editing files or running commands.',
+    dangerous: false
+  },
+  acceptEdits: {
+    titleKey: 'agent.settings.tooling.permissionMode.acceptEdits.title',
+    titleFallback: 'Auto-accept Edits',
+    descriptionKey: 'agent.settings.tooling.permissionMode.acceptEdits.description',
+    descriptionFallback: 'Edits files freely. Asks before commands.',
+    dangerous: false
+  },
+  auto: {
+    titleKey: 'agent.settings.tooling.permissionMode.auto.title',
+    titleFallback: 'Approve for Me',
+    descriptionKey: 'agent.settings.tooling.permissionMode.auto.description',
+    descriptionFallback: 'Runs without routine prompts. A safety check blocks risky actions.',
+    dangerous: false
+  },
+  bypassPermissions: {
+    titleKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title',
+    titleFallback: 'Full Access',
+    descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
+    descriptionFallback: 'Skips permission checks. Can delete files and use the network.',
+    dangerous: true
+  }
+}
+
+const NATIVE_PERMISSION_CLASSIFIERS: ReadonlyArray<{
+  canonicalMode: LocalCanonicalPermissionMode
+  identifiers: ReadonlyMap<string, number>
+}> = [
+  {
+    canonicalMode: 'bypassPermissions',
+    identifiers: new Map([
+      ['bypasspermissions', 0],
+      ['bypass permissions', 0],
+      ['fullaccess', 1],
+      ['full access', 1],
+      ['danger-full-access', 2],
+      ['bypass', 3],
+      ['yolo', 4],
+      ['autopilot', 5],
+      ['allow_all', 6]
+    ])
+  },
+  {
+    canonicalMode: 'plan',
+    identifiers: new Map([
+      ['plan', 0],
+      ['readonly', 1],
+      ['read only', 1],
+      ['read-only', 1],
+      ['read_only', 1],
+      ['ask', 2]
+    ])
+  },
+  {
+    canonicalMode: 'auto',
+    identifiers: new Map([['auto', 0]])
+  },
+  {
+    canonicalMode: 'acceptEdits',
+    identifiers: new Map([
+      ['acceptedits', 0],
+      ['accept edits', 0],
+      ['auto-edit', 1],
+      ['auto edit', 1],
+      ['autoedit', 1],
+      ['auto_edit', 1],
+      ['workspace-write', 2],
+      ['workspace', 3],
+      ['edit', 4],
+      ['build', 5],
+      ['code', 6],
+      ['agent', 7]
+    ])
+  },
+  {
+    canonicalMode: 'default',
+    identifiers: new Map([
+      ['default', 0],
+      ['always ask', 1],
+      ['alwaysask', 1],
+      ['always-ask', 1],
+      ['always_ask', 1],
+      ['guarded', 2],
+      ['manual', 3],
+      ['supervised', 4]
+    ])
+  }
+]
+
+export function classifyNativePermissionMode(
+  option: { value: string; name: string },
+  presetId?: string
+): { canonicalMode: LocalCanonicalPermissionMode; priority: number } | undefined {
+  // Pi uses ACP `mode` exclusively to carry thinking levels rather than permission policies.
+  if (presetId === 'pi-acp') return undefined
+  const value = option.value.trim().toLowerCase()
+  const name = option.name.trim().toLowerCase()
+
+  if (presetId === 'copilot' && (value === 'agent' || name === 'agent')) {
+    return { canonicalMode: 'default', priority: 1 }
+  }
+  if (presetId === 'cursor' && (value === 'agent' || name === 'agent')) {
+    return { canonicalMode: 'acceptEdits', priority: 1 }
+  }
+
+  for (const classifier of NATIVE_PERMISSION_CLASSIFIERS) {
+    const valuePriority = classifier.identifiers.get(value)
+    const namePriority = classifier.identifiers.get(name)
+    if (valuePriority !== undefined && namePriority !== undefined) {
+      return { canonicalMode: classifier.canonicalMode, priority: Math.min(valuePriority, namePriority) }
+    }
+    if (valuePriority !== undefined) {
+      return { canonicalMode: classifier.canonicalMode, priority: valuePriority }
+    }
+    if (namePriority !== undefined) {
+      return { canonicalMode: classifier.canonicalMode, priority: namePriority }
+    }
+  }
+  return undefined
+}
+
+export function isUnifiedLocalPermissionMode(mode?: LocalAgentSelection, presetId?: string): boolean {
+  if (!mode || mode.options.length < 2) return false
+  const categories = new Set<LocalCanonicalPermissionMode>()
+  for (const option of mode.options) {
+    const match = classifyNativePermissionMode(option, presetId)
+    if (match) categories.add(match.canonicalMode)
+    if (categories.size >= 2) return true
+  }
+  return false
+}
+
+export function resolveUnifiedLocalPermissionModes(
+  mode: LocalAgentSelection | undefined,
+  t: TFunction,
+  presetId?: string
+): UnifiedLocalPermissionProjection | undefined {
+  if (!mode || mode.options.length < 2) return undefined
+
+  const grouped = new Map<
+    LocalCanonicalPermissionMode,
+    Array<{ option: LocalAgentSelection['options'][number]; priority: number }>
+  >()
+
+  for (const option of mode.options) {
+    const match = classifyNativePermissionMode(option, presetId)
+    if (!match) continue
+    const list = grouped.get(match.canonicalMode)
+    if (list) list.push({ option, priority: match.priority })
+    else grouped.set(match.canonicalMode, [{ option, priority: match.priority }])
+  }
+
+  const options: UnifiedLocalPermissionOption[] = []
+  let currentCanonicalMode: LocalCanonicalPermissionMode | undefined
+
+  for (const canonicalMode of CANONICAL_PERMISSION_MODE_ORDER) {
+    const candidates = grouped.get(canonicalMode)
+    if (!candidates?.length) continue
+    const activeMatch = candidates.find((entry) => entry.option.value === mode.currentValue)
+    const chosen =
+      activeMatch ?? candidates.reduce((best, entry) => (entry.priority < best.priority ? entry : best), candidates[0])
+    if (chosen.option.value === mode.currentValue) currentCanonicalMode = canonicalMode
+    const spec = CANONICAL_PERMISSION_MODE_SPECS[canonicalMode]
+    options.push({
+      canonicalMode,
+      value: chosen.option.value,
+      name: t(spec.titleKey, spec.titleFallback),
+      description: t(spec.descriptionKey, spec.descriptionFallback),
+      dangerous: spec.dangerous
+    })
+  }
+
+  if (options.length < 2) return undefined
+
+  return {
+    id: mode.id,
+    currentValue: mode.currentValue,
+    currentCanonicalMode,
+    options
+  }
+}
+
 export type LocalPermissionRiskLevel = 'readonly' | 'ask' | 'auto_edit' | 'full_access'
 
 const READONLY_MODE_IDENTIFIERS = new Set(['plan', 'read only', 'readonly', 'read-only', 'ask'])
@@ -54,7 +278,18 @@ const AUTO_EDIT_MODE_IDENTIFIERS = new Set([
   'workspace',
   'workspace-write'
 ])
-const DEFAULT_NON_PLAN_IDENTIFIERS = ['default', 'workspace', 'always ask', 'ask', 'agent', 'code', 'build']
+const DEFAULT_NON_PLAN_IDENTIFIERS = [
+  'default',
+  'workspace',
+  'workspace-write',
+  'always ask',
+  'guarded',
+  'edit',
+  'ask',
+  'agent',
+  'code',
+  'build'
+]
 
 export function isHighRiskLocalOption({
   kind,
