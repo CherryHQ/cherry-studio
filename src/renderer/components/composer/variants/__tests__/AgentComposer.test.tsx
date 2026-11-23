@@ -115,7 +115,10 @@ const mocks = vi.hoisted(() => ({
     | {
         assistant?: { modelId?: string | null }
         model?: Model
-        session?: { agentId?: string }
+        session?: {
+          agentId?: string
+          localPermission?: { mode?: unknown; presetId?: string; disabled?: boolean }
+        }
       }
     | undefined,
   useRealSpeedControl: false,
@@ -1570,12 +1573,15 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: 'code.adv.permission_mode' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /agent.settings.permissionMode.title/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
   })
 
-  it('uses dedicated permission controls, wires Shift+Tab plan toggling without auto-escalating, and separates security options', async () => {
+  it('reuses QuickPanel permission-mode toolbar for local modes, wires Shift+Tab plan toggling safely, and routes config/security options', async () => {
     mocks.pinnedToolIds = ['permission-mode']
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
+    ]
     const info = {
       models: [],
       images: false,
@@ -1620,13 +1626,12 @@ describe('AgentComposer', () => {
     }
     const view = render(<AgentComposer {...props} />)
     const getControls = () => within(screen.getByTestId('composer-send-accessory'))
-    await waitFor(() => expect(getControls().getAllByLabelText('code.adv.permission_mode')).toHaveLength(1))
+    await waitFor(() => expect(mocks.runtimeHostProps?.session?.localPermission?.mode).toEqual(info.mode))
+    expect(screen.getByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(getControls().queryByLabelText('code.adv.permission_mode')).toBeNull()
     expect(getControls().getAllByLabelText('local_agents.configuration')).toHaveLength(1)
-    expect(
-      screen.queryByRole('button', { name: /agent.settings.permissionMode.title|Permission Mode|权限模式/ })
-    ).toBeNull()
 
-    // Security option routes into permission control while general config stays in LocalAgentConfigControl.
+    // Both security and general ACP options stay in LocalAgentConfigControl while main permissions reuse permission-mode.
     expect(getControls().getByRole('menuitemradio', { name: 'common.enabled' })).toBeInTheDocument()
     expect(getControls().getByRole('menuitemradio', { name: 'agent.speed.summary.detailed' })).toBeInTheDocument()
 
@@ -1647,9 +1652,9 @@ describe('AgentComposer', () => {
     )
     view.rerender(<AgentComposer {...props} sessionId="session-plan-safe" />)
     await waitFor(() =>
-      expect(getControls().getByRole('button', { name: 'code.adv.permission_mode' })).toHaveTextContent(
-        'agent.settings.tooling.permissionMode.plan.title'
-      )
+      expect(
+        (mocks.runtimeHostProps?.session?.localPermission?.mode as { currentValue?: string } | undefined)?.currentValue
+      ).toBe('plan')
     )
     act(() => mocks.surfaceProps?.onShiftTab?.())
     await waitFor(() =>
@@ -1662,11 +1667,15 @@ describe('AgentComposer', () => {
 
     for (const isStreaming of [true, false]) {
       view.rerender(<AgentComposer {...props} isStreaming={isStreaming} />)
-      expect(getControls().getAllByLabelText('code.adv.permission_mode')).toHaveLength(1)
+      expect(mocks.runtimeHostProps?.session?.localPermission?.disabled).toBe(isStreaming)
     }
   })
 
   it('enables cached local modes after the idle connection expires', () => {
+    mocks.pinnedToolIds = ['permission-mode']
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
+    ]
     MockUseCacheUtils.setCacheValue('agent.session.local_options', {
       'session-1': {
         mode: {
@@ -1691,10 +1700,8 @@ describe('AgentComposer', () => {
         isStreaming={false}
       />
     )
-    const option = screen.getByRole('menuitemradio', {
-      name: /agent\.settings\.tooling\.permissionMode\.acceptEdits\.title/
-    })
-    expect(option).toBeEnabled()
+    expect(mocks.runtimeHostProps?.session?.localPermission?.disabled).toBe(false)
+    expect(screen.getByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
   })
 
   it('routes non-permission local modes such as pi thinking levels into LocalAgentThoughtControl', async () => {

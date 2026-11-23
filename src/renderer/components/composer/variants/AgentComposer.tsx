@@ -88,11 +88,7 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import {
-  isLocalPermissionConfigOption,
-  type LocalAgentConfigOption,
-  type LocalAgentSelection
-} from '@shared/ai/localAgent'
+import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -137,7 +133,6 @@ import {
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
 import { LocalAgentConfigControl } from './agent/LocalAgentConfigControl'
-import { LocalAgentPermissionControl } from './agent/LocalAgentPermissionControl'
 import { LocalAgentThoughtControl } from './agent/LocalAgentThoughtControl'
 import { useAgentPromptSuggestion } from './agent/useAgentPromptSuggestion'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
@@ -1255,7 +1250,17 @@ const AgentComposerInner = ({
     ]
   }, [handleCreateEmptySession, hasNewSessionAction, screenshotEnabled, startScreenshot, t])
 
-  const toolsSession = sessionData
+  const localPermission = useMemo(
+    () =>
+      agent?.type === 'local' && !launchOptions?.editing
+        ? { mode: localMode, presetId: localPresetId, disabled: isStreaming }
+        : undefined,
+    [agent?.type, isStreaming, launchOptions?.editing, localMode, localPresetId]
+  )
+  const toolsSession = useMemo(
+    () => (sessionData && localPermission ? { ...sessionData, localPermission } : sessionData),
+    [localPermission, sessionData]
+  )
   const handleReasoningEffortChange = useCallback(
     (option: ThinkingOption) => {
       if (!agent) return
@@ -1707,6 +1712,8 @@ const AgentComposerInner = ({
     ] satisfies ComposerToolbarCustomTool[]
   }, [handleCreateEmptySession, hasNewSessionAction, mcpToolbarActive, screenshotEnabled, startScreenshot, t])
 
+  const showsPermissionModeToolbar =
+    usesCherryPermissionMode || (agent?.type === 'local' && hasUnifiedPermissionMode && !launchOptions?.editing)
   const renderQuickPanelShortcuts = useCallback(
     ({
       inputAdapter,
@@ -1722,7 +1729,7 @@ const AgentComposerInner = ({
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
         customTools={toolbarCustomTools}
-        hiddenIds={usesCherryPermissionMode ? undefined : ['permission-mode']}
+        hiddenIds={showsPermissionModeToolbar ? undefined : ['permission-mode']}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         isModelUnavailable={isModelUnavailable}
@@ -1738,8 +1745,8 @@ const AgentComposerInner = ({
       resetPinnedToolIds,
       setCustomizeToolbarOpen,
       setPinnedToolIds,
-      toolbarCustomTools,
-      usesCherryPermissionMode
+      showsPermissionModeToolbar,
+      toolbarCustomTools
     ]
   )
 
@@ -1775,9 +1782,7 @@ const AgentComposerInner = ({
     (option) =>
       option.category !== 'model_config' && option !== localPrimaryModelOption && option.id !== localOptions?.mode?.id
   )
-  const localSecurityOptions = localExtraOptions?.filter((option) => isLocalPermissionConfigOption(option))
-  const localNonPermissionOptions = localExtraOptions?.filter((option) => !isLocalPermissionConfigOption(option))
-  const localThoughtConfigOption = localNonPermissionOptions?.find(
+  const localThoughtConfigOption = localExtraOptions?.find(
     (option): option is Extract<LocalAgentConfigOption, { type: 'select' }> =>
       option.category === 'thought_level' &&
       option.type === 'select' &&
@@ -1808,8 +1813,8 @@ const AgentComposerInner = ({
           : undefined
   const localRemainingConfigOptions =
     localThoughtControl && localThoughtControl.kind !== 'mode'
-      ? localNonPermissionOptions?.filter((option) => option.id !== localThoughtControl.selection.id)
-      : localNonPermissionOptions
+      ? localExtraOptions?.filter((option) => option.id !== localThoughtControl.selection.id)
+      : localExtraOptions
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
@@ -1826,16 +1831,6 @@ const AgentComposerInner = ({
       ) : null}
       {agent?.type === 'local' && !launchOptions?.editing ? (
         <>
-          <LocalAgentPermissionControl
-            key={`perm:${sessionId}`}
-            sessionId={sessionId}
-            agentId={agent.id}
-            agentName={agent.name.trim() || undefined}
-            presetId={localPresetId}
-            mode={hasUnifiedPermissionMode ? localOptions?.mode : undefined}
-            securityOptions={localSecurityOptions}
-            disabled={isStreaming}
-          />
           {localThoughtControl ? (
             <LocalAgentThoughtControl
               key={`thought:${sessionId}`}

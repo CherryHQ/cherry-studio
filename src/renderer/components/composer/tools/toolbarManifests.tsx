@@ -85,7 +85,8 @@ export const PERMISSION_MODE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition
     id: 'permission-mode',
     kind: 'group',
     order: 80,
-    icon: <Pointer size={18} color="#00b96b" />
+    icon: <Pointer size={18} color="#00b96b" />,
+    availableWithoutModel: true
   },
   label: (t) => t('agent.settings.permissionMode.title', 'Permission Mode'),
   visibleInScopes: [TopicType.Session]

@@ -9,39 +9,84 @@ import {
   PermissionModeOptionLabel,
   PermissionModeWarning
 } from '@renderer/components/PermissionModeOption'
-import { useAgent } from '@renderer/hooks/agent/useAgent'
-import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import type { PermissionMode } from '@renderer/types/agent'
+import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import type { PermissionMode, PermissionModeCard } from '@renderer/types/agent'
 import { getPermissionModeCards } from '@renderer/utils/agent'
+import {
+  findLocalDefaultNonPlanOption,
+  isUnifiedLocalPermissionMode,
+  resolveUnifiedLocalPermissionModes
+} from '@renderer/utils/agent/localAgentLabels'
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
 
 const usePermissionModeToolController = (context: PermissionModeContext) => {
   const { t, launcher, session: sessionContext } = context
   const agentId = sessionContext?.agentId
+  const sessionId = sessionContext?.sessionId
+  const isLocal = sessionContext?.agentType === 'local'
+  const localPermission = sessionContext?.localPermission
   const { agent } = useAgent(agentId ?? '')
   const { updateAgent } = useUpdateAgent()
 
-  // Permission mode lives on the agent — sessions are pure instances. Approval is governed
-  // solely by the permission mode (the per-tool allow-list was removed).
-  const currentMode = agent?.configuration?.permission_mode ?? 'default'
-  const permissionModeCards = useMemo(() => getPermissionModeCards(agent?.type), [agent?.type])
+  const unifiedLocalMode = useMemo(
+    () =>
+      isLocal ? resolveUnifiedLocalPermissionModes(localPermission?.mode, t, localPermission?.presetId) : undefined,
+    [isLocal, localPermission?.mode, localPermission?.presetId, t]
+  )
+
+  // Permission mode lives on the agent for built-in runtimes and on the session for local agents.
+  const currentMode: PermissionMode = isLocal
+    ? (unifiedLocalMode?.currentCanonicalMode ?? 'default')
+    : (agent?.configuration?.permission_mode ?? 'default')
+  const permissionModeCards = useMemo<PermissionModeCard[]>(() => {
+    if (!isLocal) return getPermissionModeCards(agent?.type)
+    if (!unifiedLocalMode) return []
+    const canonicalByMode = new Map(getPermissionModeCards(undefined).map((card) => [card.mode, card]))
+    return unifiedLocalMode.options
+      .map((option) => canonicalByMode.get(option.canonicalMode))
+      .filter((card): card is PermissionModeCard => Boolean(card))
+  }, [agent?.type, isLocal, unifiedLocalMode])
   const planCard = permissionModeCards.find((card) => card.mode === 'plan')
+  const isDisabled = Boolean(isLocal && localPermission?.disabled)
+  const localExitPlanMode = useMemo(() => {
+    if (!isLocal || !unifiedLocalMode || !localPermission?.mode) return undefined
+    const planOption = unifiedLocalMode.options.find((option) => option.canonicalMode === 'plan')
+    if (!planOption) return undefined
+    const safeNativeOption = findLocalDefaultNonPlanOption(localPermission.mode, planOption.value)
+    if (!safeNativeOption) return undefined
+    return unifiedLocalMode.options.find((option) => option.value === safeNativeOption.value)?.canonicalMode
+  }, [isLocal, localPermission?.mode, unifiedLocalMode])
   const [fullAccessPending, setFullAccessPending] = useState(false)
 
-  // Returns false when there is no agent yet so the confirm dialog stays open.
+  // Returns false when the selection cannot apply right now so the confirm dialog stays open.
   const applyMode = useCallback(
     (nextMode: PermissionMode) => {
+      if (isLocal) {
+        if (!sessionId || !unifiedLocalMode || localPermission?.disabled) return false
+        const targetOption = unifiedLocalMode.options.find((option) => option.canonicalMode === nextMode)
+        if (!targetOption) return false
+        void ipcApi
+          .request('ai.local_agents.set_mode', {
+            sessionId,
+            configId: unifiedLocalMode.id,
+            value: targetOption.value
+          })
+          .catch((error) => toast.error(String(error)))
+        return true
+      }
       if (!agentId || !agent) return false
       void updateAgent({ id: agentId, configuration: { permission_mode: nextMode } }, { showSuccessToast: false })
       return true
     },
-    [agent, agentId, updateAgent]
+    [agent, agentId, isLocal, localPermission?.disabled, sessionId, unifiedLocalMode, updateAgent]
   )
 
   const handleSelectMode = useCallback(
     (nextMode: PermissionMode) => {
-      if (nextMode === currentMode) return
+      if (isDisabled || nextMode === currentMode) return
       if (nextMode === 'bypassPermissions') {
         setFullAccessPending(true)
         return
@@ -49,22 +94,23 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       setFullAccessPending(false)
       applyMode(nextMode)
     },
-    [applyMode, currentMode]
+    [applyMode, currentMode, isDisabled]
   )
 
   // Any newer mode (local or incoming) wins; confirming must never apply a stale dialog over it.
   useEffect(() => {
     setFullAccessPending(false)
-  }, [currentMode])
+  }, [agentId, currentMode, sessionId])
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
   const launcherLabel = t('agent.settings.permissionMode.title', 'Permission Mode')
   const launcherTooltip = tooltipTitle ? `${launcherLabel} · ${tooltipTitle}` : launcherLabel
+  const disabledReason = isDisabled ? t('local_agents.configuration_read_only') : undefined
   const modeSubmenu = useMemo(
     () =>
       permissionModeCards
-        .filter((card) => card.mode !== 'plan')
+        .filter((card) => isLocal || card.mode !== 'plan')
         .map((card, index) => ({
           id: `permission-mode-${card.mode}`,
           kind: 'command' as const,
@@ -86,12 +132,14 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
           tooltipAnchor: card.warningKey ? <PermissionModeWarning card={card} showTooltip={false} t={t} /> : undefined,
           icon: <PermissionModeIcon mode={card.mode} />,
           active: card.mode === currentMode,
+          ...(isDisabled ? { disabled: true, disabledReason } : {}),
           action: () => handleSelectMode(card.mode)
         })),
-    [currentMode, handleSelectMode, permissionModeCards, t]
+    [currentMode, disabledReason, handleSelectMode, isDisabled, isLocal, permissionModeCards, t]
   )
 
   useEffect(() => {
+    if (isLocal && !unifiedLocalMode) return
     return launcher.registerLaunchers([
       {
         ...PERMISSION_MODE_TOOLBAR_MANIFEST.toolbar,
@@ -115,12 +163,36 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
               shortcut: 'Shift+Tab',
               icon: <PermissionModeIcon mode="plan" />,
               active: currentMode === 'plan',
-              action: () => handleSelectMode(currentMode === 'plan' ? 'default' : 'plan')
+              ...(isLocal ? { showInActiveControls: false } : {}),
+              ...(isDisabled ? { disabled: true, disabledReason } : {}),
+              action: () => {
+                if (currentMode !== 'plan') {
+                  handleSelectMode('plan')
+                  return
+                }
+                const exitMode = isLocal ? localExitPlanMode : 'default'
+                if (exitMode) handleSelectMode(exitMode)
+              }
             }
           ]
         : [])
     ])
-  }, [currentMode, handleSelectMode, launcher, launcherLabel, launcherTooltip, modeSubmenu, planCard, t, tooltipTitle])
+  }, [
+    currentMode,
+    disabledReason,
+    handleSelectMode,
+    isDisabled,
+    isLocal,
+    launcher,
+    launcherLabel,
+    launcherTooltip,
+    localExitPlanMode,
+    modeSubmenu,
+    planCard,
+    t,
+    tooltipTitle,
+    unifiedLocalMode
+  ])
 
   return {
     currentMode,
@@ -150,8 +222,12 @@ const PermissionModeComposerRuntime = ({ context }: { context: PermissionModeCon
 const permissionModeTool = defineTool({
   key: 'permission_mode',
   label: PERMISSION_MODE_TOOLBAR_MANIFEST.label,
+  availableWithoutModel: true,
   visibleInScopes: PERMISSION_MODE_TOOLBAR_MANIFEST.visibleInScopes,
-  condition: ({ session }) => !!session && session.agentType !== 'local',
+  condition: ({ session }) =>
+    !!session &&
+    (session.agentType !== 'local' ||
+      isUnifiedLocalPermissionMode(session.localPermission?.mode, session.localPermission?.presetId)),
 
   composer: {
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />
