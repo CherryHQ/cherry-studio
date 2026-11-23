@@ -29,9 +29,9 @@ export const MiniAppUrlSchema = z.string().min(1).refine(isAllowedMiniAppUrl, {
 
 export function isAllowedMiniAppUrl(value: string): boolean {
   try {
-    const url = new URL(value)
+    const { protocol } = new URL(value)
 
-    return MINI_APP_ALLOWED_URL_PROTOCOLS.includes(url.protocol as (typeof MINI_APP_ALLOWED_URL_PROTOCOLS)[number])
+    return MINI_APP_ALLOWED_URL_PROTOCOLS.some((allowed) => allowed === protocol)
   } catch {
     return false
   }

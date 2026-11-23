@@ -28,7 +28,7 @@ export const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled'] as con
 export const ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const satisfies readonly JobStatus[]
 
 export const isTerminalStatus = (status: JobStatus): status is TerminalJobStatus =>
-  (TERMINAL_JOB_STATUSES as readonly JobStatus[]).includes(status)
+  TERMINAL_JOB_STATUSES.some((terminal) => terminal === status)
 
 /** Terminal-only status atom — for payloads that can only carry a finished state. */
 export const TerminalJobStatusSchema = z.enum(TERMINAL_JOB_STATUSES)

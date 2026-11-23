@@ -10,6 +10,7 @@ import { parsePersistedLangCode, type PersistedLangCode } from '../preference/pr
 
 type BuiltinPersistedLangCode<T extends string> = PersistedLangCode & { readonly __builtinLangCode: T }
 
+// SAFETY: The schema validates without transforming the string; the private brand preserves this catalog entry's literal identity.
 const parseBuiltinLangCode = <T extends string>(value: T): BuiltinPersistedLangCode<T> =>
   parsePersistedLangCode(value) as BuiltinPersistedLangCode<T>
 
