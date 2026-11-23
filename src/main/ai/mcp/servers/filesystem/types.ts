@@ -57,7 +57,7 @@ export async function validatePath(requestedPath: string, baseDir?: string | str
         })
       ).then((results) => results.some(Boolean))
     : false
-  if (!insideRoot) {
+  if (!resolvedPath || !insideRoot) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
