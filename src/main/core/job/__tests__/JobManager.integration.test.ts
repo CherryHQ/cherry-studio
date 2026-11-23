@@ -1106,13 +1106,17 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
-    it('outer .catch chain swallows leaked errors even when fallback finalize also throws', async () => {
+    it('keeps failed persistence recoverable without publishing a terminal settlement', async () => {
+      const settledEvents: JobSettledEvent[] = []
       const handler: JobHandler = {
         recovery: 'retry',
         cancelTimeoutMs: 500,
         defaultConcurrency: 2,
         async execute() {
           throw new Error('handler-intentional-failure')
+        },
+        onSettled(event) {
+          settledEvents.push(event)
         }
       }
       const { scheduler, jobManager } = await bootstrapManager({
@@ -1132,19 +1136,18 @@ describe('JobManager integration', () => {
         throw Object.assign(new Error('synthetic-corrupt-terminal'), { code: 'SQLITE_CORRUPT' })
       })
 
-      jobManager.enqueue('retry.fallback.task.2' as never, { message: 'doubled-doom' } as never, { maxAttempts: 3 })
+      const handle = jobManager.enqueue('retry.fallback.task.2' as never, { message: 'doubled-doom' } as never, {
+        maxAttempts: 3
+      })
 
-      // Drive the dispatch + handler + fallback chain. With both retry and
-      // terminal writes mocked to fail, the production code falls all the
-      // way through to synthesizeFailedSnapshot in finalizeJob and then
-      // exits the IIFE via the finally block. We assert only the absence
-      // of unhandled rejections — the DB row is intentionally left in
-      // 'running' (which the watchdog or startup recovery would reclaim
-      // in production).
+      // Failed retry and terminal writes leave the row running for recovery.
+      // That row must not reach observers whose contract requires a terminal snapshot.
       await drainAllQueues(jobManager)
       await new Promise((r) => setTimeout(r, 100))
 
       expect(unhandled).toHaveLength(0)
+      expect(jobService.getById(handle.id)?.status).toBe('running')
+      expect(settledEvents).toEqual([])
 
       process.off('unhandledRejection', listener)
       retrySpy.mockRestore()

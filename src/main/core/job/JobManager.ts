@@ -2104,14 +2104,14 @@ export class JobManager extends BaseService {
 
     const handler = this.handlers.get(snapshot.type)
 
-    if (handler?.onSettled) {
+    if (handler?.onSettled && isTerminalStatus(snapshot.status)) {
       try {
         await handler.onSettled({
           jobId,
           type: snapshot.type,
           scheduleId: snapshot.scheduleId,
           parentId: snapshot.parentId,
-          status: snapshot.status as 'completed' | 'failed' | 'cancelled',
+          status: snapshot.status,
           input: snapshot.input,
           output: snapshot.output,
           error: snapshot.error,
