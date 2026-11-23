@@ -50,13 +50,13 @@ vi.mock('../CherryDiagnosticUploadClient', () => ({
   cherryDiagnosticUploadClient: uploadMocks
 }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: { getSessionMessage: vi.fn() }
+  agentSessionMessageService: { getSessionMessage: vi.fn(), listLiveCreatedInRangeMetadataPage: vi.fn() }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: vi.fn() }
 }))
 vi.mock('@data/services/MessageService', () => ({
-  messageService: { getById: vi.fn() }
+  messageService: { getById: vi.fn(), listLiveCreatedInRangeMetadataPage: vi.fn() }
 }))
 vi.mock('@data/services/TopicService', () => ({
   topicService: { getById: vi.fn() }
@@ -118,7 +118,6 @@ const uploadedResult = (reportId: string) => ({
 })
 const UPLOAD_INPUT = {
   description: '  Line one\nLine two  ',
-  includeChatRecords: false,
   includeLogs: false,
   includeTraces: false,
   range: '24h' as const
@@ -921,6 +920,7 @@ describe('DiagnosticBundleService', () => {
     let uploadedManifest: Record<string, unknown> | undefined
     uploadMocks.upload.mockImplementationOnce(async ({ description, fileName, filePath: uploadPath }) => {
       const zip = await readZip(uploadPath)
+      expect(zip.entries).toEqual(['diagnostics.json'])
       uploadedManifest = JSON.parse(zip.contents['diagnostics.json'].toString())
       expect(description).toBe('Line one\r\nLine two')
       expect(fileName).toBe(path.basename(uploadPath))
@@ -934,6 +934,48 @@ describe('DiagnosticBundleService', () => {
     expect(uploadedManifest?.privacy).toMatchObject({ uploadedAutomatically: true })
     expect(await readdir(appTempDir)).toEqual([])
     expect(await readdir(downloadsDir)).toEqual([])
+  })
+
+  it.each([
+    ['topic-1', 'chats/messages.jsonl', 'message-1'],
+    ['agent-session:session-1', 'chats/agent-session-messages.jsonl', 'agent-message-1']
+  ])('uploads only the opted-in conversation %s', async (chatTopicId, messagesFile, messageId) => {
+    const createdAt = new Date().toISOString()
+    const messages = ['1', '2'].map((id) => ({ id: `message-${id}`, topicId: `topic-${id}`, createdAt }))
+    const agentMessages = ['1', '2'].map((id) => ({
+      id: `agent-message-${id}`,
+      sessionId: `session-${id}`,
+      createdAt
+    }))
+    vi.mocked(messageService.listLiveCreatedInRangeMetadataPage).mockImplementation(({ topicId }) => ({
+      items: messages
+        .filter((message) => !topicId || message.topicId === topicId)
+        .map((message) => ({ ...message, entityJsonBytes: jsonlBytes(message) - 1 })),
+      nextCursor: undefined
+    }))
+    vi.mocked(agentSessionMessageService.listLiveCreatedInRangeMetadataPage).mockImplementation(({ sessionId }) => ({
+      items: agentMessages
+        .filter((message) => !sessionId || message.sessionId === sessionId)
+        .map((message) => ({ ...message, entityJsonBytes: jsonlBytes(message) - 1 })),
+      nextCursor: undefined
+    }))
+    vi.mocked(topicService.getById).mockImplementation((id) => ({ id }) as never)
+    vi.mocked(agentSessionService.getById).mockImplementation((id) => ({ id }) as never)
+    vi.mocked(messageService.getById).mockImplementation((id) => messages.find((message) => message.id === id) as never)
+    vi.mocked(agentSessionMessageService.getSessionMessage).mockImplementation(
+      (_, id) => agentMessages.find((message) => message.id === id) as never
+    )
+    uploadMocks.upload.mockImplementationOnce(async ({ filePath }) => {
+      const zip = await readZip(filePath)
+      const conversations = zip.entries.filter((name) => name.startsWith('chats/'))
+      expect(conversations).toHaveLength(2)
+      expect(JSON.parse(zip.contents[messagesFile].toString()).id).toBe(messageId)
+      return { reportId: REPORT_ID, status: 'uploaded' }
+    })
+
+    await expect(new DiagnosticBundleService().uploadBundle({ ...UPLOAD_INPUT, chatTopicId })).resolves.toEqual(
+      uploadedResult(REPORT_ID)
+    )
   })
 
   it('keeps the confirmed upload result when saving local history fails', async () => {
