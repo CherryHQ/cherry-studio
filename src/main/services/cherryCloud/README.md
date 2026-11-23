@@ -53,8 +53,8 @@ request: `amd_entry_open` reports how the attempt ended (`opened`,
 joined it; a cancelled attempt is not credited to any account. A model sync that
 finds an AMD model usable after it was locked at an earlier sync of the same
 account reports `amd_activation_detected` with that model's latest entry flow.
-`amd_model_used` reports each recorded AMD model invocation, primary or fallback,
-made through `AiService` (chat, and Agent calls through it; direct Agent SDK routes
+`amd_model_used` reports each recorded AMD model invocation that produced output,
+primary or fallback, made through `AiService` (chat, and Agent calls through it; direct Agent SDK routes
 do not report it), credited only to the account the request started under.
 The `flowId` is not sent to the entry endpoint: that request keeps its empty body
 until the server accepts it and carries it into the entry page.

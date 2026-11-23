@@ -656,6 +656,8 @@ export class AiService extends BaseService {
     }
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
+    // Created before setup awaits so AMD use stays with the account the request started under.
+    const recordInvocation = this.invocationRecorder(request.usageContext?.recordInvocation, request.tokenUsageSource)
     const {
       sdkConfig,
       credentialReceipt,
@@ -688,7 +690,6 @@ export class AiService extends BaseService {
           ? { kind: 'chat', id: request.messageId }
           : null
     })
-    const recordInvocation = this.invocationRecorder(request.usageContext?.recordInvocation, request.tokenUsageSource)
     const usagePlugin = createAiUsagePlugin(usageContext, recordInvocation)
     repairUsagePlugins.current = [usagePlugin]
 
@@ -857,6 +858,8 @@ export class AiService extends BaseService {
     }
     return (input) => {
       persist(input)
+      // A failed stream still records an empty usage; only an answer that produced output counts as use.
+      if (!((input.usage?.outputTokens ?? input.usage?.totalTokens ?? 0) > 0)) return
       try {
         reportAmdUse?.(input.context.providerId, input.context.modelId)
       } catch {
@@ -914,6 +917,7 @@ export class AiService extends BaseService {
     const { messages, ...parameterRequest } = request
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
+    const recordInvocation = this.invocationRecorder(undefined, request.tokenUsageSource)
     const {
       sdkConfig,
       credentialReceipt,
@@ -935,7 +939,6 @@ export class AiService extends BaseService {
       source: sourceSnapshotForAssistant(assistant),
       messageRef: null
     })
-    const recordInvocation = this.invocationRecorder(undefined, request.tokenUsageSource)
     const usagePlugin = createAiUsagePlugin(usageContext, recordInvocation)
     repairUsagePlugins.current = [usagePlugin]
     let activeRepairToolCall = options.repairToolCall

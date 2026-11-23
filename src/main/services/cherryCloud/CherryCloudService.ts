@@ -86,6 +86,7 @@ const SYNC_INVALIDATING_FORBIDDEN_CODES = new Set([
 ])
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
+type AmdEntryClick = { flowId: string; modelId: string; at: number }
 type CherryCloudDevice = ReturnType<typeof createDeviceKeyPair>
 type AuthorizationOperation = {
   controller: AbortController
@@ -234,11 +235,10 @@ export class CherryCloudService extends BaseService {
   private authorizationOperation: AuthorizationOperation | null = null
   private loginPromise: { operation: AuthorizationOperation; promise: Promise<CherryCloudLoginResult> } | null = null
   private subscriptionPromise: Promise<void> | null = null
-  private amdEntryPromise: Promise<void> | null = null
+  // The in-flight entry and the clicks that joined it; each click gets the shared outcome under its own flow.
+  private amdEntry: { promise: Promise<void>; clicks: AmdEntryClick[] } | null = null
   // AMD analytics: the latest entry per model, AMD models in the catalog, and those locked at the last signed-in sync.
   private readonly amdEntries = new Map<string, { flowId: string; at: number; scopeId: string }>()
-  // Clicks waiting on the in-flight entry; each gets the shared outcome under its own flow.
-  private amdEntryClicks: { flowId: string; modelId: string; at: number }[] = []
   private amdModelIds = new Set<string>()
   private lockedAmdModels: { scopeId: string; ids: Set<string> } | null = null
   private revision = 0
@@ -311,7 +311,7 @@ export class CherryCloudService extends BaseService {
     this.authorizationOperation = null
     this.loginPromise = null
     this.subscriptionPromise = null
-    this.amdEntryPromise = null
+    this.amdEntry = null
   }
 
   protected async onDestroy(): Promise<void> {
@@ -954,21 +954,24 @@ export class CherryCloudService extends BaseService {
 
   /** Signs in when required, then opens the single-use AMD entry the server issues for the model. */
   public async openAmdEntry(senderId: WindowId | null, modelId: string, flowId?: string): Promise<void> {
-    if (flowId) this.amdEntryClicks.push({ flowId, modelId, at: Date.now() })
-    if (!this.amdEntryPromise) {
-      const entry = this.openAmdEntryOnce(senderId, modelId).finally(() => {
-        if (this.amdEntryPromise === entry) this.amdEntryPromise = null
-      })
-      this.amdEntryPromise = entry
+    let entry = this.amdEntry
+    if (!entry) {
+      const clicks: AmdEntryClick[] = []
+      entry = { promise: this.openAmdEntryOnce(senderId, modelId, clicks), clicks }
+      this.amdEntry = entry
     }
-    return this.amdEntryPromise
+    if (flowId) entry.clicks.push({ flowId, modelId, at: Date.now() })
+    return entry.promise
   }
 
-  private async openAmdEntryOnce(senderId: WindowId | null, modelId: string): Promise<void> {
+  private async openAmdEntryOnce(senderId: WindowId | null, modelId: string, clicks: AmdEntryClick[]): Promise<void> {
     let scopeId: string | null = null
     const settle = (result: 'opened' | 'already_authorized' | 'not_signed_in' | 'cancelled' | 'failed') => {
-      const clicks = this.amdEntryClicks.splice(0)
-      if (result === 'opened' && clicks[0] && scopeId) this.amdEntries.set(modelId, { ...clicks[0], scopeId })
+      // Later clicks start a new attempt instead of joining one that has already settled.
+      if (this.amdEntry?.clicks === clicks) this.amdEntry = null
+      if (result === 'opened' && scopeId) {
+        for (const click of clicks) this.amdEntries.set(click.modelId, { ...click, scopeId })
+      }
       // A cancelled attempt may have crossed an account switch, so it is not credited to any account.
       const reportScope = result === 'cancelled' ? null : scopeId
       for (const click of clicks)
@@ -1688,7 +1691,7 @@ export class CherryCloudService extends BaseService {
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
     this.subscriptionPromise = null
-    this.amdEntryPromise = null
+    this.amdEntry = null
     this.invalidateAccountRefreshes()
     this.resetAccountFacts()
     this.clearSessionExpiryTimer()
