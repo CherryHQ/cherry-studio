@@ -20,11 +20,12 @@ vi.mock('@logger', () => ({
 vi.mock('@main/core/platform', () => ({ isWin: false }))
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
-vi.mock('@main/utils/macElectronBridge', () => ({ isMacElectronBridgePackage: () => false }))
 
 vi.mock('@main/services/RegionService', () => ({
   regionService: { getCountry: vi.fn(async () => 'US') }
 }))
+
+vi.mock('@main/core/macElectronBridge', () => ({ isMacElectronBridgePackage: () => false }))
 
 vi.mock('@main/utils/systemInfo', () => ({
   generateUserAgent: vi.fn(() => 'test-user-agent'),

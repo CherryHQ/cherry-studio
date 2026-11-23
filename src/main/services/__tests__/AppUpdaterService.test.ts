@@ -65,7 +65,7 @@ vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => appEditionState.current
 }))
 
-vi.mock('@main/utils/macElectronBridge', () => ({
+vi.mock('@main/core/macElectronBridge', () => ({
   isMacElectronBridgePackage: () => appEditionState.bridge
 }))
 
