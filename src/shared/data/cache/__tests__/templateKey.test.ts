@@ -92,4 +92,8 @@ describe('findMatchingSharedCacheSchemaKey', () => {
     expect(findMatchingSharedCacheSchemaKey('unknown.key')).toBeUndefined()
     expect(findMatchingSharedCacheSchemaKey('web_search.provider.last_used_key.')).toBeUndefined()
   })
+
+  it.each(['toString', 'constructor', '__proto__'])('rejects the inherited property %s', (key) => {
+    expect(findMatchingSharedCacheSchemaKey(key)).toBeUndefined()
+  })
 })

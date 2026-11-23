@@ -53,10 +53,12 @@ export function templateToRegex(template: string): RegExp {
  * instance — callers use it to look up the template's default value.
  */
 export function findMatchingSharedCacheSchemaKey(key: string): keyof SharedCacheSchema | undefined {
-  if (key in DefaultSharedCache) {
+  if (Object.hasOwn(DefaultSharedCache, key)) {
+    // SAFETY: The own-property check restricts this string to the registered default schema keys.
     return key as keyof SharedCacheSchema
   }
 
+  // SAFETY: DefaultSharedCache is declared as SharedCacheSchema; its own enumerable keys are schema keys.
   const schemaKeys = Object.keys(DefaultSharedCache) as Array<keyof SharedCacheSchema>
 
   for (const schemaKey of schemaKeys) {
