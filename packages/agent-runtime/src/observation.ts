@@ -31,6 +31,7 @@ export class ThreadFeed {
 
   get state(): Omit<ThreadSnapshot, 'messages'> {
     const { type, inputs, activity, contextUsage, subagents } = this.value
+
     // oxlint-disable-next-line no-restricted-globals -- Copy only non-message state for internal reads; never traverse history here.
     return structuredClone({ type, inputs, activity, contextUsage, subagents })
   }
@@ -41,6 +42,7 @@ export class ThreadFeed {
 
   message(id: string | undefined): RuntimeMessage | undefined {
     const message = this.value.messages.find((message) => message.id === id)
+
     // oxlint-disable-next-line no-restricted-globals -- Copy one selected message instead of the complete history for adapter lookups.
     return message && structuredClone(message)
   }
@@ -52,6 +54,7 @@ export class ThreadFeed {
   publish(event: ObservationPayload): void {
     if (this.ended) return
     const next = this.copy(event)
+
     switch (next.type) {
       case 'snapshot':
         this.value = next
@@ -64,6 +67,7 @@ export class ThreadFeed {
         this.value = { ...this.value, messages }
         break
       }
+
       case 'message.remove':
         this.value = { ...this.value, messages: this.value.messages.filter((item) => item.id !== next.ref.id) }
         break
@@ -94,6 +98,7 @@ export class ThreadFeed {
         }
         break
     }
+
     for (const observer of this.observers) observer.send(next)
   }
 
@@ -116,20 +121,26 @@ export class ThreadFeed {
     let sent = 1
     let delivered = 0
     let lost = false
+
     type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
+
     const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
       // oxlint-disable-next-line no-restricted-globals -- Isolate each asynchronous observer once; baseline/recovery intentionally include the full snapshot.
       structuredClone(capture(event, delivery))
+
     let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
+
     const settle = () => {
       for (const barrier of barriers) {
         if (delivered < barrier.through && !stopped) continue
         barriers.delete(barrier)
+
         if (delivered >= barrier.through) barrier.resolve()
         else barrier.reject(new Error('Observation stopped before delivery drained'))
       }
     }
+
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Observer sinks may throw or reject with arbitrary values; forward the original failure while isolating the host reporter from delivery.
     const report = (error: unknown) => {
       try {
@@ -138,12 +149,14 @@ export class ThreadFeed {
         /* Reporting cannot affect execution. */
       }
     }
+
     const stop = () => {
       stopped = true
       pending = []
       this.observers.delete(observer)
       settle()
     }
+
     const schedule = () => {
       if (running || stopped) return
       running = true
@@ -155,6 +168,7 @@ export class ThreadFeed {
             await sink(value)
             delivered = Math.max(delivered, through)
             settle()
+
             if (shouldClose) stop()
           }
         } catch (error) {
@@ -165,23 +179,29 @@ export class ThreadFeed {
         }
       })
     }
+
     const observer = {
       send: (event: ObservationPayload) => {
         if (stopped || lost) return
         const captured = captureFrame(event, 'update')
+
         const next: Delivery = {
           value: captured.value,
           through: ++sent,
           shouldClose: event.type === 'closed',
           ...(captured.retain && { recovery: captureFrame(this.value, 'recovery').value })
         }
+
         pending.push(next)
+
         if (pending.length > 100) {
           const retained = pending
             .filter((item) => item.recovery !== undefined)
             .map((item) => ({ ...item, value: item.recovery! }))
+
           const gap: ObservationPayload = { type: 'gap', reason: 'overflow' }
           const snapshot = this.value
+
           if (retained.length > 1000) {
             lost = true
             const closed: ObservationPayload = { type: 'closed', reason: 'source-lost' }
@@ -191,8 +211,10 @@ export class ThreadFeed {
             ]
             report(new Error('Observation exceeded recoverable delivery backlog'))
             schedule()
+
             return
           }
+
           pending = [
             ...(started ? [] : [pending[0]]),
             { value: captureFrame(gap, 'update').value, through: delivered, shouldClose: false },
@@ -209,12 +231,15 @@ export class ThreadFeed {
             ...(next.shouldClose ? [next] : [])
           ]
         }
+
         schedule()
       },
       stop
     }
+
     this.observers.add(observer)
     schedule()
+
     return {
       drain: () =>
         new Promise<void>((resolve, reject) => {

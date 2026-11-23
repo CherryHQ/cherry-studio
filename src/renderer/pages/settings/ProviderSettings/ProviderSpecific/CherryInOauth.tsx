@@ -72,6 +72,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
+
     try {
       const balance = await ipcApi.request('cherryin.get_balance', { apiHost: CHERRYIN_OAUTH_SERVER })
       setBalanceInfo(balance)
@@ -106,7 +107,9 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         void fetchData()
       }
     }
+
     window.addEventListener('focus', handleWindowFocus)
+
     return () => window.removeEventListener('focus', handleWindowFocus)
   }, [fetchData])
 
@@ -116,6 +119,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     const requestId = crypto.randomUUID()
     signInRequestIdRef.current = requestId
     setIsLoggingIn(true)
+
     try {
       await oauthWithCherryIn(
         async (apiKeys: string) => {
@@ -150,9 +154,11 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const handleCancelLogin = useCallback(async () => {
     const requestId = signInRequestIdRef.current
+
     if (!requestId) return
 
     setIsCancellingLogin(true)
+
     try {
       await ipcApi.request('oauth.cancel_sign_in', { providerId: SystemProviderIds.cherryin, requestId })
     } catch (error) {
@@ -169,6 +175,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       content: t('settings.provider.oauth.logout_confirm'),
       centered: true
     })
+
     if (!confirmed) return
 
     setIsLoggingOut(true)
@@ -183,9 +190,11 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       const oauthKeys = provider?.apiKeys.filter((key) => key.label === 'OAuth') ?? []
       const deleteResults = await Promise.allSettled(oauthKeys.map((key) => deleteApiKey(key.id)))
       const rejectedDeletes = deleteResults.filter((result) => result.status === 'rejected')
+
       if (rejectedDeletes.length > 0) {
         logger.warn(`Failed to delete ${rejectedDeletes.length} CherryIN OAuth key(s) after logout`)
         toast.warning(t('settings.provider.oauth.logout_warning'))
+
         return
       }
 
@@ -254,7 +263,9 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const profileName =
     balanceInfo?.profile?.displayName || balanceInfo?.profile?.username || balanceInfo?.profile?.email || provider.name
+
   const profileEmail = balanceInfo?.profile?.email || t('settings.provider.oauth.cherryIn.logged_in')
+
   const profileGroup =
     balanceInfo?.profile?.group && balanceInfo.profile.group !== 'default' ? balanceInfo.profile.group : null
 

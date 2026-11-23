@@ -21,21 +21,28 @@ export function dispatchLocateMessage(
   highlight?: boolean
 ): void {
   const eventName = EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId
+
   if (!runtime) {
     void EventEmitter.emit(eventName, highlight)
+
     return
   }
 
   runtime.locateMessage(messageId)
   let remainingFrames = LOCATE_SUBSCRIBER_WAIT_FRAMES
+
   const deliver = (): void => {
     if (EventEmitter.listenerCount(eventName) > 0) {
       void EventEmitter.emit(eventName, highlight)
+
       return
     }
+
     remainingFrames -= 1
+
     if (remainingFrames <= 0) return
     requestAnimationFrame(deliver)
   }
+
   requestAnimationFrame(deliver)
 }

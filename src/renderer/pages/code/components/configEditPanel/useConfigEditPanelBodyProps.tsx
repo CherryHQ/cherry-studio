@@ -45,6 +45,7 @@ export function useConfigEditPanelBodyProps({
       ? [{ id: 'gateway', key: gateway.apiKey, isEnabled: true }]
       : []
     : apiKeysData?.keys
+
   const modelsById = isGateway ? gatewayModels : undefined
 
   const {
@@ -107,6 +108,7 @@ export function useConfigEditPanelBodyProps({
   )
 
   const isClaudeTool = cliTool === CodeCli.CLAUDE_CODE
+
   const claudeDetailedModelSlot = isClaudeTool
     ? renderClaudeDetailedModelSlot({
         hint: unknownCliConfigModelHint,
@@ -118,7 +120,9 @@ export function useConfigEditPanelBodyProps({
         gatewayModels: modelsById
       })
     : null
+
   const modelSectionSlot = isClaudeTool && claudeModelMode === 'detailed' ? claudeDetailedModelSlot : modelSlot
+
   // A foreign draft belongs to another provider/tool; tool-field edits would
   // rewrite that file in place, so lock them until the user picks a model
   // (which flips the draft back to managed). Raw-file editing stays open.
@@ -130,6 +134,7 @@ export function useConfigEditPanelBodyProps({
     ) : (
       fields
     )
+
   const advancedFields = lockForeignFields(
     renderToolFields({
       cliTool,
@@ -140,6 +145,7 @@ export function useConfigEditPanelBodyProps({
       modelFilter
     })
   )
+
   const toolFields = lockForeignFields(
     renderToolFields({
       cliTool,
@@ -150,6 +156,7 @@ export function useConfigEditPanelBodyProps({
       modelFilter
     })
   )
+
   const hasAdvancedSection = !!advancedFields || draft.files.length > 0
 
   return {

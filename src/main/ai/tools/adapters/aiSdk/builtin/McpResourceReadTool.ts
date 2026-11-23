@@ -33,12 +33,16 @@ async function readSavedImage(blob: McpResourceSavedBlob): Promise<string | null
   const root = AbsoluteFilePathSchema.parse(application.getPath('feature.mcp.resource_results.temp'))
   const candidate = AbsoluteFilePathSchema.parse(blob.blobSavedTo)
   const [realRoot, realCandidate] = await Promise.all([realpath(root), realpath(candidate)])
+
   if (!isPathInside(realCandidate, realRoot)) return null
 
   const snapshot = await openReadableFileSnapshot(realCandidate)
+
   try {
     const chunks: Buffer[] = []
+
     for await (const chunk of snapshot.createReadStream()) chunks.push(Buffer.from(chunk))
+
     return Buffer.concat(chunks).toString('base64')
   } finally {
     await snapshot.close()
@@ -53,13 +57,16 @@ export async function mcpResourceReadModelOutput(output: McpResourceReadResult):
     (output.blobs ?? []).map(async (blob) => {
       try {
         const data = await readSavedImage(blob)
+
         return data === null ? null : { type: 'image-data' as const, data, mediaType: blob.mimeType! }
       } catch {
         return null
       }
     })
   )
+
   const projectedImages = images.filter((image): image is NonNullable<typeof image> => image !== null)
+
   if (projectedImages.length === 0) return { type: 'json', value: output }
 
   return {
@@ -80,11 +87,14 @@ const mcpResourceReadTool = tool({
     try {
       const { request } = getToolCallContext(options)
       const { serverId, uri } = input as { serverId: string; uri: string }
+
       // Embedded bytes were already delivered by an authorized tool call; no server read occurs.
       if (request.mcpToolResources?.has(mcpToolResourceKey(serverId, uri))) return false
+
       const server = resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds).find(
         (candidate) => candidate.id === (input as { serverId?: string }).serverId
       )
+
       return server ? isMcpResourceReadForcePrompt(server) : true
     } catch {
       return true
@@ -93,6 +103,7 @@ const mcpResourceReadTool = tool({
   toModelOutput: ({ output }) => mcpResourceReadModelOutput(output),
   execute: async ({ serverId, uri, offset }, options) => {
     const { request } = getToolCallContext(options)
+
     return readScopedMcpResource(resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds), {
       serverId,
       uri,

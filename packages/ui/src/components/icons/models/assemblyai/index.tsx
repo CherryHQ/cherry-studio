@@ -4,6 +4,7 @@ import { AssemblyaiLight } from './light'
 
 const Assemblyai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AssemblyaiLight {...props} className={className} />
+
   return <AssemblyaiLight {...props} className={className} />
 }
 

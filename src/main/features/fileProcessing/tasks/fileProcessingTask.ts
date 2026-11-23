@@ -6,6 +6,7 @@ import type { SettledFileProcessingTask } from '../types'
 import { type FileProcessingJobPayload, FileProcessingJobOutputSchema } from './shared'
 
 type TaskJob = Pick<FileProcessingJobPayload, 'feature' | 'processorId'>
+
 type SettledJob = Pick<JobSettledEvent, 'status' | 'output' | 'error'>
 
 const FILE_PROCESSING_JOB_TYPES: ReadonlySet<string> = new Set([
@@ -34,6 +35,7 @@ export function toQueuedTask(id: FileProcessingTaskId, job: TaskJob): FileProces
 export function toSettledTask(id: FileProcessingTaskId, job: TaskJob, settled: SettledJob): SettledFileProcessingTask {
   const fields = taskFields(id, job)
   const error = settled.error?.message ?? 'no error details'
+
   switch (settled.status) {
     case 'completed':
       return { ...fields, status: 'completed', artifact: FileProcessingJobOutputSchema.parse(settled.output).artifact }
@@ -48,6 +50,7 @@ export function toSettledTask(id: FileProcessingTaskId, job: TaskJob, settled: S
 export function toFileProcessingTask(snapshot: JobSnapshot, progress: number): FileProcessingTask {
   const id = toFileProcessingTaskId(snapshot.id)
   const job = snapshot.input as FileProcessingJobPayload
+
   switch (snapshot.status) {
     case 'pending':
     case 'delayed':
@@ -71,11 +74,14 @@ export function withTaskUpdates(
     ...handler,
     execute(ctx) {
       const id = toFileProcessingTaskId(ctx.jobId)
+
       const publishProgress = (progress: number) => {
         // A cancelled or timed-out attempt can keep running after its task settled.
         if (!ctx.signal.aborted) publish({ ...taskFields(id, ctx.input), status: 'processing', progress })
       }
+
       publishProgress(0)
+
       return handler.execute({
         ...ctx,
         reportProgress: (progress, detail) => {

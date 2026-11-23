@@ -37,9 +37,11 @@ export interface KnowledgeItemRowProps {
  */
 const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
   const progress = useSharedCacheValue(`knowledge.item.embedding_progress.${itemId}` as const)
+
   if (progress == null) {
     return null
   }
+
   return ` ${progress}%`
 }
 
@@ -51,18 +53,22 @@ const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
  */
 const KnowledgeItemFileProcessingProgress = ({ itemId }: { itemId: string }) => {
   const progress = useSharedCacheValue(`knowledge.item.file_processing_progress.${itemId}` as const)
+
   if (progress == null) {
     return null
   }
+
   return ` ${progress}%`
 }
 
 const KnowledgeDirectoryCopyStatus = ({ itemId }: { itemId: string }) => {
   const { t } = useTranslation()
   const progress = useSharedCacheValue(`knowledge.item.directory_copy_progress.${itemId}` as const)
+
   if (progress == null) {
     return t('knowledge.data_source.status.pending')
   }
+
   return t('knowledge.data_source.status.copying', { percent: progress })
 }
 
@@ -128,6 +134,7 @@ const KnowledgeItemRow = ({
     i18n: { language },
     t
   } = useTranslation()
+
   const { icon, status, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
@@ -210,6 +217,7 @@ const KnowledgeItemRow = ({
     if (event.target !== event.currentTarget) {
       return
     }
+
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       onClick()

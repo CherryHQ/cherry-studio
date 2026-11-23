@@ -29,9 +29,11 @@ export interface CodeCliSidebarProps {
 
 const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ status, isBusy }) => {
   const { t } = useTranslation()
+
   if (status?.operation?.status === 'removing') {
     return <Loader2 className="size-2.5 shrink-0 text-foreground-tertiary motion-safe:animate-spin" />
   }
+
   if (isBusy) {
     return (
       <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-foreground-tertiary">
@@ -40,12 +42,15 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
       </span>
     )
   }
+
   if (!status) return null
+
   if (!status.installed) {
     return (
       <span className="shrink-0 whitespace-nowrap text-[11px] text-foreground-tertiary">{t('code.not_installed')}</span>
     )
   }
+
   return null
 }
 
@@ -79,6 +84,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
               const summary = providerSummaries[tool.value]
               const sidebarPinned = isSidebarPinned(tool.value)
               const canManageSidebar = statuses[tool.value]?.installed === true || sidebarPinned
+
               const contextMenuItems: readonly CommandContextMenuExtraItem[] = canManageSidebar
                 ? [
                     {
@@ -90,6 +96,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                     }
                   ]
                 : []
+
               const row = (
                 <div
                   key={tool.value}
@@ -135,6 +142,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                   )}
                 </div>
               )
+
               return canManageSidebar ? (
                 <CommandContextMenu key={tool.value} location="webcontents.context" extraItems={contextMenuItems}>
                   {row}

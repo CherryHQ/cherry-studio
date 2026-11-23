@@ -91,6 +91,7 @@ export type PdfFileMetadata = FileMetadata & {
 }
 
 export type { ImageFileMetadata } from '@shared/data/types/legacyFile'
+
 export { isImageFileMetadata } from '@shared/data/types/legacyFile'
 
 export const isPastedTextFileMetadata = (file: unknown): file is PastedTextFileMetadata => {

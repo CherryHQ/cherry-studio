@@ -9,7 +9,9 @@ export function useCloseBeforeAction(
         if (closed === false) return
         window.requestAnimationFrame(() => action())
       }
+
       const closed = onOpenChange(false)
+
       if (closed instanceof Promise) {
         void closed.then(scheduleAction)
       } else {

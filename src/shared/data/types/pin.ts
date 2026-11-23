@@ -33,4 +33,5 @@ export const PinSchema = z.strictObject({
   /** Last update timestamp (ISO string) */
   updatedAt: z.iso.datetime()
 })
+
 export type Pin = z.infer<typeof PinSchema>

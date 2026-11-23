@@ -43,6 +43,7 @@ export default function ProviderListItemWithContextMenu({
 
   const menuItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
     const items: CommandContextMenuExtraItem[] = []
+
     if (showManagementActions) {
       items.push({
         type: 'item',
@@ -52,6 +53,7 @@ export default function ProviderListItemWithContextMenu({
         onSelect: onEdit
       })
     }
+
     if (onDuplicate) {
       items.push({
         type: 'item',
@@ -61,6 +63,7 @@ export default function ProviderListItemWithContextMenu({
         onSelect: onDuplicate
       })
     }
+
     items.push({
       type: 'item',
       id: 'notes',
@@ -68,6 +71,7 @@ export default function ProviderListItemWithContextMenu({
       icon: <UserPen size={14} />,
       onSelect: () => ModelNotesPopup.show({ providerId: provider.id })
     })
+
     if (showManagementActions) {
       items.push({
         type: 'item',
@@ -78,6 +82,7 @@ export default function ProviderListItemWithContextMenu({
         onSelect: onDelete
       })
     }
+
     return items
   }, [onDelete, onDuplicate, onEdit, provider, showManagementActions, t])
 

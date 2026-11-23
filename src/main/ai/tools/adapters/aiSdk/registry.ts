@@ -31,10 +31,12 @@ export class ToolRegistry {
   // ── Catalog queries ──
   getAll(filter?: ToolFilter): ToolEntry[] {
     let list = [...this.entries.values()]
+
     if (filter?.namespace !== undefined) {
       // The model can only quote the label it was shown; internal callers use the raw key.
       list = list.filter((e) => e.namespace === filter.namespace || labelOf(e) === filter.namespace)
     }
+
     if (filter?.query) {
       const q = filter.query.toLowerCase()
       list = list.filter(
@@ -44,6 +46,7 @@ export class ToolRegistry {
           labelOf(e).toLowerCase().includes(q)
       )
     }
+
     return list.sort((a, b) => a.name.localeCompare(b.name))
   }
 
@@ -58,18 +61,21 @@ export class ToolRegistry {
   /** Groups by namespace label for `tool_search`; preserves insertion order. */
   getByNamespace(filter?: ToolFilter): Map<string, ToolEntry[]> {
     const grouped = new Map<string, ToolEntry[]>()
+
     for (const entry of this.getAll(filter)) {
       const label = labelOf(entry)
       const list = grouped.get(label) ?? []
       list.push(entry)
       grouped.set(label, list)
     }
+
     return grouped
   }
 
   /** Sorted by name for deterministic prompt-prefix shape. */
   selectActive(scope: ToolApplyScope): ToolEntry[] {
     const out: ToolEntry[] = []
+
     for (const entry of this.getAll()) {
       try {
         if (entry.applies && !entry.applies(scope)) continue
@@ -78,6 +84,7 @@ export class ToolRegistry {
         logger.warn(`tool ${entry.name} request materialization threw; treating as inactive`, err as Error)
       }
     }
+
     return out
   }
 }

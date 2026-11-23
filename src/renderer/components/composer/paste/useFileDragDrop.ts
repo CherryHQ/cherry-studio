@@ -28,6 +28,7 @@ function stripWrappingQuotes(value: string) {
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
     return value.slice(1, -1)
   }
+
   return value
 }
 
@@ -56,6 +57,7 @@ export function getSingleDroppedPathFromText(text: string): string | null {
 async function getDroppedPathKind(path: string): Promise<'file' | 'directory' | null> {
   try {
     const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(AbsoluteFilePathSchema.parse(path)))
+
     return meta?.kind ?? 'file'
   } catch {
     return null
@@ -110,6 +112,7 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
       // 处理文件拖拽
       const droppedFiles = await getFilesFromDropEvent(event).catch((err) => {
         logger.error('handleDrop:', err)
+
         return null
       })
 
@@ -118,6 +121,7 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
         directories.forEach((directory) => options.onFolderPathDropped?.(directory.path))
 
         const supportedFiles = await filterSupportedFiles(files, options.supportedExts)
+
         if (supportedFiles.length > 0) {
           options.setFiles((prevFiles) => [...prevFiles, ...toComposerAttachments(supportedFiles)])
         }
@@ -130,39 +134,50 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
             })
           )
         }
+
         return
       }
 
       const droppedText = await getTextFromDropEvent(event)
+
       if (!droppedText) return
 
       const droppedPath = getSingleDroppedPathFromText(droppedText)
+
       if (droppedPath) {
         const pathKind = await getDroppedPathKind(droppedPath)
+
         if (pathKind === 'directory') {
           options.onFolderPathDropped?.(droppedPath)
+
           return
         }
 
         if (pathKind === 'file') {
           try {
             const selectedFile = await window.api.file.get(droppedPath)
+
             if (!selectedFile) {
               options.onTextDropped?.(droppedText)
+
               return
             }
 
             const extensionSet = new Set(options.supportedExts)
+
             if (!(await isSupportedFile(droppedPath, extensionSet))) {
               toast.info(options.t('chat.input.file_not_supported'))
+
               return
             }
 
             options.setFiles((prevFiles) => [...prevFiles, ...toComposerAttachments([selectedFile])])
+
             return
           } catch (error) {
             logger.error('handleDrop path:', error as Error)
             toast.error(options.t('chat.input.file_error'))
+
             return
           }
         }

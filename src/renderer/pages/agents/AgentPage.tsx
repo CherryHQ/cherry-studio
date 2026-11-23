@@ -80,7 +80,9 @@ import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
 const logger = loggerService.withContext('AgentPage')
 const agentsRouteApi = getRouteApi('/app/agents')
+
 type AgentConversationResourceKind = 'agent'
+
 const AGENT_CONVERSATION_RESOURCE_KINDS = ['agent'] as const satisfies readonly AgentConversationResourceKind[]
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
@@ -131,6 +133,7 @@ const AgentPage = () => {
   // Shared full-list source for session UI plus exact latest/reusable lookups.
   const agentSessionsSource = useAgentSessionsSource()
   const { sessions: agentSessions, loadLatestSession, reuseOrCreateSession } = agentSessionsSource
+
   const {
     isWindowFrame,
     shellPaneOpen,
@@ -143,16 +146,21 @@ const AgentPage = () => {
     persistedPaneOpen: showSidebar,
     setPersistedPaneOpen: setShowSidebar
   })
+
   const sessionListPosition: TopicTabPosition =
     !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
+
   const { agents, isLoading: isAgentsLoading } = useAgents()
   const routeAgentExists = !!routeAgentId && agents.some((agent) => agent.id === routeAgentId)
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
+
   const requestComposerFocus = useComposerFocusRequest(
     activeSessionId ? buildAgentSessionTopicId(activeSessionId) : null
   )
+
   const syncedRouteActiveSessionIdRef = useRef(routeActiveSessionId)
   const ownerFallbackRequestIdRef = useRef(0)
+
   // Page-initiated selection writes the tab URL — the conversation's sole identity channel —
   // and mirrors into state immediately so the UI doesn't wait a router round trip. Route-driven
   // changes (entry interceptor, recovery) flow back through the sync effect below. Clearing
@@ -161,18 +169,22 @@ const AgentPage = () => {
     (id: string | null) => {
       ownerFallbackRequestIdRef.current += 1
       setActiveSessionIdState(id)
+
       if (id) {
         void navigate({ to: '/app/agents', search: { sessionId: id }, replace: true })
       }
     },
     [navigate]
   )
+
   const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', {
     enabled: isClassicSessionLayout,
     defaultOpen: !isWindowFrame && panePosition === 'right'
   })
+
   const isCreatingEmptySessionRef = useRef(false)
   const routeAgentActivationGenerationRef = useRef(0)
+
   const routeAgentSessionRequestRef = useRef<{
     agentId: string
     promise: Promise<AgentSessionEntity>
@@ -196,17 +208,21 @@ const AgentPage = () => {
 
       return currentActiveSessionId
     })
+
     return () => {
       ownerFallbackRequestIdRef.current += 1
     }
   }, [routeActiveSessionId])
+
   const setLastUsedAgentId = useCallback((agentId: string | null) => {
     cacheService.setPersist('ui.agent.last_used_agent_id', agentId)
   }, [])
+
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const sessionRevealRequestIdRef = useRef(0)
+
   const routeFeedbackComposerLaunch = useMemo<FeedbackComposerLaunch | null>(
     () =>
       isFeedbackIntent && routeSessionId
@@ -214,10 +230,13 @@ const AgentPage = () => {
         : null,
     [isFeedbackIntent, routeSessionId, t]
   )
+
   const [feedbackComposerLaunch, setFeedbackComposerLaunch] = useState<FeedbackComposerLaunch | null>(
     routeFeedbackComposerLaunch
   )
+
   const [skillComposerLaunch, setSkillComposerLaunch] = useState<SkillComposerLaunch | null>(null)
+
   const routeTaskComposerLaunch = useMemo<TaskComposerLaunch | null>(
     () =>
       isTaskIntent && routeSessionId
@@ -225,6 +244,7 @@ const AgentPage = () => {
         : null,
     [isTaskIntent, routeSessionId, t]
   )
+
   const [taskComposerLaunch, setTaskComposerLaunch] = useState<TaskComposerLaunch | null>(routeTaskComposerLaunch)
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
@@ -241,10 +261,12 @@ const AgentPage = () => {
 
     setMissingAgentSelection(true)
   }, [activeSessionId, agents.length, isAgentsLoading, isPreparedIntent, missingAgentSelection])
+
   const initialActiveSession = useMemo(
     () => (activeSessionId ? agentSessions.find((session) => session.id === activeSessionId) : undefined),
     [activeSessionId, agentSessions]
   )
+
   const {
     session: activeSession,
     isLoading: isActiveSessionLoading,
@@ -259,6 +281,7 @@ const AgentPage = () => {
     setActiveSessionId,
     initialSession: initialActiveSession
   })
+
   useEffect(() => {
     if (!forkReturnSessionId || !routeSessionId || activeSessionId !== routeSessionId) return
     let cancelled = false
@@ -277,10 +300,12 @@ const AgentPage = () => {
         void navigate({ to: '/app/agents', search: { sessionId: forkReturnSessionId }, replace: true })
       }
     )
+
     return () => {
       cancelled = true
     }
   }, [activeSessionId, forkReturnSessionId, navigate, refreshActiveSession, routeSessionId, t])
+
   const reenterAgentRoute = useCallback(() => {
     // The bound session is gone. Drop the remembered id too: `ui.agent.last_used_session_id`
     // is never cleared on delete, so without this the bare re-entry re-reads the stale id in
@@ -290,22 +315,29 @@ const AgentPage = () => {
     clearActiveSession()
     void navigate({ to: '/app/agents', search: {}, replace: true })
   }, [clearActiveSession, navigate])
+
   // Ref is visible to a NOT_FOUND effect that runs before this state commits. State retriggers
   // that effect when the local delete settles, so a last-item route can still recover.
   const pendingLocalPermanentDeleteIdRef = useRef<string | null>(null)
   const [pendingLocalPermanentDeleteId, setPendingLocalPermanentDeleteId] = useState<string | null>(null)
+
   const onLocalPermanentDeletePendingChange = useCallback((id: string | null) => {
     pendingLocalPermanentDeleteIdRef.current = id
     setPendingLocalPermanentDeleteId(id)
   }, [])
+
   // The URL-bound session no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
   useEffect(() => {
     if (isPreparedIntent || forkReturnSessionId) return
+
     if (!routeSessionId || activeSessionId !== routeSessionId) return
+
     if (activeSession || isActiveSessionLoading) return
+
     if (!isDataApiNotFoundError(activeSessionError)) return
+
     if (pendingLocalPermanentDeleteIdRef.current === routeSessionId) return
     reenterAgentRoute()
   }, [
@@ -320,36 +352,50 @@ const AgentPage = () => {
     routeSessionId
   ])
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
+
   const visibleSession =
     activeSession ??
     (isActiveSessionLoading && lastVisibleSessionRef.current?.id === activeSessionId
       ? lastVisibleSessionRef.current
       : null)
+
   const visibleAgentFromList = agents.find((agent) => agent.id === visibleSession?.agentId)
+
   const conversationBootstrap = useAgentConversationBootstrap({
     session: visibleSession ?? null,
     sessionLoading: isActiveSessionLoading,
     sessionSource: activeSessionSource,
     agentHint: visibleAgentFromList
   })
+
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
+
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
   }, [])
+
   const requestFileNavigation = useCallback((transition: () => void) => {
     const request = fileNavigationRequestRef.current
+
     if (request) {
       request(transition)
+
       return
     }
+
     transition()
   }, [])
+
   const resourceConversationKey = useMemo(() => {
     if (visibleSession?.id) return `session:${visibleSession.id}`
+
     if (missingAgentSelection) return 'missing-agent-selection'
+
     return 'empty'
   }, [missingAgentSelection, visibleSession?.id])
+
   const conversationResourcesEnabled = !isWindowFrame
+
   const {
     activeResourceKind,
     closeSurface,
@@ -361,9 +407,11 @@ const AgentPage = () => {
     disabled: !conversationResourcesEnabled,
     resourceKinds: AGENT_CONVERSATION_RESOURCE_KINDS
   })
+
   const toggleAgentResourceView = useCallback(() => toggleResource('agent'), [toggleResource])
   const manageAgentsActive = activeResourceKind === 'agent'
   const onManageAgents = conversationResourcesEnabled ? toggleAgentResourceView : undefined
+
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
   // own AgentPage.
   const clearSessionRevealRequestAfterPaint = useCallback((requestId: number) => {
@@ -373,6 +421,7 @@ const AgentPage = () => {
 
     if (window.requestAnimationFrame) {
       window.requestAnimationFrame(clear)
+
       return
     }
 
@@ -393,6 +442,7 @@ const AgentPage = () => {
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST, (payload) => {
       const { source, tabId } = payload as ResourceListRevealPayload
+
       if (source !== 'agents' || tabId !== currentTabId) return
       revealActiveSessionInResourceList()
     })
@@ -400,11 +450,13 @@ const AgentPage = () => {
     return unsubscribe
   }, [currentTabId])
   const targetSessionId = activeSessionId ?? undefined
+
   const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
     navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
+
   const visibleAgent = conversationBootstrap.resources.agent
   // An agent avatar is an emoji glyph or an image URL; the tab renders each through its own slot.
   const agentAvatar = visibleAgent?.avatarSrc || visibleAgent?.configuration?.avatar || undefined
@@ -422,6 +474,7 @@ const AgentPage = () => {
     if (!activeSession) return
 
     const signature = `${activeSession.id}:${activeSession.name}`
+
     if (lastRecordedRecentSessionRef.current === signature) return
 
     lastRecordedRecentSessionRef.current = signature
@@ -435,6 +488,7 @@ const AgentPage = () => {
   const rememberLastUsedSession = useCallback(
     (agentId: string, userWorkspaceId?: string) => {
       setLastUsedAgentId(agentId)
+
       if (userWorkspaceId) setLastUsedWorkspaceId(userWorkspaceId)
     },
     [setLastUsedAgentId, setLastUsedWorkspaceId]
@@ -446,8 +500,11 @@ const AgentPage = () => {
       fallbackSession?: AgentSessionEntity | null
     ): Promise<AgentSessionWorkspaceSource> => {
       if (defaults.workspace) return defaults.workspace
+
       if (defaults.workspaceMode === 'system') return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+
       if (defaults.workspaceId) return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: defaults.workspaceId }
+
       if (fallbackSession && (!defaults.agentId || defaults.agentId === fallbackSession.agentId)) {
         return getWorkspaceSourceFromSession(fallbackSession)
       }
@@ -456,12 +513,14 @@ const AgentPage = () => {
 
       try {
         await dataApiService.get(`/agent-workspaces/${lastUsedWorkspaceId}`)
+
         return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: lastUsedWorkspaceId }
       } catch (err) {
         logger.warn('Failed to reuse remembered workspace for new agent session', err as Error, {
           workspaceId: lastUsedWorkspaceId
         })
         setLastUsedWorkspaceId(null)
+
         return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
       }
     },
@@ -474,9 +533,11 @@ const AgentPage = () => {
       setMissingAgentSelection(false)
       setPendingSessionDefaults(null)
       const agentId = session.agentId ?? fallbackAgentId
+
       if (agentId) {
         rememberLastUsedSession(agentId, isUserWorkspaceSession(session) ? session.workspaceId : undefined)
       }
+
       setActiveSession(session)
       closeSurface()
       requestComposerFocus(buildAgentSessionTopicId(session.id))
@@ -490,6 +551,7 @@ const AgentPage = () => {
       const result = await reuseOrCreateSession(agentId, workspaceSource)
 
       closeConversationTabs('agents', result.deletedDuplicateSessionIds)
+
       if (result.created || result.deletedDuplicateSessionIds.length > 0) {
         void invalidateCache([
           '/agent-sessions',
@@ -510,10 +572,12 @@ const AgentPage = () => {
     async (defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity | null> => {
       if (isCreatingEmptySessionRef.current) return null
       isCreatingEmptySessionRef.current = true
+
       // A sidebar `?agentId=` entry whose agent has no sessions yet falls through to the page;
       // create for that exact agent rather than whatever session happens to be visible.
       const agentId =
         defaults.agentId === undefined ? (visibleSession?.agentId ?? routeAgentId ?? null) : defaults.agentId
+
       try {
         closeSurface()
 
@@ -522,15 +586,18 @@ const AgentPage = () => {
           setPendingSessionDefaults(defaults)
           clearActiveSession()
           setMissingAgentSelection(true)
+
           return null
         }
 
         const session = await resolveEmptySession(agentId, defaults)
         activateSession(session, agentId)
+
         return session
       } catch (err) {
         logger.error('Failed to create empty agent session', err as Error, { agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+
         return null
       } finally {
         isCreatingEmptySessionRef.current = false
@@ -556,18 +623,23 @@ const AgentPage = () => {
     if (enteredByPin || activationResolved) {
       closeSurface()
     }
+
     if (enteredByPin && currentTabRef.current) {
       const metadata = { ...currentTabRef.current.metadata }
       delete metadata.agentPinPending
       updateTab(currentTabRef.current.id, { metadata })
     }
+
     if (!routeAgentId || routeSessionId) return
+
     if (activeSessionId || isAgentsLoading || !routeAgentExists) return
     const pendingRequest = routeAgentSessionRequestRef.current
+
     const sessionPromise =
       pendingRequest?.agentId === routeAgentId
         ? pendingRequest.promise
         : resolveEmptySession(routeAgentId, { agentId: routeAgentId, workspaceMode: 'system' })
+
     routeAgentSessionRequestRef.current = { agentId: routeAgentId, promise: sessionPromise }
 
     void sessionPromise
@@ -626,6 +698,7 @@ const AgentPage = () => {
     async (agentId: string | null) => {
       if (!agentId) return
       setSelectingMissingAgent(true)
+
       try {
         await createAndActivateEmptySession({ ...pendingSessionDefaults, agentId })
       } finally {
@@ -642,11 +715,13 @@ const AgentPage = () => {
       // Close the dialog first so the session/state churn below doesn't refresh it while it's
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
+
       try {
         const session = await resolveEmptySession(
           agentId,
           pendingSessionDefaults ? { ...pendingSessionDefaults, agentId } : { agentId, workspaceMode: 'system' }
         )
+
         activateSession(session, agentId)
       } catch (err) {
         logger.error('Failed to create agent session after agent creation', err as Error, { agentId })
@@ -661,6 +736,7 @@ const AgentPage = () => {
   const requestSessionNavigation = useCallback(
     (sessionId: string | null, transition: () => void) => {
       const targetSession = sessionId ? agentSessions.find((session) => session.id === sessionId) : undefined
+
       const preservesFileWorkspace =
         sessionId === visibleSession?.id ||
         (targetSession !== undefined &&
@@ -671,8 +747,10 @@ const AgentPage = () => {
 
       if (preservesFileWorkspace) {
         transition()
+
         return
       }
+
       requestFileNavigation(transition)
     },
     [agentSessions, requestFileNavigation, visibleSession]
@@ -688,6 +766,7 @@ const AgentPage = () => {
         setSessionPaneOpen(true)
         setMissingAgentSelection(false)
         setPendingSessionDefaults(null)
+
         if (sessionId && messageId) {
           requestLocate(sessionId, messageId)
         } else {
@@ -703,6 +782,7 @@ const AgentPage = () => {
           requestId: sessionRevealRequestIdRef.current
         })
       }
+
       requestSessionNavigation(sessionId, transition)
     },
     [
@@ -715,30 +795,36 @@ const AgentPage = () => {
       setSessionPaneOpen
     ]
   )
+
   const closeHistoryRecords = useCallback(() => {
     closeSurface()
   }, [closeSurface])
+
   const openHistoryRecords = useCallback(() => {
     toggleHistoryRecords()
   }, [toggleHistoryRecords])
+
   const handleHistoryRecordsSessionSelect = useCallback(
     (sessionId: string) => {
       handleHistorySessionSelect(sessionId)
     },
     [handleHistorySessionSelect]
   )
+
   const handleHistoryActiveSessionChange = useCallback(
     (sessionId: string | null) => {
       requestSessionNavigation(sessionId, () => {
         clearLocate()
         setMissingAgentSelection(false)
         setPendingSessionDefaults(null)
+
         if (sessionId) selectSession(sessionId)
         else reenterAgentRoute()
       })
     },
     [clearLocate, reenterAgentRoute, requestSessionNavigation, selectSession]
   )
+
   const handleGlobalSearchSessionSelect = useEffectEvent((sessionId: string, messageId?: string) => {
     handleHistorySessionSelect(sessionId, messageId)
   })
@@ -746,12 +832,15 @@ const AgentPage = () => {
   useEffect(() => {
     const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (payload) => {
       const selection = payload as GlobalSearchAgentSessionSelectionPayload
+
       if (!selection.sessionId || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
 
       handleGlobalSearchSessionSelect(selection.sessionId)
     })
+
     const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, (payload) => {
       const selection = payload as GlobalSearchAgentSessionMessageSelectionPayload
+
       if (!selection.sessionId || !selection.messageId || !isGlobalSearchSelectionForTab(selection, currentTabId))
         return
 
@@ -768,10 +857,12 @@ const AgentPage = () => {
     closeSurface()
     clearLocate()
     setMissingAgentSelection(false)
+
     try {
       if (!routeSessionId || !routeFeedbackComposerLaunch) {
         throw new Error('Feedback intent is missing its prepared session')
       }
+
       try {
         await invalidateCache(['/agents', '/agent-sessions', `/agent-sessions/${routeSessionId}`])
       } catch (err) {
@@ -779,6 +870,7 @@ const AgentPage = () => {
           sessionId: routeSessionId
         })
       }
+
       setFeedbackComposerLaunch(routeFeedbackComposerLaunch)
     } catch (err) {
       setFeedbackComposerLaunch(null)
@@ -801,6 +893,7 @@ const AgentPage = () => {
   useEffect(() => {
     if (!isFeedbackIntent || !currentTabId) return
     const intentGuardCacheKey = getFeedbackIntentGuardCacheKey(currentTabId)
+
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, FEEDBACK_INTENT_GUARD_TTL_MS)
     void runFeedbackIntent(intentGuardCacheKey)
@@ -810,9 +903,11 @@ const AgentPage = () => {
     closeSurface()
     clearLocate()
     setMissingAgentSelection(false)
+
     try {
       if (!routeSessionId || !routeSkillId) throw new Error('Skill intent is missing its prepared session or Skill')
       const skillPath = resolveTemplate('/skills/:skillId', { skillId: routeSkillId }) as ConcreteApiPaths
+
       const [skill] = await Promise.all([
         dataApiService.get(skillPath) as Promise<InstalledSkill>,
         invalidateCache(['/agents', '/skills', '/agent-sessions', `/agent-sessions/${routeSessionId}`]).catch((err) => {
@@ -822,6 +917,7 @@ const AgentPage = () => {
           })
         })
       ])
+
       setSkillComposerLaunch(
         createSkillComposerLaunch(routeSessionId, skill, t('settings.skills.launchDraft', { name: skill.name }))
       )
@@ -848,6 +944,7 @@ const AgentPage = () => {
   useEffect(() => {
     if (!isSkillIntent || !currentTabId) return
     const intentGuardCacheKey = getSkillIntentGuardCacheKey(currentTabId)
+
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, SKILL_INTENT_GUARD_TTL_MS)
     void runSkillIntent(intentGuardCacheKey)
@@ -857,6 +954,7 @@ const AgentPage = () => {
     closeSurface()
     clearLocate()
     setMissingAgentSelection(false)
+
     try {
       if (routeSessionId) {
         await invalidateCache(['/agents', '/agent-sessions', `/agent-sessions/${routeSessionId}`]).catch((err) => {
@@ -865,6 +963,7 @@ const AgentPage = () => {
           })
         })
       }
+
       setTaskComposerLaunch(routeTaskComposerLaunch)
       await navigate({
         to: '/app/agents',
@@ -879,6 +978,7 @@ const AgentPage = () => {
   useEffect(() => {
     if (!isTaskIntent || !currentTabId) return
     const intentGuardCacheKey = getTaskIntentGuardCacheKey(currentTabId)
+
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, TASK_INTENT_GUARD_TTL_MS)
     void runTaskIntent(intentGuardCacheKey)
@@ -890,9 +990,12 @@ const AgentPage = () => {
   const visibleSkillComposerLaunch = skillComposerLaunch?.sessionId === visibleSessionId ? skillComposerLaunch : null
   const taskLaunch = taskComposerLaunch ?? routeTaskComposerLaunch
   const visibleTaskComposerLaunch = taskLaunch?.sessionId === visibleSessionId ? taskLaunch : null
+
   const composerLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(() => {
     const launch = visibleSkillComposerLaunch ?? visibleFeedbackComposerLaunch ?? visibleTaskComposerLaunch
+
     if (!launch) return undefined
+
     return {
       initialDraft: launch.initialDraft,
       onSent: () => {
@@ -911,16 +1014,20 @@ const AgentPage = () => {
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
       closeSurface()
       clearLocate()
+
       if (!sessionId) {
         reenterAgentRoute()
+
         return
       }
+
       setMissingAgentSelection(false)
       setPendingSessionDefaults(null)
       selectSession(sessionId, session)
     },
     [clearLocate, closeSurface, reenterAgentRoute, selectSession]
   )
+
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
       closeSurface()
@@ -928,17 +1035,23 @@ const AgentPage = () => {
     },
     [closeSurface, setActiveSessionAndClearTransient]
   )
+
   // After deleting the active agent, settle on the latest remaining session or the empty route.
   const handleActiveAgentDeleted = useCallback(
     async (deletedAgentId: string) => {
       const requestId = ++ownerFallbackRequestIdRef.current
+
       try {
         const nextSession = await loadLatestSession()
+
         if (requestId !== ownerFallbackRequestIdRef.current) return
+
         if (nextSession) {
           setActiveSessionAndClearTransient(nextSession.id, nextSession)
+
           return
         }
+
         reenterAgentRoute()
       } catch (err) {
         if (requestId !== ownerFallbackRequestIdRef.current) return
@@ -949,29 +1062,38 @@ const AgentPage = () => {
     },
     [loadLatestSession, reenterAgentRoute, setActiveSessionAndClearTransient, t]
   )
+
   const replaceSessionWorkspace = useCallback(
     async (workspaceId: string | null) => {
       const current = visibleSession
+
       if (!current) return
 
       if (workspaceId === null && isSystemWorkspaceSession(current)) return
+
       if (workspaceId && isUserWorkspaceSession(current) && workspaceId === current.workspaceId) {
         setLastUsedWorkspaceId(workspaceId)
+
         return
       }
+
       if (replacingSessionWorkspace) return
 
       setReplacingSessionWorkspace(true)
+
       try {
         const workspaceSource: AgentSessionWorkspaceSource = workspaceId
           ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId }
           : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+
         const updated = await setSessionWorkspace(current.id, workspaceSource)
+
         if (!updated) return
 
         if (workspaceId) {
           setLastUsedWorkspaceId(workspaceId)
         }
+
         setActiveSession(updated)
       } finally {
         setReplacingSessionWorkspace(false)
@@ -979,10 +1101,12 @@ const AgentPage = () => {
     },
     [replacingSessionWorkspace, setActiveSession, setLastUsedWorkspaceId, setSessionWorkspace, visibleSession]
   )
+
   const handleLocateMessageHandled = clearLocate
 
   // Classic layout = entity rail + right session panel; modern layout = one left navigation panel (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? null
+
   const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
     isClassicSessionLayout && sessionListPosition === 'right' && activeResourceAgentId
       ? {
@@ -990,11 +1114,14 @@ const AgentPage = () => {
           count: agentSessions.filter((session) => session.agentId === activeResourceAgentId).length
         }
       : undefined
+
   const setSessionListPosition = useCallback(
     async (position: TopicTabPosition) => {
       await setSessionDisplayMode('agent')
+
       if (position === 'left') {
         const activeAgentId = visibleSession?.agentId
+
         const collapsedAgentGroupIds = Array.from(
           new Set(
             agentSessions
@@ -1003,12 +1130,14 @@ const AgentPage = () => {
               .map((agentId) => `session:agent:${agentId}`)
           )
         )
+
         if (isWindowFrame) {
           cacheService.set('ui.window.agent.session.expansion.agent', collapsedAgentGroupIds)
         } else {
           cacheService.setPersist('ui.agent.session.expansion.agent', collapsedAgentGroupIds)
         }
       }
+
       await setPanePosition(position)
       setSessionPaneOpen(position === 'right', { force: true })
       setShellPaneOpen(true)
@@ -1023,6 +1152,7 @@ const AgentPage = () => {
       visibleSession?.agentId
     ]
   )
+
   const pane =
     isClassicSessionLayout && sessionListPosition === 'right' ? (
       <AgentResourceList
@@ -1038,6 +1168,7 @@ const AgentPage = () => {
         onSelectSession={handleResourceSessionSelect}
         onSelectedAgentClick={() => {
           closeSurface()
+
           if (!sessionPaneOpen) setSessionPaneUserOpenIntentSeq((seq) => seq + 1)
           setSessionPaneOpen(!sessionPaneOpen)
         }}
@@ -1069,6 +1200,7 @@ const AgentPage = () => {
         setActiveSessionId={setActiveSessionAndClearTransient}
       />
     )
+
   // In classic layout the session list moves into AgentChat's stable right-pane capability catalog.
   // The config stays mounted while AgentChat swaps its conversation and center-surface content.
   const resourcePane: ResourcePaneConfig | null =
@@ -1094,6 +1226,7 @@ const AgentPage = () => {
           )
         }
       : null
+
   const resourceCenter = useMemo(
     () =>
       activeResourceKind
@@ -1117,6 +1250,7 @@ const AgentPage = () => {
         : null,
     [activeResourceKind, isWindowFrame, shellPaneOpen, toggleShellPane]
   )
+
   const historyRecordsCenter = historyRecordsActive
     ? {
         className: 'relative',
@@ -1142,6 +1276,7 @@ const AgentPage = () => {
         )
       }
     : null
+
   const centerSurface = historyRecordsCenter ?? resourceCenter
 
   return (

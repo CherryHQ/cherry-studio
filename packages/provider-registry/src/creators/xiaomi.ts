@@ -11,7 +11,9 @@ const OMNI_CAPABILITIES: ModelCapability[] = [
   'structured-output',
   'file-input'
 ]
+
 const OMNI_INPUTS: Modality[] = ['text', 'image', 'audio', 'video']
+
 // Official API exposes thinking as on/off only; OpenRouter's effort ladder is gateway-side.
 const TOGGLE_ONLY: ReasoningSupport = { controls: [{ kind: 'toggle' }] }
 

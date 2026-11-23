@@ -12,6 +12,7 @@ export class RuntimeQuitConfirmationService extends BaseService {
     this.registerDisposable(
       application.registerQuitGuard(() => {
         if (!application.get('RuntimeActivityService').hasActiveTasks()) return true
+
         return this.confirmInterruptAndQuit()
       })
     )
@@ -28,6 +29,7 @@ export class RuntimeQuitConfirmationService extends BaseService {
       cancelId: 0,
       noLink: true
     })
+
     return response === 1
   }
 }

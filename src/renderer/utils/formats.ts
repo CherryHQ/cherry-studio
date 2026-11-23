@@ -26,6 +26,7 @@ export function cleanMarkdownContent(text: string): string {
   cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ') // 替换分隔符为空格
   cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_]+/g, '') // 移除特殊字符
   cleaned = cleaned.replace(/\s+/g, ' ').trim() // 规范化空白
+
   return cleaned
 }
 
@@ -58,6 +59,7 @@ export function extractHtmlTitle(html: string): string {
  */
 export function getFileNameFromHtmlTitle(title: string): string {
   if (!title) return ''
+
   return title.replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, '-')
 }
 

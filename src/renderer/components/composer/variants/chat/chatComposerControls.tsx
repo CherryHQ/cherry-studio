@@ -22,12 +22,16 @@ type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
 }
 
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
+
 export type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
+
 export type ComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
+
 type ChatComposerControlSlots = Pick<
   ComposerSurfaceProps,
   'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
 >
+
 export type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
 
 const renderChatPersistentCompactControls = (

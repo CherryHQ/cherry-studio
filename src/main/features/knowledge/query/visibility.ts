@@ -18,6 +18,7 @@ export function deriveConceptId(item: KnowledgeItem): string | undefined {
   if (item.type === 'directory') {
     return undefined
   }
+
   try {
     return toMaterialRelativePath(item)
   } catch (error) {
@@ -28,6 +29,7 @@ export function deriveConceptId(item: KnowledgeItem): string | undefined {
       type: item.type,
       error: error instanceof Error ? error.message : String(error)
     })
+
     return undefined
   }
 }
@@ -40,6 +42,7 @@ export function loadVisibleItems(baseId: string, materialIds: string[]): Map<str
   for (const materialId of uniqueIds) {
     try {
       const item = knowledgeItemService.getById(materialId)
+
       if (item.baseId === baseId && item.status === 'completed') {
         visibleItems.set(materialId, item)
       }
@@ -47,6 +50,7 @@ export function loadVisibleItems(baseId: string, materialIds: string[]): Map<str
       if (isDataApiNotFoundError(error)) {
         continue
       }
+
       throw error
     }
   }

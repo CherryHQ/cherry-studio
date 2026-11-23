@@ -12,6 +12,7 @@ type Props = {
 
 export const EmbeddingTag = ({ size = 12, showTooltip, showLabel = true, ...restProps }: Props) => {
   const { t } = useTranslation()
+
   return (
     <CustomTag
       size={size}

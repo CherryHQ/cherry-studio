@@ -27,12 +27,16 @@ export function deriveLegacyReasoningFields(controls: readonly ReasoningControl[
   // APPENDED, because legacy consumers treat index 0 as the coercion fallback
   // and must not fall back to "off"; the UI orders the off switch itself.
   let supportedEfforts = effort ? [...effort.values] : toggle ? (['none', 'auto'] as const).slice() : undefined
+
   if (effort && toggle && supportedEfforts && !supportedEfforts.includes('none')) {
     supportedEfforts = [...supportedEfforts, 'none']
   }
+
   let thinkingTokenLimits: DerivedReasoningFields['thinkingTokenLimits']
+
   if (budget) {
     thinkingTokenLimits = { min: budget.min, max: budget.max }
+
     if (budget.default != null) thinkingTokenLimits.default = budget.default
   }
 

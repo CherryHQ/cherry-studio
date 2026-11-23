@@ -146,30 +146,41 @@ const getResultState = ({
   error: Error | null
 }): PdfTranslationResultState => {
   if (output) return { type: 'output', outputPath: output.outputPath, fileName: output.fileName }
+
   if (isRunningPhase(phase)) {
     if (progress) return { type: 'progress', progress }
+
     return { type: 'preparing' }
   }
+
   if (textFallback?.ocrRequired) return { type: 'ocr_required' }
+
   if (textFallback) return { type: 'text_fallback', content: textFallback.content }
+
   if (babelDocAvailability === 'checking') return { type: 'checking_dependency' }
 
   const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
   const dependencyOutdated = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_OUTDATED
+
   if (babelDocAvailability === 'missing' || dependencyMissing) {
     return { type: babelDocInstalling ? 'installing_dependency' : 'missing_dependency' }
   }
+
   if (babelDocAvailability === 'outdated' || dependencyOutdated) {
     return { type: babelDocInstalling ? 'installing_dependency' : 'outdated_dependency' }
   }
+
   if (error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED) {
     return { type: 'ocr_required' }
   }
+
   if (error instanceof IpcError && error.code === translateErrorCodes.PDF_RESULT_PERSIST_FAILED) {
     return { type: 'persist_failed' }
   }
+
   // Raw sidecar diagnostics stay in the main-process log; the renderer uses a generic error.
   if (error) return { type: 'error' }
+
   return { type: 'ready' }
 }
 
@@ -197,6 +208,7 @@ const PdfTranslationView = ({
 
   const cancel = useCallback(() => {
     const jobId = activeJobIdRef.current
+
     if (!jobId) return
     activeJobIdRef.current = null
     setPhase('idle')
@@ -232,6 +244,7 @@ const PdfTranslationView = ({
           void invalidate('/translate/histories').catch((cause) => {
             logger.warn('Failed to refresh translate history after PDF translation', cause as Error)
           })
+
           // Superseded by a newer run (or by a cancel): its result is a legitimate history
           // entry, it just is not what this pane should show.
           if (activeJobIdRef.current !== jobId) return
@@ -245,6 +258,7 @@ const PdfTranslationView = ({
           if (activeJobIdRef.current !== jobId) return
           activeJobIdRef.current = null
           const normalized = cause instanceof Error ? cause : new Error(String(cause))
+
           if (
             normalized instanceof IpcError &&
             (normalized.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED ||
@@ -252,6 +266,7 @@ const PdfTranslationView = ({
           ) {
             onBabelDocUnavailable()
           }
+
           setError(normalized)
           setProgress(null)
           setPhase('error')
@@ -268,6 +283,7 @@ const PdfTranslationView = ({
     setPhase('translating')
     setProgress((current) => {
       if (current && overallProgress < current.overallProgress) return current
+
       return { stage, stageProgress, overallProgress }
     })
   })
@@ -279,7 +295,9 @@ const PdfTranslationView = ({
       cancel: () => latestHandleRef.current.cancel(),
       start: (targetLanguage) => latestHandleRef.current.start(targetLanguage)
     }
+
     onHandleChange(handle)
+
     return () => onHandleChange(null)
   }, [onHandleChange])
 
@@ -290,6 +308,7 @@ const PdfTranslationView = ({
     () => () => {
       const activeJobId = activeJobIdRef.current
       activeJobIdRef.current = null
+
       if (activeJobId) {
         requestCancel(activeJobId, 'Failed to cancel PDF translation on unmount')
       }
@@ -304,6 +323,7 @@ const PdfTranslationView = ({
 
   const exportOutput = useCallback(async () => {
     if (!output) return
+
     try {
       await saveTranslationFileAs(output.outputPath, output.fileName)
     } catch (cause) {
@@ -390,15 +410,19 @@ const PdfTranslationResult = ({
       return <FilePreview filePath={state.outputPath} refreshKey={0} />
     case 'progress': {
       const progressLabel = getProgressLabel(t, state.progress.stage)
+
       if (state.progress.stageProgress === null) return <CenteredLoading label={progressLabel} />
 
       const roundedOverallProgress = Math.round(state.progress.overallProgress)
       const roundedStageProgress = Math.round(state.progress.stageProgress)
+
       const displayProgress =
         state.progress.stage === 'checking_assets' || state.progress.stage === 'downloading_assets'
           ? state.progress.stageProgress
           : state.progress.overallProgress
+
       const roundedDisplayProgress = Math.round(displayProgress)
+
       return (
         <div className="flex h-full items-center justify-center">
           <PdfProgress
@@ -414,6 +438,7 @@ const PdfTranslationResult = ({
         </div>
       )
     }
+
     case 'preparing':
       return (
         <CenteredLoading
@@ -495,6 +520,7 @@ const PdfProgress = ({
   valueText: string
 }) => {
   const roundedProgress = Math.round(progress)
+
   return (
     <div className="flex flex-col items-center gap-3 text-center">
       <div

@@ -16,6 +16,7 @@ export function checkpointTruncateAssert(sqlite: Database.Database): void {
     log: number
     checkpointed: number
   }>
+
   if (!row || row.busy !== 0 || row.log !== row.checkpointed) {
     throw new Error(
       `wal_checkpoint(TRUNCATE) did not complete: busy=${row?.busy}, log=${row?.log}, checkpointed=${row?.checkpointed}`

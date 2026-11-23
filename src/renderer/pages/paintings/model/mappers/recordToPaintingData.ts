@@ -13,7 +13,9 @@ const logger = loggerService.withContext('paintings/recordToPaintingData')
 function normalizeStoredPaintingModel(value: PaintingRecord['modelId']): string | undefined {
   if (value == null) return undefined
   const trimmed = value.trim()
+
   if (!trimmed) return undefined
+
   if (isUniqueModelId(trimmed)) {
     try {
       return parseUniqueModelId(trimmed).modelId
@@ -21,6 +23,7 @@ function normalizeStoredPaintingModel(value: PaintingRecord['modelId']): string 
       return trimmed
     }
   }
+
   return trimmed
 }
 
@@ -40,16 +43,19 @@ function normalizeStoredPaintingModel(value: PaintingRecord['modelId']): string 
  */
 async function resolveEntries(ids: string[]): Promise<FileEntry[]> {
   if (ids.length === 0) return []
+
   const entries = await Promise.all(
     ids.map(async (id) => {
       try {
         return (await dataApiService.get(`/files/entries/${id}` as never)) as FileEntry
       } catch (error) {
         logger.warn('Skipping unresolved file_entry for painting', { id, error })
+
         return null
       }
     })
   )
+
   return entries.filter((e): e is FileEntry => e !== null)
 }
 
@@ -66,6 +72,7 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     resolveEntries(record.files.output),
     resolveEntries(record.files.input)
   ])
+
   const files = await Promise.all(outputEntries.map(fileEntryToMetadata))
 
   const model = normalizeStoredPaintingModel(record.modelId)

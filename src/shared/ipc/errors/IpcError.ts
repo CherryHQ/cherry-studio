@@ -63,6 +63,7 @@ export class IpcError extends Error {
     super(message)
     this.name = 'IpcError'
     this.code = code
+
     if (data !== undefined) this.data = data
   }
 
@@ -71,12 +72,15 @@ export class IpcError extends Error {
       this.data === undefined
         ? { code: this.code, message: this.message }
         : { code: this.code, message: this.message, data: this.data }
+
     return this.reportingHandled ? { ...result, reportingHandled: true } : result
   }
 
   static fromJSON(json: SerializedIpcError): IpcError {
     const error = new IpcError(json.code, json.message, json.data)
+
     if (json.reportingHandled) error.reportingHandled = true
+
     return error
   }
 
@@ -84,7 +88,9 @@ export class IpcError extends Error {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- IpcApiService passes raw handler rejections here; narrow existing transport errors and Error instances before the fallback.
   static from(value: unknown): IpcError {
     if (value instanceof IpcError) return value
+
     if (value instanceof Error) return new IpcError(IpcErrorCode.INTERNAL, value.message)
+
     return new IpcError(IpcErrorCode.INTERNAL, String(value))
   }
 }

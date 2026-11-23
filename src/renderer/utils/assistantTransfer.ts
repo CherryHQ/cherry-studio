@@ -56,10 +56,12 @@ function readStringArray(value: unknown): string[] {
 
 function truncateTitle(value: string): string {
   let result = ''
+
   for (const character of value) {
     if (result.length + character.length > PROMPT_TITLE_MAX) break
     result += character
   }
+
   return result
 }
 
@@ -69,14 +71,18 @@ function normalizePhrase(value: unknown): ImportAssistantPhraseDto {
 
   const title = truncateTitle(readString(value.title).trim() || 'Untitled')
   const parsed = ImportAssistantPhraseSchema.safeParse({ title, content: value.content })
+
   if (!parsed.success) throw new AssistantTransferError('invalid_format')
+
   return parsed.data
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Imported regularPhrases may be absent or malformed; require an array and validate every phrase before any assistant is imported.
 function readRegularPhrases(value: unknown): ImportAssistantPhraseDto[] {
   if (value === undefined) return []
+
   if (!Array.isArray(value)) throw new AssistantTransferError('invalid_format')
+
   return value.map(normalizePhrase)
 }
 
@@ -146,6 +152,7 @@ export function serializeAssistantsForExport(
   entries: readonly { assistant: Assistant; prompts: readonly Prompt[]; groupName?: string }[]
 ): string {
   if (entries.length === 0) throw new AssistantTransferError('invalid_format')
+
   return JSON.stringify(
     entries.map(({ assistant, prompts, groupName }) => buildExportRecord(assistant, prompts, groupName)),
     null,
@@ -163,6 +170,7 @@ export function parseAssistantImportContent(content: string): ImportedAssistantD
   }
 
   const records: unknown[] = Array.isArray(parsed) ? parsed : [parsed]
+
   if (records.length === 0) {
     throw new AssistantTransferError('invalid_format')
   }

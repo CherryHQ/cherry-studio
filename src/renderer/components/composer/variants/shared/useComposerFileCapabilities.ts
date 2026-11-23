@@ -61,6 +61,7 @@ export function useComposerFileCapabilities(
     // Agent reads attachments from disk by path → all file types, any active model.
     if (!isChatSurface) {
       const enabled = fallbackModel != null
+
       // The modality lists stay for callers that read them as a catalog (dialog
       // filters, image-paste detection); `anyFileExt` is what lifts the filter.
       return {
@@ -72,8 +73,10 @@ export function useComposerFileCapabilities(
 
     const supports = ([single, plural]: (typeof MEDIA_INPUT_PREDICATES)[keyof typeof MEDIA_INPUT_PREDICATES]) =>
       models.length > 0 ? plural(models) : fallbackModel ? single(fallbackModel) : false
+
     const audio = supports(MEDIA_INPUT_PREDICATES.audio)
     const video = supports(MEDIA_INPUT_PREDICATES.video)
+
     return {
       canAddImageFile: true,
       canAddTextFile: true,

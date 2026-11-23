@@ -69,6 +69,7 @@ function useNativeMenuRequest() {
       const origin = captureOrigin(target)
       const releaseBoundary = openBoundary()
       let open = true
+
       const request = {
         origin,
         isCurrent: () => open && currentRef.current === request && origin.isActive(),
@@ -76,12 +77,16 @@ function useNativeMenuRequest() {
           if (!open) return false
           open = false
           releaseBoundary()
+
           if (currentRef.current !== request) return false
           currentRef.current = null
+
           return true
         }
       }
+
       currentRef.current = request
+
       return request
     },
     [captureOrigin, openBoundary]
@@ -119,7 +124,9 @@ export type CommandContextMenuExtraItem =
     }
 
 type CommandContextMenuItem = ResolvedMenuItem<CommandId> | CommandContextMenuExtraItem
+
 type ExtraRenderableMenuItem = Extract<CommandContextMenuExtraItem, { type: 'item' | 'submenu' }>
+
 type CommandContextMenuExtraItemsResolver = (
   event: React.MouseEvent
 ) => MaybePromise<readonly CommandContextMenuExtraItem[]>
@@ -137,6 +144,7 @@ const removeEmptySeparators = <T extends { type: string }>(items: readonly T[]):
       if (result.length > 0 && result.at(-1)?.type !== 'separator') {
         result.push(item)
       }
+
       continue
     }
 
@@ -197,6 +205,7 @@ const combineContextMenuItems = (
 
 const getExtraItemActions = (extraItems: readonly CommandContextMenuExtraItem[]): Map<string, () => void> => {
   const actions = new Map<string, () => void>()
+
   for (const item of extraItems) {
     if (item.type === 'item') {
       actions.set(item.id, item.onSelect)
@@ -206,6 +215,7 @@ const getExtraItemActions = (extraItems: readonly CommandContextMenuExtraItem[])
       }
     }
   }
+
   return actions
 }
 
@@ -394,6 +404,7 @@ export function CommandContextMenu({
   const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
   const pendingItems = pendingExtraItems ?? extraItems
+
   const resolveShortcutLabel = useCallback(
     (command: CommandId) => {
       const rule = findKeybindingRule(command)
@@ -407,9 +418,11 @@ export function CommandContextMenu({
     },
     [context, shortcutPreferences]
   )
+
   const resolveExtraItemShortcutLabels = useCallback(
     (items: readonly CommandContextMenuExtraItem[]): readonly CommandContextMenuExtraItem[] => {
       if (!hasShortcutCommands(items)) return items
+
       const resolve = (source: readonly CommandContextMenuExtraItem[]): CommandContextMenuExtraItem[] =>
         source.map((item) => {
           if (item.type === 'submenu') {
@@ -433,14 +446,17 @@ export function CommandContextMenu({
     },
     [resolveShortcutLabel]
   )
+
   const displayedExtraItems = useMemo(
     () => resolveExtraItemShortcutLabels(getExtraItems ? (resolvedExtraItems ?? pendingItems) : extraItems),
     [extraItems, getExtraItems, pendingItems, resolveExtraItemShortcutLabels, resolvedExtraItems]
   )
+
   const combinedItems = useMemo<readonly CommandContextMenuItem[]>(
     () => combineContextMenuItems(commandItems, displayedExtraItems),
     [commandItems, displayedExtraItems]
   )
+
   const hasLazyExtraItems = Boolean(getExtraItems)
 
   const resolveExtraItems = useCallback(
@@ -448,6 +464,7 @@ export function CommandContextMenu({
       if (getExtraItems) {
         return getExtraItems(event)
       }
+
       return extraItems
     },
     [extraItems, getExtraItems]
@@ -465,11 +482,13 @@ export function CommandContextMenu({
       extraItemsRequestIdRef.current = requestId
 
       let resolved: MaybePromise<readonly CommandContextMenuExtraItem[]>
+
       try {
         resolved = getExtraItems(event)
       } catch (error) {
         logger.warn('Failed to resolve command menu extra items', error as Error)
         setResolvedExtraItems(EMPTY_EXTRA_ITEMS)
+
         return
       }
 
@@ -477,6 +496,7 @@ export function CommandContextMenu({
       // (otherwise tests that fire contextMenu + assert synchronously would miss them).
       if (!(resolved instanceof Promise) && typeof (resolved as PromiseLike<unknown>)?.then !== 'function') {
         setResolvedExtraItems(resolved as readonly CommandContextMenuExtraItem[])
+
         return
       }
 
@@ -489,6 +509,7 @@ export function CommandContextMenu({
         })
         .catch((error) => {
           logger.warn('Failed to resolve command menu extra items', error as Error)
+
           if (extraItemsRequestIdRef.current === requestId) {
             setResolvedExtraItems(EMPTY_EXTRA_ITEMS)
           }
@@ -500,6 +521,7 @@ export function CommandContextMenu({
   const handleCherryOpenChange = useCallback(
     (open: boolean) => {
       onOpenChange?.(open)
+
       if (!open && getExtraItems) {
         extraItemsRequestIdRef.current += 1
         setResolvedExtraItems(null)
@@ -523,12 +545,14 @@ export function CommandContextMenu({
         x: Math.round(event.clientX),
         y: Math.round(event.clientY)
       }
+
       const request = beginNativeRequest(event.target)
       const requestId = extraItemsRequestIdRef.current + 1
       extraItemsRequestIdRef.current = requestId
       onOpenChange?.(true)
 
       let nativeExtraItems: MaybePromise<readonly CommandContextMenuExtraItem[]>
+
       try {
         nativeExtraItems = resolveExtraItems(event)
       } catch (error) {
@@ -539,6 +563,7 @@ export function CommandContextMenu({
       void Promise.resolve(nativeExtraItems)
         .catch((error) => {
           logger.error('Failed to resolve command menu extra items', error as Error)
+
           return EMPTY_EXTRA_ITEMS
         })
         .then((resolvedNativeExtraItems) => {
@@ -548,6 +573,7 @@ export function CommandContextMenu({
 
           const nativeExtraItems = resolveExtraItemShortcutLabels(resolvedNativeExtraItems)
           const nativeItems = combineContextMenuItems(commandItems, nativeExtraItems)
+
           const nativeModel: NativePopupMenuModel<CommandId> = {
             location,
             items: nativeItems.map(toNativePopupMenuItem)
@@ -564,6 +590,7 @@ export function CommandContextMenu({
 
             if (result?.type === 'command') {
               request.origin.execute(result.command)
+
               return
             }
 
@@ -610,6 +637,7 @@ export function CommandContextMenu({
             // 菜单卸载时 Radix 会把焦点还原到打开前的元素（右键聚焦的行），
             // 打掉刚挂载的 rename 输入框。仅当关闭瞬间焦点已被菜单外元素持有时拦截。
             const active = document.activeElement
+
             if (active && active !== document.body && !(e.target as HTMLElement).contains(active)) {
               e.preventDefault()
             }
@@ -804,10 +832,12 @@ export function CommandPopupMenu({
   const suppressCloseAutoFocusRef = useRef(false)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
+
   const resolveShortcutLabel = useCallback(
     (command: CommandId) => {
       const rule = findKeybindingRule(command)
       const preference = rule ? shortcutPreferences[command] : undefined
+
       return getCommandShortcutLabel(command, preference, {
         context,
         isMac,
@@ -816,23 +846,29 @@ export function CommandPopupMenu({
     },
     [context, shortcutPreferences]
   )
+
   const decoratedExtraItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
     if (!hasShortcutCommands(extraItems)) return extraItems
+
     const decorate = (source: readonly CommandContextMenuExtraItem[]): CommandContextMenuExtraItem[] =>
       source.map((item) => {
         if (item.type === 'submenu') {
           return { ...item, children: decorate(item.children) }
         }
+
         if (item.type !== 'item' || !item.shortcutCommand) {
           return item
         }
+
         return {
           ...item,
           shortcutLabel: item.shortcutLabel || resolveShortcutLabel(item.shortcutCommand) || undefined
         }
       })
+
     return decorate(extraItems)
   }, [extraItems, resolveShortcutLabel])
+
   const combinedItems = useMemo<readonly CommandContextMenuItem[]>(
     () => combineContextMenuItems(commandItems, decoratedExtraItems),
     [commandItems, decoratedExtraItems]
@@ -844,13 +880,17 @@ export function CommandPopupMenu({
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
       const anchor = { x: Math.round(rect.left), y: Math.round(rect.bottom) }
       const nativeItems = combinedItems.map(toNativePopupMenuItem)
+
       if (!nativeItems.length) return
       const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
       const request = beginNativeRequest(event.target)
       onOpenChange?.(true)
+
       try {
         const result = await window.api.command.showNativePopupMenu(model, anchor)
+
         if (!request.isCurrent()) return
+
         if (result?.type === 'command') {
           request.origin.execute(result.command)
         } else if (result?.type === 'custom') {
@@ -870,12 +910,14 @@ export function CommandPopupMenu({
       if (open === undefined) {
         setInternalOpen(nextOpen)
       }
+
       onOpenChange?.(nextOpen)
     },
     [onOpenChange, open]
   )
 
   const handleCherrySelectItemAfterFrame = useCloseBeforeAction(handleCherryOpenChange)
+
   const handleCherrySelectItemAfterClose = useCallback(
     (action: () => void) => {
       pendingCherryActionRef.current = action
@@ -883,6 +925,7 @@ export function CommandPopupMenu({
     },
     [handleCherryOpenChange]
   )
+
   const handleCherrySelectImmediate = useCallback(
     (action: () => void) => {
       suppressCloseAutoFocusRef.current = true
@@ -891,20 +934,25 @@ export function CommandPopupMenu({
     },
     [handleCherryOpenChange]
   )
+
   const handleCherryCloseAutoFocus = useCallback((event: Event) => {
     if (suppressCloseAutoFocusRef.current) {
       suppressCloseAutoFocusRef.current = false
       event.preventDefault()
+
       return
     }
+
     // Radix fires this after the popup's exit animation and focus cleanup.
     // Heavy actions (such as image capture) must not block that final frame.
     const action = pendingCherryActionRef.current
     pendingCherryActionRef.current = null
+
     if (action) {
       window.requestAnimationFrame(action)
     }
   }, [])
+
   const handleCherrySelectItem = deferActionsUntilClosed
     ? handleCherrySelectItemAfterClose
     : handleCherrySelectItemAfterFrame
@@ -919,15 +967,18 @@ export function CommandPopupMenu({
     // span would be blocked by the child's stopPropagation.
     if (React.isValidElement(children)) {
       const childProps = (children.props ?? {}) as { onClick?: (event: React.MouseEvent) => void }
+
       return React.cloneElement(children as React.ReactElement<{ onClick?: (event: React.MouseEvent) => void }>, {
         onClick: (event: React.MouseEvent) => {
           childProps.onClick?.(event)
+
           if (!event.defaultPrevented) {
             void handleNativeClick(event)
           }
         }
       })
     }
+
     return <>{children}</>
   }
 

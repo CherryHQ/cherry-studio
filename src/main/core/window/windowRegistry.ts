@@ -724,12 +724,14 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
  */
 export function getWindowTypeMetadata(type: WindowType): WindowTypeMetadata {
   const metadata = WINDOW_TYPE_REGISTRY[type]
+
   if (!metadata) {
     throw new Error(
       `WindowType '${type}' is not registered in WINDOW_TYPE_REGISTRY. ` +
         `Register it before calling open() or create().`
     )
   }
+
   return metadata
 }
 
@@ -741,9 +743,13 @@ function pickPlatformOverride(
   overrides: WindowOptions['platformOverrides']
 ): Partial<Omit<WindowOptions, 'platformOverrides'>> | undefined {
   if (!overrides) return undefined
+
   if (isMac) return overrides.mac
+
   if (isWin) return overrides.win
+
   if (isLinux) return overrides.linux
+
   return undefined
 }
 
@@ -793,5 +799,6 @@ export function mergeWindowOptions(
   // Strip platformOverrides from the returned object so it never leaks to `new BrowserWindow(...)`.
   const rest = { ...merged }
   delete rest.platformOverrides
+
   return rest
 }

@@ -67,14 +67,20 @@ export interface FileRefService {
 const SQLITE_INARRAY_CHUNK = 500
 
 type AgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferSelect
+
 type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
+
 type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
+
 type JobFileRefRow = typeof jobFileRefTable.$inferSelect
+
 type TranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferSelect
 
 function compareRefs(left: FileRef, right: FileRef): number {
   const createdDelta = left.createdAt - right.createdAt
+
   if (createdDelta !== 0) return createdDelta
+
   return left.id.localeCompare(right.id)
 }
 
@@ -133,6 +139,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(agentSessionMessageFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(agentSessionMessageFileRefTable.createdAt), asc(agentSessionMessageFileRefTable.id))
           .all()
+
         return rows.map(agentSessionMessageRowToFileRef)
       },
       [chatMessageSourceType]: () => {
@@ -142,6 +149,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(chatMessageFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(chatMessageFileRefTable.createdAt), asc(chatMessageFileRefTable.id))
           .all()
+
         return rows.map(chatMessageRowToFileRef)
       },
       [paintingSourceType]: () => {
@@ -151,6 +159,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(paintingFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
           .all()
+
         return rows.map(paintingRowToFileRef)
       },
       [agentAvatarRef.sourceType]: () => {
@@ -160,6 +169,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(agentAvatarFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(agentAvatarFileRefTable.createdAt), asc(agentAvatarFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, agentAvatarRef.sourceType))
       },
       [assistantAvatarRef.sourceType]: () => {
@@ -169,6 +179,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(assistantAvatarFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(assistantAvatarFileRefTable.createdAt), asc(assistantAvatarFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, assistantAvatarRef.sourceType))
       },
       [providerLogoRef.sourceType]: () => {
@@ -178,6 +189,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(providerLogoFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(providerLogoFileRefTable.createdAt), asc(providerLogoFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, providerLogoRef.sourceType))
       },
       [miniAppLogoRef.sourceType]: () => {
@@ -187,6 +199,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(miniAppLogoFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
       },
       [miniAppFileRef.sourceType]: () => {
@@ -196,6 +209,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(miniAppFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(miniAppFileRefTable.createdAt), asc(miniAppFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, miniAppFileRef.sourceType))
       },
       [jobSourceType]: () => {
@@ -205,6 +219,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(jobFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(jobFileRefTable.createdAt), asc(jobFileRefTable.id))
           .all()
+
         return rows.map(jobRowToFileRef)
       },
       [translateHistorySourceType]: () => {
@@ -214,6 +229,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(translateHistoryFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(translateHistoryFileRefTable.createdAt), asc(translateHistoryFileRefTable.id))
           .all()
+
         return rows.map(translateHistoryRowToFileRef)
       }
     } satisfies Record<PersistentFileRefSourceType, () => FileRef[]>
@@ -232,8 +248,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(agentSessionMessageFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(agentSessionMessageFileRefTable.createdAt), asc(agentSessionMessageFileRefTable.id))
           .all()
+
         return rows.map(agentSessionMessageRowToFileRef)
       }
+
       case chatMessageSourceType: {
         const rows = this.getDb()
           .select()
@@ -241,8 +259,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(chatMessageFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(chatMessageFileRefTable.createdAt), asc(chatMessageFileRefTable.id))
           .all()
+
         return rows.map(chatMessageRowToFileRef)
       }
+
       case paintingSourceType: {
         const rows = this.getDb()
           .select()
@@ -250,8 +270,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(paintingFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
           .all()
+
         return rows.map(paintingRowToFileRef)
       }
+
       case agentAvatarRef.sourceType: {
         const rows = this.getDb()
           .select()
@@ -259,8 +281,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(agentAvatarFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(agentAvatarFileRefTable.createdAt), asc(agentAvatarFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, agentAvatarRef.sourceType))
       }
+
       case assistantAvatarRef.sourceType: {
         const rows = this.getDb()
           .select()
@@ -268,8 +292,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(assistantAvatarFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(assistantAvatarFileRefTable.createdAt), asc(assistantAvatarFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, assistantAvatarRef.sourceType))
       }
+
       case providerLogoRef.sourceType: {
         const rows = this.getDb()
           .select()
@@ -277,8 +303,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(providerLogoFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(providerLogoFileRefTable.createdAt), asc(providerLogoFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, providerLogoRef.sourceType))
       }
+
       case miniAppLogoRef.sourceType: {
         const rows = this.getDb()
           .select()
@@ -286,8 +314,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(miniAppLogoFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
       }
+
       case miniAppFileRef.sourceType: {
         const rows = this.getDb()
           .select()
@@ -295,8 +325,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(miniAppFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(miniAppFileRefTable.createdAt), asc(miniAppFileRefTable.id))
           .all()
+
         return rows.map((row) => singleFileRowToFileRef(row, miniAppFileRef.sourceType))
       }
+
       case jobSourceType: {
         const rows = this.getDb()
           .select()
@@ -304,8 +336,10 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(jobFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(jobFileRefTable.createdAt), asc(jobFileRefTable.id))
           .all()
+
         return rows.map(jobRowToFileRef)
       }
+
       case translateHistorySourceType: {
         const rows = this.getDb()
           .select()
@@ -313,6 +347,7 @@ class FileRefServiceImpl implements FileRefService {
           .where(eq(translateHistoryFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(translateHistoryFileRefTable.createdAt), asc(translateHistoryFileRefTable.id))
           .all()
+
         return rows.map(translateHistoryRowToFileRef)
       }
     }
@@ -320,6 +355,7 @@ class FileRefServiceImpl implements FileRefService {
 
   countByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number> {
     const counts = new Map<FileEntryId, number>()
+
     if (ids.length === 0) return counts
 
     const add = (entryId: FileEntryId, refCount: number) => {
@@ -328,6 +364,7 @@ class FileRefServiceImpl implements FileRefService {
 
     for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+
       const persistentRefCounters = {
         [agentSessionMessageSourceType]: () =>
           this.getDb()
@@ -402,6 +439,7 @@ class FileRefServiceImpl implements FileRefService {
       } satisfies Record<PersistentFileRefSourceType, () => Array<{ entryId: FileEntryId; refCount: number }>>
 
       const rowGroups = Object.values(persistentRefCounters).map((countRefs) => countRefs())
+
       for (const rows of rowGroups) {
         for (const row of rows) add(row.entryId, row.refCount)
       }
@@ -412,10 +450,12 @@ class FileRefServiceImpl implements FileRefService {
 
   countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number {
     let total = 0
+
     for (const table of Object.values(persistentFileRefTablesBySourceType)) {
       const rows = tx.select({ c: count() }).from(table).where(eq(table.fileEntryId, id)).all()
       total += rows[0]?.c ?? 0
     }
+
     return total
   }
 }

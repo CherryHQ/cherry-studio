@@ -42,6 +42,7 @@ const CutoffSettings = () => {
           className="h-8 text-sm"
           onChange={(e) => {
             const value = e.target.value
+
             if (value === '') {
               handleCutoffLimitChange(DEFAULT_WEB_SEARCH_CUTOFF_LIMIT)
             } else if (!Number.isNaN(Number(value)) && Number(value) > 0) {

@@ -4,6 +4,7 @@ import { BochaLight } from './light'
 
 const Bocha = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BochaLight {...props} className={className} />
+
   return <BochaLight {...props} className={className} />
 }
 

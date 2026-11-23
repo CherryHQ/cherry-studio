@@ -33,6 +33,7 @@ export const FILE_PANE_SETTING_KEYS = {
 const TAB_SIZES = [2, 4, 8]
 
 type ToggleKey = 'autoSave' | 'tabIndent' | 'wordWrap' | 'indentGuides' | 'showWhitespace' | 'scrollPastEnd'
+
 const TOGGLE_GROUPS: ReadonlyArray<ReadonlyArray<{ key: ToggleKey; label: string }>> = [
   [
     { key: 'autoSave', label: 'agent.preview_pane.settings.auto_save' },
@@ -96,6 +97,7 @@ export function ArtifactPaneSettingsMenu({
             <DropdownMenuSeparator />
             {group.map(({ key, label }) => {
               const unavailable = key === 'wordWrap' && wordWrapUnavailable
+
               return (
                 <DropdownMenuCheckboxItem
                   key={key}

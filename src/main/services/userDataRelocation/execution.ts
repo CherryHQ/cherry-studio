@@ -48,11 +48,13 @@ const logger = loggerService.withContext('UserDataRelocation')
 // task ID, so user data that happens to sit at an artifact path is never
 // removed.
 const RELOCATION_OWNER_MARKER = '.cherry-relocation-owner.json'
+
 // The copy lands in workPath/payload/, not in workPath itself: fsp.cp must be
 // the one to create its destination (see the cp call below), while the
 // recovery invariant needs the owner marker inside workPath before the first
 // payload byte lands. Two constraints, one directory level each.
 const RELOCATION_PAYLOAD_DIRNAME = 'payload'
+
 // The copy can transiently need more space than the source occupies
 // (allocation rounding, filesystem metadata), and filling the destination
 // volume to the last byte would break the app that boots from it.
@@ -71,6 +73,7 @@ const relocationOwnerSchema = z.object({
  */
 export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
   const requestedRelocation = readUserDataRelocationState()
+
   if (!requestedRelocation) return 'skipped'
 
   // Only a pending copy isolates sessionData — the copy is what needs the
@@ -86,6 +89,7 @@ export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
   await app.whenReady()
 
   let currentProgress: RelocationProgress | null = null
+
   async function restart() {
     if (currentProgress?.stage === 'failed') {
       try {
@@ -94,17 +98,23 @@ export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
         const message = error instanceof Error ? error.message : String(error)
         persistFailedRelocation(relocation, message)
         publish(makeProgress('failed', relocation, 0, 0, message))
+
         return false
       }
+
       clearRelocationState()
     }
+
     application.relaunch()
+
     return true
   }
+
   const relocationWindow: UserDataRelocationWindow = openUserDataRelocationWindow({
     getProgress: () => currentProgress,
     onRestart: restart
   })
+
   await relocationWindow.waitForReady()
 
   const publish = (progress: RelocationProgress) => {
@@ -114,7 +124,9 @@ export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
 
   if (relocation.status === 'failed') {
     publish(makeProgress('failed', relocation, 0, 0, relocation.error))
+
     if (relocationWindow.isUnavailable()) await restart()
+
     return 'handled'
   }
 
@@ -130,6 +142,7 @@ export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
       to: relocation.to,
       copy: relocation.copy
     })
+
     if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) await restart()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -142,6 +155,7 @@ export async function runUserDataRelocation(): Promise<'handled' | 'skipped'> {
     // failed, that failure is part of the message).
     persistFailedRelocation(relocation, message)
     publish(makeProgress('failed', relocation, 0, 0, message))
+
     if (relocationWindow.isUnavailable() || !relocationWindow.hasWindow()) await restart()
   }
 
@@ -161,6 +175,7 @@ function prepareIsolatedSessionData(pending: PendingRelocation): RelocationState
     const sessionDataPath = fs.mkdtempSync(path.join(sessionRoot, `${pending.taskId}-`))
     app.setPath('sessionData', sessionDataPath)
     logger.info('Prepared isolated sessionData for userData relocation', { sessionDataPath })
+
     return pending
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -168,6 +183,7 @@ function prepareIsolatedSessionData(pending: PendingRelocation): RelocationState
     // error would hard-exit before any window exists, and the still-pending
     // request would repeat that on every launch — an unrecoverable boot loop.
     logger.error('Could not prepare isolated sessionData; failing relocation', { taskId: pending.taskId, error })
+
     return persistFailedRelocation(pending, `failed to prepare isolated sessionData: ${message}`)
   }
 }
@@ -182,10 +198,12 @@ function persistFailedRelocation(pending: PendingRelocation | FailedRelocation, 
     error: message,
     failedAt: new Date().toISOString()
   }
+
   bootConfigService.set('temp.user_data_relocation', failed)
   // A BootConfig write failure must not crash preboot before the recovery
   // window can explain the error; flush() is best-effort and only logs.
   bootConfigService.flush()
+
   return failed
 }
 
@@ -197,6 +215,7 @@ function readUserDataRelocationState(): RelocationState | null {
   // BootConfigService already validates this key against the shared zod schema
   // on load and set, so a non-null value here is structurally trustworthy.
   const relocation = bootConfigService.get('temp.user_data_relocation')
+
   if (!relocation) return null
 
   // A request whose `from` is not the userData this launch resolved was
@@ -204,14 +223,17 @@ function readUserDataRelocationState(): RelocationState | null {
   // to another machine). Executing it would relocate the wrong tree — discard.
   const currentUserDataPath = application.getPath('app.userdata')
   const currentUserData = normalizeForCompare(currentUserDataPath)
+
   if (normalizeForCompare(relocation.from) !== currentUserData) {
     logger.warn('Discarding stale userData relocation request', {
       requestedFrom: relocation.from,
       currentUserData: currentUserDataPath
     })
     clearRelocationState()
+
     return null
   }
+
   return relocation
 }
 
@@ -223,10 +245,12 @@ async function executeRelocation(
   if (pending.copy) {
     await recoverInterruptedCopy(pending)
   }
+
   assertUserDataRelocationRequest(pending)
 
   if (!pending.copy) {
     commit()
+
     return
   }
 
@@ -246,6 +270,7 @@ async function executeRelocation(
     // the target so a directory populated in the meantime cannot be replaced.
     assertUserDataRelocationRequest(pending)
     const targetExisted = pathEntryExists(pending.to)
+
     if (targetExisted) {
       await fsp.rename(pending.to, asidePath)
       asideCreated = true
@@ -264,13 +289,16 @@ async function executeRelocation(
     // channel.
     let processedBytes = 0
     let publishedPercent = 0
+
     const publishCopyProgress = () => {
       const bytesCopied = Math.min(processedBytes, total)
       const percent = total > 0 ? Math.floor((bytesCopied / total) * 100) : 100
+
       if (percent === publishedPercent) return
       publishedPercent = percent
       publish(makeProgress('copying', pending, bytesCopied, total))
     }
+
     // Let Node own recursive copying. The filter only applies relocation-specific
     // exclusions and records file-granularity progress.
     // fsp.cp with force:false + errorOnExist:true requires that payloadPath not
@@ -286,6 +314,7 @@ async function executeRelocation(
       filter: async (source) => {
         const isSourceRootEntry = normalizeForCompare(path.dirname(source)) === normalizeForCompare(pending.from)
         const name = path.basename(source)
+
         // The reset marker is bound to the source profile.
         if (
           isSourceRootEntry &&
@@ -295,46 +324,59 @@ async function executeRelocation(
         }
 
         let stat: Awaited<ReturnType<typeof fsp.lstat>>
+
         try {
           stat = await fsp.lstat(source)
         } catch (error) {
           if (isErrno(error, 'ENOENT')) {
             logger.warn('Skipping userData entry that vanished during relocation', { source })
+
             return false
           }
+
           throw error
         }
+
         if (stat.isSymbolicLink()) {
           try {
             stat = await fsp.stat(source)
           } catch (error) {
             if (isErrno(error, 'ENOENT') || isErrno(error, 'ENOTDIR')) {
               logger.warn('Skipping broken symlink during userData relocation', { source })
+
               return false
             }
+
             if (isErrno(error, 'ELOOP')) {
               logger.warn('Skipping circular symlink during userData relocation', { source })
+
               return false
             }
+
             throw error
           }
+
           if (stat.isDirectory()) {
             try {
               if (await isCircularDirectorySymlink(source)) {
                 logger.warn('Skipping circular symlink during userData relocation', { source })
+
                 return false
               }
             } catch (error) {
               if (!isErrno(error, 'ENOENT')) throw error
               logger.warn('Skipping userData symlink that vanished during relocation', { source })
+
               return false
             }
           }
         }
+
         if (stat.isFile()) {
           processedBytes += stat.size
           publishCopyProgress()
         }
+
         return stat.isDirectory() || stat.isFile()
       }
     })
@@ -359,6 +401,7 @@ async function executeRelocation(
     } catch (recoveryError) {
       throw new AggregateError([error, recoveryError], 'Failed to roll back relocated skill exports')
     }
+
     const rollbackError = await rollbackCopy({
       target: pending.to,
       workPath,
@@ -367,16 +410,19 @@ async function executeRelocation(
       promoted,
       taskId: pending.taskId
     })
+
     if (rollbackError) {
       const original = error instanceof Error ? error.message : String(error)
       throw new Error(`${original}; rollback failed: ${rollbackError.message}`)
     }
+
     throw error
   }
 
   await fsp.rm(path.join(pending.to, RELOCATION_OWNER_MARKER), { force: true }).catch((error) => {
     logger.warn('Could not remove relocation ownership marker after commit', { target: pending.to, error })
   })
+
   if (asideCreated) {
     // The pre-existing target was required to be empty. rmdir is deliberately
     // non-recursive so files created after the claim are never deleted.
@@ -402,6 +448,7 @@ function commitUserDataRelocation(targetPath: string): void {
 
   bootConfigService.set('app.user_data_path', { ...current, [exe]: canonicalTargetPath })
   bootConfigService.set('temp.user_data_relocation', null)
+
   try {
     bootConfigService.persist()
   } catch (error) {
@@ -429,6 +476,7 @@ async function recoverInterruptedCopy(pending: PendingRelocation | FailedRelocat
   const hasWork = pathEntryExists(workPath)
   const hasAside = pathEntryExists(asidePath)
   const targetOwned = isOwnedByRelocation(target, pending.taskId)
+
   if (!hasWork && !hasAside && !targetOwned) return
   assertRelocationPaths(pending.from, pending.to, {
     allowRelocationArtifacts: true,
@@ -441,7 +489,9 @@ async function recoverInterruptedCopy(pending: PendingRelocation | FailedRelocat
     workPath,
     asidePath
   })
+
   if (hasWork) await removeOwnedRelocationTree(workPath, pending.taskId)
+
   if (targetOwned) {
     await retargetSkillExports(pending.to, pending.from)
     await fsp.rm(target, { recursive: true, force: true })
@@ -449,9 +499,11 @@ async function recoverInterruptedCopy(pending: PendingRelocation | FailedRelocat
 
   if (!hasAside) return
   assertEmptyDirectory(asidePath, 'relocation aside is no longer empty')
+
   if (pathEntryExists(target)) {
     invalid('target_work_conflict', `target contains unowned data during relocation recovery: ${target}`)
   }
+
   await fsp.rename(asidePath, target)
 }
 
@@ -474,28 +526,36 @@ async function rollbackCopy(options: {
     if (pathEntryExists(options.workPath)) {
       await removeOwnedRelocationTree(options.workPath, options.taskId)
     }
+
     if (options.promoted && pathEntryExists(options.target)) {
       if (!isOwnedByRelocation(options.target, options.taskId)) {
         throw new Error(`refusing to delete unowned promoted target: ${options.target}`)
       }
+
       await fsp.rm(options.target, { recursive: true, force: true })
     }
+
     if (options.asideCreated && pathEntryExists(options.asidePath)) {
       assertEmptyDirectory(options.asidePath, 'relocation aside is no longer empty')
+
       if (pathEntryExists(options.target)) {
         throw new Error(`cannot restore relocation aside because target exists: ${options.target}`)
       }
+
       await fsp.rename(options.asidePath, options.target)
     }
+
     return null
   } catch (error) {
     logger.error('Failed to roll back userData relocation copy', { ...options, error })
+
     return error instanceof Error ? error : new Error(String(error))
   }
 }
 
 async function isCircularDirectorySymlink(source: string): Promise<boolean> {
   let targetReal: string
+
   try {
     targetReal = normalizeForCompare(await fsp.realpath(source))
   } catch (error) {
@@ -504,17 +564,21 @@ async function isCircularDirectorySymlink(source: string): Promise<boolean> {
   }
 
   let ancestor = path.dirname(source)
+
   while (true) {
     let ancestorReal: string
+
     try {
       ancestorReal = normalizeForCompare(await fsp.realpath(ancestor))
     } catch (error) {
       if (isErrno(error, 'ELOOP')) return true
       throw error
     }
+
     if (targetReal === ancestorReal || isPathInside(ancestorReal, targetReal)) return true
 
     const parent = path.dirname(ancestor)
+
     if (parent === ancestor) return false
     ancestor = parent
   }
@@ -527,46 +591,58 @@ async function calculateTotalBytes(
   ancestorDirectories: ReadonlySet<string> = new Set()
 ): Promise<number> {
   let stat: Awaited<ReturnType<typeof fsp.lstat>>
+
   try {
     stat = await fsp.lstat(root)
   } catch (error) {
     if (allowMissing && isErrno(error, 'ENOENT')) return 0
     throw error
   }
+
   if (stat.isSymbolicLink()) {
     try {
       stat = await fsp.stat(root)
     } catch (error) {
       if (isErrno(error, 'ENOENT') || isErrno(error, 'ENOTDIR')) return 0
+
       if (isErrno(error, 'ELOOP')) return 0
       throw error
     }
   }
+
   if (stat.isFile()) return stat.size
+
   if (!stat.isDirectory()) return 0
 
   let directoryReal: string
+
   try {
     directoryReal = normalizeForCompare(await fsp.realpath(root))
   } catch (error) {
     if (allowMissing && isErrno(error, 'ENOENT')) return 0
+
     if (isErrno(error, 'ELOOP')) return 0
     throw error
   }
+
   if (ancestorDirectories.has(directoryReal)) return 0
   const childAncestors = new Set(ancestorDirectories).add(directoryReal)
 
   let entries: fs.Dirent<string>[]
+
   try {
     entries = await fsp.readdir(root, { withFileTypes: true })
   } catch (error) {
     if (allowMissing && isErrno(error, 'ENOENT')) return 0
     throw error
   }
+
   let total = 0
+
   for (const entry of entries) {
     total += await calculateTotalBytes(path.join(root, entry.name), true, childAncestors)
   }
+
   return total
 }
 
@@ -575,6 +651,7 @@ async function assertEnoughFreeSpace(target: string, requiredBytes: number): Pro
   const stats = await fsp.statfs(existingAncestor)
   const availableBytes = stats.bsize * stats.bavail
   const requiredWithSafetyMargin = Math.ceil(requiredBytes * FREE_SPACE_SAFETY_FACTOR)
+
   if (availableBytes < requiredWithSafetyMargin) {
     throw new Error(
       `not enough free space for relocation: required ${requiredWithSafetyMargin} including safety margin, available ${availableBytes}`
@@ -596,7 +673,9 @@ function makeProgress(
     bytesCopied,
     bytesTotal
   }
+
   if (error) Object.assign(progress, { error })
+
   return progress
 }
 
@@ -610,14 +689,17 @@ async function writeRelocationOwner(directory: string, taskId: string): Promise<
 function isOwnedByRelocation(directory: string, taskId?: string): boolean {
   if (!taskId || !pathEntryExists(directory)) return false
   const marker = readRelocationOwner(path.join(directory, RELOCATION_OWNER_MARKER))
+
   return marker?.taskId === taskId
 }
 
 async function removeOwnedRelocationTree(directory: string, taskId: string): Promise<void> {
   if (isOwnedByRelocation(directory, taskId)) {
     await fsp.rm(directory, { recursive: true, force: true })
+
     return
   }
+
   // Without a matching marker only an EMPTY directory may be removed — any
   // content means the tree is not ours.
   assertEmptyDirectory(directory, 'relocation artifact has no matching ownership marker')
@@ -627,6 +709,7 @@ async function removeOwnedRelocationTree(directory: string, taskId: string): Pro
 function readRelocationOwner(file: string): z.infer<typeof relocationOwnerSchema> | null {
   try {
     const marker = relocationOwnerSchema.safeParse(JSON.parse(fs.readFileSync(file, 'utf8')))
+
     return marker.success ? marker.data : null
   } catch (error) {
     if (isErrno(error, 'ENOENT') || error instanceof SyntaxError) return null

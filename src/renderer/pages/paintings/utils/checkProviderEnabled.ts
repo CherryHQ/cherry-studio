@@ -21,6 +21,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
     ) {
       navigateToProviderSettings(provider.id)
     }
+
     throw 'Provider disabled'
   }
 

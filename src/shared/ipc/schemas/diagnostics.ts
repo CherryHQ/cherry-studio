@@ -7,6 +7,7 @@ import { DIAGNOSTIC_DESCRIPTION_MAX_BYTES, diagnosticDescriptionByteLength } fro
 import { defineRoute } from '../define'
 
 export const diagnosticRangeSchema = z.enum(['24h', '3d', '7d'])
+
 export type DiagnosticRange = z.infer<typeof diagnosticRangeSchema>
 
 export const diagnosticUploadFailureReasonSchema = z.enum([
@@ -17,6 +18,7 @@ export const diagnosticUploadFailureReasonSchema = z.enum([
   'service_unavailable',
   'submission_rejected'
 ])
+
 export type DiagnosticUploadFailureReason = z.infer<typeof diagnosticUploadFailureReasonSchema>
 
 const diagnosticSourceSummarySchema = z.object({

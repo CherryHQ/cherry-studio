@@ -33,6 +33,7 @@ export async function fileEntryToMetadata(entry: FileEntry): Promise<FileMetadat
   // hydration from history may resolve a migrated external row, so handle
   // both branches.
   const size = entry.origin === 'internal' ? entry.size : 0
+
   return {
     id: entry.id,
     name: onDiskName,

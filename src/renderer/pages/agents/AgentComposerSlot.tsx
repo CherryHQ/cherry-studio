@@ -81,6 +81,7 @@ function AgentComposerSlot({
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const rightPaneActions = useOptionalAgentRightPaneActions()
   const { t } = useTranslation()
+
   const editLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(
     () =>
       editing
@@ -96,6 +97,7 @@ function AgentComposerSlot({
         : undefined,
     [cancelEditing, editing, t]
   )
+
   const renderComposer = (isEditing = false) =>
     agentId ? (
       <AgentComposer
@@ -123,6 +125,7 @@ function AgentComposerSlot({
     ) : (
       <MissingAgentHomeComposer onAgentChange={onAgentChange} agentChanging={agentChanging} />
     )
+
   const context: ComposerContextValue = {
     ...composerContext,
     overrides: [

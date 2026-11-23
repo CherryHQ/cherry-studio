@@ -11,6 +11,7 @@ export const MODEL_SELECTOR_ROW_ACTION_BUTTON_CLASS =
 
 export const MODEL_SELECTOR_ROW_PINNED_ACTION_BUTTON_CLASS = '-rotate-45 opacity-100'
 export const MODEL_SELECTOR_ROW_ACTIVE_ACTION_COLOR_CLASS = 'text-foreground!'
+
 export const MODEL_SELECTOR_ROW_CHECKBOX_CLASS =
   'border-muted-foreground/40 hover:bg-muted/70 data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground data-[state=checked]:text-background focus-visible:border-ring'
 
@@ -88,9 +89,11 @@ export function ModelSelectorRow({
         )}
         onClick={(event) => {
           onOptionClick?.(event)
+
           if (event.defaultPrevented || disabled) {
             return
           }
+
           onSelect?.()
         }}>
         {checkbox}
@@ -138,6 +141,7 @@ export function ModelSelectorRowActionButton({
         if (event.key === 'Enter' || event.key === ' ') {
           event.stopPropagation()
         }
+
         onKeyDown?.(event)
       }}>
       {children}

@@ -26,7 +26,9 @@ export function isDoctorCheckId(value: unknown): value is DoctorCheckId {
 /** Both processes derive the same key: main to publish a run's state, the renderer to subscribe to it. */
 export function doctorScopeKey(ref: DoctorSubjectRef): DoctorScopeKey {
   if (ref.kind === 'global') return 'global'
+
   if (ref.kind === 'chat') return `chat:${ref.providerId}/${ref.modelId}`
+
   return ref.providerId && ref.modelId
     ? `agent:${ref.agentId}:${ref.providerId}/${ref.modelId}`
     : `agent:${ref.agentId}`
@@ -60,13 +62,16 @@ export function isDoctorScopeKey(value: unknown): value is DoctorScopeKey {
 
 export function doctorFixMeta<Id extends DoctorCheckId>(checkId: Id, fixId: DoctorFixId<Id>): DoctorFixMeta {
   const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find((fix) => fix.id === fixId)
+
   if (!meta) throw new Error(`Check "${checkId}" declares no fix "${fixId}"`)
+
   return meta
 }
 
 /** Untrusted-input guard for `diagnostics.doctor.fix`: the check must exist and declare that fix. */
 export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
   if (typeof value !== 'object' || value === null) return false
+
   const { scope, runId, checkId, fixId, target } = value as {
     scope?: unknown
     runId?: unknown
@@ -74,13 +79,18 @@ export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
     fixId?: unknown
     target?: unknown
   }
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- The IPC container check leaves scope untrusted; this predicate establishes the scope-key format.
   if (!isDoctorScopeKey(scope)) return false
+
   if (typeof runId !== 'string' || runId.length === 0) return false
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- The raw IPC check ID must name a catalog entry before its fix definitions can be read.
   if (!isDoctorCheckId(checkId) || typeof fixId !== 'string') return false
   const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find((fix) => fix.id === fixId)
+
   if (!meta) return false
+
   return meta.targeted ? typeof target === 'string' && target.length > 0 : !Object.hasOwn(value, 'target')
 }
 
@@ -177,18 +187,26 @@ export function projectDoctorReport(
   options: DoctorProjectionOptions = {}
 ): DoctorReport | DoctorProjectedReport {
   const allowed = new Set<DoctorDataClass>(DOCTOR_VIEW_DATA_CLASSES[view])
+
   if (options.consentToSensitive && view !== 'copy') allowed.add('consent_required')
+
   const basics = Object.fromEntries(
     Object.entries(report.basics).filter(([key]) => allowed.has(DOCTOR_BASICS_DATA_CLASS[key as keyof DoctorBasics]))
   ) as DoctorBasics
+
   const results = report.results.map((result) => {
     if (view === 'copy' || view === 'upload') return projectSharedResult(result, allowed)
+
     if (!result.evidence) return result
+
     return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
   })
+
   const { pendingChecks, ...rest } = report
   const projected = { ...rest, basics, results }
+
   if (view === 'display' && pendingChecks) Object.assign(projected, { pendingChecks })
+
   return projected
 }
 

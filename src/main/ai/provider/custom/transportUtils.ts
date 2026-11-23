@@ -21,6 +21,7 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 export function createAbortError(message: string): Error {
   const error = new Error(message)
   error.name = 'AbortError'
+
   return error
 }
 
@@ -36,23 +37,28 @@ export function isTerminalHttpStatus(status: number): boolean {
 
 export function waitWithSignal(delayMs: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(createAbortError('Task polling aborted'))
+
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       signal?.removeEventListener('abort', onAbort)
       resolve()
     }, delayMs)
+
     const onAbort = () => {
       clearTimeout(timer)
       signal?.removeEventListener('abort', onAbort)
       reject(createAbortError('Task polling aborted'))
     }
+
     signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
 
 export function uint8ToBase64(bytes: Uint8Array): string {
   let binary = ''
+
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+
   return btoa(binary)
 }
 
@@ -67,9 +73,12 @@ export function uint8ToBase64(bytes: Uint8Array): string {
  */
 export function fileToDataUrl(file: ImageModelV3File): string {
   if (file.type === 'url') return file.url
+
   if (typeof file.data === 'string') {
     const parsed = parseDataUrl(file.data)
+
     return parsed ? file.data : `data:${file.mediaType || 'image/png'};base64,${file.data}`
   }
+
   return `data:${file.mediaType || 'image/png'};base64,${uint8ToBase64(file.data)}`
 }

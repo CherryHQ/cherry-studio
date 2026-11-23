@@ -40,7 +40,9 @@ export function SidebarShortcutRegistryProvider({
 
 export function useSidebarShortcutRegistry(): SidebarShortcutRegistry {
   const registry = use(RegistryContext)
+
   if (!registry) throw new Error('SidebarShortcutRegistryProvider is missing')
+
   return registry
 }
 
@@ -49,6 +51,7 @@ export async function resolveSidebarShortcuts(
   registry: SidebarShortcutRegistry
 ): Promise<SidebarShortcutResolution[]> {
   const byProvider = new Map<string, SidebarShortcutItem[]>()
+
   for (const shortcut of shortcuts) {
     const providerId = shortcut.target.locator.providerId
     const items = byProvider.get(providerId) ?? []
@@ -61,15 +64,18 @@ export async function resolveSidebarShortcuts(
     [...byProvider.entries()].map(async ([providerId, items]) => {
       const provider = registry.get(providerId)
       const valid = provider ? items.filter((item) => provider.validate(item.target)) : []
+
       for (const item of items) {
         if (!provider || !provider.validate(item.target)) {
           resolvedById.set(item.id, { status: 'unavailable', shortcut: item })
         }
       }
+
       if (!provider || valid.length === 0) return
 
       try {
         const resources = await provider.resolveMany(valid.map((item) => item.target))
+
         for (const item of valid) {
           const resource = resources.get(createSidebarShortcutId(item.target))
           resolvedById.set(
@@ -82,6 +88,7 @@ export async function resolveSidebarShortcuts(
       }
     })
   )
+
   return shortcuts.map((shortcut) => resolvedById.get(shortcut.id) ?? { status: 'unavailable', shortcut })
 }
 
@@ -98,12 +105,14 @@ interface ProviderSubscription {
 
 function groupShortcutsByProvider(shortcuts: readonly SidebarShortcutItem[]): Map<string, ProviderShortcutGroup> {
   const itemsByProvider = new Map<string, SidebarShortcutItem[]>()
+
   for (const shortcut of shortcuts) {
     const providerId = shortcut.target.locator.providerId
     const items = itemsByProvider.get(providerId) ?? []
     items.push(shortcut)
     itemsByProvider.set(providerId, items)
   }
+
   return new Map(
     [...itemsByProvider].map(([providerId, items]) => [
       providerId,
@@ -130,9 +139,11 @@ export function useResolvedSidebarShortcuts(
   registry: SidebarShortcutRegistry
 ): SidebarShortcutResolution[] {
   const groups = useMemo(() => groupShortcutsByProvider(shortcuts), [shortcuts])
+
   const [resolutionsById, setResolutionsById] = useState<ReadonlyMap<string, SidebarShortcutResolution>>(
     () => new Map()
   )
+
   const mountedRef = useRef(true)
   const registryRef = useRef(registry)
   const shortcutsRef = useRef(shortcuts)
@@ -150,6 +161,7 @@ export function useResolvedSidebarShortcuts(
       generationsRef.current.set(providerId, generation)
       void resolveSidebarShortcuts(group.items, registry).then((next) => {
         const currentGroup = groupsRef.current.get(providerId)
+
         if (
           !mountedRef.current ||
           generationsRef.current.get(providerId) !== generation ||
@@ -157,21 +169,26 @@ export function useResolvedSidebarShortcuts(
         ) {
           return
         }
+
         setResolutionsById((current) => {
           const updated = new Map(current)
+
           for (const resolution of next) updated.set(resolution.shortcut.id, resolution)
+
           return updated
         })
       })
     },
     [registry]
   )
+
   resolveProviderRef.current = resolveProvider
 
   useEffect(() => {
     if (registryRef.current !== registry) {
       registryRef.current = registry
       resolvedGroupKeysRef.current.clear()
+
       for (const providerId of generationsRef.current.keys()) {
         generationsRef.current.set(providerId, (generationsRef.current.get(providerId) ?? 0) + 1)
       }
@@ -180,6 +197,7 @@ export function useResolvedSidebarShortcuts(
     const currentIds = new Set(shortcutsRef.current.map((shortcut) => shortcut.id))
     setResolutionsById((current) => {
       if ([...current.keys()].every((id) => currentIds.has(id))) return current
+
       return new Map([...current].filter(([id]) => currentIds.has(id)))
     })
 
@@ -188,6 +206,7 @@ export function useResolvedSidebarShortcuts(
       resolvedGroupKeysRef.current.delete(providerId)
       generationsRef.current.set(providerId, (generationsRef.current.get(providerId) ?? 0) + 1)
     }
+
     for (const [providerId, group] of groups) {
       if (resolvedGroupKeysRef.current.get(providerId) === group.key) continue
       resolvedGroupKeysRef.current.set(providerId, group.key)
@@ -197,22 +216,29 @@ export function useResolvedSidebarShortcuts(
     for (const [providerId, subscription] of subscriptionsRef.current) {
       const group = groups.get(providerId)
       const provider = registry.get(providerId)
+
       if (group && provider?.subscribe && subscription.key === group.key && subscription.provider === provider) {
         continue
       }
+
       subscription.cleanup()
       subscriptionsRef.current.delete(providerId)
     }
+
     for (const [providerId, group] of groups) {
       const provider = registry.get(providerId)
+
       if (!provider?.subscribe || subscriptionsRef.current.has(providerId)) continue
+
       const cleanup = provider.subscribe(
         group.items.map((item) => item.target),
         () => {
           const currentGroup = groupsRef.current.get(providerId)
+
           if (currentGroup) resolveProviderRef.current(providerId, currentGroup)
         }
       )
+
       subscriptionsRef.current.set(providerId, { key: group.key, provider, cleanup })
     }
   }, [groups, registry, resolveProvider])
@@ -220,8 +246,10 @@ export function useResolvedSidebarShortcuts(
   useEffect(() => {
     mountedRef.current = true
     const subscriptions = subscriptionsRef.current
+
     return () => {
       mountedRef.current = false
+
       for (const subscription of subscriptions.values()) subscription.cleanup()
       subscriptions.clear()
     }
@@ -229,6 +257,7 @@ export function useResolvedSidebarShortcuts(
 
   return shortcuts.map((shortcut) => {
     const resolution = resolutionsById.get(shortcut.id)
+
     return resolution ? withCurrentShortcut(resolution, shortcut) : { status: 'loading', shortcut }
   })
 }
@@ -240,15 +269,18 @@ export function useSidebarNavigationSnapshot(): SidebarNavigationSnapshot {
   const agentApp = getSidebarApp('agents')!
   const topicId = tabBelongsToApp(chatApp, url) ? chatApp.conversationRoute?.keyFromUrl(url) : undefined
   const sessionId = tabBelongsToApp(agentApp, url) ? agentApp.conversationRoute?.keyFromUrl(url) : undefined
+
   const { data: topic, mutate: refreshTopic } = useQuery(`/topics/${topicId}`, {
     enabled: !!topicId,
     swrOptions: { keepPreviousData: false }
   })
+
   const { data: session, mutate: refreshSession } = useQuery('/agent-sessions/:sessionId', {
     params: { sessionId: sessionId! },
     enabled: !!sessionId,
     swrOptions: { keepPreviousData: false }
   })
+
   useDataChange(
     '/topics/:id',
     (effects) => {
@@ -263,6 +295,7 @@ export function useSidebarNavigationSnapshot(): SidebarNavigationSnapshot {
   })
   const assistantId = topic?.id === topicId ? topic?.assistantId : undefined
   const agentId = session?.id === sessionId ? (session?.agentId ?? undefined) : undefined
+
   return useMemo(() => ({ url, assistantId, agentId }), [url, assistantId, agentId])
 }
 
@@ -273,19 +306,24 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
     (destination, options) => {
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
+
         const existing = destination.conversation
           ? (activeTab && findConversationTab([activeTab], destination.conversation)) ||
             findConversationTab(tabs, destination.conversation)
           : tabs.find(
               (tab) => tab.type === 'route' && (destination.matchesTab?.(tab.url) ?? tab.url === destination.url)
             )
+
         if (existing) {
           if (destination.metadata) {
             updateTab(existing.id, { metadata: { ...existing.metadata, ...destination.metadata } })
           }
+
           if (existing.id !== activeTab?.id) setActiveTab(existing.id)
+
           return
         }
+
         if (activeTab && !activeTab.isPinned) {
           updateTab(activeTab.id, {
             url: destination.url,
@@ -293,9 +331,11 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
             icon: destination.icon,
             metadata: destination.metadata ?? {}
           })
+
           return
         }
       }
+
       openTab(destination.url, {
         forceNew: true,
         title: destination.title,
@@ -305,6 +345,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
     },
     [activeTab, openTab, setActiveTab, tabs, updateTab]
   )
+
   return useMemo(() => ({ openWorkspace }), [openWorkspace])
 }
 
@@ -321,6 +362,7 @@ export function useSidebarShortcutActivation() {
   useLayoutEffect(() => () => pending.current?.abort(), [activeTab?.id, activeTab?.url])
   useLayoutEffect(() => {
     const activeRequests = requests.current
+
     return () => {
       activeRequests.forEach((request) => request.abort())
       activeRequests.clear()
@@ -335,11 +377,14 @@ export function useSidebarShortcutActivation() {
       inNewTab = false
     ) => {
       const request = new AbortController()
+
       if (!inNewTab) {
         pending.current?.abort()
         pending.current = request
       }
+
       requests.current.add(request)
+
       try {
         await provider.activate(target, {
           openWorkspace: (destination) => {
@@ -358,6 +403,7 @@ export function useSidebarShortcutActivation() {
         if (!request.signal.aborted) throw error
       } finally {
         requests.current.delete(request)
+
         if (pending.current === request) pending.current = null
       }
     },

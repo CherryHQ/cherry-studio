@@ -1,4 +1,5 @@
 export { BrowserSessionService } from './BrowserSessionService'
+
 export type {
   BrowserRef,
   BrowserSnapshot,
@@ -7,8 +8,11 @@ export type {
   SnapshotOptions,
   TabRetention
 } from './browserUse'
+
 export { BrowserSessionError } from './session/BrowserSessionError'
+
 export { GuestSession } from './session/GuestSession'
+
 export type {
   AccessibilityCaptureBudget,
   AccessibilityContext,
@@ -17,6 +21,7 @@ export type {
   AccessibleNode,
   AccessibleNodeSummary
 } from './snapshot/accessibilityTypes'
+
 export { ANNOTATION_EXPORT_LIMITS, createAccessibilityContext } from './snapshot/describeElement'
 
 export { BrowserControlSession } from './BrowserControlSession'

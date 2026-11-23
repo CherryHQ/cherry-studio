@@ -29,12 +29,14 @@ export default function McpInstructions({ serverId, connectionState }: { serverI
       },
       (error) => {
         logger.warn('Failed to read MCP instructions', { serverId, error })
+
         if (current) {
           setFailed(true)
           setLoading(false)
         }
       }
     )
+
     return () => {
       current = false
     }

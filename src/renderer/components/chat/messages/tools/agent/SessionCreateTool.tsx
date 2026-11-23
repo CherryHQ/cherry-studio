@@ -22,6 +22,7 @@ interface SessionCreateInput {
 function getInput(input: ToolInput | NormalToolResponse['arguments']): SessionCreateInput {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) return {}
   const record = input as { message?: unknown; title?: unknown }
+
   return {
     message: typeof record.message === 'string' ? record.message : undefined,
     title: typeof record.title === 'string' ? record.title : undefined
@@ -52,6 +53,7 @@ export function SessionCreateTool({
   const message = sessionInput.message?.trim()
   const deliveryStatus = getSessionDeliveryStatus(result?.delivery?.status, t)
   const errorText = hasError ? extractToolErrorText(output) : undefined
+
   const actionLabel = isStreaming
     ? t('message.tools.sessionCreate.creating')
     : status === 'cancelled'

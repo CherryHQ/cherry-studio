@@ -9,6 +9,7 @@ import type { OutputFor } from '@shared/ipc/types'
 import { isStableReleaseVersion } from '@shared/utils/releaseNotes'
 
 const logger = loggerService.withContext('useUpgradeReleaseNotes')
+
 type History = OutputFor<'app.updater.upgrade_notes.get'>
 
 export function useUpgradeReleaseNotes(releaseInfo: UpdateInfo) {
@@ -30,8 +31,10 @@ export function useUpgradeReleaseNotes(releaseInfo: UpdateInfo) {
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Upgrade-note IPC may reject with any value; log it and clear only the current effect result.
       .catch((error: unknown) => {
         logger.warn('Failed to fetch upgrade release notes', { error })
+
         if (active) setResult({ target, attempt, history: null })
       })
+
     return () => {
       active = false
     }
@@ -39,10 +42,12 @@ export function useUpgradeReleaseNotes(releaseInfo: UpdateInfo) {
 
   const fromVersion = current?.history?.fromVersion ?? installed
   const history = current?.history
+
   const releases = useMemo(
     () => (supported ? collectUpgradeReleases(fromVersion, releaseInfo, history?.releases ?? []) : []),
     [supported, fromVersion, releaseInfo, history]
   )
+
   return {
     supported,
     fromVersion,

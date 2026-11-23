@@ -37,7 +37,9 @@ type CodeCliToolDefinition = Omit<CodeCliToolPreset, 'miseTool' | 'skillNamespac
 function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition): Readonly<CodeCliToolPreset> {
   const packageTool =
     definition.install === 'registry' ? definition.executable : `${definition.install}:${definition.packageName}`
+
   const extras = definition.install === 'pipx' && pipxExtras?.length ? pipxExtras.join(',') : ''
+
   return Object.freeze({
     ...definition,
     skillNamespace: `code-cli:${definition.id}` as const,

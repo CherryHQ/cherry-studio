@@ -16,7 +16,9 @@ const isWithinGrid = (range: string): boolean =>
     // A malformed cell still reaches here — zod runs refinements after a failed `.regex()` — and the
     // regex check already reports it, so pass it through rather than reporting the same value twice.
     const match = /^([A-Z]{1,3})([1-9][0-9]*)$/.exec(cell)
+
     if (!match) return true
+
     return columnToIndex(match[1]) <= XLSX_MAX_COLUMN && Number(match[2]) <= XLSX_MAX_ROW
   })
 

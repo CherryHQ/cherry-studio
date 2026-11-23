@@ -32,6 +32,7 @@ function isOutsideCodeViewport(virtualizer: {
 }): boolean {
   const offset = virtualizer.scrollOffset ?? 0
   const margin = virtualizer.options.scrollMargin
+
   return offset + (virtualizer.scrollRect?.height ?? 0) < margin || offset > margin + virtualizer.getTotalSize()
 }
 
@@ -42,6 +43,7 @@ function observeCodeViewportOffset<TScroll extends Element | Window, TItem exten
   return (offset: number, isScrolling: boolean) => {
     const wasOutside = isOutsideCodeViewport(instance)
     callback(offset, isScrolling)
+
     // A short block can cross the viewport without changing its [0, 0] row range.
     // TanStack then needs a separate visibility notification before scroll-end.
     if (isOutsideCodeViewport(instance) !== wasOutside) instance.options.onChange?.(instance, isScrolling)
@@ -157,13 +159,16 @@ const CodeViewer = ({
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
   const hasRequestedHighlightRef = useRef(false)
+
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
+
     if (!scroller || !sel || sel.rangeCount === 0) return false
 
     // Check if selection intersects with scroller
     const range = sel.getRangeAt(0)
+
     return scroller.contains(range.commonAncestorContainer)
   }, [])
 
@@ -175,35 +180,45 @@ const CodeViewer = ({
 
   useLayoutEffect(() => {
     const root = shikiThemeRef.current
+
     if (!root) return
+
     const prepare = async () => {
       const captureId = `${callerId}-capture`
       let captureTokens: HighlightResult | null = null
+
       try {
         if (highlight)
           captureTokens = await highlightRange(value, language, captureId, { start: 0, end: rawLines.length })
       } finally {
         if (highlight) cleanupTokenizers(captureId)
       }
+
       if (shikiThemeRef.current !== root) return () => {}
+
       const scrollTop = scrollerRef.current?.scrollTop ?? 0
       await new Promise<void>((resolve) => {
         captureCommitRef.current = resolve
         setCapture({ lines: rawLines, tokens: captureTokens })
       })
+
       return async () => {
         if (shikiThemeRef.current !== root) return
         await new Promise<void>((resolve) => {
           captureCommitRef.current = resolve
           setCapture(null)
         })
+
         if (scrollerRef.current) scrollerRef.current.scrollTop = scrollTop
       }
     }
+
     const onPrepare = (event: Event) => {
       if (event instanceof ImageCaptureEvent) event.preparations.push(prepare())
     }
+
     root.addEventListener(ImageCaptureEvent.type, onPrepare)
+
     return () => root.removeEventListener(ImageCaptureEvent.type, onPrepare)
   }, [callerId, cleanupTokenizers, highlight, highlightRange, language, rawLines, value])
 
@@ -222,8 +237,10 @@ const CodeViewer = ({
   // 保存当前选区的逻辑位置
   const saveSelection = useCallback((): SavedSelection | null => {
     const gesture = gestureRef.current
+
     if (gesture && !gesture.active) return savedSelectionRef.current
     const selection = window.getSelection()
+
     if (!selection || selection.rangeCount === 0 || (selection.isCollapsed && !gesture)) {
       return null
     }
@@ -235,6 +252,7 @@ const CodeViewer = ({
 
     const range = selection.getRangeAt(0)
     const scroller = scrollerRef.current
+
     if (!scroller) return null
 
     // 查找选区起始和结束位置对应的行号
@@ -248,14 +266,17 @@ const CodeViewer = ({
           // 如果在行号上，移动到同级的 line-content
           const lineContainer = element.parentElement
           const lineContent = lineContainer?.querySelector('.line-content')
+
           if (lineContent) {
             element = lineContent
             break
           }
         }
+
         if (element.hasAttribute('data-index')) {
           break
         }
+
         element = element.parentElement
       }
 
@@ -264,6 +285,7 @@ const CodeViewer = ({
           nodeName: node.nodeName,
           nodeType: node.nodeType
         })
+
         return null
       }
 
@@ -285,15 +307,20 @@ const CodeViewer = ({
 
     let start: SourcePoint | null
     let end: SourcePoint | null
+
     if (gesture) {
       gesture.anchor ??= selection.anchorNode && findLineAndOffset(selection.anchorNode, selection.anchorOffset)
       const focus = selection.focusNode && findLineAndOffset(selection.focusNode, selection.focusOffset)
+
       if (focus) gesture.focus = focus
       const { anchor } = gesture
+
       if (!anchor || !gesture.focus) return savedSelectionRef.current
+
       const forward =
         anchor.line < gesture.focus.line ||
         (anchor.line === gesture.focus.line && anchor.offset <= gesture.focus.offset)
+
       start = forward ? anchor : gesture.focus
       end = forward ? gesture.focus : anchor
     } else {
@@ -306,6 +333,7 @@ const CodeViewer = ({
         hasStart: !!start,
         hasEnd: !!end
       })
+
       return null
     }
 
@@ -318,14 +346,17 @@ const CodeViewer = ({
 
     if (start.line === end.line && start.offset === end.offset) {
       savedSelectionRef.current = null
+
       return null
     }
+
     return { startLine: start.line, startOffset: start.offset, endLine: end.line, endOffset: end.offset }
   }, [selectionBelongsToViewer])
 
   // 滚动事件处理：保存选择用于复制，但不恢复（避免选择高亮问题）
   const handleScroll = useCallback(() => {
     const scroller = scrollerRef.current
+
     if (scroller && autoScrollToBottom && !expanded) {
       const distanceToBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
       shouldStickToBottomRef.current = distanceToBottom <= 8
@@ -333,6 +364,7 @@ const CodeViewer = ({
 
     // 只保存选择状态用于复制，不在滚动时恢复选择
     const saved = saveSelection()
+
     if (saved) {
       savedSelectionRef.current = saved
       codeViewerSelectionManager.retain(scroller!)
@@ -351,6 +383,7 @@ const CodeViewer = ({
 
       if (!saved) {
         logger.warn('Cannot get selection, using browser default')
+
         return
       }
 
@@ -397,8 +430,10 @@ const CodeViewer = ({
 
         if (!event.clipboardData) {
           logger.warn('clipboardData unavailable, using browser default copy')
+
           return
         }
+
         event.clipboardData.setData('text/plain', fullText)
         event.preventDefault()
       } catch (error) {
@@ -415,39 +450,53 @@ const CodeViewer = ({
   useLayoutEffect(() => {
     if (!expanded) {
       setScrollMargin(0)
+
       return
     }
+
     let parent = scrollerRef.current?.parentElement ?? null
+
     while (parent && !/(auto|scroll|overlay)/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement
+
     if (parent === document.body || parent === document.documentElement) parent = null
     setScrollParent(parent)
     let previousMargin: number | undefined
+
     const updateMargin = () => {
       const list = listRef.current
+
       if (!list) return
+
       const nextMargin =
         list.getBoundingClientRect().top -
         (parent?.getBoundingClientRect().top ?? 0) +
         (parent?.scrollTop ?? window.scrollY) -
         (parent?.clientTop ?? 0)
+
       if (nextMargin === previousMargin) return
       previousMargin = nextMargin
       setScrollMargin(nextMargin)
     }
+
     updateMargin()
     const resizeObserver = new ResizeObserver(updateMargin)
+
     const mutationObserver = new MutationObserver((records) => {
       if (records.some((record) => record.type === 'childList')) observeLayout()
       updateMargin()
     })
+
     const observeLayout = () => {
       resizeObserver.disconnect()
       mutationObserver.disconnect()
+
       // Watch the layout around the viewer, excluding its virtual rows and syntax tokens.
       for (let element: HTMLElement | null = shikiThemeRef.current; element; element = element.parentElement) {
         resizeObserver.observe(element)
         mutationObserver.observe(element, { attributeFilter: ['style', 'class'], childList: true })
+
         if (element === parent) break
+
         // A preceding sibling can move the viewer without resizing a fixed-height ancestor.
         for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
           resizeObserver.observe(sibling)
@@ -455,9 +504,11 @@ const CodeViewer = ({
         }
       }
     }
+
     observeLayout()
     const target = parent ?? window
     target.addEventListener('scroll', handleScroll, { passive: true })
+
     return () => {
       resizeObserver.disconnect()
       mutationObserver.disconnect()
@@ -471,18 +522,22 @@ const CodeViewer = ({
 
   const getWrapContentWidth = useCallback(() => {
     const scroller = scrollerRef.current
+
     if (!scroller || scroller.clientWidth <= 0) return 0
     const gutterPx = lineNumbers ? gutterDigits * fontSize * 0.6 + 16 : 0
     const horizontalPadding = fontSize * 2
+
     return Math.max(1, scroller.clientWidth - gutterPx - horizontalPadding)
   }, [fontSize, gutterDigits, lineNumbers])
 
   const estimateWrappedVisualRows = useCallback(
     (line: string, contentWidth: number) => {
       if (!wrapped || contentWidth <= 0) return 1
+
       if (line.length === 0) return 1
       const charWidth = fontSize * 0.6
       const charsPerRow = Math.max(1, Math.floor(contentWidth / charWidth))
+
       return Math.max(1, Math.ceil(line.length / charsPerRow))
     },
     [fontSize, wrapped]
@@ -492,6 +547,7 @@ const CodeViewer = ({
     (index: number) => {
       const contentWidth = getWrapContentWidth()
       const visualRows = estimateWrappedVisualRows(rawLines[index] ?? '', contentWidth)
+
       return lineHeight * visualRows
     },
     [estimateWrappedVisualRows, getWrapContentWidth, lineHeight, rawLines]
@@ -512,14 +568,17 @@ const CodeViewer = ({
       const element = instance.scrollElement
       const onOffset = observeCodeViewportOffset(instance, callback)
       instance.shouldAdjustScrollPositionOnItemSizeChange = isViewportOwned(element) ? () => false : undefined
+
       // Attachment restores the cached offset after subscribing, so seed it from the actual viewport first.
       if (element) onOffset(element.scrollTop, false)
+
       return observeElementOffset(instance, onOffset)
     },
     scrollToFn: (offset, options, instance) => {
       if (!isViewportOwned(instance.scrollElement)) elementScroll(offset, options, instance)
     }
   })
+
   const windowVirtualizer = useWindowVirtualizer({
     count: rawLines.length,
     getItemKey,
@@ -530,26 +589,32 @@ const CodeViewer = ({
       observeWindowOffset(instance, observeCodeViewportOffset(instance, callback)),
     enabled: expanded && scrollParent === null
   })
+
   const virtualizer = expanded && scrollParent === null ? windowVirtualizer : elementVirtualizer
 
   // measure() drops every cached size and mounted rows never re-run measureElement, so seed
   // the rebuild from the DOM. Real deltas apply first; after measure() they are estimate error.
   const remeasureRows = useCallback(() => {
     const scroller = scrollerRef.current
+
     if (!scroller || capture) return
+
     const rows = [...scroller.querySelectorAll<HTMLElement>('[data-index]')].map(
       (element) => [Number(element.dataset.index), element.offsetHeight] as const
     )
+
     for (const [index, height] of rows) virtualizer.resizeItem(index, height)
     virtualizer.measure()
     virtualizer.getTotalSize()
     const adjustBefore = virtualizer.shouldAdjustScrollPositionOnItemSizeChange
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false
+
     try {
       for (const [index, height] of rows) virtualizer.resizeItem(index, height)
     } finally {
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = adjustBefore
     }
+
     // React commits after paint; sync the height now so the reflowed rows cannot
     // flash a scrollbar for a frame.
     if (listRef.current) listRef.current.style.height = `${virtualizer.getTotalSize()}px`
@@ -562,18 +627,24 @@ const CodeViewer = ({
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
     const probe = widthProbeRef.current
+
     if (!scroller || !probe) return
 
     let lastWidth = scroller.clientWidth
+
     const observer = new ResizeObserver(() => {
       const nextWidth = scroller.clientWidth
+
       if (nextWidth === lastWidth) return
       lastWidth = nextWidth
+
       if (wrapped) {
         remeasureRows()
       }
     })
+
     observer.observe(probe)
+
     return () => observer.disconnect()
   }, [expanded, remeasureRows, wrapped])
 
@@ -581,6 +652,7 @@ const CodeViewer = ({
 
   useLayoutEffect(() => {
     const signature = `${wrapped}:${lineNumbers}:${gutterDigits}:${fontSize}`
+
     if (previousWrapLayoutSignatureRef.current === signature) return
     previousWrapLayoutSignatureRef.current = signature
     remeasureRows()
@@ -589,16 +661,20 @@ const CodeViewer = ({
   useLayoutEffect(() => {
     if (!wrapped) {
       previousRawLinesRef.current = rawLines
+
       return
     }
 
     const previous = previousRawLinesRef.current
     previousRawLinesRef.current = rawLines
+
     if (!previous) return
 
     const scroller = scrollerRef.current
+
     for (const element of scroller?.querySelectorAll<HTMLElement>('[data-index]') ?? []) {
       const index = Number(element.dataset.index)
+
       if (previous[index] !== rawLines[index]) virtualizer.resizeItem(index, element.offsetHeight)
     }
   }, [expanded, rawLines, virtualizer, wrapped])
@@ -615,7 +691,9 @@ const CodeViewer = ({
     language,
     callerId
   })
+
   const matchesEditor = useMemo(() => editorState?.sliceDoc() === value, [editorState, value])
+
   const editorTokens = useMemo(
     () =>
       !tokens && highlight && matchesEditor && editorState && firstIndex !== undefined && lastIndex !== undefined
@@ -630,10 +708,12 @@ const CodeViewer = ({
   useEffect(() => {
     if (highlight) {
       wasHighlightEnabledRef.current = true
+
       return
     }
 
     debouncedHighlightLines.cancel()
+
     if (wasHighlightEnabledRef.current) {
       resetHighlight()
       wasHighlightEnabledRef.current = false
@@ -652,10 +732,12 @@ const CodeViewer = ({
   useEffect(() => {
     if (!highlight) return
     const shikiTheme = shikiThemeRef.current
+
     if (firstIndex === undefined || lastIndex === undefined || !shikiTheme) return
 
     if (!hasRequestedHighlightRef.current) {
       const rect = shikiTheme.getBoundingClientRect()
+
       const intersectsViewport =
         rect.width > 0 &&
         rect.height > 0 &&
@@ -667,18 +749,22 @@ const CodeViewer = ({
       if (!intersectsViewport) {
         hasRequestedHighlightRef.current = true
         void debouncedHighlightLines(firstIndex, lastIndex + 1)
+
         return
       }
+
       let frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
           hasRequestedHighlightRef.current = true
           void highlightLines(firstIndex, lastIndex + 1)
         })
       })
+
       return () => cancelAnimationFrame(frame)
     }
 
     void debouncedHighlightLines(firstIndex, lastIndex + 1)
+
     return undefined
   }, [firstIndex, lastIndex, debouncedHighlightLines, highlightLines, highlight])
 
@@ -688,10 +774,12 @@ const CodeViewer = ({
       if (!selection || !selectionBelongsToViewer(selection)) {
         savedSelectionRef.current = null
         gestureRef.current = null
+
         return
       }
 
       const current = saveSelection()
+
       if (current) {
         savedSelectionRef.current = current
         codeViewerSelectionManager.retain(scrollerRef.current!)
@@ -700,6 +788,7 @@ const CodeViewer = ({
       // In collapsed state, detect multi-line selection and request expand
       if (!expanded && onRequestExpand) {
         const saved = saveSelection()
+
         if (saved && saved.endLine > saved.startLine) {
           logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
             startLine: saved.startLine,
@@ -711,6 +800,7 @@ const CodeViewer = ({
     },
     [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer]
   )
+
   const selectionChangeHandlerRef = useRef(handleSelectionChange)
   const copyHandlerRef = useRef(handleCopy)
   const gestureHandlerRef = useRef<(active: boolean) => void>(() => {})
@@ -730,6 +820,7 @@ const CodeViewer = ({
 
   useEffect(() => {
     const scroller = scrollerRef.current
+
     if (!scroller) return
 
     return codeViewerSelectionManager.register(
@@ -742,6 +833,7 @@ const CodeViewer = ({
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
+
     if (scroller) codeViewerSelectionManager.release(scroller)
   }, [value])
 
@@ -752,6 +844,7 @@ const CodeViewer = ({
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current
+
     if (!scroller || !autoScrollToBottom || expanded || !shouldStickToBottomRef.current) return
 
     scroller.scrollTop = scroller.scrollHeight
@@ -760,12 +853,14 @@ const CodeViewer = ({
   const renderedLines = capture?.lines ?? rawLines
   const renderedTokens = capture ? capture.tokens : (tokens ?? editorTokens)
   const renderedItems = capture ? capture.lines.map((_, index) => ({ key: index, index })) : virtualItems
+
   const blockStyle: React.CSSProperties = {
     ...codeBlockStyle,
     color: 'var(--code-foreground, var(--foreground))',
     backgroundColor: 'var(--code-background, transparent)',
     fontFamily: 'var(--code-font-family)'
   }
+
   if (!expanded && !capture) blockStyle.height = height
 
   return (
@@ -849,6 +944,7 @@ const VirtualizedRow = memo(
     const completeTokenLine = useMemo(() => {
       const tokens = tokenLine ?? []
       const length = tokens.reduce((total, token) => total + token.content.length, 0)
+
       return tokens.length && length >= rawLine.length
         ? tokens
         : [...tokens, { content: rawLine.slice(length), offset: length }]

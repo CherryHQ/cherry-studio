@@ -4,6 +4,7 @@ import { LeptonLight } from './light'
 
 const Lepton = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LeptonLight {...props} className={className} />
+
   return <LeptonLight {...props} className={className} />
 }
 

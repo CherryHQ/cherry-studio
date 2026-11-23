@@ -28,6 +28,7 @@ const menuContentStyles = cn(
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
   'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
 )
+
 const menuSubContentStyles = cn(
   'z-50 min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg [-webkit-app-region:no-drag]',
   'data-[state=closed]:animate-out data-[state=open]:animate-in',
@@ -84,20 +85,24 @@ function ContextMenu({
   const shouldStopOpeningPointerUpRef = React.useRef(false)
   const clearOpeningPointerUpListenerRef = React.useRef<(() => void) | null>(null)
   const clearOpeningPointerUpTimerRef = React.useRef<number | null>(null)
+
   const clearOpeningPointerUp = React.useCallback(() => {
     shouldStopOpeningPointerUpRef.current = false
     clearOpeningPointerUpListenerRef.current?.()
     clearOpeningPointerUpListenerRef.current = null
+
     if (clearOpeningPointerUpTimerRef.current !== null) {
       window.clearTimeout(clearOpeningPointerUpTimerRef.current)
       clearOpeningPointerUpTimerRef.current = null
     }
   }, [])
+
   const pointerUpGuard = React.useMemo<ContextMenuOpeningPointerUpGuard>(
     () => ({
       consumeOpeningPointerUp: () => {
         const shouldStop = shouldStopOpeningPointerUpRef.current
         clearOpeningPointerUp()
+
         return shouldStop
       },
       markOpeningPointerUp: () => {
@@ -108,17 +113,21 @@ function ContextMenu({
         clearOpeningPointerUpListenerRef.current = () => {
           window.removeEventListener('pointerup', handleOpeningPointerUp)
         }
+
         if (clearOpeningPointerUpTimerRef.current !== null) {
           window.clearTimeout(clearOpeningPointerUpTimerRef.current)
         }
+
         clearOpeningPointerUpTimerRef.current = window.setTimeout(clearOpeningPointerUp, 1000)
       }
     }),
     [clearOpeningPointerUp]
   )
+
   const handleOpenChange = React.useCallback(
     (open: boolean) => {
       setOpen(open)
+
       if (!open) clearOpeningPointerUp()
     },
     [clearOpeningPointerUp, setOpen]
@@ -150,6 +159,7 @@ function ContextMenuTrigger({
         if (!disabled) {
           pointerUpGuard?.markOpeningPointerUp()
         }
+
         onContextMenu?.(event)
       }}
       {...props}
@@ -163,6 +173,7 @@ function ContextMenuGroup({ ...props }: React.ComponentProps<typeof ContextMenuP
 
 function ContextMenuPortal({ container, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
   const defaultPortalContainer = usePortalContainer()
+
   return (
     <ContextMenuPrimitive.Portal
       data-slot="context-menu-portal"
@@ -179,6 +190,7 @@ function ContextMenuSub({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Sub>) {
   const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: defaultOpen, onChange: onOpenChange })
+
   return (
     <KeyboardLayerRoot open={open}>
       <ContextMenuPrimitive.Sub data-slot="context-menu-sub" open={open} onOpenChange={setOpen} {...props} />
@@ -192,6 +204,7 @@ function ContextMenuRadioGroup({ ...props }: React.ComponentProps<typeof Context
 
 function stopOpeningPointerUp(event: React.PointerEvent, pointerUpGuard: ContextMenuOpeningPointerUpGuard | null) {
   const isOpeningPointerUp = pointerUpGuard?.consumeOpeningPointerUp() ?? false
+
   if (event.button !== 2 && !isOpeningPointerUp) return
 
   event.preventDefault()
@@ -436,6 +449,7 @@ function ContextMenuItemContent(props: ContextMenuItemContentProps) {
   const { icon, children, badge, className } = props
   const shortcut = 'shortcut' in props ? props.shortcut : undefined
   const hasSubmenu = 'hasSubmenu' in props ? props.hasSubmenu : false
+
   return (
     <>
       <span className={cn('flex min-w-0 flex-1 items-center gap-2', className)}>

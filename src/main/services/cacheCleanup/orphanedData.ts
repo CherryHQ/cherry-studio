@@ -28,22 +28,27 @@ async function collectOrphanKnowledgeTargets(): Promise<{
   issues: CacheCleanupIssue[]
 }> {
   const item = 'orphan_knowledge_bases'
+
   if (hasPendingRestore()) {
     return { targets: [], issues: [issue(item, 'inspection_failed')] }
   }
 
   let inspection
+
   try {
     inspection = await application.get('KnowledgeService').inspectOrphanBaseArtifacts()
   } catch (error) {
     logger.warn('Failed to inspect orphan knowledge base artifacts', { error })
+
     return { targets: [], issues: [issue(item, 'inspection_failed')] }
   }
 
   const rootStatus = await inspectTarget(inspection.rootPath, item, 'directory')
+
   if (rootStatus === 'missing') {
     return { targets: [], issues: inspection.complete ? [] : [issue(item, 'inspection_failed')] }
   }
+
   if (rootStatus === 'invalid') {
     return { targets: [], issues: [issue(item, 'unsafe_target')] }
   }
@@ -56,10 +61,13 @@ async function collectOrphanKnowledgeTargets(): Promise<{
       kind: 'directory'
     })
   )
+
   const owned = await collectOwnedTargets<OrphanKnowledgeTarget>(candidates)
+
   if (!inspection.complete) {
     owned.issues.push(issue(item, 'inspection_failed'))
   }
+
   return owned
 }
 
@@ -73,6 +81,7 @@ function getCleanupPaths() {
 
 function collectRestoreTargets(): Promise<{ targets: CleanupTarget[]; issues: CacheCleanupIssue[] }> {
   const paths = getCleanupPaths()
+
   return collectOwnedTargets([
     { item: 'restore_indexeddb', path: paths.indexedDbRestore, kind: 'directory' },
     { item: 'restore_local_storage', path: paths.localStorageRestore, kind: 'directory' },
@@ -87,6 +96,7 @@ export async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
     collectRestoreTargets(),
     collectFailedRestoreTargets()
   ])
+
   const targetMeasurement = await measurePaths(
     [...knowledgePlan.targets, ...restorePlan.targets, ...failedRestorePlan.targets].map(
       ({ item, path: targetPath }) => ({
@@ -95,10 +105,13 @@ export async function inspectOrphanedData(): Promise<CacheCleanupSizeSnapshot> {
       })
     )
   )
+
   const fileIssues: CacheCleanupIssue[] = []
+
   if (fileReport.outcome !== 'completed' || fileReport.statFailedCount > 0) {
     fileIssues.push(issue('orphan_files', 'inspection_failed'))
   }
+
   const reclaimableFileBytes = fileReport.outcome === 'completed' ? fileReport.plannedDeleteBytes : 0
 
   return toSizeSnapshot(
@@ -121,19 +134,26 @@ async function removeOrphanKnowledgeTarget(target: OrphanKnowledgeTarget): Promi
 
   const { baseId } = target
   const status = await inspectTarget(target.path, target.item, target.kind)
+
   if (status === 'missing') return { state: 'not_found' }
+
   if (status === 'invalid') return { state: 'skipped' }
 
   try {
     const removed = await application.get('KnowledgeService').removeOrphanBaseArtifacts(baseId)
+
     if (!removed) {
       logger.info('Skipped knowledge base directory that is no longer orphaned', { baseId, path: target.path })
+
       return { state: 'not_found' }
     }
+
     logger.info('Removed orphan knowledge base artifacts', { baseId, path: target.path })
+
     return { state: 'cleared' }
   } catch (error) {
     logger.error('Failed to remove orphan knowledge base artifacts', { baseId, path: target.path, error })
+
     return { state: 'failed' }
   }
 }
@@ -145,6 +165,7 @@ export async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
     collectRestoreTargets(),
     collectFailedRestoreTargets()
   ])
+
   const steps = await Promise.all([
     ...knowledgePlan.targets.map(removeOrphanKnowledgeTarget),
     ...restorePlan.targets.map(removeCleanupTarget),
@@ -153,6 +174,7 @@ export async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
 
   if (fileReport.outcome === 'completed') {
     if (fileReport.actualDeleteCount > 0) steps.push({ state: 'cleared' })
+
     if (fileReport.statFailedCount > 0) steps.push({ state: 'failed' })
     else if (fileReport.actualDeleteCount === 0) steps.push({ state: 'not_found' })
   } else if (fileReport.outcome === 'partial') {
@@ -163,10 +185,12 @@ export async function clearOrphanedData(): Promise<CacheCleanupGroupResult> {
   } else {
     steps.push({ state: 'failed' })
   }
+
   steps.push(
     ...[...knowledgePlan.issues, ...restorePlan.issues, ...failedRestorePlan.issues].map(() => ({
       state: 'skipped' as const
     }))
   )
+
   return resultFromSteps('orphaned_data', steps)
 }

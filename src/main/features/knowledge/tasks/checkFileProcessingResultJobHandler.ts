@@ -41,6 +41,7 @@ export function createCheckFileProcessingResultJobHandler(
 
       if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
         await cancelFileProcessingTaskOrThrow(fileProcessingTaskId, FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON)
+
         return
       }
 
@@ -49,12 +50,14 @@ export function createCheckFileProcessingResultJobHandler(
       if (!task) {
         markItemFailed(itemId, `File processing task not found: ${fileProcessingTaskId}`)
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
+
         return
       }
 
       if (task.status === 'failed' || task.status === 'cancelled') {
         markItemFailed(itemId, `File processing task ${fileProcessingTaskId} ${task.status}: ${task.error}`)
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
+
         return
       }
 
@@ -62,8 +65,10 @@ export function createCheckFileProcessingResultJobHandler(
       if (task.status !== 'completed' || task.artifact.kind !== 'file') {
         markItemFailed(itemId, `Invalid file processing result for task ${fileProcessingTaskId}`)
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
+
         return
       }
+
       const indexedRelativePath = ctx.input.processedRelativePath
 
       const canContinue = await knowledgeLockManager.runExclusive(baseId, async () => {
@@ -77,11 +82,14 @@ export function createCheckFileProcessingResultJobHandler(
           toKnowledgeItemId(itemId),
           workflowParentJobId
         )
+
         return true
       })
+
       if (!canContinue) {
         return
       }
+
       reportKnowledgeProgress(ctx, 100, { stage: 'done' })
     },
 
@@ -97,29 +105,36 @@ export function createCheckFileProcessingResultJobHandler(
 
 function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, jobId: string): boolean {
   const result = resolveLiveKnowledgeItem(itemId)
+
   if ('skip' in result) {
     if (result.skip === 'deleting') {
       logger.info('Skipping file-processing check for deleting item', { baseId, itemId, jobId })
     } else {
       logger.info('Skipping file-processing check for missing item', { baseId, itemId, jobId })
     }
+
     return true
   }
+
   if (result.item.baseId !== baseId) {
     throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
   }
+
   return false
 }
 
 function markItemFailed(itemId: string, error: string): void {
   const result = resolveLiveKnowledgeItem(itemId)
+
   if ('skip' in result) {
     if (result.skip === 'deleting') {
       logger.info('Skipping mark failed for deleting item', { itemId, error })
     } else {
       logger.info('Skipping mark failed for missing item', { itemId, error })
     }
+
     return
   }
+
   knowledgeItemService.updateStatus(itemId, 'failed', { error })
 }

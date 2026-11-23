@@ -13,6 +13,7 @@ const logger = loggerService.withContext('miniAppNavigation')
 export function shouldAllowNavigation(url: string, appId: string): boolean {
   try {
     const parsed = new URL(url)
+
     return parsed.protocol === `${MINI_APP_SCHEME}:` && parsed.host === appId
   } catch {
     return false

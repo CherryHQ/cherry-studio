@@ -15,6 +15,7 @@ import { captureLoggedError } from './sentry'
 const WINDOW_MS = 10 * 60 * 1000
 const BUDGET_WINDOW_MS = 60 * 60 * 1000
 const EVENTS_PER_BUDGET = 10
+
 const CRITICAL_OPERATIONS = new Set([
   'window.renderer.exit',
   'react.render',
@@ -22,6 +23,7 @@ const CRITICAL_OPERATIONS = new Set([
   'database.open',
   'database.migrate'
 ])
+
 const logger = loggerService.withContext('ErrorReportingService')
 
 @Injectable('ErrorReportingService')
@@ -37,6 +39,7 @@ export class ErrorReportingService extends BaseService {
 
   get enabled(): boolean {
     const preferences = application.getExisting('PreferenceService')
+
     return (
       !import.meta.env.DEV &&
       this.isReady &&
@@ -55,8 +58,11 @@ export class ErrorReportingService extends BaseService {
     this.registerDisposable(
       loggerService.setErrorReporter(({ error, entry }) => {
         if (!this.enabled || !getSentryLogContext(entry)) return
+
         if (error && this.observed.has(error)) return
+
         if (error) this.observed.add(error)
+
         try {
           captureLoggedError(entry)
         } catch (error) {
@@ -76,16 +82,20 @@ export class ErrorReportingService extends BaseService {
 
   filterEvent(event: ErrorEvent, hint: EventHint = {}): ErrorEvent | null {
     if (!this.enabled) return null
+
     if (hasReportingOwner(hint.originalException) || isCancellation(hint.originalException)) return null
+
     if (
       event.tags?.['capture.source'] !== 'log' &&
       hint.originalException instanceof Error &&
       this.observed.has(hint.originalException)
     )
       return null
+
     if (isCancellation({ name: event.exception?.values?.at(-1)?.type })) return null
 
     const tags = event.tags ?? {}
+
     const facts = parseFailureFacts({
       source: tags['failure.source'],
       kind: tags['failure.kind'],
@@ -93,14 +103,18 @@ export class ErrorReportingService extends BaseService {
       outcome: tags['failure.outcome'],
       runtime: tags['failure.runtime']
     })
+
     if ((!facts && tags['capture.source'] === 'log') || (facts && !shouldReportFailure(facts))) return null
+
     const critical =
       event.level === 'fatal' ||
       CRITICAL_OPERATIONS.has(String(tags.operation)) ||
       event.exception?.values?.some((value) => value.mechanism?.handled === false)
+
     const budget = critical ? 'critical' : 'unexpected'
     // Native fault identity lives in the dump, which the SDK deletes after scanning.
     const deduplicate = event.platform !== 'native'
+
     const key = createHash('sha256')
       .update(
         JSON.stringify([
@@ -114,13 +128,18 @@ export class ErrorReportingService extends BaseService {
         ])
       )
       .digest('hex')
+
     const now = Date.now()
+
     if (this.totals[budget].expires <= now) {
       this.totals[budget] = { count: 0, expires: now + BUDGET_WINDOW_MS }
     }
+
     const total = this.totals[budget]
+
     if (total.count >= EVENTS_PER_BUDGET || (deduplicate && (this.buckets.get(key) ?? 0) > now)) return null
     total.count++
+
     if (deduplicate) this.buckets.set(key, now + WINDOW_MS)
     event.event_id ??= randomUUID().replaceAll('-', '')
     logger.info('Error report accepted for delivery', {
@@ -129,6 +148,7 @@ export class ErrorReportingService extends BaseService {
       operation: tags.operation,
       failureKind: facts?.kind
     })
+
     return event
   }
 }

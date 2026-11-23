@@ -35,6 +35,7 @@ export async function captureAllMonitors(): Promise<Map<number, CaptureResult>> 
     getMonitorsOrThrow().map(async (monitor): Promise<[number, CaptureResult]> => {
       try {
         const image = await monitor.captureImage()
+
         return [
           monitor.id(),
           {
@@ -55,6 +56,7 @@ export async function captureAllMonitors(): Promise<Map<number, CaptureResult>> 
       }
     })
   )
+
   return new Map(entries)
 }
 
@@ -67,12 +69,14 @@ export async function captureAllMonitors(): Promise<Map<number, CaptureResult>> 
  */
 function getMonitorsOrThrow(): Monitor[] {
   let monitors: Monitor[]
+
   try {
     monitors = loadNativeCaptureBackend().Monitor.all()
   } catch (error) {
     // A backend that failed to load already threw ScreenCaptureError from
     // loadNativeCaptureBackend(); rethrow it untouched rather than relabeling it.
     if (error instanceof ScreenCaptureError) throw error
+
     if (getScreenCapturePermissionStatus() !== 'authorized') throw new ScreenCapturePermissionError()
     logger.error('Failed to list monitors', error as Error)
     throw new ScreenCaptureError('Failed to enumerate displays', { cause: error })

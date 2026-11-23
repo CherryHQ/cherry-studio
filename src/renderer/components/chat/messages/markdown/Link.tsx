@@ -21,8 +21,10 @@ interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
 
 function hasSameUrl(href: string | undefined, citationUrl: string): boolean {
   if (!href) return false
+
   try {
     const normalize = (value: string) => new URL(value).href.replace(/%7C/gi, '|')
+
     return normalize(href) === normalize(citationUrl)
   } catch {
     return false
@@ -31,13 +33,17 @@ function hasSameUrl(href: string | undefined, citationUrl: string): boolean {
 
 const Link: React.FC<LinkProps> = (props) => {
   const openExternalUrl = useOptionalMessageListActions()?.openExternalUrl
+
   const citationData = useMemo(() => {
     const number = Number(findCitationInChildren(props.children))
+
     return Number.isSafeInteger(number) && number > 0 ? (props.citationRegistry?.get(number) ?? null) : null
   }, [props.children, props.citationRegistry])
+
   const handleWebsiteClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.stopPropagation()
     props.onClick?.(event)
+
     if (
       event.defaultPrevented ||
       event.button !== 0 ||
@@ -56,6 +62,7 @@ const Link: React.FC<LinkProps> = (props) => {
   if (props.href && isKnownNavigationPath(props.href)) {
     const [path, search] = props.href.split('?', 2)
     const query = search ? Object.fromEntries(new URLSearchParams(search)) : undefined
+
     return <NavigateToolInline input={{ path, query }} />
   }
 
@@ -69,6 +76,7 @@ const Link: React.FC<LinkProps> = (props) => {
       (child) => child.tagName === 'sup'
     )
   )
+
   const linkClassName = cn('text-link', !props.className && !isCitation && 'hover:underline', props.className)
 
   // 如果是引用链接并且有引用数据，则使用CitationTooltip

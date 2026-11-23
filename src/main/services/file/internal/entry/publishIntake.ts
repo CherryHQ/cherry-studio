@@ -23,6 +23,7 @@ export async function publishIntake(deps: FileManagerDeps, input: PublishFileInt
     const existing = deps.fileEntryService.findById(input.entryId)
     const ext = path.extname(input.filename).slice(1).toLowerCase() || null
     const name = path.basename(input.filename, path.extname(input.filename))
+
     if (
       existing &&
       (existing.origin !== 'internal' ||
@@ -31,14 +32,17 @@ export async function publishIntake(deps: FileManagerDeps, input: PublishFileInt
         existing.size !== input.byteLength)
     )
       throw new Error('File intake identity conflict')
+
     const physical = AbsoluteFilePathSchema.parse(
       application.getPath('feature.files.data', `${input.entryId}${ext ? `.${ext}` : ''}`)
     )
+
     try {
       await stat(physical)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       const prepared = await prepareAtomicCopy(input.path, physical)
+
       try {
         await prepared.commit()
       } catch (failure) {
@@ -46,17 +50,22 @@ export async function publishIntake(deps: FileManagerDeps, input: PublishFileInt
         throw failure
       }
     }
+
     const sha256 = createHash('sha256')
     const contentHash = createContentHasher()
     let size = 0
+
     for await (const bytes of createReadStream(physical)) {
       sha256.update(bytes)
       contentHash.update(bytes)
       size += bytes.length
     }
+
     if (size !== input.byteLength || sha256.digest('hex') !== input.sha256)
       throw new Error('File intake content integrity check failed')
+
     if (existing) return existing
+
     return deps.fileEntryService.withWriteTx((tx) => {
       const entry = deps.fileEntryService.createTx(tx, {
         id: input.entryId,
@@ -67,6 +76,7 @@ export async function publishIntake(deps: FileManagerDeps, input: PublishFileInt
         contentHash: contentHash.digest(),
         cleanupPolicy: 'delete_when_unreferenced'
       })
+
       return entry
     })
   })

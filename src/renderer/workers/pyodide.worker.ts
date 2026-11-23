@@ -126,6 +126,7 @@ function processResult(result: any): any {
     return result
   } catch (error: unknown) {
     const errorMessage = readErrorMessage(error)
+
     return { __error__: 'Result processing failed', details: errorMessage }
   }
 }
@@ -195,11 +196,13 @@ self.onmessage = async (event) => {
 
       // 检查是否有 Matplotlib 图像输出
       const image = globals.get('pyodide_matplotlib_image')
+
       if (image) {
         output.image = image
       }
     } catch (error: unknown) {
       const errorMessage = readErrorMessage(error)
+
       // 不设置 output.result，但设置错误信息
       if (output.error) {
         output.error += `\nExecution error:\n${errorMessage}`

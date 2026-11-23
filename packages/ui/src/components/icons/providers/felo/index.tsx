@@ -4,6 +4,7 @@ import { FeloLight } from './light'
 
 const Felo = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <FeloLight {...props} className={className} />
+
   return <FeloLight {...props} className={className} />
 }
 

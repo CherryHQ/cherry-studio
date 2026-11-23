@@ -10,12 +10,18 @@ export function exportViewToUIMessage(message: MessageExportView): CherryUIMessa
   }
 
   if (message.updatedAt) metadata.updatedAt = message.updatedAt
+
   if (message.parentId !== undefined) metadata.parentId = message.parentId
+
   if (message.siblingsGroupId !== undefined) metadata.siblingsGroupId = message.siblingsGroupId
+
   if (message.modelId) metadata.modelId = message.modelId
+
   if (message.messageSnapshot) metadata.messageSnapshot = message.messageSnapshot
+
   if (message.stats) {
     metadata.stats = message.stats
+
     if (message.stats.totalTokens) metadata.totalTokens = message.stats.totalTokens
   }
 
@@ -30,12 +36,15 @@ export function exportViewToUIMessage(message: MessageExportView): CherryUIMessa
 /** Attach each message's earlier citable tool parts so a list export resolves re-cited ids like the screen. */
 export function withPriorCitationParts(messages: MessageExportView[]): MessageExportView[] {
   const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts] as const))
+
   const registry = buildCitationPartsRegistry(
     messages.map((message) => message.id),
     partsByMessageId
   )
+
   return messages.map((message) => {
     const priorCitationParts = getPriorCitationParts(registry, message.id)
+
     return priorCitationParts.length === 0 ? message : { ...message, priorCitationParts }
   })
 }

@@ -43,10 +43,12 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const { t } = useTranslation()
   const groupLabel = getModelGroupLabel(groupName, t)
   const groupModels = useMemo(() => items.map(({ model }) => model), [items])
+
   const deletableGroupModels = useMemo(
     () => groupModels.filter((model) => !defaultModelIds.has(model.id)),
     [defaultModelIds, groupModels]
   )
+
   const hasPendingModel = groupModels.some((model) => pendingModelIds.has(model.id))
 
   const toggleOpen = useCallback(() => {

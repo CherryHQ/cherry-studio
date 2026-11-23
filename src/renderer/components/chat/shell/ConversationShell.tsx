@@ -66,6 +66,7 @@ export default function ConversationShell({
   ) : (
     topBar
   )
+
   return (
     <div
       id={id}
@@ -112,6 +113,7 @@ const ConversationShellTopBar = ({ topRightTool, showTopRightToolWhenPaneOpen, c
   const maximized = presentationState?.presentationMaximized ?? false
   const open = presentationState?.presentationOpen ?? false
   const shouldShowTopRightTool = Boolean(topRightTool) && !maximized && (!open || showTopRightToolWhenPaneOpen)
+
   return (
     <div data-conversation-shell-topbar className="relative flex h-fit w-full min-w-0 items-center">
       <div data-conversation-shell-topbar-content className="min-w-0 flex-1">

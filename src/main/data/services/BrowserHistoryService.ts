@@ -18,7 +18,9 @@ export interface BrowserVisitInput {
 
 function normalizeVisit(input: BrowserVisitInput) {
   const url = sanitizeBrowserVisitUrl(input.url)
+
   if (url === undefined || !Number.isSafeInteger(input.visitedAt) || input.visitedAt < 0) return undefined
+
   return {
     ...input,
     url,
@@ -30,12 +32,15 @@ function normalizeVisit(input: BrowserVisitInput) {
 export class BrowserHistoryService {
   record(input: BrowserVisitInput): string | undefined {
     let value
+
     try {
       value = normalizeVisit(input)
     } catch {
       return undefined
     }
+
     if (!value) return undefined
+
     const id = application
       .get('DbService')
       .getDb()
@@ -44,7 +49,9 @@ export class BrowserHistoryService {
       .onConflictDoNothing()
       .returning({ id: browserVisitTable.id })
       .get()?.id
+
     if (id) notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
+
     return id
   }
 
@@ -52,24 +59,32 @@ export class BrowserHistoryService {
     const values = inputs.flatMap((input) => {
       try {
         const value = normalizeVisit(input)
+
         return value ? [value] : []
       } catch {
         return []
       }
     })
+
     const service = application.get('DbService')
+
     const count = service.withWriteTx(() => {
       let inserted = 0
+
       for (const value of values)
         inserted += service.getDb().insert(browserVisitTable).values(value).onConflictDoNothing().run().changes
+
       return inserted
     })
+
     if (count) notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
+
     return count
   }
 
   updateTitle(id: string, title: string, url: string): void {
     const value = normalizeVisit({ url, title, visitedAt: 0 })
+
     if (value)
       application
         .get('DbService')
@@ -85,6 +100,7 @@ export class BrowserHistoryService {
     const needle = query.search?.trim().toLowerCase()
     const ordering = keysetOrdering(browserVisitTable.visitedAt, browserVisitTable.id, { major: 'desc', tie: 'desc' })
     const cursor = decodeListCursor(query.cursor, asNumericKey, 'browser-history')
+
     const rows = application
       .get('DbService')
       .getDb()
@@ -111,10 +127,12 @@ export class BrowserHistoryService {
       .limit(query.limit + 1)
       .offset(cursor ? 0 : query.offset)
       .all()
+
     const icons = application.get('CacheService').getPersist('browser.favicons')
     const items = rows.slice(0, query.limit).map((row) => ({ ...row, favicon: icons[new URL(row.url).origin] }))
     const last = items.at(-1)
     const hasMore = rows.length > query.limit
+
     return { items, hasMore, nextCursor: hasMore && last ? encodeCursor(last.visitedAt, last.id) : undefined }
   }
 

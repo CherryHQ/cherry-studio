@@ -27,18 +27,26 @@ export async function presentPaintingGenerationGuardFeedback(
       ) {
         openProviderSettings(providerId)
       }
+
       return
     }
+
     presentPaintingGenerateError(createPaintingGenerateError('PROVIDER_DISABLED'))
+
     return
   }
+
   if (reason === 'catalog_error') {
     toast.error(error?.message || i18n.t('paintings.req_error_model'))
+
     return
   }
+
   if (reason === 'model_unavailable') {
     toast.error(i18n.t('paintings.req_error_model'))
+
     return
   }
+
   toast.error(i18n.t('paintings.select_model'))
 }

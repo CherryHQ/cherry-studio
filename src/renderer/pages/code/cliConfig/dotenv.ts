@@ -30,6 +30,7 @@ function needsDotenvQuoting(value: string): boolean {
 // all, so prefer it whenever the value has no embedded single quote to conflict with the wrapper.
 function quoteDotenvValue(value: string): string {
   if (!value.includes("'")) return `'${value}'`
+
   return `"${value.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`
 }
 
@@ -55,41 +56,52 @@ function hasUnescapedQuote(text: string, quote: string): boolean {
     if (text[i] === '\\') i++
     else if (text[i] === quote) return true
   }
+
   return false
 }
 
 function splitDotenvBlocks(content: string): DotenvBlock[] {
   const lines = content.split(/\r?\n/)
+
   if (lines.at(-1) === '') lines.pop()
   const blocks: DotenvBlock[] = []
+
   for (let i = 0; i < lines.length; i++) {
     const match = DOTENV_ENTRY_START.exec(lines[i])
+
     if (!match) {
       blocks.push({ key: null, lines: [lines[i]] })
       continue
     }
+
     const blockLines = [lines[i]]
     const rest = match[2].trimStart()
     const quote = ["'", '"', '`'].includes(rest[0]) ? rest[0] : null
+
     if (quote && !hasUnescapedQuote(rest.slice(1), quote)) {
       // The quoted value continues on later lines; consume up to the closing quote.
       let closed = false
+
       for (let j = i + 1; j < lines.length; j++) {
         blockLines.push(lines[j])
+
         if (hasUnescapedQuote(lines[j], quote)) {
           closed = true
           i = j
           break
         }
       }
+
       // No closing quote anywhere — dotenv reads the opening line alone as a
       // literal single-line value, so leave the rest for the normal scan.
       if (!closed) blockLines.length = 1
     }
+
     // Demote to a verbatim line when dotenv itself cannot parse the block.
     const key = match[1] in parseWithDotenv(blockLines.join('\n')) ? match[1] : null
     blocks.push({ key, lines: blockLines })
   }
+
   return blocks
 }
 
@@ -105,11 +117,13 @@ export function renderDotenvFile(envMap: Map<string, string>, originalContent = 
   // dotenv is last-occurrence-wins, so only a key's final block is authoritative;
   // earlier (shadowed) duplicates are kept verbatim below.
   const lastBlockByKey = new Map<string, DotenvBlock>()
+
   for (const block of blocks) {
     if (block.key) lastBlockByKey.set(block.key, block)
   }
 
   const out: string[] = []
+
   for (const block of blocks) {
     if (!block.key) {
       out.push(...block.lines)
@@ -124,8 +138,10 @@ export function renderDotenvFile(envMap: Map<string, string>, originalContent = 
       out.push(renderDotenvEntry(block.key, envMap.get(block.key) as string))
     }
   }
+
   for (const [key, value] of envMap) {
     if (!lastBlockByKey.has(key)) out.push(renderDotenvEntry(key, value))
   }
+
   return `${out.join('\n')}\n`
 }

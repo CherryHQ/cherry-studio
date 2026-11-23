@@ -119,6 +119,7 @@ export const CreateProviderSchema = z.strictObject({
   /** Provider-specific settings */
   providerSettings: ProviderSettingsCreateSchema.optional()
 })
+
 export type CreateProviderDto = z.infer<typeof CreateProviderSchema>
 
 /**
@@ -146,6 +147,7 @@ export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend
   // Logo edits (preset key / image upload / clear) go through the
   // `provider.set_logo` IpcApi command, not this PATCH body.
 })
+
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 
 /** Query parameters for GET /providers */
@@ -153,6 +155,7 @@ export const ListProvidersQuerySchema = z.strictObject({
   /** Filter by enabled status */
   enabled: z.boolean().optional()
 })
+
 export type ListProvidersQuery = z.infer<typeof ListProvidersQuerySchema>
 
 /** Query parameters for GET /providers/:providerId/api-keys */
@@ -160,16 +163,19 @@ export const ListProviderApiKeysQuerySchema = z.strictObject({
   /** When `true`, only enabled keys are returned. */
   enabled: z.boolean().optional()
 })
+
 export type ListProviderApiKeysQuery = z.infer<typeof ListProviderApiKeysQuerySchema>
 
 export const PROVIDER_PRESET_FIELDS = ['endpointConfigs', 'models'] as const
 export const ProviderPresetFieldSchema = z.enum(PROVIDER_PRESET_FIELDS)
+
 export type ProviderPresetField = z.infer<typeof ProviderPresetFieldSchema>
 
 /** Query parameters for the sparse provider preset projection. */
 export const ProviderPresetQuerySchema = z.strictObject({
   fields: z.union([ProviderPresetFieldSchema, z.array(ProviderPresetFieldSchema).min(1)])
 })
+
 export type ProviderPresetQuery = z.infer<typeof ProviderPresetQuerySchema>
 
 /**
@@ -186,12 +192,14 @@ export const AddProviderApiKeySchema = z.strictObject({
   key: z.string().trim().min(1),
   label: z.string().optional()
 })
+
 export type AddProviderApiKeyDto = z.infer<typeof AddProviderApiKeySchema>
 
 /** PUT /providers/:providerId/api-keys body */
 export const ReplaceProviderApiKeysSchema = z.strictObject({
   keys: z.array(ApiKeyEntrySchema)
 })
+
 export type ReplaceProviderApiKeysDto = z.infer<typeof ReplaceProviderApiKeysSchema>
 
 /** PATCH /providers/:providerId/api-keys/:keyId body */
@@ -200,6 +208,7 @@ export const UpdateApiKeySchema = z.strictObject({
   label: z.string().optional(),
   isEnabled: z.boolean().optional()
 })
+
 export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
 
 // Re-exported for handler-side re-use

@@ -29,13 +29,16 @@ export function applyAgentPromptCacheKey(
   agentSessionId: string
 ): ProviderOptions {
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+
   if (resolvedEndpoint.endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return providerOptions
 
   const providerOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
   const namespace = providerOptions[providerOptionsKey]
+
   if (namespace?.promptCacheKey !== undefined) return providerOptions
 
   const digest = createHash('sha256').update(agentSessionId).digest('hex')
+
   return {
     ...providerOptions,
     [providerOptionsKey]: { ...namespace, promptCacheKey: `cherry-agent:${digest.slice(0, 32)}` }

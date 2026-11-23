@@ -30,6 +30,7 @@ export class CallBackServer {
           // Keep every callback parameter so the SDK can validate `iss` and
           // complete the authorization-server-bound exchange.
           const url = new URL(req.url, `http://127.0.0.1:${port}`)
+
           if (url.searchParams.has('code') || url.searchParams.has('error')) {
             this.authCallback = new URLSearchParams(url.searchParams)
             this.events.emit('auth-callback-received', this.authCallback)
@@ -118,6 +119,7 @@ export class CallBackServer {
 
   async close(): Promise<void> {
     const server = await this.server.catch(() => undefined)
+
     if (!server?.listening) return
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
@@ -134,28 +136,35 @@ export class CallBackServer {
    */
   async waitForAuthCallback(timeoutMs = 300_000, signal?: AbortSignal): Promise<URLSearchParams> {
     signal?.throwIfAborted()
+
     if (this.authCallback) return new URLSearchParams(this.authCallback)
+
     return new Promise((resolve, reject) => {
       const cleanup = () => {
         clearTimeout(timer)
         this.events.off('auth-callback-received', onCallback)
         signal?.removeEventListener('abort', onAbort)
       }
+
       // Consent pages often close without redirecting on cancel, so an expired wait means abandoned.
       const notCompleted = () => new UnauthorizedError(t('settings.mcp.oauth.not_completed'))
+
       const onAbort = () => {
         cleanup()
         const reason = signal?.reason
         reject(reason instanceof DOMException && reason.name === 'TimeoutError' ? notCompleted() : reason)
       }
+
       const onCallback = (params: URLSearchParams) => {
         cleanup()
         resolve(params)
       }
+
       const timer = setTimeout(() => {
         cleanup()
         reject(notCompleted())
       }, timeoutMs)
+
       this.events.once('auth-callback-received', onCallback)
       signal?.addEventListener('abort', onAbort, { once: true })
     })

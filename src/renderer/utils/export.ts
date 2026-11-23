@@ -78,11 +78,13 @@ export const processCitations = (content: string, mode: 'remove' | 'normalize' =
 
     // 按行处理，保留Markdown结构
     const lines = result.split('\n')
+
     const processedLines = lines.map((line) => {
       // 如果是引用块或其他特殊格式，不要修改空格
       if (line.match(/^>|^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s{4,}/)) {
         return line.replace(/[ ]+/g, ' ').replace(/[ ]+$/g, '')
       }
+
       // 普通文本行，清理多余空格但保留基本格式
       return line.replace(/[ ]+/g, ' ').trim()
     })
@@ -101,14 +103,18 @@ export const processCitations = (content: string, mode: 'remove' | 'normalize' =
  */
 async function readPastedTextFileContents(messages: readonly ExportableMessage[]): Promise<Map<string, string>> {
   const candidatesBySourceId = new Map<string, string[]>()
+
   for (const message of messages) {
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const meta = readCherryMeta(part)
+
       if (meta?.composerFileKind !== 'pasted-text' || !meta.fileTokenSourceId) continue
       const path = part.url ? tryFileUrlToPath(part.url) : undefined
+
       if (path === undefined) continue
       const existing = candidatesBySourceId.get(meta.fileTokenSourceId)
+
       if (existing) existing.push(path)
       else candidatesBySourceId.set(meta.fileTokenSourceId, [path])
     }
@@ -120,6 +126,7 @@ async function readPastedTextFileContents(messages: readonly ExportableMessage[]
       for (const path of paths) {
         try {
           contents.set(sourceId, await window.api.fs.readText(path))
+
           return
         } catch {
           // Leave the token's display label as the copy output for this file.
@@ -127,6 +134,7 @@ async function readPastedTextFileContents(messages: readonly ExportableMessage[]
       }
     })
   )
+
   return contents
 }
 
@@ -137,8 +145,10 @@ function createPastedTextTokenTextResolver(
     if (token.kind === 'file') {
       const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
       const content = sourceId ? contents.get(sourceId) : undefined
+
       if (content !== undefined) return content
     }
+
     return getComposerTokenClipboardText(token)
   }
 }
@@ -151,6 +161,7 @@ const formatMessageAsPlainText = (
   const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
   const roleText = message.role === 'user' ? 'User:' : `${author?.name ?? 'Assistant'}:`
   const plainTextContent = markdownToPlainText(copyableTextContent(message, getTokenText)).trim()
+
   return `${roleText}\n${plainTextContent}`
 }
 
@@ -168,16 +179,19 @@ const copyableTextContent = (
   getTokenText?: (token: ComposerMessageToken, index: number) => string
 ): string => {
   const content = getComposerTextFromMessage(message, getNamingTextContent(message), getTokenText)
+
   return getToolCitationExport(message, content).content
 }
 
 export const messageToPlainText = async (message: ExportableMessage): Promise<string> => {
   const contents = await readPastedTextFileContents([message])
+
   return markdownToPlainText(copyableTextContent(message, createPastedTextTokenTextResolver(contents))).trim()
 }
 
 export const messagesToPlainText = async (messages: ExportableMessage[]): Promise<string> => {
   const contents = await readPastedTextFileContents(messages)
   const getTokenText = createPastedTextTokenTextResolver(contents)
+
   return messages.map((message) => formatMessageAsPlainText(message, getTokenText)).join('\n\n')
 }

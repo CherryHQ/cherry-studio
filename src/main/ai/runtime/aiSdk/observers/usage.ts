@@ -67,9 +67,11 @@ export { ZERO_USAGE }
 /** Drop `undefined`-valued keys; return `undefined` when nothing is left. */
 function compact<T extends Record<string, number | undefined>>(obj: T): { [K in keyof T]?: number } | undefined {
   const out: Record<string, number> = {}
+
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'number') out[key] = value
   }
+
   return Object.keys(out).length > 0 ? out : undefined
 }
 
@@ -80,17 +82,25 @@ function usageToStats(total: LanguageModelUsage, contextTokens: number | undefin
     cacheReadTokens: total.inputTokenDetails?.cacheReadTokens,
     cacheWriteTokens: total.inputTokenDetails?.cacheWriteTokens
   })
+
   const outputTokenDetails = compact({
     textTokens: total.outputTokenDetails?.textTokens,
     reasoningTokens: total.outputTokenDetails?.reasoningTokens
   })
+
   const stats: MessageStats = {}
+
   if (total.inputTokens !== undefined) stats.inputTokens = total.inputTokens
+
   if (total.outputTokens !== undefined) stats.outputTokens = total.outputTokens
+
   if (total.totalTokens !== undefined) stats.totalTokens = total.totalTokens
   stats.contextTokens = contextTokens
+
   if (inputTokenDetails) stats.inputTokenDetails = inputTokenDetails
+
   if (outputTokenDetails) stats.outputTokenDetails = outputTokenDetails
+
   return stats
 }
 

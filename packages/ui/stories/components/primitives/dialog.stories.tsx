@@ -28,6 +28,7 @@ const meta: Meta<typeof Dialog> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default

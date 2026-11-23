@@ -85,17 +85,21 @@ export function createMcpManagerServer(agentId: string): McpServer {
       // Fail before creating anything when the agent is gone — otherwise the row would
       // need a rollback delete below.
       const agent = agentService.getAgent(agentId)
+
       if (!agent) throw new Error(`Agent not found: ${agentId}`)
 
       const existing = mcpServerService.findByConfig({ ...config, type })
+
       if (existing) {
         const alreadyBound = (agent.mcps ?? []).includes(existing.id)
+
         if (!alreadyBound) {
           try {
             if (!agentService.updateAgent(agentId, { mcps: [...(agent.mcps ?? []), existing.id] }))
               throw new Error('Agent update failed')
           } catch (error) {
             logger.error('Failed to bind existing MCP server', { agentId, serverId: existing.id, error })
+
             return {
               isError: true,
               content: [
@@ -107,8 +111,10 @@ export function createMcpManagerServer(agentId: string): McpServer {
             }
           }
         }
+
         let final = existing
         let refreshWarning = ''
+
         if (activate && (!existing.isActive || !existing.isTrusted || existing.trustedAt === undefined)) {
           try {
             final = mcpServerService.update(existing.id, {
@@ -119,6 +125,7 @@ export function createMcpManagerServer(agentId: string): McpServer {
             })
           } catch (error) {
             logger.error('Failed to enable existing MCP server', { agentId, serverId: existing.id, error })
+
             return {
               isError: true,
               content: [
@@ -129,6 +136,7 @@ export function createMcpManagerServer(agentId: string): McpServer {
               ]
             }
           }
+
           try {
             agentService.emitAgentUpdatedForIds([agentId], 'mcps')
           } catch (error) {
@@ -137,16 +145,21 @@ export function createMcpManagerServer(agentId: string): McpServer {
               '\nLive-session refresh could not be requested; start a fresh turn to reload this configuration.'
           }
         }
+
         const effectiveType = final.type ?? (final.baseUrl ? 'sse' : 'stdio')
+
         const attachment = alreadyBound
           ? 'Existing MCP server reused; it was already registered for this agent. No new server or duplicate attachment was created.'
           : 'Existing MCP server reused and registered for this agent; no new server was created.'
+
         const status = final.isActive
           ? 'It is active now. Tool availability follows the existing runtime refresh and tool policies.'
           : 'It is registered but NOT yet active — the user must enable it in Settings → MCP before its tools can run.'
+
         const activation = activate
           ? 'Explicit activation was requested; this shared definition is enabled and trusted for every agent using it.'
           : 'Existing activation and trust settings were preserved.'
+
         logger.info('MCP server reused via tool', {
           agentId,
           serverId: final.id,
@@ -154,6 +167,7 @@ export function createMcpManagerServer(agentId: string): McpServer {
           type: effectiveType,
           isActive: final.isActive
         })
+
         return {
           content: [
             {
@@ -165,6 +179,7 @@ export function createMcpManagerServer(agentId: string): McpServer {
       }
 
       const now = Date.now()
+
       // Activation is gated on explicit user intent: activate=true marks the server
       // isActive+isTrusted and launches it immediately; otherwise it is registered
       // in an inactive, untrusted state for the user to enable in Settings → MCP.
@@ -182,8 +197,10 @@ export function createMcpManagerServer(agentId: string): McpServer {
       // live list; it fires `onAgentUpdated({ mcps })` which reconciles live session connections.
       // If the bind fails, roll back the created row so no active, unbound orphan server is left behind.
       const nextMcps = [...(agent.mcps ?? []), created.id]
+
       try {
         const updated = agentService.updateAgent(agentId, { mcps: nextMcps })
+
         if (!updated) throw new Error(`Failed to bind MCP server to agent: ${agentId}`)
       } catch (error) {
         try {
@@ -194,6 +211,7 @@ export function createMcpManagerServer(agentId: string): McpServer {
             error: rollbackError
           })
         }
+
         throw error
       }
 
@@ -219,5 +237,6 @@ export function createMcpManagerServer(agentId: string): McpServer {
       }
     }
   )
+
   return server
 }

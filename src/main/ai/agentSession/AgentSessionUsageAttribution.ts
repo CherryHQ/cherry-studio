@@ -11,6 +11,7 @@ export class AgentSessionUsageAttribution {
       const owner = this.owners.get(responseId)
       const ready = owner?.ready() === true
       this.write(input, ready ? owner : undefined)
+
       if (!ready && !this.closed) {
         const requests = this.pending.get(responseId) ?? new Set<string>()
         requests.add(input.requestId)
@@ -21,6 +22,7 @@ export class AgentSessionUsageAttribution {
 
   bind(responseId: string, messageId: string, ready = () => true): void {
     const previous = this.owners.get(responseId)
+
     if (previous && previous.messageId !== messageId)
       throw new Error('Native response already belongs to another message')
     this.owners.set(responseId, { messageId, ready })
@@ -30,7 +32,9 @@ export class AgentSessionUsageAttribution {
   flush(messageId: string): void {
     for (const [responseId, requests] of this.pending) {
       const owner = this.owners.get(responseId)
+
       if (owner?.messageId !== messageId || !owner.ready()) continue
+
       for (const requestId of requests) aiUsageRecordService.associateInvocation(requestId, messageId)
       this.pending.delete(responseId)
     }

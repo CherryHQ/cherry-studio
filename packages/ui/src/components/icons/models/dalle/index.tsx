@@ -4,6 +4,7 @@ import { DalleLight } from './light'
 
 const Dalle = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DalleLight {...props} className={className} />
+
   return <DalleLight {...props} className={className} />
 }
 

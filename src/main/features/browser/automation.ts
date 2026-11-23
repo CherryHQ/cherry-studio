@@ -11,6 +11,7 @@ import { BrowserSessionError } from './session/BrowserSessionError'
 import { sanitizeSnapshotUrl } from './snapshot/serializeSnapshot'
 
 const ref = z.string().min(1)
+
 const schemas = {
   getTab: z.object({}).strict(),
   listTabs: z.object({}).strict(),
@@ -77,27 +78,34 @@ export async function executeBrowserOperation(
 ): Promise<BrowserAutomationResult> {
   if (!Object.hasOwn(schemas, name)) throw new BrowserSessionError('not_allowed')
   schemas[name as keyof typeof schemas].parse(args)
+
   if (name === 'listTabs') return { value: { tabs: await controller.listTabs() } }
+
   if (name === 'newTab')
     return { value: await controller.open(schemas.newTab.parse(args).url, 10_000, false, true, true, signal) }
   const target = await controller.getSession(false, tabId)
+
   const options = {
     deadline: Date.now() + 30_000,
     signal: AbortSignal.any([signal, ...(target.signal ? [target.signal] : [])]),
     pointer: target.pointer,
     focusInput: target.focusInput
   }
+
   const session = target.session
+
   if (name === 'evaluate')
     return {
       value: {
         result: await controller.execute(schemas.evaluate.parse(args).code, 5000, false, target.tabId, options.signal)
       }
     }
+
   if (name === 'goto') {
     const result = await controller.open(schemas.goto.parse(args).url, 10_000, false, false, true, signal, target.tabId)
     const observation = result.tabId !== target.tabId
     const value = { ...result }
+
     if (observation) {
       Object.assign(value, {
         handleInvalidated: true,
@@ -105,8 +113,10 @@ export async function executeBrowserOperation(
           'Navigation completed in a replacement guest. Call browser.getTab({ tabId: result.tabId }) before continuing; the previous tab handle is no longer valid.'
       })
     }
+
     return { observation, value }
   }
+
   if (name === 'getScreenshot') {
     const { images, ...metadata } = await controller.screenshot(
       schemas.getScreenshot.parse(args),
@@ -114,6 +124,7 @@ export async function executeBrowserOperation(
       target.tabId,
       options.signal
     )
+
     return {
       observation: true,
       value: {
@@ -125,6 +136,7 @@ export async function executeBrowserOperation(
       images
     }
   }
+
   return session.run(async () => {
     const metadata = () => {
       const page = {
@@ -132,12 +144,16 @@ export async function executeBrowserOperation(
         url: sanitizeSnapshotUrl(session.guest.getURL()),
         title: session.guest.getTitle()
       }
+
       if (session.pendingDialog) Object.assign(page, { dialog: session.pendingDialog })
+
       return { ...page, ...session.takeEvents(), ...controller.takeHostEvents?.(target.tabId) }
     }
+
     if (name === 'getTab' || name === 'getAXState') {
       try {
         const state = await session.snapshot({ ...schemas.getAXState.parse(args), full: true }, options)
+
         return {
           observation: true,
           value: { ...metadata(), id: randomUUID(), text: state.text, complete: !state.snapshot.truncated }
@@ -145,6 +161,7 @@ export async function executeBrowserOperation(
       } catch (error) {
         if (name !== 'getTab' || !(error instanceof BrowserSessionError) || error.code !== 'dialog_open') throw error
         options.signal.throwIfAborted()
+
         return {
           observation: true,
           value: {
@@ -157,32 +174,47 @@ export async function executeBrowserOperation(
         }
       }
     }
+
     if (name === 'find') return { value: { ...metadata(), ...(await session.find(schemas.find.parse(args), options)) } }
+
     if (name === 'listWebTools') return { value: { ...metadata(), ...(await session.webTools.list(options)) } }
+
     if (name === 'callWebTool') {
       const input = schemas.callWebTool.parse(args)
       const result = await session.webTools.call(input.toolId, input.args, options)
+
       return { value: { ...metadata(), ...result } }
     }
+
     if (name === 'getConsoleMessages') {
       const input = schemas.getConsoleMessages.parse(args)
+
       return { value: { ...metadata(), ...(await session.readConsoleMessages(input.level, input.clear, options)) } }
     }
+
     if (name === 'getNetworkRequests') {
       await session.send('Network.enable', undefined, options)
+
       return { value: { ...metadata(), ...session.networkRequests(schemas.getNetworkRequests.parse(args).clear) } }
     }
+
     if (name === 'waitFor') {
       const input = schemas.waitFor.parse(args)
       options.deadline = Date.now() + input.timeoutMs
+
       while (true) {
         options.signal.throwIfAborted()
+
         if (Date.now() >= options.deadline) throw new BrowserSessionError('timeout')
+
         if (input.ref && !input.gone) session.resolveRef(input.ref)
         const state = await session.snapshot({ full: true }, options)
         const checks: boolean[] = []
+
         if (input.text !== undefined) checks.push(state.snapshot.nodes.some((node) => node.name.includes(input.text!)))
+
         if (input.ref !== undefined) checks.push(state.snapshot.nodes.some((node) => node.ref === input.ref))
+
         if (checks.every((present) => (input.gone ? !present : present)))
           return {
             observation: true,
@@ -191,45 +223,59 @@ export async function executeBrowserOperation(
         await session.pause(250, options)
       }
     }
+
     const { value, navigated } = await settleAction(
       session,
       async () => {
         switch (name) {
           case 'click': {
             const p = schemas.click.parse(args)
+
             return click(session, p.ref, p.button, p.count, options)
           }
+
           case 'hover':
             return hover(session, schemas.hover.parse(args).ref, options)
           case 'type': {
             const p = schemas.type.parse(args)
+
             return typeText(session, p.ref, p.text, p.clear, p.submit, options)
           }
+
           case 'pressKey':
             return pressKey(session, schemas.pressKey.parse(args).key, options)
           case 'scroll': {
             const p = schemas.scroll.parse(args)
+
             return scroll(session, p.ref, p.pages, options)
           }
+
           case 'selectOption': {
             const p = schemas.selectOption.parse(args)
+
             return selectOption(session, p.ref, p.values, options)
           }
+
           case 'handleDialog':
             if (!session.pendingDialog) throw new BrowserSessionError('not_found')
+
             return session.send('Page.handleJavaScriptDialog', schemas.handleDialog.parse(args), options)
           case 'goBack':
           case 'goForward': {
             const history = await session.send('Page.getNavigationHistory', undefined, options)
             const entry = history.entries[history.currentIndex + (name === 'goBack' ? -1 : 1)]
+
             if (!entry) throw new BrowserSessionError('not_found')
+
             if (entry.url !== 'about:blank') controller.validateUrl(entry.url)
+
             return session.send('Page.navigateToHistoryEntry', { entryId: entry.id }, options)
           }
         }
       },
       options
     )
+
     return { value: { ...metadata(), ...value, navigated, status: 'completed' } }
   }, options)
 }

@@ -34,6 +34,7 @@ const LANGUAGE_SELECT_CHROME_WIDTH = 72
 
 const getLanguageSelectWidth = (options: ComboboxOption[]) => {
   const maxLabelWidth = Math.max(0, ...options.map((option) => stringWidth(option.label)))
+
   return `clamp(${LANGUAGE_SELECT_MIN_WIDTH}px, calc(${maxLabelWidth}ch + ${LANGUAGE_SELECT_CHROME_WIDTH}px), ${LANGUAGE_SELECT_MAX_WIDTH}px)`
 }
 
@@ -59,6 +60,7 @@ const TranslateLanguageBar: FC<Props> = ({
   const getLanguageLabel = useCallback(
     (langCode: TranslateLangCode) => {
       const lang = getLanguage(langCode)
+
       return getLabel(lang ?? langCode, false) ?? lang?.value ?? langCode
     },
     [getLabel, getLanguage]
@@ -67,6 +69,7 @@ const TranslateLanguageBar: FC<Props> = ({
   const getLanguageDisplay = useCallback(
     (langCode: TranslateLangCode) => {
       const lang = getLanguage(langCode)
+
       return {
         emoji: lang?.emoji ?? UNKNOWN_EMOJI,
         label: getLabel(lang ?? langCode, false) ?? lang?.value ?? langCode
@@ -79,12 +82,15 @@ const TranslateLanguageBar: FC<Props> = ({
     if (sourceLanguage === 'auto') {
       const base = t('translate.detected.language')
       const detected = detectedLanguage === UNKNOWN_LANG_CODE ? null : detectedLanguage
+
       return {
         emoji: detected ? (getLanguage(detected)?.emoji ?? UNKNOWN_EMOJI) : AUTO_EMOJI,
         label: detected ? `${base} (${getLanguageLabel(detected)})` : base
       }
     }
+
     const lang = getLanguage(sourceLanguage)
+
     return {
       emoji: lang?.emoji ?? UNKNOWN_EMOJI,
       label: getLabel(lang ?? sourceLanguage, false) ?? lang?.value ?? sourceLanguage
@@ -94,6 +100,7 @@ const TranslateLanguageBar: FC<Props> = ({
   const autoSourceOption = useMemo(() => {
     const base = t('translate.detected.language')
     const detected = detectedLanguage === UNKNOWN_LANG_CODE ? null : detectedLanguage
+
     return {
       emoji: detected ? (getLanguage(detected)?.emoji ?? UNKNOWN_EMOJI) : AUTO_EMOJI,
       label: detected ? `${base} (${getLanguageLabel(detected)})` : base
@@ -141,6 +148,7 @@ const TranslateLanguageBar: FC<Props> = ({
       })),
     [getLabel, languageIcon, selectableLanguages]
   )
+
   const sourceSelectWidth = useMemo(() => getLanguageSelectWidth(sourceOptions), [sourceOptions])
   const targetSelectWidth = useMemo(() => getLanguageSelectWidth(targetOptions), [targetOptions])
 
@@ -160,6 +168,7 @@ const TranslateLanguageBar: FC<Props> = ({
             popoverClassName="w-(--radix-popover-trigger-width)"
             renderValue={(value, options) => {
               const option = options.find((item) => item.value === value)
+
               return (
                 <div className="flex min-w-0 flex-1 items-center gap-2 truncate">
                   <span className="sr-only">{t('translate.source_language')}</span>
@@ -216,6 +225,7 @@ const TranslateLanguageBar: FC<Props> = ({
             popoverClassName="w-(--radix-popover-trigger-width)"
             renderValue={(value, options) => {
               const option = options.find((item) => item.value === value)
+
               return (
                 <div className="flex min-w-0 flex-1 items-center gap-2 truncate">
                   <span className="sr-only">{t('translate.target_language')}</span>

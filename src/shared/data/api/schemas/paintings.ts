@@ -21,7 +21,9 @@ export const ListPaintingsQuerySchema = z
     limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT)
   })
   .strict()
+
 export type ListPaintingsQueryParams = z.input<typeof ListPaintingsQuerySchema>
+
 export type ListPaintingsQuery = z.output<typeof ListPaintingsQuerySchema> & CursorPaginationParams
 
 export const CreatePaintingSchema = z
@@ -33,6 +35,7 @@ export const CreatePaintingSchema = z
     files: PaintingFilesSchema
   })
   .strict()
+
 export type CreatePaintingDto = z.infer<typeof CreatePaintingSchema>
 
 export const UpdatePaintingSchema = z
@@ -43,6 +46,7 @@ export const UpdatePaintingSchema = z
     files: PaintingFilesSchema.optional()
   })
   .strict()
+
 export type UpdatePaintingDto = z.infer<typeof UpdatePaintingSchema>
 
 export const DeletePaintingQuerySchema = z.strictObject({
@@ -53,6 +57,7 @@ export const DeletePaintingQuerySchema = z.strictObject({
    */
   permanent: z.boolean().optional()
 })
+
 export type DeletePaintingQueryParams = z.input<typeof DeletePaintingQuerySchema>
 
 export interface PaintingListResponse extends CursorPaginationResponse<Painting> {

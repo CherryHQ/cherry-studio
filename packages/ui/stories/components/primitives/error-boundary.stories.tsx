@@ -10,6 +10,7 @@ const ThrowErrorComponent = ({ shouldThrow = false, errorMessage = '这是一个
   if (shouldThrow) {
     throw new Error(errorMessage)
   }
+
   return <div className="rounded bg-green-50 p-4 dark:bg-green-900/20">组件正常运行</div>
 }
 
@@ -75,6 +76,7 @@ const meta: Meta<typeof ErrorBoundary> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {

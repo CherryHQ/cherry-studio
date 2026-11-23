@@ -10,6 +10,7 @@ const claudeWebToolModels = [
   'claude-3-5-sonnet',
   'claude-3-7-sonnet'
 ]
+
 const geminiWebToolModels = [
   'gemini-2',
   'gemini-3',
@@ -18,6 +19,7 @@ const geminiWebToolModels = [
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
 ]
+
 const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 
 const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {

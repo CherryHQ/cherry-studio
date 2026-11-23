@@ -34,6 +34,7 @@ const ChunkingSection = ({
   onChunkOverlapChange
 }: ChunkingSectionProps) => {
   const { t } = useTranslation()
+
   const getValidationErrorMessage = (errorCode?: KnowledgeRagChunkValidationErrorCode) => {
     switch (errorCode) {
       case 'chunkSizeInvalid':

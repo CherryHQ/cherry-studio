@@ -84,16 +84,19 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
           // ignore — abort can throw on already-aborted controllers
         }
       }
+
       activeChildAborts.clear()
     }
 
     const finalize = async (output: ExecResult, terminateWorker = true) => {
       if (finished) return
       finished = true
+
       if (timeoutId) clearTimeout(timeoutId)
       parentSignal?.removeEventListener('abort', onParentAbort)
       worker.removeAllListeners()
       abortChildren(new Error('tool_exec finished'))
+
       if (terminateWorker) {
         try {
           await worker.terminate()
@@ -101,6 +104,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
           logger.warn('failed to terminate exec worker', err as Error)
         }
       }
+
       resolve(output)
     }
 
@@ -108,14 +112,17 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
     const terminateWithError = async (error: string, childAbortReason: unknown = new Error(error)) => {
       if (finished || terminating) return
       terminating = true
+
       if (timeoutId) clearTimeout(timeoutId)
       abortChildren(childAbortReason)
       worker.removeAllListeners()
+
       try {
         await worker.terminate()
       } catch (err) {
         logger.warn('failed to terminate exec worker', err as Error)
       }
+
       await finalize(
         {
           result: undefined,
@@ -141,13 +148,16 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
         void terminateWithError(`tool_exec timed out after ${EXECUTION_TIMEOUT_MS}ms`)
       }, timeoutRemainingMs)
     }
+
     const pauseTimeout = () => {
       if (finished || timedOut || terminating || timeoutPauseCount++ > 0) return
+
       if (!timeoutId) return
       clearTimeout(timeoutId)
       timeoutId = undefined
       timeoutRemainingMs -= Date.now() - timeoutStartedAt
     }
+
     const resumeTimeout = () => {
       if (finished || timedOut || terminating || timeoutPauseCount === 0 || --timeoutPauseCount > 0) return
       scheduleTimeout()
@@ -158,18 +168,22 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
 
     if (parentSignal?.aborted) {
       onParentAbort()
+
       return
     }
+
     parentSignal?.addEventListener('abort', onParentAbort, { once: true })
 
     const handleToolCall = async (message: WorkerCallToolMessage) => {
       if (finished || timedOut || terminating) return
       const childAbort = new AbortController()
       activeChildAborts.add(childAbort)
+
       if (parentSignal?.aborted) childAbort.abort(parentSignal.reason)
 
       try {
         const result = await ctx.executeTool(message.name, message.params ?? {}, message.requestId, childAbort.signal)
+
         if (finished || timedOut || terminating) return
         worker.postMessage({ type: 'toolResult', requestId: message.requestId, result })
       } catch (err) {
@@ -183,6 +197,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
 
     const handleMessage = (message: WorkerMessage) => {
       if (!message || typeof message !== 'object') return
+
       switch (message.type) {
         case 'log':
           addLog(message.entry)
@@ -195,6 +210,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
           void finalize({ result: message.result, logs: resolvedLogs.length > 0 ? resolvedLogs : undefined })
           break
         }
+
         case 'error': {
           const resolvedLogs = message.logs && message.logs.length > 0 ? message.logs : logs
           void finalize({
@@ -205,6 +221,7 @@ export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToo
           })
           break
         }
+
         default:
           break
       }

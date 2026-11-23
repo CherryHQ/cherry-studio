@@ -30,6 +30,7 @@ export interface UploadResult {
  */
 export function projectNotesTree(root: TreeDirRoot, notesPath: string): NotesTreeNode[] {
   const rootPath = normalizePath(notesPath)
+
   return Object.values(root.children).map((child) => projectChild(child, rootPath))
 }
 
@@ -37,6 +38,7 @@ function projectChild(node: TreeNode, rootPath: string): NotesTreeNode {
   const isFile = node.kind === 'file'
   const externalPath = node.path
   const baseName = node.basename
+
   const displayName =
     isFile && baseName.toLowerCase().endsWith(MARKDOWN_EXT) ? baseName.slice(0, -MARKDOWN_EXT.length) : baseName
 
@@ -44,6 +46,7 @@ function projectChild(node: TreeNode, rootPath: string): NotesTreeNode {
   const treePath = isFile ? `/${stripMarkdownExt(relative)}` : `/${relative}`.replace(/\/+$/, '') || '/'
 
   const stats = node.stats
+
   const projected: NotesTreeNode = {
     id: externalPath,
     name: displayName,
@@ -63,7 +66,9 @@ function projectChild(node: TreeNode, rootPath: string): NotesTreeNode {
 
 function relativePath(absolute: string, rootPath: string): string {
   if (absolute === rootPath) return ''
+
   if (absolute.startsWith(`${rootPath}/`)) return absolute.slice(rootPath.length + 1)
+
   return absolute
 }
 
@@ -83,6 +88,7 @@ export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): Notes
     if (a.type === b.type) {
       return sorter(a, b)
     }
+
     return a.type === 'folder' ? -1 : 1
   })
 
@@ -95,6 +101,7 @@ export async function addDir(name: string, parentPath: string): Promise<{ path: 
   const { safeName } = await window.api.file.checkFileName(basePath, name, false)
   const fullPath = `${basePath}/${safeName}`
   await window.api.file.mkdir(fullPath)
+
   return { path: fullPath, name: safeName }
 }
 
@@ -108,6 +115,7 @@ export async function addNote(
   const { safeName } = await window.api.file.checkFileName(basePath, name, true)
   const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
   await window.api.file.write(notePath, content)
+
   return { path: notePath, name: safeName }
 }
 
@@ -129,6 +137,7 @@ async function getDefaultNotesPath(): Promise<string> {
 
   return defaultNotesPathPromise
 }
+
 /**
  * Validate and resolve a notes path, including cross-platform restore scenarios.
  * This extracts NotesPage initialize logic to avoid duplicated path resolution code.
@@ -155,6 +164,7 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
 
   try {
     const isValid = await ipcApi.request('file.validate_notes_directory', AbsoluteFilePathSchema.parse(basePath))
+
     if (isValid) {
       return {
         path: basePath,
@@ -203,10 +213,12 @@ export async function renameNode(node: NotesTreeNode, newName: string): Promise<
 
   if (isFile) {
     await window.api.file.rename(node.externalPath, safeName)
+
     return { path: `${parentDir}/${safeName}${MARKDOWN_EXT}`, name: safeName }
   }
 
   await window.api.file.renameDir(node.externalPath, safeName)
+
   return { path: `${parentDir}/${safeName}`, name: safeName }
 }
 
@@ -240,6 +252,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
         // For browser File API, we'd need to use FileReader and create temp files
         // For now, fall back to the old method for these cases
         logger.warn('File without path detected, using fallback method')
+
         return uploadNotesLegacy(files, targetPath)
       }
     }
@@ -305,6 +318,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
 
         const content = await file.text()
         await window.api.file.write(finalPath, content)
+
         return true
       })
     )
@@ -371,6 +385,7 @@ function collectFolders(files: File[], basePath: string): Set<string> {
 
   files.forEach((file) => {
     const relativePath = file.webkitRelativePath || ''
+
     if (!relativePath.includes('/')) {
       return
     }
@@ -379,6 +394,7 @@ function collectFolders(files: File[], basePath: string): Set<string> {
     parts.pop()
 
     let current = basePath
+
     for (const part of parts) {
       current = `${current}/${part}`
       folders.add(current)
@@ -404,6 +420,7 @@ async function createFolders(folders: Set<string>): Promise<void> {
 function resolveFileTarget(file: File, basePath: string) {
   if (!file.webkitRelativePath || !file.webkitRelativePath.includes('/')) {
     const nameWithoutExt = file.name.endsWith(MARKDOWN_EXT) ? file.name.slice(0, -MARKDOWN_EXT.length) : file.name
+
     return { dir: basePath, name: nameWithoutExt }
   }
 

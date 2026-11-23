@@ -52,18 +52,24 @@ export function BrowserCursorOverlay({
       return
     sequence.current = state.sequence
     acknowledge()
+
     if (state.kind === 'hidden') {
       animation.current?.hide()
+
       return
     }
+
     if (state.kind === 'move' && state.animate)
       pending.current = { scope, sessionId, tabId, sequence: state.sequence, documentId: state.documentId }
     const bounds = guest.getBoundingClientRect()
+
     if (!active || document.hidden || bounds.width <= 0 || bounds.height <= 0 || !animation.current) {
       animation.current?.hide(true)
       acknowledge()
+
       return
     }
+
     if (state.kind === 'pressed') onPressed?.()
     animation.current.move(
       state.x * state.scale,
@@ -80,18 +86,23 @@ export function BrowserCursorOverlay({
     if (!position.current || !sprite.current) return
     const controller = new BrowserCursorAnimation(position.current, sprite.current, acknowledge)
     animation.current = controller
+
     const hide = () => {
       controller.hide(true)
       acknowledge()
     }
+
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+
     const updateMotion = () => {
       reducedMotion.current = media.matches
       hide()
     }
+
     updateMotion()
     media.addEventListener('change', updateMotion)
     const presentation: InputFor<'browser.cursor.present'> = { sessionId, tabId, presented: active }
+
     if (scope) presentation.scope = scope
     void ipcApi.request('browser.cursor.present', presentation).catch((error) => {
       logger.debug('Cursor presentation target is unavailable', { error })
@@ -101,6 +112,7 @@ export function BrowserCursorOverlay({
     guest.addEventListener('did-start-navigation', hide)
     window.addEventListener('blur', hide)
     document.addEventListener('visibilitychange', hide)
+
     return () => {
       hide()
       controller.dispose()
@@ -111,6 +123,7 @@ export function BrowserCursorOverlay({
       window.removeEventListener('blur', hide)
       document.removeEventListener('visibilitychange', hide)
       const hiddenPresentation: InputFor<'browser.cursor.present'> = { sessionId, tabId, presented: false }
+
       if (scope) hiddenPresentation.scope = scope
       void ipcApi.request('browser.cursor.present', hiddenPresentation).catch(() => undefined)
     }

@@ -3,6 +3,7 @@ export const CACHE_CLEANUP_GROUPS = ['normal_cache', 'site_data', 'orphaned_data
 export type CacheCleanupGroup = (typeof CACHE_CLEANUP_GROUPS)[number]
 
 export const CACHE_CLEANUP_SIZE_ACCURACIES = ['exact', 'estimated', 'unavailable'] as const
+
 export type CacheCleanupSizeAccuracy = (typeof CACHE_CLEANUP_SIZE_ACCURACIES)[number]
 
 export const CACHE_CLEANUP_SIZE_COMPLETENESS = ['complete', 'partial'] as const

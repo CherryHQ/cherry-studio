@@ -44,7 +44,9 @@ const SYSTEM_INFO = {
   os: `${os.platform()}-${os.arch()} / ${os.version()}`,
   hw: `${os.cpus()[0]?.model || 'Unknown CPU'} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
 }
+
 const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
+
 // Mirrors the shared-ai safe message length without importing AI logic:
 // winston concatenates fileMessage and entry.message, so this counts twice.
 const MAX_ERROR_MESSAGE_CHARS = 500
@@ -64,6 +66,7 @@ type SafeLogError = Pick<Error, 'name' | 'message' | 'stack'> & {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error instances can carry overwritten message values; coerce and redact only within toSafeError's guarded serialization.
 function safeErrorText(value: unknown): string {
   const redacted = redactSecretText(String(value ?? ''))
+
   return redacted.length > MAX_ERROR_MESSAGE_CHARS ? `${redacted.slice(0, MAX_ERROR_MESSAGE_CHARS)}…` : redacted
 }
 
@@ -73,17 +76,25 @@ function toSafeError(error: Error): SafeLogError {
       name: redactSecretText(String(error.name ?? 'Error')).slice(0, MAX_SAFE_ERROR_TAG_CHARS),
       message: safeErrorText(error.message)
     }
+
     if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
+
     if ('reportingHandled' in error && error.reportingHandled === true) safe.reportingHandled = true
+
     if ('code' in error && typeof error.code === 'string' && error.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
       safe.code = redactSecretText(error.code)
     }
+
     if ('statusCode' in error && typeof error.statusCode === 'number') safe.statusCode = error.statusCode
+
     if ('status' in error && typeof error.status === 'number') safe.status = error.status
+
     if ('reason' in error && typeof error.reason === 'string' && error.reason.length <= MAX_SAFE_ERROR_TAG_CHARS) {
       safe.reason = redactSecretText(error.reason)
     }
+
     if ('isRetryable' in error && typeof error.isRetryable === 'boolean') safe.isRetryable = error.isRetryable
+
     return safe
   } catch {
     return { name: 'Error', message: REDACTED }
@@ -94,16 +105,25 @@ function toSafeError(error: Error): SafeLogError {
 function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<object>()): Serializable {
   try {
     if (value instanceof Error) return toSafeError(value)
+
     if (value == null) return null
+
     if (typeof value === 'string' || typeof value === 'boolean') return value
+
     if (typeof value === 'number') return Number.isFinite(value) ? value : null
+
     if (typeof value !== 'object') return REDACTED
+
     if (seen.has(value)) return '[Circular]'
+
     if (depth >= MAX_NESTED_SANITIZE_DEPTH) return '[Truncated]'
     seen.add(value)
+
     if (Array.isArray(value)) return value.map((item) => sanitizeLogValue(item, depth + 1, seen))
     const out: Record<string, Serializable> = {}
+
     for (const [key, nested] of Object.entries(value)) out[key] = sanitizeLogValue(nested, depth + 1, seen)
+
     return out
   } catch {
     return REDACTED
@@ -133,6 +153,7 @@ export class LoggerService {
 
   setErrorReporter(observer: (observation: ErrorObservation) => void): () => void {
     this.reporting.observer = observer
+
     return () => {
       if (this.reporting.observer === observer) this.reporting.observer = undefined
     }
@@ -177,6 +198,7 @@ export class LoggerService {
         const showModules = process.env.CSLOGGER_MAIN_SHOW_MODULES.split(',')
           .map((module) => module.trim())
           .filter((module) => module !== '')
+
         if (showModules.length > 0) {
           this.envShowModules = showModules
 
@@ -273,6 +295,7 @@ export class LoggerService {
       if (this.envLevel !== LEVEL.NONE && LEVEL_MAP[level] < LEVEL_MAP[this.envLevel]) {
         return
       }
+
       // skip if env show modules is set and current module is not in the list
       if (this.module && this.envShowModules.length > 0 && !this.envShowModules.includes(this.module)) {
         return
@@ -290,6 +313,7 @@ export class LoggerService {
       )
 
       let moduleString = ''
+
       if (source.process === 'main') {
         moduleString = this.module ? ` [${colorText(this.module, 'UNDERLINE')}] ` : ' '
       } else {
@@ -337,6 +361,7 @@ export class LoggerService {
     let fileMessage = message
 
     const [first, ...others] = meta
+
     if (first instanceof Error) {
       // Bounded name/message/stack plus small diagnostic tags only: custom
       // enumerable props (e.g. AI SDK requestBodyValues) never reach disk (#20363).
@@ -345,15 +370,19 @@ export class LoggerService {
       fileMessage = `${message} ${String(entry.message)}`
     } else if (first !== null && typeof first === 'object') {
       const sanitized = sanitizeLogValue(first)
+
       if (sanitized !== null && typeof sanitized === 'object') Object.assign(entry, sanitized)
       else rest.push(sanitized)
+
       if (typeof entry.errorMessage === 'string') fileMessage = `${message} ${entry.errorMessage}`
     } else if (first !== undefined) {
       rest.push(first)
     }
+
     for (const item of others) {
       rest.push(sanitizeLogValue(item))
     }
+
     if (rest.length > 0) {
       entry.data = rest
     }
@@ -361,8 +390,10 @@ export class LoggerService {
     // source fields assigned last so caller data can never clobber them
     // renderer process has its own module and context, do not use this.module and this.context
     entry.process = source.process
+
     if (source.process === 'main') {
       entry.module = this.module
+
       if (Object.keys(this.context).length > 0) {
         entry.context = sanitizeLogValue(this.context)
       }
@@ -370,9 +401,11 @@ export class LoggerService {
       if (source.window !== undefined) {
         entry.window = source.window
       }
+
       if (source.module !== undefined) {
         entry.module = source.module
       }
+
       if (source.context !== undefined) {
         entry.context = sanitizeLogValue(source.context)
       }
@@ -385,6 +418,7 @@ export class LoggerService {
     }
 
     this.logger.log(level, fileMessage, entry)
+
     if (
       source.process === 'main' &&
       (level === LEVEL.ERROR ||
@@ -393,6 +427,7 @@ export class LoggerService {
     ) {
       if (!this.reporting.active) {
         this.reporting.active = true
+
         try {
           this.reporting.observer?.({ error: first instanceof Error ? first : undefined, entry: { ...entry, level } })
         } catch {

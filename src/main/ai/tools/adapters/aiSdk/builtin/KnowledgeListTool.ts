@@ -41,6 +41,7 @@ const kbListTool = tool({
   outputSchema: knowledgeListResultSchema,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
+
     return listOrOutlineKnowledge(input, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ input, output }) => knowledgeListModelOutput(output, input)

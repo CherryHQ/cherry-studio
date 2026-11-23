@@ -14,6 +14,7 @@ export function useStorageMonitorNotification(): void {
 
   useEffect(() => {
     if (!health) return
+
     if (health.level === 'low' && !warningKey.current) {
       warningKey.current = `disk-warning-${Date.now()}`
       toast.warning({

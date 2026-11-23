@@ -29,12 +29,14 @@ async function getPaddleOcrClientCtor(): Promise<PaddleOcrClientLike> {
       })
 
   paddleOcrClientCtorPromise = ctorPromise
+
   return await ctorPromise
 }
 
 /** Creates a PaddleOCR API client with SSRF-safe Electron fetch behavior. */
 export async function createPaddleClient(apiHost: string, apiKey: string) {
   const PaddleOCRClient = await getPaddleOcrClientCtor()
+
   const safeFetch: typeof fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
 

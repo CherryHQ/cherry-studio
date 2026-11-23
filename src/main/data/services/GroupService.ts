@@ -63,6 +63,7 @@ export class GroupService {
       .where(eq(groupTable.entityType, entityType))
       .orderBy(asc(groupTable.orderKey))
       .all()
+
     return rows.map(rowToGroup)
   }
 
@@ -86,6 +87,7 @@ export class GroupService {
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Group | null {
     const [row] = tx.select().from(groupTable).where(eq(groupTable.id, id)).limit(1).all()
+
     return row ? rowToGroup(row) : null
   }
 
@@ -146,6 +148,7 @@ export class GroupService {
 
     const mapped = rowToGroup(row)
     logger.info('Created group', { id: mapped.id, entityType: mapped.entityType })
+
     return mapped
   }
 
@@ -154,6 +157,7 @@ export class GroupService {
    */
   update(id: string, dto: UpdateGroupDto): Group {
     const updates: Partial<typeof groupTable.$inferInsert> = {}
+
     if (dto.name !== undefined) updates.name = dto.name
 
     if (Object.keys(updates).length === 0) {
@@ -170,6 +174,7 @@ export class GroupService {
     }
 
     logger.info('Updated group', { id, changes: Object.keys(dto) })
+
     return rowToGroup(row)
   }
 
@@ -179,10 +184,13 @@ export class GroupService {
   delete(id: string): void {
     application.get('DbService').withWriteTx((tx) => {
       const group = this.findByIdTx(tx, id)
+
       if (!group) throw DataApiErrorFactory.notFound('Group', id)
+
       if (group.entityType === 'knowledge') {
         getDataService('KnowledgeBaseService').ungroupTx(tx, id)
       }
+
       tx.delete(groupTable).where(eq(groupTable.id, id)).run()
     })
 

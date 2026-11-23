@@ -45,8 +45,10 @@ function useMemorySnapshot(agentId: string) {
     const id = ++requestId.current
     setLoading(true)
     setError(false)
+
     try {
       const next = await ipcApi.request('agent.memory.read', { agentId })
+
       if (id === requestId.current) setSnapshot(next)
     } catch {
       if (id === requestId.current) setError(true)
@@ -96,6 +98,7 @@ export function AgentMemoryPanel({
   const selected = files.find((file) => file.key === selectedKey) ?? files[0]
   const isDirty = mode === 'edit' && !!selected && draft !== selected.content
   const isMarkdown = selected?.key !== 'journal'
+
   // JOURNAL is append-only and written by the running agent; truncated files only
   // contain a slice, so replacing either from the editor would destroy data.
   const readOnlyReason = !selected
@@ -105,6 +108,7 @@ export function AgentMemoryPanel({
       : selected.truncated
         ? 'agent.memory.truncated_readonly'
         : null
+
   const canEdit = !!selected && readOnlyReason === null
 
   useEffect(() => {
@@ -131,19 +135,25 @@ export function AgentMemoryPanel({
 
   const selectFile = (key: AgentMemoryFileKey) => {
     if (saving || key === selectedKey) return
+
     if (isDirty) {
       setDiscardRequest({ kind: 'switch', key })
+
       return
     }
+
     applySelect(key)
   }
 
   const startEdit = () => {
     if (!selected || loading) return
+
     if (!canEdit) {
       if (readOnlyReason) toast.error(t(readOnlyReason))
+
       return
     }
+
     setDraft(selected.content)
     setDraftVersion(selected.version)
     setMode('edit')
@@ -157,19 +167,25 @@ export function AgentMemoryPanel({
 
   const save = async () => {
     if (!selected) return
+
     if (!canEdit) {
       if (readOnlyReason) toast.error(t(readOnlyReason))
+
       return
     }
+
     // The file may have been refreshed while this draft was open. Never submit a
     // draft against a revision the user has not seen.
     if (!draftVersion || draftVersion !== selected.version) {
       toast.error(t('agent.memory.conflict'))
       cancelEdit()
       await reload()
+
       return
     }
+
     setSaving(true)
+
     try {
       const updated = await ipcApi.request('agent.memory.write', {
         agentId: agent.id,
@@ -177,6 +193,7 @@ export function AgentMemoryPanel({
         content: draft,
         expectedVersion: draftVersion
       })
+
       replaceFile(updated)
       setMode('view')
       setDraft('')
@@ -184,6 +201,7 @@ export function AgentMemoryPanel({
       toast.success(t('agent.memory.saved'))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+
       if (message.includes('AGENT_MEMORY_CONFLICT')) {
         toast.error(t('agent.memory.conflict'))
         cancelEdit()
@@ -204,11 +222,14 @@ export function AgentMemoryPanel({
   useImperativeHandle(ref, () => ({
     confirmLeave: () => {
       if (saving) return Promise.resolve(false)
+
       if (!isDirty) return Promise.resolve(true)
+
       if (leaveRequest.current) return leaveRequest.current.promise
       const { promise, resolve } = Promise.withResolvers<boolean>()
       leaveRequest.current = { promise, resolve }
       setDiscardRequest({ kind: 'leave' })
+
       return promise
     }
   }))
@@ -221,16 +242,19 @@ export function AgentMemoryPanel({
 
   const confirmDiscard = () => {
     if (discardRequest?.kind === 'switch') applySelect(discardRequest.key)
+
     if (discardRequest?.kind === 'leave') {
       cancelEdit()
       leaveRequest.current?.resolve(true)
       leaveRequest.current = null
     }
+
     setDiscardRequest(null)
   }
 
   const copyContent = async () => {
     if (!selected) return
+
     try {
       await navigator.clipboard.writeText(selected.content)
       toast.success(t('agent.memory.copied'))
@@ -340,6 +364,7 @@ export function AgentMemoryPanel({
           value={selectedKey}
           onValueChange={(key) => {
             const file = files.find((item) => item.key === key)
+
             if (file) selectFile(file.key)
           }}
           variant="underline"

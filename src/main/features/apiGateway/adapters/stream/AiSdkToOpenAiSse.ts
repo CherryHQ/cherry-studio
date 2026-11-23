@@ -32,6 +32,7 @@ const logger = loggerService.withContext('AiSdkToOpenAiSse')
  * Use official OpenAI SDK types as base
  */
 type ChatCompletionChunkBase = OpenAI.Chat.Completions.ChatCompletionChunk
+
 type ChatCompletion = OpenAI.Chat.Completions.ChatCompletion
 
 /**
@@ -153,6 +154,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
   protected processChunk(chunk: UIMessageChunk): void {
     // Log only the chunk type — full payloads can carry prompt/tool/reasoning content.
     logger.silly('AiSdkToOpenAiSse - Processing chunk', { type: chunk.type })
+
     switch (chunk.type) {
       // === Text Events ===
       // OpenAI has no separate text-start/text-end; only deltas matter.
@@ -198,11 +200,15 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
+
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
     }
+
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+
     if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
       this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
     }
@@ -214,12 +220,15 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
       completion_tokens: this.state.outputTokens,
       total_tokens: this.state.inputTokens + this.state.outputTokens
     }
+
     if (this.state.cacheReadTokens !== undefined) {
       usage.prompt_tokens_details = { cached_tokens: this.state.cacheReadTokens }
     }
+
     if (this.state.reasoningTokens !== undefined) {
       usage.completion_tokens_details = { reasoning_tokens: this.state.reasoningTokens }
     }
+
     return usage
   }
 
@@ -228,6 +237,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
 
     // Track content in state
     let textBlock = this.state.blocks.get(0)
+
     if (!textBlock) {
       textBlock = {
         type: 'text',
@@ -237,6 +247,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
       }
       this.state.blocks.set(0, textBlock)
     }
+
     textBlock.content += content
 
     const chunk = this.createBaseChunk({ content })
@@ -251,6 +262,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
 
     // Also track in state blocks for non-streaming response
     let thinkingBlock = this.state.blocks.get(-1) // Use -1 for thinking block
+
     if (!thinkingBlock) {
       thinkingBlock = {
         type: 'thinking',
@@ -260,6 +272,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
       }
       this.state.blocks.set(-1, thinkingBlock)
     }
+
     thinkingBlock.content += reasoningContent
 
     // Emit chunk with reasoning_content (DeepSeek-style)
@@ -362,6 +375,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
     // Collect text content
     let content: string | null = null
     const textBlock = this.state.blocks.get(0)
+
     if (textBlock && textBlock.type === 'text' && textBlock.content) {
       content = textBlock.content
     }
@@ -369,6 +383,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
     // Collect reasoning content
     let reasoningContent: string | null = null
     const thinkingBlock = this.state.blocks.get(-1)
+
     if (thinkingBlock && thinkingBlock.type === 'thinking' && thinkingBlock.content) {
       reasoningContent = thinkingBlock.content
     }
@@ -390,7 +405,9 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
       content,
       refusal: null
     }
+
     if (reasoningContent) message.reasoning_content = reasoningContent
+
     if (toolCallsArray.length > 0) message.tool_calls = toolCallsArray
 
     return {

@@ -18,7 +18,9 @@ import { NotificationTitle } from './NotificationTitle'
 
 const logger = loggerService.withContext('NotificationCenter')
 const ReleaseNotes = lazy(() => import('./ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })))
+
 type DrawerSide = 'left' | 'right'
+
 const NotificationCenterContext = createContext<{
   open: boolean
   hasUnread: boolean
@@ -45,41 +47,53 @@ function NotificationItem({
   const unreadDescriptionId = useId()
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [activating, setActivating] = useState(false)
+
   const { appUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
     const { default: UpdateDialogPopup } = await import('./UpdateDialogPopup')
+
     return UpdateDialogPopup.show({ releaseInfo })
   })
+
   const { trigger: markRead } = useMutation('PATCH', '/notifications/:id', {
     refresh: ['/notifications', '/notifications/unread-count']
   })
+
   const { trigger: dismiss, isLoading: dismissing } = useMutation('DELETE', `/notifications/${record.id}`, {
     refresh: ['/notifications', '/notifications/unread-count']
   })
+
   const release = record.target?.kind === 'release' ? record.target : null
   const announcement = record.target?.kind === 'announcement' ? record.target : null
   const announcementUrl = announcement?.url
   const expandable = !!(release || announcement)
   const Icon = record.target?.kind === 'scheduled-task' ? CalendarClock : notificationCategoryIcons[record.category]
+
   const task =
     record.target?.kind === 'scheduled-task' ||
     (record.target?.kind === 'conversation' &&
       (record.kind === 'task-completion' || record.kind === 'queue-completion' || !!record.target.result))
+
   const resultStatus = record.target?.result?.status ?? 'succeeded'
+
   const replyPreview =
     (record.target?.kind === 'conversation' ? record.target.replyPreview : undefined) ??
     (record.kind === 'task-completion' || record.kind === 'queue-completion'
       ? record.message.split('\n').slice(1).join('\n').trim()
       : record.message.trim())
+
   const showReplyPreview =
     task && record.target?.kind === 'conversation' && resultStatus === 'succeeded' && !!replyPreview
+
   const resultLabels = {
     succeeded: t('notification.center.result.succeeded'),
     failed: t('notification.center.result.failed'),
     cancelled: t('notification.center.result.cancelled'),
     interrupted: t('notification.center.result.interrupted')
   }
+
   const created = new Date(record.createdAt)
   const timeOptions: Intl.DateTimeFormatOptions = {}
+
   if (created.toDateString() !== new Date().toDateString()) timeOptions.dateStyle = 'short'
   timeOptions.timeStyle = 'short'
   const timeLabel = created.toLocaleString(i18n.language, timeOptions)
@@ -87,6 +101,7 @@ function NotificationItem({
 
   const activate = async () => {
     setActivating(true)
+
     try {
       if (expandable) {
         if (record.readAt === null) await markRead({ params: { id: record.id }, body: { read: true } })
@@ -226,10 +241,13 @@ function NotificationList({
   onDismissRequested: () => void
 }) {
   const { t } = useTranslation()
+
   const { pages, hasNext, loadNext, isLoading, isRefreshing, error, refresh } = useInfiniteQuery('/notifications', {
     limit: 50
   })
+
   const items = useInfiniteFlatItems(pages)
+
   const {
     data: requested,
     error: requestedError,
@@ -239,16 +257,20 @@ function NotificationList({
     enabled: !!requestedId,
     swrOptions: { shouldRetryOnError: false }
   })
+
   useDataChange('/notifications', () => {
     void refresh()
+
     if (requestedId) void refetchRequested()
   })
   const requestedRecord = !requestedError && requestedId && requested?.id === requestedId ? requested : undefined
+
   const visibleItems = requestedRecord
     ? [...items.filter((item) => item.id !== requestedId), requestedRecord].sort(
         (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)
       )
     : items
+
   const listRef = useRef<HTMLUListElement>(null)
   useEffect(() => {
     if (requestedRecord) listRef.current?.querySelector('[data-requested="true"]')?.scrollIntoView({ block: 'nearest' })
@@ -311,7 +333,9 @@ export function NotificationCenterButton({
   const { t } = useTranslation()
   const unreadDescriptionId = useId()
   const center = useNotificationCenter()
+
   if (!center) return null
+
   return (
     <Button
       type="button"
@@ -351,9 +375,11 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
   const returnFocus = useRef(false)
   const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null)
   const { data: unread, refetch } = useQuery('/notifications/unread-count')
+
   const { trigger: markAllRead, isLoading: markingAllRead } = useMutation('POST', '/notifications/read-all', {
     refresh: ['/notifications', '/notifications/unread-count']
   })
+
   useDataChange('/notifications/unread-count', () => {
     void refetch()
   })
@@ -366,17 +392,23 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
     )
     setOpen(true)
   })
+
   const changeOpen = (value: boolean) => {
     setOpen(value)
+
     if (!value) setRequestedId(null)
   }
+
   const tabs = useOptionalTabsContext()
   const page = `${tabs?.activeTabId}:${tabs?.tabs.find((tab) => tab.id === tabs.activeTabId)?.url}`
   const [openedPage, setOpenedPage] = useState(page)
+
   if (page !== openedPage) {
     setOpenedPage(page)
+
     if (open) changeOpen(false)
   }
+
   return (
     <NotificationCenterContext
       value={{
@@ -422,6 +454,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
+
             if (returnFocus.current) {
               visibleTrigger()?.focus()
               returnFocus.current = false

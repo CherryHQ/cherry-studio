@@ -64,6 +64,7 @@ const KnowledgeItemChunkDetailPanel = ({
     t,
     i18n: { language }
   } = useTranslation()
+
   const {
     data: fetchedItem,
     isLoading: isItemLoading,
@@ -72,6 +73,7 @@ const KnowledgeItemChunkDetailPanel = ({
     params: { id: itemId },
     enabled: Boolean(itemId)
   })
+
   const [chunks, setChunks] = useState<KnowledgeItemChunk[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -90,6 +92,7 @@ const KnowledgeItemChunkDetailPanel = ({
 
       try {
         const itemChunks = await ipcApi.request('knowledge.list_item_chunks', { baseId, itemId })
+
         if (isActive) {
           setChunks(itemChunks)
         }

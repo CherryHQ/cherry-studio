@@ -40,6 +40,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
     folderIcon,
     showFolderIcons = true
   } = props
+
   const { node, depth, isExpanded, isSelected, isDragging, dragPosition, toggleExpanded, selectNode, dragHandleProps } =
     args
 
@@ -69,6 +70,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
         />
       )
     }
+
     return fileIcon ? (
       fileIcon(node)
     ) : (
@@ -83,6 +85,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
 
   const handleRowClick = () => {
     selectNode()
+
     if (isFolder) toggleExpanded()
   }
 

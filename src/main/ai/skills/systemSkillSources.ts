@@ -8,6 +8,7 @@ export interface SystemSkillSource {
 
 function resolveHomePath(home: string, configuredPath: string | undefined, fallback: string[]): string {
   const value = configuredPath?.trim()
+
   return value ? path.resolve(home, value) : path.join(home, ...fallback)
 }
 

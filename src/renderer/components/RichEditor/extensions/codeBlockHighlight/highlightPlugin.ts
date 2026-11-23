@@ -9,6 +9,7 @@ import { uuid } from '@renderer/utils/uuid'
 
 const logger = loggerService.withContext('RichEditor:CodeBlockHighlight')
 export const codeHighlightPluginKey = new PluginKey<DecorationSet>('codeHighlight')
+
 interface Block {
   pos: number
   node: ProsemirrorNode
@@ -26,26 +27,37 @@ export function HighlightPlugin({
   defaultLanguage: string | null | undefined
 }) {
   let blocks: Block[] = []
+
   const reconcile = (doc: ProsemirrorNode, transaction?: Transaction) => {
     const previous = new Map<number, Block>()
+
     for (const block of blocks) {
       const mapped = transaction?.mapping.mapResult(block.pos, 1)
+
       if (!mapped?.deleted) previous.set(mapped?.pos ?? block.pos, block)
     }
+
     const next = findChildren(doc, (node) => node.type.name === name).map(({ pos, node }) => {
       const language = node.attrs.language || defaultLanguage || 'text'
       let block = previous.get(pos)
+
       if (block?.language !== language) block = undefined
+
       if (!block) block = { pos, node, language, callerId: `tiptap:${uuid()}`, decorations: [] }
+
       if (!node.eq(block.node)) block.decorations = []
       block.pos = pos
       block.node = node
+
       return block
     })
+
     const retained = new Set(next)
+
     for (const block of blocks) if (!retained.has(block)) codeHighlightService.cleanupTokenizers(block.callerId)
     blocks = next
   }
+
   const decorate = (doc: ProsemirrorNode) =>
     DecorationSet.create(
       doc,
@@ -61,10 +73,12 @@ export function HighlightPlugin({
     state: {
       init: (_, { doc }) => {
         reconcile(doc)
+
         return DecorationSet.empty
       },
       apply: (transaction, decorations) => {
         if (transaction.docChanged) reconcile(transaction.doc, transaction)
+
         return transaction.docChanged || transaction.getMeta(codeHighlightPluginKey) === true
           ? decorate(transaction.doc)
           : decorations
@@ -73,6 +87,7 @@ export function HighlightPlugin({
     view: (view) => {
       reconcile(view.state.doc)
       let destroyed = false
+
       const highlight = () => {
         for (const block of blocks) {
           if (block.requested?.eq(block.node)) continue
@@ -96,7 +111,9 @@ export function HighlightPlugin({
                       ]
                     : []
                 )
+
                 offset += line.reduce((length, token) => length + token.content.length, 0) + 1
+
                 return spans
               })
               view.dispatch(view.state.tr.setMeta(codeHighlightPluginKey, true).setMeta('addToHistory', false))
@@ -104,11 +121,14 @@ export function HighlightPlugin({
             .catch((error) => logger.warn('Failed to highlight code block', error))
         }
       }
+
       highlight()
+
       return {
         update: highlight,
         destroy: () => {
           destroyed = true
+
           for (const block of blocks) codeHighlightService.cleanupTokenizers(block.callerId)
           blocks = []
         }

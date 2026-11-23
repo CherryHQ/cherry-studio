@@ -22,6 +22,7 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className, size = 26, fontSize, 
         borderRadius: `${size / 2}px`,
         containerType: 'inline-size'
       }
+
   const foregroundFontSize = fontSize === undefined ? '70cqi' : `${fontSize}px`
   const backgroundFontSize = fontSize === undefined ? '120cqi' : `${fontSize * 2}px`
 

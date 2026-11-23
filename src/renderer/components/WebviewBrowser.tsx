@@ -57,13 +57,16 @@ export function WebviewBrowser({
   onAnnotationSaved
 }: Props) {
   const { t } = useTranslation()
+
   const [navigation, setNavigation] = useState<{
     sourceUrl: string | undefined
     sourceProfile: Props['securityProfile']
     url: string
   }>()
+
   const hasNavigation = navigation && navigation.sourceUrl === sourceUrl && navigation.sourceProfile === sourceProfile
   const requestedUrl = hasNavigation ? navigation.url : sourceUrl
+
   const [startPageUrl] = useState(() => {
     if (
       requestedUrl !== undefined ||
@@ -71,14 +74,18 @@ export function WebviewBrowser({
       sourceProfile !== WebviewSecurityProfile.AgentBrowser
     )
       return 'about:blank'
+
     return getBrowserStartPageUrl(startPageContext)
   })
+
   const initialUrl = requestedUrl ?? startPageUrl
+
   const securityProfile = initialUrl.startsWith('file:')
     ? WebviewSecurityProfile.AgentHtmlArtifact
     : hasNavigation
       ? WebviewSecurityProfile.AgentBrowser
       : sourceProfile
+
   const handleNavigate = useCallback(
     (url: string) => {
       if (onNavigate) onNavigate(url)
@@ -86,6 +93,7 @@ export function WebviewBrowser({
     },
     [onNavigate, sourceUrl, sourceProfile]
   )
+
   const webviewRef = useRef<WebviewTag | null>(null)
   const [webviewRevision, setWebviewRevision] = useState(0)
   const [isReady, setIsReady] = useState(false)
@@ -97,22 +105,28 @@ export function WebviewBrowser({
   // An <Activity>-hidden tab runs this cleanup too: main freezes a guest left hidden.
   useEffect(() => {
     const webview = webviewRef.current
+
     if (!isHostActive || !webview) return
     let webviewId: number
+
     try {
       webviewId = webview.getWebContentsId()
     } catch {
       return // A new guest has no contents until dom-ready, which re-runs this effect.
     }
+
     const report = (visible: boolean) =>
       void ipcApi.request('webview.set_visible', { webviewId, visible }).catch(() => {})
+
     report(true)
+
     return () => report(false)
   }, [isHostActive, isReady, webviewRevision])
 
   const handleWebviewChange = useCallback((webview: WebviewTag | null) => {
     webviewRef.current = webview
     setWebviewRevision((revision) => revision + 1)
+
     if (!webview) {
       setIsReady(false)
       setPageTitle('')
@@ -147,9 +161,11 @@ export function WebviewBrowser({
   const handleDidNavigate = useCallback(
     (event: DidNavigateEvent | DidNavigateInPageEvent) => {
       if ('isMainFrame' in event && !event.isMainFrame) return
+
       if (startPageContext !== undefined && securityProfile === WebviewSecurityProfile.AgentBrowser) {
         rememberBrowserPageUrl(startPageContext, event.url)
       }
+
       onUrlChange?.(event.url)
     },
     [onUrlChange, securityProfile, startPageContext]

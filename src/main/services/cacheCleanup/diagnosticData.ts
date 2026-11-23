@@ -13,6 +13,7 @@ function getDiagnosticPaths() {
 
 export async function inspectDiagnosticData(signal?: AbortSignal): Promise<CacheCleanupSizeSnapshot> {
   const paths = getDiagnosticPaths()
+
   const measurement = await measurePaths(
     [
       { item: 'logs', path: paths.logs },
@@ -21,5 +22,6 @@ export async function inspectDiagnosticData(signal?: AbortSignal): Promise<Cache
     ],
     signal
   )
+
   return toSizeSnapshot(measurement, 'exact')
 }

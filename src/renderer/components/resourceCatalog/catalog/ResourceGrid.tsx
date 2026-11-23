@@ -97,7 +97,9 @@ interface Props {
 
 function getGridColumnCount(width: number) {
   if (width >= 1024) return 3
+
   if (width >= 640) return 2
+
   return 1
 }
 
@@ -106,6 +108,7 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
 
   useEffect(() => {
     const el = scrollRef.current
+
     if (!el) return
 
     const update = () => {
@@ -119,11 +122,13 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
 
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', update)
+
       return () => window.removeEventListener('resize', update)
     }
 
     const observer = new ResizeObserver(update)
     observer.observe(el)
+
     return () => observer.disconnect()
   }, [scrollRef])
 
@@ -252,9 +257,11 @@ export const ResourceGrid: FC<Props> = ({
   const hasNoMatches = Boolean(search) || hasHiddenResources
   const isSettings = variant === 'settings'
   const isSkillSettings = isSettings && activeResourceType === 'skill'
+
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
     refreshOnDelete: ['/assistants', '/assistants/*']
   })
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const responsiveColumnCount = useGridColumnCount(contentRef)
@@ -267,16 +274,20 @@ export const ResourceGrid: FC<Props> = ({
   const [deletingGroup, setDeletingGroup] = useState<GroupItem | null>(null)
   const [deleting, setDeleting] = useState(false)
   const showGroupToolbar = activeResourceType === 'assistant'
+
   const unusedGroups = useMemo(() => {
     const usedIds = new Set(groups.map((group) => group.id))
+
     return allGroups
       .filter((group) => !usedIds.has(group.id))
       .map((group) => ({ id: group.id, name: group.name, count: 0 }))
   }, [allGroups, groups])
+
   const visibleGroups = useMemo(() => {
     if (!showAllGroups) return groups
 
     const countById = new Map(groups.map((group) => [group.id, group.count] as const))
+
     return allGroups.map((group) => ({
       id: group.id,
       name: group.name,
@@ -306,14 +317,17 @@ export const ResourceGrid: FC<Props> = ({
   const handleRenameGroup = useCallback(async () => {
     const group = renamingGroup
     const nextName = renameValue.trim()
+
     if (!group || renaming || !nextName) return
 
     if (nextName === group.name) {
       setRenamingGroup(null)
+
       return
     }
 
     setRenaming(true)
+
     try {
       await updateGroup(group.id, { name: nextName })
       setRenamingGroup(null)
@@ -332,11 +346,14 @@ export const ResourceGrid: FC<Props> = ({
 
   const handleConfirmDeleteGroup = useCallback(async () => {
     const group = deletingGroup
+
     if (!group || deleting) return
 
     setDeleting(true)
+
     try {
       await deleteGroup(group.id)
+
       if (activeGroupId === group.id) onGroupFilter(null)
       setDeletingGroup(null)
     } catch (error) {
@@ -532,6 +549,7 @@ export const ResourceGrid: FC<Props> = ({
               onChange={(event) => setRenameValue(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void handleRenameGroup()
+
                 if (event.key === 'Escape' && !renaming) setRenamingGroup(null)
               }}
               disabled={renaming}
@@ -656,11 +674,14 @@ function VirtualizedResourceGrid({
   onLaunchSkill
 }: VirtualizedResourceGridProps) {
   const isSkillList = variant === 'settings' && columnCount === 1 && resources[0]?.type === 'skill'
+
   const rows = useMemo(() => {
     const nextRows: ResourceItem[][] = []
+
     for (let i = 0; i < resources.length; i += columnCount) {
       nextRows.push(resources.slice(i, i + columnCount))
     }
+
     return nextRows
   }, [columnCount, resources])
 
@@ -677,6 +698,7 @@ function VirtualizedResourceGrid({
       style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
       {rowVirtualizer.getVirtualItems().map((virtualRow) => {
         const row = rows[virtualRow.index] ?? []
+
         return (
           <div
             key={virtualRow.key}

@@ -58,6 +58,7 @@ export function OpenTargetButton({
   const handleOpen = useCallback(
     async (target = selectedTarget) => {
       if (!target) return
+
       try {
         await openTarget(target)
       } catch (error) {
@@ -70,7 +71,9 @@ export function OpenTargetButton({
   const primaryLabel = selectedTarget
     ? t('common.open_in', { name: selectedTarget.name ?? getOpenTargetLabel(selectedTarget, t) })
     : t('agent.preview_pane.default_app')
+
   const primaryIcon = selectedTarget ? <OpenTargetIcon target={selectedTarget} /> : <FolderOpen size={16} />
+
   const menu = (
     <PopoverContent
       align={hasCustomPrimary ? 'start' : 'end'}
@@ -96,6 +99,7 @@ export function OpenTargetButton({
             aria-pressed={menuAction === 'select' ? selectedTarget?.id === target.id : undefined}
             onClick={() => {
               setMenuOpen(false)
+
               if (menuAction === 'select') selectTarget(target)
               else void handleOpen(target)
             }}

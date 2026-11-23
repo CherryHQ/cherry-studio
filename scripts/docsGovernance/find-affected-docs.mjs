@@ -17,14 +17,17 @@ export function findAffectedDocs(index, changedPaths) {
   if (index?.version !== 1 || !Array.isArray(index.documents))
     throw new Error('docs/dev/sources-index.json has an unsupported schema')
   const changed = [...new Set(changedPaths.map(normalize))].sort()
+
   return index.documents
     .map((document) => {
       if (typeof document.path !== 'string' || !Array.isArray(document.sources))
         throw new Error('docs/dev/sources-index.json is malformed')
       const sources = document.sources.map(normalize)
+
       const matchedPaths = changed.filter((file) =>
         sources.some((source) => file === source || file.startsWith(`${source}/`))
       )
+
       return { document: document.path, sources: document.sources, matchedPaths }
     })
     .filter((document) => document.matchedPaths.length > 0)
@@ -42,14 +45,18 @@ export function runAffectedDocs(args, cwd = process.cwd()) {
       json: { type: 'boolean', default: false }
     }
   })
+
   if (!values.base) throw new Error('missing required --base <ref>')
   const scope = collectChangeScope({ base: values.base, head: values.head }, cwd)
   const paths = Object.values(scope.paths).flat()
   const indexPath = join(scope.repositoryRoot, 'docs/dev/sources-index.json')
   const index = JSON.parse(readFileSync(indexPath, 'utf8'))
   const affected = findAffectedDocs(index, paths)
+
   if (values.json) return `${JSON.stringify({ scope: scope.resolved, documents: affected }, null, 2)}\n`
+
   if (!affected.length) return 'No documentation source prefixes matched the change scope.\n'
+
   return `${affected.map((item) => `${item.document}\n  ${item.matchedPaths.join('\n  ')}`).join('\n')}\n`
 }
 

@@ -87,6 +87,7 @@ export function ReorderableList<T>({
         } catch (error) {
           if (onReorderError) {
             onReorderError(error)
+
             return
           }
 

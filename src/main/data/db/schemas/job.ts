@@ -104,6 +104,9 @@ export const jobTable = sqliteTable(
 )
 
 export type JobRow = typeof jobTable.$inferSelect
+
 export type InsertJobRow = typeof jobTable.$inferInsert
+
 export type JobScheduleRow = typeof jobScheduleTable.$inferSelect
+
 export type InsertJobScheduleRow = typeof jobScheduleTable.$inferInsert

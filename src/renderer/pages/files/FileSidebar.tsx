@@ -49,6 +49,7 @@ export function FileSidebar({
     const active = isActive(entry.kind, entry.value)
     const Icon = entry.icon
     const count = fileCounts[entry.countKey]
+
     return (
       <MenuItem
         key={`${entry.kind}-${entry.value}`}

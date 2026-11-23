@@ -135,6 +135,7 @@ export function useConfigDraftController({
         : expectedModelId && isUniqueModelId(expectedModelId)
           ? parseUniqueModelId(expectedModelId).modelId
           : undefined
+
       return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysRef.current, expectedModel)
     },
     [cliTool, provider, gateway, models]
@@ -193,7 +194,9 @@ export function useConfigDraftController({
 
   useEffect(() => {
     if (initialLoadHasRunRef.current) return
+
     if (apiKeys === undefined) return // wait for the apiKeys query to resolve (even to an empty array) before judging managed/foreign
+
     if (isModelsLoading) return // likewise for the gateway model map: an in-flight query looks identical to "no routable model"
     initialLoadHasRunRef.current = true
 
@@ -207,12 +210,14 @@ export function useConfigDraftController({
       initialDraftSeed,
       gateway
     } = initialLoadContextRef.current
+
     const commitLoadedDraft = (nextDraft: ConfigDraft) => {
       draftRef.current = nextDraft
       initialDraftSnapshotRef.current = createDraftSnapshot(nextDraft)
       setDraft(nextDraft)
       setIsDirty(false)
     }
+
     const loadId = ++loadIdRef.current
     void loadInitialConfigDraft({
       cliTool,
@@ -240,9 +245,11 @@ export function useConfigDraftController({
   // active provider's files would keep their old contents while the preference moved on (either
   // mode flip can land here). Mirror the parent's rejection by refusing to arm Save at all.
   const managedSubmitModelId = resolveManagedOptions(claudeModelMode, draft.config, draft.modelId).cliConfigModelId
+
   const canSubmit = isForeignDraft
     ? draft.files.length > 0 && !draft.error
     : !draft.error && !(isCurrentProvider && !managedSubmitModelId)
+
   const canSave = canSubmit && isDirty
 
   const handleModelSelect = useCallback(
@@ -258,6 +265,7 @@ export function useConfigDraftController({
         mode: 'managed',
         error: ''
       })
+
       if (nextModelId) {
         loadManagedDraft(nextModelId, nextConfig, current.files, {
           cliConfigModelId: nextModelId,
@@ -272,6 +280,7 @@ export function useConfigDraftController({
     (nextConfig: ConfigDraft['config']) => {
       const sanitizedConfig = sanitizeCliConfigBlob(cliTool, nextConfig)
       const current = draftRef.current
+
       if (current.mode === 'foreign') {
         try {
           const nextFiles = updateCliConfigDraftConfig(cliTool, current.files, sanitizedConfig)
@@ -309,28 +318,34 @@ export function useConfigDraftController({
   const handleCliConfigFilesChange = useCallback(
     (files: CliConfigFileDraft[]) => {
       const current = draftRef.current
+
       try {
         validateCliConfigDraftForWrite(files)
       } catch (error) {
         commitDraft({ ...current, files, error: error instanceof Error ? error.message : String(error) })
+
         return
       }
 
       const connection = extractConnectionFromCliConfigDraft(cliTool, files)
+
       const nextConfig = sanitizeCliConfigBlob(
         cliTool,
         extractConfigFromCliConfigDraft(cliTool, files) ?? current.config
       )
+
       // In gateway mode the committed modelId must be a real UniqueModelId (the synthetic gateway
       // provider owns no models). When none is selected yet, reverse-resolve the raw file's gateway
       // address so a hand-edited model resolves to a real model instead of being silently dropped.
       const resolvedModelId =
         gateway && !current.modelId ? gatewayModelIdFromAddress(connection?.model, models) : current.modelId
+
       // Foreign when the raw connection doesn't match, or (gateway) when it names a model we can't
       // resolve to an enabled one — either way persist the files verbatim rather than committing a
       // managed draft with no model, which the submit path would silently discard.
       const isForeign =
         !!connection && (!connectionMatchesProvider(connection, resolvedModelId) || (gateway && !resolvedModelId))
+
       if (isForeign) {
         commitDraft({
           ...current,
@@ -366,10 +381,13 @@ export function useConfigDraftController({
   const handleSubmit = useCallback(async () => {
     if (!canSave) return
     const current = draftRef.current
+
     try {
       setSubmitting(true)
+
       if (current.mode === 'foreign') {
         const model: Pick<Parameters<typeof onSubmit>[0], 'modelId'> = {}
+
         if (current.modelId) model.modelId = current.modelId
         await onSubmit({
           ...model,
@@ -379,23 +397,29 @@ export function useConfigDraftController({
       } else {
         const isClaudeDetailedSubmit = cliTool === CodeCli.CLAUDE_CODE && claudeModelMode === 'detailed'
         const sanitizedConfig = sanitizeCliConfigBlob(cliTool, current.config)
+
         const cliConfigModelId = isClaudeDetailedSubmit
           ? getClaudeContextModelId(provider.id, sanitizedConfig, gateway ? models : undefined)
           : current.modelId
+
         const nextConfig =
           cliTool === CodeCli.CLAUDE_CODE && !isClaudeDetailedSubmit
             ? stripClaudeDetailedModels(sanitizedConfig)
             : sanitizedConfig
+
         const submitDraft = cliConfigModelId
           ? await createManagedDraft(current.modelId, nextConfig, current.files, {
               cliConfigModelId,
               writePrimaryModel: !isClaudeDetailedSubmit
             })
           : null
+
         if (submitDraft?.error) {
           commitDraft(submitDraft)
+
           return
         }
+
         const input: Pick<
           Parameters<typeof onSubmit>[0],
           'modelId' | 'cliConfigModelId' | 'config' | 'cliConfigFiles'
@@ -404,12 +428,14 @@ export function useConfigDraftController({
           cliConfigModelId,
           config: nextConfig
         }
+
         if (submitDraft) input.cliConfigFiles = submitDraft.files
         await onSubmit({
           ...input,
           writePrimaryModel: !isClaudeDetailedSubmit
         })
       }
+
       onClose()
     } catch (err) {
       // Keep the dialog open so the user's edits survive a failed apply.

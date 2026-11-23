@@ -6,7 +6,9 @@ import { ImaLight } from './light'
 
 const Ima = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ImaLight {...props} className={className} />
+
   if (variant === 'dark') return <ImaDark {...props} className={className} />
+
   return (
     <>
       <ImaLight className={cn('dark:hidden', className)} {...props} />

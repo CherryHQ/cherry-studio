@@ -21,6 +21,7 @@ export class AgentSessionMessageTreeSeeder implements ISeeder {
           .all()) {
           if (request.delivery?.replyPolicy !== 'completion' || request.data.deliveryReplyAnchor) continue
           const sender = tx.select().from(sessions).where(eq(sessions.id, request.delivery.sender.sessionId)).get()
+
           if (sender?.activeNodeId) {
             tx.update(messages)
               .set({

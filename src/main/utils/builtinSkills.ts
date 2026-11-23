@@ -38,13 +38,16 @@ export async function installBuiltinSkills(): Promise<void> {
   }
 
   const entries = await fs.readdir(resourceSkillsPath, { withFileTypes: true })
+
   const dirs = entries.filter((e) => {
     if (!e.isDirectory()) return false
     const sourcePath = path.join(resourceSkillsPath, e.name)
+
     return sourcePath.startsWith(resourceSkillsPath + path.sep)
   })
 
   let installed = 0
+
   // Process sequentially to avoid interleaved delete+insert on the skills
   // table when multiple builtins require a metadata refresh.
   for (const entry of dirs) {
@@ -54,6 +57,7 @@ export async function installBuiltinSkills(): Promise<void> {
         path.join(resourceSkillsPath, entry.name),
         appVersion
       )
+
       if (filesUpdated) installed++
     } catch (error) {
       logger.warn('Failed to sync built-in skill to DB', {

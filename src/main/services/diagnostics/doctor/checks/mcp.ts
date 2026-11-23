@@ -14,8 +14,10 @@ const logger = loggerService.withContext('SystemDoctor:Mcp')
 /** Every enabled server in a global run; only the subject's servers in a contextual one. */
 function enabledServers(subject: { readonly mcpServerIds: readonly string[] } | null): McpServer[] {
   const enabled = mcpServerService.list({ isActive: true }).items
+
   if (!subject) return enabled
   const scoped = new Set(subject.mcpServerIds)
+
   return enabled.filter((server) => scoped.has(server.id))
 }
 
@@ -23,18 +25,25 @@ export const mcpServersConnected = defineDoctorCheck({
   id: 'mcp-servers-connected',
   async run(ctx) {
     const servers = enabledServers(ctx.subject)
+
     if (!application.get('McpRuntimeService').isReady) throw new Error('MCP runtime is not ready')
     const cache = application.get('CacheService')
+
     const failed = servers.filter((server) => {
       const status = cache.getShared(`mcp.status.${server.id}`)
+
       return status?.state === 'error'
     })
+
     const pending = servers.filter((server) => {
       const status = cache.getShared(`mcp.status.${server.id}`)
+
       return status?.state !== 'connected' && status?.state !== 'error'
     })
+
     if (failed.length === 0) {
       if (pending.length) throw new Error('Some enabled MCP servers do not have a settled connection status')
+
       return { status: 'pass' }
     }
 
@@ -59,10 +68,13 @@ export const mcpServersConnected = defineDoctorCheck({
   fixes: {
     async restart({ target }) {
       const server = mcpServerService.getById(target)
+
       if (!server.isActive) return { status: 'failed', message: 'MCP server is disabled' }
       const runtime = application.get('McpRuntimeService')
+
       if (!runtime.isReady) throw new Error('MCP runtime is not ready')
       await runtime.restartServer(target)
+
       return { status: 'fixed' }
     }
   }
@@ -77,8 +89,10 @@ export const mcpLaunchCommands = defineDoctorCheck({
     const unresolved: { serverId: string; command: string }[] = []
     const errors: DoctorEvidenceItem[] = []
     const resolutionCache: LaunchResolutionCache = new Map()
+
     for (const server of servers) {
       signal.throwIfAborted()
+
       try {
         const { launch } = await resolveStdioLaunch({
           server,
@@ -87,9 +101,11 @@ export const mcpLaunchCommands = defineDoctorCheck({
           signal,
           resolutionCache
         })
+
         if (launch.resolution === 'unresolved' && 'lookupError' in launch) {
           throw launch.lookupError
         }
+
         if (launch.resolution === 'unresolved') {
           failed.push(server)
           unresolved.push({ serverId: server.id, command: launch.command })
@@ -106,6 +122,7 @@ export const mcpLaunchCommands = defineDoctorCheck({
         })
       }
     }
+
     if (failed.length === 0 && errors.length === 0) return { status: 'pass' }
 
     return {

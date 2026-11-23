@@ -54,6 +54,7 @@ function loadRuntime() {
     logger.error('Failed to load composer runtime', error as Error)
     throw error
   })
+
   return runtimePromise
 }
 
@@ -61,10 +62,13 @@ function loadRuntime() {
 function cloneTransfer(source: DataTransfer | null): DataTransfer | undefined {
   if (!source) return undefined
   const clone = new DataTransfer()
+
   for (const type of source.types) {
     if (type !== 'Files') clone.setData(type, source.getData(type))
   }
+
   for (const file of source.files) clone.items.add(file)
+
   return clone
 }
 
@@ -92,16 +96,19 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const fallbackVoiceAdapterRef = useRef<
     Pick<QuickPanelInputAdapter, 'captureReplaceRange' | 'replaceRange'> | undefined
   >(undefined)
+
   if (!fallbackVoiceAdapterRef.current) {
     fallbackVoiceAdapterRef.current = {
       captureReplaceRange: () => {
         const input = textareaRef.current
+
         return input
           ? { from: input.selectionStart, to: input.selectionEnd }
           : { from: selectionRef.current.start, to: selectionRef.current.end }
       },
       replaceRange: (range, insertedText) => {
         const current = textRef.current.replace(/\r\n?/g, '\n')
+
         if (
           !Number.isInteger(range.from) ||
           !Number.isInteger(range.to) ||
@@ -111,29 +118,37 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         ) {
           return false
         }
+
         const normalizedText = insertedText.replace(/\r\n?/g, '\n')
         const nextText = `${current.slice(0, range.from)}${normalizedText}${current.slice(range.to)}`
+
         if (nextText.length > COMPOSER_INPUT_MAX_LENGTH) return false
         const nextPosition = range.from + normalizedText.length
         selectionRef.current = { start: nextPosition, end: nextPosition }
         intentRef.current.preservePlainText = true
         onTextChangeRef.current(nextText)
+
         return true
       }
     }
   }
+
   const voiceInputAdapterRef = useRef(fallbackVoiceAdapterRef.current)
+
   const handleInputAdapterChange = useCallback((adapter: QuickPanelInputAdapter | undefined) => {
     voiceInputAdapterRef.current = adapter ?? fallbackVoiceAdapterRef.current!
   }, [])
+
   const voiceTargetId = props.voiceTarget?.targetId
   const voiceSourceEntityId = props.voiceTarget?.sourceEntityId
+
   const markVoiceTargetCurrent = useCallback(() => {
     if (voiceTargetId) voiceTargetManager.markCurrent(voiceTargetId)
   }, [voiceTargetId])
 
   useEffect(() => {
     if (!voiceTargetId || !voiceSourceEntityId) return
+
     return voiceTargetManager.bind({
       targetId: voiceTargetId,
       sourceEntityId: voiceSourceEntityId,
@@ -184,6 +199,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     props.text.trim().length > 0 ||
     Boolean(props.compactWhenSingleLine) ||
     props.isExpanded
+
   useEffect(() => {
     if (needsRuntime) requestRuntime()
   }, [needsRuntime, requestRuntime])
@@ -194,6 +210,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   useEffect(() => {
     if (Runtime || !window.requestIdleCallback) return
     const idleId = window.requestIdleCallback(() => requestRuntime())
+
     return () => window.cancelIdleCallback(idleId)
   }, [Runtime, requestRuntime])
 
@@ -203,13 +220,16 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     const updateText = (updater: string | ((previous: string) => string)) => {
       props.onTextChange(typeof updater === 'function' ? updater(props.text) : updater)
     }
+
     const updateTokens = (tokens: readonly ComposerSerializedToken[]) => props.onTokensChange(tokens)
 
     const actions: ComposerSurfaceActions = {
       focus: (position) => {
         const input = textareaRef.current
+
         if (!input) return
         input.focus()
+
         const nextPosition =
           typeof position === 'number'
             ? position
@@ -218,6 +238,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               : position === 'all'
                 ? undefined
                 : input.value.length
+
         input.setSelectionRange(nextPosition ?? 0, nextPosition ?? input.value.length)
       },
       onTextChange: updateText,
@@ -266,6 +287,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
 
   const updateSelection = () => {
     const input = textareaRef.current
+
     if (input) selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
   }
 
@@ -278,20 +300,26 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const captureTransfer = (kind: 'paste' | 'drop', data: DataTransfer | null) => {
     if (props.editable === false) return
     const transfer = cloneTransfer(data)
+
     if (transfer) intentRef.current.transfer = { kind, data: transfer }
     requestRuntime()
   }
 
   const navigateInputHistory = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (!props.onInputHistoryNavigate) return false
+
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false
+
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.nativeEvent.isComposing) return false
 
     const input = event.currentTarget
+
     const isAllSelected =
       input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
+
     const isAtBoundary =
       event.key === 'ArrowUp' ? input.selectionStart === input.value.length : input.selectionEnd === input.value.length
+
     if (!(props.text.trim().length === 0 || isAllSelected || isAtBoundary)) return false
 
     return props.onInputHistoryNavigate(event.key === 'ArrowUp' ? 'up' : 'down')
@@ -306,10 +334,12 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       requestRuntime()
     }
   }
+
   const leftControls = props.renderLeftControls?.(undefined, pendingPanelControl)
   const belowControls = props.renderBelowControls?.(undefined, pendingPanelControl)
   const sendAccessoryElement = typeof props.sendAccessory === 'function' ? props.sendAccessory() : props.sendAccessory
   const editorMinHeight = getComposerEditorMinHeight(props.fontSize)
+
   const sendAction =
     props.isLoading && props.sendDisabled ? (
       <button
@@ -328,6 +358,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         shortcutLabel={getComposerShortcutLabel(sendMessageShortcut)}
       />
     )
+
   const inputbarElement = (
     <div
       id="inputbar"
@@ -400,19 +431,23 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
                 // about to unmount, so read the final value here rather than waiting for `change`.
                 const input = event.currentTarget
                 selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
+
                 if (props.editable !== false && input.value !== props.text) props.onTextChange(input.value)
                 setIsComposing(false)
               }}
               onKeyDown={(event) => {
                 if (props.editable === false) return
                 requestRuntime()
+
                 if (props.promptSuggestion && !props.text && !event.nativeEvent.isComposing && !isComposing) {
                   if (event.key === 'Escape') {
                     props.onDismissPromptSuggestion?.()
                     event.preventDefault()
                     event.stopPropagation()
+
                     return
                   }
+
                   if (
                     (event.key === 'Tab' ||
                       event.key ===
@@ -424,15 +459,20 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
                   ) {
                     event.preventDefault()
                     event.stopPropagation()
+
                     if (!event.repeat) props.onTextChange(props.promptSuggestion)
                     props.onDismissPromptSuggestion?.()
+
                     return
                   }
                 }
+
                 if (navigateInputHistory(event)) {
                   event.preventDefault()
+
                   return
                 }
+
                 if (
                   event.key === 'Tab' &&
                   event.shiftKey &&
@@ -445,20 +485,25 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
                   if (!event.repeat) props.onShiftTab()
                   event.preventDefault()
                   event.stopPropagation()
+
                   return
                 }
+
                 // Same priority order as the runtime surface, so the two never drift: steer wins over
                 // send, and every other Enter combination is swallowed rather than inserting a break.
                 const isEnterPressed =
                   (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.nativeEvent.isComposing
+
                 if (!isEnterPressed) return
 
                 event.preventDefault()
 
                 const isSteerPressed = !!props.steerShortcut && matchesComposerShortcut(event, props.steerShortcut)
+
                 if (isSteerPressed || matchesComposerShortcut(event, sendMessageShortcut)) {
                   // Holding the key must not send twice; holding the newline key still repeats.
                   if (event.repeat) return
+
                   if (props.sendDisabled) {
                     showBlockedSendReason()
                   } else if (isSteerPressed) {
@@ -466,6 +511,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
                   } else {
                     void props.onSendDraft(getFallbackDraft())
                   }
+
                   return
                 }
 
@@ -498,6 +544,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         requestRuntime()
       }
     : undefined
+
   const handleDrop = props.enableDragDrop
     ? (event: ReactDragEvent<HTMLDivElement>) => {
         event.preventDefault()
@@ -506,6 +553,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     : undefined
 
   const surfaceStyle: CSSProperties = { width: '100%' }
+
   if (props.railGutterPx != null) {
     surfaceStyle.paddingLeft = (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx
     surfaceStyle.paddingRight = (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx

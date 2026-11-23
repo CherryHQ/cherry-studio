@@ -15,9 +15,12 @@ import { loadBuiltinAgentEnsureInput } from './ensureBuiltinAgent'
 export function createBuiltinSkillSession(skillId: string): AgentSessionEntity {
   const assistantInput = loadBuiltinAgentEnsureInput(BUILTIN_AGENT_ROLE.ASSISTANT)
   const sessionId = uuidv4()
+
   const ensured = application.get('DbService').withWriteTx((tx) => {
     const skill = agentGlobalSkillService.getByIdTx(tx, skillId)
+
     if (!skill) throw DataApiErrorFactory.notFound('Skill', skillId)
+
     if (!skill.isGlobalEnabled) {
       throw DataApiErrorFactory.invalidOperation('create skill session', 'the skill is globally disabled')
     }
@@ -29,13 +32,16 @@ export function createBuiltinSkillSession(skillId: string): AgentSessionEntity {
       name: '',
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
     })
+
     return result
   })
 
   if (ensured.created) {
     agentService.emitAgentCreated(ensured.agent)
   }
+
   agentGlobalSkillService.notifyAgentSkillChange(skillId)
   agentSessionService.notifyReadModelChange([sessionId], 'membership')
+
   return agentSessionService.getById(sessionId)
 }

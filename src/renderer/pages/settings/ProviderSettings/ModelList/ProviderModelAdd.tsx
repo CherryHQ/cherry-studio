@@ -52,6 +52,7 @@ const ProviderModelAdd: React.FC<ProviderModelAddProps> = ({ providerId, disable
   const closeDrawer = useCallback(() => {
     setDrawerOpen(false)
   }, [])
+
   const label = t('settings.provider.api_setup.add_model_manually')
 
   return (

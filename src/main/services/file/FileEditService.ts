@@ -27,6 +27,7 @@ import { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard
 
 const logger = loggerService.withContext('FileEditService')
 const MAX_LEASES_PER_WINDOW = 64
+
 interface EditLease {
   owner: WindowId
   resource: FileEditResource
@@ -64,21 +65,29 @@ export class FileEditService extends BaseService {
   async open(owner: WindowId, handle: FileHandle): Promise<FileEditResource> {
     let retention: Disposable | undefined
     let externalPath = handle.kind === 'path'
+
     try {
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
+
       if (handle.kind === 'entry') {
         const files = application.get('FileManager')
         const entry = await files.getById(handle.entryId)
         externalPath = entry.origin === 'external'
+
         if (entry.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced')
           retention = files.retainTemporaryEntry(entry.id)
       }
+
       const path = await this.resolve(handle)
+
       if (handle.kind === 'path') await assertOutsideManagedStorageMutation(handle.path, path)
+
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
+
       if ([...this.leases.values()].filter((lease) => lease.owner === owner).length >= MAX_LEASES_PER_WINDOW) {
         throw new IpcError(fileErrorCodes.EDIT_LIMIT, 'Too many retained file editing sessions')
       }
+
       const resource = { editId: randomUUID() }
       this.leases.set(resource.editId, {
         owner,
@@ -89,6 +98,7 @@ export class FileEditService extends BaseService {
         pending: new Set(),
         retention
       })
+
       return resource
     } catch (error) {
       retention?.dispose()
@@ -98,17 +108,22 @@ export class FileEditService extends BaseService {
 
   async read(owner: WindowId, editId: string): Promise<FileEditRead> {
     const lease = this.require(owner, editId)
+
     const task =
       lease.handle.kind === 'entry'
         ? application.get('FileManager').readEditSnapshot(lease.handle.entryId, lease.path)
         : runPathMutationExclusive(async () => {
             await this.validateTarget(lease)
+
             return readEditSnapshot(lease.path)
           })
+
     lease.pending.add(task)
+
     try {
       const snapshot = await task
       this.require(owner, editId)
+
       return snapshot
     } catch (error) {
       throw this.reportFailure(error, 'file.edit.read', lease.externalPath)
@@ -122,6 +137,7 @@ export class FileEditService extends BaseService {
     const data = new Uint8Array(input.data)
     const { expected } = input
     const contentHash = hashContent(data)
+
     const task = (async (): Promise<FileEditWriteResult> => {
       try {
         const version =
@@ -131,19 +147,24 @@ export class FileEditService extends BaseService {
                 .writeIfUnchanged(lease.handle.entryId, data, expected.version, expected.contentHash, lease.path)
             : await runPathMutationExclusive(async () => {
                 await this.validateTarget(lease)
+
                 return atomicWriteIfUnchanged(lease.path, data, expected.version, expected.contentHash)
               })
+
         return { baseline: { version, contentHash }, metadataRecoveryPending: false }
       } catch (error) {
         if (error instanceof ContentCommittedMetadataPendingError) {
           return { baseline: { version: error.version, contentHash }, metadataRecoveryPending: true }
         }
+
         const failure = this.reportFailure(error, 'file.edit.write', lease.externalPath)
         logger.warn('File edit write did not commit', { editId: input.editId, code: failure.code })
         throw failure
       }
     })()
+
     lease.pending.add(task)
+
     try {
       return await task
     } finally {
@@ -153,7 +174,9 @@ export class FileEditService extends BaseService {
 
   async close(owner: WindowId, editId: string): Promise<void> {
     const lease = this.leases.get(editId)
+
     if (!lease) return
+
     if (lease.owner !== owner) throw this.closed()
     lease.closing ??= (async () => {
       await Promise.allSettled(lease.pending)
@@ -173,7 +196,9 @@ export class FileEditService extends BaseService {
 
   private require(owner: WindowId, editId: string): EditLease {
     const lease = this.leases.get(editId)
+
     if (!lease || lease.owner !== owner || lease.closing || this.stopped) throw this.closed()
+
     return lease
   }
 
@@ -185,6 +210,7 @@ export class FileEditService extends BaseService {
 
   private async resolve(handle: FileHandle): Promise<AbsoluteFilePath> {
     const path = handle.kind === 'entry' ? application.get('FileManager').getPhysicalPath(handle.entryId) : handle.path
+
     return AbsoluteFilePathSchema.parse(await realpath(path))
   }
 
@@ -195,20 +221,26 @@ export class FileEditService extends BaseService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Open/read/write catches include filesystem and metadata-commit failures; log the original value before returning its stable IPC error.
   private reportFailure(error: unknown, operation: string, externalPath: boolean): IpcError {
     const failure = this.normalize(error)
+
     const classifiedError =
       error instanceof PathStaleVersionError || error instanceof StaleVersionError ? failure : error
+
     logFailure(logger, 'File editing failed', error, operation, classifyFileFailure(classifiedError, externalPath))
     markReportingHandled(failure)
+
     return failure
   }
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Filesystem and atomic-write failures have no common thrown type; recognize stale-version and I/O codes without exposing paths in IPC messages.
   private normalize(error: unknown): IpcError {
     if (error instanceof IpcError) return error
+
     if (error instanceof PathStaleVersionError || error instanceof StaleVersionError) {
       return new IpcError(fileErrorCodes.STALE_VERSION, 'File changed since the editing baseline')
     }
+
     const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+
     const mapped =
       code === 'ENOENT' || code === 'ENOTDIR' || code === 'NOT_FOUND'
         ? fileErrorCodes.EDIT_MISSING
@@ -217,6 +249,7 @@ export class FileEditService extends BaseService {
           : code === 'ENOSPC' || code === 'EDQUOT'
             ? fileErrorCodes.EDIT_NO_SPACE
             : fileErrorCodes.EDIT_IO
+
     return new IpcError(mapped, 'File editing I/O failed')
   }
 }

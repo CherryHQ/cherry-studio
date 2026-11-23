@@ -1,4 +1,5 @@
 import type { BinaryToolSnapshot } from '@shared/types/binary'
+
 // Tool identity validators, shared so the renderer can reject malformed custom
 // tools before sending the install request — not just
 // the main-process install path.
@@ -16,6 +17,7 @@ export const BINARY_INSTALL_PREFERENCE_KEY = 'feature.binary.install_settings' a
  * forces the interpreter to be registered here first.
  */
 export const RUNTIME_INTERPRETERS = ['node', 'python'] as const
+
 export type RuntimeInterpreter = (typeof RUNTIME_INTERPRETERS)[number]
 
 /**
@@ -25,8 +27,10 @@ export type RuntimeInterpreter = (typeof RUNTIME_INTERPRETERS)[number]
  */
 export function isRuntimeDependency(toolSpec: string): boolean {
   const spec = toolSpec.startsWith('core:') ? toolSpec.slice('core:'.length) : toolSpec
+
   if (spec.includes(':')) return false
   const base = spec.split('@')[0]
+
   return (RUNTIME_INTERPRETERS as readonly string[]).includes(base)
 }
 
@@ -42,9 +46,11 @@ export function validateBinaryToolDefinition(tool: BinaryToolGrammar): void {
   if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
     throw new Error(`Invalid tool name: ${tool.name}`)
   }
+
   if (!tool.tool || !TOOL_KEY_RE.test(tool.tool)) {
     throw new Error(`Invalid tool key: ${tool.tool}`)
   }
+
   if (tool.requestedVersion && !TOOL_KEY_RE.test(tool.requestedVersion)) {
     throw new Error(`Invalid tool version: ${tool.requestedVersion}`)
   }
@@ -73,6 +79,7 @@ export type BabelDocInstallationStatus = 'missing' | 'outdated' | 'available'
 
 const parseBabelDocVersion = (version: string): readonly number[] | null => {
   const match = /^(\d+)\.(\d+)\.(\d+)(?:\.post(\d+))?$/.exec(version)
+
   return match ? match.slice(1).map((part) => Number(part ?? 0)) : null
 }
 
@@ -85,12 +92,15 @@ export function getBabelDocInstallationStatus(snapshot: BinaryToolSnapshot | und
 
   const installed = snapshot.application.version ? parseBabelDocVersion(snapshot.application.version) : null
   const minimum = parseBabelDocVersion(BABELDOC_MINIMUM_VERSION)
+
   if (!installed || !minimum) return 'outdated'
 
   for (let index = 0; index < Math.max(installed.length, minimum.length); index += 1) {
     const difference = (installed[index] ?? 0) - (minimum[index] ?? 0)
+
     if (difference !== 0) return difference > 0 ? 'available' : 'outdated'
   }
+
   return 'available'
 }
 

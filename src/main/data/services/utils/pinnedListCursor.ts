@@ -41,27 +41,36 @@ export function decodePinnedListCursor(raw: string | undefined, context: string)
   if (!raw) return FIRST_PAGE_CURSOR
 
   const firstColon = raw.indexOf(':')
+
   if (firstColon < 0) return warnAndFallback(raw, context, 'no section separator')
   const section = raw.slice(0, firstColon)
   const rest = raw.slice(firstColon + 1)
 
   if (section === 'pin') {
     const sep = rest.indexOf(':')
+
     if (sep < 0) return warnAndFallback(raw, context, 'malformed pin cursor (missing id separator)')
     const orderKey = rest.slice(0, sep)
     const id = rest.slice(sep + 1)
+
     if (!orderKey || !id) return warnAndFallback(raw, context, 'malformed pin cursor (empty orderKey or id)')
+
     return { section: 'pin', orderKey, id }
   }
+
   if (section === 'entity') {
     if (rest === '') return { section: 'entity', orderKey: null, id: null }
     const sep = rest.indexOf(':')
+
     if (sep < 0) return warnAndFallback(raw, context, 'malformed entity cursor (missing id separator)')
     const orderKey = rest.slice(0, sep)
     const id = rest.slice(sep + 1)
+
     if (!orderKey || !id) return warnAndFallback(raw, context, 'malformed entity cursor (empty orderKey or id)')
+
     return { section: 'entity', orderKey, id }
   }
+
   return warnAndFallback(raw, context, `unknown cursor section "${section}"`)
 }
 
@@ -71,6 +80,7 @@ function warnAndFallback(raw: string, context: string, reason: string): PinnedLi
     context,
     reason
   })
+
   return FIRST_PAGE_CURSOR
 }
 

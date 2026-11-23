@@ -20,17 +20,20 @@ async function run(input: ClaudeForkWorkerInput) {
   const { checkpoint } = input
   const sourceIds = new Set<string>()
   const mainEntries = input.entries.filter((entry) => !entry.isSidechain)
+
   for (const entry of mainEntries) {
     if (entry.uuid) {
       if (sourceIds.has(entry.uuid)) throw new Error('history_corrupt')
       sourceIds.add(entry.uuid)
     }
   }
+
   // env is a worker-private copy, set before importing the SDK. Never use SHARE_ENV.
   process.env.CLAUDE_CONFIG_DIR = checkpoint.configDir
   const sdk = await import('@anthropic-ai/claude-agent-sdk')
   const output: SessionStoreEntry[] = []
   let outputKey: SessionKey | undefined
+
   const store: SessionStore = {
     async load(key) {
       // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate selected source entries before the native worker imports them.
@@ -40,11 +43,13 @@ async function run(input: ClaudeForkWorkerInput) {
       if (key.sessionId === checkpoint.runtimeSessionId || (outputKey && outputKey.sessionId !== key.sessionId)) {
         throw new Error('history_corrupt')
       }
+
       outputKey = key
       // oxlint-disable-next-line no-restricted-globals -- Fork once: detach exported native entries before the worker continues rewriting them.
       output.push(...structuredClone(entries))
     }
   }
+
   // Original UUIDs enter once; only the SDK creates the new UUIDs.
   const result = await sdk.forkSession(checkpoint.runtimeSessionId, {
     // The fixed store supplies the source prefix in the target project's namespace.
@@ -53,18 +58,24 @@ async function run(input: ClaudeForkWorkerInput) {
     sessionStore: store,
     upToMessageId: checkpoint.messageUuid
   })
+
   if (outputKey?.sessionId !== result.sessionId || !output.length) throw new Error('history_corrupt')
+
   if (!outputKey.projectKey || path.basename(outputKey.projectKey) !== outputKey.projectKey) {
     throw new Error('history_corrupt')
   }
+
   const mapping = new Map<string, string>()
+
   for (const entry of output) {
     const from = entry.forkedFrom as { sessionId?: string; messageUuid?: string } | undefined
+
     if (from?.sessionId === checkpoint.runtimeSessionId && from.messageUuid && entry.uuid) {
       if (mapping.has(from.messageUuid)) throw new Error('history_corrupt')
       mapping.set(from.messageUuid, entry.uuid)
     }
   }
+
   const readContext = (sessionId: string, entries: SessionStoreEntry[]) =>
     sdk.getSessionMessages(sessionId, {
       dir: input.targetCwd,
@@ -79,6 +90,7 @@ async function run(input: ClaudeForkWorkerInput) {
         }
       }
     })
+
   // Native loaders own retry and compaction ancestry; the fork must preserve their selected context.
   const [sourceContext, forkContext] = await Promise.all([
     readContext(checkpoint.runtimeSessionId, input.entries),
@@ -86,11 +98,13 @@ async function run(input: ClaudeForkWorkerInput) {
   ]).catch(() => {
     throw new Error('unsupported_checkpoint')
   })
+
   if (
     !sourceContext.some((message) => message.uuid === checkpoint.messageUuid) ||
     sourceContext.length !== forkContext.length ||
     sourceContext.some((message, index) => {
       const forked = forkContext[index]
+
       return (
         mapping.get(message.uuid) !== forked.uuid ||
         message.type !== forked.type ||
@@ -99,41 +113,53 @@ async function run(input: ClaudeForkWorkerInput) {
     })
   )
     throw new Error('unsupported_checkpoint')
+
   const replacements = input.entries
     .filter((entry) => entry.type === 'content-replacement')
     .flatMap((entry) => (Array.isArray(entry.replacements) ? entry.replacements : []))
+
   const copiedReplacements = output
     .filter((entry) => entry.type === 'content-replacement')
     .flatMap((entry) => (Array.isArray(entry.replacements) ? entry.replacements : []))
+
   if (
     JSON.stringify(replacements) !== JSON.stringify(copiedReplacements) ||
     containsSourceUuid(copiedReplacements, sourceIds)
   )
     throw new Error('unsupported_checkpoint')
+
   // The public SDK moves replacement records to the tail. An earlier inherited prefix
   // must not silently lose replacements that already existed at its checkpoint.
   for (const [index, value] of input.checkpoints.entries()) {
     if (value.messageUuid === checkpoint.messageUuid) continue
+
     if (replacements.length && !input.checkpointEntryCounts) throw new Error('unsupported_checkpoint')
+
     for (const entry of input.entries.slice(0, input.checkpointEntryCounts?.[index] ?? 0)) {
       if (entry.type === 'content-replacement') throw new Error('unsupported_checkpoint')
     }
   }
+
   const chunks = output.map((entry) => Buffer.from(JSON.stringify(entry) + '\n'))
   const bytes = Buffer.concat(chunks)
+
   const checkpoints = input.checkpoints.map((value) => {
     const uuid = mapping.get(value.messageUuid)
     const end = output.findIndex((entry) => entry.uuid === uuid)
+
     if (!uuid || end < 0) throw new Error('history_corrupt')
+
     return {
       ...value,
       runtimeSessionId: result.sessionId,
       messageUuid: uuid
     }
   })
+
   await mkdir(input.artifactDirectory, { recursive: true })
   const file = path.join(input.artifactDirectory, result.sessionId + '.jsonl')
   await writeFile(file, bytes, { flag: 'wx', mode: 0o600 })
+
   return {
     resumeToken: result.sessionId,
     checkpoints,
@@ -149,9 +175,12 @@ async function run(input: ClaudeForkWorkerInput) {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Fork safety scans arbitrary nested native-history replacement data for stale source identifiers; no single checkpoint/domain shape describes these values.
 function containsSourceUuid(value: unknown, sourceIds: ReadonlySet<string>): boolean {
   if (typeof value === 'string') return sourceIds.has(value)
+
   if (Array.isArray(value)) return value.some((item) => containsSourceUuid(item, sourceIds))
+
   if (value && typeof value === 'object')
     return Object.entries(value).some(([key, item]) => sourceIds.has(key) || containsSourceUuid(item, sourceIds))
+
   return false
 }
 

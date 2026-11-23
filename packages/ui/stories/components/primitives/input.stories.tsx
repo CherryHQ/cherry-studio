@@ -39,6 +39,7 @@ const meta: Meta<typeof Input> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default
@@ -321,14 +322,20 @@ export const RealTimeValidation: Story = {
     const validateEmail = (value: string) => {
       if (!value) {
         setEmailError('Email is required')
+
         return false
       }
+
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
       if (!emailRegex.test(value)) {
         setEmailError('Please enter a valid email address')
+
         return false
       }
+
       setEmailError('')
+
       return true
     }
 
@@ -396,6 +403,7 @@ export const FormExample: Story = {
       password: '',
       confirmPassword: ''
     })
+
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [submitted, setSubmitted] = useState(false)
 
@@ -404,8 +412,11 @@ export const FormExample: Story = {
       const newErrors: Record<string, string> = {}
 
       if (!formData.username) newErrors.username = 'Username is required'
+
       if (!formData.email) newErrors.email = 'Email is required'
+
       if (!formData.password) newErrors.password = 'Password is required'
+
       if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match'
 
       setErrors(newErrors)

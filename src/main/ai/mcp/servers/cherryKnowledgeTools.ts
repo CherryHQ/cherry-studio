@@ -84,9 +84,11 @@ type KnowledgeScope =
 
 function resolveKnowledgeScope({ allKnowledgeBases, baseIds: boundBaseIds }: KnowledgeAccess): KnowledgeScope {
   if (allKnowledgeBases) return { kind: 'unrestricted' }
+
   // The tuple cast is sound only right here, guarded by the length check: everything downstream
   // then sees a provably non-empty `baseIds`, so no path can hand the core an empty allow-list.
   if (boundBaseIds.length === 0) return { kind: 'none' }
+
   return { kind: 'restricted', baseIds: boundBaseIds as readonly [string, ...string[]] }
 }
 
@@ -107,13 +109,17 @@ export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }
   // which that core would treat as "all bases".
   const allowedIds = (tool: string): readonly string[] => {
     const scope = resolveKnowledgeScope(getKnowledgeAccess())
+
     if (scope.kind === 'none') {
       logger.warn('Rejected knowledge tool call with an empty knowledge scope', { tool })
       // "in scope", not "bound": naming only the binding would point the model at the wrong remedy.
       throw new Error(`Tool unavailable: ${tool} (no knowledge base in scope)`)
     }
+
     if (scope.kind === 'unrestricted') return []
+
     if (sessionCreatedBaseIds.size === 0) return scope.baseIds
+
     return Array.from(new Set([...scope.baseIds, ...sessionCreatedBaseIds]))
   }
 
@@ -147,8 +153,10 @@ export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }
     { description: KNOWLEDGE_MANAGE_DESCRIPTION, inputSchema: kbManageInputSchema },
     async (input) => {
       const result = await manageKnowledge(input, allowedIds(KB_MANAGE_TOOL_NAME))
+
       // A successful create elevates the new base into this connection's scope (see the set above).
       if ('created' in result && result.created) sessionCreatedBaseIds.add(result.created.baseId)
+
       return modelOutputToMcpResult(knowledgeManageModelOutput(result))
     }
   )

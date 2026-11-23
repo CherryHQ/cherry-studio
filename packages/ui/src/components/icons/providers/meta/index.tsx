@@ -4,6 +4,7 @@ import { MetaLight } from './light'
 
 const Meta = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MetaLight {...props} className={className} />
+
   return <MetaLight {...props} className={className} />
 }
 

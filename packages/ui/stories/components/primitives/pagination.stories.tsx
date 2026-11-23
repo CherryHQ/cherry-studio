@@ -31,6 +31,7 @@ const meta: Meta<typeof Pagination> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default

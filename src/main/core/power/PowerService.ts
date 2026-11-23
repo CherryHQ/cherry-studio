@@ -23,7 +23,9 @@ const logger = loggerService.withContext('PowerService')
 const SHUTDOWN_HANDLER_TIMEOUT_MS = 5000
 
 export type PowerSource = 'ac' | 'battery' | 'unknown'
+
 export type SystemIdleState = 'active' | 'idle' | 'locked' | 'unknown'
+
 export type PowerPhase = 'active' | 'suspended'
 
 type ShutdownHandler = () => void | Promise<void>
@@ -101,10 +103,12 @@ export class PowerService extends BaseService {
 
   protected onStop(): void {
     this.shutdownHandlers = []
+
     if (this.blockerId !== null) {
       powerSaveBlocker.stop(this.blockerId)
       this.blockerId = null
     }
+
     this.holds.clear()
     logger.info('PowerService stopped')
   }
@@ -130,11 +134,13 @@ export class PowerService extends BaseService {
       this.powerPhase = 'suspended'
       this._onSuspend.fire()
     }
+
     const onResume = () => {
       if (this.powerPhase === 'active') return
       this.powerPhase = 'active'
       this._onResume.fire()
     }
+
     // lock/unlock are pass-through forwards — no state machine (nothing to de-dup).
     const onLockScreen = () => this._onLockScreen.fire()
     const onUnlockScreen = () => this._onUnlockScreen.fire()
@@ -184,9 +190,11 @@ export class PowerService extends BaseService {
   public registerShutdownHandler(handler: ShutdownHandler): Disposable {
     this.shutdownHandlers.push(handler)
     logger.info('Shutdown handler registered', { totalHandlers: this.shutdownHandlers.length })
+
     return {
       dispose: () => {
         const idx = this.shutdownHandlers.indexOf(handler)
+
         if (idx !== -1) this.shutdownHandlers.splice(idx, 1)
       }
     }
@@ -195,6 +203,7 @@ export class PowerService extends BaseService {
   /** Run all handlers serially, error-isolated, capped by a hard timeout. */
   private async executeShutdownHandlers(): Promise<void> {
     logger.info('Executing shutdown handlers', { count: this.shutdownHandlers.length })
+
     const run = (async () => {
       for (const handler of this.shutdownHandlers) {
         try {
@@ -206,6 +215,7 @@ export class PowerService extends BaseService {
     })()
 
     let timer: ReturnType<typeof setTimeout> | undefined
+
     const timeout = new Promise<void>((resolve) => {
       timer = setTimeout(() => {
         logger.warn('Shutdown handlers timed out — proceeding with quit', { timeoutMs: SHUTDOWN_HANDLER_TIMEOUT_MS })
@@ -230,6 +240,7 @@ export class PowerService extends BaseService {
     const shutdownListener = async (event?: Electron.Event) => {
       logger.info('System shutdown event detected', { platform: process.platform })
       event?.preventDefault()
+
       try {
         await this.executeShutdownHandlers()
       } finally {
@@ -237,6 +248,7 @@ export class PowerService extends BaseService {
         application.quit('system-shutdown')
       }
     }
+
     powerMonitor.on('shutdown', shutdownListener)
     this.registerDisposable(() => powerMonitor.removeListener('shutdown', shutdownListener))
     logger.info('Electron powerMonitor shutdown listener registered')
@@ -267,10 +279,12 @@ export class PowerService extends BaseService {
         paintWhenInitiallyHidden: false,
         skipTaskbar: true
       })
+
       ElectronShutdownHandler.setWindowHandle(shutdownHookWindow.getNativeWindowHandle())
 
       ElectronShutdownHandler.on('shutdown', async () => {
         logger.info('System shutdown event detected (Windows)')
+
         try {
           await this.executeShutdownHandlers()
         } finally {
@@ -320,6 +334,7 @@ export class PowerService extends BaseService {
    */
   private applyBlockerState(): void {
     const shouldBlock = this.preventEnabled && this.holds.size > 0
+
     try {
       if (shouldBlock && this.blockerId === null) {
         // 'prevent-app-suspension' keeps the system running but allows the display to
@@ -353,6 +368,7 @@ export class PowerService extends BaseService {
     const token = Symbol(reason ?? 'sleep-prevention')
     this.holds.set(token, { reason, since: Date.now() })
     this.applyBlockerState()
+
     return {
       dispose: () => {
         // Map.delete returns false on a second call → dispose is idempotent.

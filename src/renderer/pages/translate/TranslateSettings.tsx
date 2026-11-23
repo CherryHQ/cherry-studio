@@ -81,8 +81,10 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
     (next: TranslateBidirectionalPair) => {
       if (next[0] === next[1]) {
         toast.warning(t('translate.language.same'))
+
         return
       }
+
       void safePersist(setBidirectionalPair(next), 'translate bidirectional pair')
     },
     [safePersist, setBidirectionalPair, t]
@@ -424,6 +426,7 @@ const TranslatePromptField: FC = () => {
   useEffect(
     () => () => {
       clearSaveTimer()
+
       if (pendingRef.current !== null) {
         void safePersist(setPersisted(pendingRef.current), 'translate prompt')
       }
@@ -432,6 +435,7 @@ const TranslatePromptField: FC = () => {
   )
 
   const isDefault = local === TRANSLATE_PROMPT
+
   const onReset = () => {
     clearSaveTimer()
     pendingRef.current = null
@@ -520,9 +524,13 @@ const CustomLanguageList: FC = () => {
 }
 
 type FormErrorField = 'name' | 'code'
+
 type FormError = { field: FormErrorField; messageKey: string }
+
 type ValidLanguageForm = { value: string; langCode: PersistedLangCode; emoji: string }
+
 type LanguageFormValidation = { ok: false; error: FormError } | { ok: true; data: ValidLanguageForm }
+
 const customLanguageFieldSubtitleClassName = 'text-xs font-medium leading-4 text-muted-foreground'
 
 const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () => void; onCancel?: () => void }> = ({
@@ -546,25 +554,34 @@ const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () =
   const validate = (): LanguageFormValidation => {
     const nextValue = value.trim()
     const nextLangCode = langCode.trim().toLowerCase()
+
     if (!nextValue)
       return { ok: false, error: { field: 'name', messageKey: 'settings.translate.custom.error.value.empty' } }
+
     if (!nextLangCode)
       return { ok: false, error: { field: 'code', messageKey: 'settings.translate.custom.error.langCode.empty' } }
+
     if (!PersistedLangCodeSchema.safeParse(nextLangCode).success)
       return { ok: false, error: { field: 'code', messageKey: 'settings.translate.custom.error.langCode.invalid' } }
+
     if (BUILTIN_LANG_CODES.has(nextLangCode))
       return { ok: false, error: { field: 'code', messageKey: 'settings.translate.custom.error.langCode.builtin' } }
+
     if (languages.some((language) => language.langCode === nextLangCode))
       return { ok: false, error: { field: 'code', messageKey: 'settings.translate.custom.error.langCode.exists' } }
+
     return { ok: true, data: { value: nextValue, langCode: parsePersistedLangCode(nextLangCode), emoji } }
   }
 
   const handleAdd = async () => {
     const result = validate()
+
     if (!result.ok) {
       setError(result.error)
+
       return
     }
+
     setError(null)
     await addLanguage(result.data)
     setValue('')
@@ -661,10 +678,13 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
 
   const handleSave = async () => {
     const nextValue = value.trim()
+
     if (!nextValue) {
       setNameErrorKey('settings.translate.custom.error.value.empty')
+
       return
     }
+
     setNameErrorKey(null)
     await updateLanguage(language.langCode, { value: nextValue, emoji })
     setEditing(false)
@@ -741,6 +761,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
             autoFocus
             onChange={(e) => {
               setValue(e.target.value)
+
               if (nameErrorKey) setNameErrorKey(null)
             }}
           />

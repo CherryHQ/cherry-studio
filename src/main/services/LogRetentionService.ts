@@ -27,8 +27,10 @@ export class LogRetentionService extends BaseService {
 
   private async sweep(): Promise<void> {
     const retentionDays = application.get('PreferenceService').get('app.logs.retention_days')
+
     try {
       const removed = await cacheCleanupService.sweepLogs(retentionDays)
+
       if (removed > 0) {
         logger.info('Removed log files past the retention window', { retentionDays, removed })
       }

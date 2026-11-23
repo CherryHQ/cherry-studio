@@ -101,11 +101,13 @@ function isPresetDeltaField(field: string): field is PresetDeltaField {
 /** Resolve the set of UniqueModelIds currently set as user defaults (chat / quick-assistant / translate). */
 function getUserDefaultModelIds(): Set<string> {
   const preferenceService = application.get('PreferenceService')
+
   const ids = [
     preferenceService.get('chat.default_model_id'),
     preferenceService.get('feature.quick_assistant.model_id'),
     preferenceService.get('feature.translate.model_id')
   ].filter((id): id is string => typeof id === 'string' && id.length > 0)
+
   return new Set(ids)
 }
 
@@ -198,42 +200,55 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   if (overlay.capabilities != null) {
     result.capabilities = [...overlay.capabilities]
   }
+
   if (overlay.endpointTypes != null) {
     result.endpointTypes = [...overlay.endpointTypes]
   }
+
   if (overlay.inputModalities != null) {
     result.inputModalities = [...overlay.inputModalities]
   }
+
   if (overlay.outputModalities != null) {
     result.outputModalities = [...overlay.outputModalities]
   }
+
   if (overlay.name != null) {
     result.name = overlay.name
   }
+
   if (overlay.description != null) {
     result.description = overlay.description
   }
+
   if (overlay.contextWindow != null) {
     result.contextWindow = overlay.contextWindow
   }
+
   if (overlay.maxInputTokens != null) {
     result.maxInputTokens = overlay.maxInputTokens
   }
+
   if (overlay.maxOutputTokens != null) {
     result.maxOutputTokens = overlay.maxOutputTokens
   }
+
   if (overlay.reasoning) {
     result.reasoning = overlay.reasoning as RuntimeReasoning
   }
+
   if (overlay.supportsStreaming != null) {
     result.supportsStreaming = overlay.supportsStreaming
   }
+
   if (overlay.group != null) {
     result.group = overlay.group
   }
+
   if (overlay.parameterSupport != null) {
     result.parameterSupport = overlay.parameterSupport
   }
+
   if (overlay.pricing != null) {
     result.pricing = overlay.pricing
   }
@@ -260,8 +275,10 @@ type NewUserModelInput = Omit<InsertUserModelRow, 'orderKey'>
 
 function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHandlers {
   const providerIds = [...new Set(values.map((value) => value.providerId))]
+
   const identifier =
     values.length === 1 ? `${values[0].providerId}/${values[0].modelId}` : `batch(${values.length} items)`
+
   const uniqueMessage =
     values.length === 1 ? `Model '${identifier}' already exists` : 'One or more models already exist'
 
@@ -312,8 +329,10 @@ function mergeUserReasoning(
 ): InsertUserModelRow['reasoning'] {
   if (patch?.defaultEffort === undefined) return existing ?? null
   const reasoning = { ...existing }
+
   if (patch.defaultEffort === null) delete reasoning.defaultEffort
   else reasoning.defaultEffort = patch.defaultEffort
+
   return Object.keys(reasoning).length ? reasoning : null
 }
 
@@ -346,6 +365,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
 
 function dtoKeyToDbKey(key: keyof UpdateModelDto): string {
   const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
+
   return mapping && Array.isArray(mapping) ? mapping[1] : key
 }
 
@@ -354,6 +374,7 @@ function getBaselineField(
   field: PresetDeltaField
 ): Model[Exclude<PresetDeltaField, 'parameters'> | 'parameterSupport'] {
   if (field === 'parameters') return model.parameterSupport
+
   return model[field]
 }
 
@@ -365,6 +386,7 @@ function matchesBaseline(
   if (field === 'pricing') {
     return matchesModelPricingBaseline(value, baseline)
   }
+
   return isEqual(value, baseline)
 }
 
@@ -373,10 +395,13 @@ function collectPresetDeltaFields(dto: CreateModelDto | UpdateModelDto, baseline
 
   for (const key of Object.keys(dto) as (keyof UpdateModelDto)[]) {
     const field = dtoKeyToDbKey(key)
+
     if (!isPresetDeltaField(field)) continue
 
     const value = dto[key]
+
     if (value === undefined) continue
+
     if (!baseline || !matchesBaseline(value, getBaselineField(baseline, field), field)) {
       deltaFields.add(field)
     }
@@ -391,6 +416,7 @@ function presetDeltaToNewUserModel(
   deltaFields: readonly PresetDeltaField[]
 ): NewUserModelInput {
   const fields = new Set(deltaFields)
+
   return {
     id: createUniqueModelId(dto.providerId, dto.modelId),
     providerId: dto.providerId,
@@ -484,9 +510,11 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
 
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
   const result: Model = { ...model, hasCustomPricing: row.pricing != null }
+
   if (model.reasoning && row.reasoning?.defaultEffort !== undefined) {
     result.reasoning = { ...model.reasoning, defaultEffort: row.reasoning.defaultEffort }
   }
+
   return Object.assign(result, {
     userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     id: createUniqueModelId(row.providerId, row.modelId),
@@ -506,6 +534,7 @@ function createPresetFallback(
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
+
   return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
 }
 
@@ -513,8 +542,11 @@ class ModelService {
   private getRegistryBaseline(providerContext: ReasoningProviderContext, modelId: string): Model | null {
     const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
       providerRegistryService.resolveModel(providerContext, modelId)
+
     if (providerModel) return providerModel
+
     if (!presetModel) return null
+
     return mergePresetModel(
       presetModel,
       registryOverride,
@@ -532,6 +564,7 @@ class ModelService {
         reasoning: mergeUserReasoning(null, dto.reasoning)
       }
     }
+
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
 
@@ -544,7 +577,9 @@ class ModelService {
         registryData?.reasoningProfile.support,
         registryData?.serviceTierControl
       )
+
       const deltaFields = collectPresetDeltaFields(dto, baseline)
+
       return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
     }
 
@@ -553,6 +588,7 @@ class ModelService {
     // descriptor-driven like catalog rows (#16598).
     if (dtoValues.reasoning == null) {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
+
       const inferred =
         inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
         (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
@@ -563,10 +599,12 @@ class ModelService {
               registryData.reasoningProfile.wire
             )
           : undefined)
+
       if (inferred) dtoValues.reasoning = inferred
     }
 
     dtoValues.reasoning = mergeUserReasoning(dtoValues.reasoning, dto.reasoning)
+
     return dtoValues
   }
 
@@ -576,16 +614,19 @@ class ModelService {
     dto: UpdateModelDto
   ): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
+
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
       .some(isPresetDeltaField)
 
     let baseline: Model | null = null
+
     if (existing.presetModelId && hasPresetDeltaField) {
       try {
         const context = providerService
           .getReasoningContextsByProviderIdsTx(tx, [existing.providerId])
           .get(existing.providerId)
+
         if (context) baseline = this.getRegistryBaseline(context, existing.modelId)
       } catch (error) {
         logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
@@ -599,6 +640,7 @@ class ModelService {
     for (const entry of UPDATE_MODEL_FIELD_MAP) {
       const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
       const value = dto[dtoKey]
+
       if (value === undefined) continue
 
       if (dtoKey === 'reasoning') {
@@ -608,6 +650,7 @@ class ModelService {
 
       if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
         const field = String(dbKey) as PresetDeltaField
+
         if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
           Object.assign(updates, { [dbKey]: null })
         } else {
@@ -617,7 +660,9 @@ class ModelService {
         Object.assign(updates, { [dbKey]: value })
       }
     }
+
     if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
+
     return updates
   }
 
@@ -627,6 +672,7 @@ class ModelService {
     }
 
     const rows: { id: string; presetModelId: string | null }[] = []
+
     for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
       rows.push(
@@ -644,6 +690,7 @@ class ModelService {
     const managedDefaultIds = new Set<string>()
     const presetBackedRemovalIds = new Set<string>()
     const customModelIds = new Set<string>()
+
     for (const row of rows) {
       if (providerId === CHERRYAI_PROVIDER_ID && row.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
         managedDefaultIds.add(row.id)
@@ -659,11 +706,13 @@ class ModelService {
     // the preference still points to it causes 404s on every readDefaultModel() call.
     const userDefaultIds = new Set<string>()
     const userDefaultsSet = getUserDefaultModelIds()
+
     for (const row of rows) {
       if (userDefaultsSet.has(row.id)) {
         userDefaultIds.add(row.id)
       }
     }
+
     if (userDefaultIds.size > 0) {
       logger.warn('Skipped user-default model removal during reconcile', {
         providerId,
@@ -753,16 +802,21 @@ class ModelService {
       tx,
       rows.map((row) => row.providerId)
     )
+
     return rows.flatMap((row) => {
       const providerContext = providerContexts.get(row.providerId)
+
       if (!providerContext) return []
+
       if (row.presetModelId) {
         try {
           const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
             providerRegistryService.resolveModel(providerContext, row.modelId)
+
           if (providerModel) {
             return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
           }
+
           if (!presetModel) {
             return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
@@ -775,8 +829,10 @@ class ModelService {
             reasoningProfile.support,
             serviceTierControl
           )
+
           const resolved = applyStoredPresetDeltas(baseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
+
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
@@ -784,20 +840,26 @@ class ModelService {
             modelId: row.modelId,
             error
           })
+
           return createPresetFallback(row)
         }
       }
 
       const model = customRowToRuntimeModel(row)
       const modelId = model.apiModelId
+
       if (!modelId) return model
+
       try {
         const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
           providerRegistryService.resolveModel(providerContext, modelId)
+
         if (providerModel) {
           return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
         }
+
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+
         const registryModel = presetModel
           ? mergePresetModel(
               presetModel,
@@ -810,42 +872,57 @@ class ModelService {
           : undefined
 
         const updates: Partial<Model> = {}
+
         if (imageGeneration) updates.imageGeneration = imageGeneration
+
         if (model.description === undefined && registryModel?.description !== undefined) {
           updates.description = registryModel.description
         }
+
         const hasExplicitInputModalities =
           row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
+
         if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
           updates.inputModalities = registryModel.inputModalities
         }
+
         if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {
           updates.outputModalities = registryModel.outputModalities
         }
+
         if (model.contextWindow === undefined && registryModel?.contextWindow !== undefined) {
           updates.contextWindow = registryModel.contextWindow
         }
+
         if (model.maxInputTokens === undefined && registryModel?.maxInputTokens !== undefined) {
           updates.maxInputTokens = registryModel.maxInputTokens
         }
+
         if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
           updates.maxOutputTokens = registryModel.maxOutputTokens
         }
+
         if (model.parameterSupport === undefined && registryModel?.parameterSupport !== undefined) {
           updates.parameterSupport = registryModel.parameterSupport
         }
+
         if (model.pricing === undefined && registryModel?.pricing !== undefined) {
           updates.pricing = registryModel.pricing
         }
+
         if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
+
         if (serviceTierControl) {
           updates.requestControls = {
             serviceTier: { default: serviceTierControl.default, options: serviceTierControl.options }
           }
         }
+
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
+
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
+
         if (registryModel) {
           reasoning = registryModel.reasoning
         } else if (model.reasoning?.controls?.length) {
@@ -855,10 +932,13 @@ class ModelService {
             declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
           })
         }
+
         if (reasoning) {
           updates.reasoning = { ...reasoning }
+
           if (row.reasoning?.defaultEffort !== undefined) updates.reasoning.defaultEffort = row.reasoning.defaultEffort
         } else if (model.reasoning) updates.reasoning = undefined
+
         return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
       } catch (error) {
         // A registry-lookup failure must not silently strip a model's
@@ -869,6 +949,7 @@ class ModelService {
           modelId,
           error
         })
+
         return model
       }
     })
@@ -884,6 +965,7 @@ class ModelService {
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
+
     if (!row) return null
 
     return this.enrichRowsFromRegistryTx(tx, [row.model])[0] ?? null
@@ -892,6 +974,7 @@ class ModelService {
   /** Check model existence under a provider available in the current edition. */
   existsByIdTx(tx: Pick<DbType, 'select'>, id: string): boolean {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
+
     return row !== undefined && isProviderIdentityAvailable(row, tx)
   }
 
@@ -916,6 +999,7 @@ class ModelService {
   getNamesByUniqueIdsTx(tx: Pick<DbType, 'select'>, uniqueIds: (string | null | undefined)[]): Map<string, string> {
     const result = new Map<string, string>()
     const ids = Array.from(new Set(uniqueIds.filter((id): id is string => typeof id === 'string' && id.length > 0)))
+
     if (ids.length === 0) return result
 
     const rows = selectWithProviderIdentity(tx).where(inArray(userModelTable.id, ids)).all()
@@ -926,6 +1010,7 @@ class ModelService {
     )) {
       if (model.name) result.set(model.id, model.name)
     }
+
     return result
   }
 
@@ -973,6 +1058,7 @@ class ModelService {
   create(items: CreateModelInput[]): Model[] {
     if (items.length === 0) return []
     assertProvidersAvailable(items.map(({ dto }) => dto.providerId))
+
     for (const { dto } of items) {
       assertManagedCherryAiDefaultModelMutationAllowed(
         dto.providerId,
@@ -988,14 +1074,18 @@ class ModelService {
       () =>
         db.transaction((tx) => {
           const results: UserModelRow[] = []
+
           for (const providerId of new Set(values.map((value) => value.providerId))) {
             const scopedValues = values.filter((value) => value.providerId === providerId)
+
             const inserted = insertManyWithOrderKey(tx, userModelTable, scopedValues, {
               pkColumn: userModelTable.id,
               scope: eq(userModelTable.providerId, providerId)
             })
+
             results.push(...inserted)
           }
+
           return results
         }),
       createModelsSqliteHandlers(values)
@@ -1141,6 +1231,7 @@ class ModelService {
    */
   reconcileForProvider(providerId: string, payload: { toAdd: CreateModelInput[]; toRemove: string[] }): Model[] {
     providerService.assertAvailable(providerId)
+
     if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
       return this.list({ providerId })
     }
@@ -1148,10 +1239,12 @@ class ModelService {
     const db = application.get('DbService').getDb()
     const removalFilter = this.filterReconcileRemovals(providerId, payload.toRemove, db)
     const toRemove = removalFilter.toRemove
+
     const result = this.applyProviderModelReconcile(providerId, {
       toAdd: payload.toAdd,
       toRemove
     })
+
     const actuallyDeleted = result.deletedIds.length
 
     if (actuallyDeleted < toRemove.length) {
@@ -1168,6 +1261,7 @@ class ModelService {
     }
 
     const deletedPresetBackedIds = result.deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
+
     if (deletedPresetBackedIds.length > 0) {
       logger.info('Deleted preset-backed models during reconcile', {
         providerId,
@@ -1193,6 +1287,7 @@ class ModelService {
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const deletedIds: string[] = []
     const affectedSessionIds: string[] = []
+
     const rows = withSqliteErrors(
       () =>
         dbService.withWriteTx((tx) => {
@@ -1201,12 +1296,15 @@ class ModelService {
             // Read affected session overrides before the rows go: the FK clears
             // agent_session.model on delete and only these ids know which sessions re-fetched.
             affectedSessionIds.push(...selectSessionsUsingModelsTx(tx, chunk))
+
             const deletedRows = tx
               .delete(userModelTable)
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
               .returning({ id: userModelTable.id })
               .all()
+
             deletedIds.push(...deletedRows.map((row) => row.id))
+
             if (deletedRows.length > 0) {
               pinService.purgeForEntitiesTx(
                 tx,
@@ -1218,6 +1316,7 @@ class ModelService {
 
           // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
           const INSERT_CHUNK_SIZE = 500
+
           for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
             insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
               pkColumn: userModelTable.id,
@@ -1237,6 +1336,7 @@ class ModelService {
 
     if (deletedIds.length > 0) pinService.notifyPurged()
     notifyModelsDeleted(deletedIds, affectedSessionIds)
+
     return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
@@ -1255,6 +1355,7 @@ class ModelService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           affectedSessionIds = selectSessionsUsingModelsTx(tx, [uniqueModelId])
+
           const rows = tx
             .delete(userModelTable)
             .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
@@ -1304,24 +1405,30 @@ class ModelService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const existingIds = new Set<string>()
+
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+
             const existingRows = tx
               .select({ id: userModelTable.id })
               .from(userModelTable)
               .where(inArray(userModelTable.id, chunk))
               .all()
+
             for (const row of existingRows) existingIds.add(row.id)
           }
 
           const missingId = ids.find((id) => !existingIds.has(id))
+
           if (missingId) {
             throw DataApiErrorFactory.notFound('Model', missingId)
           }
 
           affectedSessionIds = selectSessionsUsingModelsTx(tx, ids)
+
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+
             const deletedRows = tx
               .delete(userModelTable)
               .where(inArray(userModelTable.id, chunk))

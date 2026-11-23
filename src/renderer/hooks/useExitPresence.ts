@@ -11,14 +11,17 @@ export function useExitPresence<T>(value: T | null, durationMs = DIALOG_UNMOUNT_
     if (value !== null) {
       retainedValue.current = value
       setIsPresent(true)
+
       return
     }
+
     if (retainedValue.current === null) return
 
     const timer = setTimeout(() => {
       retainedValue.current = null
       setIsPresent(false)
     }, durationMs)
+
     return () => clearTimeout(timer)
   }, [durationMs, value])
 

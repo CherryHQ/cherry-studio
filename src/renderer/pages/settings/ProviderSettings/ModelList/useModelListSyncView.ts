@@ -18,6 +18,7 @@ export function useModelListSyncView({ models, staleModelIds = [], resetKey }: U
   const [actualFilter, setActualFilter] = useState<ModelListSyncFilter>('all')
   const staleModelIdSet = useMemo(() => new Set(staleModelIds), [staleModelIds])
   const searchedModels = useMemo(() => applyModelFilters(models, searchText, 'all'), [models, searchText])
+
   const filteredModels = useMemo(() => {
     if (actualFilter === 'stale') {
       return searchedModels.filter((model) => staleModelIdSet.has(model.id))
@@ -25,10 +26,12 @@ export function useModelListSyncView({ models, staleModelIds = [], resetKey }: U
 
     return applyModelFilters(searchedModels, '', actualFilter)
   }, [actualFilter, searchedModels, staleModelIdSet])
+
   const filteredGroups = useMemo<ModelGroups>(
     () => groupModels(filteredModels, Boolean(searchText.trim())),
     [filteredModels, searchText]
   )
+
   const typeCounts = useMemo<ModelListCapabilityCounts>(
     () => getCapabilityModelCounts(searchedModels),
     [searchedModels]

@@ -55,13 +55,16 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     // after the initial capture below, so `inputs` is corrected once the request
     // has actually been built. The symbol survives `{ ...init, body }` spreads.
     const finalBodySlot: HttpTraceFinalBodySlot = {}
+
     if (init)
       (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot })[HTTP_TRACE_FINAL_BODY_SLOT] = finalBodySlot
+
     // Capturing request metadata must never break the real request: if any of the
     // url/header/body helpers throw, drop tracing for this call and fall back to
     // the untraced fetch.
     try {
       if (opts.topicId) span.setAttribute('trace.topicId', opts.topicId)
+
       if (opts.modelName) span.setAttribute('trace.modelName', opts.modelName)
       span.setAttribute('tags', 'HTTP')
 
@@ -73,14 +76,17 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       // `inputs` carries the request body only — url/method/headers are dedicated attributes so the
       // viewer can render them as detail rows / their own tabs instead of cramming them into the body.
       const requestBody = readRequestBody(init?.body, maxBodyBytes)
+
       if (requestBody !== undefined) span.setAttribute('inputs', requestBody)
     } catch (error) {
       logger.warn('httpTraceFetch request-span setup failed; proceeding untraced', { error })
       span.end()
+
       return innerFetch(input, init)
     }
 
     let response: Response
+
     try {
       response = await innerFetch(input, init)
     } catch (error) {
@@ -98,6 +104,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     span.setAttribute('http.status', response.status)
     span.setAttribute('http.statusText', response.statusText)
     span.setAttribute('http.response.headers', JSON.stringify(redactRecord(headersToRecord(response.headers))))
+
     // response.url is not always populated after a redirect, but when present it
     // carries the same `?key=`/userinfo secrets as the request url — redact it too.
     if (response.url) span.setAttribute('http.response.url', redactUrlParams(response.url))
@@ -105,6 +112,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     // No body (GET/HEAD/204) → nothing to tee; settle the span now.
     if (!response.body) {
       span.end()
+
       return response
     }
 
@@ -113,6 +121,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     // MUST NEVER break the real AI streaming path, so tee() and the replacement
     // Response constructor are guarded separately.
     let branches: [ReadableStream<Uint8Array>, ReadableStream<Uint8Array>]
+
     try {
       branches = response.body.tee()
     } catch (error) {
@@ -120,6 +129,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       logger.warn('httpTraceFetch tee failed, returning original response', { error })
       span.setAttribute('http.trace.captureError', String(error))
       span.end()
+
       return response
     }
 
@@ -128,6 +138,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     // so a constructor failure here can't double-end the span the accumulate
     // chain owns, nor return the original body that tee() has already locked.
     let tracedResponse: Response
+
     try {
       tracedResponse = new Response(sdkBranch, {
         status: response.status,
@@ -139,6 +150,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       span.setAttribute('http.trace.captureError', String(error))
       span.end()
       void captureBranch.cancel().catch(() => {})
+
       // tee locked the original body; hand the SDK a minimal Response over `a`.
       return new Response(sdkBranch)
     }
@@ -146,12 +158,14 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     void accumulateBody(captureBranch, maxBodyBytes, init?.signal)
       .then(({ body, error }) => {
         if (body) span.setAttribute('outputs', body)
+
         if (error) {
           span.recordException(error as Error)
           span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error)?.message })
         } else if (init?.signal?.aborted) {
           span.setStatus({ code: SpanStatusCode.ERROR, message: 'request aborted before body completed' })
         }
+
         span.end()
       })
       .catch((error) => {
@@ -177,10 +191,13 @@ async function accumulateBody(
   const decoder = new TextDecoder()
   let acc = ''
   let streamError: unknown
+
   try {
     while (acc.length < maxBytes) {
       const { done, value } = await reader.read()
+
       if (done) break
+
       if (value) acc += decoder.decode(value, { stream: true })
     }
   } catch (error) {
@@ -191,6 +208,7 @@ async function accumulateBody(
     void reader.cancel().catch(() => {})
     signal?.removeEventListener('abort', onAbort)
   }
+
   return { body: truncate(acc, maxBytes), error: streamError }
 }
 
@@ -203,22 +221,30 @@ function applyFinalBodyInputs(span: Span, init: RequestInit | undefined, maxBody
   const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
+
   const finalBody = slot?.body
+
   if (finalBody === null) {
     span.setAttribute('inputs', '')
+
     return
   }
+
   if (typeof finalBody !== 'string') return
   const parsed = readRequestBody(finalBody, maxBodyBytes)
+
   if (parsed !== undefined) span.setAttribute('inputs', parsed)
 }
 
 function readRequestBody(body: BodyInit | null | undefined, maxBytes: number): string | undefined {
   // LLM requests send JSON strings; streams and FormData are not synchronously readable.
   if (typeof body !== 'string') return undefined
+
   if (body.length > maxBytes) return truncate(body, maxBytes)
+
   try {
     const parsed: unknown = JSON.parse(body)
+
     return typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
   } catch {
     return body
@@ -231,7 +257,9 @@ function truncate(str: string, max: number): string {
 
 function headersToRecord(headers: HeadersInit | undefined) {
   const entries: [string, string][] = []
+
   if (!headers) return Object.fromEntries(entries)
+
   if (headers instanceof Headers) {
     headers.forEach((value, key) => {
       entries.push([key, value])
@@ -241,16 +269,20 @@ function headersToRecord(headers: HeadersInit | undefined) {
   } else {
     for (const [key, value] of Object.entries(headers)) entries.push([key, String(value)])
   }
+
   return Object.fromEntries(entries)
 }
 
 function normalizeUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
+
   if (input instanceof URL) return input.toString()
+
   return input.url
 }
 
 function normalizeMethod(input: RequestInfo | URL, init?: RequestInit): string {
   const method = init?.method ?? (input instanceof Request ? input.method : undefined) ?? 'GET'
+
   return method.toUpperCase()
 }

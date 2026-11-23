@@ -23,7 +23,9 @@ export type OpenAICompatibleRerankingModelConfig = {
 }
 
 type DoRerankOptions = Parameters<RerankingModelV3['doRerank']>[0]
+
 type DoRerankResult = Awaited<ReturnType<RerankingModelV3['doRerank']>>
+
 type RerankRanking = DoRerankResult['ranking']
 
 export class OpenAICompatibleRerankingModel implements RerankingModelV3 {
@@ -55,6 +57,7 @@ export class OpenAICompatibleRerankingModel implements RerankingModelV3 {
       failedResponseHandler: createStatusCodeErrorResponseHandler(),
       successfulResponseHandler: async ({ response }) => {
         const rawValue = await response.json()
+
         return {
           value: parseRerankResponse(rawValue, documents.values.length),
           rawValue
@@ -78,6 +81,7 @@ function parseRerankResponse(body: unknown, documentCount: number): RerankRankin
   if (typeof body !== 'object' || body === null || !('results' in body) || !Array.isArray(body.results)) {
     throw new Error('Rerank response must contain a results array')
   }
+
   const results: readonly unknown[] = body.results
 
   return results.map((result) => {
@@ -111,6 +115,7 @@ export function createOpenAICompatibleRerankingModel(
   settings: OpenAICompatibleRerankingModelSettings
 ): RerankingModelV3 {
   const baseURL = withoutTrailingSlash(settings.baseURL)
+
   if (!baseURL) {
     throw new Error('OpenAI-compatible reranking model requires baseURL')
   }
@@ -119,14 +124,18 @@ export function createOpenAICompatibleRerankingModel(
     provider: `${settings.name}.rerank`,
     url: ({ path }) => {
       const url = new URL(`${baseURL}${path}`)
+
       if (settings.queryParams) {
         url.search = new URLSearchParams(settings.queryParams).toString()
       }
+
       return url.toString()
     },
     headers: () => {
       const headers: Partial<Pick<NonNullable<typeof settings.headers>, 'Authorization'>> = {}
+
       if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`
+
       return { ...headers, ...settings.headers }
     },
     fetch: settings.fetch

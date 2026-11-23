@@ -28,6 +28,7 @@ export const replaceDevtoolsFont = (browserWindow: BrowserWindow) => {
             --default-font-family: system-ui, sans-serif;
         }
     `
+
       void browserWindow.webContents.devToolsWebContents?.executeJavaScript(`
         const overriddenStyle = document.createElement('style');
         overriddenStyle.innerHTML = '${css.replaceAll('\n', ' ')}';

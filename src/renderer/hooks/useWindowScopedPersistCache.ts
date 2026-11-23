@@ -17,6 +17,7 @@ type WindowScopedCachePair<K extends RendererPersistCacheKey> = readonly [
 ]
 
 type IsAny<T> = 0 extends 1 & T ? true : false
+
 type CompatibleWindowCacheKey<K extends RendererPersistCacheKey, W extends UseCacheKey> =
   IsAny<InferUseCacheValue<W>> extends true
     ? never

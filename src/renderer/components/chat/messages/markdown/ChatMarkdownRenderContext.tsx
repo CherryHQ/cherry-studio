@@ -37,6 +37,8 @@ export function ChatMarkdownRenderProvider({
 
 export function useChatMarkdownRenderContext(): ChatMarkdownRenderContextValue {
   const context = use(ChatMarkdownRenderContext)
+
   if (!context) throw new Error('useChatMarkdownRenderContext must be used within ChatMarkdownRenderProvider')
+
   return context
 }

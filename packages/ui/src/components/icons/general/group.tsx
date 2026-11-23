@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../types'
+
 const Group: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -16,5 +17,7 @@ const Group: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
+
 export { Group }
+
 export default Group

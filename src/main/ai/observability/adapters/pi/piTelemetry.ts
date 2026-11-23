@@ -22,6 +22,7 @@ import { observabilitySinks } from '../../sinks/ObservabilitySinkRegistry'
 const logger = loggerService.withContext('PiTelemetry')
 const parents = new WeakMap<TelemetryContext, () => AgentRuntimeTraceContext | undefined>()
 const propagator = new W3CTraceContextPropagator()
+
 const carrierMeta = z.object({
   'cherry.topic_id': z.string().min(1),
   'cherry.session_id': z.string().min(1),
@@ -60,29 +61,38 @@ export function createPiTelemetry(
   tracer: Tracer = trace.getTracer(TRACER_NAME)
 ): TelemetrySpan {
   const { getParent, isEnabled } = options
+
   const propagation: TelemetryPropagation = {
     inject(context) {
       const parent = getPiTraceContext(context)
+
       if (!parent) return undefined
+
       const carrier: TelemetryCarrier = {
         'cherry.topic_id': parent.topicId,
         'cherry.session_id': parent.sessionId,
         'cherry.turn_id': parent.turnId
       }
+
       if (parent.modelName) carrier['cherry.model_name'] = parent.modelName
       propagator.inject(otelParent(parent), carrier, { set: (target, key, value) => (target[key] = value) })
+
       return carrier
     },
     extract(carrier) {
       const meta = carrierMeta.safeParse(carrier)
+
       if (!meta.success || !carrier) return root
+
       const parent = trace.getSpanContext(
         propagator.extract(ROOT_CONTEXT, carrier, {
           keys: (value) => Object.keys(value),
           get: (value, key) => value[key]
         })
       )
+
       if (!parent) return root
+
       return makeContext({
         traceId: parent.traceId,
         rootSpanId: parent.spanId,
@@ -101,9 +111,12 @@ export function createPiTelemetry(
       async startSpan(options, callback) {
         if (!isEnabled()) return NOOP_TELEMETRY_CONTEXT.startSpan(options, callback)
         const owner = parent ?? getParent(options.attributes ?? {})
+
         if (!owner) return NOOP_TELEMETRY_CONTEXT.startSpan(options, callback)
+
         // Model calls are already instrumented by the gateway's AI SDK and HTTP layers.
         if (options.name === 'pi.ai.request' || options.name === 'pi.ai.poll') return callback(makeContext(owner))
+
         const span = tracer.startSpan(
           options.name,
           {
@@ -117,31 +130,40 @@ export function createPiTelemetry(
           },
           otelParent(owner)
         )
+
         if (!span.isRecording()) return callback(makeContext(owner))
         const child = makeContext({ ...owner, rootSpanId: span.spanContext().spanId })
         let settled = false
         let status: SpanStatus | undefined
         child.addLink = (link) => {
           const target = getPiTraceContext(link.context)
+
           if (!settled && target) {
             const linked = trace.getSpanContext(otelParent(target))!
             span.addLink({ context: linked, attributes: attributes(link.attributes) })
           }
         }
+
         child.addEvent = (name, values) => {
           if (!settled) span.addEvent(name, attributes(values))
         }
+
         child.setAttributes = (values) => {
           if (!settled) span.setAttributes(attributes(values))
         }
+
         child.setStatus = (value) => {
           if (settled) return
           status = value
         }
+
         for (const link of options.links ?? []) child.addLink(link)
+
         try {
           const result = await callback(child)
+
           if (!status) child.setStatus({ status: 'ok' })
+
           return result
         } catch (error) {
           if (!status) {
@@ -150,6 +172,7 @@ export function createPiTelemetry(
               error: { name: error instanceof Error ? error.name : 'Error', message: String(error) }
             })
           }
+
           throw error
         } finally {
           settled = true
@@ -157,10 +180,13 @@ export function createPiTelemetry(
             code: status?.status === 'error' ? SpanStatusCode.ERROR : SpanStatusCode.OK,
             ...(status?.status === 'error' && { message: status.error?.message })
           })
+
           if (status?.status === 'error' && status.error) {
             span.setAttributes({ 'error.type': status.error.name, 'error.message': status.error.message })
           }
+
           span.end()
+
           if ('attributes' in span && 'startTime' in span) {
             try {
               const entity = convertSpanToSpanEntity(span as Span & ReadableSpan)
@@ -188,10 +214,13 @@ export function createPiTelemetry(
         }
       }
     }
+
     parents.set(context, () => parent ?? getParent({}))
+
     return context
   }
 
   const root = makeContext()
+
   return root
 }

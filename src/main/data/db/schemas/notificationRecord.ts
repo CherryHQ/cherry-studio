@@ -26,4 +26,5 @@ export const notificationRecordTable = sqliteTable(
 )
 
 export type NotificationRecordRow = typeof notificationRecordTable.$inferSelect
+
 export type InsertNotificationRecordRow = typeof notificationRecordTable.$inferInsert

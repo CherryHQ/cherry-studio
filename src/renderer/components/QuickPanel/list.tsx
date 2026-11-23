@@ -75,6 +75,7 @@ export function firstQuickPanelSelectableIndex(items: readonly { disabled?: bool
 
 export function initialQuickPanelFocusIndex(items: readonly { disabled?: boolean }[], preferredIndex: number) {
   const preferred = items[preferredIndex]
+
   if (preferredIndex >= 0 && preferred && !preferred.disabled) {
     return preferredIndex
   }
@@ -93,6 +94,7 @@ export function moveQuickPanelSelectableIndex(
   options: { wrap: boolean }
 ) {
   const indexes = selectableIndexes(items)
+
   if (indexes.length === 0) return -1
 
   if (index === -1) {
@@ -256,6 +258,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
 }: QuickPanelRowProps<T>) {
   const isReadOnlyLocked = readOnly
   const [tooltipOpen, setTooltipOpen] = useState(false)
+
   const suffixContent = item.suffix ? (
     item.suffix
   ) : selected ? (
@@ -263,9 +266,11 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   ) : item.isMenu && !item.disabled && !readOnly ? (
     <ChevronRight size={14} />
   ) : null
+
   const hasDescription = Boolean(item.description)
   const canHover = hoverEnabled && !isReadOnlyLocked && !item.disabled
   const isUnavailable = isReadOnlyLocked || item.disabled
+
   const tooltipAnchor =
     item.tooltip && item.tooltipAnchor ? (
       <NormalTooltip
@@ -303,6 +308,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       data-selected={selected ? '' : undefined}
       onClick={(event) => {
         event.stopPropagation()
+
         if (isUnavailable) return
         onSelect()
       }}

@@ -78,6 +78,7 @@ export function useChatMentionedModels({
       selectorScopeKeyRef.current = null
       setMentionedModelSelectorValue((currentModels) => (currentModels.length === 0 ? currentModels : []))
       setMentionedModelMultiSelectMode((currentEnabled) => (currentEnabled ? false : currentEnabled))
+
       return
     }
 
@@ -87,6 +88,7 @@ export function useChatMentionedModels({
 
     const selectorScopeKey = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
     const initializationKey = `${selectorScopeKey}:${runtimeModel?.id ?? 'no-model'}`
+
     if (mentionedModelSelectorInitKeyRef.current === initializationKey) return
 
     const isInitialSelection = mentionedModelSelectorInitKeyRef.current === null
@@ -110,13 +112,16 @@ export function useChatMentionedModels({
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
       setMentionedModelSelectorValue(nextModels)
+
       if (mentionedModelMultiSelectModeRef.current) {
         setMentionedModels(nextModels)
+
         return
       }
 
       setMentionedModels(nextModels)
       const [nextModel] = nextModels
+
       if (nextModel) onModelSelect(nextModel)
     },
     [onModelSelect, setMentionedModels]

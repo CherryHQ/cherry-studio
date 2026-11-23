@@ -21,8 +21,11 @@ import { createFilePathHandle } from '@shared/utils/file'
 import { DIAGNOSTIC_STATUS_TRANSLATION_KEYS } from './diagnosticStatusLabels'
 
 const logger = loggerService.withContext('DiagnosticUploadPanel')
+
 type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'busy' }>
+
 type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
+
 type OperationStatus = 'discarding' | 'idle' | 'saving' | 'submitting'
 
 function discardRetainedUpload(bundleId: string) {
@@ -61,9 +64,11 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   useEffect(() => {
     mountedRef.current = true
+
     return () => {
       mountedRef.current = false
       const retainedBundleId = retainedBundleIdRef.current
+
       if (!retainedBundleId) return
       retainedBundleIdRef.current = null
       void discardRetainedUpload(retainedBundleId).catch((error) =>
@@ -77,9 +82,11 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   }, [result])
 
   const normalizedDescription = description.trim()
+
   const descriptionValid =
     normalizedDescription.length > 0 &&
     diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
+
   const showDescriptionError = hasAttemptedSubmit && !descriptionValid
   const isBusy = operationStatus !== 'idle'
   const canAttemptUpload = operationStatus === 'idle' && acknowledged
@@ -99,25 +106,33 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   const requestClose = useCallback(async () => {
     if (isBusy) return false
+
     if (retainedBundleId) {
       setOperationStatus('discarding')
+
       try {
         const discardResult = await discardRetainedUpload(retainedBundleId)
+
         if (discardResult.status === 'busy') {
           toast.error(t('settings.about.diagnostics.errors.busy'))
+
           return false
         }
+
         retainedBundleIdRef.current = null
         setRetainedBundleId(null)
       } catch (error) {
         logger.error('Failed to discard retained diagnostic upload', error as Error)
         toast.error(t('settings.about.diagnostics.upload.errors.discard_failed'))
+
         return false
       } finally {
         if (mountedRef.current) setOperationStatus('idle')
       }
     }
+
     onClose()
+
     return true
   }, [isBusy, onClose, retainedBundleId, t])
 
@@ -134,6 +149,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   const openReport = async () => {
     if (result?.status !== 'uploaded') return
+
     try {
       await openExternalWebsite(result.reportUrl)
     } catch (error) {
@@ -144,6 +160,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
   const revealBundle = async () => {
     if (!savedUpload) return
+
     try {
       await ipcApi.request('file.show_in_folder', createFilePathHandle(savedUpload.filePath))
     } catch (error) {
@@ -159,12 +176,16 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
           logger.error('Failed to discard retained diagnostic upload after unmount', error as Error)
         )
       }
+
       return
     }
+
     if (uploadResult.status === 'busy') {
       toast.error(t('settings.about.diagnostics.errors.busy'))
+
       return
     }
+
     const nextBundleId = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
     retainedBundleIdRef.current = nextBundleId
     setRetainedBundleId(nextBundleId)
@@ -174,6 +195,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const uploadBundle = async () => {
     if (!canAttemptUpload || !descriptionValid) return
     setOperationStatus('submitting')
+
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
         description: normalizedDescription,
@@ -182,6 +204,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         includeTraces: true,
         range: '24h'
       })
+
       acceptSubmissionResult(uploadResult)
     } catch (error) {
       logger.error('Failed to upload diagnostic bundle', error as Error)
@@ -194,17 +217,22 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setHasAttemptedSubmit(true)
+
     if (!descriptionValid || !canAttemptUpload) return
     void uploadBundle()
   }
 
   const retryUpload = async () => {
     if (!result || result.status === 'uploaded' || isBusy) return
+
     if (!retainedBundleId) {
       await uploadBundle()
+
       return
     }
+
     setOperationStatus('submitting')
+
     try {
       const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: retainedBundleId })
       acceptSubmissionResult(retryResult)
@@ -219,8 +247,10 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const saveUpload = async () => {
     if (!retainedBundleId || savedUpload || isBusy) return
     setOperationStatus('saving')
+
     try {
       const saveResult = await ipcApi.request('diagnostics.bundle.save_upload', { bundleId: retainedBundleId })
+
       if (saveResult.status === 'busy') {
         toast.error(t('settings.about.diagnostics.errors.busy'))
       } else if (saveResult.status === 'saved') {
@@ -344,6 +374,7 @@ function UploadResultContent({
   readonly onOpenReport: () => Promise<void>
 }) {
   const { t } = useTranslation()
+
   if (result.status === 'uploaded') {
     return (
       <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">
@@ -376,6 +407,7 @@ function UploadResultContent({
   }
 
   const isUnknown = result.status === 'submission_unknown'
+
   return (
     <div className="space-y-4">
       <Alert
@@ -416,5 +448,6 @@ function failureReasonText(t: ReturnType<typeof useTranslation>['t'], reason: Di
     service_unavailable: 'settings.about.diagnostics.report.failure_reasons.service_unavailable',
     submission_rejected: 'settings.about.diagnostics.report.failure_reasons.submission_rejected'
   }
+
   return t(keys[reason])
 }

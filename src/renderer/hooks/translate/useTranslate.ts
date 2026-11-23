@@ -35,12 +35,14 @@ const TRANSLATE_ERROR_KEY_PATTERN = /\btranslate\.error\.[a-zA-Z0-9_.-]+\b/
 
 function localizeTranslateError(error: Error, t: (key: string) => string): Error {
   const key = error.message.match(TRANSLATE_ERROR_KEY_PATTERN)?.[0]
+
   if (!key) return error
 
   const localizedError = new Error(t(key))
   localizedError.name = error.name
   localizedError.stack = error.stack
   localizedError.cause = error.cause
+
   return localizedError
 }
 
@@ -117,6 +119,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       // Gate the progressive callback so a late `onResponse` from a
       // cancelled / superseded run doesn't write into consumer state.
       const onResponse = optionsRef.current?.onResponse
+
       const guardedOnResponse = onResponse
         ? (chunkText: string, isComplete: boolean) => {
             if (activeAbortKeyRef.current !== abortKey) return
@@ -125,6 +128,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
         : undefined
 
       const wasSuperseded = () => activeAbortKeyRef.current !== abortKey
+
       const finishIfActive = () => {
         if (activeAbortKeyRef.current === abortKey) {
           activeAbortKeyRef.current = null
@@ -135,28 +139,34 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
 
       try {
         const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
+
         if (wasSuperseded()) {
           // Cancelled or superseded mid-flight — discard the result so the
           // caller's `if (result)` success branch stays gated.
           return undefined
         }
+
         return result
       } catch (error) {
         if (wasSuperseded() || isAbortError(error)) {
           // User-initiated cancel — swallow silently.
           return undefined
         }
+
         const opts = optionsRef.current
         const showErrorToast = opts?.showErrorToast ?? true
         const errorPrefixI18nKey = opts?.errorPrefixI18nKey ?? 'translate.error.failed'
         loggerService
           .withContext(opts?.loggerContext ?? 'useTranslate')
           .error('Translation failed', error instanceof Error ? error : { error })
+
         if (showErrorToast) {
           const displayError = error instanceof Error ? localizeTranslateError(error, t) : error
           toast.error(formatErrorMessageWithPrefix(displayError, t(errorPrefixI18nKey)))
         }
+
         if (opts?.rethrowError) throw error
+
         return undefined
       } finally {
         finishIfActive()

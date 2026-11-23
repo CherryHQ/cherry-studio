@@ -14,16 +14,21 @@ export class SpeechTextInput implements AsyncIterable<SpeechTextEvent> {
 
   push(text: string): void {
     if (this.ended || this.cancelled) throw new VoiceDomainError('aborted')
+
     if (this.characters + text.length > SPEECH_TEXT_STREAM_LIMIT) throw new RangeError('Speech text backlog exceeded')
     const events: SpeechTextEvent[] = []
     let offset = 0
+
     while (offset < text.length) {
       let end = Math.min(offset + 2048, text.length)
+
       if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1])) end--
       events.push({ type: 'text', text: text.slice(offset, end) })
       offset = end
     }
+
     events.push({ type: 'flush' })
+
     if (this.events.length + events.length > 64) throw new RangeError('Speech text backlog exceeded')
     this.characters += text.length
     this.events.push(...events)
@@ -45,6 +50,7 @@ export class SpeechTextInput implements AsyncIterable<SpeechTextEvent> {
   async *[Symbol.asyncIterator](): AsyncGenerator<SpeechTextEvent> {
     while (!this.cancelled) {
       const event = this.events.shift()
+
       if (event) {
         if (event.type === 'text') this.characters -= event.text.length
         yield event
@@ -54,6 +60,7 @@ export class SpeechTextInput implements AsyncIterable<SpeechTextEvent> {
           this.wake = resolve
         })
     }
+
     throw new VoiceDomainError('aborted')
   }
 }

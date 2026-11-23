@@ -38,6 +38,7 @@ export class BrowserCursor implements Disposable {
 
   setPresented(presented: boolean): void {
     this.presented = presented
+
     if (!presented) this.hide()
   }
 
@@ -53,13 +54,18 @@ export class BrowserCursor implements Disposable {
 
   async move(point: BrowserPointerTarget, documentId: string, options: CommandOptions): Promise<boolean> {
     options.signal?.throwIfAborted()
+
     if (this.disposed) throw new BrowserSessionError('not_found')
     this.pending?.finish()
+
     if (!this.presented || !this.isFocused()) {
       this.hide()
+
       return false
     }
+
     const duration = Math.min(250, (options.deadline ?? Infinity) - Date.now())
+
     if (duration <= 0) throw new BrowserSessionError('timeout')
     const sequence = ++this.sequence
     await new Promise<void>((resolve, reject) => {
@@ -67,18 +73,23 @@ export class BrowserCursor implements Disposable {
       const finish = (error?: unknown) => {
         clearTimeout(timer)
         options.signal?.removeEventListener('abort', onAbort)
+
         if (this.pending?.sequence === sequence) this.pending = undefined
+
         if (error) reject(error)
         else resolve()
       }
+
       const onAbort = () => {
         finish(options.signal?.reason)
         this.hide()
       }
+
       const timer = setTimeout(() => {
         finish()
         this.hide()
       }, duration)
+
       timer.unref()
       this.pending = { sequence, documentId, finish }
       options.signal?.addEventListener('abort', onAbort, { once: true })
@@ -92,6 +103,7 @@ export class BrowserCursor implements Disposable {
         animate: true,
         scale: this.getScale()
       }
+
       try {
         this.send(this.position)
       } catch {
@@ -100,12 +112,14 @@ export class BrowserCursor implements Disposable {
       }
     })
     options.signal?.throwIfAborted()
+
     return true
   }
 
   update(point: BrowserPointerTarget): void {
     if (!this.position || !this.presented || !this.isFocused()) return
     const scale = this.getScale()
+
     if (point.x === this.position.x && point.y === this.position.y && scale === this.position.scale) return
     this.position = { ...this.position, x: point.x, y: point.y, sequence: ++this.sequence, animate: false, scale }
     this.send(this.position)
@@ -119,6 +133,7 @@ export class BrowserCursor implements Disposable {
 
   hide(error?: BrowserSessionError): void {
     this.pending?.finish(error)
+
     if (!this.position) return
     this.position = undefined
     this.send({ ...this.identity, sequence: ++this.sequence, kind: 'hidden' })

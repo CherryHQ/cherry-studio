@@ -28,5 +28,6 @@ export function MarkdownHostProvider({
     }),
     [resolveImageSrc, openFilePath, openExternalUrl, copyRichContent, exportTableAsExcel, notifySuccess, notifyError]
   )
+
   return <MarkdownHostContext value={value}>{children}</MarkdownHostContext>
 }

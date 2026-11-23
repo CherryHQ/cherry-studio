@@ -167,6 +167,7 @@ function ModelControl({
   const loadedProviderName = useProviderDisplayName(model?.providerId)
   const providerName = model ? loadedProviderName || getProviderDisplayNameById(model.providerId) : undefined
   const modelLabel = model ? `${model.name} | ${providerName}` : selectModelLabel
+
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
       {model ? (
@@ -186,6 +187,7 @@ function ModelControl({
       <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && model && 'hidden')} />
     </Button>
   )
+
   return (
     <ModelSelector
       allowPresentationSwitch
@@ -229,10 +231,13 @@ function WorkspaceControl({
   const hasWarning = Boolean(workspaceWarning)
   const isSystemWorkspace = workspace?.type === 'system'
   const selectorValue = isSystemWorkspace ? null : workspaceId
+
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
+
   const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
+
   if (!onWorkspaceChange && workspace?.type === 'user' && workspace.path) {
     const openButtonContent = (
       <>
@@ -246,6 +251,7 @@ function WorkspaceControl({
         <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
       </>
     )
+
     return (
       <OpenTargetButton
         targetPath={workspace.path}
@@ -283,12 +289,14 @@ function WorkspaceControl({
       aria-label={workspaceWarning}
       onClick={(event) => {
         const target = event.target as Element | null
+
         if (!canQuickClearWorkspace || !target?.closest('[data-clear-workspace-button]')) {
           return
         }
 
         event.preventDefault()
         event.stopPropagation()
+
         if (!workspaceChanging) void onWorkspaceChange?.(null)
       }}>
       {hasWarning ? (
@@ -349,6 +357,7 @@ function WorkspaceControl({
   )
 
   if (!hasWarning) return selector
+
   return <Tooltip content={workspaceWarning}>{selector}</Tooltip>
 }
 

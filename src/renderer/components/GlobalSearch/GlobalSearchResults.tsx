@@ -124,10 +124,12 @@ export function GlobalSearchGroupFooter({
   onOpen: () => void
 }) {
   const { t } = useTranslation()
+
   const label =
     footer.kind === 'expand-results'
       ? t('globalSearch.showMore', { count: footer.remainingCount })
       : t('globalSearch.messageSearch.viewMore')
+
   const Icon = footer.kind === 'expand-results' ? ChevronDown : ArrowRight
 
   return (
@@ -170,13 +172,17 @@ export function GlobalSearchRow({
   const { t } = useTranslation()
   const isRecent = item.kind === 'recent'
   let title = isRecent ? item.recent.title : item.result.title
+
   if (isRecent && item.recent.kind === 'route') {
     const sectionTitleKey = getSettingsSectionTitleKey(item.recent.url)
+
     if (sectionTitleKey) title = t('globalSearch.settingsTitle', { section: t(sectionTitleKey) })
   }
+
   const entryType = isRecent ? item.recent.kind : item.result.type
   const isConversation = entryType === 'topic' || entryType === 'session'
   const subtitle = isRecent || isConversation ? undefined : getResultSubtitle(item.result, t)
+
   const topicId = isRecent
     ? item.recent.kind === 'topic'
       ? item.recent.topicId
@@ -184,6 +190,7 @@ export function GlobalSearchRow({
     : item.result.type === 'topic'
       ? item.result.target.topicId
       : undefined
+
   const sessionId = isRecent
     ? item.recent.kind === 'session'
       ? item.recent.sessionId
@@ -191,9 +198,12 @@ export function GlobalSearchRow({
     : item.result.type === 'session'
       ? item.result.target.sessionId
       : undefined
+
   const Icon = isRecent ? RECENT_ICONS[item.recent.kind] : RESULT_ICONS[item.result.type]
+
   const emoji =
     !isRecent && ['assistant', 'agent', 'knowledge-base'].includes(item.result.type) ? item.result.emoji : undefined
+
   const displayTimestamp = isRecent ? undefined : (item.result.lastActivityAt ?? item.result.updatedAt)
   const timestampLabel = displayTimestamp ? formatRelativeTime(displayTimestamp, language) : undefined
 
@@ -248,6 +258,7 @@ export function GlobalMessageSearchGroupHeader({
 }) {
   const { t } = useTranslation()
   const Icon = group.sourceType === 'topic' ? MessageSquare : MousePointerClick
+
   const sourceLabelKey =
     group.sourceType === 'topic'
       ? 'globalSearch.messageSearch.sources.topic'
@@ -323,11 +334,13 @@ export function GlobalMessageSearchRow({
   const updatedAtLabel = formatRelativeTime(item.result.createdAt, language)
   const actorLabel = getMessageActorLabel(item, t, userName)
   const jumpLabel = t('globalSearch.messageSearch.jumpToMessage')
+
   const handleJumpClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
     event.stopPropagation()
     onJump()
   }
+
   const handleMouseEnter = () => {
     setIsJumpActionVisible(true)
     onMouseEnter()

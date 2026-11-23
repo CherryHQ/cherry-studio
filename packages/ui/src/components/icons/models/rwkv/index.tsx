@@ -4,6 +4,7 @@ import { RwkvLight } from './light'
 
 const Rwkv = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <RwkvLight {...props} className={className} />
+
   return <RwkvLight {...props} className={className} />
 }
 

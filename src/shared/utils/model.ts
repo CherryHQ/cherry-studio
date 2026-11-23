@@ -105,6 +105,7 @@ export const isNonChatModel = (model: Model): boolean =>
  */
 export const isGatewayRoutableModel = (model: Model): boolean => {
   if (model.providerId.includes(':') || isNonChatModel(model)) return false
+
   return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
 }
 
@@ -132,6 +133,7 @@ export const isFixedReasoningModel = (model: Model): boolean =>
 /** Get the reasoning effort options the UI should expose for this model */
 export const getModelSupportedReasoningEffortOptions = (model: Model | undefined | null): string[] | undefined => {
   if (!model) return undefined
+
   return model.reasoning?.selectableEfforts
 }
 
@@ -151,6 +153,7 @@ export const isSupportTopPModel = (model: Model): boolean =>
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
   // Claude 4.5 reasoning models require this constraint
   const id = getRawModelId(model)
+
   return /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i.test(getLowerBaseModelName(id, '/'))
 }
 
@@ -159,8 +162,10 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
   if (model.parameterSupport?.temperature) {
     return model.parameterSupport.temperature.max <= 1
   }
+
   // Fallback: infer from model family
   const id = getLowerBaseModelName(getRawModelId(model))
+
   return id.startsWith('claude') || id.includes('glm') || id.includes('kimi') || id.includes('moonshot')
 }
 
@@ -191,8 +196,11 @@ export const supportsDynamicallyLoadedTools = (apiModelId: string): boolean => {
       .replace(/\[1m\]$/i, '')
       .split(':')
       .pop() ?? ''
+
   const id = getLowerBaseModelName(bareId)
+
   if (!VENDOR_PATTERNS.kimi.test(id)) return true
+
   return /^(?:k3|kimi-k3)(?:[-_.]|$)/i.test(id)
 }
 
@@ -215,6 +223,7 @@ export const isGeminiModel = (model: Model): boolean =>
  */
 export const isGemini3ModelId = (modelId: string): boolean => {
   const id = getLowerBaseModelName(modelId)
+
   return id.includes('gemini-3') || id === 'gemini-flash-latest' || id === 'gemini-pro-latest'
 }
 
@@ -236,6 +245,7 @@ export const isOpenAIModel = (model: Model): boolean =>
 /** Check if model is an OpenAI LLM model (excludes image-generation GPT-4o variants) */
 export const isOpenAILLMModel = (model: Model): boolean => {
   if (!isOpenAIModel(model)) return false
+
   return !getLowerBaseModelName(getRawModelId(model)).includes('gpt-4o-image')
 }
 
@@ -246,20 +256,25 @@ export const isQwenModel = (model: Model): boolean =>
 /** Check if model is a DeepSeek model. */
 export const isDeepSeekModel = (model?: Model): boolean => {
   if (!model) return false
+
   if (VENDOR_PATTERNS.deepseek.test(getLowerBaseModelName(getRawModelId(model), '/'))) return true
+
   if (model.providerId === 'deepseek') return true
+
   return model.name ? VENDOR_PATTERNS.deepseek.test(model.name.toLowerCase()) : false
 }
 
 /** Check if model supports web search in chat completion mode only */
 export const isOpenAIWebSearchChatCompletionOnlyModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model))
+
   return id.includes('gpt-4o-search-preview') || id.includes('gpt-4o-mini-search-preview')
 }
 
 /** Check if model is OpenAI deep research model (requires openai/openai-chat provider) */
 export const isOpenAIDeepResearchModel = (model: Model): boolean => {
   if (model.providerId !== 'openai' && model.providerId !== 'openai-chat') return false
+
   return /deep[-_]?research/.test(getLowerBaseModelName(getRawModelId(model), '/'))
 }
 
@@ -283,6 +298,7 @@ export const isSupportVerbosityModel = isGPT5FamilyModel
 /** Check if model supports flex service tier */
 export const isSupportFlexServiceTierModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model))
+
   return (id.includes('o3') && !id.includes('o3-mini')) || id.includes('o4-mini') || id.includes('gpt-5')
 }
 
@@ -307,24 +323,28 @@ export const isSupportedThinkingTokenClaudeModel = (model: Model): boolean =>
 /** Check if model is Claude 4 series */
 export const isClaude4SeriesModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
+
   return /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
 /** Check if model is Claude 4.6 series */
 export const isClaude46SeriesModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
+
   return /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
 /** Check if model is Claude Opus 4.7. Rejects temperature/top_p/top_k and natively supports xhigh reasoning effort. */
 export const isClaude47SeriesModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
+
   return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
 /** Check if model rejects temperature/top_p/top_k: Claude Opus 4.7+, Claude 5.x, Fable and Mythos. */
 export const isClaudeFixedSamplingModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
+
   return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+)?$/i.test(
     id
   )
@@ -333,6 +353,7 @@ export const isClaudeFixedSamplingModel = (model: Model): boolean => {
 /** Check if model is Claude 4.5 reasoning */
 export const isClaude45ReasoningModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
+
   return /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i.test(id)
 }
 
@@ -356,16 +377,20 @@ export const isQwen35to39Model = (model: Model): boolean =>
 export const isSupportedThinkingTokenQwenModel = (model: Model): boolean => {
   if (!isQwenModel(model)) return false
   const id = getLowerBaseModelName(getRawModelId(model), '/')
+
   if (['coder', 'asr', 'tts', 'reranker', 'embedding', 'instruct', 'thinking'].some((f) => id.includes(f))) {
     return false
   }
+
   return isSupportedThinkingTokenModel(model)
 }
 
 /** Check if model is a pure image generation model (no tool use) */
 export const isPureGenerateImageModel = (model: Model): boolean => {
   if (!isGenerateImageModel(model) && !isTextToImageModel(model)) return false
+
   if (isFunctionCallingModel(model)) return false
+
   return true
 }
 
@@ -389,6 +414,7 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): (st
     if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) {
       return [undefined, null, 'medium']
     }
+
     return [undefined, null, 'low', 'medium', 'high']
   }
 
@@ -413,6 +439,7 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): (st
  */
 export const getBaseModelName = (id: string, delimiter: string = '/'): string => {
   const parts = id.split(delimiter)
+
   return parts[parts.length - 1]
 }
 
@@ -426,9 +453,13 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
     : id
 
   let baseModelName = getBaseModelName(normalizedId, delimiter).toLowerCase()
+
   if (baseModelName.endsWith(':free')) baseModelName = baseModelName.replace(':free', '')
+
   if (baseModelName.endsWith('(free)')) baseModelName = baseModelName.replace('(free)', '')
+
   if (baseModelName.endsWith(':cloud')) baseModelName = baseModelName.replace(':cloud', '')
+
   return baseModelName
 }
 
@@ -441,11 +472,13 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
 export function deriveModelGroupName(modelId: string): string | undefined {
   const normalizedId = modelId.trim()
   const pathParts = normalizedId.split('/')
+
   if (pathParts.length > 1) {
     return pathParts[0]?.trim() || undefined
   }
 
   const familyName = normalizedId.split('-')[0]?.trim()
+
   return familyName && familyName !== normalizedId ? familyName : undefined
 }
 
@@ -460,7 +493,9 @@ export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model
     if (!groups[groupKey]) {
       groups[groupKey] = []
     }
+
     groups[groupKey].push(model)
+
     return groups
   }, {})
 }

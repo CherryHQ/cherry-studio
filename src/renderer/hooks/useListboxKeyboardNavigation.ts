@@ -26,6 +26,7 @@ export const useListboxKeyboardNavigation = <T extends ListboxNavigationOption>(
   useEffect(() => {
     if (!open) {
       setActiveIndex(-1)
+
       return
     }
 
@@ -43,8 +44,10 @@ export const useListboxKeyboardNavigation = <T extends ListboxNavigationOption>(
   const step = (from: number, direction: 1 | -1) => {
     for (let count = 0, index = from; count < options.length; count += 1) {
       index = (index + direction + options.length) % options.length
+
       if (!options[index]?.disabled) return index
     }
+
     return -1
   }
 
@@ -57,27 +60,33 @@ export const useListboxKeyboardNavigation = <T extends ListboxNavigationOption>(
       case 'ArrowDown':
         event.preventDefault()
         setActiveIndex((index) => step(index < 0 ? -1 : index, 1))
+
         return
       case 'ArrowUp':
         event.preventDefault()
         setActiveIndex((index) => step(index < 0 ? options.length : index, -1))
+
         return
       case 'Home':
         if (options.length === 0) return
         event.preventDefault()
         setActiveIndex(step(-1, 1))
+
         return
       case 'End':
         if (options.length === 0) return
         event.preventDefault()
         setActiveIndex(step(0, -1))
+
         return
       case 'Enter': {
         if (event.target instanceof HTMLElement && event.target.closest('button')) return
         const option = options[activeIndex]
+
         if (!option || option.disabled) return
         event.preventDefault()
         onSelect(option)
+
         return
       }
     }

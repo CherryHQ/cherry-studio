@@ -32,6 +32,7 @@ export function ConversationSidebarToggleButton({
   const toggleShowSidebar = () => {
     if (onSidebarToggle) {
       onSidebarToggle()
+
       return
     }
 

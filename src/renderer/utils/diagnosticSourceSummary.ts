@@ -20,7 +20,9 @@ function describeUnavailableSource(
   isInspectionPending: boolean
 ): string | null {
   if (isInspectionPending) return t('settings.about.diagnostics.sources.inspecting')
+
   if (!source?.available) return t('settings.about.diagnostics.sources.unavailable')
+
   return null
 }
 
@@ -30,7 +32,9 @@ export function describeDiagnosticFileSource(
   isInspectionPending: boolean
 ): string {
   const unavailableDescription = describeUnavailableSource(t, source, isInspectionPending)
+
   if (unavailableDescription) return unavailableDescription
+
   return t('settings.about.diagnostics.sources.summary', {
     count: source!.fileCount,
     size: formatFileSize(source!.estimatedBytes)
@@ -43,7 +47,9 @@ export function describeDiagnosticChatSource(
   isInspectionPending: boolean
 ): string {
   const unavailableDescription = describeUnavailableSource(t, source, isInspectionPending)
+
   if (unavailableDescription) return unavailableDescription
+
   return t('settings.about.diagnostics.sources.message_summary', {
     count: source!.messageCount,
     size: formatFileSize(source!.estimatedBytes)

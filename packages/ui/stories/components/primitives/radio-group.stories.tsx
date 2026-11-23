@@ -39,6 +39,7 @@ const meta: Meta<typeof RadioGroup> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default

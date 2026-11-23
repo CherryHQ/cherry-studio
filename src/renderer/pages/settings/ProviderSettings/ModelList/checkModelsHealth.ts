@@ -60,6 +60,7 @@ export async function checkModelsHealth(
       }
 
       onModelChecked?.(result, index)
+
       return result
     }
 
@@ -68,11 +69,13 @@ export async function checkModelsHealth(
     } else {
       for (let index = 0; index < models.length; index++) {
         const model = models[index]
+
         if (!model) continue
         signal?.throwIfAborted()
         await runModelCheck(model, index)
       }
     }
+
     outcome = 'completed'
   } catch (error) {
     outcome = signal?.aborted ? 'cancelled' : 'failed'

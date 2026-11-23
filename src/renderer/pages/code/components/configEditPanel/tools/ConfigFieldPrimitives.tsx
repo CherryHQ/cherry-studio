@@ -47,12 +47,15 @@ export function ConfigSelectField({
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target
+
       if (!(target instanceof Node)) return
+
       if (triggerRef.current?.contains(target) || contentRef.current?.contains(target)) return
       setOpen(false)
     }
 
     document.addEventListener('pointerdown', handlePointerDown, true)
+
     return () => document.removeEventListener('pointerdown', handlePointerDown, true)
   }, [open])
 

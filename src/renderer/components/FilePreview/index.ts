@@ -1,5 +1,9 @@
 export { FilePreview, type FilePreviewProps } from './FilePreview'
+
 export { FilePreviewNavigationProvider } from './FilePreviewNavigationProvider'
+
 export { canProduceSelectionReference, hasRenderedFilePreview, isMarkdownFilePreview } from './filePreviewRegistry'
+
 export { useOpenFilePreviewTab, useOptionalOpenFilePreviewTab } from './hooks/useOpenFilePreviewTab'
+
 export type { FilePreviewType } from './types'

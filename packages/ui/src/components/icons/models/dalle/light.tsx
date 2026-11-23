@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const DalleLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path fill="#fffff1" d="M0 0H120V120H0z" />
@@ -11,5 +12,7 @@ const DalleLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     <path fill="#3C46FF" d="M16.8 10H20V13.3333H16.8V10Z" transform="translate(-2.48 -.744)scale(5.20661)" />
   </svg>
 )
+
 export { DalleLight }
+
 export default DalleLight

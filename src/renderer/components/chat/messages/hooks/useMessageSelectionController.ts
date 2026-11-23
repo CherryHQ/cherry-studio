@@ -79,10 +79,12 @@ export function useMessageSelectionController({
 
   const isDeletePlanAllowed = useCallback((ids: readonly string[]) => {
     const { messages, canDeleteMessage } = latestDeleteDataRef.current
+
     return (
       !canDeleteMessage ||
       ids.every((id) => {
         const message = messages.find((message) => message.id === id)
+
         return !!message && canDeleteMessage(message)
       })
     )
@@ -100,6 +102,7 @@ export function useMessageSelectionController({
   const toggleMultiSelectMode = useCallback(
     (enabled: boolean) => {
       setIsMultiSelectMode(enabled)
+
       if (!enabled) {
         setSelectedMessageIds([])
         // Abandon any select-all still waiting for pagination and stop the
@@ -115,6 +118,7 @@ export function useMessageSelectionController({
   useEffect(() => {
     toggleMultiSelectMode(false)
     selectAllPendingRef.current = false
+
     return () => {
       // Invalidate in-flight exports: once this controller hands off (unmount
       // or topic switch), a late success must not clear the next selection.
@@ -127,16 +131,20 @@ export function useMessageSelectionController({
     (messageId: string, selected: boolean) => {
       setSelectedMessageIds((prev) => {
         const previous = prev ?? []
+
         const next = selected
           ? previous.includes(messageId)
             ? [...previous]
             : [...previous, messageId]
           : previous.filter((id) => id !== messageId)
+
         if (next.length !== previous.length || next.some((id, index) => id !== previous[index])) {
           exportSelectionEpochRef.current += 1
         }
+
         return next
       })
+
       if (selectAllPendingRef.current) {
         // Last action per message wins: untick excludes it from the deferred
         // select-all; re-ticking puts it back.
@@ -160,6 +168,7 @@ export function useMessageSelectionController({
         .map((message) => message.id),
     [messages]
   )
+
   // Keep the toggle action identity stable while streaming rewrites the messages array.
   const latestSelectableIdsRef = useRef(selectableIds)
   latestSelectableIdsRef.current = selectableIds
@@ -171,10 +180,12 @@ export function useMessageSelectionController({
   }, [setSelectedMessageIds])
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+
   const selectedSelectableCount = useMemo(
     () => selectableIds.filter((id) => selectedIdSet.has(id)).length,
     [selectableIds, selectedIdSet]
   )
+
   // While older pages remain unloaded, "fully selected" only covers the loaded
   // pages — show indeterminate so the checkbox never overstates the selection.
   const selectAllState: SelectAllState =
@@ -183,6 +194,7 @@ export function useMessageSelectionController({
       : selectedSelectableCount > 0
         ? 'indeterminate'
         : false
+
   const selectAllDisabled = selectableIds.length === 0
   const isSelectAllLoading = isLoadingAll && selectAllPendingRef.current
 
@@ -192,19 +204,24 @@ export function useMessageSelectionController({
         selectAllPendingRef.current = false
         exportSelectionEpochRef.current += 1
         setSelectedMessageIds([])
+
         return
       }
+
       // A fresh select-all means "everything" — exclusions only live within
       // one deferred cycle (recorded after this point, consumed at landing).
       manualDeselectedRef.current.clear()
+
       if (hasOlder && startLoadAll) {
         // Unloaded messages have no resident parts — selecting them now would
         // export empty content. Paginate to the end first; the completion
         // effect below applies the selection once every page is resident.
         selectAllPendingRef.current = true
         startLoadAll()
+
         return
       }
+
       performSelectAll()
     },
     [hasOlder, performSelectAll, setSelectedMessageIds, startLoadAll]
@@ -226,6 +243,7 @@ export function useMessageSelectionController({
     if (wasLoadingAllRef.current && !isLoadingAll && hasOlder) {
       selectAllPendingRef.current = false
     }
+
     wasLoadingAllRef.current = isLoadingAll
   }, [hasOlder, isLoadingAll])
 
@@ -239,10 +257,13 @@ export function useMessageSelectionController({
   const ensureSelection = useCallback(
     (messageIds?: readonly string[]) => {
       const ids = resolveMessageIds(messageIds)
+
       if (ids.length === 0) {
         toast.warning(t('chat.multiple.select.empty'))
+
         return null
       }
+
       return ids
     },
     [resolveMessageIds, t]
@@ -251,14 +272,18 @@ export function useMessageSelectionController({
   const copySelectedMessages = useCallback(
     async (messageIds?: readonly string[]) => {
       const ids = ensureSelection(messageIds)
+
       if (!ids) return
 
       const latest = latestExportDataRef.current
+
       const richContent = latest.copyRichContent
         ? getSelectedMessagesRichClipboardContent(ids, latest.messages, latest.partsByMessageId)
         : null
+
       const contentToCopy =
         richContent?.plainText ?? getSelectedMessagesPlainText(ids, latest.messages, latest.partsByMessageId)
+
       if (!contentToCopy) return
 
       try {
@@ -268,6 +293,7 @@ export function useMessageSelectionController({
           await navigator.clipboard.writeText(contentToCopy)
           toast.success(t('message.copied'))
         }
+
         toggleMultiSelectMode(false)
       } catch (error) {
         logger.error('Failed to copy selected messages:', error as Error)
@@ -280,15 +306,18 @@ export function useMessageSelectionController({
   const saveSelectedMessages = useCallback(
     async (messageIds?: readonly string[]) => {
       const ids = ensureSelection(messageIds)
+
       if (!ids) return
 
       if (!saveTextFile) {
         toast.error(t('common.save_failed'))
+
         return
       }
 
       const { messages: latestMessages, partsByMessageId: latestPartsByMessageId } = latestExportDataRef.current
       const exportMessages = createSelectedMessageExportViews(ids, latestMessages, latestPartsByMessageId)
+
       const contentToSave = exportMessages.length
         ? await import('@renderer/services/ExportService').then(({ messagesToMarkdown }) =>
             messagesToMarkdown(exportMessages)
@@ -298,8 +327,10 @@ export function useMessageSelectionController({
       if (!contentToSave) return
 
       const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
+
       try {
         const savedPath = await saveTextFile(fileName, contentToSave)
+
         if (savedPath === null) return
 
         toast.success(t('message.save.success.title'))
@@ -315,12 +346,15 @@ export function useMessageSelectionController({
   const exportSelectedMessages = useCallback(
     async (messageIds: readonly string[] | undefined, target: MessageExportTarget) => {
       const ids = ensureSelection(messageIds)
+
       if (!ids) return
 
       const { messages: latestMessages, partsByMessageId: latestPartsByMessageId } = latestExportDataRef.current
       const exportViews = createSelectedMessageExportViews(ids, latestMessages, latestPartsByMessageId)
+
       if (exportViews.length === 0) {
         toast.warning(t('chat.multiple.select.empty'))
+
         return
       }
 
@@ -328,7 +362,9 @@ export function useMessageSelectionController({
 
       try {
         const succeeded = await exportMessages?.(exportViews, target)
+
         if (!succeeded) return
+
         if (exportEpoch === exportSelectionEpochRef.current) {
           toggleMultiSelectMode(false)
         }
@@ -343,11 +379,13 @@ export function useMessageSelectionController({
   const deleteSelectedMessages = useCallback(
     async (messageIds?: readonly string[]) => {
       const requestedIds = ensureSelection(messageIds)
+
       if (!requestedIds) return
       const ids = [...requestedIds]
 
       if (!deleteMessage) {
         toast.error(t('message.delete.failed'))
+
         return
       }
 
@@ -359,12 +397,14 @@ export function useMessageSelectionController({
         okButtonProps: { danger: true },
         centered: true
       })
+
       if (!confirmed || !isDeletePlanAllowed(ids)) return
 
       try {
         for (const messageId of ids) {
           await deleteMessage(messageId, { selectedMessageIds: ids })
         }
+
         toast.success(t('message.delete.success'))
       } catch (error) {
         logger.error('Failed to delete selected messages:', error as Error)

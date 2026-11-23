@@ -4,6 +4,7 @@ import { XirangLight } from './light'
 
 const Xirang = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <XirangLight {...props} className={className} />
+
   return <XirangLight {...props} className={className} />
 }
 

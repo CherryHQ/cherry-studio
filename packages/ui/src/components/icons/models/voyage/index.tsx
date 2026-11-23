@@ -6,7 +6,9 @@ import { VoyageLight } from './light'
 
 const Voyage = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <VoyageLight {...props} className={className} />
+
   if (variant === 'dark') return <VoyageDark {...props} className={className} />
+
   return (
     <>
       <VoyageLight className={cn('dark:hidden', className)} {...props} />

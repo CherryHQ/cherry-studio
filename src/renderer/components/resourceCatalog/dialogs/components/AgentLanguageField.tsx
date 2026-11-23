@@ -42,12 +42,15 @@ export function AgentLanguageField({
 
   const handleComboChange = (next: string | string[]) => {
     if (Array.isArray(next)) return
+
     if (next === FOLLOW_VALUE) {
       setDraft('')
       setErrorKey(null)
       onChange(null)
+
       return
     }
+
     setDraft(next)
     setErrorKey(null)
     onChange(next)
@@ -56,12 +59,17 @@ export function AgentLanguageField({
   const handleInputBlur = () => {
     if (draft.trim() === '') {
       setErrorKey(null)
+
       if (value !== null) onChange(null)
+
       return
     }
+
     const result = validateAgentLanguageInput(draft)
+
     if (result.ok) {
       setErrorKey(null)
+
       if (result.value !== value) onChange(result.value)
     } else {
       setErrorKey(result.errorKey)

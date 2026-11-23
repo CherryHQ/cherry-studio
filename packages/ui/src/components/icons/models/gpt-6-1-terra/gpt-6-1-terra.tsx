@@ -4,6 +4,7 @@ import { Gpt61TerraLight } from './light'
 
 const Gpt61Terra = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt61TerraLight {...props} className={className} />
+
   return <Gpt61TerraLight {...props} className={className} />
 }
 

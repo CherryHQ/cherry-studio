@@ -21,6 +21,7 @@ function reportFailure(t: (key: string) => string, fallbackKey: string) {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mini-app status/reorder mutations may reject any value; DataApi guards own structured-error recognition.
   return (err: unknown) => {
     const e = toDataApiError(err)
+
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
       toast.error(e.message || t(fallbackKey))
@@ -146,9 +147,12 @@ export type MiniAppVisibility = ReturnType<typeof useMiniAppVisibility>
 
 function sameRowsByIdAndStatus(a: MiniApp[], b: MiniApp[]): boolean {
   if (a.length !== b.length) return false
+
   for (let i = 0; i < a.length; i++) {
     if (a[i].appId !== b[i].appId) return false
+
     if (a[i].status !== b[i].status) return false
   }
+
   return true
 }

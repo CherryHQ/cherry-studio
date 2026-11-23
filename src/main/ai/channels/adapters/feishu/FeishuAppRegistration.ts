@@ -49,6 +49,7 @@ async function postRegistration(baseUrl: string, params: Record<string, string>)
   // The Feishu registration API requires application/x-www-form-urlencoded,
   // matching the format used by @larksuiteoapi/openclaw-lark-tools.
   const body = new URLSearchParams(params).toString()
+
   const res = await net.fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -57,13 +58,17 @@ async function postRegistration(baseUrl: string, params: Record<string, string>)
 
   const text = await res.text()
   let value: unknown
+
   try {
     value = JSON.parse(text)
   } catch {
     throw new Error(`Invalid JSON from Feishu registration API: ${text.slice(0, 200)}`)
   }
+
   const parsed = RegistrationResponseSchema.safeParse(value)
+
   if (!parsed.success) throw new Error('Invalid Feishu registration API response')
+
   // SAFETY: The schema only checks fields without transforming them; keep original extension keys in diagnostic logs.
   return value as z.output<typeof RegistrationResponseSchema>
 }
@@ -123,6 +128,7 @@ export async function registrationPoll(
     if (res.client_id && res.client_secret) {
       const userInfo = res.user_info
       logger.info('Feishu app registration succeeded')
+
       return {
         appId: res.client_id,
         appSecret: res.client_secret,
@@ -132,6 +138,7 @@ export async function registrationPoll(
 
     // Handle error states
     const error = res.error ?? ''
+
     switch (error) {
       case 'authorization_pending':
         continue
@@ -146,6 +153,7 @@ export async function registrationPoll(
         if (error) {
           throw new Error(`Feishu registration poll error: ${error}`)
         }
+
         continue
     }
   }

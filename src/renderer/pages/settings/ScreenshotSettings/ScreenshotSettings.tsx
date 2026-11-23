@@ -52,10 +52,15 @@ function resolvePermissionView(
   promptUnavailable: boolean
 ): PermissionView | null {
   if (!isMac || status === null) return null
+
   if (restartRequired) return 'restart-required'
+
   if (status === 'authorized') return null
+
   if (status === 'denied' || status === 'restricted') return 'denied'
+
   if (promptUnavailable) return 'prompt-unavailable'
+
   return 'request'
 }
 
@@ -98,6 +103,7 @@ const ScreenshotSettings: FC = () => {
         if (mounted) setPermissionStatus(status)
       })
       .catch((error) => logger.warn('Failed to read the screen recording permission status', error as Error))
+
     return () => {
       mounted = false
     }

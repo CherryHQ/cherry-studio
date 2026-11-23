@@ -32,6 +32,7 @@ function checkKeys(target: I18N, spec: LocaleKeySpec): void {
     if (!spec.allowed.has(targetKey)) {
       throw new Error(`多余属性 ${targetKey}`)
     }
+
     if (typeof target[targetKey] !== 'string') {
       throw new Error(`属性 ${targetKey} 不是字符串，catalog 必须是扁平的 key -> string`)
     }
@@ -46,6 +47,7 @@ function readI18N(filePath: string): I18N {
   if (!fs.existsSync(filePath)) {
     throw new Error(`文件 ${filePath} 不存在，请检查路径或文件名`)
   }
+
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
   } catch (error) {
@@ -70,9 +72,11 @@ function checkCatalog(label: string, baseFilePath: string, files: string[]): I18
   for (const filePath of files) {
     if (path.resolve(filePath) === path.resolve(baseFilePath)) continue
     const targetJson = readI18N(filePath)
+
     if (!isSortedI18N(targetJson)) {
       throw new Error(`[${label}] 翻译文件 ${path.basename(filePath)} 的键值未按字典序排序。`)
     }
+
     try {
       checkKeys(targetJson, localeKeySpec(baseJson, filePath))
     } catch (e) {
@@ -101,6 +105,7 @@ function collectSourceFiles(dir: string, acc: string[] = []): string[] {
       acc.push(path.join(dir, entry.name))
     }
   }
+
   return acc
 }
 
@@ -116,24 +121,31 @@ function collectSourceFiles(dir: string, acc: string[] = []): string[] {
 function checkMainKeyCoverage(mainBaseJson: I18N): void {
   const missing = new Set<string>()
   const dynamic = new Set<string>()
+
   for (const file of collectSourceFiles(mainSrcDir)) {
     const content = fs.readFileSync(file, 'utf-8')
+
     if (!content.includes('@main/i18n')) continue
     const rel = path.relative(mainSrcDir, file)
     const calls = collectMainTranslationKeys(content, file)
+
     for (const snippet of calls.dynamic) dynamic.add(`${snippet}…  (${rel})`)
+
     for (const key of calls.keys) {
       if (typeof mainBaseJson[key] !== 'string') missing.add(`${key}  (${rel})`)
     }
   }
 
   const errors: string[] = []
+
   if (dynamic.size > 0) {
     errors.push(`main 源码存在无法静态校验的非字面量 t() 调用（请改用字面量 key）：\n${[...dynamic].join('\n')}`)
   }
+
   if (missing.size > 0) {
     errors.push(`main 源码使用了 main catalog（src/main/i18n）中不存在的 i18n key：\n${[...missing].join('\n')}`)
   }
+
   if (errors.length > 0) {
     throw new Error(errors.join('\n\n'))
   }
@@ -155,10 +167,12 @@ export function main() {
   try {
     checkTranslations()
     const { checked, failures } = checkTranslationValues()
+
     if (failures.length > 0) {
       for (const failure of failures) console.error(`  x ${failure}`)
       throw new Error(`${failures.length} translations failed validation`)
     }
+
     console.log(`i18n 检查已通过（已校验 ${checked} 条翻译）`)
   } catch (e) {
     console.error(e)

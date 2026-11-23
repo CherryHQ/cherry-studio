@@ -50,6 +50,7 @@ export function createClaudeCodeQueryOptions({
     spawnClaudeCodeProcess,
     model: modelId
   }
+
   if (abortController) opts.abortController = abortController
   opts.resume = effectiveResume ?? settings.resume
 

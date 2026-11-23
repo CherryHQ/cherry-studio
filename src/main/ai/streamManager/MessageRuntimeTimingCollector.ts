@@ -7,7 +7,9 @@ export interface MessageRuntimeTimingSink {
 
 function cloneTiming(timing: MessageRuntimeTiming): MessageRuntimeTiming {
   const timestamps: Omit<MessageRuntimeTiming, 'spans'> = { startedAt: timing.startedAt }
+
   if (timing.completedAt !== undefined) timestamps.completedAt = timing.completedAt
+
   return {
     ...timestamps,
     spans: timing.spans.map((span) => ({ ...span }))
@@ -35,12 +37,15 @@ export class MessageRuntimeTimingCollector {
   startTool(toolCallId: string, toolName?: string, startedAt = Date.now()): void {
     const id = `tool:${toolCallId}`
     const existing = this.findSpan(id)
+
     if (existing) return
+
     const identity: Omit<Extract<MessageRuntimeSpan, { kind: 'tool-execution' }>, 'startedAt'> = {
       id,
       kind: 'tool-execution',
       toolCallId
     }
+
     if (toolName) identity.toolName = toolName
     this.timing.spans.push({ ...identity, startedAt })
   }
@@ -54,11 +59,13 @@ export class MessageRuntimeTimingCollector {
     // start-hook timestamp, which may precede other start hooks.
     const startedAt = completedAt - durationMs
     const resolvedToolName = toolName ?? existing?.toolName
+
     const identity: Omit<Extract<MessageRuntimeSpan, { kind: 'tool-execution' }>, 'startedAt'> = {
       id,
       kind: 'tool-execution',
       toolCallId
     }
+
     if (resolvedToolName) identity.toolName = resolvedToolName
     this.upsertSpan(
       {
@@ -72,13 +79,16 @@ export class MessageRuntimeTimingCollector {
 
   startApproval(approvalId: string, toolCallId: string, toolName?: string, startedAt = Date.now()): void {
     const id = `approval:${approvalId}`
+
     if (this.findSpan(id)) return
+
     const identity: Omit<Extract<MessageRuntimeSpan, { kind: 'approval-wait' }>, 'startedAt'> = {
       id,
       kind: 'approval-wait',
       approvalId,
       toolCallId
     }
+
     if (toolName) identity.toolName = toolName
     this.timing.spans.push({ ...identity, startedAt })
   }
@@ -92,8 +102,10 @@ export class MessageRuntimeTimingCollector {
           ? candidate.approvalId === identity.approvalId
           : candidate.toolCallId === identity.toolCallId)
     )
+
     if (!span) return false
     span.completedAt = Math.max(span.startedAt, completedAt)
+
     return true
   }
 
@@ -134,11 +146,15 @@ export class MessageRuntimeTimingCollector {
 
   private upsertSpan(incoming: MessageRuntimeSpan, shouldPreserveEarliestStart = true): void {
     const index = this.timing.spans.findIndex((span) => span.id === incoming.id)
+
     if (index < 0) {
       this.timing.spans.push(incoming)
+
       return
     }
+
     const existing = this.timing.spans[index]
+
     if (existing.kind !== incoming.kind) return
     this.timing.spans[index] = {
       ...existing,

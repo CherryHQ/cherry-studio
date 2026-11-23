@@ -13,10 +13,12 @@ export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
   '/paintings': {
     GET: async ({ query }) => {
       const parsed = ListPaintingsQuerySchema.parse(query ?? {})
+
       return paintingService.list(parsed)
     },
     POST: async ({ body }) => {
       const parsed = CreatePaintingSchema.parse(body)
+
       return paintingService.create(parsed)
     }
   },
@@ -27,11 +29,13 @@ export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdatePaintingSchema.parse(body)
+
       return paintingService.update(params.id, parsed)
     },
     DELETE: async ({ params, query }) => {
       const parsed = DeletePaintingQuerySchema.parse(query ?? {})
       paintingService.delete(params.id, parsed)
+
       return undefined
     }
   },
@@ -46,6 +50,7 @@ export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
       paintingService.reorder(params.id, parsed)
+
       return undefined
     }
   },
@@ -54,6 +59,7 @@ export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       paintingService.reorderBatch(parsed.moves)
+
       return undefined
     }
   }

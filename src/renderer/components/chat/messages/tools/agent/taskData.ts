@@ -27,6 +27,7 @@ const ID_KEYS = ['id', 'taskId', 'task_id'] as const
 
 function getTaskScalar(value: TaskRecordLike[keyof TaskRecordLike]): TaskScalar {
   if (typeof value === 'string' || typeof value === 'number' || value === null || value === undefined) return value
+
   return undefined
 }
 
@@ -37,17 +38,22 @@ export function isTaskRecord(value: unknown): value is TaskRecordLike {
 export function getTaskString(value: TaskScalar): string | undefined {
   if (typeof value === 'string') {
     const text = value.trim()
+
     return text || undefined
   }
+
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+
   return undefined
 }
 
 export function getTaskField(record: TaskRecordLike, keys: readonly (keyof TaskRecordLike)[]): string | undefined {
   for (const key of keys) {
     const value = getTaskString(getTaskScalar(record[key]))
+
     if (value) return value
   }
+
   return undefined
 }
 
@@ -66,12 +72,15 @@ export function getTaskId(record: TaskRecordLike): string | undefined {
 export function getTaskTitle(record: TaskRecordLike, fallback?: string): string | undefined {
   for (const key of TITLE_KEYS) {
     const value = record[key]
+
     if (isTaskRecord(value)) {
       const nested = getTaskTitle(value)
+
       if (nested && !isOrdinalTaskTitle(nested)) return nested
     }
 
     const title = getTaskString(getTaskScalar(value))
+
     if (title && !isOrdinalTaskTitle(title)) return title
   }
 
@@ -113,6 +122,7 @@ export function normalizeTaskLike(
   if (!value) return undefined
   const id = getTaskId(value) ?? fallbackId
   const title = getTaskTitle(value, id)
+
   if (!id && !title) return undefined
 
   return {

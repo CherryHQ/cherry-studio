@@ -54,12 +54,14 @@ const MissingAgentHomeComposerInner = ({
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       Object.assign(actionsRef.current, actions)
     },
     [actionsRef]
   )
+
   const handleAgentChange = useCallback(
     async (nextAgentId: string | null) => {
       if (!nextAgentId) return
@@ -67,10 +69,13 @@ const MissingAgentHomeComposerInner = ({
     },
     [onAgentChange]
   )
+
   const handleBlockedSend = useCallback(() => {
     toast.error(selectAgentMessage)
   }, [selectAgentMessage])
+
   const placeholderText = t('agent.input.placeholder')
+
   const controlSlots = renderAgentToolbarControls({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,
@@ -144,6 +149,7 @@ export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) =
     }),
     []
   )
+
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
 
   return (

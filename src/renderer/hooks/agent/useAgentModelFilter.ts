@@ -29,8 +29,10 @@ type ModelPredicate = (model: Model, provider?: Provider) => boolean
 export function useAgentModelFilter(agentType: AgentType | undefined): ModelPredicate {
   return useMemo<ModelPredicate>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
+
     return (model, provider) => {
       if (!baseAgentFilter(model)) return false
+
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
   }, [agentType])

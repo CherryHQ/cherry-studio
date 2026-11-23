@@ -36,6 +36,7 @@ export function useModelTagFilter(
     (model: Model, provider?: Provider) => {
       if (selectedTags.length === 0) return true
       const tags = getTags(model, provider)
+
       return selectedTags.every((tag) => tags.includes(tag))
     },
     [getTags, selectedTags]

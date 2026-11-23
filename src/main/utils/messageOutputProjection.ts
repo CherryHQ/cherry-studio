@@ -37,6 +37,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 export const DEFER_TOOL_OUTPUT_BYTES = 32 * 1024
 
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
+
 const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
   WEB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
@@ -51,7 +52,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toCitationSnippet(content: string): string {
   const trimmed = content.trim()
+
   if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+
   return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
@@ -62,14 +65,17 @@ function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
 
   for (const match of matches) {
     const separatorChars = projected.length === 0 ? 0 : ' … '.length
+
     if (remainingChars <= separatorChars) {
       const last = projected.at(-1)
+
       if (last) last.snippet = `${last.snippet}…`
       break
     }
 
     remainingChars -= separatorChars
     const snippet = match.snippet.trim()
+
     if (snippet.length > remainingChars) {
       projected.push({ ...match, snippet: `${snippet.slice(0, remainingChars)}…` })
       break
@@ -88,21 +94,25 @@ function toCitationPayloadSkeleton(
   output: unknown
 ): WebSearchOutput | KbSearchOutput | KbReadOutput | KbGrepOutput | undefined {
   const web = webSearchOutputSchema.safeParse(output)
+
   if (web.success) {
     return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
   }
 
   const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
+
   if (knowledgeSearch.success) {
     return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
   }
 
   const knowledgeRead = kbReadOutputSchema.safeParse(output)
+
   if (knowledgeRead.success) {
     return { ...knowledgeRead.data, content: toCitationSnippet(knowledgeRead.data.content) }
   }
 
   const knowledgeGrep = kbGrepOutputSchema.safeParse(output)
+
   if (knowledgeGrep.success) {
     return {
       ...knowledgeGrep.data,
@@ -123,8 +133,10 @@ function toCitationSkeleton(output: unknown) {
 
   const metadata = output.metadata
   const toolName = typeof metadata.name === 'string' ? metadata.name : undefined
+
   const belongsToCherryTools =
     metadata.serverId === CHERRY_TOOLS_MCP_SERVER || metadata.serverName === CHERRY_TOOLS_MCP_SERVER
+
   // Older agent messages predate MCP output names. Their Cherry Tools server id or name plus
   // a citable payload schema is sufficient; the renderer still gates on the part's tool name.
   if (metadata.type !== 'mcp' || !belongsToCherryTools || (toolName && !CITABLE_TOOL_NAMES.has(toolName))) {
@@ -132,13 +144,18 @@ function toCitationSkeleton(output: unknown) {
   }
 
   const content = toCitationPayloadSkeleton(output.content)
+
   if (content === undefined) return undefined
 
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Publish only individually checked metadata fields, preserving omission of optional identifiers.
   const projectedMetadata: { type: 'mcp'; name?: string; serverId?: string; serverName?: string } = { type: 'mcp' }
+
   if (toolName) projectedMetadata.name = toolName
+
   if (typeof metadata.serverId === 'string') projectedMetadata.serverId = metadata.serverId
+
   if (typeof metadata.serverName === 'string') projectedMetadata.serverName = metadata.serverName
+
   return { content, metadata: projectedMetadata }
 }
 
@@ -146,11 +163,15 @@ function toCitationSkeleton(output: unknown) {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK outputs may contain cycles or custom serializers; measure the actual serialized payload and leave nonserializable values inline.
 function serializeOversizedToolOutput(output: unknown): string | undefined {
   if (output === undefined || output === null) return undefined
+
   try {
     const serialized = JSON.stringify(output)
+
     if (serialized === undefined) return undefined
+
     // UTF-16 code units are a lower bound on UTF-8 bytes, so this short-circuits without encoding.
     if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return serialized
+
     return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES ? serialized : undefined
   } catch {
     return undefined
@@ -160,15 +181,18 @@ function serializeOversizedToolOutput(output: unknown): string | undefined {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- UIMessageChunk carries arbitrary tool output; inspect deferred envelopes and serialized size before choosing transport.
 export function shouldDeferToolOutput(output: unknown): boolean {
   if (output === undefined || output === null || isDeferredToolOutput(output)) return false
+
   return serializeOversizedToolOutput(output) !== undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw outputs and persisted skeletons reach this projection; citation schemas and the transport byte budget govern what may be retained.
 function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
   const skeleton = toCitationSkeleton(output)
+
   if (skeleton === undefined) return deferred
 
   const projected = { ...deferred, skeleton } satisfies DeferredToolOutput
+
   if (serializeOversizedToolOutput(projected) === undefined) return projected
 
   const entities = Array.isArray(skeleton)
@@ -176,6 +200,7 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
     : 'content' in skeleton && Array.isArray(skeleton.content)
       ? skeleton.content
       : undefined
+
   if (!entities || entities.length <= 1) return deferred
 
   // Citation order defines display numbering, so retain the longest prefix that fits.
@@ -183,7 +208,9 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
     const trimmedSkeleton = Array.isArray(skeleton)
       ? entities.slice(0, end)
       : { ...skeleton, content: entities.slice(0, end) }
+
     const trimmed = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
+
     if (serializeOversizedToolOutput(trimmed) === undefined) return trimmed
   }
 
@@ -193,16 +220,21 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored message parts and live SDK chunks expose opaque outputs; recognize persisted/deferred envelopes before serializing and hashing a reference.
 function createDeferredToolOutput(output: unknown, ref: DeferredToolResultRef): DeferredToolOutput | undefined {
   const isPersisted = isPersistedToolOutput(output)
+
   if (!isPersisted && isDeferredToolOutput(output)) return undefined
   const serialized = isPersisted ? JSON.stringify(output) : serializeOversizedToolOutput(output)
+
   if (serialized === undefined) return undefined
   const versionedRef = { ...ref, revision: createHash('sha256').update(serialized).digest('hex') }
+
   if (isPersisted) {
     const persisted = output.$persistedToolOutput
+
     const deferred = {
       $deferredToolResult: versionedRef,
       excerpt: envelopeDisplayExcerpt(persisted)
     } satisfies DeferredToolOutput
+
     return persisted.shape === 'entities' ? withCitationSkeleton(deferred, persisted.skeleton) : deferred
   }
 
@@ -222,7 +254,9 @@ export function projectMessagePartForRenderer(
     messageId,
     toolCallId: part.toolCallId
   })
+
   if (output === undefined) return part
+
   return { ...part, output }
 }
 
@@ -233,12 +267,15 @@ export function projectMessagePartsForRenderer(
   messageId: string
 ): CherryMessagePart[] {
   let projected: CherryMessagePart[] | undefined
+
   for (let index = 0; index < parts.length; index += 1) {
     const part = projectMessagePartForRenderer(parts[index], topicId, messageId)
+
     if (part === parts[index]) continue
     projected ??= [...parts]
     projected[index] = part
   }
+
   return projected ?? parts
 }
 
@@ -255,6 +292,8 @@ export function projectStreamChunkForRenderer(
     messageId,
     toolCallId: chunk.toolCallId
   })
+
   if (output === undefined) return chunk
+
   return { ...chunk, output }
 }

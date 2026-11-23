@@ -110,11 +110,13 @@ export type ManagedSettingsKeys = Record<string, readonly string[]>
 
 export function mergeManagedSettingsKeys(...groups: ManagedSettingsKeys[]): ManagedSettingsKeys {
   const merged: Record<string, string[]> = {}
+
   for (const group of groups) {
     for (const [section, keys] of Object.entries(group)) {
       merged[section] = [...new Set([...(merged[section] ?? []), ...keys])]
     }
   }
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Section names are runtime keys; publish read-only lists instead of exposing the mutable accumulator.
   return merged
 }
@@ -128,14 +130,17 @@ export function applyManagedJsonSettings(
 ): void {
   for (const key of topLevelKeys) {
     delete target[key]
+
     if (source[key] !== undefined) target[key] = source[key]
   }
 
   for (const [section, keys] of Object.entries(managedKeys)) {
     const nextSection = { ...asRecord(target[section]) }
+
     for (const key of keys) delete nextSection[key]
 
     const sourceSection = asRecord(source[section])
+
     for (const key of keys) {
       if (sourceSection[key] !== undefined) nextSection[key] = sourceSection[key]
     }

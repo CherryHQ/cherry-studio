@@ -5,6 +5,7 @@ export const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 export function miniAppIdFromTabUrl(url: string | undefined): string | null {
   if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return null
   const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
+
   return id || null
 }
 

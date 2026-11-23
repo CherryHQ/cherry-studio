@@ -9,6 +9,7 @@ const webToolModels = [
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
 ]
+
 const webSearchImageModels = ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
 
 export default defineProvider({

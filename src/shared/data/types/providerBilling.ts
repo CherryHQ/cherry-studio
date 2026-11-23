@@ -8,6 +8,7 @@ const endTimeSchema = z.union([startTimeSchema, z.literal('24:00')])
 
 export function billingTimeMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number)
+
   return hours * 60 + minutes
 }
 
@@ -26,6 +27,7 @@ export const ProviderBillingPeriodSchema = z.discriminatedUnion('mode', [
     models: z.array(z.strictObject({ modelId: z.string().min(1), pricing: RuntimeModelPricingSchema }))
   })
 ])
+
 export type ProviderBillingPeriod = z.infer<typeof ProviderBillingPeriodSchema>
 
 export const ProviderBillingSchema = z
@@ -38,6 +40,7 @@ export const ProviderBillingSchema = z
     timeZone: z.string().refine((value) => {
       try {
         new Intl.DateTimeFormat('en', { timeZone: value }).format(0)
+
         return true
       } catch {
         return false
@@ -51,16 +54,21 @@ export const ProviderBillingSchema = z
     periods.forEach((period, index) => {
       const issue = (field: string, message: string) =>
         ctx.addIssue({ code: 'custom', path: ['periods', index, field], message })
+
       if (ids.has(period.id)) issue('id', 'duplicate')
       ids.add(period.id)
       const start = billingTimeMinutes(period.start)
       const end = billingTimeMinutes(period.end)
+
       if (start === end) issue('end', 'same_time')
+
       if (end > start) intervals.push({ start, end, index })
       else if (end < start) {
         intervals.push({ start, end: 1440, index })
+
         if (end > 0) intervals.push({ start: 0, end, index })
       }
+
       if (period.mode === 'prices') {
         const models = new Set<string>()
         period.models.forEach((model, modelIndex) => {
@@ -71,17 +79,20 @@ export const ProviderBillingSchema = z
               message: 'duplicate'
             })
           }
+
           models.add(model.modelId)
         })
       }
     })
     intervals.sort((a, b) => a.start - b.start)
+
     for (let i = 1; i < intervals.length; i++) {
       if (intervals[i].start < intervals[i - 1].end) {
         ctx.addIssue({ code: 'custom', path: ['periods', intervals[i].index, 'start'], message: 'overlap' })
       }
     }
   })
+
 export type ProviderBilling = z.infer<typeof ProviderBillingSchema>
 
 export const BillingResolutionSchema = z.strictObject({
@@ -95,4 +106,5 @@ export const BillingResolutionSchema = z.strictObject({
   ruleVersion: z.string().optional(),
   pricedAt: z.iso.datetime().optional()
 })
+
 export type BillingResolution = z.infer<typeof BillingResolutionSchema>

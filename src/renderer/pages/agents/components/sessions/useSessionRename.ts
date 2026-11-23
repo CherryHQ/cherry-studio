@@ -28,10 +28,12 @@ export function useSessionRename({
 }: UseSessionRenameOptions) {
   const { t } = useTranslation()
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
+
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
       const session = sessionItemsRef.current.find((candidate) => candidate.id === id)
       const trimmedName = name.trim()
+
       if (!session || !trimmedName || trimmedName === session.name) return
 
       try {
@@ -40,6 +42,7 @@ export function useSessionRename({
             await updateSession({ id, name: trimmedName, isNameManuallyEdited: true }, { showSuccessToast: false })
           )
         )
+
         if (renamed) {
           toast.success(t('common.saved'))
         }
@@ -50,13 +53,16 @@ export function useSessionRename({
     },
     [renameSessionOptimistically, sessionItemsRef, t, updateSession]
   )
+
   const handleOpenRenameSessionDialog = useCallback((session: AgentSessionEntity) => {
     setRenamingSessionId(session.id)
   }, [])
+
   const handleRenameSessionFromDialog = useCallback(
     (name: string) => (renamingSessionId ? handleRenameSession(renamingSessionId, name) : undefined),
     [handleRenameSession, renamingSessionId]
   )
+
   const renamingSession = renamingSessionId
     ? sessionItems.find((session) => session.id === renamingSessionId)
     : undefined

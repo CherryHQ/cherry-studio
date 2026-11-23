@@ -33,6 +33,7 @@ import { useDuplicateAssistantMutation } from './assistantAdapter'
 import { useResourceLibrary } from './useResourceLibrary'
 
 type ResourceCreateWizardKind = 'assistant' | 'agent'
+
 type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
 const CREATE_DIALOG_EXIT_ANIMATION_MS = 200
@@ -53,6 +54,7 @@ interface ResourceCatalogControllerOptions {
 function buildGroups(resources: ResourceItem[], groups: Group[], filterType?: ResourceType): GroupItem[] {
   const counts = new Map<string, number>()
   const list = filterType ? resources.filter((r) => r.type === filterType) : resources
+
   for (const resource of list) {
     if (resource.type === 'assistant' && resource.groupId) {
       counts.set(resource.groupId, (counts.get(resource.groupId) ?? 0) + 1)
@@ -61,6 +63,7 @@ function buildGroups(resources: ResourceItem[], groups: Group[], filterType?: Re
 
   return groups.flatMap((group) => {
     const count = counts.get(group.id)
+
     return count ? [{ id: group.id, name: group.name, count }] : []
   })
 }
@@ -122,6 +125,7 @@ export function useResourceCatalogController(
 
   const scopedGroups = useMemo(() => {
     if (!isAssistantLibrary) return []
+
     return buildGroups(allResources, groups, 'assistant')
   }, [allResources, groups, isAssistantLibrary])
 
@@ -129,6 +133,7 @@ export function useResourceCatalogController(
     if (createDialogOpen || !createDialogKind) return
 
     const timeoutId = window.setTimeout(() => setCreateDialogKind(null), CREATE_DIALOG_EXIT_ANIMATION_MS)
+
     return () => window.clearTimeout(timeoutId)
   }, [createDialogKind, createDialogOpen])
 
@@ -157,10 +162,13 @@ export function useResourceCatalogController(
       (resource) =>
         resource.type === 'skill' && resource.raw.source === 'builtin' && resource.raw.folderName === 'skill-creator'
     )
+
     if (!creator || creator.type !== 'skill') {
       toast.error(t('settings.skills.creatorUnavailable'))
+
       return
     }
+
     void onLaunchSkill?.(creator.raw)
   }, [allResources, onLaunchSkill, t])
 
@@ -183,12 +191,15 @@ export function useResourceCatalogController(
       if (resource.type !== 'assistant') return
 
       const assistant = resource.raw
+
       try {
         const groupName = assistant.groupId ? groupById.get(assistant.groupId)?.name : undefined
+
         const bindingPath = resolveTemplate('/prompt-bindings/:targetType/:targetId', {
           targetType: 'assistant',
           targetId: assistant.id
         }) as ConcreteApiPaths
+
         const contextualPrompts = await dataApiService.get(bindingPath)
         const content = serializeAssistantForExport(assistant, contextualPrompts, groupName)
 
@@ -218,21 +229,28 @@ export function useResourceCatalogController(
       setAssistantExportLoading(open)
       setAssistantExporting(false)
       assistantExportBusy.current = false
+
       if (!open) return
 
       void (async () => {
         try {
           const assistants: Assistant[] = []
+
           for (let page = 1; ; page += 1) {
             const result = await dataApiService.get('/assistants', { query: { page, limit: ASSISTANTS_MAX_LIMIT } })
+
             if (assistantExportEpoch.current !== epoch) return
             assistants.push(...result.items)
+
             if (assistants.length >= result.total) break
+
             if (result.items.length === 0) throw new Error('incomplete_assistant_list')
           }
+
           if (new Set(assistants.map(({ id }) => id)).size !== assistants.length) {
             throw new Error('inconsistent_assistant_list')
           }
+
           setExportAssistants(assistants)
           setAssistantExportComplete(true)
         } catch {
@@ -252,35 +270,48 @@ export function useResourceCatalogController(
       const epoch = assistantExportEpoch.current
       const selectedIds = new Set(assistantIds)
       const selected = exportAssistants.filter(({ id }) => selectedIds.has(id))
+
       if (selected.length === 0) return
       assistantExportBusy.current = true
       setAssistantExporting(true)
+
       try {
         if (groupsLoading || groupsError) throw new Error('assistant_groups_unavailable')
+
         const grouped = selected.map((assistant) => {
           const group = assistant.groupId === null ? undefined : groupById.get(assistant.groupId)
+
           if (assistant.groupId !== null && !group) throw new Error('assistant_group_unresolved')
+
           return { assistant, groupName: group?.name }
         })
+
         const entries = await Promise.all(
           grouped.map(async (entry) => {
             const path = resolveTemplate('/prompt-bindings/:targetType/:targetId', {
               targetType: 'assistant',
               targetId: entry.assistant.id
             }) as ConcreteApiPaths
+
             const prompts = await dataApiService.get(path)
+
             return { ...entry, prompts }
           })
         )
+
         if (assistantExportEpoch.current !== epoch) return
         const bytes = new TextEncoder().encode(serializeAssistantsForExport(entries))
+
         if (bytes.byteLength > 5_242_880) {
           toast.error(t('library.import_dialog.error.file_too_large'))
+
           return
         }
+
         const path = await window.api.file.save('assistants.json', bytes, {
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
+
         if (assistantExportEpoch.current !== epoch || path === null) return
         handleAssistantExportOpenChange(false)
         toast.success(t('common.success'))
@@ -329,9 +360,11 @@ export function useResourceCatalogController(
   const handleSubmitCreateResource = useCallback(
     async (values: ResourceCreateValues) => {
       const kind = createDialogKind
+
       if (!kind || creatingResource) return
 
       setCreatingResource(true)
+
       try {
         if (kind === 'assistant') {
           await createAssistant(buildCreateAssistantDto(values))
@@ -354,6 +387,7 @@ export function useResourceCatalogController(
         invalidate(key)
       )
     )
+
     for (const outcome of outcomes) {
       if (outcome.status === 'rejected') {
         logger.warn('Failed to refresh protected Agent resources after deleting Sessions', { err: outcome.reason })
@@ -375,8 +409,10 @@ export function useResourceCatalogController(
         const result = await ipcApi.request('ai.agent.sessions.delete', { agentId: resource.id })
         const deletedSessionIds = [...result.deletedIds]
         await refreshProtectedAgentResources()
+
         if (deletedSessionIds.length === 0) {
           toast.info(t('recycle_bin.already_moved'))
+
           return
         }
 
@@ -409,8 +445,10 @@ export function useResourceCatalogController(
     (resource: ResourceItem) => {
       if (resource.type === 'agent' && isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)) {
         void onConfirmArchiveAgentSessions?.(resource.name, () => handleDeleteProtectedAgentSessions(resource))
+
         return
       }
+
       setDeleteConfirm(resource)
     },
     [handleDeleteProtectedAgentSessions, onConfirmArchiveAgentSessions]

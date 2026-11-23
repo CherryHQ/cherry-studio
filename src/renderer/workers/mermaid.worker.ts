@@ -3,6 +3,7 @@ import type { MermaidRenderRequest, MermaidRenderResponse } from '@renderer/type
 
 self.onmessage = async ({ data }: MessageEvent<MermaidRenderRequest>) => {
   let response: MermaidRenderResponse
+
   try {
     response = {
       id: data.id,
@@ -11,5 +12,6 @@ self.onmessage = async ({ data }: MessageEvent<MermaidRenderRequest>) => {
   } catch (error) {
     response = { id: data.id, error: error instanceof Error ? error.message : String(error) }
   }
+
   self.postMessage(response)
 }

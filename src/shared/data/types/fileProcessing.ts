@@ -24,14 +24,17 @@ export const FileProcessingArtifactSchema = z.discriminatedUnion('kind', [
   FileProcessingTextArtifactSchema,
   FileProcessingFileArtifactSchema
 ])
+
 export type FileProcessingArtifact = z.infer<typeof FileProcessingArtifactSchema>
 
 export const FileProcessingOutputTargetSchema = z
   .object({ kind: z.literal('path'), path: AbsoluteFilePathSchema })
   .strict()
+
 export type FileProcessingOutputTarget = z.infer<typeof FileProcessingOutputTargetSchema>
 
 export const FileProcessingTaskIdSchema = z.string().min(1).brand<'FileProcessingTaskId'>()
+
 export type FileProcessingTaskId = z.infer<typeof FileProcessingTaskIdSchema>
 
 const fileProcessingTaskFields = {
@@ -56,6 +59,7 @@ export const FileProcessingTaskSchema = z.discriminatedUnion('status', [
   z.object({ ...fileProcessingTaskFields, status: z.literal('failed'), error: z.string() }).strict(),
   z.object({ ...fileProcessingTaskFields, status: z.literal('cancelled'), error: z.string() }).strict()
 ])
+
 export type FileProcessingTask = z.infer<typeof FileProcessingTaskSchema>
 
 export const ListAvailableFileProcessorsResultSchema = z
@@ -63,4 +67,5 @@ export const ListAvailableFileProcessorsResultSchema = z
     processorIds: z.array(z.enum(FILE_PROCESSOR_IDS))
   })
   .strict()
+
 export type ListAvailableFileProcessorsResult = z.infer<typeof ListAvailableFileProcessorsResultSchema>

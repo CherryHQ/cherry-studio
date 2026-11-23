@@ -27,6 +27,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   // resolve gateway addresses can wait instead of reading a cold map as an answer.
   const isGatewayModelsLoading = isModelsLoading || isProvidersLoading
   const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
+
   const gatewayProviderIds = useMemo(
     () =>
       new Set(
@@ -34,6 +35,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       ),
     [providers]
   )
+
   const gatewayModelsById = useMemo(
     () =>
       new Map(
@@ -43,11 +45,13 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       ),
     [allModels, gatewayProviderIds]
   )
+
   const defaultGatewayModelId =
     defaultModelId && gatewayModelsById.has(defaultModelId as Model['id']) ? (defaultModelId as Model['id']) : undefined
 
   const filterProvidersForTool = useCallback((toolId: CodeCli, providers: Provider[]): Provider[] => {
     const filterFn = CLI_TOOL_PROVIDER_MAP[toolId]
+
     // Exclude login-based providers (Claude Code / Codex OAuth, etc.): they carry no API
     // key/baseUrl to inject into the CLI config, and their "own login" is already surfaced by
     // the synthetic own-login card. `isLoginBasedProvider` keeps api-key-capable mixed providers.
@@ -55,6 +59,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       ? filterFn(providers).filter((p) => p.isEnabled && !isCherryAIProvider(p) && !isLoginBasedProvider(p))
       : []
   }, [])
+
   const filterProviders = useCallback(
     (providers: Provider[]): Provider[] => filterProvidersForTool(selectedCliTool, providers),
     [filterProvidersForTool, selectedCliTool]
@@ -65,13 +70,16 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     (providerId: string) =>
       (model: Model): boolean => {
         if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) return false
+
         // The gateway does dialect conversion, so any chat model of any enabled provider is usable
         // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
         // keeping only what Code Mate may route through the gateway.
         if (isApiGatewayProviderId(providerId)) {
           return gatewayProviderIds.has(model.providerId) && isPublicGatewayRoutableModel(model)
         }
+
         if (!modelSupportsCliTool(selectedCliTool, model)) return false
+
         return model.providerId === providerId
       },
     [gatewayProviderIds, selectedCliTool]
@@ -80,6 +88,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   const resolveProviderMetaForTool = useCallback(
     (toolId: CodeCli, provider: Provider, providerConfig?: CliProviderConfig) => {
       const config = providerConfig?.config ?? {}
+
       // Detailed Claude configs carry no top-level modelId; surface the primary
       // (fable-role) detailed model instead of hiding the model entirely.
       const modelId =
@@ -90,12 +99,15 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
               isApiGatewayProviderId(provider.id) ? gatewayModelsById : undefined
             )
           : providerConfig?.modelId
+
       let modelName: string | undefined
+
       if (modelId && isUniqueModelId(modelId)) {
         const model = modelById.get(modelId)
         const { modelId: rawId } = parseUniqueModelId(modelId)
         modelName = model?.name || rawId
       }
+
       return {
         providerName: getProviderDisplayName(provider),
         modelName

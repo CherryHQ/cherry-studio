@@ -43,6 +43,7 @@ const meta: Meta<typeof Select> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default

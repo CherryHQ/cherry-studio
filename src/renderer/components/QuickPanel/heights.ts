@@ -63,6 +63,7 @@ export function getQuickPanelHeights({
   const chromeHeight = (fill || readOnly) && measuredChromeHeight != null ? measuredChromeHeight : defaultChromeHeight
 
   if (!isVisible) return { panelMaxHeight: 0, listHeight: 0 }
+
   if (collapsed) return { panelMaxHeight: chromeHeight + emptyStateHeight, listHeight: 0 }
 
   const listContentHeight = Math.min(pageSize, itemCount) * QUICK_PANEL_ITEM_HEIGHT
@@ -72,6 +73,7 @@ export function getQuickPanelHeights({
     const minimumPanelHeight = chromeHeight + (itemCount > 0 ? QUICK_PANEL_ITEM_HEIGHT : 0)
     const panelMaxHeight = Math.max(minimumPanelHeight, Math.min(contentHeight, availableHeight))
     const listHeight = Math.min(listContentHeight, Math.max(0, panelMaxHeight - chromeHeight))
+
     return { panelMaxHeight, listHeight }
   }
 

@@ -38,12 +38,15 @@ import { isSettingsPath } from '@shared/data/types/settingsPath'
 export function getSettingsSectionTitleKey(url: string): string | undefined {
   if (!isSettingsPath(url)) return undefined
   const pathname = parseAppRouteUrl(url)?.pathname
+
   if (pathname === undefined) return undefined
+
   return (
     settingsMenu.find(({ route }) => pathname === route || pathname.startsWith(`${route}/`))?.titleKey ??
     (pathname === '/settings/search' ? 'common.search' : undefined)
   )
 }
+
 export interface SettingsMenuEntry {
   /** Settings section route; also the aggregation key for `.search.ts` leaves */
   route: string

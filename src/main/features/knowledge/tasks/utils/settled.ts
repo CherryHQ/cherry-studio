@@ -21,8 +21,10 @@ export async function markKnowledgeItemFailedOnSettled(
     event.status === 'cancelled'
       ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
       : event.error?.message?.trim() || `Job ${event.status}`
+
   try {
     const item = knowledgeItemService.getById(itemId)
+
     if (item.status === 'deleting') return
 
     knowledgeItemService.updateStatus(itemId, 'failed', { error: reason })

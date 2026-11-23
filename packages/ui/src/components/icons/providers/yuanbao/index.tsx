@@ -6,7 +6,9 @@ import { YuanbaoLight } from './light'
 
 const Yuanbao = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <YuanbaoLight {...props} className={className} />
+
   if (variant === 'dark') return <YuanbaoDark {...props} className={className} />
+
   return (
     <>
       <YuanbaoLight className={cn('dark:hidden', className)} {...props} />

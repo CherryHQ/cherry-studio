@@ -19,6 +19,7 @@ export interface RehypeHeadingIdsOptions {
 
 export function createSlugger(): HeadingSlugger {
   const seen = new Map<string, number>()
+
   const normalize = (text: string): string => {
     const slug = (text || 'section')
       .toLowerCase()
@@ -40,6 +41,7 @@ export function createSlugger(): HeadingSlugger {
     const base = normalize(text)
     const count = seen.get(base) || 0
     seen.set(base, count + 1)
+
     return count === 0 ? base : `${base}-${count}`
   }
 
@@ -67,11 +69,13 @@ export default function rehypeHeadingIds(options?: RehypeHeadingIdsOptions): (tr
     visit(tree, 'element', (node) => {
       if (!node || typeof node.tagName !== 'string') return
       const tag = node.tagName.toLowerCase()
+
       if (!/^h[1-6]$/.test(tag)) return
 
       const text = extractTextFromNode(node)
       const id = prefix + slugger.slug(text)
       node.properties = node.properties || {}
+
       if (!node.properties.id) node.properties.id = id
     })
   }

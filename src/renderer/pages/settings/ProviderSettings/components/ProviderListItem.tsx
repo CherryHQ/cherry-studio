@@ -28,7 +28,9 @@ export default function ProviderListItem({
     event.stopPropagation()
     onOpenMenu?.()
   }
+
   const hasTrailingSlot = provider.isEnabled || onOpenMenu
+
   const menuButton = onOpenMenu ? (
     <button
       type="button"
@@ -53,6 +55,7 @@ export default function ProviderListItem({
         // preventDefault here suppresses the button's native click action,
         // and the menu cannot be opened via keyboard.
         if (event.currentTarget !== event.target) return
+
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           onClick()

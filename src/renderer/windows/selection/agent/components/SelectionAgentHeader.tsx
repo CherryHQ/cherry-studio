@@ -116,6 +116,7 @@ export const SelectionAgentHeader: FC<SelectionAgentHeaderProps> = ({
 
 export const SelectionAgentCloseButton: FC = () => {
   const { t } = useTranslation()
+
   return (
     <HeaderButton
       aria-label={t('common.close')}

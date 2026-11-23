@@ -25,6 +25,7 @@ export function useExpandedState(options: UseExpandedStateOptions): UseExpandedS
   const toggle = useCallback(
     (id: string) => {
       const next = new Set(isControlled ? controlled : internalRef.current)
+
       if (next.has(id)) next.delete(id)
       else next.add(id)
 
@@ -32,6 +33,7 @@ export function useExpandedState(options: UseExpandedStateOptions): UseExpandedS
         internalRef.current = next
         setInternal(next)
       }
+
       onExpandedChange?.(next)
     },
     [controlled, isControlled, onExpandedChange]

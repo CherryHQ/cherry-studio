@@ -6,7 +6,9 @@ import { LiquidLight } from './light'
 
 const Liquid = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LiquidLight {...props} className={className} />
+
   if (variant === 'dark') return <LiquidDark {...props} className={className} />
+
   return (
     <>
       <LiquidLight className={cn('dark:hidden', className)} {...props} />

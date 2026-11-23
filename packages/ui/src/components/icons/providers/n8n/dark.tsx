@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const N8nDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path fill="#3E1E25" d="M0 0H120V120H0z" />
@@ -13,5 +14,7 @@ const N8nDark: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
+
 export { N8nDark }
+
 export default N8nDark

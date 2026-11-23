@@ -38,6 +38,7 @@ export interface OvmsProvider extends ProviderV3 {
  */
 export function createOvmsProvider(settings: OvmsProviderSettings = {}): OvmsProvider {
   const { baseURL, fetch: customFetch } = settings
+
   if (!baseURL) {
     throw new Error(
       'OVMS provider requires a non-empty `baseURL`. An empty value would resolve fetch paths against the renderer process origin (app://, file://) and surface as opaque "Failed to fetch" errors.'

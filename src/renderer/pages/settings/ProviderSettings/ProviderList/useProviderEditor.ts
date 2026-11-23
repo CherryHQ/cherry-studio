@@ -96,10 +96,12 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
             : edit.kind === 'key'
               ? ({ kind: 'key', key: edit.key } as const)
               : ({ kind: 'default' } as const)
+
         await ipcApi.request('provider.set_logo', { providerId, image })
       } catch (error) {
         logger.error('Failed to set provider logo', error as Error)
         toast.error(t('settings.provider.logo_upload_failed'))
+
         return
       }
 
@@ -115,6 +117,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const submit = useCallback(
     async (params: SubmitProviderEditorParams): Promise<void> => {
       const trimmedName = params.name.trim()
+
       if (!trimmedName) {
         return
       }
@@ -123,11 +126,13 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         if (!editingProvider) {
           return
         }
+
         const originalEditingId = editingProvider.id
         await updateProviderById(originalEditingId, {
           name: trimmedName,
           defaultChatEndpoint: params.defaultChatEndpoint
         })
+
         if (params.logo) {
           await applyLogo(originalEditingId, params.logo)
         }
@@ -135,25 +140,34 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         if (modeRef.current?.kind === 'edit' && modeRef.current.provider.id === originalEditingId) {
           cancel()
         }
+
         return
       }
 
       const creationMode = modeRef.current?.kind
       const providerId = uuid()
       const submitToken = ++submitTokenRef.current
+
       const identity: Pick<Parameters<typeof createProvider>[0], 'providerId' | 'name' | 'presetProviderId'> = {
         providerId,
         name: trimmedName
       }
+
       if (params.presetProviderId) identity.presetProviderId = params.presetProviderId
+
       const input: Parameters<typeof createProvider>[0] = {
         ...identity,
         defaultChatEndpoint: params.defaultChatEndpoint
       }
+
       if (params.endpointConfigs) input.endpointConfigs = params.endpointConfigs
+
       if (params.authConfig) input.authConfig = params.authConfig
+
       if (params.apiKeys && params.apiKeys.length > 0) input.apiKeys = params.apiKeys
+
       if (params.billing) input.providerSettings = { billing: params.billing }
+
       // Preset-key logo persists atomically with the row; an upload is applied
       // via the command below. A `clear` on create is a no-op (default icon).
       if (params.logo?.kind === 'key') input.logo = { kind: 'key', key: params.logo.key }

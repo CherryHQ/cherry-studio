@@ -25,31 +25,38 @@ const DiscoverySchema = z.object({
 })
 
 type Discovery = z.infer<typeof DiscoverySchema>
+
 let grokDiscoveryCache: Discovery | null = null
 
 function assertXaiEndpoint(url: string): string {
   const parsed = new URL(url)
   const host = parsed.hostname.toLowerCase()
+
   if (parsed.protocol !== 'https:' || (host !== 'x.ai' && !host.endsWith('.x.ai'))) {
     throw new OAuthServiceError(`xAI OAuth discovery returned an unexpected endpoint: ${url}`)
   }
+
   return url
 }
 
 async function discoverGrok(signal?: AbortSignal): Promise<Discovery> {
   if (grokDiscoveryCache) return grokDiscoveryCache
+
   const response = await net.fetch(GROK_CONFIG.DISCOVERY_URL, {
     headers: { Accept: 'application/json' },
     signal
   })
+
   if (!response.ok) {
     throw new OAuthServiceError(`xAI OAuth discovery failed: ${response.status}`)
   }
+
   const data = DiscoverySchema.parse(await response.json())
   grokDiscoveryCache = {
     authorization_endpoint: assertXaiEndpoint(data.authorization_endpoint),
     token_endpoint: assertXaiEndpoint(data.token_endpoint)
   }
+
   return grokDiscoveryCache
 }
 
@@ -67,6 +74,7 @@ export const grokOAuthProvider = {
   createClient: async (context?: OAuthRuntimeProviderContext) => {
     const discovery = await discoverGrok(context?.signal)
     const nonce = randomBytes(16).toString('hex')
+
     return new PkceOAuthClient({
       clientId: GROK_CONFIG.CLIENT_ID,
       authorizeUrl: discovery.authorization_endpoint,

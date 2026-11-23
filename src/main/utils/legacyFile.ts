@@ -25,6 +25,7 @@ import {
 // SoT lives in `@shared/utils/file` (filename topic); callers migrate to the
 // shared path opportunistically.
 export { sanitizeFilename, validateFileName } from '@shared/utils/file'
+
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { v4 as uuidv4 } from 'uuid'
@@ -59,17 +60,21 @@ export function resolveAndValidatePath(baseDir: string, relativePath: string): s
   const resolvedBase = path.resolve(baseDir)
   const resolvedPath = path.resolve(baseDir, relativePath)
   const separator = resolvedBase.endsWith(path.sep) ? '' : path.sep
+
   if (!resolvedPath.startsWith(resolvedBase + separator)) {
     throw new Error('Invalid file path: path traversal detected')
   }
+
   return resolvedPath
 }
 
 export function untildify(pathWithTilde: string) {
   if (pathWithTilde.startsWith('~')) {
     const homeDirectory = os.homedir()
+
     return pathWithTilde.replace(/^~(?=$|\/|\\)/, homeDirectory)
   }
+
   return pathWithTilde
 }
 
@@ -77,6 +82,7 @@ export async function hasWritePermission(dir: string) {
   try {
     logger.info(`Checking write permission for ${dir}`)
     await fs.promises.access(dir, fs.constants.W_OK)
+
     return true
   } catch (error) {
     return false
@@ -85,6 +91,7 @@ export async function hasWritePermission(dir: string) {
 
 export function getFileType(ext: string): FileType {
   ext = ext.toLowerCase()
+
   return fileTypeMap.get(ext) || FILE_TYPE.OTHER
 }
 
@@ -101,6 +108,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []):
     }
 
     const fullPath = path.join(dirPath, file)
+
     if (fs.statSync(fullPath).isDirectory()) {
       arrayOfFiles = getAllFiles(fullPath, arrayOfFiles)
     } else {
@@ -159,6 +167,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   for (const encoding of encodings) {
     try {
       const content = iconv.decode(data, encoding)
+
       if (!content.includes('\uFFFD')) {
         return content
       } else {
@@ -172,6 +181,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   }
 
   logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
+
   return iconv.decode(data, 'UTF-8')
 }
 
@@ -218,6 +228,7 @@ export async function writeWithLock(
       return
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
+
       if (nodeError.code !== 'EEXIST' || attempt >= retries) {
         throw error
       }
@@ -225,6 +236,7 @@ export async function writeWithLock(
       if (lockStaleMs > 0) {
         try {
           const stats = await fs.promises.stat(lockFilePath)
+
           if (Date.now() - stats.mtimeMs > lockStaleMs) {
             await fs.promises.unlink(lockFilePath)
             continue
@@ -246,6 +258,7 @@ export async function base64Image(file: FileMetadata): Promise<{ mime: string; b
   const rawExt = path.extname(filePath).slice(1)
   const ext = rawExt === 'jpg' ? 'jpeg' : rawExt
   const mime = ext ? `image/${ext}` : 'image/png'
+
   return {
     mime,
     base64,
@@ -283,12 +296,15 @@ export function getName(baseDir: string, fileName: string, isFile: boolean): str
 export function checkName(fileName: string): string {
   const baseName = path.basename(fileName)
   const validation = validateFileName(baseName)
+
   if (!validation.valid) {
     // 自动清理非法字符，而不是抛出错误
     const sanitized = sanitizeFilename(baseName)
     logger.warn(`File name contains invalid characters, auto-sanitized: "${baseName}" -> "${sanitized}"`)
+
     return sanitized
   }
+
   return baseName
 }
 
@@ -298,6 +314,7 @@ export function checkName(fileName: string): string {
 export async function directoryExists(dirPath: string): Promise<boolean> {
   try {
     const stats = await fs.promises.stat(dirPath)
+
     return stats.isDirectory()
   } catch {
     return false
@@ -310,6 +327,7 @@ export async function directoryExists(dirPath: string): Promise<boolean> {
 export async function pathExists(targetPath: string): Promise<boolean> {
   try {
     await fs.promises.access(targetPath, fs.constants.R_OK)
+
     return true
   } catch {
     return false
@@ -322,6 +340,7 @@ export async function pathExists(targetPath: string): Promise<boolean> {
 export async function fileExists(filePath: string): Promise<boolean> {
   try {
     const stats = await fs.promises.stat(filePath)
+
     return stats.isFile()
   } catch {
     return false

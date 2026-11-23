@@ -32,6 +32,7 @@ interface NativeBinding {
 export function normalizeAspectRatio(value: string | undefined): string | undefined {
   if (!value) return undefined
   const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
+
   return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(stripped) ? stripped : undefined
 }
 
@@ -56,6 +57,7 @@ export const AI_SDK_NATIVE_BINDINGS = {
 /** The binding entry for a canonical `key`, or `undefined` for vendor-bag params. */
 export function nativeBindingFor(key: string): NativeBinding | undefined {
   if (!Object.hasOwn(AI_SDK_NATIVE_BINDINGS, key)) return undefined
+
   // SAFETY: The own-key check restricts the lookup to this finite binding table.
   return AI_SDK_NATIVE_BINDINGS[key as keyof typeof AI_SDK_NATIVE_BINDINGS]
 }

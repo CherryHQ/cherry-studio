@@ -490,6 +490,7 @@ const useRichEditorStyleSheet = () => {
       if (existingStyle.textContent !== STYLE_CONTENT) {
         existingStyle.textContent = STYLE_CONTENT
       }
+
       return
     }
 
@@ -503,9 +504,12 @@ const useRichEditorStyleSheet = () => {
 const createDivComponent = (displayName: string, baseClassName: string) => {
   const Component = ({ ref, className, ...props }: DivProps & { ref?: Ref<HTMLDivElement> }) => {
     useRichEditorStyleSheet()
+
     return createElement('div', { ...props, ref, className: cn(baseClassName, className) })
   }
+
   Component.displayName = displayName
+
   return Component
 }
 
@@ -541,6 +545,7 @@ export const RichEditorWrapper = ({
     style: dynamicStyle
   })
 }
+
 RichEditorWrapper.displayName = 'RichEditorWrapper'
 
 export const ToolbarWrapper = createDivComponent('ToolbarWrapper', 'ToolbarWrapper')
@@ -555,6 +560,7 @@ export const ToolbarButton = ({
   ...props
 }: ToolbarButtonProps & { ref?: Ref<HTMLButtonElement> }) => {
   useRichEditorStyleSheet()
+
   return createElement('button', {
     ...props,
     ref,
@@ -563,6 +569,7 @@ export const ToolbarButton = ({
     style: $active ? { ...style, background: 'var(--muted)', color: 'var(--foreground)' } : style
   })
 }
+
 ToolbarButton.displayName = 'ToolbarButton'
 
 export const ToolbarDivider = createDivComponent('ToolbarDivider', 'ToolbarDivider')

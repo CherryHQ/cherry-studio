@@ -76,7 +76,9 @@ export function updateColumns(
 // Callbacks are now handled by a decorations plugin; keep type removed here
 
 type ButtonPosition = { x: number; y: number }
+
 type RowActionCallback = (args: { rowIndex: number; view: EditorView; position?: ButtonPosition }) => void
+
 type ColumnActionCallback = (args: { colIndex: number; view: EditorView; position?: ButtonPosition }) => void
 
 export class TableView implements NodeView {
@@ -244,24 +246,30 @@ export class TableView implements NodeView {
 
         // Find which cell contains our selection
         const selectionPos = originalSelection.from
+
         for (let row = 0; row < map.height; row++) {
           for (let col = 0; col < map.width; col++) {
             const cellIndex = row * map.width + col
             const cellStart = pos + 1 + map.map[cellIndex]
             const cellNode = state.doc.nodeAt(cellStart)
+
             if (cellNode) {
               const cellEnd = cellStart + cellNode.nodeSize
+
               if (selectionPos >= cellStart && selectionPos < cellEnd) {
                 currentCellRow = row
                 currentCellCol = col
                 relativeOffsetInCell = selectionPos - cellStart
+
                 return false
               }
             }
           }
         }
+
         return false
       }
+
       return true
     })
 
@@ -297,8 +305,10 @@ export class TableView implements NodeView {
                   const newTr = newState.tr.setSelection(newSelection)
                   this.view.dispatch(newTr)
                 }
+
                 return false
               }
+
               return true
             })
           }
@@ -331,6 +341,7 @@ export class TableView implements NodeView {
       e.preventDefault()
       e.stopPropagation()
       const bounds = getCellSelectionBounds(this.view, this.node)
+
       if (!bounds) return
       this.selectRow(bounds.maxRow)
       const rect = this.rowEndpoint!.getBoundingClientRect()
@@ -342,6 +353,7 @@ export class TableView implements NodeView {
       e.preventDefault()
       e.stopPropagation()
       const bounds = getCellSelectionBounds(this.view, this.node)
+
       if (!bounds) return
       this.selectColumn(bounds.maxCol)
       const rect = this.colEndpoint!.getBoundingClientRect()
@@ -363,6 +375,7 @@ export class TableView implements NodeView {
     if (this.overlayUpdateRafId !== null) {
       cancelAnimationFrame(this.overlayUpdateRafId)
     }
+
     this.overlayUpdateRafId = requestAnimationFrame(() => {
       this.overlayUpdateRafId = null
       this.updateOverlayPositions()
@@ -372,9 +385,11 @@ export class TableView implements NodeView {
   private updateOverlayPositions() {
     if (!this.rowEndpoint || !this.colEndpoint) return
     const bounds = getCellSelectionBounds(this.view, this.node)
+
     if (!bounds) {
       this.rowEndpoint.style.display = 'none'
       this.colEndpoint.style.display = 'none'
+
       return
     }
 
@@ -384,6 +399,7 @@ export class TableView implements NodeView {
       const cellIndex = row * map.width + col
       const cellPos = tableStart + map.map[cellIndex]
       const cellDom = this.view.nodeDOM(cellPos) as HTMLElement | null
+
       return {
         dom: cellDom,
         rect: cellDom?.getBoundingClientRect()
@@ -426,8 +442,10 @@ export class TableView implements NodeView {
     state.doc.descendants((node: ProseMirrorNode, pos: number) => {
       if (node.type.name === 'table' && node === this.node) {
         tablePos = pos
+
         return false
       }
+
       return true
     })
 
@@ -446,8 +464,10 @@ export class TableView implements NodeView {
     state.doc.descendants((node: ProseMirrorNode, pos: number) => {
       if (node.type.name === 'table' && node === this.node) {
         tablePos = pos
+
         return false
       }
+
       return true
     })
 
@@ -470,8 +490,10 @@ export class TableView implements NodeView {
     state.doc.descendants((node: ProseMirrorNode, pos: number) => {
       if (node.type.name === 'table' && node === this.node) {
         tablePos = pos
+
         return false
       }
+
       return true
     })
 
@@ -491,6 +513,7 @@ export class TableView implements NodeView {
 
   hasTableCellSelection(): boolean {
     const selection = this.view.state.selection
+
     return isCellSelection(selection)
   }
 
@@ -502,8 +525,10 @@ export class TableView implements NodeView {
     state.doc.descendants((node: ProseMirrorNode, pos: number) => {
       if (node.type.name === 'table' && node === this.node) {
         tablePos = pos
+
         return false
       }
+
       return true
     })
 
@@ -529,8 +554,10 @@ export class TableView implements NodeView {
     state.doc.descendants((node: ProseMirrorNode, pos: number) => {
       if (node.type.name === 'table' && node === this.node) {
         tablePos = pos
+
         return false
       }
+
       return true
     })
 
@@ -551,9 +578,13 @@ export class TableView implements NodeView {
   destroy() {
     this.addRowButton?.remove()
     this.addColumnButton?.remove()
+
     if (this.rowEndpoint) this.rowEndpoint.remove()
+
     if (this.colEndpoint) this.colEndpoint.remove()
+
     if (this.selectionChangeDisposer) this.selectionChangeDisposer()
+
     if (this.overlayUpdateRafId !== null) cancelAnimationFrame(this.overlayUpdateRafId)
   }
 }

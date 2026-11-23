@@ -35,18 +35,22 @@ export function createImageActionBus<TTarget, TTargetKey extends string, TReques
     options?: TRequestOptions
   ): ImageActionRequest<TTarget, TTargetKey> {
     let settlement: ImageActionSettlement | undefined
+
     const promise = new Promise<void>((resolve, reject) => {
       settlement = { resolve, reject }
     })
+
     const request = {
       id: nextRequestId++,
       promise,
       type,
       [targetKey]: target
     } as ImageActionRequest<TTarget, TTargetKey>
+
     settlements.set(request.id, settlement as ImageActionSettlement)
     pendingRequests.push(request)
     onRequest?.(type, target, options)
+
     return request
   }
 
@@ -55,6 +59,7 @@ export function createImageActionBus<TTarget, TTargetKey extends string, TReques
     actionPromise: Promise<void> | void
   ): void {
     const settlement = settlements.get(request.id)
+
     if (!settlement) return
 
     settlements.delete(request.id)
@@ -77,6 +82,7 @@ export function createImageActionBus<TTarget, TTargetKey extends string, TReques
     }
 
     pendingRequests = remaining
+
     return matches
   }
 

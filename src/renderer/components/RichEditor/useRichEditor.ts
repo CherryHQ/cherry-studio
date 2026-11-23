@@ -20,6 +20,7 @@ const logger = loggerService.withContext('useRichEditor')
 
 function canAutoFocus(editor: Editor): boolean {
   const active = editor.view.dom.ownerDocument.activeElement
+
   return !active?.matches('input, textarea, [contenteditable="true"]') || editor.view.dom.contains(active)
 }
 
@@ -172,15 +173,18 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         onTocUpdate: (content) => {
           const resolveParent = (): HTMLElement | null => {
             if (!scrollParent) return null
+
             return typeof scrollParent === 'function' ? (scrollParent as () => HTMLElement)() : scrollParent
           }
 
           const parent = resolveParent()
+
           if (!parent) return
           const parentTop = parent.getBoundingClientRect().top
 
           let closestIndex = -1
           let minDelta = Number.POSITIVE_INFINITY
+
           for (let i = 0; i < content.length; i++) {
             const rect = content[i].dom.getBoundingClientRect()
             const delta = rect.top - parentTop
@@ -191,12 +195,15 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
               closestIndex = i
             }
           }
+
           if (closestIndex === -1) {
             // If all are above the viewport, pick the last one above
             for (let i = 0; i < content.length; i++) {
               const rect = content[i].dom.getBoundingClientRect()
+
               if (rect.top < parentTop) closestIndex = i
             }
+
             if (closestIndex === -1) closestIndex = 0
           }
 
@@ -204,6 +211,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
             const rect = item.dom.getBoundingClientRect()
             const isScrolledOver = rect.top < parentTop
             const isActive = idx === closestIndex
+
             return { ...item, isActive, isScrolledOver }
           })
 
@@ -213,9 +221,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           onClick: (node, pos) => {
             // Get position from the clicked element
             let position: { x: number; y: number; top: number } | undefined
+
             if (event?.target instanceof HTMLElement) {
               const rect =
                 event.target.closest('.math-display')?.getBoundingClientRect() || event.target.getBoundingClientRect()
+
               position = {
                 x: rect.left + rect.width / 2,
                 y: rect.bottom,
@@ -235,16 +245,20 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
                 }
               }
             })
+
             window.dispatchEvent(customEvent)
+
             return true
           }
         },
         mathInlineOptions: {
           onClick: (node, pos) => {
             let position: { x: number; y: number; top: number } | undefined
+
             if (event?.target instanceof HTMLElement) {
               const rect =
                 event.target.closest('.math-inline')?.getBoundingClientRect() || event.target.getBoundingClientRect()
+
               position = {
                 x: rect.left + rect.width / 2,
                 y: rect.bottom,
@@ -264,7 +278,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
                 }
               }
             })
+
             window.dispatchEvent(customEvent)
+
             return true
           }
         },
@@ -287,6 +303,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
     spellcheck: enableSpellCheck ? 'true' : 'false'
   }
+
   // `placeholder` decorates content; callers without a visible label supply the accessible name here.
   if (ariaLabel) attributes['aria-label'] = ariaLabel
 
@@ -301,11 +318,14 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         // First check if we're inside a code block - if so, insert plain text
         const { selection } = view.state
         const { $from } = selection
+
         if ($from.parent.type.name === 'codeBlock') {
           const text = event.clipboardData?.getData('text/plain') || ''
+
           if (text) {
             const tr = view.state.tr.insertText(text, selection.from, selection.to)
             view.dispatch(tr)
+
             return true
           }
         }
@@ -320,9 +340,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
         if (imageItem && enableImageInsertion) {
           const file = imageItem.getAsFile()
+
           if (file) {
             // Handle image paste by saving to local storage
             void handleImagePaste(file)
+
             return true
           }
         }
@@ -342,19 +364,25 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
         // Default behavior for non-code blocks: insert clipboard text via the native markdown AST
         const text = clipboardText
+
         if (text) {
           if (!enableImageInsertion) {
             const parsed = editor.markdown?.parse(text)
+
             if (parsed) {
               const sanitized = stripImageNodes(parsed)
+
               if (sanitized.removedImages) {
                 const inline = pickInlinePasteContent(sanitized.doc)
+
                 if (inline) {
                   editor.commands.insertContent(inline)
                 } else if (sanitized.doc.content?.length) {
                   editor.commands.insertContent(sanitized.doc.content)
                 }
+
                 onPaste?.(text)
+
                 return true
               }
             }
@@ -371,6 +399,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
             // text), but splice in only the inline content so the paste isn't wrapped in a new block.
             // Fall back to verbatim text for block-y lines (heading/list/etc.) that have no inline form.
             const inline = pickInlinePasteContent(editor.markdown?.parse(text))
+
             if (inline) {
               editor.commands.insertContent(inline)
             } else {
@@ -380,9 +409,12 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           } else {
             editor.commands.insertContent(text, { contentType: 'markdown' })
           }
+
           onPaste?.(text)
+
           return true
         }
+
         return false
       },
       transformPasted: (slice) => (enableImageInsertion ? slice : stripImageNodesFromSlice(slice)),
@@ -392,9 +424,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
       // to avoid re-serializing markdown while switching view modes.
       if (!editable || !transaction.docChanged) return
+
       if (!editor.isFocused && !isUserCommandTransaction(transaction)) return
 
       const content = editor.getText()
+
       try {
         // Serialize straight from the ProseMirror doc via the native markdown AST.
         const convertedMarkdown = editor.getMarkdown()
@@ -402,6 +436,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         onChange?.(convertedMarkdown)
 
         onContentChange?.(content)
+
         if (onHtmlChange) {
           onHtmlChange(editor.getHTML())
         }
@@ -414,7 +449,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     onCreate: ({ editor: currentEditor }) => {
       migrateMathStrings(currentEditor)
+
       if (!autoFocus || !canAutoFocus(currentEditor)) return
+
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
@@ -474,6 +511,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           // content scan over the notes tree, not a ref table.
           cleanupPolicy: 'manual'
         })
+
         const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 
         // Insert image into editor using local file path
@@ -494,11 +532,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
       editor.setEditable(editable, false)
+
       if (editable && autoFocus) {
         try {
           setTimeout(() => {
             if (editor && !editor.isDestroyed && canAutoFocus(editor)) {
               const isLong = editor.getText().length > 2000
+
               if (!isLong) {
                 editor.commands.focus('end')
               }
@@ -529,6 +569,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           .setEnhancedLink({ href })
           .run()
       }
+
       setLinkEditorState({
         show: false,
         position: { x: 0, y: 0 },
@@ -618,6 +659,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
       // Compute fallback position if not provided
       let finalPosition = position
+
       if (!finalPosition) {
         const rect = editor.view.dom.getBoundingClientRect()
         finalPosition = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }

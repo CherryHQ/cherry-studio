@@ -59,6 +59,7 @@ export function applyWindowBehavior(
   // and Windows topmost z-order churn.
   if (windowOptions.alwaysOnTop === true && behavior.alwaysOnTop) {
     const { level, relativeLevel } = behavior.alwaysOnTop
+
     if (level !== undefined && relativeLevel !== undefined) {
       window.setAlwaysOnTop(true, level, relativeLevel)
     } else if (level !== undefined) {
@@ -84,6 +85,7 @@ export function applyWindowBehavior(
   if (behavior.hideOnBlur) {
     window.on('blur', () => {
       if (window.isDestroyed() || !window.isVisible()) return
+
       // override === false means "pinned / don't auto-hide"; undefined falls
       // through to the registry-declared default (true in this branch).
       if (getHideOnBlurOverride(id) === false) return
@@ -151,13 +153,16 @@ export class BehaviorController {
    */
   public setHideOnBlur(windowId: string, enabled: boolean): void {
     const managed = this.host.getManagedWindow(windowId)
+
     if (!managed) return
+
     if (!managed.metadata.behavior?.hideOnBlur) {
       // No listener was installed by applyWindowBehavior for this window — the
       // override would have no effect. Skip silently rather than create a
       // false impression of capability.
       return
     }
+
     this.hideOnBlurOverride.set(windowId, enabled)
   }
 
@@ -175,8 +180,10 @@ export class BehaviorController {
    */
   public setAlwaysOnTop(windowId: string, enabled: boolean): void {
     const managed = this.host.getManagedWindow(windowId)
+
     if (!managed || managed.window.isDestroyed()) return
     const { level, relativeLevel } = this.resolveAlwaysOnTop(windowId, managed)
+
     // Pass only the arguments actually declared — avoids trailing `undefined`s
     // that would change the call signature observed by spies or future overloads.
     if (level !== undefined && relativeLevel !== undefined) {
@@ -223,6 +230,7 @@ export class BehaviorController {
    */
   public hideMacDockWhileShown(windowId: string): void {
     const managed = this.host.getManagedWindow(windowId)
+
     if (!managed || managed.window.isDestroyed() || this.macDockHiders.has(windowId)) return
     this.macDockHiders.add(windowId)
     managed.window.once('hide', () => {
@@ -287,7 +295,9 @@ export class BehaviorController {
   /** The override if one is set, else what the registry declares. */
   private resolveAlwaysOnTop(windowId: string, managed: ManagedWindow): NonNullable<WindowBehavior['alwaysOnTop']> {
     const override = this.alwaysOnTopLevelOverride.get(windowId)
+
     if (override !== undefined) return { level: override }
+
     return managed.metadata.behavior?.alwaysOnTop ?? {}
   }
 

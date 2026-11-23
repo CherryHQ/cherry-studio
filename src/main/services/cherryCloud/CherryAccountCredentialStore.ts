@@ -31,6 +31,7 @@ const credentialsSchema = z
   .strict()
 
 export type CherryAccountStoredSession = z.infer<typeof sessionSchema>
+
 export type CherryAccountCredentials = z.infer<typeof credentialsSchema>
 
 function credentialsPath(): string {
@@ -46,16 +47,19 @@ export class CherryAccountCredentialStore {
   get(): CherryAccountCredentials | null {
     const filePath = credentialsPath()
     let raw: string
+
     try {
       raw = readFileSync(filePath, 'utf8')
     } catch (error) {
       if (isMissingFileError(error)) return null
       logger.warn('Failed to read Cherry account credentials', error as Error)
+
       return null
     }
 
     try {
       const parsed = credentialsSchema.safeParse(JSON.parse(raw))
+
       if (parsed.success) return parsed.data
     } catch {
       // Malformed JSON is handled like any other invalid credential payload.
@@ -63,6 +67,7 @@ export class CherryAccountCredentialStore {
 
     logger.warn('Cherry account credentials are invalid; removing the file')
     this.removeFile(filePath)
+
     return null
   }
 
@@ -83,6 +88,7 @@ export class CherryAccountCredentialStore {
 
   clearSession(): void {
     const credentials = this.get()
+
     if (!credentials?.session) return
     this.replace({ ...credentials, session: null })
   }

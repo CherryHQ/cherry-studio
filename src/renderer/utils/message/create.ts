@@ -40,6 +40,7 @@ export function createBaseMessageBlock<T extends MessageBlockType>(
   overrides: Partial<Omit<BaseMessageBlock, 'id' | 'messageId' | 'type'>> = {}
 ): BaseMessageBlock & { type: T } {
   const now = new Date().toISOString()
+
   return {
     id: uuidv4(),
     messageId,
@@ -64,6 +65,7 @@ export function createMainTextBlock(
   overrides: Partial<Omit<MainTextMessageBlock, 'id' | 'messageId' | 'type' | 'content'>> = {}
 ): MainTextMessageBlock {
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.MAIN_TEXT, overrides)
+
   return {
     ...baseBlock,
     content,
@@ -84,8 +86,10 @@ export function createImageBlock(
   if (overrides.file && overrides.file.type !== FILE_TYPE.IMAGE) {
     logger.warn(`Attempted to create ImageBlock with non-image file type: ${overrides.file.type}`)
   }
+
   const { file, url, metadata, ...baseOverrides } = overrides
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.IMAGE, baseOverrides)
+
   return {
     ...baseBlock,
     url: url,
@@ -110,7 +114,9 @@ export function createThinkingBlock(
     status: MessageBlockStatus.PROCESSING,
     ...overrides
   }
+
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.THINKING, baseOverrides)
+
   return {
     ...baseBlock,
     content,
@@ -133,10 +139,12 @@ export function createTranslationBlock(
   overrides: Partial<Omit<TranslationMessageBlock, 'id' | 'messageId' | 'type' | 'content' | 'targetLanguage'>> = {}
 ): TranslationMessageBlock {
   const { sourceBlockId, sourceLanguage, ...baseOverrides } = overrides
+
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.TRANSLATION, {
     status: MessageBlockStatus.SUCCESS,
     ...baseOverrides
   })
+
   return {
     ...baseBlock,
     content,
@@ -161,6 +169,7 @@ export function createFileBlock(
   if (file.type === FILE_TYPE.IMAGE) {
     logger.warn('Use createImageBlock for image file types.')
   }
+
   return {
     ...createBaseMessageBlock(messageId, MessageBlockType.FILE, overrides),
     file
@@ -184,6 +193,7 @@ export function createErrorBlock(
     error: errorData,
     ...overrides
   })
+
   return baseBlock
 }
 
@@ -200,6 +210,7 @@ export function createToolBlock(
   overrides: Partial<Omit<ToolMessageBlock, 'id' | 'messageId' | 'type' | 'toolId'>> = {}
 ): ToolMessageBlock {
   let initialStatus = MessageBlockStatus.PROCESSING
+
   if (overrides.content !== undefined || overrides.error !== undefined) {
     initialStatus = overrides.error ? MessageBlockStatus.ERROR : MessageBlockStatus.SUCCESS
   } else if (overrides.toolName || overrides.arguments) {
@@ -207,15 +218,18 @@ export function createToolBlock(
   }
 
   const { toolName, arguments: args, content, error, metadata, ...baseOnlyOverrides } = overrides
+
   const baseOverrides: Partial<Omit<BaseMessageBlock, 'id' | 'messageId' | 'type'>> = {
     status: initialStatus,
     error: error,
     metadata: metadata,
     ...baseOnlyOverrides
   }
+
   logger.info('createToolBlock_baseOverrides', baseOverrides.metadata)
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.TOOL, baseOverrides)
   logger.info('createToolBlock_baseBlock', baseBlock.metadata)
+
   return {
     ...baseBlock,
     toolId,

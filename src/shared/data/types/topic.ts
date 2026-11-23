@@ -10,6 +10,7 @@ import { TraceIdSchema } from './trace'
 
 export const TopicIdSchema = z.uuidv4()
 export const TopicNameSchema = z.string().min(1).max(255)
+
 /** Entity-side name validator: DB DEFAULT '' means a stored row may have an empty name. */
 export const TopicNameEntitySchema = z.string().max(255)
 
@@ -48,4 +49,5 @@ export const TopicSchema = z.strictObject({
    */
   deletedAt: z.iso.datetime().optional()
 })
+
 export type Topic = z.infer<typeof TopicSchema>

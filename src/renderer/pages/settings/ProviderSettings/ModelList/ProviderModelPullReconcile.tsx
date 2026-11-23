@@ -24,6 +24,7 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
   const pullReconcile = useProviderModelPullReconcile(providerId)
   const [showPullGuide, setShowPullGuide] = useState(false)
   const pullGuideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const showPullGuideBriefly = useCallback(() => {
     setShowPullGuide(true)
 
@@ -36,6 +37,7 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
       pullGuideTimerRef.current = null
     }, 1200)
   }, [])
+
   const openPullReconcile = useCallback(() => {
     setShowPullGuide(false)
     pullReconcile.openPullReconcile()

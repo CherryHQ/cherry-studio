@@ -14,6 +14,7 @@ import { PersistedLangCodeSchema } from '../preference/preferenceTypes'
 // ============================================================================
 
 export const TranslateHistoryKindSchema = z.enum(['text', 'file'])
+
 /**
  * What a history row's two text columns hold: the translation itself
  * (`'text'`), or the display names of a pair of files (`'file'`).
@@ -76,6 +77,7 @@ export const TranslateHistorySchema = z.strictObject({
   /** ISO 8601 datetime */
   updatedAt: z.iso.datetime()
 })
+
 /** Translate history entity. */
 export type TranslateHistory = z.infer<typeof TranslateHistorySchema>
 
@@ -96,5 +98,6 @@ export const TranslateLanguageSchema = z.strictObject({
   /** ISO 8601 datetime */
   updatedAt: z.iso.datetime()
 })
+
 /** Translate language entity. Both builtin and user-created languages share this schema. */
 export type TranslateLanguage = z.infer<typeof TranslateLanguageSchema>

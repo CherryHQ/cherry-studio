@@ -37,6 +37,7 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   // `anthropic-cache` checks the original assistant prompt for volatile time variables before caching.
   if (assistant?.prompt) {
     const resolved = await replacePromptVariables(assistant.prompt, model.name)
+
     if (resolved) sections.push(resolved)
   }
 
@@ -60,6 +61,7 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   if (input.mcpInstructions) sections.push(input.mcpInstructions)
 
   if (sections.length === 0) return undefined
+
   return sections.join('\n\n')
 }
 
@@ -67,5 +69,6 @@ export function buildWebSearchDateContext(now: Date): string {
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
+
   return `<current-date>${year}-${month}-${day}</current-date>\nInterpret relative dates such as today, this month, and the last 30 days from this date. Do not substitute dates remembered from training or earlier conversation turns.`
 }

@@ -28,6 +28,7 @@ const RESOURCE_TYPES = [
   { id: 'agent', label: 'marketplace.type.agent', icon: Bot },
   { id: 'mcp', label: 'marketplace.type.mcp', icon: McpLogo }
 ] as const
+
 const OVERVIEW_TYPES = ['skill', 'agent', 'mcp'] as const
 const marketplaceRoute = getRouteApi('/app/marketplace')
 
@@ -38,15 +39,18 @@ export default function MarketplacePage() {
   const [selectedType, setSelectedType] = useState<MarketplaceView>('all')
   const resourceType = mcpView || mcpProvider ? 'mcp' : selectedType
   const [sourceId, setSourceId] = useState<string | null>(null)
+
   const [queries, setQueries] = useState<Record<MarketplaceView, string>>({
     all: '',
     skill: '',
     agent: '',
     mcp: ''
   })
+
   const [templateCategory, setTemplateCategory] = useState('')
   const [skillCategory, setSkillCategory] = useState('')
   const moreMcpSources = mcpView === 'sources' || Boolean(mcpProvider)
+
   const selectResourceType = (type: MarketplaceView) => {
     setSelectedType(type)
     void navigate({
@@ -55,27 +59,36 @@ export default function MarketplacePage() {
       replace: true
     })
   }
+
   const query = queries[resourceType]
   const skillSourceId = resourceType === 'skill' ? sourceId : null
   const registrySource = skillSourceId === 'skills.sh' || skillSourceId === 'claude-plugins.dev' ? skillSourceId : null
+
   const skills = useMarketplace(
     registrySource ? null : skillSourceId,
     !registrySource && (resourceType === 'all' || resourceType === 'skill')
   )
+
   const agents = useAgentCatalogPresets({ enabled: resourceType === 'all' || resourceType === 'agent' })
+
   const skillCategories = useMemo(
     () => [...new Set((skills.catalog.data ?? []).map((skill) => skill.domain).filter(Boolean))],
     [skills.catalog.data]
   )
+
   const curatedSkillCategory = !skillSourceId && skillCategories.includes(skillCategory) ? skillCategory : ''
+
   const assistants = useAssistantCatalogPresets({
     enabled: resourceType === 'all' || resourceType === 'agent'
   })
+
   const mcp = useBuiltinMcpCatalog()
+
   const templates = useMemo(
     () => buildMarketplaceTemplates(agents.items, assistants.presets, i18n.language),
     [agents.items, assistants.presets, i18n.language]
   )
+
   const categories = useMemo(
     () =>
       buildAssistantCatalogTabs(
@@ -87,28 +100,37 @@ export default function MarketplacePage() {
         .map((tab) => tab.id),
     [templates]
   )
+
   const counts: Record<MarketplaceView, number | null> = {
     skill: registrySource ? null : skillSourceId ? (skills.catalog.data?.length ?? null) : skills.curatedCount,
     agent: agents.isLoading || agents.error || assistants.isLoading || assistants.error ? null : templates.length,
     mcp: mcp.presets.length,
     all: null
   }
+
   const curatedCounts = [skills.curatedCount, counts.agent, counts.mcp]
+
   if (curatedCounts.every((count) => count !== null))
     counts.all = curatedCounts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
+
   const browse = (type: MarketplaceResourceType) => {
     setQueries((current) => ({ ...current, [type]: query }))
+
     if (type === 'skill') setSourceId(null)
+
     if (type === 'agent') setTemplateCategory('')
     selectResourceType(type)
   }
+
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
     if (type === 'skill' && !preview && registrySource)
       return <RegistrySkillsCatalog source={registrySource} query={query} active />
+
     if (type === 'skill')
       return (
         <MarketplaceSkills market={skills} query={query} category={curatedSkillCategory} preview={preview} active />
       )
+
     if (type === 'mcp')
       return (
         <MarketplaceMcp
@@ -127,6 +149,7 @@ export default function MarketplacePage() {
           active
         />
       )
+
     return (
       <MarketplaceTemplates
         items={templates}
@@ -145,6 +168,7 @@ export default function MarketplacePage() {
       />
     )
   }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background" data-testid="marketplace-page">
       <div className="flex min-h-0 w-full flex-1 gap-6 px-4 pt-4">

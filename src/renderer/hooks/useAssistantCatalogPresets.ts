@@ -54,6 +54,7 @@ const ORDERED_GROUP_ALIASES = [
 ]
 
 const orderedGroupRank = new Map<string, number>()
+
 ORDERED_GROUP_ALIASES.forEach((aliases, index) => {
   aliases.forEach((alias) => orderedGroupRank.set(alias, index))
 })
@@ -65,6 +66,7 @@ function normalizePresets(value: unknown): AssistantCatalogPreset[] {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Catalog array entries remain raw values until each complete preset passes its schema.
   return value.flatMap((preset: unknown) => {
     const result = assistantCatalogPresetSchema.safeParse(preset)
+
     return result.success ? [result.data] : []
   })
 }
@@ -76,7 +78,9 @@ function getPresetGroups(preset: AssistantCatalogPreset): string[] {
 function sortGroups(a: string, b: string) {
   const rankA = orderedGroupRank.get(a) ?? Number.MAX_SAFE_INTEGER
   const rankB = orderedGroupRank.get(b) ?? Number.MAX_SAFE_INTEGER
+
   if (rankA !== rankB) return rankA - rankB
+
   return a.localeCompare(b, 'zh')
 }
 
@@ -110,8 +114,10 @@ export function filterAssistantCatalogPresets(
   if (activeTab === ASSISTANT_CATALOG_MY_TAB) return []
 
   const keyword = search.trim().toLowerCase()
+
   return presets.filter((preset) => {
     if (!getPresetGroups(preset).includes(activeTab)) return false
+
     if (!keyword) return true
 
     return (
@@ -133,9 +139,11 @@ export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPr
   }
 
   const description = preset.description?.trim()
+
   if (description) dto.description = description
 
   const emoji = preset.emoji?.trim()
+
   if (emoji) dto.emoji = emoji
 
   if (preset.defaultModel?.provider && preset.defaultModel.id) {
@@ -148,6 +156,7 @@ export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPr
 async function loadCatalogPresets(resourcesPath: string, language: string) {
   const fileName = language === 'zh-CN' ? 'agents-zh.json' : 'agents-en.json'
   const content = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
+
   return normalizePresets(JSON.parse(content))
 }
 

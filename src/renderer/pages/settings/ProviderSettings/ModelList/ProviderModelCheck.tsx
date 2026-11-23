@@ -29,8 +29,10 @@ export default function ProviderModelCheck({ onAddModels }: ProviderModelCheckPr
         onClick={() => {
           if (isAddModelsAction) {
             onAddModels?.()
+
             return
           }
+
           health.openModelCheck()
         }}>
         {health.isModelChecking ? <Loader2 className="motion-safe:animate-spin" /> : null}

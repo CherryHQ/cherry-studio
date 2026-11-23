@@ -40,6 +40,7 @@ interface Props {
 const logger = loggerService.withContext('ActionTranslate')
 const TRANSLATION_MESSAGE_ID = 'selection-translation-result'
 const TRANSLATION_TOPIC_ID = 'selection-translation'
+
 const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) => {
   const { t } = useTranslation()
   const selectedText = action.selectedText
@@ -51,6 +52,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   const detectLanguage = useDetectLang()
   const { quickModel } = useDefaultModel()
   const detectionModelId = autoDetectionMethod === 'franc' ? undefined : quickModel?.id
+
   // Read once, not subscribed: the pair is session-local, so saves from other windows must not retarget it.
   const [savedLangCodes, setSavedLangCodes] = useState<{
     preferred: TranslateLangCode
@@ -84,6 +86,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   const updateLanguagePair = useCallback(() => {
     if (!isLanguagesLoaded || !savedLangCodes) {
       logger.silly('[updateLanguagePair] Languages or saved language codes are not loaded. Skip.')
+
       return
     }
 
@@ -94,6 +97,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
         : savedLangCodes.preferred
 
     const targetLang = getLanguage(preferredLangCode)
+
     if (targetLang) {
       setTargetLanguage(targetLang.langCode)
       setActualTargetLanguage(targetLang.langCode)
@@ -103,6 +107,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
     }
 
     const alterLang = getLanguage(savedLangCodes.alter)
+
     if (alterLang) {
       setAlterLanguage(alterLang.langCode)
     }
@@ -112,20 +117,24 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   const initialize = useCallback(async () => {
     if (initialized) {
       logger.silly('[initialize] Already initialized.')
+
       return
     }
 
     // Only try to initialize when languages and saved language codes are loaded, so updateLanguagePair would not fail.
     if (!isLanguagesLoaded || !savedLangCodes) {
       logger.silly('[initialize] Languages or saved language codes not loaded. Skip initialization.')
+
       return
     }
 
     // Edge case
     if (selectedText === undefined) {
       logger.error('[initialize] No selected text.')
+
       return
     }
+
     logger.silly('[initialize] Start initialization.')
 
     updateLanguagePair()
@@ -201,6 +210,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
     clear()
 
     setIsDetecting(true)
+
     const sourceLanguageCode = await detectLanguageOrUnknown(selectedText, detectLanguage, (error) => {
       logger.error('Error detecting language:', error as Error)
     }).finally(() => {
@@ -243,6 +253,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   const translateSelection = useEffectEvent(() => {
     void fetchResult()
   })
+
   useEffect(() => {
     translateSelection()
   }, [selectedText, initialized, targetLanguage, alterLanguage, detectionModelId])
@@ -252,6 +263,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
       if (!initialized) {
         return
       }
+
       setTargetLanguage(newTargetLanguage)
       targetLangRef.current = newTargetLanguage
       setAlterLanguage(newAlterLanguage)
@@ -267,6 +279,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
     (langCode: TranslateLangCode) => {
       if (!initialized) return
       const newLang = getLanguage(langCode)
+
       if (!newLang) return
       setActualTargetLanguage(newLang.langCode)
 
@@ -295,6 +308,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
             size="small"
             onChange={(value) => {
               const next = getLanguage(value)
+
               if (next) handleChangeLanguage(next.langCode, alterLanguage)
               setSettingsOpen(false)
             }}
@@ -310,6 +324,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
             size="small"
             onChange={(value) => {
               const next = getLanguage(value)
+
               if (next) handleChangeLanguage(targetLanguage, next.langCode)
               setSettingsOpen(false)
             }}

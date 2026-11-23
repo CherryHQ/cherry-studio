@@ -10,5 +10,6 @@ export const Route = createFileRoute('/settings/model')({
 
 function ModelSettingsRoute() {
   const { focus } = Route.useSearch()
+
   return <ModelSettings focus={focus} />
 }

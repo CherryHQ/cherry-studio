@@ -14,17 +14,21 @@ function sha256(buffer) {
 
 function readReleaseConfig(configPath = path.join(__dirname, 'release.json')) {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+
   if (config.schemaVersion !== RELEASE_SCHEMA_VERSION) {
     throw new Error(
       `Unsupported better-sqlite3 release schema: expected ${RELEASE_SCHEMA_VERSION}, found ${config.schemaVersion}`
     )
   }
+
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(config.repository)) {
     throw new Error(`Invalid better-sqlite3 release repository: ${config.repository}`)
   }
+
   if (!config.tag || !config.metadata || !config.artifacts) {
     throw new Error('Incomplete better-sqlite3 release configuration')
   }
+
   return config
 }
 
@@ -51,6 +55,7 @@ function releaseAssetUrl(config, assetName) {
 
 function verifyPinnedFile(filePath, asset) {
   const actual = sha256(fs.readFileSync(filePath))
+
   if (actual !== asset.sha256) {
     throw new Error(`Downloaded ${asset.name} checksum mismatch: expected ${asset.sha256}, found ${actual}`)
   }
@@ -59,6 +64,7 @@ function verifyPinnedFile(filePath, asset) {
 function verifyReleaseArtifact({ artifactPaths, assets, expected }) {
   verifyPinnedFile(artifactPaths.addonPath, assets.addon)
   verifyPinnedFile(artifactPaths.manifestPath, assets.manifest)
+
   return verifyNativeArtifact({ ...artifactPaths, expected })
 }
 
@@ -80,6 +86,7 @@ function ensureLinuxNativeArtifact({
   if (!SUPPORTED_ARCHS.includes(arch)) {
     throw new Error(`Unsupported Linux architecture: ${arch}`)
   }
+
   assertReleaseMetadata(config.metadata, metadata)
   const assets = config.artifacts[arch]
   validateAsset(assets?.addon, arch, 'addon')
@@ -87,18 +94,22 @@ function ensureLinuxNativeArtifact({
 
   const artifactPaths = getNativeArtifactPaths(projectRoot, arch)
   const expected = { ...metadata, arch }
+
   try {
     const verified = verifyReleaseArtifact({ artifactPaths, assets, expected })
+
     return { ...verified, cached: true, ...artifactPaths }
   } catch {
     // A missing or stale cache entry is replaced atomically below.
   }
 
   const temporaryDir = `${artifactPaths.outputDir}.tmp-${process.pid}-${Date.now()}`
+
   const temporaryPaths = {
     addonPath: path.join(temporaryDir, 'better_sqlite3.node'),
     manifestPath: path.join(temporaryDir, 'manifest.json')
   }
+
   fs.rmSync(temporaryDir, { recursive: true, force: true })
   fs.mkdirSync(temporaryDir, { recursive: true })
 
@@ -109,6 +120,7 @@ function ensureLinuxNativeArtifact({
     fs.rmSync(artifactPaths.outputDir, { recursive: true, force: true })
     fs.mkdirSync(path.dirname(artifactPaths.outputDir), { recursive: true })
     fs.renameSync(temporaryDir, artifactPaths.outputDir)
+
     return { ...verified, cached: false, ...artifactPaths }
   } finally {
     fs.rmSync(temporaryDir, { recursive: true, force: true })

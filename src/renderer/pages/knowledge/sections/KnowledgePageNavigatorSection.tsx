@@ -27,7 +27,9 @@ const KnowledgePageNavigatorSection = () => {
     deleteGroup,
     deleteBase
   } = useKnowledgePage()
+
   const { move: reorderBase, isPending: isReorderingBase } = useKnowledgeBaseReorder()
+
   const { move: reorderGroup, isPending: isReorderingGroup } = useReorder('/groups', {
     query: { entityType: 'knowledge' }
   })

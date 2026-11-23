@@ -25,6 +25,7 @@ interface NavigationProps {
 
 function Navigation({ isFirst, isLast, onPrevious, onNext }: NavigationProps) {
   const { t } = useTranslation()
+
   return (
     <div className="border-default-200 flex items-center justify-between border-t pt-3">
       <Button variant="outline" disabled={isFirst} onClick={onPrevious} className="flex items-center">
@@ -79,6 +80,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     const parsedInput = parseAskUserQuestionToolInput(toolResponse.arguments)
     const parsedOutput = parseAskUserQuestionToolInput(toolResponse.response)
     const questions = parsedInput?.questions ?? optimisticInput?.questions ?? parsedOutput?.questions ?? []
+
     const answers = {
       ...parsedOutput?.answers,
       ...parsedInput?.answers,
@@ -92,6 +94,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
         hasResponse: !!toolResponse.response
       })
     }
+
     return { questions, answers }
   }, [optimisticInput, toolResponse.arguments, toolResponse.response, toolResponse.status])
 
@@ -101,6 +104,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
   const answeredCount = Object.keys(answers).length
+
   // The composer owns unanswered live questions; terminal snapshots remain valid history records.
   const isTransientWithoutAnswer =
     answeredCount === 0 &&

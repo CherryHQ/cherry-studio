@@ -11,6 +11,7 @@ export function resolveApiKeyFallbacks(
 
   const enabledKeys = apiKeys.filter((key) => key.isEnabled)
   const selectedIndex = enabledKeys.findIndex((key) => key.id === credentialReceipt.id)
+
   if (selectedIndex < 0 || enabledKeys.length < 2) return []
 
   return [...enabledKeys.slice(selectedIndex + 1), ...enabledKeys.slice(0, selectedIndex)]

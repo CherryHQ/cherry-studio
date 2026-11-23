@@ -5,6 +5,7 @@ import { cacheService } from '@renderer/data/CacheService'
 const subscribe = (onStoreChange: () => void) => {
   const unsubscribeRenaming = cacheService.subscribe('topic.renaming', onStoreChange)
   const unsubscribeNewlyRenamed = cacheService.subscribe('topic.newly_renamed', onStoreChange)
+
   return () => {
     unsubscribeRenaming()
     unsubscribeNewlyRenamed()
@@ -18,7 +19,9 @@ export function useTopicRenameState(topicId: string) {
       (cacheService.get('topic.newly_renamed')?.includes(topicId) ? 2 : 0),
     [topicId]
   )
+
   // A primitive snapshot lets React ignore changes belonging to other topics.
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+
   return { isRenaming: Boolean(state & 1), isNewlyRenamed: Boolean(state & 2) }
 }

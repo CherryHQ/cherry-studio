@@ -24,8 +24,10 @@ export const MessageAutomationRepl = memo(({ toolResponse }: { toolResponse: Too
   const { id, arguments: args, status, response, approval } = toolResponse
   const kind = getAutomationReplKind(toolResponse.tool) ?? 'execute'
   const code = args && typeof args === 'object' && 'code' in args && typeof args.code === 'string' ? args.code : ''
+
   const title =
     args && typeof args === 'object' && 'title' in args && typeof args.title === 'string' ? args.title.trim() : ''
+
   const result = useMemo(() => parseAutomationReplOutput(response), [response])
   const output = useMemo(() => formatAutomationReplOutput(result.text), [result.text])
   const hasError = status === 'error' || result.isError

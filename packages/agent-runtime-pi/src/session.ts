@@ -87,6 +87,7 @@ export async function createAgentRuntimeSession(
   const events = new SessionEvents(sessionManager, options.onEvent ?? (() => {}))
   // Pi defers a prompt made while it dispatches agent_settled and returns before it runs; `held` waits instead.
   let settling: { over: Promise<void>; end: () => void } | undefined
+
   const settleWatch: ExtensionFactory = (pi) => {
     pi.on('agent_settled', () => {
       let end!: () => void
@@ -96,12 +97,14 @@ export async function createAgentRuntimeSession(
 
   const { compaction } = options
   const summarize = compaction?.summarize
+
   const extensionFactories = [
     // First, so the watch covers every other extension's agent_settled handler.
     settleWatch,
     ...(options.extensionFactories ?? []),
     ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : [])
   ]
+
   const settingsManager = SettingsManager.inMemory(
     {
       ...options.settings,
@@ -115,7 +118,9 @@ export async function createAgentRuntimeSession(
     },
     { projectTrusted: options.contextFiles === true }
   )
+
   const eventBus = createEventBus()
+
   const resourceLoader = new DefaultResourceLoader({
     eventBus,
     cwd,
@@ -135,6 +140,7 @@ export async function createAgentRuntimeSession(
       ...(offerIntent ? [TOOL_INTENT_GUIDE] : [])
     ]
   })
+
   await resourceLoader.reload()
 
   const { session } = await createAgentSession({
@@ -152,8 +158,10 @@ export async function createAgentRuntimeSession(
     customTools: options.tools ?? [],
     excludeTools: options.excludeTools
   })
+
   session.subscribe((event) => {
     events.handle(event)
+
     if (event.type !== 'agent_settled') return
     settling?.end()
     settling = undefined
@@ -165,8 +173,10 @@ export async function createAgentRuntimeSession(
       // A run Pi deferred during the settle goes first, preserving native ordering.
       await session.waitForIdle()
     }
+
     await run()
   }
+
   const owner: AgentRuntimeSession = {
     session,
     compactionSummarizer: compaction?.summarize,
@@ -189,6 +199,7 @@ export async function createAgentRuntimeSession(
       }
     }
   }
+
   try {
     // Before extensions bind, so every loadout from here on (extension, MCP, activated tools) goes through it.
     const intent = createToolIntent()
@@ -197,8 +208,10 @@ export async function createAgentRuntimeSession(
     await session.bindExtensions({})
     const baseTools = session.getActiveToolNames()
     events.setBaseTools(baseTools)
+
     if (events.activatedTools.length > 0) session.setActiveToolsByName([...baseTools, ...events.activatedTools])
     events.flush()
+
     return owner
   } catch (cause) {
     await owner.dispose()

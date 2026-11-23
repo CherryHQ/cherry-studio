@@ -38,6 +38,7 @@ export function useSidebarResize(
 
         if (isIntermediateSidebarWidth(nextWidth)) {
           onResizePreview?.(nextWidth)
+
           return
         }
 
@@ -72,6 +73,7 @@ export function useSidebarResize(
         if (lastWidth !== null && isIntermediateSidebarWidth(lastWidth)) {
           setWidth(lastWidth > startWidth ? SIDEBAR_FULL_THRESHOLD : SIDEBAR_ICON_WIDTH)
         }
+
         cleanup()
       }
 

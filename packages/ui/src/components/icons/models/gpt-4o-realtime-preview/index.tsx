@@ -4,6 +4,7 @@ import { Gpt4oRealtimePreviewLight } from './light'
 
 const Gpt4oRealtimePreview = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt4oRealtimePreviewLight {...props} className={className} />
+
   return <Gpt4oRealtimePreviewLight {...props} className={className} />
 }
 

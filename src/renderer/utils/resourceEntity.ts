@@ -22,9 +22,11 @@ export function isUntouchedSinceCreation(item: { createdAt?: string; updatedAt?:
   if (item.createdAt === undefined || item.updatedAt === undefined) return false
   const createdAtMs = Date.parse(item.createdAt)
   const updatedAtMs = Date.parse(item.updatedAt)
+
   if (!Number.isFinite(createdAtMs) || !Number.isFinite(updatedAtMs)) {
     return item.updatedAt === item.createdAt
   }
+
   return Math.abs(updatedAtMs - createdAtMs) <= UNTOUCHED_SINCE_CREATION_TOLERANCE_MS
 }
 
@@ -44,7 +46,9 @@ export function pickNeighbourAfterRemoval<T extends { id: string }>(
 ): T | undefined {
   if (orderedList.length <= 1) return undefined
   const index = orderedList.findIndex((item) => item.id === id)
+
   if (index === -1) return undefined
+
   return orderedList[index + 1 === orderedList.length ? index - 1 : index + 1]
 }
 
@@ -55,9 +59,11 @@ export function applyOptimisticOrder<T extends { id: string }>(
 ): T[] {
   const itemById = new Map(items.map((item) => [item.id, item]))
   const listedIds = new Set(orderedIds)
+
   return [
     ...orderedIds.flatMap((id) => {
       const item = itemById.get(id)
+
       return item ? [item] : []
     }),
     ...items.filter((item) => !listedIds.has(item.id))
@@ -75,6 +81,7 @@ export function findLatestUpdated<T extends { updatedAt?: string }>(items: reado
   for (const item of items) {
     const parsedUpdatedAtMs = item.updatedAt ? Date.parse(item.updatedAt) : Number.NEGATIVE_INFINITY
     const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
+
     if (!latest || updatedAtMs > latestUpdatedAtMs) {
       latest = item
       latestUpdatedAtMs = updatedAtMs
@@ -95,6 +102,7 @@ export function findLatestActive<T extends { lastActivityAt: string }>(items: re
   for (const item of items) {
     const parsedActivityAtMs = Date.parse(item.lastActivityAt)
     const activityAtMs = Number.isFinite(parsedActivityAtMs) ? parsedActivityAtMs : Number.NEGATIVE_INFINITY
+
     if (!latest || activityAtMs > latestActivityAtMs) {
       latest = item
       latestActivityAtMs = activityAtMs

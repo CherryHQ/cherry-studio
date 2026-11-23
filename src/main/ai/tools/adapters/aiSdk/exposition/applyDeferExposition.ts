@@ -43,6 +43,7 @@ export async function applyDeferExposition(
   // the inline tool. `tool_invoke` / `tool_exec` still guard at execution time as the runtime
   // backstop for the `registry.getByName(any-name)` vector.
   const { deferredNames } = await shouldDefer(candidateEntries, contextWindow)
+
   if (deferredNames.size === 0) return { tools, deferredEntries: [] }
 
   // Per-request scope for the meta-tools: every tool the request exposed (inline or deferred).
@@ -58,9 +59,11 @@ export async function applyDeferExposition(
   const inspectedNames = new Set<string>()
 
   const inlineTools: ToolSet = {}
+
   for (const [name, entry] of Object.entries(tools)) {
     if (!deferredNames.has(name)) inlineTools[name] = entry
   }
+
   inlineTools[TOOL_SEARCH_TOOL_NAME] = createToolSearchTool(registry, deferredNames, inspectedNames)
   inlineTools[TOOL_INSPECT_TOOL_NAME] = createToolInspectTool(registry, allowedNames, inspectedNames)
   inlineTools[TOOL_INVOKE_TOOL_NAME] = createToolInvokeTool(registry, allowedNames, inspectedNames)
@@ -69,5 +72,6 @@ export async function applyDeferExposition(
   // escalation surface vs the renderer's prior restrictions. Re-enable
   // behind an explicit Preference key when there is a concrete need.
   const deferredEntries = candidateEntries.filter((e) => deferredNames.has(e.name))
+
   return { tools: inlineTools, deferredEntries }
 }

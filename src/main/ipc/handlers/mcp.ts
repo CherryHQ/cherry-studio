@@ -20,6 +20,7 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   },
   'mcp.resource.observe': async ({ serverId, requestId, uri }, { senderId }) => {
     if (!senderId) throw new Error('MCP resource observation requires a managed window')
+
     return application.get('McpRuntimeService').observeDesktopResource(senderId, requestId, serverId, uri)
   },
   // Server lifecycle + per-server queries.
@@ -48,6 +49,7 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   'mcp.server.get_prompt': async ({ serverId, name, args, requestId = randomUUID(), topicId }, { senderId }) => {
     if (!senderId) throw new Error('MCP prompt request requires a managed window')
     const runtime = application.get('McpRuntimeService')
+
     return runtime.runDesktopRequest(senderId, requestId, (signal) =>
       runtime.getPrompt({
         serverId,
@@ -63,6 +65,7 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
     { senderId }
   ) => {
     if (!senderId) throw new Error('MCP resource request requires a managed window')
+
     return application.get('McpRuntimeService').runDesktopRequest(senderId, requestId, (signal) =>
       readMcpResourcePreview({
         serverId,
@@ -81,6 +84,7 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
     senderId ? application.get('ProtocolService').listPendingMcpInstallRequests(senderId) : [],
   'mcp.protocol_install.install': async ({ requestId }, { senderId }) => {
     if (!senderId) throw new Error('MCP protocol install request not found')
+
     return application.get('ProtocolService').installPendingMcpInstallRequest(senderId, requestId)
   },
   'mcp.protocol_install.cancel': async ({ requestId }, { senderId }) => {

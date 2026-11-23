@@ -20,14 +20,19 @@ import type { JSONObject } from '@ai-sdk/provider'
  */
 export function appendDashScopeWebExtractor(body: BodyInit | null | undefined): BodyInit | null | undefined {
   if (typeof body !== 'string') return body
+
   try {
     const json = JSON.parse(body) as JSONObject
+
     if (!Array.isArray(json.tools)) return body
     const tools = json.tools as Array<{ type?: string }>
     const hasTool = (type: string) => tools.some((tool) => tool?.type === type)
+
     if (!hasTool('web_search') || hasTool('web_extractor')) return body
+
     // web_extractor requires thinking; a request that disabled it must keep web_search only.
     if (isThinkingDisabled(json)) return body
+
     return JSON.stringify({
       ...json,
       tools: [...tools, { type: 'web_extractor' }]
@@ -40,5 +45,6 @@ export function appendDashScopeWebExtractor(body: BodyInit | null | undefined): 
 /** Whether the request explicitly turned thinking off (responses `reasoning.effort` / chat `enable_thinking`). */
 function isThinkingDisabled(body: JSONObject): boolean {
   if (body.enable_thinking === false) return true
+
   return (body.reasoning as { effort?: unknown } | undefined)?.effort === 'none'
 }

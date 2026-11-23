@@ -20,5 +20,6 @@ export function useAgentSessionBackgroundTasks(sessionId: string | undefined): A
   const cached = useSharedCacheValue(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
 
   if (!sessionId) return NO_TASKS
+
   return cached ?? NO_TASKS
 }

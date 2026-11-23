@@ -30,6 +30,7 @@ export async function handleReadTool(args: z.infer<typeof ReadToolSchema>, baseD
   // Check if file exists
   try {
     const stats = await fs.stat(validPath)
+
     if (!stats.isFile()) {
       throw new Error(`Path is not a file: ${filePath}`)
     }
@@ -37,6 +38,7 @@ export async function handleReadTool(args: z.infer<typeof ReadToolSchema>, baseD
     if (error.code === 'ENOENT') {
       throw new Error(`File not found: ${filePath}`)
     }
+
     throw error
   }
 
@@ -64,9 +66,11 @@ export async function handleReadTool(args: z.infer<typeof ReadToolSchema>, baseD
   const relativePath = path.relative(baseDir, validPath)
 
   output.push(`File: ${relativePath}`)
+
   if (offset > 0 || limit < lines.length) {
     output.push(`Lines ${offset + 1} to ${Math.min(offset + limit, lines.length)} of ${lines.length}`)
   }
+
   output.push('')
 
   selectedLines.forEach((line, index) => {

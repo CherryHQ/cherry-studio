@@ -17,6 +17,7 @@ function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {
   if (sort === 'name') return a.name.localeCompare(b.name, 'zh')
   const aKey = sort === 'createdAt' ? a.createdAt : a.updatedAt
   const bKey = sort === 'createdAt' ? b.createdAt : b.updatedAt
+
   return bKey.localeCompare(aKey)
 }
 
@@ -69,6 +70,7 @@ export function useResourceLibrary({
     search: isAssistant ? trimmedSearch : undefined,
     groupId: isAssistant ? (activeGroupId ?? undefined) : undefined
   })
+
   // Agent search stays server-side so matching spans the full database, not only the
   // current page. The main service resolves the builtin fallback description for this predicate.
   const agents = agentAdapter.useList({ enabled: isAgent, search: isAgent ? trimmedSearch : undefined })
@@ -79,6 +81,7 @@ export function useResourceLibrary({
   const buildAssistantItem = useCallback(
     (a: Assistant): ResourceItem => {
       const group = a.groupId ? groupById.get(a.groupId) : undefined
+
       return {
         id: a.id,
         type: 'assistant',
@@ -148,8 +151,11 @@ export function useResourceLibrary({
 
   const allResources = useMemo<ResourceItem[]>(() => {
     if (isAssistant) return baseAssistants.data.map(buildAssistantItem)
+
     if (isAgent) return agents.data.map(buildAgentItem)
+
     if (isPrompt) return prompts.data.map(buildPromptItem)
+
     return baseSkills.data.map(buildSkillItem)
   }, [
     isAssistant,
@@ -169,12 +175,14 @@ export function useResourceLibrary({
     () => filteredAssistants.data.map(buildAssistantItem),
     [filteredAssistants.data, buildAssistantItem]
   )
+
   const agentItems = useMemo(() => agents.data.map(buildAgentItem), [agents.data, buildAgentItem])
   const skillItems = useMemo(() => skills.data.map(buildSkillItem), [skills.data, buildSkillItem])
   const promptItems = useMemo(() => prompts.data.map(buildPromptItem), [prompts.data, buildPromptItem])
 
   const resources = useMemo<ResourceItem[]>(() => {
     let list: ResourceItem[]
+
     if (isAssistant) list = filteredAssistantItems
     else if (isAgent) list = agentItems
     else if (isPrompt) list = promptItems
@@ -190,6 +198,7 @@ export function useResourceLibrary({
       : isPrompt
         ? prompts.isLoading
         : baseSkills.isLoading || skills.isLoading
+
   const isRefreshing = isAssistant
     ? baseAssistants.isRefreshing || filteredAssistants.isRefreshing
     : isAgent
@@ -197,6 +206,7 @@ export function useResourceLibrary({
       : isPrompt
         ? prompts.isRefreshing
         : baseSkills.isRefreshing || skills.isRefreshing
+
   const error = isAssistant
     ? (baseAssistants.error ?? filteredAssistants.error ?? assistantGroups.error)
     : isAgent

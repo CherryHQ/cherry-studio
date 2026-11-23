@@ -13,10 +13,12 @@ const applicationSchema = z.object({
   iconPath: z.string().optional(),
   iconDataUrl: z.string().startsWith('data:image/png;base64,').optional()
 })
+
 const listingSchema = z.object({
   applications: z.array(applicationSchema.extend({ id: z.string().min(1) })),
   defaultApplication: applicationSchema.nullable()
 })
+
 const addonSchema = z.object({
   list: z.function({ input: [z.string()], output: z.promise(listingSchema) }),
   open: z.custom<(targetPath: string, applicationId: string) => Promise<void>>((value) => typeof value === 'function')
@@ -42,12 +44,15 @@ export async function openNativeApplication(targetPath: AbsoluteFilePath, applic
 
 export async function nativeApplicationIcon(info: NativeApplication): Promise<string | undefined> {
   if (info.iconDataUrl) return info.iconDataUrl
+
   if (!info.iconPath || !path.isAbsolute(info.iconPath)) return undefined
+
   try {
     const icon =
       process.platform === 'linux'
         ? nativeImage.createFromPath(info.iconPath).resize({ width: 32, height: 32 })
         : await app.getFileIcon(info.iconPath, { size: 'normal' })
+
     return icon.isEmpty() ? undefined : icon.toDataURL()
   } catch {
     return undefined

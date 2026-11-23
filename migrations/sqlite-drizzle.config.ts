@@ -1,4 +1,5 @@
 import { defineConfig } from 'drizzle-kit'
+
 export default defineConfig({
   out: './migrations/sqlite-drizzle',
   // Recursive + exclude *.test.ts so drizzle-kit never loads vitest-dependent files.

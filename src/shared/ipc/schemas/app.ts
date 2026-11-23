@@ -17,11 +17,13 @@ const relocationInspectionSchema = z.discriminatedUnion('valid', [
 ])
 
 const cacheCleanupGroupSchema = z.enum(CACHE_CLEANUP_GROUPS)
+
 const cacheCleanupSizeSchema = z.object({
   bytes: z.number().int().nonnegative().nullable(),
   accuracy: z.enum(CACHE_CLEANUP_SIZE_ACCURACIES),
   completeness: z.enum(CACHE_CLEANUP_SIZE_COMPLETENESS)
 })
+
 const cacheCleanupGroupsInputSchema = z
   .object({
     groups: z.array(cacheCleanupGroupSchema).min(1)

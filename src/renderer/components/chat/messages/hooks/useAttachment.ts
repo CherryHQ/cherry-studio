@@ -15,15 +15,18 @@ const logger = loggerService.withContext('FileAction')
  */
 export function useAttachment() {
   const { t } = useTranslation()
+
   const preview = useCallback(
     async (path: string, title: string, fileType: FileType, extension?: string) => {
       try {
         if (fileType === FILE_TYPE.TEXT) {
           const content = await window.api.fs.readText(path)
           let ext = extension
+
           if (ext?.startsWith('.')) {
             ext = ext.replace('.', '')
           }
+
           const { default: TextFilePreviewPopup } = await import('@renderer/components/TextFilePreviewPopup')
           void TextFilePreviewPopup.show(content, title, ext)
         } else {
@@ -36,6 +39,7 @@ export function useAttachment() {
     },
     [t]
   )
+
   return {
     preview
   }

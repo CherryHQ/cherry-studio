@@ -65,6 +65,7 @@ async function splitChunkByTokenLimit(
   while (cursor < chunk.charEnd) {
     const end = await findTokenLimitedEnd(contentText, cursor, chunk.charEnd, maxTokens, countTokens)
     const range = trimRange(contentText, cursor, end)
+
     if (range) {
       ranges.push(range)
     }
@@ -77,6 +78,7 @@ async function splitChunkByTokenLimit(
       range && overlapTokens > 0
         ? await findOverlapStart(contentText, range.start, range.end, overlapTokens, countTokens)
         : end
+
     cursor = nextCursor > cursor ? nextCursor : end
   }
 
@@ -91,6 +93,7 @@ async function findTokenLimitedEnd(
   countTokens: (text: string) => Promise<number>
 ): Promise<number> {
   const full = trimRange(contentText, start, limit)
+
   if (full && (await countTokens(full.text)) <= maxTokens) {
     return limit
   }
@@ -98,9 +101,11 @@ async function findTokenLimitedEnd(
   let low = start + 1
   let high = limit
   let best = start + 1
+
   while (low <= high) {
     const mid = Math.floor((low + high) / 2)
     const candidate = trimRange(contentText, start, mid)
+
     if (!candidate || (await countTokens(candidate.text)) <= maxTokens) {
       best = mid
       low = mid + 1
@@ -114,12 +119,15 @@ async function findTokenLimitedEnd(
 
 function findPreferredBoundary(contentText: string, start: number, hardEnd: number): number {
   const minEnd = start + Math.max(1, Math.floor((hardEnd - start) * BOUNDARY_MIN_RATIO))
+
   for (const boundary of PREFERRED_BOUNDARIES) {
     const index = contentText.lastIndexOf(boundary, hardEnd - boundary.length)
+
     if (index >= minEnd && index >= start) {
       return index + boundary.length
     }
   }
+
   return hardEnd
 }
 
@@ -133,9 +141,11 @@ async function findOverlapStart(
   let low = start
   let high = end
   let best = end
+
   while (low <= high) {
     const mid = Math.floor((low + high) / 2)
     const candidate = trimRange(contentText, mid, end)
+
     if (!candidate || (await countTokens(candidate.text)) <= overlapTokens) {
       best = mid
       high = mid - 1
@@ -143,21 +153,26 @@ async function findOverlapStart(
       low = mid + 1
     }
   }
+
   return best
 }
 
 function trimRange(contentText: string, start: number, end: number): TextRange | null {
   let trimmedStart = start
   let trimmedEnd = end
+
   while (trimmedStart < trimmedEnd && /\s/.test(contentText[trimmedStart])) {
     trimmedStart += 1
   }
+
   while (trimmedEnd > trimmedStart && /\s/.test(contentText[trimmedEnd - 1])) {
     trimmedEnd -= 1
   }
+
   if (trimmedStart >= trimmedEnd) {
     return null
   }
+
   return {
     start: trimmedStart,
     end: trimmedEnd,

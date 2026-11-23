@@ -140,8 +140,10 @@ export function getFeatureSections(
   return FILE_PROCESSING_FEATURE_SECTIONS.flatMap(({ feature }) => {
     const entries = processors.flatMap((processor) => {
       const entry = createMenuEntry(processor, feature, availableProcessorIds)
+
       return entry ? [entry] : []
     })
+
     return entries.length > 0 ? [{ feature, entries: sortEntriesByFeatureOrder(entries) }] : []
   })
 }

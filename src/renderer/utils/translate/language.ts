@@ -15,9 +15,11 @@ export const pickBidirectionalTarget = (
   if (overrideTarget) {
     return overrideTarget
   }
+
   if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
     return preferred
   }
+
   return sourceLanguageCode === preferred ? alter : preferred
 }
 
@@ -38,6 +40,7 @@ export const getTargetLanguageForBidirectional = (
   languagePair: TranslateBidirectionalPair
 ): TranslateLangCode => {
   if (sourceLanguage === languagePair[0]) return languagePair[1]
+
   if (sourceLanguage === languagePair[1]) return languagePair[0]
   throw new Error(
     `Unreachable: sourceLanguage '${sourceLanguage}' is not in pair [${languagePair[0]}, ${languagePair[1]}]`
@@ -72,6 +75,7 @@ export const determineTargetLanguage = (
     if (!isLanguageInPair(sourceLanguage, bidirectionalPair)) {
       return { success: false, errorType: 'not_in_pair' }
     }
+
     return {
       success: true,
       language: getTargetLanguageForBidirectional(sourceLanguage, bidirectionalPair)
@@ -80,6 +84,7 @@ export const determineTargetLanguage = (
     if (sourceLanguage === targetLanguage) {
       return { success: false, errorType: 'same_language' }
     }
+
     return { success: true, language: targetLanguage }
   }
 }

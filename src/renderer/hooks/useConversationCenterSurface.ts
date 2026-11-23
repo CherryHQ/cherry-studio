@@ -27,10 +27,12 @@ export function useConversationCenterSurface<TResourceKind extends string>({
     active?.type === 'resource'
       ? resourceKinds.some((resourceKind) => resourceKind === active.kind)
       : active?.type === 'history'
+
   const activeSurface =
     !disabled && activeResourceExists && (active?.type === 'history' || active?.conversationKey === conversationKey)
       ? active
       : null
+
   const activeResourceKind = activeSurface?.type === 'resource' ? activeSurface.kind : null
   const historyActive = activeSurface?.type === 'history'
 
@@ -42,6 +44,7 @@ export function useConversationCenterSurface<TResourceKind extends string>({
     (kind: TResourceKind) => {
       if (disabled) {
         setActive(null)
+
         return
       }
 
@@ -57,6 +60,7 @@ export function useConversationCenterSurface<TResourceKind extends string>({
   const toggleHistory = useCallback(() => {
     if (disabled) {
       setActive(null)
+
       return
     }
 

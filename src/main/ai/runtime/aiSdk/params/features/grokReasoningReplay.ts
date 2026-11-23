@@ -10,18 +10,22 @@ import type { RequestFeature } from '../feature'
 export function createGrokReasoningReplayMiddleware(providerId: string, modelId: string): LanguageModelMiddleware {
   const isGrokCli = providerId === GROK_CLI_PROVIDER_ID
   const origin = { providerId, modelId }
+
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => ({
       ...params,
       prompt: params.prompt.map((message) => {
         if (message.role !== 'assistant') return message
+
         return {
           ...message,
           content: message.content.filter((part) => {
             if (part.type !== 'reasoning') return true
             const source = part.providerOptions?.grokCli
+
             if (!source && !isGrokCli) return true
+
             // Encrypted reasoning is bound to the provider and model that produced it.
             return source?.providerId === providerId && source?.modelId === modelId
           })
@@ -30,7 +34,9 @@ export function createGrokReasoningReplayMiddleware(providerId: string, modelId:
     }),
     wrapGenerate: async ({ doGenerate }) => {
       const result = await doGenerate()
+
       if (!isGrokCli) return result
+
       return {
         ...result,
         content: result.content.map((part) =>
@@ -42,7 +48,9 @@ export function createGrokReasoningReplayMiddleware(providerId: string, modelId:
     },
     wrapStream: async ({ doStream }) => {
       const result = await doStream()
+
       if (!isGrokCli) return result
+
       return {
         ...result,
         stream: result.stream.pipeThrough(

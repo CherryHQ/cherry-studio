@@ -19,9 +19,11 @@ function Avatar({
   // source changes (or disappears). Consumers don't need to remember a manual `key={src}`.
   const imageKey = React.Children.toArray(children).reduce<string | undefined>((found, child) => {
     if (found !== undefined) return found
+
     if (React.isValidElement(child) && child.type === AvatarImage) {
       return (child.props as React.ComponentProps<typeof AvatarImage>).src ?? undefined
     }
+
     return undefined
   }, undefined)
 

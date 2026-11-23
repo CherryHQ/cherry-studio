@@ -26,6 +26,7 @@ export const InstalledSkillSchema = z.strictObject({
   createdAt: z.string(),
   updatedAt: z.string()
 })
+
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
 /**
@@ -42,7 +43,9 @@ export const ListSkillsQuerySchema = z.strictObject({
   agentId: z.string().min(1).optional(),
   search: z.string().trim().min(1).optional()
 })
+
 export type ListSkillsQueryParams = z.input<typeof ListSkillsQuerySchema>
+
 export type ListSkillsQuery = z.output<typeof ListSkillsQuerySchema>
 
 /** Query families whose membership can change independently for the skills collection. */
@@ -53,6 +56,7 @@ export const SKILL_LIST_MEMBERSHIP_DIMENSIONS = {
 export const UpdateSkillSchema = z.strictObject({
   isGlobalEnabled: z.boolean()
 })
+
 export type UpdateSkillDto = z.infer<typeof UpdateSkillSchema>
 
 export type SkillSchemas = {

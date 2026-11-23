@@ -36,17 +36,20 @@ export function ErrorBasicInformation({
   const { t, i18n } = useTranslation()
   const location = diagnosticReport?.location ?? diagnosisContext?.errorSource
   const locationLabel = location?.trim() ? resolveDiagnosticReportLocation(t, location, i18n.language) : undefined
+
   const labels = {
     errorMessage: t('error.message'),
     location: t('error.diagnostic_report.location'),
     model: t('error.modelId')
   } satisfies DiagnosticReportDescriptionLabels
+
   const fields = diagnosticReportFields({
     diagnosisContext,
     error,
     location: locationLabel,
     localizedErrorMessage
   }).filter(({ id }) => id !== 'location')
+
   const title = locationLabel ?? t('error.diagnostics.basic_information')
 
   return (

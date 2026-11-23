@@ -38,11 +38,14 @@ export class TtsInferenceService extends InferenceServiceBase<TtsInferenceContra
       'synthesize',
       () => {
         const bundle = getModelBundle(modelId)
+
         if (bundle.capability !== 'tts' || bundle.runtime?.architecture !== 'qwen3-tts')
           throw new Error('Unsupported streaming speech model')
         const modelDir = localModelStorageService.resolveInstalledDir(bundle)
+
         if (!modelDir || !bundle.requires.every((id) => localModelStorageService.isArtifactReady(id)))
           throw new Error('The selected speech model is not fully downloaded')
+
         return { ...input, modelDir }
       },
       {
@@ -61,11 +64,14 @@ export class TtsInferenceService extends InferenceServiceBase<TtsInferenceContra
       () => {
         const bundle = getModelBundle(modelId)
         const architecture = bundle.runtime?.architecture
+
         if (bundle.capability !== 'tts' || (architecture !== 'qwen3-tts' && architecture !== 'kokoro'))
           throw new Error('Unsupported speech model')
         const modelDir = localModelStorageService.resolveInstalledDir(bundle)
+
         if (!modelDir || !bundle.requires.every((id) => localModelStorageService.isArtifactReady(id)))
           throw new Error('The selected speech model is not fully downloaded')
+
         return { ...input, modelDir, architecture }
       },
       { signal }

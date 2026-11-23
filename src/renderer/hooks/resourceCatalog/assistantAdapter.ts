@@ -20,8 +20,11 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  */
 function useAssistantList(query?: ResourceListQuery): ResourceListResult<Assistant> {
   const params: ListAssistantsQueryParams = { limit: query?.limit ?? ASSISTANTS_MAX_LIMIT }
+
   if (query?.search) params.search = query.search
+
   if (query?.groupId) params.groupId = query.groupId
+
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/assistants', {
     enabled: query?.enabled !== false,
     query: params
@@ -50,6 +53,7 @@ export const assistantAdapter: ResourceAdapter<Assistant> = {
  */
 export function useDuplicateAssistantMutation() {
   const { t } = useTranslation()
+
   const { trigger: duplicateTrigger } = useMutation('POST', '/assistants/:id/duplicate', {
     refresh: ['/assistants', '/prompts', '/prompt-bindings']
   })
@@ -94,6 +98,7 @@ export function useAssistantMutationsById(id: string) {
   const { updateAssistant: updateById, deleteAssistant: deleteById } = useAssistantMutations()
 
   const updateAssistant = useCallback((dto: UpdateAssistantDto) => updateById(id, dto), [id, updateById])
+
   const deleteAssistant = useCallback(
     (options?: { deleteTopics?: boolean; permanent?: boolean }) => deleteById(id, options),
     [deleteById, id]

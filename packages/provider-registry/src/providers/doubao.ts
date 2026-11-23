@@ -94,6 +94,7 @@ const overrides: ProviderModelOffer[] = [
       apiModelId,
       endpointTypes: ['openai-responses', 'openai-chat-completions']
     }
+
     if (fastTierModels.has(apiModelId)) offer.supportsFastMode = true
     offer.reasoningContracts = highEffortDefaults.has(apiModelId)
       ? {
@@ -104,6 +105,7 @@ const overrides: ProviderModelOffer[] = [
           'openai-responses': { ...effortContracts['openai-responses'], support: { defaultEffort: 'high' as const } }
         }
       : effortContracts
+
     return offer
   }),
   ...chatOnlyEffortModels.map((apiModelId) => ({

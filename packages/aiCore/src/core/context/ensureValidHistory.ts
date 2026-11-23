@@ -110,9 +110,11 @@ function fixMissingToolResults(messages: ContextMessage[]): ContextMessage[] {
     // Scan forward for matching tool results
     for (let j = i + 1; j < messages.length; j++) {
       const next = messages[j]
+
       if (next.role === 'tool' && next.tool_call_id) {
         expectedIds.delete(next.tool_call_id)
       }
+
       // Stop scanning at the next assistant or user message
       if (next.role === 'assistant' || next.role === 'user') {
         break
@@ -122,11 +124,13 @@ function fixMissingToolResults(messages: ContextMessage[]): ContextMessage[] {
     // Inject synthetic tool results for any missing ids
     for (const missingId of expectedIds) {
       const name = idToName.get(missingId)
+
       const placeholder: ContextMessage = {
         role: 'tool',
         tool_call_id: missingId,
         content: PLACEHOLDER_TOOL_RESULT
       }
+
       if (name) placeholder.name = name
       result.push(placeholder)
     }
@@ -156,5 +160,6 @@ function ensureFirstMessageIsUser(messages: ContextMessage[]): ContextMessage[] 
     role: 'user',
     content: PLACEHOLDER_ORPHAN_REMOVED
   })
+
   return result
 }

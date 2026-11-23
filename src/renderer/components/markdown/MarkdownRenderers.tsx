@@ -53,8 +53,10 @@ function isSameBareUrl(label: string, href: string): boolean {
   } catch {
     // A label the URL parser rejects can still match the decoded href below.
   }
+
   try {
     const lowerScheme = (value: string) => value.replace(URL_SCHEME_PATTERN, (scheme) => scheme.toLowerCase())
+
     return lowerScheme(label) === decodeURI(lowerScheme(href))
   } catch {
     // Malformed percent-encoding in the href.
@@ -72,36 +74,47 @@ function isSameBareUrl(label: string, href: string): boolean {
  */
 function extractBareUrlText(node: ReactNode): string | null {
   if (typeof node === 'string') return node
+
   if (typeof node === 'number') return String(node)
+
   if (Array.isArray(node)) {
     let text = ''
+
     for (const child of node) {
       const part = extractBareUrlText(child)
+
       if (part === null) return null
       text += part
     }
+
     return text
   }
+
   if (isValidElement(node)) {
     const props = node.props as { children?: ReactNode; 'data-sd-animate'?: unknown }
+
     if (props['data-sd-animate'] !== undefined) {
       return extractBareUrlText(props.children)
     }
   }
+
   return null
 }
 
 function isBareImageUrlLink(href: string | undefined, children: ReactNode): href is string {
   if (!href || !IMAGE_URL_PATTERN.test(href)) return false
   const text = extractBareUrlText(children)
+
   return text !== null && text !== '' && isSameBareUrl(text, href)
 }
 
 export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean {
   if (!node) return true
+
   if (node.children.some((child) => child.type === 'element')) return false
 
   const onlyChild = node.children.length === 1 ? node.children[0] : null
+
   return !(
     onlyChild?.type === 'text' &&
     typeof onlyChild.value === 'string' &&
@@ -113,21 +126,26 @@ export function scrollToMarkdownAnchor(event: ReactMouseEvent<HTMLAnchorElement>
   event.stopPropagation()
 
   const href = event.currentTarget.getAttribute('href')
+
   if (!href?.startsWith('#')) return
 
   let fragment: string
+
   try {
     fragment = decodeURIComponent(href.slice(1))
   } catch {
     return
   }
+
   if (!fragment) return
 
   const markdown = event.currentTarget.closest('.markdown')
+
   const target = Array.from(markdown?.querySelectorAll<HTMLElement>('[id]') ?? []).find(
     (element) =>
       element.id === fragment || element.id === `user-content-${fragment}` || element.id.endsWith(`--${fragment}`)
   )
+
   if (!target) return
 
   event.preventDefault()
@@ -143,11 +161,15 @@ export function MarkdownLinkRenderer({
   const host = useMarkdownHost()
   const openFilePath = fileOpener ?? host.openFilePath
   const openExternalUrl = urlOpener ?? host.openExternalUrl
+
   const { hostname, protocol } = useMemo(() => {
     const empty = { hostname: '', protocol: '' }
+
     if (!props.href) return empty
+
     try {
       const url = new URL(props.href)
+
       return {
         protocol: url.protocol,
         hostname: url.protocol === 'http:' || url.protocol === 'https:' ? url.hostname : ''
@@ -164,6 +186,7 @@ export function MarkdownLinkRenderer({
         className={cn('text-link', !props.className && 'hover:underline', props.className)}
         onClick={(event) => {
           props.onClick?.(event)
+
           if (!event.defaultPrevented) scrollToMarkdownAnchor(event)
         }}>
         {props.children}
@@ -192,6 +215,7 @@ export function MarkdownLinkRenderer({
   }
 
   const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
+
   if (fileLinkPath && openFilePath) {
     return (
       <a
@@ -223,6 +247,7 @@ export function MarkdownLinkRenderer({
     ) : (
       props.children
     )
+
   const anchor = (
     <a
       {...omit(props, ['node'])}
@@ -232,6 +257,7 @@ export function MarkdownLinkRenderer({
       onClick={(event) => {
         event.stopPropagation()
         props.onClick?.(event)
+
         if (
           event.defaultPrevented ||
           event.button !== 0 ||
@@ -292,6 +318,7 @@ export function MarkdownImageRenderer(props: MarkdownRendererProps<'img'>) {
 
   if (effectiveSrc === null || failedSource === effectiveSrc) {
     const label = isResolvedRelative ? alt?.trim() || src : alt
+
     if (!label) return null
 
     return (
@@ -322,12 +349,15 @@ export function MarkdownImageRenderer(props: MarkdownRendererProps<'img'>) {
 
 function MarkdownPreRenderer({ node: _node, ...props }: MarkdownRendererProps<'pre'>) {
   void _node
+
   return <pre style={PRE_STYLE} {...props} />
 }
 
 function MarkdownParagraphRenderer({ node, ...props }: MarkdownRendererProps<'p'>) {
   const hasImage = node?.children.some((child) => child.type === 'element' && child.tagName === 'img')
+
   if (hasImage) return <div {...props} />
+
   return <p {...props} />
 }
 
@@ -353,5 +383,6 @@ interface UseMarkdownComponentsOptions {
 
 export function useMarkdownComponents({ components, hasStyleElement }: UseMarkdownComponentsOptions) {
   const appComponents = hasStyleElement ? MARKDOWN_COMPONENTS_WITH_STYLE : MARKDOWN_COMPONENTS
+
   return useMemo(() => (components ? { ...appComponents, ...components } : appComponents), [appComponents, components])
 }

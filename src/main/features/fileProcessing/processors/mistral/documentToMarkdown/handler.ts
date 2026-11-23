@@ -30,6 +30,7 @@ export const mistralDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'
           ...context,
           signal: executionContext.signal
         }
+
         let uploadedFileId: string | undefined
 
         try {
@@ -38,15 +39,18 @@ export const mistralDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'
           executionContext.reportProgress(35)
 
           const documentUrl = await getUploadedDocumentSignedUrl(executionContextWithSignal, uploadedFileId)
+
           const document: MistralDocumentUrlDocument = {
             type: 'document_url',
             documentUrl
           }
+
           executionContext.reportProgress(45)
 
           const response = await executeExtraction(executionContextWithSignal, document, {
             tableFormat: 'markdown'
           })
+
           executionContext.reportProgress(85)
 
           return buildMarkdownConversionResult(response)

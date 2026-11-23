@@ -21,6 +21,7 @@ export function ActionConfirmDialog({
   onOpenChange
 }: ActionConfirmDialogProps) {
   const { value: retainedConfirm } = useExitPresence(confirm ?? null)
+
   if (!retainedConfirm) return null
 
   return (

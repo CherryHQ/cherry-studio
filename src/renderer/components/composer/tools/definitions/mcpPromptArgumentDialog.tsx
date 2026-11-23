@@ -39,11 +39,14 @@ export function collectMcpPromptArgs(
   values: Record<string, string>
 ): Record<string, string> | undefined {
   const collected: Record<string, string> = {}
+
   for (const argument of prompt.arguments ?? []) {
     const value = values[argument.name] ?? ''
+
     if (!value.trim()) continue
     collected[argument.name] = value
   }
+
   return Object.keys(collected).length > 0 ? collected : undefined
 }
 
@@ -77,8 +80,10 @@ export function McpPromptArgumentDialog({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
     if (!prompt) return
     setAttempted(true)
+
     if (!mcpPromptRequiredArgsFilled(prompt, values) || submitting) return
     onSubmit()
   }
@@ -102,6 +107,7 @@ export function McpPromptArgumentDialog({
               const inputId = `${uid}-${argument.name}`
               const missing = Boolean(argument.required) && !(values[argument.name] ?? '').trim()
               const showError = attempted && missing
+
               return (
                 <Field key={argument.name} className="gap-2">
                   <FieldLabel htmlFor={inputId} className="text-[13px] text-foreground">

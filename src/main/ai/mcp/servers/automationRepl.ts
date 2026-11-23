@@ -20,17 +20,21 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
   const server = new McpServer({ name: 'automation', version: '1.0.0' })
   const service = application.get('AutomationReplService')
   const runtime = application.get('AgentSessionRuntimeService')
+
   const owner = {
     kind: 'agent' as const,
     sessionId,
     ownerId: agentId,
     label: `${agentService.getAgent(agentId)?.name ?? agentId} · ${sessionId.slice(0, 8)}`
   }
+
   let run: AutomationRun | undefined
   let finishing = Promise.resolve()
   let closed = false
+
   const access = () => {
     const agent = agentService.getAgent(agentId)
+
     if (
       closed ||
       !agent ||
@@ -41,6 +45,7 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
     ) {
       throw new Error('Automation requires an active local Agent task')
     }
+
     return {
       ...resolveAutomationAccess(agent, {
         channelLinked: false,
@@ -53,6 +58,7 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
       }
     }
   }
+
   const finish = () => {
     const previous = run
     run = undefined
@@ -61,18 +67,23 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
       .then(() => {})
       .catch((error) => logger.warn('Automation turn cleanup failed', { error }))
   }
+
   const terminal = runtime.onTurnTerminal((event) => {
     if (event.sessionId === sessionId && event.boundary !== 'row-roll') finish()
   })
+
   const idle = runtime.onRuntimeIdle((event) => {
     if (event.sessionId === sessionId && !runtime.getLiveAssistantMessageId(sessionId)) finish()
   })
+
   const currentRun = async () => {
     await finishing
     access()
     run ??= service.beginRun(owner, runtime.getLiveAssistantMessageId(sessionId)!, access)
+
     return run
   }
+
   server.registerTool(
     'js',
     { description: automationReplDescription, inputSchema: automationReplInput },
@@ -89,6 +100,7 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
   )
   const close = server.close.bind(server)
   let cleanup: Promise<void> | undefined
+
   const dispose = () => {
     if (cleanup) return cleanup
     closed = true
@@ -96,11 +108,14 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
     idle.dispose()
     finish()
     cleanup = finishing.then(() => service.close(owner))
+
     return cleanup
   }
+
   server.server.onclose = () => {
     void dispose().catch((error) => logger.warn('Automation disconnect cleanup failed', { error }))
   }
+
   server.close = async () => {
     try {
       await dispose()
@@ -108,5 +123,6 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
       await close()
     }
   }
+
   return server
 }

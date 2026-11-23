@@ -39,6 +39,7 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
               id: chunk.id
             })
           }
+
           const epochNow = Date.now()
           reasoningById.set(chunk.id, {
             startedAt: performance.now(),
@@ -46,23 +47,29 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
             providerMetadata: toProviderMetadata(chunk.providerMetadata)
           })
           controller.enqueue(withChunkCherryMeta(chunk, { startedAt: epochNow }))
+
           return
         }
 
         if (chunk.type === 'reasoning-delta') {
           const deltaMetadata = toProviderMetadata(chunk.providerMetadata)
+
           if (deltaMetadata) {
             const reasoning = reasoningById.get(chunk.id)
+
             if (reasoning) {
               reasoning.providerMetadata = { ...reasoning.providerMetadata, ...deltaMetadata }
             }
           }
+
           controller.enqueue(chunk)
+
           return
         }
 
         if (chunk.type === 'reasoning-end') {
           const reasoning = reasoningById.get(chunk.id)
+
           if (reasoning) {
             reasoningById.delete(chunk.id)
             const thinkingMs = Math.round(performance.now() - reasoning.startedAt)
@@ -77,8 +84,10 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
                 reasoning.providerMetadata
               )
             )
+
             return
           }
+
           logger.debug('reasoning-end received with no matching reasoning-start; passing through', { id: chunk.id })
         }
 
@@ -94,11 +103,13 @@ function withChunkCherryMeta<C extends UIMessageChunk>(
   startProviderMetadata?: ProviderMetadata
 ): C {
   const parsed = CherryReasoningMetaSchema.safeParse(patch)
+
   if (!parsed.success) {
     logger.warn('Failed to parse reasoning timing metadata chunk, falling back to empty patch', {
       issues: parsed.error.issues.length
     })
   }
+
   const cleanPatch = parsed.success ? parsed.data : {}
 
   const endMeta = 'providerMetadata' in chunk ? toProviderMetadata(chunk.providerMetadata) : undefined

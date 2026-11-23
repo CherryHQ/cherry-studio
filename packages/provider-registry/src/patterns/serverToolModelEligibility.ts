@@ -21,7 +21,9 @@ const ELIGIBLE_DECLARATIONS = new Map(
         tool as ServerTool,
         declarations.map((declaration): EligibilityDeclaration => {
           const eligibility: EligibilityDeclaration = { ids: new Set(declaration.ids) }
+
           if (declaration.endpointTypes) eligibility.endpointTypes = new Set(declaration.endpointTypes)
+
           return eligibility
         })
       ])
@@ -41,9 +43,11 @@ export function isServerToolModelEligible(
   endpointType?: EndpointType
 ): boolean {
   const declarations = ELIGIBLE_DECLARATIONS.get(providerId)?.get(tool)
+
   if (!declarations?.length) return false
 
   const exact = normalizeModelId(rawModelId, { keepParameterSize: true })
+
   return declarations.some(
     (declaration) =>
       (declaration.ids.has(exact) || declaration.ids.has(normalizeModelId(rawModelId))) &&

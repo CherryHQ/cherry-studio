@@ -7,6 +7,7 @@ export function getValidPaintingOptions(
     if (option === 'ovms') {
       return isOvmsSupported && ovmsStatus === 'running'
     }
+
     return true
   })
 }

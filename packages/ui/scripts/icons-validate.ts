@@ -18,9 +18,11 @@ type SourceDir = 'providers' | 'models' | 'general'
 function parseArgs() {
   const dirArg = process.argv.find((a) => a.startsWith('--dir='))
   const dir = dirArg?.split('=')[1] || 'providers'
+
   if (dir !== 'providers' && dir !== 'models' && dir !== 'general') {
     throw new Error('--dir must be providers, models or general')
   }
+
   return { dir } satisfies { dir: SourceDir }
 }
 
@@ -64,6 +66,7 @@ function suggestKebabCase(name: string): string {
 async function collectSvgFiles(dir: SourceDir): Promise<string[]> {
   const baseDir = path.join(__dirname, '../icons', dir)
   const files = await fs.readdir(baseDir)
+
   return files.filter((f) => f.endsWith('.svg')).map((f) => path.join(baseDir, f))
 }
 
@@ -74,11 +77,13 @@ async function validateSvg(filePath: string): Promise<ValidationResult> {
 
   // Naming convention check
   const baseName = path.basename(filePath, '.svg')
+
   if (!isKebabCase(baseName)) {
     warnings.push(`Filename "${baseName}.svg" is not kebab-case. Suggested: "${suggestKebabCase(baseName)}.svg"`)
   }
 
   const stat = await fs.stat(filePath)
+
   if (stat.size > MAX_FILE_SIZE) {
     warnings.push(`File size ${(stat.size / 1024).toFixed(1)}KB exceeds ${MAX_FILE_SIZE / 1024}KB limit`)
   }
@@ -92,12 +97,15 @@ async function validateSvg(filePath: string): Promise<ValidationResult> {
 
   // Check viewBox
   const viewBoxMatch = content.match(/viewBox="([^"]*)"/)
+
   if (!viewBoxMatch) {
     warnings.push('Missing viewBox attribute (will be inferred from width/height during generation)')
   } else {
     const parts = viewBoxMatch[1].split(/\s+/).map(Number)
+
     if (parts.length === 4) {
       const [, , w, h] = parts
+
       if (Math.abs(w - h) > 0.01) {
         warnings.push(`viewBox is not square: ${w}x${h} (mono icons may look distorted)`)
       }
@@ -117,8 +125,10 @@ async function main() {
   console.log(`Validating SVG files (source: ${dir})...\n`)
 
   const files = await collectSvgFiles(dir)
+
   if (files.length === 0) {
     console.log('No SVG files found.')
+
     return
   }
 
@@ -133,14 +143,17 @@ async function main() {
     if (result.errors.length === 0 && result.warnings.length === 0) continue
 
     console.log(`${result.file}:`)
+
     for (const error of result.errors) {
       console.log(`  ERROR: ${error}`)
       errorCount++
     }
+
     for (const warning of result.warnings) {
       console.log(`  WARN:  ${warning}`)
       warningCount++
     }
+
     console.log()
   }
 

@@ -4,6 +4,7 @@ import { AdobeLight } from './light'
 
 const Adobe = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AdobeLight {...props} className={className} />
+
   return <AdobeLight {...props} className={className} />
 }
 

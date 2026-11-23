@@ -81,7 +81,9 @@ export const cherryCodeTheme: Theme = {
 export async function loadCodeTheme(name: string, foreground?: string): Promise<Theme> {
   if (name === CHERRY_CODE_THEME) return cherryCodeTheme
   const { default: theme } = await themes[resolveCodeTheme(name)]()
+
   if (theme.appearance !== 'light' || !foreground) return theme
+
   return {
     ...theme,
     style: {
@@ -91,6 +93,7 @@ export async function loadCodeTheme(name: string, foreground?: string): Promise<
           if (typeof settings === 'string') {
             return [scope, WHITE_COLOR.test(settings) ? foreground : settings]
           }
+
           return [
             scope,
             settings.color && WHITE_COLOR.test(settings.color) ? { ...settings, color: foreground } : settings
@@ -108,16 +111,22 @@ export function getReactStyleFromToken(
   const flags = token.fontStyle ?? 0
   const htmlStyle = token.htmlStyle
   const style: NonNullable<ThemedToken['htmlStyle']> = htmlStyle ?? {}
+
   if (htmlStyle == null) {
     if (token.color) style.color = token.color
+
     if (token.bgColor) style['background-color'] = token.bgColor
+
     if (flags & 1) style['font-style'] = 'italic'
+
     if (flags & 2) style['font-weight'] = 'bold'
+
     if (flags & 12)
       style['text-decoration'] = [flags & 4 ? 'underline' : '', flags & 8 ? 'line-through' : '']
         .filter(Boolean)
         .join(' ')
   }
+
   return Object.fromEntries(
     Object.entries(style).map(([key, value]) => [
       key.startsWith('--') ? key : key.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase()),

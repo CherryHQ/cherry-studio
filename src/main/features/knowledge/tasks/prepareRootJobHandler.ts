@@ -52,6 +52,7 @@ export function createPrepareRootJobHandler(
       ctx.signal.throwIfAborted()
       // Validate the container before destructive cleanup; delete-base/delete-items can remove it first.
       const item = loadPrepareRootItemOrSkip(ctx)
+
       if (!item) {
         return
       }
@@ -72,10 +73,12 @@ export function createPrepareRootJobHandler(
           cacheService.setShared(progressKey, percent)
           reportKnowledgeProgress(ctx, Math.round(percent / 2), { stage: 'copying' })
         })
+
         // Child indexing is scheduled after expansion succeeds so partial scans do not enqueue stale leaves.
         await enqueueLeafItems(ctx, leafItems, ingestionService)
       } finally {
         const percent = cacheService.getShared(progressKey)
+
         if (percent != null) {
           cacheService.setShared(progressKey, percent, DIRECTORY_COPY_PROGRESS_LINGER_TTL_MS)
         }
@@ -97,12 +100,15 @@ function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>)
     if (isDataApiNotFoundError(error)) {
       logger.info('Skipping prepare-root for missing base or item', { baseId, itemId, jobId: ctx.jobId })
       reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
+
       return null
     }
+
     throw error
   }
 
   const result = resolveLiveKnowledgeItem(itemId)
+
   if ('skip' in result) {
     if (result.skip === 'deleting') {
       logger.info('Skipping prepare-root for deleting item', { baseId, itemId, jobId: ctx.jobId })
@@ -111,6 +117,7 @@ function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>)
       logger.info('Skipping prepare-root for missing base or item', { baseId, itemId, jobId: ctx.jobId })
       reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
     }
+
     return null
   }
 
@@ -134,8 +141,10 @@ async function deletePreviousLeafExpansion(
     // records their prefix — reclaim the whole shell here. removeDir is idempotent (ENOENT
     // no-op) when the shell was never created.
     const result = resolveLiveKnowledgeItem(itemId)
+
     if ('item' in result && result.item.type === 'directory') {
       const prefix = result.item.data.relativePath
+
       if (prefix) {
         await removeDir(getKnowledgeBaseFilePath(baseId, prefix))
       }
@@ -154,18 +163,24 @@ async function scanRootItem(
   // every file in between run off it, so a large folder never stalls the rest of the base.
   const pinned = await knowledgeLockManager.runExclusive(baseId, async () => {
     const item = resolveLiveRootOrReportSkip(ctx, 'before expansion')
+
     if (!item) {
       return null
     }
+
     if (isIndexableKnowledgeItem(item)) {
       knowledgeItemService.updateStatus(itemId, 'processing')
+
       return { kind: 'leaf' as const, item }
     }
+
     return { kind: 'directory' as const, item, pathPrefix: pinDirectoryPathPrefix(baseId, item) }
   })
+
   if (!pinned) {
     return []
   }
+
   if (pinned.kind === 'leaf') {
     return [pinned.item]
   }
@@ -177,18 +192,23 @@ async function scanRootItem(
     ctx.signal,
     onDirectoryCopyProgress
   )
+
   ctx.signal.throwIfAborted()
 
   return await knowledgeLockManager.runExclusive(baseId, async () => {
     // A delete may have landed while the files were copying; its cleanup removes the pinned shell.
     const item = resolveLiveRootOrReportSkip(ctx, 'after copying')
+
     if (!item || item.type !== 'directory') {
       return []
     }
+
     const leaves = await createExpandedDirectoryChildren(baseId, item, children, ctx.signal)
+
     if (leaves.length > 0) {
       knowledgeItemService.updateStatus(itemId, 'processing')
     }
+
     return leaves
   })
 }
@@ -199,9 +219,11 @@ function resolveLiveRootOrReportSkip(
 ): KnowledgeItem | null {
   const { baseId, itemId } = ctx.input
   const result = resolveLiveKnowledgeItem(itemId)
+
   if (!('skip' in result)) {
     return result.item
   }
+
   if (result.skip === 'deleting') {
     logger.info(`Skipping prepare-root for deleting item ${phase}`, { baseId, itemId, jobId: ctx.jobId })
     reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
@@ -209,6 +231,7 @@ function resolveLiveRootOrReportSkip(
     logger.info(`Skipping prepare-root for missing item ${phase}`, { baseId, itemId, jobId: ctx.jobId })
     reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
   }
+
   return null
 }
 
@@ -222,8 +245,10 @@ async function enqueueLeafItems(
   reportKnowledgeProgress(ctx, 50, { stage: 'enqueuing', currentFile: 0, totalFiles: leafItems.length })
   const completedSchedulingLeafIds = new Set<string>()
   const baseIdInput = toKnowledgeBaseId(baseId)
+
   for (const [index, leaf] of leafItems.entries()) {
     ctx.signal.throwIfAborted()
+
     try {
       await ingestionService.scheduleItem(baseIdInput, toKnowledgeItemId(leaf.id), ctx.jobId)
       completedSchedulingLeafIds.add(leaf.id)
@@ -231,6 +256,7 @@ async function enqueueLeafItems(
       markUnscheduledLeafItemsFailed(baseId, leafItems, completedSchedulingLeafIds, error)
       throw error
     }
+
     reportKnowledgeProgress(ctx, 50 + Math.round(((index + 1) / Math.max(leafItems.length, 1)) * 50), {
       stage: 'enqueuing',
       currentFile: index + 1,

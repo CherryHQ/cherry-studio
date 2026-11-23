@@ -4,6 +4,7 @@ import { SparkLight } from './light'
 
 const Spark = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SparkLight {...props} className={className} />
+
   return <SparkLight {...props} className={className} />
 }
 

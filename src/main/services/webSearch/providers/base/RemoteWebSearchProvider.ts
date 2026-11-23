@@ -65,6 +65,7 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
   ): Promise<WebSearchResponse> {
     if (capability === 'fetchUrls') input = input.trim()
     const apiHost = overrides.apiHost ?? resolveProviderApiHost(this.provider, capability)
+
     const common = {
       providerId: this.protocol.metadata.id,
       input,
@@ -72,17 +73,22 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
       signal: httpOptions?.signal ?? undefined,
       timeoutMs: overrides.timeoutMs
     }
+
     let response: WebSearchResultSet
+
     try {
       if (capability === 'searchKeywords') {
         const keywordConfig: Extract<WebSearchCall, { capability: 'searchKeywords' }>['config'] = {
           apiHost,
           maxResults: config.maxResults
         }
+
         if (overrides.useDefaultResultCount !== undefined)
           Object.assign(keywordConfig, { useDefaultResultCount: overrides.useDefaultResultCount })
+
         if (this.provider.id === 'searxng')
           Object.assign(keywordConfig, { engines: overrides.engines ?? this.provider.engines })
+
         if (['bocha', 'querit', 'yuanbao'].includes(this.provider.id))
           Object.assign(keywordConfig, { excludeDomains: config.excludeDomains })
         response = await this.client.execute({ ...common, capability, config: keywordConfig })
@@ -96,10 +102,13 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
         )
           ? (error.code as WebSearchConfigErrorCode)
           : 'capability_unsupported'
+
         throw new WebSearchConfigError(code, error.message, { cause: error })
       }
+
       throw error
     }
+
     return {
       query: input,
       providerId: this.provider.id,

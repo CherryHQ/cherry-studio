@@ -37,16 +37,19 @@ export const YamlFrontMatter = Node.create({
       // block (e.g. inside a blockquote) from being turned into a front-matter node. Fall back to the
       // prior behavior if the patched lexer reference is absent.
       const rootTokens = helpers?.lexer?.tokens
+
       if (rootTokens && tokens !== rootTokens) {
         return undefined
       }
 
       const hasExistingContent = tokens.some((token) => token.type && token.type !== 'space')
+
       if (hasExistingContent) {
         return undefined
       }
 
       const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(src)
+
       if (!match) {
         return undefined
       }
@@ -65,9 +68,11 @@ export const YamlFrontMatter = Node.create({
 
   renderMarkdown(node) {
     const content = node.attrs?.content || ''
+
     if (!content.trim()) {
       return ''
     }
+
     // The stored content has no delimiters; add them back. Tolerate the legacy case where a
     // standalone closing `---` line was kept inside the content attribute — but only when it is a
     // delimiter on its own line, so a YAML value that merely ends in `---` (e.g. `title: foo---`)
@@ -75,6 +80,7 @@ export const YamlFrontMatter = Node.create({
     if (/\n---\s*$/.test(content)) {
       return `---\n${content}\n\n`
     }
+
     return `---\n${content}\n---\n\n`
   },
 
@@ -90,12 +96,15 @@ export const YamlFrontMatter = Node.create({
         default: '',
         parseHTML: (element) => {
           const dataContent = element.getAttribute('data-content')
+
           if (dataContent) {
             // Decode HTML entities that might be in the data-content attribute
             const textarea = document.createElement('textarea')
             textarea.innerHTML = dataContent
+
             return textarea.value
           }
+
           return element.textContent || ''
         },
         renderHTML: (attributes) => ({
@@ -126,6 +135,7 @@ export const YamlFrontMatter = Node.create({
 
   renderHTML({ HTMLAttributes, node }) {
     const content = node.attrs.content || ''
+
     return [
       'div',
       mergeAttributes(HTMLAttributes, {

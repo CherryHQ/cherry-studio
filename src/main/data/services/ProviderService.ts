@@ -77,10 +77,12 @@ function applyJsonMergePatch(
       result[key] = applyJsonMergePatch(result[key], value)
     }
   }
+
   return result
 }
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+
 export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 function isProviderAvailableInCurrentEdition(
@@ -88,6 +90,7 @@ function isProviderAvailableInCurrentEdition(
   db?: Pick<DbType, 'select'>
 ): boolean {
   const availableInEditions = provider.availableInEditions
+
   return isMigratedFromV1(db) || !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
@@ -101,6 +104,7 @@ function getAvailableProviderMetadata(
     row.providerId,
     row.presetProviderId
   )
+
   return isProviderAvailableInCurrentEdition(metadata, db) ? metadata : null
 }
 
@@ -162,6 +166,7 @@ export interface ResolvedProviderApiKey {
  */
 function maskApiKeyForSnapshot(key: string): string {
   const masked = maskApiKey(key)
+
   return masked === key ? '****' : masked
 }
 
@@ -192,28 +197,36 @@ function assertProviderAvailable<T extends ProviderIdentity>(
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
   const key = entry.key.trim()
+
   if (!key) {
     throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
   }
 
   const identity: Omit<ApiKeyEntry, 'isEnabled'> = { id: entry.id, key }
+
   if (entry.label) identity.label = entry.label
+
   return { ...identity, isEnabled: entry.isEnabled }
 }
 
 function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
   const seenKeys = new Set<string>()
   const seenIds = new Set<string>()
+
   return apiKeys.map((entry) => {
     const normalized = normalizeApiKeyEntry(entry)
+
     if (seenKeys.has(normalized.key)) {
       throw DataApiErrorFactory.conflict('API key already exists', 'API key')
     }
+
     if (seenIds.has(normalized.id)) {
       throw DataApiErrorFactory.conflict('API key id already exists', 'API key')
     }
+
     seenKeys.add(normalized.key)
     seenIds.add(normalized.id)
+
     return normalized
   })
 }
@@ -227,7 +240,9 @@ function toResolvedProviderApiKey(
     attribution,
     id: entry.id
   }
+
   if (entry.label) identity.label = entry.label
+
   return {
     value,
     apiKeySelection: { ...identity, masked: maskApiKeyForSnapshot(entry.key) }
@@ -266,29 +281,36 @@ function projectEndpointConfigOverrides(
   ).endpointConfigs
 
   const result: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
+
   for (const [key, config] of Object.entries(configs)) {
     if (!config) continue
     const ep = key as EndpointType
     const presetConfig = presetConfigs?.[ep]
     const override: StoredEndpointConfigOverride = {}
+
     if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
     // Same delta rule per dialect key: a value equal to the registry's is not an override.
     const baselineDialect = resolveEndpointDialect({ endpointConfigs: presetConfigs ?? undefined }, ep)
+
     const dialect = Object.fromEntries(
       Object.entries(config.dialect ?? {}).filter(
         ([flag, value]) => value !== undefined && value !== baselineDialect[flag as keyof typeof baselineDialect]
       )
     )
+
     if (Object.keys(dialect).length > 0) override.dialect = dialect
+
     if (presetProviderId === null && storedConfigs?.[ep]?.adapterFamily !== undefined) {
       override.adapterFamily = storedConfigs[ep].adapterFamily
     }
+
     // Drop entries fully covered by the registry; keep empty entries for
     // endpoints the registry doesn't declare — key presence marks a
     // user-configured endpoint and feeds the read-time key union.
     if (Object.keys(override).length === 0 && presetConfig) continue
     result[ep] = override
   }
+
   return Object.keys(result).length > 0 ? result : null
 }
 
@@ -297,6 +319,7 @@ function projectEndpointConfigOverrides(
  */
 function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMetadata): Provider {
   const providerRegistryService = getDataService('ProviderRegistryService')
+
   const presetMetadata =
     metadata ?? providerRegistryService.getProviderDisplayMetadata(row.providerId, row.presetProviderId)
 
@@ -306,6 +329,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
 
   // Determine auth type
   let authType: AuthType = 'api-key'
+
   if (row.authConfig?.type) {
     authType = row.authConfig.type
   }
@@ -351,7 +375,9 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
     authOptional: presetMetadata.authOptional,
     serverTools: presetMetadata.serverTools ?? []
   }
+
   if (presetMetadata.reportedCostCurrency) providerFields.reportedCostCurrency = presetMetadata.reportedCostCurrency
+
   return {
     ...providerFields,
     reportsActualCost: presetMetadata.reportsActualCost ?? false,
@@ -405,16 +431,20 @@ class ProviderService {
         : db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey)).all()
 
     const providers: Provider[] = []
+
     for (const row of rows) {
       const metadata = getAvailableProviderMetadata(row)
+
       if (metadata) providers.push(rowToRuntimeProvider(row, metadata))
     }
+
     return providers
   }
 
   /** Return matching provider IDs available to runtime callers in this application edition. */
   listAvailableProviderIds(providerIds?: Iterable<string>): Set<string> {
     const ids = providerIds ? [...new Set(providerIds)] : undefined
+
     if (ids?.length === 0) return new Set()
 
     const rows = application
@@ -437,6 +467,7 @@ class ProviderService {
     providerIds: Iterable<string>
   ): Map<string, ReasoningProviderContext> {
     const ids = [...new Set(providerIds)]
+
     if (ids.length === 0) return new Map()
 
     const rows = tx
@@ -449,11 +480,15 @@ class ProviderService {
       .from(userProviderTable)
       .where(inArray(userProviderTable.providerId, ids))
       .all()
+
     const contexts = new Map<string, ReasoningProviderContext>()
+
     for (const row of rows) {
       const metadata = getAvailableProviderMetadata(row, tx)
+
       if (metadata) contexts.set(row.providerId, rowToReasoningProviderContext(row, metadata))
     }
+
     return contexts
   }
 
@@ -508,9 +543,11 @@ class ProviderService {
    */
   create(dto: CreateProviderDto): Provider {
     if (dto.providerSettings?.billing) ProviderBillingSchema.parse(dto.providerSettings.billing)
+
     if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
       throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
     }
+
     assertManagedCherryProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
     const endpointConfigs = projectEndpointConfigOverrides(
@@ -518,16 +555,19 @@ class ProviderService {
       dto.providerId,
       dto.presetProviderId ?? null
     )
+
     const presetMetadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
       dto.providerId,
       dto.presetProviderId ?? null
     )
+
     if (!isProviderAvailableInCurrentEdition(presetMetadata)) {
       throw DataApiErrorFactory.invalidOperation(
         `create provider ${dto.providerId}`,
         'provider is unavailable in the current application edition'
       )
     }
+
     const defaultChatEndpoint =
       dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
@@ -537,6 +577,7 @@ class ProviderService {
           const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, dto.providerId, dto.logo) ?? {
             logoKey: null
           }
+
           const values: NewUserProviderInput = {
             providerId: dto.providerId,
             presetProviderId: dto.presetProviderId ?? null,
@@ -549,6 +590,7 @@ class ProviderService {
             providerSettings: dto.providerSettings ?? null,
             isEnabled: false
           }
+
           return insertWithOrderKey(tx, userProviderTable, values, {
             pkColumn: userProviderTable.providerId,
             position: 'first'
@@ -600,9 +642,11 @@ class ProviderService {
       if (dto.name !== undefined) updates.name = dto.name
       // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
       const logoCols = reconcileLogoSlotTx(tx, providerLogoFileRefTable, providerId, dto.logo)
+
       if (logoCols) {
         updates.logoKey = logoCols.logoKey
       }
+
       // PATCH replaces endpointConfigs wholesale; only the user-owned override
       // shape is persisted — registry-owned fields resolve at read time.
       if (dto.endpointConfigs !== undefined) {
@@ -613,11 +657,14 @@ class ProviderService {
           current.endpointConfigs
         )
       }
+
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
+
       const presetMetadata =
         dto.defaultChatEndpoint !== undefined
           ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(providerId, current.presetProviderId)
           : undefined
+
       // A renderer may echo the merged runtime value while editing an unrelated
       // field. Drop a baseline-equal endpoint instead of freezing that registry
       // default into the row.
@@ -625,11 +672,13 @@ class ProviderService {
         updates.defaultChatEndpoint =
           dto.defaultChatEndpoint === presetMetadata?.defaultChatEndpoint ? null : dto.defaultChatEndpoint
       }
+
       if (dto.providerSettings !== undefined) {
         updates.providerSettings = applyJsonMergePatch(
           current.providerSettings,
           dto.providerSettings
         ) as Partial<ProviderSettings>
+
         if (updates.providerSettings?.billing) ProviderBillingSchema.parse(updates.providerSettings.billing)
       }
 
@@ -645,6 +694,7 @@ class ProviderService {
       if (!updated) {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
+
       return updated
     })
 
@@ -677,6 +727,7 @@ class ProviderService {
     insertManyWithOrderKey(tx, userProviderTable, newProviders, {
       pkColumn: userProviderTable.providerId
     })
+
     return newProviders.length
   }
 
@@ -693,8 +744,10 @@ class ProviderService {
     assertProviderAvailable(row, providerId)
 
     const allKeys = row.apiKeys ?? []
+
     if (override !== undefined) {
       const matched = allKeys.find((entry) => entry.key === override)
+
       return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
     }
 
@@ -715,6 +768,7 @@ class ProviderService {
 
     if (!lastUsedKeyId) {
       cache.set(cacheKey, enabledKeys[0].id)
+
       return toResolvedProviderApiKey(enabledKeys[0].key, 'explicit', enabledKeys[0])
     }
 
@@ -748,6 +802,7 @@ class ProviderService {
     assertProviderAvailable(row, providerId)
 
     const apiKeys = row.apiKeys ?? []
+
     return options.enabled ? apiKeys.filter((k) => k.isEnabled) : apiKeys
   }
 
@@ -771,6 +826,7 @@ class ProviderService {
     assertManagedCherryProviderMutationAllowed(providerId, `add API key to provider ${providerId}`)
 
     const db = application.get('DbService').getDb()
+
     const { provider, added } = db.transaction((tx) => {
       const [row] = tx
         .select()
@@ -789,6 +845,7 @@ class ProviderService {
       }
 
       const identity: Omit<ApiKeyEntry, 'isEnabled'> = { id: uuidv4(), key }
+
       if (label) identity.label = label
       const newEntry: ApiKeyEntry = { ...identity, isEnabled: true }
 
@@ -820,6 +877,7 @@ class ProviderService {
     assertManagedCherryProviderMutationAllowed(providerId, `replace API keys for provider ${providerId}`)
 
     const db = application.get('DbService').getDb()
+
     const provider = db.transaction((tx) => {
       const [current] = tx
         .select({
@@ -834,6 +892,7 @@ class ProviderService {
       assertProviderAvailable(current, providerId)
 
       const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
+
       const [row] = tx
         .update(userProviderTable)
         .set({ apiKeys: normalizedApiKeys })
@@ -868,6 +927,7 @@ class ProviderService {
     assertManagedCherryProviderMutationAllowed(providerId, `update API key for provider ${providerId}`)
 
     const db = application.get('DbService').getDb()
+
     const provider = db.transaction((tx) => {
       const [row] = tx
         .select()
@@ -886,6 +946,7 @@ class ProviderService {
       }
 
       const nextKeyValue = updates.key?.trim()
+
       if (updates.key !== undefined && !nextKeyValue) {
         throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
       }
@@ -900,7 +961,9 @@ class ProviderService {
         }
 
         const updatedEntry = { ...entry }
+
         if (updates.isEnabled !== undefined) updatedEntry.isEnabled = updates.isEnabled
+
         if (nextKeyValue) updatedEntry.key = nextKeyValue
 
         if (updates.label !== undefined) {
@@ -936,6 +999,7 @@ class ProviderService {
     assertManagedCherryProviderMutationAllowed(providerId, `delete API key from provider ${providerId}`)
 
     const db = application.get('DbService').getDb()
+
     const provider = db.transaction((tx) => {
       const [row] = tx
         .select()
@@ -977,6 +1041,7 @@ class ProviderService {
 
     const providerModelIds: string[] = []
     let affectedSessionIds: string[] = []
+
     const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({
@@ -995,6 +1060,7 @@ class ProviderService {
       // covers presets that group under a different preset (e.g. zai → zhipu,
       // minimax-global → minimax) whose presetProviderId no longer equals their id.
       const providerRegistryService = getDataService('ProviderRegistryService')
+
       if (
         (provider.presetProviderId && provider.presetProviderId === providerId) ||
         (provider.presetProviderId !== null && providerRegistryService.isRegistryProvider(providerId))
@@ -1057,6 +1123,7 @@ class ProviderService {
     } catch (error) {
       this.rethrowOrderError(error)
     }
+
     logger.info('Moved provider', { providerId, anchor })
   }
 
@@ -1077,6 +1144,7 @@ class ProviderService {
     } catch (error) {
       this.rethrowOrderError(error)
     }
+
     logger.info('Reordered providers', { count: moves.length })
   }
 }

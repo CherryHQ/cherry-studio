@@ -41,12 +41,15 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
 
   useEffect(() => {
     let handleMouseMoveTimer: NodeJS.Timeout
+
     if (!isMultiSelectMode) return
 
     const updateDragPos = (e: MouseEvent) => {
       const container = scrollContainerRef.current!
+
       if (!container) return { x: 0, y: 0 }
       const rect = container.getBoundingClientRect()
+
       return {
         x: e.clientX - rect.left + container.scrollLeft,
         y: e.clientY - rect.top + container.scrollTop
@@ -55,6 +58,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
 
     const handleMouseDown = (e: MouseEvent) => {
       if ((e.target as HTMLElement).closest(INTERACTIVE_CHECKBOX_SELECTOR)) return
+
       if ((e.target as HTMLElement).closest('.MessageFooter')) return
 
       e.preventDefault()
@@ -113,6 +117,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
           if (dragSelectedIds.current.delete(id)) {
             handleSelectMessage(id, false)
           }
+
           return
         }
 
@@ -128,6 +133,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
 
     const handleMouseUp = () => {
       setIsMouseDown(false)
+
       if (isDragging) {
         setIsDragging(false)
         document.body.classList.remove('no-select')

@@ -4,6 +4,7 @@ import { MinimaxLight } from './light'
 
 const Minimax = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MinimaxLight {...props} className={className} />
+
   return <MinimaxLight {...props} className={className} />
 }
 

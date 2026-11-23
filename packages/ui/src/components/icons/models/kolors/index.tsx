@@ -4,6 +4,7 @@ import { KolorsLight } from './light'
 
 const Kolors = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <KolorsLight {...props} className={className} />
+
   return <KolorsLight {...props} className={className} />
 }
 

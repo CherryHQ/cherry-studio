@@ -6,7 +6,9 @@ import { RunwayLight } from './light'
 
 const Runway = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <RunwayLight {...props} className={className} />
+
   if (variant === 'dark') return <RunwayDark {...props} className={className} />
+
   return (
     <>
       <RunwayLight className={cn('dark:hidden', className)} {...props} />

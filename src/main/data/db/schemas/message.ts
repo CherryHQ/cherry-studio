@@ -91,6 +91,7 @@ export const messageTable = sqliteTable(
 )
 
 export type MessageRow = typeof messageTable.$inferSelect
+
 export type InsertMessageRow = typeof messageTable.$inferInsert
 
 /**

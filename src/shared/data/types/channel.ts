@@ -11,6 +11,7 @@ export const TelegramChannelConfigSchema = z.object({
 export type TelegramChannelConfig = z.infer<typeof TelegramChannelConfigSchema>
 
 export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
+
 export type FeishuDomain = z.infer<typeof FeishuDomainSchema>
 
 export const FeishuChannelConfigSchema = z.object({
@@ -48,6 +49,7 @@ const WeComChatIdSchema = z
   .string()
   .trim()
   .regex(/^(dm|group):\S+$/)
+
 const WeComUserIdSchema = z.string().trim().min(1)
 
 export const WeComChannelConfigSchema = z.strictObject({
@@ -122,6 +124,7 @@ export const ChannelConfigSchema = z.discriminatedUnion('type', [
 export type ChannelConfig = z.infer<typeof ChannelConfigSchema>
 
 export const CHANNEL_TYPES = ['telegram', 'feishu', 'qq', 'wechat', 'wecom', 'dingtalk', 'discord', 'slack'] as const
+
 export type ChannelType = (typeof CHANNEL_TYPES)[number]
 
 export interface ChannelStatus {

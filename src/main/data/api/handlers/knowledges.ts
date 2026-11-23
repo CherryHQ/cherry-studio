@@ -26,6 +26,7 @@ export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
   '/knowledge-bases': {
     GET: async ({ query }) => {
       const parsed = ListKnowledgeBasesQuerySchema.parse(query ?? {})
+
       return knowledgeBaseService.listCursor(parsed)
     }
   },
@@ -36,6 +37,7 @@ export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateKnowledgeBaseSchema.parse(body)
+
       return knowledgeBaseService.update(params.id, parsed)
     }
   },
@@ -49,6 +51,7 @@ export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
   '/knowledge-bases/:id/items': {
     GET: async ({ params, query }) => {
       const parsed = ListKnowledgeItemsQuerySchema.parse(query ?? {})
+
       return knowledgeItemService.list(params.id, parsed)
     }
   },

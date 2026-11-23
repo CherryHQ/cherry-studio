@@ -53,6 +53,7 @@ export type LaunchCommand = {
 }
 
 type CommandResolution = Pick<LaunchCommand, 'command' | 'resolution' | 'unavailableReason' | 'lookupError'>
+
 export type LaunchResolutionCache = Map<string, Promise<CommandResolution>>
 
 /**
@@ -79,6 +80,7 @@ export async function resolveLaunchCommand({
 }): Promise<LaunchCommand> {
   const normalizedCommand = command.trim()
   signal?.throwIfAborted()
+
   if (!normalizedCommand) {
     throw new Error('MCP stdio command cannot be empty')
   }
@@ -90,10 +92,14 @@ export async function resolveLaunchCommand({
     const systemPath = runner
       ? await findExecutableInEnv(normalizedCommand, { env: loginShellEnv, signal })
       : await findCommandInShellEnv(normalizedCommand, loginShellEnv, signal)
+
     signal?.throwIfAborted()
+
     if (systemPath) return { command: systemPath, resolution: 'system' }
+
     if (!runner) return { command: normalizedCommand, resolution: 'unresolved' }
     const bundled = runner.bundled ?? normalizedCommand
+
     if (!(await isBinaryExists(bundled))) {
       return {
         command: normalizedCommand,
@@ -101,33 +107,43 @@ export async function resolveLaunchCommand({
         unavailableReason: runner.notFound(normalizedCommand)
       }
     }
+
     const command = await getBinaryPath(bundled)
     signal?.throwIfAborted()
+
     return { command, resolution: 'bundled' }
   }
+
   const key = JSON.stringify([normalizedCommand, Object.entries(loginShellEnv).sort(([a], [b]) => a.localeCompare(b))])
   let pending = resolutionCache?.get(key)
+
   if (!pending) {
     pending = resolve()
     resolutionCache?.set(key, pending)
   }
+
   let resolution: CommandResolution
+
   try {
     resolution = await pending
   } catch (error) {
     if (runner) throw error
     signal?.throwIfAborted()
+
     if (resolutionCache?.get(key) === pending) {
       resolutionCache.delete(key)
     }
+
     logger.warn('Failed to resolve stdio command; attempting the configured command', {
       command: normalizedCommand,
       error
     })
     resolution = { command: normalizedCommand, resolution: 'unresolved', lookupError: error }
   }
+
   signal?.throwIfAborted()
   logger.debug('Resolved stdio launch command', { resolution: resolution.resolution })
+
   return {
     ...resolution,
     args: resolution.resolution === 'bundled' ? (runner?.transformArgs?.(args) ?? args) : args,
@@ -137,19 +153,23 @@ export async function resolveLaunchCommand({
 
 export function buildStdioEnvironment(loginShellEnv: Record<string, string>, serverEnv: Record<string, string>) {
   const env = { ...loginShellEnv, ...serverEnv }
+
   if (process.platform !== 'win32') return env
 
   const serverPathKey = Object.keys(serverEnv)
     .filter((key) => key.toLowerCase() === 'path')
     .at(-1)
+
   const shellPathKey = Object.keys(loginShellEnv)
     .filter((key) => key.toLowerCase() === 'path')
     .at(-1)
+
   const pathValue = serverPathKey ? serverEnv[serverPathKey] : shellPathKey ? loginShellEnv[shellPathKey] : undefined
 
   for (const key of Object.keys(env)) {
     if (key.toLowerCase() === 'path') delete env[key]
   }
+
   if (pathValue !== undefined) env.PATH = pathValue
 
   return env

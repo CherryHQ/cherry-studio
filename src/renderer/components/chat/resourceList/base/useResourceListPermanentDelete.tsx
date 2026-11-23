@@ -55,17 +55,21 @@ export function useResourceListPermanentDelete<T extends ResourceListItemBase>({
     const marker = markerRef.current
     const frame = marker?.closest('[data-resource-list-variant]')
     const listbox = frame?.querySelector('[role="listbox"]')
+
     if (!(listbox instanceof HTMLElement)) return null
 
     const active = document.activeElement
+
     if (!(active instanceof HTMLElement)) return null
 
     const snapshot = store.getUiSnapshot()
+
     if (snapshot.renamingId) return null
 
     const visibleItems = viewRef.current.visibleItems
     const option = active === listbox ? null : active.closest('[role="option"]')
     let domId: string | null = null
+
     if (option instanceof HTMLElement && listbox.contains(option)) {
       if (!option.id) return null
       domId = option.id
@@ -79,7 +83,9 @@ export function useResourceListPermanentDelete<T extends ResourceListItemBase>({
     const item = domId
       ? visibleItems.find((candidate) => getResourceListOptionDomId(accessors.getItemId(candidate)) === domId)
       : visibleItems.find((candidate) => accessors.getItemId(candidate) === snapshot.activeId)
+
     if (!item || (isItemEligibleRef.current && !isItemEligibleRef.current(item))) return null
+
     return item
   }
 
@@ -91,8 +97,10 @@ export function useResourceListPermanentDelete<T extends ResourceListItemBase>({
     () => {
       if (pendingRef.current) return
       const item = readFocusedItemRef.current()
+
       if (!item) return
       pendingRef.current = true
+
       try {
         return Promise.resolve(onDeleteRef.current(item)).finally(() => {
           pendingRef.current = false
@@ -112,5 +120,6 @@ export function ResourceListPermanentDelete<T extends ResourceListItemBase>(
   props: ResourceListPermanentDeleteProps<T>
 ) {
   const markerRef = useResourceListPermanentDelete(props)
+
   return <span ref={markerRef} hidden data-resource-list-permanent-delete="" />
 }

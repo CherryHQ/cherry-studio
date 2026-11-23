@@ -54,24 +54,31 @@ async function trimViaCodec(
   threshold: number
 ): Promise<PersistedToolOutputRef | null> {
   const deflated = codec.deflate(output)
+
   if (!deflated) return null
+
   const oversized = deflated.blobs.filter(
     (blob) => blob.text.length > threshold && PERSIST_HEAD_CHARS + PERSIST_TAIL_CHARS < blob.text.length
   )
+
   if (oversized.length === 0) return null
 
   const blobRefs: PersistedToolOutputBlobRef[] = []
   let skeleton = SerializableSchema.parse(JSON.parse(JSON.stringify(deflated.skeleton)))
+
   for (const blob of oversized) {
     const { entry, vfsFilename } = await persistToolOutputText(blob.text)
+
     const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(
       blob.text,
       PERSIST_HEAD_CHARS,
       PERSIST_TAIL_CHARS
     )
+
     blobRefs.push({ key: blob.key, fileEntryId: entry.id, vfsFilename, head, tail, totalChars, totalLines })
     skeleton = spliceTextAtKey(skeleton, blob.key, codec.snippet(blob.text))
   }
+
   return { shape: 'entities', skeleton, blobRefs }
 }
 
@@ -79,16 +86,21 @@ async function trimViaCodec(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Heterogeneous tool results are accepted only when extractPersistableText recognizes a persistable text shape.
 async function trimWholeText(output: unknown, threshold: number): Promise<PersistedToolOutputRef | null> {
   const extracted = extractPersistableText(output)
+
   if (!extracted) return null
+
   if (extracted.text.length <= threshold) return null
+
   if (PERSIST_HEAD_CHARS + PERSIST_TAIL_CHARS >= extracted.text.length) return null
 
   const { entry, vfsFilename } = await persistToolOutputText(extracted.text)
+
   const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(
     extracted.text,
     PERSIST_HEAD_CHARS,
     PERSIST_TAIL_CHARS
   )
+
   const reference: PersistedToolOutputRef = {
     fileEntryId: entry.id,
     vfsFilename,
@@ -98,7 +110,9 @@ async function trimWholeText(output: unknown, threshold: number): Promise<Persis
     totalLines,
     shape: extracted.shape
   }
+
   if (extracted.metadata !== undefined) reference.metadata = extracted.metadata
+
   return reference
 }
 
@@ -116,6 +130,7 @@ export async function trimOversizedToolOutputs(
   // persist-time globals + the turn's assistant override snapshot, so both
   // lanes trim at the same effective threshold.
   const settings = resolveContextSettings({ globals: resolveGlobalContextSettings(), assistant: assistantOverride })
+
   if (!settings.enabled) return parts
   const threshold = settings.truncateThreshold
 
@@ -124,17 +139,22 @@ export async function trimOversizedToolOutputs(
   const builtins = new Map(registry.getAll().map((entry) => [entry.name, entry]))
 
   let trimmed: CherryMessagePart[] | undefined
+
   for (let index = 0; index < parts.length; index++) {
     const part = parts[index]
+
     if (!isToolUIPart(part) || part.state !== 'output-available') continue
+
     if (isPersistedToolOutput(part.output) || isDeferredToolOutput(part.output)) continue
     const entry = builtins.get(getToolName(part))
+
     if (!entry?.codec && entry?.truncatable === false) continue
 
     try {
       const ref = entry?.codec
         ? await trimViaCodec(part.output, entry.codec, threshold)
         : await trimWholeText(part.output, threshold)
+
       if (!ref) continue
       const output: PersistedToolOutput = { $persistedToolOutput: ref }
       trimmed ??= [...parts]
@@ -145,5 +165,6 @@ export async function trimOversizedToolOutputs(
       })
     }
   }
+
   return trimmed ?? parts
 }

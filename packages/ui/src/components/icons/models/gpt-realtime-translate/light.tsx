@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const GptRealtimeTranslateLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -41,5 +42,7 @@ const GptRealtimeTranslateLight: IconComponent = (props: SVGProps<SVGSVGElement>
     </svg>
   )
 }
+
 export { GptRealtimeTranslateLight }
+
 export default GptRealtimeTranslateLight

@@ -83,6 +83,7 @@ export class TabLruManager {
     toHibernateCount = Math.min(toHibernateCount, candidates.length)
 
     const afterHibernation = activeCount - toHibernateCount
+
     if (isHardCapTriggered && afterHibernation > this.hardCap) {
       logger.error('Cannot guarantee hard cap - insufficient candidates', {
         activeCount,

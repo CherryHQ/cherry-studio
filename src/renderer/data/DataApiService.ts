@@ -119,6 +119,7 @@ export class DataApiService implements ApiClient {
     if (!window.api.dataApi.request) {
       throw DataApiErrorFactory.create(ErrorCode.SERVICE_UNAVAILABLE, 'Data API not available')
     }
+
     let errorMetadata: DataResponse['metadata'] | undefined
     let didTimeout = false
     DataApiDevtools.recordStart({
@@ -142,6 +143,7 @@ export class DataApiService implements ApiClient {
       logger.debug(`Making ${request.method} request to ${request.path}`, { request })
 
       const timeoutMs = readDeadline === undefined ? REQUEST_TIMEOUT_MS : Math.max(0, readDeadline - Date.now())
+
       if (timeoutMs === 0) {
         didTimeout = true
         throw DataApiErrorFactory.timeout(request.path, timeoutMs, requestContext)
@@ -150,6 +152,7 @@ export class DataApiService implements ApiClient {
       // IPC invoke cannot be cancelled. Reads spend their recovery budget on the
       // original response instead of sending overlapping retries after three seconds.
       let timeoutId: ReturnType<typeof setTimeout> | undefined
+
       const response = await Promise.race([
         window.api.dataApi.request(request),
         new Promise<never>((_, reject) => {
@@ -220,10 +223,12 @@ export class DataApiService implements ApiClient {
 
         const remainingDelay =
           readDeadline === undefined ? delay : Math.min(delay, Math.max(0, readDeadline - Date.now()))
+
         await new Promise((resolve) => setTimeout(resolve, remainingDelay))
 
         // Create new request with new ID for retry
         const retryRequest = { ...request, id: this.generateRequestId() }
+
         return this.sendRequest<T>(retryRequest, retryCount + 1, readDeadline)
       }
 
@@ -263,12 +268,15 @@ export class DataApiService implements ApiClient {
     logger.debug(`Making ${method} request to ${path}`, { request })
 
     let readDeadline: number | undefined
+
     if (method === 'GET') {
       const { maxRetries, retryDelay, backoffMultiplier } = this.defaultRetryOptions
       let budget = REQUEST_TIMEOUT_MS * (maxRetries + 1)
+
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         budget += retryDelay * Math.pow(backoffMultiplier, attempt)
       }
+
       readDeadline = Date.now() + budget
     }
 
@@ -398,20 +406,25 @@ export class DataApiService implements ApiClient {
     // and the endpoint snapshot below is decoupled from the caller's array.
     const registered = (effects: DataApiDataChangeEffect[]) => listener(effects)
     const endpointList = [...new Set(Array.isArray(endpoints) ? endpoints : [endpoints])]
+
     for (const endpoint of endpointList) {
       let listeners = this.dataChangeListeners.get(endpoint)
+
       if (!listeners) {
         listeners = new Set()
         this.dataChangeListeners.set(endpoint, listeners)
       }
+
       listeners.add(registered)
     }
 
     return () => {
       for (const endpoint of endpointList) {
         const listeners = this.dataChangeListeners.get(endpoint)
+
         if (!listeners) continue
         listeners.delete(registered)
+
         if (listeners.size === 0) {
           this.dataChangeListeners.delete(endpoint)
         }
@@ -426,18 +439,24 @@ export class DataApiService implements ApiClient {
    */
   private dispatchDataChange(effects: DataApiDataChangeEffect[]): void {
     const matched = new Map<(effects: DataApiDataChangeEffect[]) => void, DataApiDataChangeEffect[]>()
+
     for (const effect of effects) {
       const listeners = this.dataChangeListeners.get(effect.endpoint)
+
       if (!listeners) continue
+
       for (const listener of listeners) {
         let batch = matched.get(listener)
+
         if (!batch) {
           batch = []
           matched.set(listener, batch)
         }
+
         batch.push(effect)
       }
     }
+
     for (const [listener, batch] of matched) {
       try {
         listener(batch)

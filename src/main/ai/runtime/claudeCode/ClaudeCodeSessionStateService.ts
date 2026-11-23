@@ -55,12 +55,14 @@ export class ClaudeCodeSessionStateService extends BaseService {
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
+
     if (!holder) {
       const nextHolder: ToolApprovalEmitterHolder = {
         dispose: () => {
           nextHolder.emit = undefined
           nextHolder.emitInput = undefined
           toolApprovalRegistry.abort(sessionId, 'stream-ended')
+
           // Evict so the map doesn't grow unbounded across sessions;
           // the holder is rebuilt lazily on the next settings build.
           if (this.toolApprovalEmitters.get(sessionId) === nextHolder) {
@@ -68,9 +70,11 @@ export class ClaudeCodeSessionStateService extends BaseService {
           }
         }
       }
+
       holder = nextHolder
       this.toolApprovalEmitters.set(sessionId, holder)
     }
+
     return holder
   }
 
@@ -89,14 +93,18 @@ export class ClaudeCodeSessionStateService extends BaseService {
     options: Parameters<typeof createClaudeAgentToolPolicySnapshot>[1]
   ): Promise<ToolPolicySnapshot> {
     const existing = this.toolPolicySnapshots.get(sessionId)
+
     if (existing) {
       // Connect (including a warm-hit) refreshes the shared instance with the current agent so a
       // policy change made between prewarm and connect is honored on the running subprocess.
       await existing.update(agent)
+
       return existing
     }
+
     const snapshot = await createClaudeAgentToolPolicySnapshot(agent, options)
     this.toolPolicySnapshots.set(sessionId, snapshot)
+
     return snapshot
   }
 
@@ -115,16 +123,19 @@ export class ClaudeCodeSessionStateService extends BaseService {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native hook payloads carry heterogeneous Bash successes and failures; fingerprint their original serialized bytes per agent.
   recordBashOutcome(sessionId: string, command: string, output: unknown, failed: boolean, agentId?: string): void {
     const normalized = normalizeBashCommand(command)
+
     if (!normalized) return
     const key = this.bashScopeKey(sessionId, agentId)
     const history = this.bashOutcomes.get(key) ?? []
     history.push({ command: normalized, fingerprint: fingerprintBashOutput(output, failed) })
+
     if (history.length > BASH_HISTORY_LIMIT) history.shift()
     this.bashOutcomes.set(key, history)
   }
 
   getBashNoProgressRun(sessionId: string, command: string, agentId?: string): number | undefined {
     const history = this.bashOutcomes.get(this.bashScopeKey(sessionId, agentId))
+
     return history ? bashNoProgressRunLength(history, command) : undefined
   }
 
@@ -136,8 +147,10 @@ export class ClaudeCodeSessionStateService extends BaseService {
    */
   recordBashRunBreak(sessionId: string, agentId?: string): void {
     const history = this.bashOutcomes.get(this.bashScopeKey(sessionId, agentId))
+
     if (!history?.length) return
     history.push({ command: BASH_RUN_BREAK_MARKER, fingerprint: '' })
+
     if (history.length > BASH_HISTORY_LIMIT) history.shift()
   }
 
@@ -153,28 +166,35 @@ export class ClaudeCodeSessionStateService extends BaseService {
    */
   recordBashRewriteOrigin(sessionId: string, toolUseId: string, originalCommand: string): void {
     let origins = this.bashRewriteOrigins.get(sessionId)
+
     if (!origins) {
       origins = new Map()
       this.bashRewriteOrigins.set(sessionId, origins)
     }
+
     origins.set(toolUseId, originalCommand)
   }
 
   takeBashRewriteOrigin(sessionId: string, toolUseId: string): string | undefined {
     const origins = this.bashRewriteOrigins.get(sessionId)
+
     if (!origins) return undefined
     const original = origins.get(toolUseId)
     origins.delete(toolUseId)
+
     if (origins.size === 0) this.bashRewriteOrigins.delete(sessionId)
+
     return original
   }
 
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
+
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
     for (const key of [...this.bashOutcomes.keys()]) {
       if (key === sessionId || key.startsWith(`${sessionId} `)) this.bashOutcomes.delete(key)
     }
+
     this.bashRewriteOrigins.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
@@ -188,14 +208,17 @@ export class ClaudeCodeSessionStateService extends BaseService {
   ): void {
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
+
     if (!metadata || mcpIds.length === 0) return
 
     const serverIds = new Set(
       mcpIds.flatMap((mcpId) => {
         const server = mcpServerService.findByIdOrName(mcpId)
+
         return server ? [server.id] : []
       })
     )
+
     if (serverIds.size === 0) return
 
     const state: McpSessionCatalogState = {
@@ -204,6 +227,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
       metadata,
       refreshSequence: 0
     }
+
     state.subscription = application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
       if (!state.serverIds.has(serverId)) return
       void this.refreshMcpSessionCatalogState(sessionId).catch((error) => {
@@ -215,8 +239,10 @@ export class ClaudeCodeSessionStateService extends BaseService {
 
   private async refreshMcpSessionCatalogState(sessionId: string): Promise<void> {
     const state = this.mcpSessionCatalogStates.get(sessionId)
+
     if (!state) return
     const liveAgent = agentService.getAgent(state.agentId)
+
     if (!liveAgent) return
     const sequence = ++state.refreshSequence
 
@@ -224,6 +250,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
       this.getToolPolicySnapshot(sessionId)?.update(liveAgent),
       buildMcpToolMetadata(liveAgent)
     ])
+
     if (this.mcpSessionCatalogStates.get(sessionId) !== state || sequence !== state.refreshSequence) return
 
     if (policyResult.status === 'rejected') {
@@ -232,16 +259,19 @@ export class ClaudeCodeSessionStateService extends BaseService {
         error: policyResult.reason
       })
     }
+
     if (metadataResult.status === 'rejected') {
       logger.warn('Failed to refresh MCP tool metadata after catalog update', {
         sessionId,
         error: metadataResult.reason
       })
+
       return
     }
 
     // In-place replace: the stream adapter and the built settings hold this object by reference.
     for (const key of Object.keys(state.metadata)) delete state.metadata[key]
+
     if (metadataResult.value) Object.assign(state.metadata, metadataResult.value)
   }
 
@@ -251,17 +281,20 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.toolPolicySnapshots.clear()
     this.bashOutcomes.clear()
     this.bashRewriteOrigins.clear()
+
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }
 
   protected onStop(): Promise<void> {
     this.disposeAllSessionState()
+
     return Promise.resolve()
   }
 
   protected onDestroy(): Promise<void> {
     this.disposeAllSessionState()
+
     return Promise.resolve()
   }
 }

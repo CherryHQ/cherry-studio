@@ -45,6 +45,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   // The list only reads existing connections; connecting here would start OAuth for every card.
   const fetchServerVersion = useCallback(async (s: McpServer, connect = false) => {
     if (!s.isActive) return
+
     try {
       const v = await ipcApi.request('mcp.server.get_version', { serverId: s.id, connect })
       setVersion(v)
@@ -65,17 +66,21 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const handleToggleActive = useCallback(
     async (active: boolean) => {
       let serverForUpdate = server
+
       if (active) {
         const trustedServer = await ensureServerTrusted(server)
+
         if (!trustedServer) return
         serverForUpdate = trustedServer
       }
 
       setLoading(true)
       logger.debug('toggle activate', { serverId: serverForUpdate.id, active })
+
       try {
         if (active) {
           await updateMcpServer({ body: { isActive: true } })
+
           try {
             await fetchServerVersion({ ...serverForUpdate, isActive: true }, true)
             await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
@@ -103,6 +108,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         content: t('settings.mcp.deleteServerConfirm'),
         centered: true
       })
+
       if (!confirmed) return
 
       await removeMcpServer()

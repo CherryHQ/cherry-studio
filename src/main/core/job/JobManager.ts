@@ -96,6 +96,7 @@ interface FinishedResolver {
  * boundaries inside 'catch-up'); the cursor below records where to resume.
  */
 const RECOVERY_STEPS = ['reset', 'resurrect', 'catch-up', 'arm', 'dispatch'] as const
+
 type RecoveryStep = (typeof RECOVERY_STEPS)[number]
 
 /**
@@ -281,6 +282,7 @@ export class JobManager extends BaseService {
 
   protected override onInit(): void {
     this.leftoverJobIds = new Set(jobService.getStaleActive().map((row) => row.id))
+
     // Covers handlers registered before the snapshot; `registerHandler` covers later ones.
     for (const [type, handler] of this.handlers) abandonLeftovers(type, handler, this.leftoverJobIds)
     logger.info('JobManager initialized', { leftoverJobs: this.leftoverJobIds.size })
@@ -303,6 +305,7 @@ export class JobManager extends BaseService {
     this.registerInterval(() => {
       if (this.isAutonomySuspended) return
       const promoted = jobService.promoteDelayedDue(Date.now())
+
       if (promoted > 0) {
         logger.debug('Promoted delayed jobs', { count: promoted })
         this.dispatchAll()
@@ -330,18 +333,23 @@ export class JobManager extends BaseService {
     const handle = setTimeout(() => {
       if (this._isShuttingDown) {
         logger.info('Startup recovery skipped: shutdown requested during quiet window')
+
         return
       }
+
       if (this.isQuiesced) {
         // Write quiesce is active — defer the entire flow to the release
         // compensation pass. `_recoveryDone` stays unset: nothing is in
         // flight, so drainInFlight correctly reports no pending recovery.
         this.recoveryReplayPoint = { step: 'reset' }
         logger.info('Startup recovery deferred: JobManager is paused')
+
         return
       }
+
       this._recoveryDone = this.runStartupRecoveryFlow()
     }, JOB_MANAGER_STARTUP_DELAY_MS)
+
     this.registerDisposable(() => clearTimeout(handle))
   }
 
@@ -409,6 +417,7 @@ export class JobManager extends BaseService {
     // Wrapper only tracks the in-flight flag (release compensation reads it
     // to detect a flow blocked inside a step — see runReleaseCompensation).
     this.recoveryFlowInFlight = true
+
     return this.executeStartupRecoveryFlow(resume).finally(() => {
       this.recoveryFlowInFlight = false
     })
@@ -416,28 +425,34 @@ export class JobManager extends BaseService {
 
   private async executeStartupRecoveryFlow(resume?: RecoveryResumePoint): Promise<void> {
     const startIndex = RECOVERY_STEPS.indexOf(resume?.step ?? 'reset')
+
     // Boundary check: shutdown wins (teardown is onStop's job, no replay
     // debt); pause records where the release pass must resume.
     const interruptedAt = (point: RecoveryResumePoint): boolean => {
       if (this._isShuttingDown) return true
+
       if (this.isQuiesced) {
         this.recoveryReplayPoint = point
         logger.info('Startup recovery interrupted by pause — will replay on release', {
           step: point.step,
           catchUpIndex: point.catchUpIndex ?? null
         })
+
         return true
       }
+
       return false
     }
 
     if (startIndex <= RECOVERY_STEPS.indexOf('reset')) {
       if (interruptedAt({ step: 'reset' })) return
+
       try {
         const stats = runStartupRecovery(
           this.handlers,
           (id) => !this.leftoverJobIds.has(id) || this.inFlightExecuted.has(id)
         )
+
         logger.info('Startup recovery complete', stats)
       } catch (err) {
         logger.error('Startup recovery failed', err as Error)
@@ -446,19 +461,24 @@ export class JobManager extends BaseService {
 
     if (startIndex <= RECOVERY_STEPS.indexOf('resurrect')) {
       if (interruptedAt({ step: 'resurrect' })) return
+
       try {
         const activeQueues = jobService.getDistinctActiveQueues()
+
         for (const { queue, type } of activeQueues) {
           if (this._isShuttingDown) return
           const handler = this.handlers.get(type)
+
           if (!handler) {
             // runStartupRecovery should have cancelled orphan rows already, so
             // a missing handler here is a recovery-implementation regression.
             logger.warn('Orphan (queue, type) survived recovery — skipping ensureQueue', { queue, type })
             continue
           }
+
           this.ensureQueue(queue, handler.defaultConcurrency ?? 1)
         }
+
         if (activeQueues.length > 0) {
           logger.info('Resurrected queues from non-terminal jobs', { count: activeQueues.length })
         }
@@ -468,17 +488,23 @@ export class JobManager extends BaseService {
     }
 
     let schedules: JobScheduleSnapshot[] = resume?.schedules ?? []
+
     if (startIndex <= RECOVERY_STEPS.indexOf('catch-up')) {
       let cursor = resume?.step === 'catch-up' ? (resume.catchUpIndex ?? 0) : 0
+
       if (interruptedAt({ step: 'catch-up', schedules: resume?.schedules, catchUpIndex: cursor })) return
+
       try {
         if (!resume?.schedules) schedules = jobScheduleService.listEnabled()
+
         // The loop exits early only on shutdown or pause; the boundary check
         // then either returns (recording the exact un-started index) or —
         // if the pause was already lifted — resumes the loop in place.
         for (;;) {
           cursor = await this.detectAndDispatchOverdue(schedules, cursor)
+
           if (cursor >= schedules.length) break
+
           if (interruptedAt({ step: 'catch-up', schedules, catchUpIndex: cursor })) return
         }
       } catch (err) {
@@ -489,6 +515,7 @@ export class JobManager extends BaseService {
     if (startIndex <= RECOVERY_STEPS.indexOf('arm')) {
       for (const schedule of schedules) {
         if (interruptedAt({ step: 'arm', schedules })) return
+
         try {
           this.armSchedule(schedule)
         } catch (err) {
@@ -499,6 +526,7 @@ export class JobManager extends BaseService {
 
     if (startIndex <= RECOVERY_STEPS.indexOf('dispatch')) {
       if (interruptedAt({ step: 'dispatch' })) return
+
       try {
         this.dispatchAll()
       } catch (err) {
@@ -534,12 +562,15 @@ export class JobManager extends BaseService {
     // deletes entries as handlers settle.
     const inFlight = Array.from(this.inFlightExecuted.keys())
     const executedSignals = Array.from(this.inFlightExecuted.values())
+
     for (const controller of this.abortControllers.values()) {
       controller.abort(new Error('JobManager shutdown'))
     }
+
     for (const disposable of this.scheduleDisposables.values()) {
       disposable.dispose()
     }
+
     this.scheduleDisposables.clear()
 
     if (inFlight.length === 0) {
@@ -605,6 +636,7 @@ export class JobManager extends BaseService {
     if (this.handlers.has(type)) {
       throw new Error(`JobManager: handler for type "${type}" is already registered`)
     }
+
     this.handlers.set(type, handler as JobHandler)
     abandonLeftovers(type, handler as JobHandler, this.leftoverJobIds)
     logger.info('Handler registered', { type, recovery: handler.recovery })
@@ -638,13 +670,17 @@ export class JobManager extends BaseService {
   pause(reason?: string): Disposable {
     const token = Symbol(reason ?? 'jobmanager-pause')
     this.pauseHolds.add(token)
+
     if (this.pauseHolds.size === 1) this.engageCronPause()
     logger.info('JobManager paused', { reason: reason ?? null, holds: this.pauseHolds.size })
+
     return {
       dispose: () => {
         if (!this.pauseHolds.delete(token)) return
         logger.info('JobManager pause hold released', { reason: reason ?? null, holds: this.pauseHolds.size })
+
         if (this.pauseHolds.size > 0) return
+
         // Shutdown wins: onStop owns the teardown, compensation would only
         // race it (and its dispatches would be aborted immediately anyway).
         if (this._isShuttingDown) return
@@ -695,6 +731,7 @@ export class JobManager extends BaseService {
     const recovery = this._recoveryDone
     let recoverySettled = recovery === undefined
     const parts: Promise<unknown>[] = [...waited]
+
     if (recovery) {
       // Join the recovery flow inside the SAME bounded race: outside it the
       // timeout contract breaks; inside it without its own verdict field a
@@ -707,21 +744,26 @@ export class JobManager extends BaseService {
     }
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+
     const timeout = new Promise<'timeout'>((resolve) => {
       timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
     })
+
     const winner = await Promise.race([Promise.all(parts).then(() => 'done' as const), timeout])
+
     if (timeoutHandle) clearTimeout(timeoutHandle)
 
     if (winner === 'done') {
       return { stragglerIds: [], startupRecoveryPending: false }
     }
+
     const stragglerIds = waitedIds.filter((id) => this.inFlightExecuted.has(id))
     logger.warn('drainInFlight timed out with unsettled work', {
       timeoutMs: opts.timeoutMs,
       stragglerIds,
       startupRecoveryPending: !recoverySettled
     })
+
     return { stragglerIds, startupRecoveryPending: !recoverySettled }
   }
 
@@ -733,8 +775,10 @@ export class JobManager extends BaseService {
    */
   private engageCronPause(): void {
     const scheduler = application.get('SchedulerService')
+
     for (const id of this.scheduleDisposables.keys()) {
       const snapshot = jobScheduleService.getById(id)
+
       if (snapshot?.trigger.kind !== 'cron') continue
       scheduler.pause(`schedule:${id}`)
       this.pausedCronScheduleIds.add(id)
@@ -815,12 +859,14 @@ export class JobManager extends BaseService {
     //    promoteDueAtFire so its re-arm protection covers rows not yet due.
     try {
       const promoted = jobService.promoteDelayedDue(Date.now())
+
       if (promoted > 0) {
         logger.info('Pause release: promoted delayed jobs', { count: promoted })
       }
     } catch (err) {
       logger.error('Pause release: promoteDelayedDue failed', err as Error)
     }
+
     for (const [scheduleId, { jobId, queue }] of this.suppressedPromotionFires) {
       try {
         this.promoteDueAtFire(scheduleId, jobId, queue)
@@ -828,6 +874,7 @@ export class JobManager extends BaseService {
         logger.error('Pause release: suppressed promotion replay failed', err as Error, { jobId })
       }
     }
+
     this.suppressedPromotionFires.clear()
     this.dispatchAll()
 
@@ -838,11 +885,13 @@ export class JobManager extends BaseService {
     for (const id of this.suppressedOnceScheduleIds) {
       try {
         const snapshot = jobScheduleService.getById(id)
+
         if (snapshot?.enabled) this.armSchedule(snapshot)
       } catch (err) {
         logger.error('Pause release: suppressed once re-arm failed', err as Error, { scheduleId: id })
       }
     }
+
     this.suppressedOnceScheduleIds.clear()
 
     // 3. Resume croner-level pauses, skipping ids whose entry was removed
@@ -850,9 +899,11 @@ export class JobManager extends BaseService {
     //    dispose the scheduler entry — resuming those would be wrong).
     //    Missed fires stay skipped: croner does not catch up.
     const scheduler = application.get('SchedulerService')
+
     for (const id of this.pausedCronScheduleIds) {
       if (this.scheduleDisposables.has(id)) scheduler.resume(`schedule:${id}`)
     }
+
     this.pausedCronScheduleIds.clear()
 
     // 4. Persist SchedulerService's post-pause calendar for armed recurring schedules;
@@ -860,9 +911,11 @@ export class JobManager extends BaseService {
     for (const id of this.scheduleDisposables.keys()) {
       try {
         const snapshot = jobScheduleService.getById(id)
+
         if (!snapshot?.enabled || snapshot.trigger.kind === 'once') continue
         const nextRun = scheduler.getNextRun(`schedule:${id}`)?.getTime() ?? null
         const persistedNextRun = snapshot.nextRun === null ? null : Date.parse(snapshot.nextRun)
+
         if (nextRun !== persistedNextRun) jobScheduleService.setNextRun(id, nextRun)
       } catch (err) {
         logger.warn('Failed to persist nextRun after pause release', {
@@ -883,6 +936,7 @@ export class JobManager extends BaseService {
    */
   private prepareEnqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions) {
     const handler = this.handlers.get(type)
+
     if (!handler) {
       throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler registered for type "${type}"`, {
         type,
@@ -895,6 +949,7 @@ export class JobManager extends BaseService {
     // bytes, not on the live object shape.
     const inputForSizing = input === undefined ? null : input
     const inputJsonLength = JSON.stringify(inputForSizing).length
+
     if (inputJsonLength > MAX_INPUT_BYTES) {
       throw this.makeError(JOB_ERROR_CODES.PAYLOAD_TOO_LARGE, 'Job input payload exceeds 1MB', {
         type,
@@ -911,6 +966,7 @@ export class JobManager extends BaseService {
         value: opts.maxAttempts
       })
     }
+
     if (opts.timeoutMs !== undefined && (!Number.isInteger(opts.timeoutMs) || opts.timeoutMs < 1)) {
       throw this.makeError('JOB_INVALID_TIMEOUT_MS', 'timeoutMs must be an integer >= 1', {
         type,
@@ -964,12 +1020,14 @@ export class JobManager extends BaseService {
 
     if (opts.idempotencyKey) {
       const existing = jobService.findActiveByIdempotencyKey(opts.idempotencyKey)
+
       if (existing) {
         logger.info('idempotencyKey match — returning existing handle', {
           type,
           key: opts.idempotencyKey,
           existingId: existing.id
         })
+
         return this.handleFor(existing)
       }
     }
@@ -994,6 +1052,7 @@ export class JobManager extends BaseService {
       status: snapshot.status,
       scheduledAt: insertRow.scheduledAt
     })
+
     return handle
   }
 
@@ -1023,12 +1082,14 @@ export class JobManager extends BaseService {
 
     if (opts.idempotencyKey) {
       const existing = jobService.findActiveByIdempotencyKeyTx(tx, opts.idempotencyKey)
+
       if (existing) {
         logger.info('idempotencyKey match — returning existing handle (tx)', {
           type,
           key: opts.idempotencyKey,
           existingId: existing.id
         })
+
         // The existing row's dispatch already happened — no microtask needed.
         return this.handleFor(existing)
       }
@@ -1049,14 +1110,17 @@ export class JobManager extends BaseService {
       try {
         // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- deferred past COMMIT on purpose; reading the caller's tx here would defeat the re-read
         const persisted = jobService.getById(snapshot.id)
+
         if (!persisted) {
           this.finishedResolvers.delete(snapshot.id)
           logger.warn('enqueueTx: row absent after tx — rolled back, resolver discarded', {
             id: snapshot.id,
             type
           })
+
           return
         }
+
         this.publishState(persisted)
         this.notifyEnqueued(handler, persisted)
         logger.info('Job enqueued (tx)', {
@@ -1066,7 +1130,9 @@ export class JobManager extends BaseService {
           status: persisted.status,
           scheduledAt: insertRow.scheduledAt
         })
+
         if (this._isShuttingDown) return // no new dispatch in the shutdown window; recovery resurrects the row
+
         if (persisted.status === 'pending') {
           void this.dispatch(persisted.queue)
         } else if (persisted.status === 'delayed') {
@@ -1113,6 +1179,7 @@ export class JobManager extends BaseService {
     jobService.setCancelRequestedTx(dbService.getDb(), jobId)
 
     const controller = this.abortControllers.get(jobId)
+
     if (controller) {
       controller.abort(new Error(`Job cancelled${reason ? `: ${reason}` : ''}`))
       const snapshot = jobService.getById(jobId)
@@ -1121,9 +1188,11 @@ export class JobManager extends BaseService {
       // Wait on the executor signal — populated by `spawnExecute` regardless of
       // who enqueued the job, so this works after cross-restart recovery too.
       const executed = this.inFlightExecuted.get(jobId)
+
       if (executed) {
         const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), graceMs))
         const winner = await Promise.race([executed.then(() => 'done' as const), timeout])
+
         if (winner === 'timeout') {
           logger.warn('cancel timed out — forcing terminal state', { jobId, graceMs })
           await this.finalizeJob(jobId, 'cancelled', undefined, {
@@ -1131,12 +1200,15 @@ export class JobManager extends BaseService {
             message: `Cancel timed out after ${graceMs}ms${reason ? ` (reason: ${reason})` : ''}`,
             retryable: false
           })
+
           return { outcome: 'timed-out' }
         }
+
         // winner === 'done' — handler observed the abort and reached a terminal
         // state within the grace window.
         return { outcome: 'cancelled' }
       }
+
       // Controller registered but no executor signal: effectively unreachable —
       // `spawnExecute` sets and deletes both maps in lockstep with no await
       // between. The abort was still requested, so report a clean cancel.
@@ -1149,14 +1221,17 @@ export class JobManager extends BaseService {
     // tx above and this branch, so the snapshot here is guaranteed terminal-
     // or-cancellable.)
     const snapshot = jobService.getById(jobId)
+
     if (snapshot && (snapshot.status === 'pending' || snapshot.status === 'delayed')) {
       await this.finalizeJob(jobId, 'cancelled', undefined, {
         code: JOB_ERROR_CODES.CANCELLED,
         message: reason ?? 'Cancelled by user',
         retryable: false
       })
+
       return { outcome: 'cancelled' }
     }
+
     // already-terminal / unknown row → nothing cancelled.
     return { outcome: 'not-cancellable' }
   }
@@ -1186,12 +1261,15 @@ export class JobManager extends BaseService {
     if (!filter.queue && !filter.type) {
       throw new Error('cancelMany: filter must specify queue or type (empty filter rejected)')
     }
+
     if (reason !== undefined && reason.length > MAX_CANCEL_REASON_CHARS) {
       throw this.makeError(JOB_ERROR_CODES.CANCEL_REASON_TOO_LONG, 'Cancel reason exceeds 500 characters', {
         length: reason.length
       })
     }
+
     const dbService = application.get('DbService')
+
     const result = dbService.withWriteTx((tx) =>
       jobService.cancelManyTx(tx, filter, {
         code: JOB_ERROR_CODES.CANCELLED,
@@ -1199,14 +1277,18 @@ export class JobManager extends BaseService {
         retryable: false
       })
     )
+
     let aborted = 0
+
     for (const id of result.runningIds) {
       const controller = this.abortControllers.get(id)
+
       if (controller) {
         controller.abort(new Error(`Job cancelled${reason ? `: ${reason}` : ''}`))
         aborted++
       }
     }
+
     return { aborted, transitioned: result.transitioned }
   }
 
@@ -1248,6 +1330,7 @@ export class JobManager extends BaseService {
         type: input.type
       })
     }
+
     const snapshot = jobScheduleService.create({
       type: input.type,
       name: input.name ?? null,
@@ -1257,8 +1340,10 @@ export class JobManager extends BaseService {
       metadata: input.metadata,
       enabled: input.enabled
     })
+
     this.armSchedule(snapshot)
     logger.info('Schedule registered', { id: snapshot.id, type: input.type, name: snapshot.name })
+
     return { id: snapshot.id }
   }
 
@@ -1290,9 +1375,11 @@ export class JobManager extends BaseService {
         type: input.type
       })
     }
+
     // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- pure schema validation, touches no database
     if (input.name) jobScheduleService.assertValidName(input.name)
     this.assertValidTrigger(input.trigger)
+
     const snapshot = jobScheduleService.createTx(tx, {
       type: input.type,
       name: input.name ?? null,
@@ -1302,7 +1389,9 @@ export class JobManager extends BaseService {
       metadata: input.metadata,
       enabled: input.enabled
     })
+
     logger.info('Schedule registered (tx) — timer sync deferred to caller', { id: snapshot.id, type: input.type })
+
     return { id: snapshot.id }
   }
 
@@ -1323,7 +1412,9 @@ export class JobManager extends BaseService {
   updateJobScheduleTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
     // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- pure schema validation, touches no database
     if (patch.name) jobScheduleService.assertValidName(patch.name)
+
     if (patch.trigger !== undefined) this.assertValidTrigger(patch.trigger)
+
     return jobScheduleService.updateTx(tx, id, patch)
   }
 
@@ -1341,6 +1432,7 @@ export class JobManager extends BaseService {
    */
   syncJobScheduleTimerById(id: string): void {
     const snapshot = jobScheduleService.getById(id)
+
     if (snapshot?.enabled) {
       try {
         this.armSchedule(snapshot)
@@ -1352,6 +1444,7 @@ export class JobManager extends BaseService {
       }
     } else {
       const disp = this.scheduleDisposables.get(id)
+
       if (disp) {
         disp.dispose()
         this.scheduleDisposables.delete(id)
@@ -1386,10 +1479,12 @@ export class JobManager extends BaseService {
    */
   async pauseJobScheduleById(id: string): Promise<boolean> {
     const disp = this.scheduleDisposables.get(id)
+
     if (disp) {
       disp.dispose()
       this.scheduleDisposables.delete(id)
     }
+
     return jobScheduleService.setEnabled(id, false)
   }
 
@@ -1402,10 +1497,13 @@ export class JobManager extends BaseService {
    */
   resumeJobScheduleById(id: string): boolean {
     const updated = jobScheduleService.setEnabled(id, true)
+
     if (updated) {
       const snapshot = jobScheduleService.getById(id)
+
       if (snapshot) this.armSchedule(snapshot)
     }
+
     return updated
   }
 
@@ -1427,7 +1525,9 @@ export class JobManager extends BaseService {
    */
   async triggerJobScheduleNowById(id: string): Promise<boolean> {
     const schedule = jobScheduleService.getById(id)
+
     if (!schedule) return false
+
     // While paused, force the fallback: croner's .trigger() bypasses its own
     // pause AND the armed callback's gate suppresses the enqueue — the cron
     // path would return true having persisted nothing, silently dropping an
@@ -1437,13 +1537,16 @@ export class JobManager extends BaseService {
     const triggered = this.isAutonomySuspended
       ? false
       : await application.get('SchedulerService').triggerNow(`schedule:${id}`)
+
     if (triggered) return true
     // Fallback path (non-cron OR cron not currently armed in this process).
     this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
       scheduleId: schedule.id
     })
+
     try {
       const firedAt = Date.now()
+
       if (schedule.trigger.kind === 'once' && firedAt >= schedule.trigger.at) {
         jobScheduleService.markFired(schedule.id, firedAt, null)
       } else {
@@ -1455,6 +1558,7 @@ export class JobManager extends BaseService {
         err: (err as Error).message
       })
     }
+
     return true
   }
 
@@ -1470,10 +1574,12 @@ export class JobManager extends BaseService {
    */
   async unregisterJobScheduleById(id: string): Promise<boolean> {
     const disp = this.scheduleDisposables.get(id)
+
     if (disp) {
       disp.dispose()
       this.scheduleDisposables.delete(id)
     }
+
     return jobScheduleService.delete(id)
   }
 
@@ -1513,6 +1619,7 @@ export class JobManager extends BaseService {
    */
   async pauseJobSchedule<K extends JobType>(type: K, name?: string | null): Promise<boolean> {
     const id = this.resolveScheduleIdByName(type, name)
+
     return this.pauseJobScheduleById(id)
   }
 
@@ -1526,6 +1633,7 @@ export class JobManager extends BaseService {
    */
   async resumeJobSchedule<K extends JobType>(type: K, name?: string | null): Promise<boolean> {
     const id = this.resolveScheduleIdByName(type, name)
+
     return this.resumeJobScheduleById(id)
   }
 
@@ -1539,6 +1647,7 @@ export class JobManager extends BaseService {
    */
   async triggerJobScheduleNow<K extends JobType>(type: K, name?: string | null): Promise<boolean> {
     const id = this.resolveScheduleIdByName(type, name)
+
     return this.triggerJobScheduleNowById(id)
   }
 
@@ -1552,6 +1661,7 @@ export class JobManager extends BaseService {
    */
   async unregisterJobSchedule<K extends JobType>(type: K, name?: string | null): Promise<boolean> {
     const id = this.resolveScheduleIdByName(type, name)
+
     return this.unregisterJobScheduleById(id)
   }
 
@@ -1581,11 +1691,14 @@ export class JobManager extends BaseService {
    */
   updateJobSchedule(id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
     const updated = jobScheduleService.update(id, patch)
+
     if (!updated) return null
 
     const needsRearm = patch.trigger !== undefined || patch.enabled !== undefined
+
     if (!needsRearm) return updated
     this.syncJobScheduleTimerById(id)
+
     return jobScheduleService.getById(id)
   }
 
@@ -1602,6 +1715,7 @@ export class JobManager extends BaseService {
    */
   getJobSchedule<K extends JobType>(type: K, name?: string | null): JobScheduleSnapshot | null {
     let id: string
+
     try {
       id = this.resolveScheduleIdByName(type, name)
     } catch (err) {
@@ -1609,6 +1723,7 @@ export class JobManager extends BaseService {
       if (err instanceof Error && err.message.includes(JOB_ERROR_CODES.SCHEDULE_NOT_FOUND_BY_NAME)) return null
       throw err
     }
+
     return jobScheduleService.getById(id)
   }
 
@@ -1616,8 +1731,10 @@ export class JobManager extends BaseService {
     // Map nullish name to the singleton sentinel `''` so the underlying lookup
     // can rely on a uniform string key (DB column is NOT NULL DEFAULT '').
     const nameKey = name ?? ''
+
     if (name == null) {
       const candidates = jobScheduleService.listAll({ type })
+
       if (candidates.length > 1) {
         throw this.makeError(
           JOB_ERROR_CODES.SCHEDULE_NAME_REQUIRED,
@@ -1625,9 +1742,12 @@ export class JobManager extends BaseService {
           { type, knownNames: candidates.map((c) => c.name) }
         )
       }
+
       if (candidates.length === 1) return candidates[0].id
     }
+
     const snapshot = jobScheduleService.getByTypeAndName(type, nameKey)
+
     if (!snapshot) {
       const knownNames = jobScheduleService.listNamesForType(type)
       throw this.makeError(JOB_ERROR_CODES.SCHEDULE_NOT_FOUND_BY_NAME, `Schedule not found for type "${type}"`, {
@@ -1636,6 +1756,7 @@ export class JobManager extends BaseService {
         knownNames
       })
     }
+
     return snapshot.id
   }
 
@@ -1653,10 +1774,12 @@ export class JobManager extends BaseService {
    */
   private ensureQueue(name: string, concurrency: number): DispatchQueue {
     let queue = this.queues.get(name)
+
     if (!queue) {
       queue = new DispatchQueue(name, concurrency)
       this.queues.set(name, queue)
     }
+
     return queue
   }
 
@@ -1676,6 +1799,7 @@ export class JobManager extends BaseService {
     // only path that starts an execution.
     if (this.isAutonomySuspended) return
     const queue = this.queues.get(queueName)
+
     if (!queue) return
 
     // Layer 1 first (per-queue) serializes ticks against the same queue and
@@ -1696,12 +1820,16 @@ export class JobManager extends BaseService {
       const dbService = application.get('DbService')
       claimed = dbService.withWriteTx((tx) => {
         const queueRunning = jobService.countRunningByQueueTx(tx, queueName)
+
         if (queueRunning >= queue.concurrency) return null
         const globalRunning = jobService.countRunningGlobalTx(tx)
+
         if (globalRunning >= this.globalMaxConcurrency) {
           this.globalCapReached = true
+
           return null
         }
+
         return jobService.claimNextPendingTx(tx, queueName)
       })
     } catch (err) {
@@ -1744,6 +1872,7 @@ export class JobManager extends BaseService {
    */
   private spawnExecute(row: JobRow): void {
     const handler = this.handlers.get(row.type)
+
     if (!handler) {
       logger.error('spawnExecute: missing handler — finalizing as failed', { type: row.type, id: row.id })
       void this.finalizeJob(row.id, 'failed', undefined, {
@@ -1751,6 +1880,7 @@ export class JobManager extends BaseService {
         message: `No handler registered for type "${row.type}"`,
         retryable: false
       })
+
       return
     }
 
@@ -1771,6 +1901,7 @@ export class JobManager extends BaseService {
         id: row.id,
         type: row.type
       })
+
       return
     }
 
@@ -1778,12 +1909,15 @@ export class JobManager extends BaseService {
     this.abortControllers.set(row.id, controller)
 
     let resolveExecuted!: () => void
+
     const executed = new Promise<void>((resolve) => {
       resolveExecuted = resolve
     })
+
     this.inFlightExecuted.set(row.id, executed)
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+
     if (row.timeoutMs && row.timeoutMs > 0) {
       timeoutHandle = setTimeout(() => {
         controller.abort(new JobHandlerTimeoutError())
@@ -1792,6 +1926,7 @@ export class JobManager extends BaseService {
     }
 
     const initialMetadata = Object.freeze(row.metadata)
+
     const ctx: JobContext = {
       jobId: row.id,
       input: row.input,
@@ -1817,8 +1952,10 @@ export class JobManager extends BaseService {
     const task = (async () => {
       // Only running attempts are active; delayed retries must allow the machine to sleep.
       const activity = application.get('RuntimeActivityService').begin(`job:${row.type}:${row.id}`)
+
       try {
         const output = await handler.execute(ctx)
+
         if (timeoutHandle) clearTimeout(timeoutHandle)
         await this.finalizeJob(row.id, 'completed', output, null)
       } catch (err) {
@@ -1833,6 +1970,7 @@ export class JobManager extends BaseService {
         // string the handler chose to throw, so renderers see e.g.
         // "Job cancelled: user requested" instead of a generic "AbortError".
         const cancelMessage = abortReason instanceof Error ? abortReason.message : null
+
         const error: JobError =
           isAbort && !isTimeout
             ? {
@@ -1879,6 +2017,7 @@ export class JobManager extends BaseService {
             jobId: row.id,
             err: outerErr
           })
+
           try {
             await this.finalizeJob(row.id, 'failed', undefined, {
               code: JOB_ERROR_CODES.HANDLER_THREW,
@@ -1924,6 +2063,7 @@ export class JobManager extends BaseService {
     const dbService = application.get('DbService')
     let txFailed: Error | undefined
     let written = false
+
     try {
       written = jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
@@ -1942,6 +2082,7 @@ export class JobManager extends BaseService {
         attempted: status,
         kept: persisted.status
       })
+
       return
     }
 
@@ -1954,6 +2095,7 @@ export class JobManager extends BaseService {
       logger.warn('finalizeJob: row disappeared after terminal write', { jobId, status })
       const synthetic = this.synthesizeFailedSnapshot(jobId, new Error('row disappeared after terminal write'))
       this.resolveAndDispatch(jobId, synthetic)
+
       return
     }
 
@@ -1961,6 +2103,7 @@ export class JobManager extends BaseService {
     this.resolveAndDispatch(jobId, snapshot)
 
     const handler = this.handlers.get(snapshot.type)
+
     if (handler?.onSettled) {
       try {
         await handler.onSettled({
@@ -1987,10 +2130,12 @@ export class JobManager extends BaseService {
   /** Resolve any waiting `JobHandle.finished` and kick the freed queue slot. */
   private resolveAndDispatch(jobId: string, snapshot: JobSnapshot): void {
     const resolver = this.finishedResolvers.get(jobId)
+
     if (resolver) {
       resolver.resolve(snapshot)
       this.finishedResolvers.delete(jobId)
     }
+
     // A completed job frees a global slot. If a dispatch was previously blocked
     // solely by the global cap, re-kick every queue so a queue starved by the
     // cap (with its own slots free) wakes now instead of waiting for the next
@@ -2012,6 +2157,7 @@ export class JobManager extends BaseService {
    */
   private synthesizeFailedSnapshot(jobId: string, cause: Error): JobSnapshot {
     const nowIso = new Date().toISOString()
+
     return {
       id: jobId,
       type: 'unknown',
@@ -2057,6 +2203,7 @@ export class JobManager extends BaseService {
     queue: string
   ): Promise<void> {
     const dbService = application.get('DbService')
+
     try {
       jobService.setDelayedRetryTx(dbService.getDb(), jobId, nextAttempt, scheduledAt, error)
     } catch (retryWriteErr) {
@@ -2077,6 +2224,7 @@ export class JobManager extends BaseService {
         message: `Retry persist failed: ${(retryWriteErr as Error).message}; original: ${error.message}`,
         retryable: true
       })
+
       return
     }
 
@@ -2109,6 +2257,7 @@ export class JobManager extends BaseService {
    */
   private armSchedule(schedule: JobScheduleSnapshot): void {
     if (!schedule.enabled) return
+
     // Dispose any prior registration BEFORE the spent-once guard below: an
     // update that turns an armed one-shot spent (e.g. rescheduling it onto a
     // moment already covered by a manual fire) must cancel the pending timer,
@@ -2117,6 +2266,7 @@ export class JobManager extends BaseService {
       this.scheduleDisposables.get(schedule.id)?.dispose()
       this.scheduleDisposables.delete(schedule.id)
     }
+
     // A once trigger whose natural fire already happened is spent — re-arming
     // it (startup recovery, re-enable, no-op update) would replay the job on
     // every restart, since scheduleOnce fires a past `at` immediately. Compare
@@ -2137,13 +2287,16 @@ export class JobManager extends BaseService {
           })
         }
       }
+
       logger.debug('Skipping spent once schedule', { scheduleId: schedule.id })
+
       return
     }
 
     const scheduler = application.get('SchedulerService')
     const scheduleKey = `schedule:${schedule.id}`
     const trigger: Trigger = schedule.trigger
+
     const disp = scheduler.registerSchedule(scheduleKey, trigger, async () => {
       // Autonomy gate (pause hold or post-release barrier) — placed BEFORE
       // the try/finally so the suppressed fire writes neither the enqueue nor
@@ -2154,15 +2307,19 @@ export class JobManager extends BaseService {
       // safety) — this branch is their defense-in-depth backstop.
       if (this.isAutonomySuspended) {
         if (trigger.kind === 'once') this.suppressedOnceScheduleIds.add(schedule.id)
+
         return
       }
+
       // The registration owns timing only. Execution configuration remains
       // DB-backed so prompt/workspace/timeout edits take effect on the next
       // fire without re-arming (which would reset an interval's cadence).
       const currentSchedule = jobScheduleService.getById(schedule.id)
+
       if (!currentSchedule?.enabled) return
 
       const firedAt = Date.now()
+
       try {
         this.enqueue(currentSchedule.type as JobType, currentSchedule.jobInputTemplate as never, {
           scheduleId: currentSchedule.id
@@ -2195,10 +2352,13 @@ export class JobManager extends BaseService {
         }
       }
     })
+
     this.scheduleDisposables.set(schedule.id, disp)
+
     try {
       const nextRun = scheduler.getNextRun(scheduleKey)?.getTime() ?? null
       const persistedNextRun = schedule.nextRun === null ? null : Date.parse(schedule.nextRun)
+
       if (nextRun !== persistedNextRun) jobScheduleService.setNextRun(schedule.id, nextRun)
     } catch (err) {
       logger.warn('Failed to persist nextRun after arming schedule', {
@@ -2206,6 +2366,7 @@ export class JobManager extends BaseService {
         err: (err as Error).message
       })
     }
+
     // Crons registered (or re-armed) while autonomy is suspended (pause hold
     // or post-release barrier) are paused at the croner layer in the same
     // synchronous section — a timer callback cannot interleave, so there is
@@ -2277,18 +2438,23 @@ export class JobManager extends BaseService {
     // through this method instead.
     if (this.isAutonomySuspended) {
       this.suppressedPromotionFires.set(scheduleId, { jobId, queue })
+
       return
     }
+
     jobService.promoteDelayedDue(Date.now())
     const row = jobService.getById(jobId)
+
     if (row?.status === 'delayed' && !this._isShuttingDown) {
       logger.debug('once-fire preceded wall-clock scheduledAt — re-arming', { jobId, scheduleId })
       const scheduler = application.get('SchedulerService')
       scheduler.registerSchedule(scheduleId, { kind: 'once', at: Date.parse(row.scheduledAt) }, () => {
         this.promoteDueAtFire(scheduleId, jobId, queue)
       })
+
       return
     }
+
     void this.dispatch(queue)
   }
 
@@ -2310,8 +2476,10 @@ export class JobManager extends BaseService {
    */
   private async detectAndDispatchOverdue(schedules: JobScheduleSnapshot[], startIndex = 0): Promise<number> {
     const nowMs = Date.now()
+
     for (let i = startIndex; i < schedules.length; i++) {
       const schedule = schedules[i]
+
       // Mirror `runStartupRecoveryFlow`'s per-step shutdown check so a teardown
       // arriving mid-loop short-circuits the remainder; without this an
       // `onStop` invocation has to wait for every schedule's `onMissed` +
@@ -2319,8 +2487,10 @@ export class JobManager extends BaseService {
       // Pause short-circuits at the same boundary (the caller records `i`).
       if (this._isShuttingDown || this.isQuiesced) return i
       const handler = this.handlers.get(schedule.type)
+
       if (!handler) continue
       const action = computeCatchUpAction(schedule, handler, nowMs)
+
       if (action.missEvent && handler.onMissed) {
         try {
           await handler.onMissed(action.missEvent)
@@ -2331,6 +2501,7 @@ export class JobManager extends BaseService {
           })
         }
       }
+
       if (action.shouldEnqueue) {
         const scheduledAt = nowMs + action.enqueueDelayMs
         this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
@@ -2340,6 +2511,7 @@ export class JobManager extends BaseService {
         logger.info('Catch-up enqueued', { scheduleId: schedule.id, type: schedule.type, scheduledAt })
       }
     }
+
     return schedules.length
   }
 
@@ -2358,16 +2530,19 @@ export class JobManager extends BaseService {
     const cutoff = Date.now() - GC_TERMINAL_TTL_MS
     let byTtl = 0
     let byCount = 0
+
     try {
       byTtl = jobService.pruneTerminalOlderThan(cutoff)
     } catch (err) {
       logger.error('GC: pruneTerminalOlderThan failed', { err: (err as Error).message })
     }
+
     try {
       byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE)
     } catch (err) {
       logger.error('GC: pruneTerminalKeepLatestPerSchedule failed', { err: (err as Error).message })
     }
+
     if (byTtl + byCount > 0) {
       logger.info('GC pass', { byTtl, byCount })
     }
@@ -2389,17 +2564,23 @@ export class JobManager extends BaseService {
    */
   private handleFor(snapshot: JobSnapshot): JobHandle {
     const existing = this.finishedResolvers.get(snapshot.id)
+
     if (existing) {
       return { id: snapshot.id, snapshot, finished: existing.promise }
     }
+
     if (this.isTerminal(snapshot.status)) {
       return { id: snapshot.id, snapshot, finished: Promise.resolve(snapshot) }
     }
+
     let resolve!: (s: JobSnapshot) => void
+
     const promise = new Promise<JobSnapshot>((res) => {
       resolve = res
     })
+
     this.finishedResolvers.set(snapshot.id, { resolve, promise })
+
     return { id: snapshot.id, snapshot, finished: promise }
   }
 

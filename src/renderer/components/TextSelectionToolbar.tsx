@@ -34,15 +34,20 @@ export function TextSelectionToolbar({
     let canShow = false
     let frame = 0
     const dismiss = () => setAnchor(null)
+
     const showSelection = () => {
       const selection = window.getSelection()
+
       if (!selection || selection.isCollapsed || !selection.rangeCount || !selection.toString()) {
         dismiss()
+
         return
       }
+
       const range = selection.getRangeAt(0)
       const start = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
       const end = range.endContainer instanceof Element ? range.endContainer : range.endContainer.parentElement
+
       if (
         start?.closest(SCOPE_SELECTOR) !== scopeRef.current ||
         end?.closest(SCOPE_SELECTOR) !== scopeRef.current ||
@@ -50,11 +55,14 @@ export function TextSelectionToolbar({
         end?.closest(EDITABLE_SELECTOR)
       ) {
         dismiss()
+
         return
       }
+
       const rect = range.getBoundingClientRect()
       setAnchor(rect.width || rect.height ? rect : null)
     }
+
     const onPointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node && toolbarRef.current?.contains(event.target)) return
       keyboardSelectionKeys = null
@@ -63,6 +71,7 @@ export function TextSelectionToolbar({
       cancelAnimationFrame(frame)
       dismiss()
     }
+
     const onPointerUp = (event: PointerEvent) => {
       if (!selecting || event.button !== 0) return
       cancelAnimationFrame(frame)
@@ -71,6 +80,7 @@ export function TextSelectionToolbar({
         showSelection()
       })
     }
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         keyboardSelectionKeys = null
@@ -89,10 +99,13 @@ export function TextSelectionToolbar({
         canShow = true
       }
     }
+
     const onKeyUp = (event: KeyboardEvent) => {
       if (!keyboardSelectionKeys) return
+
       if (event.key === 'Shift') keyboardSelectionKeys.clear()
       else if (!keyboardSelectionKeys.delete(event.key.toLowerCase())) return
+
       if (keyboardSelectionKeys.size > 0) return
       cancelAnimationFrame(frame)
       // Preserve the finishing gesture through selection-driven scroll events in this frame.
@@ -101,10 +114,12 @@ export function TextSelectionToolbar({
         showSelection()
       })
     }
+
     const onSelectionChange = () => {
       if (canShow && !selecting && !keyboardSelectionKeys) showSelection()
       else dismiss()
     }
+
     const onBlur = () => {
       selecting = false
       keyboardSelectionKeys = null
@@ -112,11 +127,13 @@ export function TextSelectionToolbar({
       cancelAnimationFrame(frame)
       dismiss()
     }
+
     const onScroll = () => {
       if (!selecting && !keyboardSelectionKeys) {
         canShow = false
         cancelAnimationFrame(frame)
       }
+
       dismiss()
     }
 
@@ -130,6 +147,7 @@ export function TextSelectionToolbar({
     document.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onBlur)
     window.addEventListener('blur', onBlur)
+
     return () => {
       cancelAnimationFrame(frame)
       document.removeEventListener('pointerdown', onPointerDown)
@@ -147,6 +165,7 @@ export function TextSelectionToolbar({
 
   const runAction = (action: (selection: Selection) => void) => {
     const selection = window.getSelection()
+
     if (selection && !selection.isCollapsed) action(selection)
     setAnchor(null)
   }

@@ -45,6 +45,7 @@ export function updateCodeBlock(raw: string, originalContent: string, newContent
       matches.push(node)
     }
   })
+
   if (matches.length === 0) {
     // Unfenced HTML is rendered as a synthetic code block, so the source only holds html nodes for it.
     const index = raw.indexOf(original)
@@ -55,24 +56,31 @@ export function updateCodeBlock(raw: string, originalContent: string, newContent
       htmlEnds.add(htmlNode.position?.end.offset)
     })
     const isWholeHtmlRange = htmlStarts.has(index) && htmlEnds.has(index + original.length)
+
     if (!original || index !== raw.lastIndexOf(original) || !isWholeHtmlRange) return null
+
     return raw.slice(0, index) + newContent + raw.slice(index + original.length)
   }
+
   if (matches.length !== 1) return null
 
   const node = matches[0]
   const start = node.position?.start.offset
   const end = node.position?.end.offset
+
   if (start !== undefined && end !== undefined && (raw[start] === '`' || raw[start] === '~')) {
     const indent = raw.slice(raw.lastIndexOf('\n', start - 1) + 1, start)
+
     if (indent.trim() === '') {
       const root: Root = { type: 'root', children: [{ ...node, value: newContent }] }
       const fenced = unified().use(remarkStringify).stringify(root).replace(/\n$/, '')
+
       return raw.slice(0, start) + fenced.replace(/\n(?=[^\n])/g, `\n${indent}`) + raw.slice(end)
     }
   }
 
   node.value = newContent
+
   return unified().use(remarkStringify).stringify(tree)
 }
 
@@ -92,12 +100,14 @@ export function convertLatexMathToDollars(markdown: string): string {
   visit(tree, ['inlineMath', 'math'], (node) => {
     const start = node.position?.start.offset
     const end = node.position?.end.offset
+
     if (start === undefined || end === undefined) return
 
     const raw = markdown.slice(start, end)
     const open = raw.search(/\S/)
     const dollars = raw.startsWith('\\(', open) ? '$' : raw.startsWith('\\[', open) ? '$$' : undefined
     const close = raw.lastIndexOf(dollars === '$' ? '\\)' : '\\]')
+
     if (!dollars || close < open + 2) return
 
     result += markdown.slice(cursor, start + open) + dollars + raw.slice(open + 2, close) + dollars
@@ -116,6 +126,7 @@ export const markdownToPlainText = (markdown: string): string => {
   if (!markdown) {
     return ''
   }
+
   // 直接用 remove-markdown 库，使用默认的 removeMarkdown 参数
   return removeMarkdown(markdown)
 }

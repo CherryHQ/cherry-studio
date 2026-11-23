@@ -8,7 +8,9 @@ export function sanitizeConversationTitle(title: string): string {
 
 export function truncateFirstUserMessageTitleSource(text: string): string {
   const normalized = text.trim().replace(/\s+/g, ' ')
+
   if (normalized.length <= FIRST_USER_MESSAGE_TITLE_MAX_LENGTH) return normalized
+
   // Clamp the cut so it can't land between an emoji's surrogate halves and
   // persist a lone surrogate as the title.
   return normalized.slice(0, clampSurrogateBoundary(normalized, FIRST_USER_MESSAGE_TITLE_MAX_LENGTH)).trim()

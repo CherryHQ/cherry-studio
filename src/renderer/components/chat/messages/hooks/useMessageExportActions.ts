@@ -40,6 +40,7 @@ export function useMessageExportActions({
   const exportContent = useCallback(
     async (messages: MessageExportView[], target: MessageExportTarget, title?: string) => {
       const { exportMessagesToTarget } = await import('@renderer/services/ExportService')
+
       return exportMessagesToTarget(messages, target, {
         title,
         exportToObsidian: showObsidianExport,
@@ -82,8 +83,10 @@ export function useMessageExportActions({
     async (message: MessageExportView) => {
       const { exportMessageToNotes, getMessageTitle, messageToMarkdown } =
         await import('@renderer/services/ExportService')
+
       const title = await getMessageTitle(message)
       const markdown = await messageToMarkdown(message)
+
       return exportMessageToNotes(title, markdown, notesPath)
     },
     [notesPath]
@@ -92,6 +95,7 @@ export function useMessageExportActions({
   const exportToNotion = useCallback(async (message: MessageExportView) => {
     const { exportMessageToNotion, getMessageTitle, messageToMarkdown } =
       await import('@renderer/services/ExportService')
+
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
     await exportMessageToNotion(title, markdown, message)

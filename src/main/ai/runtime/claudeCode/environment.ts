@@ -39,16 +39,19 @@ export class ClaudeCodeSessionBusUnavailableError extends Error {
 
 const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
+
 /**
  * Slack between the SDK's local token estimate and the provider's own count.
  * Widen it if 400s reappear while the reported input sits just under budget.
  */
 const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
+
 // The CLI's per-request `max_tokens` ceiling and the value it requests when
 // `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is unset. Both measured against the bundled CLI and undocumented,
 // so re-measure them on SDK upgrades.
 const MAX_REQUESTED_OUTPUT_TOKENS = 128_000
 const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
+
 /**
  * Percentage of the auto-compact window at which compaction triggers, passed
  * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).
@@ -81,7 +84,9 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
+
   const budget = Math.floor((contextWindow - requestedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
+
   return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
 }
 
@@ -94,19 +99,23 @@ export function resolveRequestedOutputTokens(
   override: string | undefined
 ): number {
   const parsedOverride = Number(override)
+
   if (Number.isInteger(parsedOverride) && parsedOverride > 0) {
     return Math.min(parsedOverride, MAX_REQUESTED_OUTPUT_TOKENS)
   }
+
   const declared =
     typeof maxOutputTokens === 'number' && Number.isInteger(maxOutputTokens) && maxOutputTokens > 0
       ? maxOutputTokens
       : DEFAULT_REQUESTED_OUTPUT_TOKENS
+
   // A floored budget still has to leave room for the request; the bound never drops below the CLI's
   // own default, which at the inclusive window floor would otherwise pin a single token.
   const inputRoom =
     typeof contextWindow === 'number' && Number.isInteger(contextWindow)
       ? Math.max(contextWindow - MIN_AUTO_COMPACT_WINDOW, DEFAULT_REQUESTED_OUTPUT_TOKENS)
       : Number.POSITIVE_INFINITY
+
   return Math.min(declared, MAX_REQUESTED_OUTPUT_TOKENS, inputRoom)
 }
 
@@ -118,14 +127,18 @@ export async function getClaudeCodeLoginShellEnvironment(
   currentProxyEnvironment: Environment
 ): Promise<Record<string, string | undefined>> {
   let loginShellEnv = await getShellEnv()
+
   if (hasStaleCherryProxyMarkers(loginShellEnv, currentProxyEnvironment)) {
     loginShellEnv = await refreshShellEnv()
   }
+
   const env = stripInheritedCherryProxyMarkers(loginShellEnv)
+
   // A login shell can drop the desktop-session bus inherited by packaged Electron.
   if (isLinux && process.env.DBUS_SESSION_BUS_ADDRESS) {
     env.DBUS_SESSION_BUS_ADDRESS = process.env.DBUS_SESSION_BUS_ADDRESS
   }
+
   return env
 }
 
@@ -169,10 +182,12 @@ export async function buildEnvironment(
     // Documented in the Agent SDK `Options.env` JSDoc.
     CLAUDE_AGENT_SDK_CLIENT_APP: `cherry-studio/${app.getVersion()}`
   }
+
   if (customGitBashPath) env.CLAUDE_CODE_GIT_BASH_PATH = customGitBashPath
 
   // Merge user-defined env vars with blocked list
   const userEnvVars = agent.configuration?.env_vars
+
   if (userEnvVars && typeof userEnvVars === 'object') {
     const BLOCKED_ENV_KEYS = new Set([
       'ANTHROPIC_API_KEY',
@@ -199,6 +214,7 @@ export async function buildEnvironment(
       'CONSTRUCTOR',
       'PROTOTYPE'
     ])
+
     for (const [key, value] of Object.entries(userEnvVars)) {
       if (BLOCKED_ENV_KEYS.has(key.toUpperCase())) {
         logger.warn('Blocked user env var override', { key })
@@ -227,6 +243,7 @@ export async function buildEnvironment(
     delete env.ANTHROPIC_BASE_URL
     delete env.ANTHROPIC_CUSTOM_HEADERS
     delete env.CLAUDE_CODE_OAUTH_TOKEN
+
     if (isMac) {
       delete env.CLAUDE_CONFIG_DIR
     } else {

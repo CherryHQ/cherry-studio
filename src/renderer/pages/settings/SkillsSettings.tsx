@@ -51,8 +51,10 @@ export function SkillsSettings() {
   const launchSkill = useSkillLauncher()
   const [exportEnabled, setExportEnabled] = usePreference('agent.skills.external_export.enabled', { optimistic: false })
   const [saving, setSaving] = useState(false)
+
   const syncExports = async () => {
     setSaving(true)
+
     try {
       await ipcApi.request('skill.reconcile', { externalExportsOnly: true })
     } catch {
@@ -65,22 +67,28 @@ export function SkillsSettings() {
       setSaving(false)
     }
   }
+
   const changeExport = async (next: boolean) => {
     setSaving(true)
+
     try {
       await setExportEnabled(next)
     } catch {
       toast.error(t('settings.skills.toggleFailed', { name: t('settings.skills.externalExportLabel') }))
       setSaving(false)
+
       return
     }
+
     await syncExports()
   }
+
   const [enabledOnly, setEnabledOnly] = usePersistCache('settings.skills.enabled_only')
   // The scope lives in the route search so it survives the round-trip through the detail route.
   const search = useSearch({ strict: false }) as { scope?: SkillScopeTab }
   const scope = search.scope ?? 'all'
   const setScope = (next: string) => void navigate({ to: '/settings/skills', search: { scope: next as SkillScopeTab } })
+
   const filterResource = useCallback(
     (resource: ResourceItem) =>
       resource.type === 'skill' &&
@@ -88,6 +96,7 @@ export function SkillsSettings() {
       (scope === 'all' || resource.raw.scope === scope),
     [enabledOnly, scope]
   )
+
   const enabledOnlyLabel = t('settings.skills.enabledOnly')
 
   return (

@@ -4,6 +4,7 @@ import { GptRosalindResearchLight } from './light'
 
 const GptRosalindResearch = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptRosalindResearchLight {...props} className={className} />
+
   return <GptRosalindResearchLight {...props} className={className} />
 }
 

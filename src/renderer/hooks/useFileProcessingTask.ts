@@ -22,6 +22,7 @@ export interface UseFileProcessingTaskResult {
  */
 export function useFileProcessingTask(taskId: FileProcessingTaskId): UseFileProcessingTaskResult {
   const cachedTask = useSharedCacheValue(`file_processing.task.${taskId}` as const)
+
   const { data: fetchedTask, error } = useSWR(
     cachedTask == null ? (['file_processing.get_task', taskId] as const) : null,
     () => ipcApi.request('file_processing.get_task', { taskId })
@@ -30,5 +31,6 @@ export function useFileProcessingTask(taskId: FileProcessingTaskId): UseFileProc
   const task = cachedTask ?? fetchedTask ?? null
   const isSettled = task !== null && task.status !== 'queued' && task.status !== 'processing'
   const isLoading = task === null && fetchedTask === undefined && error === undefined
+
   return { task, isSettled, isLoading, error }
 }

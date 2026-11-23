@@ -27,6 +27,7 @@ export interface MinimaxProvider extends ProviderV3 {
 export function createMinimaxProvider(settings: MinimaxProviderSettings = {}): MinimaxProvider {
   const { baseURL = 'https://api.minimax.io/v1', fetch: customFetch } = settings
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+
   const headers = () => ({
     Authorization: `Bearer ${loadApiKey({
       apiKey: settings.apiKey,

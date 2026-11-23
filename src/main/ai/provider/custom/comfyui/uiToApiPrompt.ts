@@ -19,6 +19,7 @@
  */
 
 type WorkflowValue = string | number | boolean | null | undefined | WorkflowValue[] | JsonObject
+
 type JsonObject = { [key: string]: WorkflowValue }
 
 export interface UiNode {
@@ -95,6 +96,7 @@ export interface ConversionResult {
 }
 
 const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'])
+
 /** Widget declarations with this config flag spend an extra positional value
  * for the control_after_generate pseudo-widget, which never reaches the prompt. */
 const CONTROL_AFTER_GENERATE = 'control_after_generate'
@@ -123,6 +125,7 @@ function randomWidgetValue(config: JsonObject, random: () => number): number {
   const min = Math.max(SAFE_INTEGER_MIN, typeof config.min === 'number' ? config.min : 0)
   const step = typeof config.step === 'number' && config.step > 0 ? config.step : 1
   const next = Math.floor(random() * ((max - min) / step)) * step + min
+
   return Math.min(Math.max(next, min), max)
 }
 
@@ -160,6 +163,7 @@ interface WidgetNames {
 /** The declaration config of a top-level widget, `{}` when it has none. */
 function widgetConfig(info: ObjectInfo[string], name: string): JsonObject {
   const entry = (info.input?.required?.[name] ?? info.input?.optional?.[name]) as WorkflowValue[] | undefined
+
   return Array.isArray(entry) && entry.length > 1 && typeof entry[1] === 'object' ? (entry[1] as JsonObject) : {}
 }
 
@@ -170,6 +174,7 @@ function controlledWidget(info: ObjectInfo[string]): string | undefined {
       if (widgetConfig(info, name)[CONTROL_AFTER_GENERATE]) return name
     }
   }
+
   return undefined
 }
 
@@ -206,35 +211,45 @@ function widgetInputNames(
 ): WidgetNames {
   for (const section of ['required', 'optional'] as const) {
     const sectionSpec = spec[section] as JsonObject | undefined
+
     if (!sectionSpec) continue
     // The backend's declaration order is `input_order` when the server sends
     // it; iterating the object instead would move integer-like keys to the
     // front and shift every saved value after them onto the wrong input.
     const declared = order[section] ?? []
     const sectionNames = declared.length > 0 ? declared.filter((name) => name in sectionSpec) : Object.keys(sectionSpec)
+
     for (const name of sectionNames) {
       const raw = sectionSpec[name]
       const fullName = prefix ? `${prefix}.${name}` : name
       const entry = raw as WorkflowValue[]
+
       if (!Array.isArray(entry) || entry.length === 0) continue
       const type = entry[0]
       const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
+
       if (config.advanced && !includeAdvanced) continue
       const widgetType = widgetTypeOf(type, config)
       const isWidget = spendsWidgetSlot(widgetType, config, values)
+
       if (config.forceInput) {
         // A socket, not a widget: no slot today, a legacy dummy one before 1.16.
         if (isWidget) acc.positions.push(null)
         continue
       }
+
       if (!isWidget) continue
+
       if (widgetType === 'CURVE') {
         acc.positions.push(fullName)
         acc.curves.add(fullName)
         continue
       }
+
       acc.positions.push(fullName)
+
       if (config[CONTROL_AFTER_GENERATE]) acc.positions.push(CONTROL_AFTER_GENERATE)
+
       if (widgetType === 'COMFY_DYNAMICCOMBO_V3') {
         const selected = values![acc.positions.length - 1]
         const option = (config.options as JsonObject[] | undefined)?.find((candidate) => candidate.key === selected)
@@ -244,6 +259,7 @@ function widgetInputNames(
       }
     }
   }
+
   return acc
 }
 
@@ -271,7 +287,9 @@ const holdsText = (node: ApiPromptNode, objectInfo?: ObjectInfo): boolean => {
   // own inputs are; a concatenate that joins two links is a text source to the
   // node above it just as a primitive is.
   const outputs = objectInfo?.[node.class_type]?.output
+
   if (Array.isArray(outputs) && outputs.includes('STRING')) return true
+
   return (
     node.class_type === 'StringConcatenate' ||
     typeof node.inputs.value === 'string' ||
@@ -290,24 +308,30 @@ const isPlainTextNode = (node: ApiPromptNode): boolean =>
  * (`compare_view`, socketless) failed every Qwen-Image-Edit run that way. */
 function requiredInputFallbacks(info: ObjectInfo[string], values?: WorkflowValue[]): Array<[string, WorkflowValue]> {
   const spec = info.input?.required
+
   if (!spec) return []
   const declared = info.input_order?.required ?? []
   const names = declared.length > 0 ? declared.filter((name) => name in spec) : Object.keys(spec)
   const out: Array<[string, WorkflowValue]> = []
+
   for (const name of names) {
     const entry = spec[name] as WorkflowValue[]
+
     if (!Array.isArray(entry) || entry.length === 0) continue
     const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
     // A socket is satisfied by a link, never by a value, so only a declaration
     // the frontend renders as a widget (or marks `socketless`) can carry one:
     // `MODEL`, `LATENT`, `IMAGE` … cannot.
     const widgetType = widgetTypeOf(entry[0], config)
+
     if (config.forceInput) continue
+
     if ('default' in config) {
       // The frontend's widget carries the declared default from the start.
       if (spendsWidgetSlot(widgetType, config, values) || config.socketless === true) out.push([name, config.default])
       continue
     }
+
     // A combo the schema gives no default to still starts on its first entry in
     // the frontend, and the server requires the key. The options come either as
     // the declaration's own list or, on the newer `"COMBO"` form, from its
@@ -315,16 +339,19 @@ function requiredInputFallbacks(info: ObjectInfo[string], values?: WorkflowValue
     // (`GeminiNanoBanana2V2.response_modalities`, `KlingImageGenerationNode.
     // image_type`, `MeshyMultiImageToModelNode.symmetry_mode`).
     const options = Array.isArray(entry[0]) ? entry[0] : Array.isArray(config.options) ? config.options : undefined
+
     if (options !== undefined && options.length > 0 && widgetType !== 'COMFY_DYNAMICCOMBO_V3') {
       out.push([name, options[0]])
       continue
     }
+
     // `socketless` is a value with no socket, and a workflow stores nothing for
     // it: the frontend sends null, which the server accepts. Anything else stays
     // omitted — the workflow really is missing that value, and the server names
     // it (`MODEL`, `LATENT`, `IMAGE` … are sockets, satisfied by a link).
     if (config.socketless === true) out.push([name, null])
   }
+
   return out
 }
 
@@ -336,8 +363,11 @@ function requiredInputFallbacks(info: ObjectInfo[string], values?: WorkflowValue
 function isValidConnection(typeA?: string, typeB?: string): boolean {
   const a = (typeA ?? '').toLowerCase()
   const b = (typeB ?? '').toLowerCase()
+
   if (a === '' || a === '*' || b === '' || b === '*') return true
+
   if (!a.includes(',') && !b.includes(',')) return a === b
+
   return a.split(',').some((x) => b.split(',').some((y) => isValidConnection(x, y)))
 }
 
@@ -352,11 +382,15 @@ function bypassInputSlot(node: UiNode, slot: number, requestedType?: string): nu
   const inputs = node.inputs ?? []
   const outputType = node.outputs?.[slot]?.type
   const type = requestedType ?? outputType
+
   if (type == null || type === '*' || type === '') return inputs.length > slot ? slot : 0
   const opposite = inputs[slot]
+
   if (opposite && isValidConnection(opposite.type, outputType) && isValidConnection(opposite.type, type)) return slot
   const exact = inputs.findIndex((input) => input.type === type)
+
   if (exact !== -1) return exact
+
   return inputs.findIndex((input) => isValidConnection(input.type, outputType) && isValidConnection(input.type, type))
 }
 
@@ -391,6 +425,7 @@ export function convertUiWorkflowToPrompt(
 
   const linkMap = (links: UiGraph['links']) => {
     const map = new Map<number, UiLink>()
+
     for (const link of links ?? []) {
       if (Array.isArray(link)) {
         map.set(link[0], {
@@ -404,6 +439,7 @@ export function convertUiWorkflowToPrompt(
         map.set(link.id, link)
       }
     }
+
     return map
   }
 
@@ -414,17 +450,24 @@ export function convertUiWorkflowToPrompt(
     bindings: Map<number, Map<number, WorkflowValue>>
   ): WorkflowValue {
     const link = links.get(linkId)
+
     if (!link) {
       warnings.push(`dangling link ${linkId}`)
+
       return undefined
     }
+
     const promoted = bindings.get(link.origin_id)
+
     if (promoted) return promoted.get(link.origin_slot)
     const target = remap.get(link.origin_id)
+
     if (target === undefined) {
       warnings.push(`link ${linkId} points outside its scope (origin ${link.origin_id})`)
+
       return undefined
     }
+
     return [String(target), link.origin_slot] satisfies Reference
   }
 
@@ -433,14 +476,17 @@ export function convertUiWorkflowToPrompt(
     const spec = objectInfo[node.class_type]?.input
     const entry = (spec?.required?.[name] ?? spec?.optional?.[name]) as WorkflowValue[] | undefined
     const type = Array.isArray(entry) ? entry[0] : undefined
+
     return Array.isArray(type) ? type.join(',') : typeof type === 'string' ? type : undefined
   }
 
   const namedValues = (values: JsonObject, linked: Set<string>) => {
     const out: Record<string, WorkflowValue> = {}
+
     for (const [name, value] of Object.entries(values)) {
       if (!linked.has(name)) out[name] = wrapWidgetValue(value)
     }
+
     return out
   }
 
@@ -450,6 +496,7 @@ export function convertUiWorkflowToPrompt(
     const raw = node.widgets_values
     const info = objectInfo[node.type]
     const controls = new Map<string, string>()
+
     if (!info) return { values: {}, controls }
     let out: Record<string, WorkflowValue>
     let values: WorkflowValue[]
@@ -458,7 +505,9 @@ export function convertUiWorkflowToPrompt(
     const named = node.widgets_values_named ?? (raw !== undefined && !Array.isArray(raw) ? raw : undefined)
     const namedControl = named?.[CONTROL_AFTER_GENERATE]
     const controlled = controlledWidget(info)
+
     if (typeof namedControl === 'string' && controlled) controls.set(controlled, namedControl)
+
     // Named values (widgets_values_named, or the object form of widgets_values)
     // key straight to the inputs — a schema change cannot silently remap them
     // to a different position. A node the frontend has no widget for can still
@@ -477,35 +526,44 @@ export function convertUiWorkflowToPrompt(
       const base = widgetInputNames(info, false, undefined, undefined, raw)
       let names = widgetNames(base)
       const curves = base.curves
+
       // A workflow saved before frontend 1.16 spends a dummy slot on every
       // `forceInput` input the frontend has since turned into a socket, so its
       // array only lines up once those dummies are dropped — exactly what the
       // frontend's own `migrateWidgetsValues` does on load.
       const aligned =
         base.positions.length === raw.length ? raw.filter((_, index) => base.positions[index] !== null) : undefined
+
       values = aligned !== undefined && aligned.length === names.length ? aligned : raw
+
       if (values.length !== names.length) {
         // The advanced set has its own slot list, so align it the same way.
         const wider = widgetInputNames(info, true, undefined, undefined, values)
         const widerNames = widgetNames(wider)
+
         const widerValues =
           wider.positions.length === values.length
             ? values.filter((_, index) => wider.positions[index] !== null)
             : values
+
         if (widerValues.length === widerNames.length) {
           names = widerNames
           values = widerValues
           curves.clear()
+
           for (const curveName of wider.curves) curves.add(curveName)
         }
       }
+
       const positional: Record<string, WorkflowValue> = {}
       names.forEach((name, index) => {
         if (name === CONTROL_AFTER_GENERATE) {
           // The mode follows the widget it controls.
           if (typeof values[index] === 'string') controls.set(names[index - 1], values[index])
+
           return
         }
+
         if (index >= values.length || linked.has(name)) return
         // A curve widget value rides the frontend's envelope; the backend
         // unwraps it during execution.
@@ -513,12 +571,15 @@ export function convertUiWorkflowToPrompt(
           ? { __type__: 'CURVE', __value__: values[index] }
           : wrapWidgetValue(values[index])
       })
+
       if (values.length !== names.length) {
         warnings.push(`${node.type}: ${values.length} widget values for ${names.length} widgets`)
       }
+
       // oxlint-disable-next-line anti-slop/no-known-value-widening -- Widget names are workflow-defined; preserve each opaque value until its native ComfyUI node consumes it.
       out = positional
     }
+
     // A required input the workflow carries no value for still has to be in the
     // prompt: the frontend's widgets always hold something, and ComfyUI rejects
     // the whole prompt when the key is absent (`ImageCompare`'s socketless
@@ -527,6 +588,7 @@ export function convertUiWorkflowToPrompt(
       if (linked.has(name) || name in out) continue
       out[name] = wrapWidgetValue(fallback)
     }
+
     return { values: out, controls }
   }
 
@@ -538,6 +600,7 @@ export function convertUiWorkflowToPrompt(
    */
   function redrawRandomized(node: UiNode, inputs: Record<string, WorkflowValue>, controls: Map<string, string>) {
     if (!options.random) return
+
     for (const [name, mode] of controls) {
       if (mode !== 'randomize' || typeof inputs[name] !== 'number') continue
       inputs[name] = randomWidgetValue(widgetConfig(objectInfo[node.type], name), options.random)
@@ -558,7 +621,9 @@ export function convertUiWorkflowToPrompt(
     bindings: Map<number, Map<number, WorkflowValue>>
   ) {
     const id = remap.get(node.id)!
+
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
+
     ;(node.outputs ?? []).forEach((output, slot) => {
       // The resolver selects per requested type at resolve time, so it is
       // created unconditionally — an output whose positional input is unlinked
@@ -566,13 +631,17 @@ export function convertUiWorkflowToPrompt(
       alias[slot] = (type) => {
         const inputSlot = bypassInputSlot(node, slot, type)
         const link = inputSlot >= 0 ? (node.inputs?.[inputSlot]?.link ?? null) : null
+
         if (link == null) return undefined
         const resolved = resolveLink(link, links, remap, bindings)
+
         if (resolved === undefined) return undefined
+
         return isReference(resolved)
           ? { kind: 'ref', ref: resolved, type: node.inputs?.[inputSlot]?.type }
           : { kind: 'value', value: resolved }
       }
+
       if ((output.links ?? []).length > 0 && !(node.inputs ?? []).some((input) => input.link != null)) {
         warnings.push(`${kind} ${node.type} output ${slot} has no input to pass through`)
       }
@@ -590,11 +659,14 @@ export function convertUiWorkflowToPrompt(
     // A primitive carries its own control mode after the value. The range lives on
     // the widget it feeds, so only one feeding a seed is redrawn, over 0 … 2^50.
     const feedsSeed = (node.outputs ?? []).some((output) => output.widget && isSeedName(output.widget.name))
+
     const value =
       options.random && feedsSeed && saved[1] === 'randomize' && typeof saved[0] === 'number'
         ? randomWidgetValue({}, options.random)
         : saved[0]
+
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
+
     ;(node.outputs ?? []).forEach((_, slot) => {
       alias[slot] = () => ({ kind: 'value', value: wrapWidgetValue(value) })
     })
@@ -608,10 +680,13 @@ export function convertUiWorkflowToPrompt(
     bindings: Map<number, Map<number, WorkflowValue>>
   ) {
     const id = remap.get(node.id)!
+
     if (node.type === PRIMITIVE_NODE) {
       emitPrimitive(node, remap)
+
       return
     }
+
     // Frontend-only classes (MarkdownNote, Note, Reroute, ...) have no backend
     // node and make the whole prompt fail validation. A consumer of one still
     // has to resolve, so pass its outputs through like the frontend does for
@@ -625,9 +700,11 @@ export function convertUiWorkflowToPrompt(
         warnings.push(`${node.type} is not in object_info; submitting it as-is for the server to validate`)
       } else {
         passThrough(node, 'frontend-only', links, remap, bindings)
+
         return
       }
     }
+
     // A link that resolves to nothing — a promoted input the instance bound no
     // value to, a dangling link, an alias that ran out — leaves the input to the
     // value the node itself saved. The frontend reads it the same way: it
@@ -636,13 +713,16 @@ export function convertUiWorkflowToPrompt(
     // interior's value, not an absent input.
     const linked = new Set<string>()
     const inputs: Record<string, WorkflowValue> = {}
+
     for (const slot of node.inputs ?? []) {
       if (slot.link == null) continue
       const resolved = resolveLink(slot.link, links, remap, bindings)
+
       if (resolved === undefined) continue
       linked.add(slot.name)
       inputs[slot.name] = resolved
     }
+
     const widgets = widgetValues(node, linked)
     Object.assign(inputs, widgets.values)
     redrawRandomized(node, inputs, widgets.controls)
@@ -662,6 +742,7 @@ export function convertUiWorkflowToPrompt(
     const id = remap.get(instance.id)!
     const definition = subgraphs.get(instance.type)!
     const innerRemap = new Map<number, number>()
+
     for (const node of definition.nodes) innerRemap.set(node.id, nextId++)
     const innerLinks = linkMap(definition.links)
     const inputNodeId = definition.inputNode?.id
@@ -673,10 +754,13 @@ export function convertUiWorkflowToPrompt(
     const widgetSlotOf = (def: { linkIds?: number[] }): { nodeId: number; name: string } | undefined => {
       for (const linkId of def.linkIds ?? []) {
         const link = innerLinks.get(linkId)
+
         if (!link) continue
         const slot = definition.nodes.find((node) => node.id === link.target_id)?.inputs?.[link.target_slot]
+
         if (slot?.widget) return { nodeId: link.target_id, name: slot.widget.name }
       }
+
       return undefined
     }
 
@@ -688,35 +772,46 @@ export function convertUiWorkflowToPrompt(
     // promoted widget altogether — so reading the positions off it shifts every
     // value that follows the omission.
     const innerBindings = new Map<number, Map<number, WorkflowValue>>()
+
     if (inputNodeId !== undefined) {
       const values = instance.widgets_values
       const saved = new Map((instance.inputs ?? []).map((slot) => [slot.name, slot]))
       const byName = new Map<string, WorkflowValue>()
       let widgetIndex = 0
+
       for (const def of definition.inputs ?? []) {
         const slot = saved.get(def.name)
         const widgetSlot = widgetSlotOf(def)
         const widget = widgetSlot !== undefined
+
         if (widgetSlot && def.type === 'STRING') {
           const target = innerRemap.get(widgetSlot.nodeId)
+
           if (target !== undefined) promotedText.push({ nodeId: String(target), input: widgetSlot.name })
         }
+
         if (slot?.link != null) {
           const bound = resolveLink(slot.link, links, remap, bindings)
+
           if (bound !== undefined) byName.set(def.name, bound)
         } else if (widget) {
           // Named values preserve bindings when promoted widgets are reordered.
           const named = instance.widgets_values_named?.[def.name]
           const value = named !== undefined ? named : Array.isArray(values) ? values[widgetIndex] : values?.[def.name]
+
           if (value !== undefined) byName.set(def.name, wrapWidgetValue(value))
         }
+
         if (widget) widgetIndex += 1
       }
+
       const bySlot = new Map<number, WorkflowValue>()
+
       ;(definition.inputs ?? []).forEach((def, index) => {
         if (!byName.has(def.name)) {
           warnings.push(`instance ${instance.id} has no value for promoted input ${def.name}`)
         }
+
         bySlot.set(index, byName.get(def.name))
       })
       innerBindings.set(inputNodeId, bySlot)
@@ -727,22 +822,29 @@ export function convertUiWorkflowToPrompt(
     // along, so a bypass nested inside the subgraph still selects by the type
     // the eventual consumer asks for.
     const outputNodeId = definition.outputNode?.id
+
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
+
     ;(definition.outputs ?? []).forEach((def, slot) => {
       for (const linkId of def.linkIds ?? []) {
         const link = innerLinks.get(linkId)
+
         if (!link) continue
+
         if (outputNodeId !== undefined && link.target_id !== outputNodeId) {
           warnings.push(`subgraph output link ${linkId} does not end at the output node`)
           continue
         }
+
         const origin = innerRemap.get(link.origin_id)
+
         if (origin !== undefined) {
           // The incoming consumer type rides into the subgraph (the frontend
           // resolves nested producers with it); the declared output type is
           // only the fallback when the consumer's type is unknown.
           alias[slot] = (type) => ({ kind: 'ref', ref: [String(origin), link.origin_slot], type: type ?? def.type })
         }
+
         break
       }
     })
@@ -758,18 +860,23 @@ export function convertUiWorkflowToPrompt(
     bindings: Map<number, Map<number, WorkflowValue>>
   ) {
     if (node.mode === 2) return // muted: never runs; consumers of it are dropped below
+
     if (node.mode === 4) {
       // Bypassed: consumers see this node's input instead.
       passThrough(node, 'bypassed', links, remap, bindings)
+
       return
     }
+
     if (subgraphs.has(node.type)) expand(node, links, remap, bindings)
     else emit(node, links, remap, bindings)
   }
 
   const rootRemap = new Map<number, number>()
+
   for (const node of ui.nodes ?? []) rootRemap.set(node.id, nextId++)
   const rootLinks = linkMap(ui.links)
+
   for (const node of ui.nodes ?? []) walk(node, rootLinks, rootRemap, new Map())
 
   // Aliases resolve to a fixed point: a holder's target may itself be another
@@ -779,16 +886,22 @@ export function convertUiWorkflowToPrompt(
   const resolveAlias = (ref: Reference, type: string | undefined): WorkflowValue => {
     const seen = new Set<string>()
     let current = { ref, type }
+
     while (true) {
       if (seen.has(current.ref[0])) {
         warnings.push(`circular pass-through at ${current.ref[0]}`)
+
         return undefined
       }
+
       seen.add(current.ref[0])
       const holder = aliases[current.ref[0]]?.[current.ref[1]]
+
       if (!holder) return current.ref
       const step = holder(current.type)
+
       if (step === undefined) return undefined
+
       if (step.kind === 'value') return step.value
       current = { ref: step.ref, type: step.type }
     }
@@ -800,12 +913,15 @@ export function convertUiWorkflowToPrompt(
   for (const node of Object.values(prompt)) {
     for (const [name, value] of Object.entries(node.inputs)) {
       if (!isReference(value)) continue
+
       if (!aliases[value[0]]) continue
       const resolved = resolveAlias(value, consumerInputType(node, name))
+
       if (resolved === undefined) {
         warnings.push(`alias ${value[0]} output slot ${value[1]} unresolved`)
         continue
       }
+
       node.inputs[name] = resolved
     }
   }
@@ -825,8 +941,10 @@ export function convertUiWorkflowToPrompt(
   // workflow that promotes both a caption and a style string means the caption.
   const promotedRank = (entry: { input: string }): number => {
     const rank = promptInputRank(entry.input)
+
     return rank === -1 ? PROMPT_INPUT_PREFERENCE.length : rank
   }
+
   promotedText.sort((a, b) => promotedRank(a) - promotedRank(b))
 
   return { prompt, warnings, promotedText }
@@ -858,6 +976,7 @@ const promptInputRank = (name: string): number => PROMPT_INPUT_PREFERENCE.indexO
  */
 const isPromptShaped = (name: string): boolean => {
   const leaf = name.slice(name.lastIndexOf('.') + 1)
+
   return leaf === 'text' || leaf.endsWith('prompt') || PROMPT_INPUT_PREFERENCE.includes(leaf)
 }
 
@@ -872,8 +991,10 @@ const isPromptShaped = (name: string): boolean => {
 function positiveConditioning(inputs: Record<string, WorkflowValue>): Reference | undefined {
   for (const [name, value] of Object.entries(inputs)) {
     if (!isReference(value)) continue
+
     if (name === 'positive' || /^cond\d+$/.test(name)) return value
   }
+
   return undefined
 }
 
@@ -908,8 +1029,10 @@ export function hasPromptText(prompt: Record<string, ApiPromptNode>): boolean {
  */
 function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_false'; value: WorkflowValue } | undefined {
   const selector = node.inputs.switch
+
   if (typeof selector !== 'boolean') return undefined
   const name = selector ? 'on_true' : 'on_false'
+
   return name in node.inputs ? { name, value: node.inputs[name] } : undefined
 }
 
@@ -924,11 +1047,14 @@ const SCALAR_INPUT_TYPES = new Set(['STRING', 'INT', 'FLOAT', 'BOOLEAN', 'COMBO'
 function declaredInputType(objectInfo: ObjectInfo, classType: string, name: string): string | undefined {
   const spec = objectInfo[classType]?.input
   const leaf = name.slice(name.lastIndexOf('.') + 1)
+
   const entry = (spec?.required?.[name] ??
     spec?.optional?.[name] ??
     spec?.required?.[leaf] ??
     spec?.optional?.[leaf]) as WorkflowValue[] | undefined
+
   const type = Array.isArray(entry) ? entry[0] : undefined
+
   return Array.isArray(type) ? 'COMBO' : typeof type === 'string' ? type : undefined
 }
 
@@ -960,16 +1086,21 @@ export function findPromptTarget(
   // branch.
   const conditioningInputs = (node: ApiPromptNode): Record<string, WorkflowValue> =>
     isReference(node.inputs.guider) ? (prompt[node.inputs.guider[0]]?.inputs ?? {}) : node.inputs
+
   const withPositive = Object.entries(prompt).filter(([, node]) => {
     // `conditioningInputs` follows one `guider` hop, so a sampler reading its
     // positive stream off `CFGGuider`/`DualCFGGuider` counts here too.
     const inputs = conditioningInputs(node)
+
     if (positiveConditioning(inputs) !== undefined) return true
+
     // A guider that names its only stream `conditioning` — `BasicGuider`.
     return isReference(node.inputs.guider) && isReference(inputs.conditioning)
   })
+
   const isSampler = ([, node]): boolean =>
     'seed' in node.inputs || 'noise_seed' in node.inputs || 'latent_image' in node.inputs
+
   /**
    * The node ids reachable from `from` in the graph a run evaluates: a negative
    * branch is part of it — both encoders run — but a switch evaluates only its
@@ -980,25 +1111,33 @@ export function findPromptTarget(
   const reachedFrom = (from: string, options: { positive?: boolean } = {}): Set<string> => {
     const reached = new Set<string>()
     const queue = [from]
+
     while (queue.length > 0) {
       const id = queue.shift()!
+
       if (reached.has(id)) continue
       reached.add(id)
       const node = prompt[id]
+
       if (!node) continue
       const branch = selectedSwitchBranch(node)
+
       if (branch) {
         if (isReference(branch.value)) queue.push(branch.value[0])
         continue
       }
+
       for (const [name, value] of Object.entries(node.inputs)) {
         if (!isReference(value)) continue
+
         if (options.positive && name === 'negative') continue
         queue.push(value[0])
       }
     }
+
     return reached
   }
+
   const reaches = (from: string, target: string, options: { positive?: boolean } = {}): boolean =>
     reachedFrom(from, options).has(target)
 
@@ -1007,17 +1146,22 @@ export function findPromptTarget(
     // tie-break lexicographically would read "10" as lower than "9".
     const left = Number(a)
     const right = Number(b)
+
     if (Number.isInteger(left) && Number.isInteger(right) && left !== right) return left - right
+
     return a < b ? -1 : a > b ? 1 : 0
   }
+
   const orderedIds = Object.keys(prompt).sort(byNodeId)
 
   const referenced = new Set<string>()
+
   for (const node of Object.values(prompt)) {
     for (const value of Object.values(node.inputs)) {
       if (isReference(value)) referenced.add(value[0])
     }
   }
+
   const outputIds = orderedIds.filter((id) => objectInfo?.[prompt[id].class_type]?.output_node === true)
   const rootIds = outputIds.length > 0 ? outputIds : orderedIds.filter((id) => !referenced.has(id))
 
@@ -1025,6 +1169,7 @@ export function findPromptTarget(
   // leads to still holds a prompt and a seed, and writing either into it would
   // change a graph the run never reads.
   const executed = new Set<string>()
+
   for (const root of rootIds) for (const id of reachedFrom(root)) executed.add(id)
   const runs = withPositive.filter(([id]) => executed.has(id))
   const ordered = [...runs.filter(isSampler), ...runs.filter((entry) => !isSampler(entry))]
@@ -1036,16 +1181,21 @@ export function findPromptTarget(
   const reachableFrom = (start: Reference): Set<string> => {
     const reached = new Set<string>()
     const queue = [start[0]]
+
     while (queue.length > 0) {
       const nodeId = queue.shift()!
+
       if (reached.has(nodeId)) continue
       reached.add(nodeId)
       const node = prompt[nodeId]
+
       if (!node) continue
+
       for (const value of Object.values(node.inputs)) {
         if (isReference(value)) queue.push(value[0])
       }
     }
+
     return reached
   }
 
@@ -1057,18 +1207,24 @@ export function findPromptTarget(
    */
   const walk = (queue: string[], excluded?: Set<string>): { nodeId: string; input: string } | undefined => {
     const seen = new Set<string>()
+
     while (queue.length > 0) {
       const nodeId = queue.shift()!
+
       if (seen.has(nodeId) || excluded?.has(nodeId)) continue
       seen.add(nodeId)
       const target = prompt[nodeId]
+
       if (!target) continue
       let best: { name: string; rank: number } | undefined
+
       for (const [name, value] of Object.entries(target.inputs)) {
         if (typeof value !== 'string') continue
         const rank = promptInputRank(name)
+
         if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
       }
+
       if (best) return { nodeId, input: best.name }
       // A switch puts one branch on the wire and leaves the other unevaluated,
       // so only the selected branch is part of the graph the sampler reads.
@@ -1076,11 +1232,14 @@ export function findPromptTarget(
       // "use this text" side of the switch — the literal is what the consumer
       // receives, which is where the prompt has to be written.
       const branch = selectedSwitchBranch(target)
+
       if (branch) {
         if (typeof branch.value === 'string') return { nodeId, input: branch.name }
+
         if (isReference(branch.value)) queue.push(branch.value[0])
         continue
       }
+
       // A node the graph cannot feed is its own value — but an output class is
       // where a run ends, not a text it supplies: an ordinary string input on
       // one (`filename_prefix`, a path) is not a prompt.
@@ -1091,21 +1250,26 @@ export function findPromptTarget(
       ) {
         return { nodeId, input: 'value' }
       }
+
       const refs = Object.entries(target.inputs).filter((entry): entry is [string, Reference] => isReference(entry[1]))
       // An output class ends a run, so only the media it saves can lead to the
       // text: a scalar reference leaving it — `SaveImage.filename_prefix` fed
       // by a string primitive — is metadata the workflow set, not the prompt,
       // and following it would overwrite the source the metadata reads.
       const endsRun = objectInfo?.[target.class_type]?.output_node === true
+
       // Never follow an intermediate node's negative edge (e.g. a ControlNet
       // apply node carries both streams) — only the sampler's own negative
       // branch is out of bounds, not a conditioning input anywhere.
       const following = refs.filter(([name]) => {
         if (name === 'negative') return false
+
         if (!endsRun) return true
         const type = declaredInputType(objectInfo, target.class_type, name)
+
         return type === undefined || !SCALAR_INPUT_TYPES.has(type)
       })
+
       // Follow the prompt edge before the node's other references when it lands
       // on a plain text node: a generator keeps its prompt, its style and its
       // reference image as separate sockets, and object order alone would let a
@@ -1114,8 +1278,10 @@ export function findPromptTarget(
       // socket carries the workflow's text is the workflow's own choice.
       const textEdges = following.filter(([, value]) => {
         const producer = prompt[value[0]]
+
         return producer !== undefined && holdsText(producer, objectInfo) && isPlainTextNode(producer)
       })
+
       // A `StringConcatenate` joins text sources, and both operands have the
       // same STRING contract: `string_a` and `string_b` rank nothing, so a
       // concat that takes text from more than one of them — a style literal
@@ -1129,40 +1295,54 @@ export function findPromptTarget(
         // the promotion — the workflow's own statement of what a run supplies —
         // names the text, and no operand here does.
         if (promotedText.some((entry) => reaches(nodeId, entry.nodeId))) continue
+
         const literals = Object.entries(target.inputs).filter(
           ([name, value]) => name !== 'delimiter' && typeof value === 'string'
         )
+
         if (literals.length + textEdges.length > 1) continue
+
         if (literals.length === 1) return { nodeId, input: literals[0][0] }
       }
+
       const later: [string, Reference][] = []
+
       for (const entry of following) {
         const [name, value] = entry
+
         if (isPromptShaped(name) && textEdges.includes(entry)) queue.push(value[0])
         else later.push(entry)
       }
+
       for (const [, value] of later) queue.push(value[0])
     }
+
     return undefined
   }
 
   /** Every node that only a negative branch reaches, across the graph. */
   const negativeOnlyNodes = new Set<string>()
+
   for (const [samplerId, node] of ordered) {
     const inputs = conditioningInputs(node)
+
     const positive =
       positiveConditioning(inputs) ?? (isReference(inputs.conditioning) ? inputs.conditioning : undefined)
+
     if (!positive) continue
     // Only the negative-exclusive part of the graph is out of bounds: the
     // classic zero-out chain hangs a ConditioningZeroOut off the negative
     // encode, and crossing into it would replace the negative prompt. Nodes
     // shared with the positive branch stay reachable.
     const negative = inputs.negative
+
     const negativeOnly = isReference(negative)
       ? new Set([...reachableFrom(negative)].filter((id) => !reachableFrom(positive).has(id)))
       : new Set<string>()
+
     for (const id of negativeOnly) negativeOnlyNodes.add(id)
     const found = walk([positive[0]], negativeOnly)
+
     if (found) return { ...found, samplerId }
   }
 
@@ -1182,12 +1362,14 @@ export function findPromptTarget(
    */
   const seedNodeFor = (target: string, root: string): string => {
     if (seedInputKey(prompt[root]?.inputs ?? {}) !== undefined) return root
+
     return samplingIds.find((id) => reaches(id, target, { positive: true })) ?? target
   }
 
   for (const roots of [samplingIds, rootIds]) {
     for (const root of roots) {
       const found = walk([root])
+
       if (found) return { ...found, samplerId: seedNodeFor(found.nodeId, root) }
     }
   }
@@ -1201,9 +1383,12 @@ export function findPromptTarget(
   // the prompt somewhere the user never meant it.
   for (const entry of promotedText) {
     if (typeof prompt[entry.nodeId]?.inputs[entry.input] !== 'string') continue
+
     if (negativeOnlyNodes.has(entry.nodeId)) continue
+
     if (!rootIds.some((id) => reaches(id, entry.nodeId))) continue
     const sampler = samplingIds.find((id) => reaches(id, entry.nodeId))
+
     return { ...entry, samplerId: sampler ?? entry.nodeId }
   }
 
@@ -1222,31 +1407,44 @@ export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | u
   if (typeof seed !== 'number' || !Number.isFinite(seed)) return
   const value = Math.trunc(seed)
   const sampler = samplerId ? graph[samplerId] : undefined
+
   if (sampler) {
     const key = seedInputKey(sampler.inputs)
+
     if (key) {
       writeSeed(graph, sampler.inputs, key, value)
+
       return
     }
+
     const seen = new Set<string>()
     let noise = sampler.inputs.noise
+
     while (isReference(noise) && !seen.has(noise[0])) {
       seen.add(noise[0])
       const source = graph[noise[0]]
+
       if (!source) break
       const key = seedInputKey(source.inputs)
+
       if (key) {
         writeSeed(graph, source.inputs, key, value)
+
         return
       }
+
       noise = source.inputs.noise
     }
+
     return
   }
+
   for (const node of Object.values(graph)) {
     const key = seedInputKey(node.inputs)
+
     if (key) {
       writeSeed(graph, node.inputs, key, value)
+
       return
     }
   }
@@ -1260,7 +1458,9 @@ export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | u
  */
 const seedInputKey = (inputs: Record<string, WorkflowValue>): string | undefined => {
   if ('seed' in inputs) return 'seed'
+
   if ('noise_seed' in inputs) return 'noise_seed'
+
   return Object.keys(inputs).find((key) => key.endsWith('.seed') || key.endsWith('.noise_seed'))
 }
 
@@ -1277,16 +1477,21 @@ function writeSeed(
   value: number
 ): void {
   const current = inputs[key]
+
   if (isReference(current)) {
     const source = graph[current[0]]
+
     const sourceKey = source
       ? (seedInputKey(source.inputs) ??
         ('value' in source.inputs && !isReference(source.inputs.value) ? 'value' : undefined))
       : undefined
+
     if (sourceKey) {
       source.inputs[sourceKey] = value
+
       return
     }
   }
+
   inputs[key] = value
 }

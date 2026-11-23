@@ -18,13 +18,18 @@ export async function measureToolInstalledSize(
   const startedAt = Date.now()
   let nodes = 1
   let sizeBytes = 0
+
   const check = () => {
     if (!isCurrent()) throw new Error('stale')
+
     if (nodes > maxNodes) throw new Error('node_budget')
+
     if (Date.now() - startedAt >= budgetMs) throw new Error('time_budget')
   }
+
   const add = (size: number) => {
     sizeBytes += size
+
     if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0) throw new Error('invalid_size')
   }
 
@@ -32,41 +37,53 @@ export async function measureToolInstalledSize(
     check()
     const stat = await fsp.lstat(root)
     check()
+
     if (kind === 'file') {
       if (!stat.isFile()) throw new Error('invalid_root')
       add(stat.size)
+
       return { sizeBytes }
     }
+
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('invalid_root')
     const directories = [root]
+
     while (directories.length) {
       check()
       const directory = directories.pop()!
       const handle = await fsp.opendir(directory)
+
       try {
         check()
+
         while (true) {
           check()
           const entry = await handle.read()
           check()
+
           if (!entry) break
           nodes++
           check()
           const child = path.join(directory, entry.name)
           const childStat = await fsp.lstat(child)
           check()
+
           if (childStat.isSymbolicLink()) continue
+
           if (childStat.isDirectory()) directories.push(child)
           else if (childStat.isFile()) add(childStat.size)
         }
       } finally {
         await handle.close()
       }
+
       check()
     }
+
     return { sizeBytes }
   } catch (error) {
     const reason = error instanceof Error ? ((error as NodeJS.ErrnoException).code ?? error.message) : 'io_failed'
+
     return { sizeBytes: null, reason }
   }
 }

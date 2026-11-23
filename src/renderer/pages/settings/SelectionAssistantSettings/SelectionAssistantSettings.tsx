@@ -53,15 +53,18 @@ const SelectionAssistantSettings: FC = () => {
   const [isFilterListModalOpen, setIsFilterListModalOpen] = useState(false)
   const [isMacTrustModalOpen, setIsMacTrustModalOpen] = useState(false)
   const [opacityValue, setOpacityValue] = useState(actionWindowOpacity)
+
   const [linuxEnvInfo, setLinuxEnvInfo] = useState<{
     isLinuxWaylandDisplay: boolean
     isLinuxXWaylandMode: boolean
     hasLinuxInputDeviceAccess: boolean
     isLinuxCompositorCompatible: boolean
   } | null>(null)
+
   const isLinuxWaylandDisplay = isLinux && !!linuxEnvInfo?.isLinuxWaylandDisplay
   // The selection hook cannot run on this compositor, so every setting below would be dead.
   const isCompositorIncompatible = isLinuxWaylandDisplay && !linuxEnvInfo?.isLinuxCompositorCompatible
+
   // Only show the Wayland block when something is still wrong; a fully satisfied checklist is noise.
   const showWaylandHint =
     isLinuxWaylandDisplay &&
@@ -71,6 +74,7 @@ const SelectionAssistantSettings: FC = () => {
   useEffect(() => {
     const checkMacProcessTrust = async () => {
       const isTrusted = await ipcApi.request('system.mac.is_process_trusted')
+
       if (!isTrusted) {
         void setSelectionEnabled(false)
       }
@@ -78,6 +82,7 @@ const SelectionAssistantSettings: FC = () => {
 
     if (!isSupportedOS && selectionEnabled) {
       void setSelectionEnabled(false)
+
       return
     } else if (isMac && selectionEnabled) {
       void checkMacProcessTrust()
@@ -95,8 +100,10 @@ const SelectionAssistantSettings: FC = () => {
 
     if (isMac && checked) {
       const isTrusted = await ipcApi.request('system.mac.is_process_trusted')
+
       if (!isTrusted) {
         setIsMacTrustModalOpen(true)
+
         return
       }
     }
@@ -392,10 +399,13 @@ const SelectionAssistantSettings: FC = () => {
 const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex-1', className)} {...props} />
 )
+
 const SettingLabel = Spacer
+
 const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('mt-8 mb-4 flex items-center justify-center', className)} {...props} />
 )
+
 const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('mb-0.5 flex items-center text-xs text-foreground-tertiary', className)} {...props} />
 )

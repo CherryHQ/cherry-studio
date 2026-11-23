@@ -13,6 +13,7 @@ const locks = new Map<string, Promise<void>>()
 
 function lockKey(filePath: string): string {
   const resolved = path.resolve(filePath)
+
   return process.platform === 'win32' || process.platform === 'darwin' ? resolved.toLowerCase() : resolved
 }
 
@@ -20,17 +21,21 @@ export async function withAgentMemoryFileLock<T>(filePath: string, task: () => P
   const key = lockKey(filePath)
   const previous = locks.get(key) ?? Promise.resolve()
   let release!: () => void
+
   const gate = new Promise<void>((resolve) => {
     release = resolve
   })
+
   const queued = previous.then(() => gate)
   locks.set(key, queued)
 
   await previous
+
   try {
     return await task()
   } finally {
     release()
+
     if (locks.get(key) === queued) locks.delete(key)
   }
 }

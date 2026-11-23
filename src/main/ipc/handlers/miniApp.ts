@@ -26,6 +26,7 @@ import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
 function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
   if (senderId == null) return undefined
+
   return application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
@@ -42,8 +43,10 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
       properties: ['openFile'],
       filters: [{ name: 'Mini App', extensions: ['miniapp'] }]
     })
+
     // Dismissing the dialog is normal use, not an error — and nothing was registered.
     if (picked.canceled || !picked.filePaths[0]) return null
+
     return previewFileForInstall(picked.filePaths[0], ctx.senderId)
   },
   'mini_app.install.preview_file': ({ filePath }, ctx) => previewFileForInstall(filePath, ctx.senderId),
@@ -57,6 +60,7 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
     // Readiness and nothing else: returning the preload path would be a needless
     // disclosure, and main imposes it in `will-attach-webview` anyway.
     const runtime = application.get('MiniAppRuntimeService')
+
     // Refused rather than queued: "wait silently, then run the old version" is worse
     // than a visible "this app is updating".
     if (runtime.isQuiescing(appId)) throw new Error(`Mini app ${appId} is being updated`)
@@ -70,6 +74,7 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
   'mini_app.runtime.set_visible': async ({ appId, visible }, ctx) => {
     // Keyed by the host webContents the guest hangs off — an unmanaged sender has no pool.
     const host = senderWebContents(ctx.senderId)
+
     if (host) application.get('MiniAppRuntimeService').setPaneVisible(host.id, appId, visible)
   },
   'mini_app.clear_data': async ({ appId }) => clearMiniAppData(appId),

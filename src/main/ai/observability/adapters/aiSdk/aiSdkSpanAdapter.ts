@@ -85,35 +85,44 @@ export class AiSdkSpanAdapter {
     if (spanWithInternals._events) {
       events = spanWithInternals._events
     }
+
     if (spanWithInternals.name) {
       spanName = spanWithInternals.name
     }
+
     if (spanWithInternals.status) {
       spanStatus = spanWithInternals.status
     }
+
     if (spanWithInternals.kind !== undefined) {
       spanKind = spanWithInternals.kind
     }
+
     if (spanWithInternals.startTime) {
       startTime = spanWithInternals.startTime
     }
+
     if (spanWithInternals.endTime) {
       endTime = spanWithInternals.endTime
     }
+
     if (spanWithInternals.ended !== undefined) {
       ended = spanWithInternals.ended
     }
+
     // OTel SDK v2 exposes the parent as `parentSpanContext`; v1's `parentSpanId` string was removed
     // (always undefined here). Reading only the old field left every AI SDK span with an empty parent,
     // so `ai.streamText` & co. rendered as trace roots instead of nesting under `ai.turn`.
     if (spanWithInternals.parentSpanContext?.spanId) {
       parentSpanId = spanWithInternals.parentSpanContext.spanId
     }
+
     // Fallback: read the parent info we injected from attributes.
     if (!parentSpanId && attributes['trace.parentSpanId']) {
       // SAFETY: The legacy parent attribute carries the same string span-id contract as parentSpanContext.spanId.
       parentSpanId = attributes['trace.parentSpanId'] as SpanEntity['parentId']
     }
+
     if (spanWithInternals.links) {
       links = spanWithInternals.links
     }
@@ -192,10 +201,13 @@ export class AiSdkSpanAdapter {
     const read = (...keys: string[]): number | undefined => {
       for (const key of keys) {
         const value = attributes[key]
+
         if (value === undefined || value === null || value === '') continue
         const n = Number(value)
+
         if (!Number.isNaN(n)) return n
       }
+
       return undefined
     }
 
@@ -221,6 +233,7 @@ export class AiSdkSpanAdapter {
 
     const promptTokens = input ?? 0
     const completionTokens = output ?? 0
+
     // Object keys stay snake_case: this is the TokenUsage contract in trace-core/types/config.ts.
     const usage: TokenUsage = {
       prompt_tokens: promptTokens,
@@ -228,9 +241,12 @@ export class AiSdkSpanAdapter {
       // Prefer the SDK's reported total (it accounts for reasoning/cached), else sum the two.
       total_tokens: total ?? promptTokens + completionTokens
     }
+
     // Cached input is a subset of input; reasoning tokens are a subset of output.
     if (cached !== undefined) usage.prompt_tokens_details = { cached_tokens: cached }
+
     if (reasoning !== undefined) usage.completion_tokens_details = { reasoning_tokens: reasoning }
+
     return usage
   }
 
@@ -311,12 +327,15 @@ export class AiSdkSpanAdapter {
     if (attributes['ai.response.text']) {
       outputs.text = attributes['ai.response.text']
     }
+
     if (attributes['ai.response.toolCalls']) {
       outputs.toolCalls = this.parseAttributeValue(attributes['ai.response.toolCalls'])
     }
+
     if (attributes['ai.response.finishReason']) {
       outputs.finishReason = attributes['ai.response.finishReason']
     }
+
     if (attributes['ai.settings.maxOutputTokens']) {
       outputs.maxOutputTokens = attributes['ai.settings.maxOutputTokens']
     }
@@ -333,9 +352,11 @@ export class AiSdkSpanAdapter {
     if (attributes['ai.response.text']) {
       outputs.text = attributes['ai.response.text']
     }
+
     if (attributes['ai.response.toolCalls']) {
       outputs.toolCalls = this.parseAttributeValue(attributes['ai.response.toolCalls'])
     }
+
     if (attributes['ai.response.finishReason']) {
       outputs.finishReason = attributes['ai.response.finishReason']
     }
@@ -344,9 +365,11 @@ export class AiSdkSpanAdapter {
     if (attributes['ai.response.msToFirstChunk']) {
       outputs.msToFirstChunk = attributes['ai.response.msToFirstChunk']
     }
+
     if (attributes['ai.response.msToFinish']) {
       outputs.msToFinish = attributes['ai.response.msToFinish']
     }
+
     if (attributes['ai.response.avgCompletionTokensPerSecond']) {
       outputs.avgCompletionTokensPerSecond = attributes['ai.response.avgCompletionTokensPerSecond']
     }
@@ -365,6 +388,7 @@ export class AiSdkSpanAdapter {
         return this.parseAttributeValue(attributes[key])
       }
     }
+
     return undefined
   }
 
@@ -379,6 +403,7 @@ export class AiSdkSpanAdapter {
         return this.parseAttributeValue(attributes[key])
       }
     }
+
     return undefined
   }
 
@@ -393,6 +418,7 @@ export class AiSdkSpanAdapter {
         return value
       }
     }
+
     return value
   }
 
@@ -405,6 +431,7 @@ export class AiSdkSpanAdapter {
     if (name.startsWith('ai.')) {
       return name
     }
+
     return name
   }
 
@@ -441,12 +468,15 @@ export class AiSdkSpanAdapter {
         if (name.includes('generateText') || name.includes('streamText')) {
           return 'LLM'
         }
+
         if (name.includes('generateImage')) {
           return 'IMAGE'
         }
+
         if (name.includes('embed')) {
           return 'EMBEDDING'
         }
+
         if (name.includes('toolCall')) {
           return 'TOOL'
         }
@@ -470,9 +500,11 @@ export class AiSdkSpanAdapter {
         if (attributes['ai.settings.maxOutputTokens']) {
           specificData.maxOutputTokens = attributes['ai.settings.maxOutputTokens']
         }
+
         if (attributes['resource.name']) {
           specificData.functionId = attributes['resource.name']
         }
+
         break
 
       case 'ai.generateText.doGenerate':
@@ -488,13 +520,16 @@ export class AiSdkSpanAdapter {
           if (attributes['ai.response.msToFirstChunk']) {
             specificData.msToFirstChunk = attributes['ai.response.msToFirstChunk']
           }
+
           if (attributes['ai.response.msToFinish']) {
             specificData.msToFinish = attributes['ai.response.msToFinish']
           }
+
           if (attributes['ai.response.avgCompletionTokensPerSecond']) {
             specificData.tokensPerSecond = attributes['ai.response.avgCompletionTokensPerSecond']
           }
         }
+
         break
 
       case 'ai.toolCall':
@@ -506,6 +541,7 @@ export class AiSdkSpanAdapter {
         if (attributes['operation.name']) {
           specificData.operationName = attributes['operation.name']
         }
+
         break
 
       default:
@@ -513,9 +549,11 @@ export class AiSdkSpanAdapter {
         if (attributes['ai.telemetry.functionId']) {
           specificData.telemetryFunctionId = attributes['ai.telemetry.functionId']
         }
+
         if (attributes['ai.telemetry.metadata']) {
           specificData.telemetryMetadata = this.parseAttributeValue(attributes['ai.telemetry.metadata'])
         }
+
         break
     }
 
@@ -523,6 +561,7 @@ export class AiSdkSpanAdapter {
     if (operationId) {
       specificData.operationType = operationId
     }
+
     if (attributes['operation.name']) {
       specificData.operationName = attributes['operation.name']
     }
@@ -597,6 +636,7 @@ export class AiSdkSpanAdapter {
       // OpenTelemetry high-resolution timestamp [seconds, nanoseconds]
       return timestamp[0] * 1e3 + Math.floor(timestamp[1] / 1e6)
     }
+
     return timestamp
   }
 }

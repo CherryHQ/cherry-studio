@@ -9,5 +9,6 @@ export function useDictationEnabled(): boolean {
   useEffect(() => {
     void preferenceService.ensureFreshSubscription('feature.voice.recognition.model_id').catch(() => undefined)
   }, [])
+
   return !isVoiceRecognitionOff(modelId)
 }

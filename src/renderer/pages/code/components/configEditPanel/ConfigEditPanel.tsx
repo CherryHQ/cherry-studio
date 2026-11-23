@@ -8,5 +8,6 @@ export type { ConfigEditPanelProps } from './types'
 
 export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const bodyProps = useConfigEditPanelBodyProps(props)
+
   return <ConfigEditDialogBody {...bodyProps} />
 }

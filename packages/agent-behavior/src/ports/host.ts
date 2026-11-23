@@ -25,6 +25,7 @@ export type ApprovalRequest = {
   readonly presentation: 'stream' | 'message'
   readonly details?: JsonValue
 }
+
 /**
  * P1. Ask a person whether a call may run; tell the rules how people answered before.
  *
@@ -47,6 +48,7 @@ export interface Approvals {
 }
 
 export type QuestionRequest = { readonly call: CallRef; readonly questions: readonly QuestionItem[] }
+
 /**
  * P2. Ask a person questions (AskUserQuestion).
  *
@@ -87,6 +89,7 @@ export type VerifyRequest = {
   readonly claim: { readonly evidence?: string }
   readonly context: readonly JsonValue[]
 }
+
 /**
  * P4. Judge whether a goal is met.
  *
@@ -106,6 +109,7 @@ export type OutputFile = {
   readonly key: CallKey
   readonly tool: string
 }
+
 /**
  * P5. Store an oversized output and return a path the model's read tool can open.
  *

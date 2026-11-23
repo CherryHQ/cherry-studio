@@ -41,6 +41,7 @@ export const useTranslateHistories = ({
     limit: pageSize,
     swrOptions: { keepPreviousData: false }
   })
+
   const histories = useInfiniteFlatItems(pages)
   const total = pages[0]?.total ?? 0
 

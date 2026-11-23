@@ -25,6 +25,7 @@ export function getOverlayFontFamily(): string {
   if (!fontFamilyCache) {
     fontFamilyCache = getComputedStyle(document.body).fontFamily.trim() || 'sans-serif'
   }
+
   return fontFamilyCache
 }
 
@@ -41,6 +42,7 @@ const baselineCache = new Map<number, number>()
  */
 function getCssBaseline(fontSize: number): number {
   const cached = baselineCache.get(fontSize)
+
   if (cached !== undefined) return cached
 
   const el = document.createElement('div')
@@ -57,6 +59,7 @@ function getCssBaseline(fontSize: number): number {
 
   document.body.removeChild(el)
   baselineCache.set(fontSize, baseline)
+
   return baseline
 }
 
@@ -165,9 +168,11 @@ function drawBrush(ctx: CanvasRenderingContext2D, a: BrushAnnotation): void {
 
   ctx.beginPath()
   ctx.moveTo(a.points[0].x, a.points[0].y)
+
   for (let i = 1; i < a.points.length; i++) {
     ctx.lineTo(a.points[i].x, a.points[i].y)
   }
+
   ctx.stroke()
 }
 
@@ -181,14 +186,18 @@ function drawBrush(ctx: CanvasRenderingContext2D, a: BrushAnnotation): void {
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
   const lines: string[] = []
+
   for (const paragraph of text.split('\n')) {
     if (!paragraph) {
       lines.push('')
       continue
     }
+
     let current = ''
+
     for (const { segment } of segmenter.segment(paragraph)) {
       const test = current + segment
+
       // `current &&` keeps a single oversized grapheme from being dropped entirely.
       if (current && ctx.measureText(test).width > maxWidth) {
         lines.push(current)
@@ -197,8 +206,10 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
         current = test
       }
     }
+
     lines.push(current)
   }
+
   return lines
 }
 
@@ -211,6 +222,7 @@ function drawText(ctx: CanvasRenderingContext2D, a: TextAnnotation): void {
   const lineHeight = a.fontSize * TEXT_LINE_HEIGHT
 
   const lines = a.maxWidth != null ? wrapLines(ctx, a.content, a.maxWidth) : a.content.split('\n')
+
   for (let i = 0; i < lines.length; i++) {
     ctx.fillText(lines[i], a.position.x, baselineY + i * lineHeight)
   }

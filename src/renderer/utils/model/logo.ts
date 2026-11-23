@@ -28,8 +28,10 @@ export function getModelLogoRef(model: LogoModel | undefined | null, providerId?
   const id = getLowerBaseModelName(rawId ?? '')
   const name = model.name ? getLowerBaseModelName(model.name) : ''
   const pid = providerId ?? model.providerId ?? model.provider
+
   if (pid) {
     return resolveIconRef(id, pid) ?? resolveIconRef(name, pid)
   }
+
   return resolveModelIconRef(id) ?? resolveModelIconRef(name)
 }

@@ -54,6 +54,7 @@ function dedupeEntityBindings(entities: EntityBinding[]): EntityBinding[] {
 
   for (const entity of entities) {
     const key = entityBindingKey(entity)
+
     if (!uniqueEntities.has(key)) {
       uniqueEntities.set(key, entity)
     }
@@ -113,6 +114,7 @@ export class TagService {
    */
   list(): Tag[] {
     const rows = this.db.select().from(tagTable).orderBy(asc(tagTable.name)).all()
+
     return rows.map(rowToTag)
   }
 
@@ -159,7 +161,9 @@ export class TagService {
    */
   update(id: string, dto: UpdateTagDto): Tag {
     const updates: Partial<typeof tagTable.$inferInsert> = {}
+
     if (dto.name !== undefined) updates.name = dto.name
+
     if (dto.color !== undefined) updates.color = dto.color
 
     if (Object.keys(updates).length === 0) {
@@ -240,7 +244,9 @@ export class TagService {
    */
   getTagsByEntitiesTx(tx: Pick<DbType, 'select'>, entityType: EntityType, entityIds: string[]): Map<string, Tag[]> {
     const result = new Map<string, Tag[]>()
+
     if (entityIds.length === 0) return result
+
     for (const id of entityIds) result.set(id, [])
 
     const rows = tx
@@ -261,11 +267,13 @@ export class TagService {
     for (const row of rows) {
       result.get(row.entityId)?.push(rowToTag(row))
     }
+
     return result
   }
 
   getEntityIdsByTagsTx(tx: Pick<DbType, 'select'>, entityType: EntityType, tagIds: string[]): string[] {
     const uniqueTagIds = [...new Set(tagIds)]
+
     if (uniqueTagIds.length === 0) return []
 
     const rows = tx
@@ -432,6 +440,7 @@ export class TagService {
       const toAdd = desiredEntities.filter((entity) => !existingKeys.has(entityBindingKey(entity)))
 
       const deleteCondition = buildEntityBindingCondition(toRemove)
+
       if (deleteCondition) {
         tx.delete(entityTagTable)
           .where(and(eq(entityTagTable.tagId, tagId), deleteCondition))

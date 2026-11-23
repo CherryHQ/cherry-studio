@@ -17,7 +17,9 @@ const THINK_REPLAY_MARKER = 'think'
 export function hasSignedReasoningMetadata(part: CherryMessagePart): boolean {
   if (part.type !== 'reasoning') return false
   const providerMetadata = part.providerMetadata
+
   if (!providerMetadata) return false
+
   return Object.keys(providerMetadata).some((key) => key !== CHERRY_METADATA_KEY)
 }
 
@@ -45,6 +47,7 @@ export function replaceReasoningPartText(
   text: string
 ): CherryMessagePart[] {
   const target = parts[partIndex]
+
   if (!target || target.type !== 'reasoning' || target.text === text) return parts
 
   const { providerMetadata, ...rest } = target
@@ -55,7 +58,9 @@ export function replaceReasoningPartText(
   return parts.map((part, index) => {
     if (index !== partIndex) return part
     const edited: typeof target = { ...rest, text, state: 'done' }
+
     if (Object.keys(nextCherry).length > 0) Object.assign(edited, { providerMetadata: { cherry: nextCherry } })
+
     return edited
   })
 }

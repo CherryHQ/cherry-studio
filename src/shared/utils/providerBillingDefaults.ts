@@ -12,7 +12,9 @@ export function getDefaultProviderBilling(
 ): ProviderBilling | undefined {
   if ((provider.presetProviderId ?? provider.id) !== 'deepseek' || model.hasCustomPricing) return undefined
   const modelId = model.apiModelId ?? model.id.slice(model.id.indexOf('::') + 2)
+
   if (!deepseekModels.includes(modelId)) return undefined
+
   const endpoints: Array<EndpointType | undefined> = [
     model.endpointTypes?.[0],
     provider.defaultChatEndpoint,
@@ -22,16 +24,20 @@ export function getDefaultProviderBilling(
     ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
     ENDPOINT_TYPE.OLLAMA_CHAT
   ]
+
   const url =
     baseUrl ??
     endpoints.map((endpoint) => (endpoint ? provider.endpointConfigs?.[endpoint]?.baseUrl : undefined)).find(Boolean) ??
     Object.values(provider.endpointConfigs ?? {}).find((config) => config?.baseUrl)?.baseUrl
+
   try {
     const parsed = new URL(url ?? '')
+
     if (parsed.protocol !== 'https:' || parsed.hostname !== 'api.deepseek.com' || parsed.port) return undefined
   } catch {
     return undefined
   }
+
   return {
     defaultMultiplier: 0.5,
     scheduleEnabled: true,

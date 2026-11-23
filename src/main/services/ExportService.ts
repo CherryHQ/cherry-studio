@@ -15,6 +15,7 @@ import { t } from '@main/i18n'
 import { classifyFileFailure } from '@main/services/file'
 
 const logger = loggerService.withContext('ExportService')
+
 export class ExportService {
   private convertMarkdownToDocxElements(markdown: string, md: MarkdownIt, docx: typeof Docx) {
     const {
@@ -31,6 +32,7 @@ export class ExportService {
       VerticalAlign,
       WidthType
     } = docx
+
     const tokens = md.parse(markdown, {})
     const elements: any[] = []
     const listCounters: Array<number | null> = []
@@ -90,6 +92,7 @@ export class ExportService {
 
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i]
+
         switch (token.type) {
           case 'link_open':
             linkUrl = token.attrs.find((attr: [string, string]) => attr[0] === 'href')[1]
@@ -99,6 +102,7 @@ export class ExportService {
             if (linkRuns.length > 0) {
               runs.push(new ExternalHyperlink({ children: linkRuns, link: linkUrl }))
             }
+
             linkRuns = []
             linkUrl = ''
             break
@@ -137,11 +141,13 @@ export class ExportService {
             break
         }
       }
+
       return runs
     }
 
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i]
+
       switch (token.type) {
         case 'heading_open':
           // 获取标题级别 (h1 -> h6)
@@ -190,12 +196,15 @@ export class ExportService {
 
         case 'list_item_open':
           const itemNumber = listCounters[listCounters.length - 1]
+
           if (itemNumber != null) {
             listCounters[listCounters.length - 1] = itemNumber + 1
           }
+
           // Only a leading paragraph is inlined behind the marker; any other first block (code,
           // quote, nested list) reaches its own handler so container levels stay balanced.
           const hasLeadParagraph = tokens[i + 1].type === 'paragraph_open'
+
           const listOptions: Docx.IParagraphOptions = {
             children: [
               new TextRun({ text: itemNumber == null ? '•' : `${itemNumber}.`, bold: true }),
@@ -204,11 +213,14 @@ export class ExportService {
             ],
             indent: { left: (listCounters.length + quoteLevel) * 720 }
           }
+
           if (quoteLevel > 0) Object.assign(listOptions, { border: quoteBorder })
           elements.push(new Paragraph(listOptions))
+
           if (hasLeadParagraph) {
             i += 3
           }
+
           break
 
         case 'code_block':
@@ -283,16 +295,20 @@ export class ExportService {
             children: currentRowCells,
             tableHeader: isHeaderRow
           })
+
           tableRows.push(row)
+
           // 计算表格有多少列（针对第一行）
           if (tableColumnCount === 0) {
             tableColumnCount = currentRowCells.length
           }
+
           break
 
         case 'th_open':
         case 'td_open':
           const isFirstColumn = currentRowCells.length === 0 // 判断是否是第一列
+
           const borders = {
             top: {
               style: BorderStyle.NONE
@@ -313,7 +329,9 @@ export class ExportService {
               style: BorderStyle.NONE
             }
           }
+
           const cellContent = tokens[i + 1]
+
           const cellOptions = {
             children: [
               new Paragraph({
@@ -326,6 +344,7 @@ export class ExportService {
             verticalAlign: VerticalAlign.CENTER,
             borders: borders
           }
+
           currentRowCells.push(new TableCell(cellOptions))
           i += 2 // 跳过内容和结束标记
           break
@@ -385,15 +404,19 @@ export class ExportService {
         filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
         defaultPath: fileName
       }
+
       // Parented dialog avoids the unparented-save crash with Unicode names.
       // Missing or destroyed caller window falls back to the unparented overload.
       const candidate: BrowserWindow | undefined = senderId
         ? application.get('WindowManager').getWindow(senderId)
         : undefined
+
       const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
+
       const { canceled, filePath } = parent
         ? await dialog.showSaveDialog(parent, dialogOptions)
         : await dialog.showSaveDialog(dialogOptions)
+
       if (canceled || !filePath) {
         return false
       }
@@ -426,6 +449,7 @@ export class ExportService {
 
       await fs.promises.writeFile(filePath, buffer)
       logger.debug('Document exported successfully')
+
       return true
     } catch (error) {
       logFailure(logger, 'Export to Word failed:', error, 'export.word', classifyFileFailure(error, true))

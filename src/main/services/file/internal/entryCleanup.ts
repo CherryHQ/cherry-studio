@@ -60,6 +60,7 @@ export async function runEntryCleanup(
   retainedEntries: ReadonlyMap<FileEntryId, unknown> = new Map()
 ): Promise<EntryCleanupReport> {
   const startedAt = Date.now()
+
   // A staged restore holds the DB in a protected window: mutating file_entry or
   // unlinking blobs now could invalidate the live DB fingerprint or race the
   // pending promotion. Both orphan-sweep passes gate on this (orphanSweep.ts); the
@@ -76,14 +77,18 @@ export async function runEntryCleanup(
       durationMs: Date.now() - startedAt
     })
   }
+
   try {
     await intakeProtection?.load()
+
     const batch = deps.fileEntryService.findCleanupCandidates({
       graceMs: ENTRY_CLEANUP_GRACE_MS,
       limit: ENTRY_CLEANUP_BATCH_LIMIT,
       excludedIds: [...retainedEntries.keys()]
     })
+
     const candidates = batch.length
+
     if (candidates === 0) {
       return finish({
         outcome: 'completed',
@@ -109,6 +114,7 @@ export async function runEntryCleanup(
           runPathMutationExclusive(async () => {
             const outcome = deps.fileEntryService.withWriteTx((tx): CandidateOutcome => {
               const row = deps.fileEntryService.findByIdTx(tx, candidate.id)
+
               if (
                 row === null ||
                 row.cleanupPolicy !== 'delete_when_unreferenced' ||
@@ -116,13 +122,16 @@ export async function runEntryCleanup(
               ) {
                 return { kind: 'gone-or-pinned' }
               }
+
               if (
                 retainedEntries.has(candidate.id) ||
                 deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0
               ) {
                 return { kind: 'refs-reappeared' }
               }
+
               deps.fileEntryService.deleteTx(tx, candidate.id)
+
               return { kind: 'deleted', entry: row }
             })
 
@@ -130,9 +139,11 @@ export async function runEntryCleanup(
               case 'deleted': {
                 deleted++
                 const { unlinkFailed } = await cleanupDeletedEntry(deps, outcome.entry)
+
                 if (unlinkFailed) unlinkFailures++
                 break
               }
+
               case 'refs-reappeared':
                 skippedRefsReappeared++
                 break
@@ -184,6 +195,7 @@ export async function runEntryCleanup(
 
 function finish(report: EntryCleanupReport, code?: string): EntryCleanupReport {
   const payload = { event: 'file-entry-cleanup', ...report }
+
   switch (report.outcome) {
     case 'completed':
     case 'skipped':
@@ -193,9 +205,11 @@ function finish(report: EntryCleanupReport, code?: string): EntryCleanupReport {
       logger.error('file-entry-cleanup', { ...payload, code })
       break
     }
+
     default:
       assertNever(report.outcome)
   }
+
   return report
 }
 

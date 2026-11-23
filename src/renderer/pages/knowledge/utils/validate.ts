@@ -30,6 +30,7 @@ export const parseOptionalInteger = (value: string) => {
   }
 
   const parsed = Number(value)
+
   return Number.isInteger(parsed) ? parsed : null
 }
 

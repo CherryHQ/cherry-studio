@@ -24,6 +24,7 @@ export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopicId, a
 
   useEffect(() => {
     if (!isActiveTab) return
+
     if (activeTopicId && activeTopicSource === 'query') {
       cacheService.setPersist('ui.chat.last_used_topic_id', activeTopicId)
     }

@@ -8,9 +8,14 @@ import type { PaintingMode } from '@shared/data/types/painting'
  */
 export function tabToImageGenerationMode(dbMode: PaintingMode, inputImageCount = 0): ImageGenerationMode | undefined {
   if (dbMode === 'generate' || dbMode === 'draw') return inputImageCount > 0 ? 'edit' : 'generate'
+
   if (dbMode === 'edit') return 'edit'
+
   if (dbMode === 'remix') return 'remix'
+
   if (dbMode === 'upscale') return 'upscale'
+
   if (dbMode === 'merge') return 'merge'
+
   return undefined
 }

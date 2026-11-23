@@ -26,11 +26,13 @@ type McpPromptToolContext = ToolRenderContext<readonly [], readonly ['onTextChan
 export function restoreMcpPromptConsumedQuery(options?: QuickPanelCallBackOptions): boolean {
   const inputAdapter = options?.inputAdapter
   const triggerInfo = options?.context.triggerInfo
+
   if (!inputAdapter || triggerInfo?.type !== 'input') return false
 
   const trigger = triggerInfo.originalText?.slice(0, 1) ?? ''
   inputAdapter.insertText(`${trigger}${options.searchText ?? ''}`, { tokenizeVariables: false })
   inputAdapter.focus()
+
   return true
 }
 
@@ -49,10 +51,12 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   const [dataRequested, setDataRequested] = useState(false)
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false)
+
   const [pendingPrompt, setPendingPrompt] = useState<{
     prompt: McpPrompt
     options?: QuickPanelCallBackOptions
   } | null>(null)
+
   const [argValues, setArgValues] = useState<Record<string, string>>({})
   const [isSubmittingArgs, setIsSubmittingArgs] = useState(false)
   // A pick fires an IPC round trip; the composer can unmount (or the user can pick again) before it
@@ -63,8 +67,10 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
 
   useEffect(() => {
     isMountedRef.current = true
+
     return () => {
       isMountedRef.current = false
+
       if (requestIdRef.current)
         void ipcApi
           .request('mcp.request.cancel', { requestId: requestIdRef.current })
@@ -73,18 +79,24 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   }, [])
 
   const { agent } = useAgent(dataRequested && scope === TopicType.Session ? (session?.agentId ?? null) : null)
+
   const boundServerIds = useMemo<readonly string[] | 'all' | null>(() => {
     if (scope === TopicType.Session) return agent?.mcps ?? []
     const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
+
     if (mode === 'disabled') return null
+
     return mode === 'auto' ? 'all' : (assistant?.mcpServerIds ?? [])
   }, [agent?.mcps, assistant, scope])
+
   const { servers } = useScopedMcpServers(boundServerIds, { enabled: dataRequested })
 
   useEffect(() => {
     if (!dataRequested) return
+
     if (servers.length === 0) {
       setPrompts([])
+
       return
     }
 
@@ -94,11 +106,13 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       const results = await Promise.allSettled(
         servers.map((server) => ipcApi.request('mcp.server.list_prompts', { serverId: server.id }))
       )
+
       if (cancelled) return
       setPrompts(
         results.flatMap((result, index) => {
           if (result.status === 'fulfilled') return result.value ?? []
           logger.warn('Failed to list MCP prompts', { serverId: servers[index].id, error: result.reason })
+
           return []
         })
       )
@@ -113,11 +127,14 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   const insertPromptText = useCallback(
     (text: string, options?: QuickPanelCallBackOptions) => {
       const inputAdapter = options?.inputAdapter
+
       if (inputAdapter) {
         inputAdapter.insertText(text, { tokenizeVariables: false })
         inputAdapter.focus()
+
         return
       }
+
       actions.onTextChange?.((prev) => `${prev}${text}`)
     },
     [actions]
@@ -126,12 +143,14 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   const fetchAndInsert = useCallback(
     async (prompt: McpPrompt, args: Record<string, string> | undefined, options?: QuickPanelCallBackOptions) => {
       const generation = ++selectionGenerationRef.current
+
       if (requestIdRef.current)
         void ipcApi
           .request('mcp.request.cancel', { requestId: requestIdRef.current })
           .catch((error) => logger.debug('MCP prompt cancellation failed', { error }))
       const requestId = crypto.randomUUID()
       requestIdRef.current = requestId
+
       try {
         const result = await ipcApi.request('mcp.server.get_prompt', {
           requestId,
@@ -140,15 +159,20 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
           name: prompt.name,
           args
         })
+
         // The composer this insertion targeted may be gone (topic switch, unmount) by now.
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return false
         const text = flattenMcpPromptMessages(result)
+
         if (!text) {
           toast.error(t('chat.input.mcp_prompts.empty'))
+
           return false
         }
+
         // The server already substituted collected arguments. Keep any leftover `${...}` as text.
         insertPromptText(text, options)
+
         return true
       } catch (error) {
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return false
@@ -158,6 +182,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
           mcpServer: { id: prompt.serverId, name: prompt.serverName },
           isCurrent: () => isMountedRef.current && generation === selectionGenerationRef.current
         })
+
         return false
       } finally {
         if (requestIdRef.current === requestId) requestIdRef.current = undefined
@@ -171,8 +196,10 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       if (mcpPromptNeedsArgumentForm(prompt)) {
         setPendingPrompt({ prompt, options })
         setArgValues(Object.fromEntries((prompt.arguments ?? []).map((argument) => [argument.name, ''])))
+
         return
       }
+
       await fetchAndInsert(prompt, undefined, options)
     },
     [fetchAndInsert]
@@ -182,8 +209,10 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
     if (!pendingPrompt) return
     const args = collectMcpPromptArgs(pendingPrompt.prompt, argValues)
     setIsSubmittingArgs(true)
+
     try {
       const inserted = await fetchAndInsert(pendingPrompt.prompt, args, pendingPrompt.options)
+
       if (inserted && isMountedRef.current) {
         setPendingPrompt(null)
         setArgValues({})

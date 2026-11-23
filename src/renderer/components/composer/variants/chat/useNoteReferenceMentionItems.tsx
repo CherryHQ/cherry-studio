@@ -59,6 +59,7 @@ const normalizePath = (value: string) => value.replace(/\\/g, '/')
 
 function createPendingNotesLoad(request: NotesLoadRequest): PendingNotesLoad {
   let resolve!: () => void
+
   const promise = new Promise<void>((resolvePromise) => {
     resolve = resolvePromise
   })
@@ -128,16 +129,22 @@ export function useNoteReferenceMentionItems({
 
   const resolvedNotesPath =
     resolution?.request === requestedNotesPath && !resolution.error ? resolution.path : undefined
+
   const pathError = resolution?.request === requestedNotesPath ? (resolution.error ?? null) : null
   const { root, isLoading, error, version } = useDirectoryTree(resolvedNotesPath, NOTES_TREE_OPTIONS)
+
   const treeMatchesResolvedPath = Boolean(
     root && resolvedNotesPath && normalizePath(root.path) === normalizePath(resolvedNotesPath)
   )
+
   const treeError = resolvedNotesPath ? error : null
   const isLoadTerminal = Boolean(pathError || treeError || (resolvedNotesPath && treeMatchesResolvedPath && !isLoading))
+
   const noteFiles = useMemo(() => {
     void version
+
     if (!root || !resolvedNotesPath || !treeMatchesResolvedPath) return []
+
     return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
   }, [resolvedNotesPath, root, treeMatchesResolvedPath, version])
 
@@ -155,6 +162,7 @@ export function useNoteReferenceMentionItems({
 
   useEffect(() => {
     const pending = pendingLoadRef.current
+
     if (!pending || pending.request !== requestedNotesPath || !isLoadTerminal) return
 
     pending.resolve()
@@ -165,23 +173,29 @@ export function useNoteReferenceMentionItems({
     generationRef.current += 1
     pendingLoadRef.current?.resolve()
     pendingLoadRef.current = null
+
     if (stateRef.current) {
       stateRef.current = { ...stateRef.current, requestedNotesPath: null, isLoadTerminal: false }
     }
+
     setRequestedNotesPath(null)
     setResolution(null)
   }, [])
 
   const waitForCurrentNotes = useCallback(async (): Promise<LatestMentionState | null> => {
     const generation = generationRef.current
+
     while (mountedRef.current && generationRef.current === generation) {
       const current = stateRef.current
+
       if (!current) return null
 
       const requestPath = current.notesPath
+
       if (current.requestedNotesPath?.path === requestPath && current.isLoadTerminal) return current
 
       let pending = pendingLoadRef.current
+
       if (!pending || pending.request.path !== requestPath) {
         pending?.resolve()
         const request = { path: requestPath }
@@ -199,7 +213,9 @@ export function useNoteReferenceMentionItems({
   const getItems = useCallback(
     async ({ query }: { query: string; editor: Editor }): Promise<ComposerSuggestionItem[]> => {
       const current = await waitForCurrentNotes()
+
       if (!current) return []
+
       if (current.pathError || current.treeError) return loadFailedItem(current.t)
 
       const normalizedQuery = query.trim().toLowerCase()
@@ -222,6 +238,7 @@ export function useNoteReferenceMentionItems({
             disabled: isSelected,
             command: ({ editor }) => {
               const currentFiles = stateRef.current?.files ?? []
+
               if (currentFiles.some((file) => normalizePath(file.path ?? '') === normalizedPath)) return
 
               const attachment = noteToComposerAttachment(note)

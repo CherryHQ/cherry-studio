@@ -9,6 +9,8 @@ export function getMessageDeleteUnavailableText(
   t: TFunction
 ): string | undefined {
   if (reason === 'not-loaded') return t('message.delete.root_unavailable')
+
   if (reason === 'generating') return t('message.delete.generating_unavailable')
+
   return undefined
 }

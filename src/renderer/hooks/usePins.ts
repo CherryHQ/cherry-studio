@@ -36,6 +36,7 @@ export interface UsePinsOptions {
 
 export function usePins(entityType: EntityType, options: UsePinsOptions = {}): UsePinsResult {
   const enabled = options.enabled ?? true
+
   const {
     data: rawPins = [],
     isLoading,
@@ -53,6 +54,7 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
   } = useMutation('POST', '/pins', {
     refresh: ['/pins']
   })
+
   const {
     trigger: deletePin,
     isLoading: isDeletingPin,
@@ -60,12 +62,14 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
   } = useMutation('DELETE', '/pins/:id', {
     refresh: ['/pins']
   })
+
   const toggleInFlightRef = useRef(false)
 
   const pins = useMemo(
     () => (enabled ? rawPins.filter((pin) => pin.entityType === entityType) : []),
     [enabled, rawPins, entityType]
   )
+
   const pinnedIds = useMemo(() => pins.map((pin) => pin.entityId), [pins])
   const isMutating = isCreatingPin || isDeletingPin
   const error = queryError ?? createError ?? deleteError
@@ -84,6 +88,7 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
   const togglePin = useCallback(
     async (entityId: string) => {
       const state = stateRef.current
+
       if (!state.enabled || state.isLoading || state.isRefreshing || state.isMutating || toggleInFlightRef.current) {
         logger.debug('togglePin gated', {
           entityType,
@@ -94,14 +99,18 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
           isMutating: state.isMutating,
           inFlight: toggleInFlightRef.current
         })
+
         return
       }
 
       toggleInFlightRef.current = true
+
       try {
         const existing = pinsRef.current.find((pin) => pin.entityId === entityId)
+
         if (existing) {
           await deletePin({ params: { id: existing.id } })
+
           return
         }
 

@@ -5,6 +5,7 @@ import { type AgentLanguage, AgentLanguageSchema } from '@shared/data/types/agen
 /** Trimmed, non-empty, length-bounded label via the shared schema; null when invalid. */
 function normalizeAgentLanguage(value: AgentLanguage | null | undefined): string | null {
   const parsed = AgentLanguageSchema.safeParse(value)
+
   return parsed.success ? parsed.data : null
 }
 
@@ -19,6 +20,7 @@ function resolveEffectiveAgentLanguage(agent: AgentEntity, globalLanguage: strin
   const perAgent = agent.configuration?.language
 
   if (perAgent === null) return null
+
   return normalizeAgentLanguage(perAgent) ?? normalizeAgentLanguage(globalLanguage)
 }
 

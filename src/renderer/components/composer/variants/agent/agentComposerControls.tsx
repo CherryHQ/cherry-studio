@@ -23,14 +23,18 @@ type AgentComposerControlProps = Omit<
     unifiedPanelControl?: AgentComposerUnifiedPanelControl
   }) => React.ReactNode
 }
+
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
+
 type AgentComposerControlSlots = Pick<
   ComposerSurfaceProps,
   'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
 >
+
 export type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 export type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
+
 export type AgentComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
 
 const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter) => {
@@ -53,6 +57,7 @@ const renderAgentComposerContextControls = (
 ) => {
   const resolvedSide = props.topBarPortalAvailable ? 'bottom' : side
   const resolvedIconOnly = props.topBarPortalAvailable ? props.topBarPortalIconOnly : iconOnly
+
   const controls = (
     <AgentConversationControlsWithAutoFocus
       {...props}

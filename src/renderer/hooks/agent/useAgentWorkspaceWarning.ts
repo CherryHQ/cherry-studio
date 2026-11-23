@@ -14,8 +14,10 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
 
   useEffect(() => {
     if (!enabled) return
+
     if (!workspacePath) {
       setWarning(undefined)
+
       return
     }
 
@@ -26,6 +28,7 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
           'file.get_metadata',
           createFilePathHandle(AbsoluteFilePathSchema.parse(workspacePath))
         )
+
         if (cancelled) return
         setWarning(
           meta?.kind === 'directory'
@@ -34,6 +37,7 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
         )
       } catch (error) {
         logger.warn('Failed to check agent workspace path status', error as Error)
+
         if (!cancelled) setWarning(undefined)
       }
     })()

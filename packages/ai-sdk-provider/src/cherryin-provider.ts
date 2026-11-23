@@ -114,15 +114,21 @@ const resolveApiKey = (options: CherryInProviderSettings): string =>
 
 const isAnthropicModel = (modelId: string) => ANTHROPIC_PREFIX.test(modelId)
 const isGeminiModel = (modelId: string) => GEMINI_PREFIX.test(modelId)
+
 const isQwenImageModel = (modelId: string) => {
   const normalized = modelId.toLowerCase()
+
   return normalized.includes('qwen') && normalized.includes('image')
 }
+
 const stripGooglePrefix = (modelId: string) => modelId.replace(/^google\//i, '')
+
 const isGoogleImageModel = (modelId: string) => {
   const normalized = stripGooglePrefix(modelId).toLowerCase()
+
   return normalized.startsWith('imagen-') || (normalized.startsWith('gemini-') && normalized.includes('image'))
 }
+
 const isGoogleGeminiImageModel = (modelId: string) => stripGooglePrefix(modelId).toLowerCase().startsWith('gemini-')
 
 const createCustomFetch = (originalFetch?: any) => {
@@ -130,6 +136,7 @@ const createCustomFetch = (originalFetch?: any) => {
     if (options?.body) {
       try {
         const body = JSON.parse(options.body)
+
         if (body.tools && Array.isArray(body.tools) && body.tools.length === 0 && body.tool_choice) {
           delete body.tool_choice
           options.body = JSON.stringify(body)
@@ -157,6 +164,7 @@ const resolveConfiguredHeaders = (headers?: HeadersInput) => {
   if (typeof headers === 'function') {
     return { ...headers() }
   }
+
   return headers ? { ...headers } : {}
 }
 
@@ -164,6 +172,7 @@ const toBearerToken = (authorization?: string) => (authorization ? authorization
 
 const normalizePersonGeneration = (value: JSONValue | undefined) => {
   if (typeof value !== 'string') return undefined
+
   switch (value.toUpperCase()) {
     case 'ALLOW_ALL':
       return 'allow_all'
@@ -179,12 +188,14 @@ const normalizePersonGeneration = (value: JSONValue | undefined) => {
 const normalizeAspectRatio = (value: JSONValue | undefined): `${number}:${number}` | undefined => {
   if (typeof value !== 'string') return undefined
   const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
+
   return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
 }
 
 const normalizeImageSize = (value: JSONValue | undefined) => {
   if (typeof value !== 'string') return undefined
   const normalized = value.toUpperCase()
+
   return ['512', '1K', '2K', '4K'].includes(normalized) ? normalized : undefined
 }
 
@@ -203,7 +214,9 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
       options.aspectRatio ??
       normalizeAspectRatio(options.size) ??
       normalizeAspectRatio(source.aspectRatio ?? source.aspect_ratio)
+
     const personGeneration = normalizePersonGeneration(source.personGeneration ?? source.person_generation)
+
     const imageSize = normalizeImageSize(
       source.imageResolution ?? source.imageSize ?? source.image_size ?? source.resolution
     )
@@ -223,10 +236,12 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
     }
 
     const generatedOptions = { ...options }
+
     if (aspectRatio) {
       generatedOptions.aspectRatio = aspectRatio
       generatedOptions.size = undefined
     }
+
     return model.doGenerate({
       ...generatedOptions,
       providerOptions: {
@@ -261,6 +276,7 @@ function omitToolInputExamples(options: LanguageModelV3CallOptions): LanguageMod
       if (tool.type !== 'function' || tool.inputExamples == null) return tool
       const { inputExamples, ...rest } = tool
       void inputExamples
+
       return rest
     })
   }
@@ -269,6 +285,7 @@ function omitToolInputExamples(options: LanguageModelV3CallOptions): LanguageMod
 class CherryInAnthropicMessagesLanguageModel extends AnthropicMessagesLanguageModel {
   private prepareOptions(options: LanguageModelV3CallOptions): LanguageModelV3CallOptions {
     const prepared = omitToolInputExamples(options)
+
     if (!/^(?:anthropic\/)?claude-sonnet-4[.-]5(?:-\d{8})?$/i.test(this.modelId)) return prepared
 
     // CherryIN's Bedrock route for Sonnet 4.5 rejects the per-tool wire field.
@@ -283,6 +300,7 @@ class CherryInAnthropicMessagesLanguageModel extends AnthropicMessagesLanguageMo
       },
       tools: prepared.tools?.map((tool) => {
         if (tool.type !== 'function' || tool.providerOptions?.anthropic?.eagerInputStreaming !== true) return tool
+
         return {
           ...tool,
           providerOptions: {
@@ -325,6 +343,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       headers: () => {
         const headers = getJsonHeaders()
         const apiKey = toBearerToken(headers.Authorization)
+
         return {
           ...headers,
           'x-api-key': apiKey
@@ -343,6 +362,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       headers: () => {
         const headers = getJsonHeaders()
         const apiKey = toBearerToken(headers.Authorization)
+
         return {
           ...headers,
           'x-goog-api-key': apiKey
@@ -368,9 +388,11 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     if (isAnthropicModel(modelId)) {
       return createAnthropicModel(modelId)
     }
+
     if (isGeminiModel(modelId)) {
       return createGeminiModel(modelId)
     }
+
     return new OpenAIResponsesLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.openai`,
       url,
@@ -384,6 +406,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
 
   const createChatModel = (modelId: string, settings: OpenAIProviderSettings = {}) => {
     if (!endpointType) return createChatModelByModelId(modelId, settings)
+
     switch (endpointType) {
       case 'anthropic':
         return createAnthropicModel(modelId)
@@ -453,8 +476,10 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
         fetch,
         name: `${CHERRYIN_PROVIDER_NAME}.google`
       })
+
       const isGeminiImage = isGoogleGeminiImageModel(modelId)
       const googleImageModel = googleProvider.image(modelId)
+
       return withGoogleImageOptions(googleImageModel, CHERRYIN_PROVIDER_NAME, isGeminiImage)
     }
 
@@ -467,6 +492,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       }),
       fetch
     }
+
     return isQwenImageModel(modelId)
       ? new OpenAICompatibleImageModel(modelId, config)
       : new OpenAIImageModel(modelId, config)

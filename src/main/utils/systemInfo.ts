@@ -51,6 +51,7 @@ export function getSystemInfo(): SystemInfo {
       osString = buildNumber >= 22000 ? 'Windows 11' : 'Windows 10'
       break
     }
+
     case 'darwin': {
       // macOS version handling using macos-release for better accuracy
       try {
@@ -62,12 +63,15 @@ export function getSystemInfo(): SystemInfo {
         const macVersion = osRelease.split('.').slice(0, 2).join('_')
         osString = arch === 'arm64' ? `Mac OS X ${macVersion}` : `Intel Mac OS X ${macVersion}`
       }
+
       break
     }
+
     case 'linux': {
       osString = `Linux ${arch}`
       break
     }
+
     default: {
       osString = `${platform} ${arch}`
     }

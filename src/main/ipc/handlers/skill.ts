@@ -38,6 +38,7 @@ function describeLocalImportFailure(error: unknown, kind: 'zip' | 'directory'): 
         }
     }
   }
+
   if (error instanceof PluginError && error.type === 'FILE_NOT_FOUND') {
     return {
       code: error.type,
@@ -45,6 +46,7 @@ function describeLocalImportFailure(error: unknown, kind: 'zip' | 'directory'): 
       targetPath: error.path
     }
   }
+
   return null
 }
 
@@ -63,6 +65,7 @@ async function toSkillResult<T>(
     return { success: true, data: await op() }
   } catch (error) {
     const failure = describeFailure?.(error)
+
     if (failure) {
       logger.error(failMessage, {
         error,
@@ -72,6 +75,7 @@ async function toSkillResult<T>(
     } else {
       logger.error(failMessage, error as Error)
     }
+
     return {
       success: false,
       error: failure ? failure.message : getErrorMessage(error, failMessage)
@@ -97,7 +101,9 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
   'skill.uninstall': ({ skillId }) => toSkillResult(() => skillService.uninstall(skillId), 'Failed to uninstall skill'),
   'skill.set_mirror_enabled': async ({ skillId, mirrorEnabled }) => {
     const updated = await skillService.setMirrorEnabled(skillId, mirrorEnabled)
+
     if (!updated) throw new Error(`Skill not found: ${skillId}`)
+
     return updated
   },
   'skill.install_from_zip': ({ zipFilePath }) =>
@@ -117,6 +123,7 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
     toSkillResult(() => skillService.listLocal(workdir), 'Failed to list local plugins'),
   'skill.reconcile': (input) => {
     if ('externalExportsOnly' in input) return skillService.syncExternalExports()
+
     return input.skillId ? skillService.reconcileSkill(input.skillId) : skillService.reconcileSkills()
   },
   'skill.remote.check': ({ skillId }) => skillService.checkRemoteUpdate(skillId),
@@ -134,16 +141,20 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
     if (!senderId) throw new Error('Skill folders can only be opened from a managed window')
 
     const skill = await skillService.getById(skillId)
+
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
 
     const errorMessage = await shell.openPath(skillService.getInstalledSkillDirectory(skill))
+
     if (errorMessage) throw new Error(`Failed to open skill folder: ${errorMessage}`)
   },
   'skill.folder.resolve': async ({ skillId }) => {
     const skill = await skillService.getById(skillId)
+
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
 
     const rootPath = AbsoluteFilePathSchema.parse(skillService.getInstalledSkillDirectory(skill))
+
     return skill.source === 'builtin'
       ? { rootPath, access: 'read_only', readOnlyReason: 'builtin' }
       : { rootPath, access: 'read_write' }

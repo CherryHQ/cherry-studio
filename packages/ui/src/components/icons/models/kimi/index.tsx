@@ -6,7 +6,9 @@ import { KimiLight } from './light'
 
 const Kimi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <KimiLight {...props} className={className} />
+
   if (variant === 'dark') return <KimiDark {...props} className={className} />
+
   return (
     <>
       <KimiLight className={cn('dark:hidden', className)} {...props} />

@@ -50,12 +50,14 @@ import { RemoteEndpointSettings } from './RemoteEndpointSettings'
 
 const ENDPOINT_PREFERENCE_OPTIONS = { optimistic: false }
 const LAN_HOST = '0.0.0.0'
+
 const CAPABILITY_LABEL = {
   configuration: 'deviceConnections.capabilities.configuration',
   agent: 'deviceConnections.capabilities.agent'
 } as const
 
 type Invitation = OutputFor<'api_gateway.remote.create_invitation'>
+
 type PairingClaim = OutputFor<'api_gateway.remote.list_claims'>[number]
 
 const DeviceConnectionsSettings: FC = () => {
@@ -64,17 +66,21 @@ const DeviceConnectionsSettings: FC = () => {
   const navigate = useNavigate()
   const [step, setStep] = usePersistCache('settings.device_connections.step')
   const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
+
   const [advertisedEndpoint, setAdvertisedEndpoint] = usePreference(
     'feature.remote_access.advertised_endpoint',
     ENDPOINT_PREFERENCE_OPTIONS
   )
+
   const endpointKey = JSON.stringify(
     advertisedEndpoint
       ? { host: advertisedEndpoint.host, port: advertisedEndpoint.port, security: advertisedEndpoint.security }
       : null
   )
+
   const discoveryStatus = useSharedCacheValue('feature.remote_access.discovery_status')
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
+
   const {
     data: devices = [],
     isLoading: isLoadingDevices,
@@ -82,6 +88,7 @@ const DeviceConnectionsSettings: FC = () => {
     error: devicesError,
     refetch: refetchDevices
   } = useQuery('/api-gateway/paired-devices')
+
   const { trigger: deleteDevice, isLoading: isRevoking } = useMutation('DELETE', '/api-gateway/paired-devices/:id', {
     refresh: ['/api-gateway/paired-devices']
   })
@@ -120,8 +127,10 @@ const DeviceConnectionsSettings: FC = () => {
   const refreshClaims = useCallback(async () => {
     if (!connectionReady || !pairingActive) return
     const requestId = ++claimRequestId.current
+
     try {
       const pending = await ipcApi.request('api_gateway.remote.list_claims')
+
       if (requestId === claimRequestId.current) setClaims(pending)
     } catch {
       if (requestId === claimRequestId.current) setClaims([])
@@ -137,8 +146,10 @@ const DeviceConnectionsSettings: FC = () => {
     setIsCreatingInvitation(true)
     setInvitationExpired(false)
     setInvitation(undefined)
+
     try {
       const result = await ipcApi.request('api_gateway.remote.create_invitation')
+
       if (requestId === invitationRequestId.current && Date.parse(result.expiresAt) > Date.now()) setInvitation(result)
     } catch (error) {
       if (requestId === invitationRequestId.current) {
@@ -153,6 +164,7 @@ const DeviceConnectionsSettings: FC = () => {
     clearInvitation()
     void refreshClaims()
     void showPairingQr()
+
     return () => {
       invitationRequestId.current += 1
       claimRequestId.current += 1
@@ -161,6 +173,7 @@ const DeviceConnectionsSettings: FC = () => {
 
   useEffect(() => {
     if (!invitation) return
+
     const timer = setTimeout(
       () => {
         clearInvitation()
@@ -168,18 +181,22 @@ const DeviceConnectionsSettings: FC = () => {
       },
       Math.max(0, Date.parse(invitation.expiresAt) - Date.now())
     )
+
     return () => clearTimeout(timer)
   }, [invitation, clearInvitation])
 
   const decideClaim = async (claim: PairingClaim, capabilities: RemoteCapability[] | null) => {
     if (decidingClaimId) return
     setDecidingClaimId(claim.claimId)
+
     try {
       await ipcApi.request('api_gateway.remote.decide_pairing', { claimId: claim.claimId, capabilities })
+
       if (capabilities) {
         setStep('complete')
         toast.success(t('deviceConnections.claims.approved'))
       }
+
       clearInvitation()
     } catch (error) {
       toast.error(t('deviceConnections.claims.error') + ((error as Error).message || error))
@@ -192,6 +209,7 @@ const DeviceConnectionsSettings: FC = () => {
     async (id: string) => {
       if (isRevoking) return
       setRevokingId(id)
+
       try {
         await deleteDevice({ params: { id } })
         toast.success(t('deviceConnections.devices.revoked'))
@@ -208,6 +226,7 @@ const DeviceConnectionsSettings: FC = () => {
     if (apiGatewayLoading || isUpdatingLan) return
     clearInvitation()
     setIsUpdatingLan(true)
+
     try {
       await ipcApi.request('api_gateway.lan.set_enabled', { enabled })
     } catch (error) {
@@ -221,6 +240,7 @@ const DeviceConnectionsSettings: FC = () => {
     !!invitation?.advertisedEndpoint ||
     selectedAddress === 'auto' ||
     invitation?.addressOptions.some(({ address }) => address === selectedAddress)
+
   const qrPayload =
     invitation &&
     JSON.stringify(invitation.advertisedEndpoint ?? null) === endpointKey &&
@@ -242,11 +262,13 @@ const DeviceConnectionsSettings: FC = () => {
           protocolVersions: invitation.protocolVersions
         } satisfies PairingQr)
       : null
+
   const statusKey = connectionReady
     ? 'deviceConnections.status.ready'
     : lanEnabled
       ? 'deviceConnections.status.stopped'
       : 'deviceConnections.status.disabled'
+
   const statusDescriptionKey = !gatewayAvailable
     ? 'deviceConnections.gateway.required'
     : !lanEnabled
@@ -301,6 +323,7 @@ const DeviceConnectionsSettings: FC = () => {
             endpoint={advertisedEndpoint}
             onSave={async (endpoint) => {
               await setAdvertisedEndpoint(endpoint)
+
               if (endpoint === null) setSelectedAddress('auto')
               setEndpointDialogOpen(false)
             }}
@@ -393,6 +416,7 @@ const DeviceConnectionsSettings: FC = () => {
                   ) : claims.length > 0 ? (
                     claims.map((claim) => {
                       const selected = selectedCapabilities[claim.claimId] ?? claim.capabilities
+
                       return (
                         <div
                           key={claim.claimId}

@@ -15,6 +15,7 @@ const buildCategoryAxisData = (series: ChartSeries[]): (string | number)[] => se
 const normalizePercentStacked = (series: ChartSeries[]): (number | null)[][] => {
   const categoryCount = series.reduce((max, s) => Math.max(max, s.values.length), 0)
   const totals = Array.from({ length: categoryCount }, (_, i) => series.reduce((sum, s) => sum + (s.values[i] ?? 0), 0))
+
   return series.map((s) => s.values.map((v, i) => (v === null || totals[i] === 0 ? null : (v / totals[i]) * 100)))
 }
 
@@ -27,23 +28,29 @@ const buildBarLineAreaOption = (chart: ChartModel): EChartsCoreOption => {
   // would flip all-negative categories positive and push mixed-sign categories past the fixed 100% axis. Rather
   // than render wrong percentages, charts containing negatives downgrade to plain stacking of the raw values.
   const isPercentStacked = chart.stacking === 'percentStacked' && !hasNegativeValue(chart.series)
+
   const categoryAxis = {
     type: 'category' as const,
     data: buildCategoryAxisData(chart.series)
   }
+
   const valueAxis = isPercentStacked
     ? { type: 'value' as const, max: 100, axisLabel: { formatter: '{value}%' } }
     : { type: 'value' as const }
 
   const seriesValues = isPercentStacked ? normalizePercentStacked(chart.series) : chart.series.map((s) => s.values)
+
   const series = chart.series.map((s, i) => {
     const base = {
       name: s.name,
       data: seriesValues[i].map(toEchartsValue),
       stack: chart.stacking ? 'total' : undefined
     }
+
     if (chart.type === 'bar') return { ...base, type: 'bar' as const }
+
     if (chart.type === 'area') return { ...base, type: 'line' as const, areaStyle: {} }
+
     return { ...base, type: 'line' as const }
   })
 
@@ -60,6 +67,7 @@ const buildBarLineAreaOption = (chart: ChartModel): EChartsCoreOption => {
 
 const buildPieOption = (chart: ChartModel): EChartsCoreOption => {
   const first = chart.series[0]
+
   const data = (first?.categories ?? []).map((name, i) => ({
     name: String(name),
     value: toEchartsValue(first?.values[i] ?? null)
@@ -81,5 +89,6 @@ const buildPieOption = (chart: ChartModel): EChartsCoreOption => {
 
 export const buildChartOption = (chart: ChartModel): EChartsCoreOption => {
   if (chart.type === 'pie') return buildPieOption(chart)
+
   return buildBarLineAreaOption(chart)
 }

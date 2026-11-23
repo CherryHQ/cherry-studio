@@ -30,6 +30,7 @@ export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseD
   // Verify the search directory exists
   try {
     const stats = await fs.stat(validPath)
+
     if (!stats.isDirectory()) {
       throw new Error(`Path is not a directory: ${validPath}`)
     }
@@ -37,11 +38,13 @@ export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseD
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       throw new Error(`Directory not found: ${validPath}`)
     }
+
     throw error
   }
 
   // Validate pattern
   const pattern = args.pattern.trim()
+
   if (!pattern) {
     throw new Error('Pattern cannot be empty')
   }
@@ -86,6 +89,7 @@ export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseD
       }
 
       const filePath = line.trim()
+
       if (!filePath) continue
 
       const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(validPath, filePath)
@@ -110,15 +114,18 @@ export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseD
   files.sort((a, b) => {
     const aTime = a.modified ? a.modified.getTime() : 0
     const bTime = b.modified ? b.modified.getTime() : 0
+
     return bTime - aTime
   })
 
   // Format output - always use absolute paths
   const output: string[] = []
+
   if (files.length === 0) {
     output.push(`No files found matching pattern "${args.pattern}" in ${validPath}`)
   } else {
     output.push(...files.map((f) => f.path))
+
     if (truncated) {
       output.push('')
       output.push(`(Results truncated to ${MAX_FILES_LIMIT} files. Consider using a more specific pattern.)`)

@@ -70,6 +70,7 @@ export const detectLanguageByLLM = async (
   })
 
   const trimmed = result.trim()
+
   if (!trimmed) {
     throw new Error(i18n.t('translate.error.detect.empty'))
   }
@@ -113,12 +114,15 @@ export const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
   ])
 
   const mapped = isoMap.get(iso3)
+
   if (mapped === undefined) {
     // franc recognized a language but we have no mapping for it yet. Log so
     // we can discover cold languages that real users speak.
     logger.debug('franc iso3 not in isoMap, falling back to UNKNOWN', { iso3 })
+
     return UNKNOWN_LANG_CODE
   }
+
   return mapped
 }
 
@@ -139,14 +143,18 @@ export const detectWithMethod = async (
         return detectLanguageByLLM(text, langCodes, model)
       } else {
         const francResult = detectLanguageByFranc(text)
+
         if (francResult === UNKNOWN_LANG_CODE) {
           // Auto mode's contract is "pick what works"; we fall back silently from
           // the user's perspective but log so `auto` → LLM quota bursts are traceable.
           logger.info('franc returned UNKNOWN, falling back to LLM detection')
+
           return detectLanguageByLLM(text, langCodes, model)
         }
+
         return francResult
       }
+
     case 'franc':
       return detectLanguageByFranc(text)
     case 'llm':
@@ -166,6 +174,7 @@ export const detectLanguageOrUnknown = async (
     return await detectLanguage(text)
   } catch (error) {
     onError(error)
+
     return UNKNOWN_LANG_CODE
   }
 }
@@ -194,20 +203,24 @@ export const useDetectLang = () => {
   const detectLanguage = useCallback(
     async (inputText: string): Promise<TranslateLangCode> => {
       const text = inputText.trim()
+
       if (!text) return UNKNOWN_LANG_CODE
 
       if (status === 'loading') {
         logger.warn('useDetectLang invoked while languages were loading, returning UNKNOWN')
+
         return UNKNOWN_LANG_CODE
       }
 
       if (status === 'error') {
         logger.warn('useDetectLang invoked after languages failed to load, returning UNKNOWN')
+
         return UNKNOWN_LANG_CODE
       }
 
       if (languages === undefined) {
         logger.warn('useDetectLang invoked before languages were ready, returning UNKNOWN')
+
         return UNKNOWN_LANG_CODE
       }
 
@@ -216,10 +229,12 @@ export const useDetectLang = () => {
       // the user knows why every translation is coming back as UNKNOWN.
       if (languages.length === 0) {
         logger.error('useDetectLang invoked with an empty language list')
+
         if (!toastedEmptyRef.current) {
           toastedEmptyRef.current = true
           toast.error(i18n.t('translate.error.languages_load_failed'))
         }
+
         return UNKNOWN_LANG_CODE
       }
 
@@ -227,6 +242,7 @@ export const useDetectLang = () => {
       logger.info(`Auto detection method: ${method}`)
       const result = await detectWithMethod(text, method, langCodes, quickModel)
       logger.info(`Detected language: ${result}`)
+
       return result
     },
     [method, languages, quickModel, status]

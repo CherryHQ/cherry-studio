@@ -27,10 +27,12 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
       if (selecting) {
         return
       }
+
       // when the number of extensions is greater than 20, use *.* to avoid selecting window lag
       const useAllFiles = extensions.length > 20
 
       setSelecting(true)
+
       const _files = await window.api.file.select({
         properties: ['openFile', 'multiSelections'],
         filters: [
@@ -40,15 +42,19 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
           }
         ]
       })
+
       setSelecting(false)
       window.requestAnimationFrame(() => restoreFocus?.())
 
       if (_files) {
         if (!useAllFiles) {
           setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(_files)])
+
           return
         }
+
         const supportedFiles = await filterSupportedFiles(_files, extensions)
+
         if (supportedFiles.length > 0) {
           setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(supportedFiles)])
         }
@@ -67,6 +73,7 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
 
   useEffect(() => {
     const isDocumentOnly = !couldAddImageFile
+
     const disposeLauncher = launcher.registerLaunchers([
       {
         ...ATTACHMENT_TOOLBAR_MANIFEST.toolbar,
@@ -91,5 +98,6 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
 
 export const AttachmentToolRuntime: FC<Props> = (props) => {
   useAttachmentToolController(props)
+
   return null
 }

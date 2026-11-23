@@ -15,12 +15,17 @@ function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['
     pricing.cacheWrite,
     ...(pricing.inputTokenTiers ?? []).flatMap((tier) => [tier.input, tier.output, tier.cacheRead, tier.cacheWrite])
   ].filter((rate) => rate !== undefined)
+
   const explicitCurrencies = tokenRates.flatMap((rate) => {
     const currency = rate.currency
+
     return currency !== undefined ? [currency] : []
   })
+
   if (explicitCurrencies.length === 0) return undefined
+
   if (explicitCurrencies.some((currency) => currency !== explicitCurrencies[0])) return undefined
+
   return explicitCurrencies[0]
 }
 
@@ -30,29 +35,42 @@ export function createAiUsagePricingSnapshot(
 ): AiUsagePricingSnapshot | null {
   if (!pricing) return null
   const currency = pricingCurrency(pricing)
+
   if (!currency) return null
 
   const snapshot: Omit<AiUsagePricingSnapshot, 'capturedAt'> = { currency }
+
   if (pricing.input?.perMillionTokens != null) snapshot.inputPerMillionTokens = pricing.input.perMillionTokens
+
   if (pricing.output?.perMillionTokens != null) snapshot.outputPerMillionTokens = pricing.output.perMillionTokens
+
   if (pricing.cacheRead?.perMillionTokens != null)
     snapshot.cacheReadPerMillionTokens = pricing.cacheRead.perMillionTokens
+
   if (pricing.cacheWrite?.perMillionTokens != null)
     snapshot.cacheWritePerMillionTokens = pricing.cacheWrite.perMillionTokens
+
   if (pricing.inputTokenTiers?.length) {
     snapshot.inputTokenTiers = pricing.inputTokenTiers.map((tier) => {
       const rates: NonNullable<AiUsagePricingSnapshot['inputTokenTiers']>[number] = {
         minInputTokens: tier.minInputTokens
       }
+
       if (tier.input.perMillionTokens != null) rates.inputPerMillionTokens = tier.input.perMillionTokens
+
       if (tier.output.perMillionTokens != null) rates.outputPerMillionTokens = tier.output.perMillionTokens
+
       if (tier.cacheRead?.perMillionTokens != null) rates.cacheReadPerMillionTokens = tier.cacheRead.perMillionTokens
+
       if (tier.cacheWrite?.perMillionTokens != null) rates.cacheWritePerMillionTokens = tier.cacheWrite.perMillionTokens
+
       return rates
     })
   }
+
   if (pricing.perImage) snapshot.perImage = { price: pricing.perImage.price, unit: pricing.perImage.unit ?? 'image' }
   const parsed = AiUsagePricingSnapshotSchema.safeParse({ ...snapshot, capturedAt })
+
   return parsed.success ? parsed.data : null
 }
 
@@ -83,17 +101,21 @@ export function computeLanguageCost(
   pricing: AiUsagePricingSnapshot
 ): LanguageCostResult | undefined {
   const details = usage.inputTokenDetails
+
   const inputTokens =
     usage.inputTokens ??
     (details?.noCacheTokens !== undefined
       ? details.noCacheTokens + (details.cacheReadTokens ?? 0) + (details.cacheWriteTokens ?? 0)
       : undefined)
+
   let rates: Pick<
     AiUsagePricingSnapshot,
     'inputPerMillionTokens' | 'outputPerMillionTokens' | 'cacheReadPerMillionTokens' | 'cacheWritePerMillionTokens'
   > = pricing
+
   if (pricing.inputTokenTiers?.length) {
     if (inputTokens === undefined) return undefined
+
     for (const tier of pricing.inputTokenTiers) {
       if (inputTokens < tier.minInputTokens) break
       rates = tier
@@ -103,6 +125,7 @@ export function computeLanguageCost(
   const cacheReadTokens = details?.cacheReadTokens
   const cacheWriteTokens = details?.cacheWriteTokens
   const hasCacheDetails = cacheReadTokens !== undefined || cacheWriteTokens !== undefined
+
   const nonCacheInput =
     details?.noCacheTokens ??
     (inputTokens !== undefined
@@ -119,10 +142,12 @@ export function computeLanguageCost(
   ] as const
 
   if (!buckets.some(([, tokens]) => tokens !== undefined)) return undefined
+
   if (buckets.some(([, tokens, rate]) => tokens !== undefined && tokens > 0 && rate === undefined)) return undefined
 
   const breakdown: AiUsageCostBreakdown = {}
   let cost = 0
+
   for (const [key, tokens, rate] of buckets) {
     if (tokens === undefined || rate === undefined) continue
     const value = (tokens * rate) / PER_MILLION

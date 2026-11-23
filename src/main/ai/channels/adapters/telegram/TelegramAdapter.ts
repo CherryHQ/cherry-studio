@@ -19,7 +19,9 @@ import {
 const TELEGRAM_MAX_LENGTH = 4096
 const TELEGRAM_LONG_POLL_TIMEOUT_SECONDS = 30
 const TELEGRAM_GET_UPDATES_TIMEOUT_MS = 45_000
+
 type GrammyAbortSignal = NonNullable<Parameters<ApiCallFn>[2]>
+
 /**
  * Plain-text chunk budget under MarkdownV2. We split the *plain* text (so each
  * chunk has an index-aligned plain fallback) and then escape it; escaping only
@@ -35,6 +37,7 @@ const withGetUpdatesTimeout: Transformer = async (prev, method, payload, signal)
 
   const controller = new AbortController()
   const abort = () => controller.abort(signal && 'reason' in signal ? signal.reason : undefined)
+
   if (signal?.aborted) abort()
   else signal?.addEventListener('abort', abort, { once: true })
   const timeout = setTimeout(() => controller.abort(), TELEGRAM_GET_UPDATES_TIMEOUT_MS)
@@ -90,6 +93,7 @@ class TelegramAdapter extends ChannelAdapter {
     if (!this.botToken) {
       throw new Error('Telegram bot token is required')
     }
+
     this.shouldStop = false
     this.reconnectAttempts = 0
     await this.startBot()
@@ -99,6 +103,7 @@ class TelegramAdapter extends ChannelAdapter {
     if (existingBot) {
       this.bot = existingBot
       this.startPolling(existingBot)
+
       return
     }
 
@@ -109,10 +114,13 @@ class TelegramAdapter extends ChannelAdapter {
     // Auth middleware — must be first
     bot.use(async (ctx, next) => {
       const chatId = ctx.chat?.id?.toString()
+
       if (this.allowedChatIds.length > 0 && (!chatId || !this.allowedChatIds.includes(chatId))) {
         this.log.debug('Dropping message from unauthorized chat', { chatId })
+
         return
       }
+
       await next()
     })
 
@@ -166,6 +174,7 @@ class TelegramAdapter extends ChannelAdapter {
     // Photo message handler — download the largest resolution and emit with caption
     bot.on('message:photo', async (ctx) => {
       const photos = ctx.message.photo
+
       if (!photos || photos.length === 0) return
 
       // Last element is the highest resolution
@@ -181,6 +190,7 @@ class TelegramAdapter extends ChannelAdapter {
         userName: ctx.from?.first_name ?? '',
         text
       }
+
       if (images.length > 0) message.images = images
       this.emit('message', message)
     })
@@ -188,11 +198,13 @@ class TelegramAdapter extends ChannelAdapter {
     // Document/file handler — download and emit as file attachment
     bot.on('message:document', async (ctx) => {
       const doc = ctx.message.document
+
       if (!doc) return
 
       // Skip files that are too large
       if (doc.file_size && doc.file_size > MAX_FILE_SIZE_BYTES) {
         this.log.warn('Document too large, skipping', { filename: doc.file_name, size: doc.file_size })
+
         return
       }
 
@@ -207,6 +219,7 @@ class TelegramAdapter extends ChannelAdapter {
         userName: ctx.from?.first_name ?? '',
         text
       }
+
       if (files.length > 0) message.files = files
       this.emit('message', message)
     })
@@ -259,6 +272,7 @@ class TelegramAdapter extends ChannelAdapter {
     this.clearStabilityTimer()
     this.stabilityTimer = setTimeout(() => {
       this.stabilityTimer = null
+
       if (!this.shouldStop && this.bot === bot && this.pollingBot === bot && this.pollingGeneration === generation)
         this.reconnectAttempts = 0
     }, this.stabilityResetMs)
@@ -282,14 +296,17 @@ class TelegramAdapter extends ChannelAdapter {
     this.clearReconnectTimer()
     this.clearStabilityTimer()
     this.markDisconnected('System resumed; restarting Telegram polling')
+
     try {
       await bot.stop()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       this.log.warn(`Failed to stop stale Telegram poll after system resume: ${msg}`)
     }
+
     // grammY stop() does not wait for middleware or the old polling loop to finish.
     await polling
+
     if (this.shouldStop || this.bot !== bot) return
     await this.startBot(bot)
   }
@@ -306,6 +323,7 @@ class TelegramAdapter extends ChannelAdapter {
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.log.error('Telegram max reconnect attempts reached, giving up')
+
       return
     }
 
@@ -315,6 +333,7 @@ class TelegramAdapter extends ChannelAdapter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
+
       if (this.shouldStop) return
       this.startBot().catch((err) => {
         const msg = err instanceof Error ? err.message : String(err)
@@ -338,6 +357,7 @@ class TelegramAdapter extends ChannelAdapter {
     this.pollingBot = null
     this.clearReconnectTimer()
     this.clearStabilityTimer()
+
     if (this.bot) {
       await this.bot.stop()
       this.bot = null
@@ -347,17 +367,21 @@ class TelegramAdapter extends ChannelAdapter {
 
   private async downloadTelegramFile(fileId: string): Promise<ImageAttachment[]> {
     if (!this.bot) return []
+
     try {
       const file = await this.bot.api.getFile(fileId)
+
       if (!file.file_path) return []
       const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`
       const attachment = await downloadImageAsBase64(url)
+
       return attachment ? [attachment] : []
     } catch (error) {
       this.log.warn('Failed to download Telegram file', {
         fileId,
         error: error instanceof Error ? error.message : String(error)
       })
+
       return []
     }
   }
@@ -368,14 +392,19 @@ class TelegramAdapter extends ChannelAdapter {
     mimeType?: string
   ): Promise<FileAttachment[]> {
     if (!this.bot) return []
+
     try {
       const file = await this.bot.api.getFile(fileId)
+
       if (!file.file_path) return []
       const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`
       const attachment = await downloadFileAsBase64(url, filename)
+
       if (!attachment) return []
+
       // Override media_type with Telegram's reported mime_type if available
       if (mimeType) attachment.media_type = mimeType
+
       return [attachment]
     } catch (error) {
       this.log.warn('Failed to download Telegram document', {
@@ -383,6 +412,7 @@ class TelegramAdapter extends ChannelAdapter {
         filename,
         error: error instanceof Error ? error.message : String(error)
       })
+
       return []
     }
   }
@@ -403,6 +433,7 @@ class TelegramAdapter extends ChannelAdapter {
     for (let i = 0; i < plainChunks.length; i++) {
       const plain = plainChunks[i]
       const formatted = isMarkdown ? toMarkdownV2(plain).trimEnd() : plain
+
       // Telegram message ids are numeric; a string replyToMessageId (QQ's msg_id) isn't ours.
       const replyParams =
         typeof opts?.replyToMessageId === 'number' && i === 0
@@ -438,6 +469,7 @@ class TelegramAdapter extends ChannelAdapter {
     if (!this.bot) {
       throw new Error('Bot is not connected')
     }
+
     const buffer = Buffer.from(file.data, 'base64')
     await this.bot.api.sendDocument(chatId, new InputFile(buffer, file.filename))
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })

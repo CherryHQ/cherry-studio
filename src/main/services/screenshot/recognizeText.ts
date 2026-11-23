@@ -19,6 +19,7 @@ export async function recognizeScreenshotText(
       // Keep a broken native binding from preventing screenshot capture at startup.
       const { recognize, OcrAccuracy } = await import('@napi-rs/system-ocr')
       const result = await recognize(imageBytes, OcrAccuracy.Accurate)
+
       return {
         status: 'ok',
         lines: result.lines.map(({ text, boundingBox }) => ({
@@ -39,6 +40,7 @@ export async function recognizeScreenshotText(
 
   if (!application.get('LocalModelService').isDefaultModelReady('ocr')) return { status: 'unavailable' }
   const result = await application.get('OcrInferenceService').recognize({ kind: 'bytes', imageBytes })
+
   return { status: 'ok', lines: result.lines.filter((words) => words.length > 0).map(mergePaddleLine) }
 }
 
@@ -47,6 +49,7 @@ function mergePaddleLine(words: OcrLine[]): OcrTextLine {
   // Native line bounds already describe the glyphs and must never be unpadded.
   const boxes = words.map(({ box }) => {
     const height = box.height / 1.8
+
     return {
       x: box.x + height * 0.6,
       y: box.y + height * 0.4,
@@ -54,10 +57,12 @@ function mergePaddleLine(words: OcrLine[]): OcrTextLine {
       height
     }
   })
+
   const left = Math.min(...boxes.map((box) => box.x))
   const top = Math.min(...boxes.map((box) => box.y))
   const right = Math.max(...boxes.map((box) => box.x + box.width))
   const bottom = Math.max(...boxes.map((box) => box.y + box.height))
+
   return {
     text: words.map((word) => word.text).join(' '),
     box: { x: left, y: top, width: right - left, height: bottom - top }

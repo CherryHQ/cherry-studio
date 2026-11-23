@@ -28,9 +28,12 @@ export const SKILL_SEARCH_FAILED_ERROR = SHARED_SKILL_SEARCH_FAILED_ERROR
 async function fetchJson<TResult>(url: string, parse: (raw: unknown) => TResult): Promise<TResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
   try {
     const response = await fetch(url, { signal: controller.signal })
+
     if (!response.ok) throw new Error('HTTP ' + response.status)
+
     return parse(await response.json())
   } finally {
     clearTimeout(timer)
@@ -68,12 +71,15 @@ export async function loadSkillsShLeaderboard(page: number) {
   const data = await fetchJson('https://skills.sh/api/skills/all-time/' + page, (raw) =>
     skillsShLeaderboardSchema.parse(raw)
   )
+
   if (data.page !== page || (data.hasMore && data.skills.length === 0)) throw new Error('Invalid skills.sh pagination')
+
   const items = normalizeSkillsSh({
     query: '',
     count: data.skills.length,
     skills: data.skills.map((skill) => ({ ...skill, id: skill.source + '/' + skill.skillId }))
   })
+
   return { items, hasMore: data.hasMore }
 }
 
@@ -81,9 +87,12 @@ export async function loadSkillRegistryPage(source: 'skills.sh' | 'claude-plugin
   try {
     if (source === 'skills.sh') {
       const page = await loadSkillsShLeaderboard(cursor)
+
       return { ...page, nextCursor: cursor + 1 }
     }
+
     const page = await loadClaudePluginsSkills(cursor, fetchJson)
+
     return { items: page.items, hasMore: page.hasMore, nextCursor: page.nextOffset }
   } catch (error) {
     logger.warn('Skill registry page failed', { source, cursor, error })
@@ -100,11 +109,13 @@ export async function loadClaudePluginsSkills(
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new Error('Invalid claude-plugins.dev pagination')
   }
+
   const url = new URL('https://api.claude-plugins.dev/api/skills/search')
   url.searchParams.set('limit', String(limit))
   url.searchParams.set('offset', String(offset))
   const data = await fetchJson(url.toString(), (raw) => ClaudePluginsSearchResponseSchema.parse(raw))
   const total = data.total
+
   if (
     data.offset !== offset ||
     data.limit !== limit ||
@@ -116,6 +127,8 @@ export async function loadClaudePluginsSkills(
   ) {
     throw new Error('Invalid claude-plugins.dev pagination')
   }
+
   const nextOffset = offset + data.skills.length
+
   return { items: normalizeClaudePlugins(data), hasMore: nextOffset < total, nextOffset }
 }

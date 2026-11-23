@@ -77,13 +77,17 @@ export function detectGlobalInstall(command: string): string | null {
   // Test each chained segment independently so a flag in one command can't be
   // mis-attributed to a manager keyword in another (`ls && npm i -g x`).
   const segments = command.split(/&&|\|\||[;\n|]/)
+
   for (const raw of segments) {
     const seg = raw.trim()
+
     if (!seg) continue
+
     for (const rule of RULES) {
       if (rule.test(seg)) return rule.reason
     }
   }
+
   return null
 }
 
@@ -98,5 +102,6 @@ export function detectMiseMutation(command: string): string | null {
       return 'direct mise mutation (use cli_search / cli_install)'
     }
   }
+
   return null
 }

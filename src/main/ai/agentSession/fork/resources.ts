@@ -34,24 +34,31 @@ export async function writeForkResources(resources: AgentSessionForkResources): 
 
 export async function readForkResources(): Promise<AgentSessionForkResources[]> {
   const root = application.getPath('feature.agents.forks')
+
   const entries = await readdir(root, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return []
     throw error
   })
+
   const result: AgentSessionForkResources[] = []
+
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.json')) continue
     const operationId = entry.name.slice(0, -5)
+
     if (!z.uuid().safeParse(operationId).success) continue
+
     try {
       const file = application.getPath('feature.agents.forks', entry.name)
       const resources = AgentSessionForkResourcesSchema.parse(JSON.parse(await readFile(file, 'utf8')))
+
       if (resources.operationId !== operationId) throw new Error('Fork resource identity mismatch')
       result.push(resources)
     } catch (error) {
       logger.warn('Unreadable fork resource record retained', { operationId, error })
     }
   }
+
   return result
 }
 

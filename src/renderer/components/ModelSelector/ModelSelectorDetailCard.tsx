@@ -13,8 +13,11 @@ import type { ModelSelectorModelItem } from './types'
 import { getProviderDisplayName } from './utils'
 
 type HoverCardPortalContainer = ComponentPropsWithoutRef<typeof HoverCardContent>['portalContainer']
+
 type HoverCardSide = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['side']>
+
 type HorizontalHoverCardSide = Extract<HoverCardSide, 'left' | 'right'>
+
 type HoverCardAlign = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['align']>
 
 const NUMBER_FORMATTER = new Intl.NumberFormat(undefined)
@@ -100,6 +103,7 @@ function compactList(values: readonly string[] | undefined, limit = 3): string |
 
   const visibleValues = values.slice(0, limit)
   const restCount = values.length - visibleValues.length
+
   return restCount > 0 ? `${visibleValues.join(', ')} +${restCount}` : visibleValues.join(', ')
 }
 
@@ -109,6 +113,7 @@ function formatReasoningEfforts(values: readonly string[] | undefined, t: TFunct
 
 function formatImageGenerationModes(model: Model, t: TFunction): string | undefined {
   const modes = Object.keys(model.imageGeneration?.modes ?? {})
+
   return compactList(modes.map((mode) => t(IMAGE_MODE_LABEL_KEYS.get(mode) ?? mode)))
 }
 
@@ -141,13 +146,17 @@ export function ModelSelectorDetailCardContent({
   description?: ReactNode
 }) {
   const { t } = useTranslation()
+
   const reasoningEfforts = formatReasoningEfforts(
     (model ? deriveThinkingOptions(model) : undefined)?.filter((option) => option !== 'default'),
     t
   )
+
   const imageModes = model ? formatImageGenerationModes(model, t) : undefined
+
   const hasTokenDetails =
     model && (model.contextWindow != null || model.maxInputTokens != null || model.maxOutputTokens != null)
+
   const hasCapabilityDetails = Boolean(reasoningEfforts || imageModes)
   const hasDescription = description != null && description !== '' && typeof description !== 'boolean'
 
@@ -215,6 +224,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
     () => tags ?? getModelDisplayTags(item.model, undefined, provider),
     [item.model, provider, tags]
   )
+
   return (
     <ModelSelectorHoverCard
       portalContainer={portalContainer}
@@ -245,6 +255,7 @@ export function ModelSelectorHoverCard({
   const triggerRef = useRef<HTMLElement | null>(null)
   const [side, setSide] = useState<HorizontalHoverCardSide>('right')
   const align = getDetailCardAlign()
+
   const setTriggerElement = useCallback((element: HTMLAnchorElement | null) => {
     triggerRef.current = element
   }, [])

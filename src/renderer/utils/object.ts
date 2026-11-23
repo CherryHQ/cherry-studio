@@ -37,8 +37,10 @@ export function objectValues<T extends Record<string, unknown>>(obj: T): T[keyof
  */
 export function strip<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
   const result = { ...obj }
+
   for (const key of keys) {
     delete (result as any)[key] // Omit already guarantees type safety
   }
+
   return result
 }

@@ -16,6 +16,7 @@ function syncReleaseHistory({ builderPath, historyPath, version }) {
 function main() {
   const versionFlag = process.argv.indexOf('--target-version')
   const version = versionFlag >= 0 ? process.argv[versionFlag + 1] : undefined
+
   if (!version) throw new Error('--target-version is required')
 
   const synced = syncReleaseHistory({
@@ -23,6 +24,7 @@ function main() {
     historyPath: 'resources/cherry-studio/release-history.json',
     version
   })
+
   console.log(synced ? `Synced release history for ${version}` : `Skipped release history for prerelease ${version}`)
 }
 

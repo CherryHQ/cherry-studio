@@ -48,5 +48,6 @@ export function getTabIcon(tab: Tab): IconComponent {
   const pathname = parseAppRouteUrl(tab.url)?.pathname ?? '/'
   const segments = pathname.split('/').filter(Boolean)
   const key = segments[0] === 'app' && segments.length >= 2 ? '/app/' + segments[1] : '/' + (segments[0] || '')
+
   return ROUTE_ICONS.get(key) || MessageCircle
 }

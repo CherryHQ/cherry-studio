@@ -38,9 +38,13 @@ export function createToolExecTool(registry: ToolRegistry): Tool {
     execute: async ({ code }, options) => {
       const result = await runExec(code, { registry, parentOptions: options })
       const output: ExecResult = { result: result.result }
+
       if (result.logs && result.logs.length > 0) output.logs = result.logs
+
       if (result.error) output.error = result.error
+
       if (result.isError) output.isError = true
+
       return output
     }
   })

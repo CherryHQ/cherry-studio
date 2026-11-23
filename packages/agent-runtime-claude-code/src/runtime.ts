@@ -16,12 +16,14 @@ import type {
 
 export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): ClaudeCodeRuntime {
   options = { ...options }
+
   if (!path.isAbsolute(options.configDir)) throw new TypeError('Claude configuration directory must be absolute')
   const owners = new Map<string, Promise<ClaudeOwner | undefined>>()
   const live = new Set<ClaudeOwner>()
   let closed = false
   const closingAccess = new AbortController()
   let shutdown: Promise<OperationResult<void>> | undefined
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preserve native/observer rejection values for the host; diagnostic callback failures remain isolated from execution.
   const report = (error: unknown) => {
     try {
@@ -30,8 +32,10 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
       /* Diagnostics cannot affect execution. */
     }
   }
+
   const build = (config: ClaudeSessionOptions, sessionId: string, fresh: boolean) => {
     if (!path.isAbsolute(config.cwd)) throw new TypeError('Claude working directory must be absolute')
+
     const owner = new ClaudeOwner(
       options,
       { ...config, env: { ...(config.env ?? process.env) } },
@@ -42,9 +46,12 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         owners.set(id, Promise.resolve(owner))
       }
     )
+
     live.add(owner)
+
     return owner
   }
+
   const access = (
     owner: ClaudeOwner,
     projection: ClaudeProjection,
@@ -53,10 +60,13 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   ): ClaudeThreadHandle => {
     let released = false
     const observations = new Set<Observation>()
+
     const observe = async (sink: ClaudeObservationSink): Promise<OperationResult<Observation>> => {
       if (released) return rejected('observe', 'released')
+
       try {
         const native = projection.feed.observe(sink)
+
         const observation = {
           drain: () => native.drain(),
           stop: async () => {
@@ -64,12 +74,15 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
             observations.delete(observation)
           }
         }
+
         observations.add(observation)
+
         return { status: 'confirmed', value: observation }
       } catch {
         return rejected('observe', 'closed')
       }
     }
+
     const submit: ClaudeThreadHandle['claude']['submit'] = (inputId, content, whenBusy) =>
       released || agentId
         ? Promise.resolve({
@@ -78,12 +91,15 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
             error: runtimeError('submit', agentId ? 'child-input' : 'released')
           })
         : owner.submit(projection, inputId, content, whenBusy)
+
     return {
       thread: projection.thread,
       contextUsage: async () => {
         if (released) return rejected('contextUsage', 'released')
+
         if (agentId) return { status: 'unsupported', error: runtimeError('contextUsage', 'child-control') }
         const result = await owner.contextUsage(projection)
+
         return released ? rejected('contextUsage', 'released') : result
       },
       input: agentId ? undefined : { submit: (input) => submit(input.inputId, input.text, input.whenBusy) },
@@ -102,6 +118,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
             .find((relation) => relation.child?.id === projection.thread.id),
         async openChild(toolCallId, signal) {
           if (released || closed || signal?.aborted) return rejected('open-child', 'closed')
+
           const found = await new Promise<OperationResult<Subagent & { child: Thread }>>((resolve) => {
             const finish = (result: OperationResult<Subagent & { child: Thread }>) => {
               observations.delete(waiting)
@@ -110,15 +127,20 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
               void observed.stop()
               resolve(result)
             }
+
             const close = () => finish(rejected('open-child', 'closed'))
             const waiting: Observation = { drain: () => observed.drain(), stop: async () => close() }
+
             const observed = projection.feed.observe((batch) => {
               if (released || closed || batch.events.some((event) => event.type === 'closed')) return close()
               const snapshot = projection.feed.snapshot
               const matches = snapshot.subagents?.filter((child) => child.origin?.toolCallId === toolCallId) ?? []
+
               if (matches.length > 1) return finish(rejected('open-child', 'ambiguous-origin'))
               const relation = matches[0]
+
               if (relation?.child) return finish({ status: 'confirmed', value: { ...relation, child: relation.child } })
+
               const call = snapshot.messages
                 .flatMap((message) => message.parts)
                 .find(
@@ -127,21 +149,29 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
                     part.toolCallId === toolCallId &&
                     ['Agent', 'Task'].includes(part.toolName)
                 )
+
               if (!call) return finish(rejected('open-child', 'unknown-call'))
+
               if (call.type === 'dynamic-tool' && call.state.startsWith('output-'))
                 finish(rejected('open-child', 'child-unavailable'))
             })
+
             observations.add(waiting)
             closingAccess.signal.addEventListener('abort', close, { once: true })
             signal?.addEventListener('abort', close, { once: true })
           })
+
           if (found.status !== 'confirmed') return found
           const opened = await runtime.open(found.value.child)
+
           if (opened.status !== 'confirmed') return opened
+
           if (released || closed || signal?.aborted) {
             await opened.value.release()
+
             return rejected('open-child', 'closed')
           }
+
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
         },
         sessionId,
@@ -169,53 +199,70 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
       }
     }
   }
+
   const runtime: ClaudeCodeRuntime = {
     async create(config) {
       if (closed) return rejected('create', 'closed')
+
       try {
         const sessionId = config.sessionId ?? randomUUID()
+
         if (!isUuid(sessionId) || owners.has(sessionId)) return rejected('create', 'invalid-session-id')
         const owner = build(config, sessionId, true)
         owners.set(sessionId, Promise.resolve(owner))
+
         return { status: 'confirmed', value: access(owner, owner.projection(sessionId), sessionId) }
       } catch (error) {
         report(error)
+
         return rejected('create', 'invalid-configuration')
       }
     },
     async open(thread: Thread) {
       if (closed) return rejected('open', 'closed')
+
       if (thread.backendId !== options.backendId) return rejected('open', 'backend-mismatch')
+
       try {
         const { sessionId, agentId } = nativeIdentity(thread)
         let pending = owners.get(sessionId)
+
         if (!pending) {
           pending = (async () => {
             const config = await options.load?.({ backendId: thread.backendId, id: nativeIdentityRoot(thread) })
+
             if (!config || closed) return undefined
             const owner = build(config, sessionId, false)
+
             try {
               await owner.refresh(sessionId)
             } catch (error) {
               live.delete(owner)
               throw error
             }
+
             return owner
           })()
           owners.set(sessionId, pending)
         }
+
         let owner: ClaudeOwner | undefined
+
         try {
           owner = await pending
         } finally {
           if (!owner && owners.get(sessionId) === pending) owners.delete(sessionId)
         }
+
         if (closed) return rejected('open', 'closed')
         const projection = owner?.projections.get(thread.id)
+
         if (!owner || !projection) return rejected('open', 'native-storage-missing')
+
         return { status: 'confirmed', value: access(owner, projection, sessionId, agentId) }
       } catch (error) {
         report(error)
+
         return rejected('open', 'native-storage-unavailable')
       }
     },
@@ -227,8 +274,10 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           if (!shutdown) throw cause
         }
       }
+
       if (shutdown) {
         const result = await shutdown
+
         if (result.status !== 'confirmed') throw new Error(result.error.message)
       }
     },
@@ -239,15 +288,20 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         await Promise.allSettled(owners.values())
         const results = await Promise.all([...live].map((owner) => owner.shutdown()))
         const uncertain = results.find((result) => result.status !== 'confirmed')
+
         if (uncertain) {
           shutdown = undefined
+
           return uncertain
         }
+
         return { status: 'confirmed' as const, value: undefined }
       })()
+
       return shutdown
     }
   }
+
   return runtime
 }
 

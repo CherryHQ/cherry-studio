@@ -29,6 +29,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
+
     onSave([...new Set(newList)])
     onClose()
   }

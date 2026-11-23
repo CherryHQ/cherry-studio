@@ -44,15 +44,19 @@ export function resolveKnowledgeAddConflicts(
   // holds exactly one root and `replace` targets only the matching copy; the array
   // still lets `replace` purge every root under a key should data ever duplicate one.
   const existingByKey = new Map<string, KnowledgeItem[]>()
+
   for (const item of existingRoots) {
     const detectionKey = getKnowledgeItemConflictKey(item)
+
     // An empty detection key (e.g. a blank-content note) is not a real name and
     // must never collide — skip it entirely.
     if (detectionKey === '') {
       continue
     }
+
     const mapKey = toConflictMapKey(item.type, detectionKey)
     const group = existingByKey.get(mapKey)
+
     if (group) {
       group.push(item)
     } else {
@@ -67,10 +71,12 @@ export function resolveKnowledgeAddConflicts(
 
   inputs.forEach((input, index) => {
     const detectionKey = getKnowledgeItemConflictKey(input)
+
     // Empty-key inputs (blank-content notes) never collide and never dedup in-batch.
     if (detectionKey === '') {
       return
     }
+
     const mapKey = toConflictMapKey(input.type, detectionKey)
     const existing = existingByKey.get(mapKey)
     const collides = existing !== undefined || seenBatchKeys.has(mapKey)
@@ -82,6 +88,7 @@ export function resolveKnowledgeAddConflicts(
         title: getKnowledgeItemDisplayTitle(existing?.[0] ?? input)
       })
     }
+
     if (existing) {
       for (const item of existing) {
         conflictingExistingRootIds.add(item.id)
@@ -94,11 +101,14 @@ export function resolveKnowledgeAddConflicts(
 
   const keptInputs = inputs.filter((input, index) => {
     const detectionKey = getKnowledgeItemConflictKey(input)
+
     // Empty-key inputs are always kept — they never participate in dedup.
     if (detectionKey === '') {
       return true
     }
+
     const mapKey = toConflictMapKey(input.type, detectionKey)
+
     return lastInputIndexByKey.get(mapKey) === index
   })
 

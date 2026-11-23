@@ -64,6 +64,7 @@ const DEFAULT_IGNORE_PATTERNS: readonly string[] = [
  */
 export function defaultRipgrepGlobArgs(): string[] {
   const args: string[] = []
+
   for (const pattern of DEFAULT_IGNORE_PATTERNS) {
     if (pattern.endsWith('/')) {
       args.push('-g', `!**/${pattern.slice(0, -1)}/**`)
@@ -71,7 +72,9 @@ export function defaultRipgrepGlobArgs(): string[] {
       args.push('-g', `!**/${pattern}`)
     }
   }
+
   args.push('-g', '!**/.git/**')
+
   return args
 }
 
@@ -100,6 +103,7 @@ export interface GitignorePredicate {
 export async function loadGitignorePredicate(rootPath: string): Promise<GitignorePredicate | null> {
   const normalizedRoot = rootPath.replace(/\\/g, '/').replace(/\/+$/, '')
   let raw: string | null = null
+
   try {
     raw = await readFile(path.join(normalizedRoot, '.gitignore'), 'utf8')
   } catch (err) {
@@ -108,30 +112,38 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
     // worth logging so a confused operator (or a future incident) can
     // trace why `.gitignore` rules silently stopped applying.
     const code = (err as NodeJS.ErrnoException).code
+
     if (code !== 'ENOENT') {
       logger.warn(`Could not read .gitignore under ${normalizedRoot} (${code ?? 'unknown'})`, err as Error)
     }
   }
 
   let ig: Ignore
+
   try {
     ig = ignore()
     // Defaults first so the user's `.gitignore` can override (`!pattern`).
     ig.add(DEFAULT_IGNORE_PATTERNS.join('\n'))
+
     if (raw) ig.add(raw)
     // `.git` is force-ignored last — user cannot un-ignore it.
     ig.add('.git')
   } catch (err) {
     logger.warn(`Failed to parse .gitignore under ${normalizedRoot}`, err as Error)
+
     return null
   }
 
   return (absPath: string) => {
     const normalized = absPath.replace(/\\/g, '/')
+
     if (normalized === normalizedRoot) return false
+
     if (!normalized.startsWith(`${normalizedRoot}/`)) return false
     const rel = normalized.slice(normalizedRoot.length + 1)
+
     if (!rel) return false
+
     return ig.ignores(rel)
   }
 }

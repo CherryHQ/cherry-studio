@@ -26,18 +26,23 @@ export class HiddenGuestFreezer {
 
   setVisible(guest: WebContents, visible: boolean): void {
     let entry = this.hidden.get(guest)
+
     if (visible) {
       if (!entry) return
       this.forget(guest, entry)
+
       if (entry.frozen) this.resume(guest)
+
       return
     }
+
     if (!entry) {
       const onDestroyed = () => this.forget(guest, entry!)
       guest.once('destroyed', onDestroyed)
       entry = { frozen: false, forget: () => guest.removeListener('destroyed', onDestroyed) }
       this.hidden.set(guest, entry)
     }
+
     if (entry.frozen) return
     clearTimeout(entry.timer)
     const pending = entry
@@ -47,6 +52,7 @@ export class HiddenGuestFreezer {
   dispose(): void {
     for (const [guest, entry] of this.hidden) {
       this.forget(guest, entry)
+
       if (entry.frozen) this.resume(guest)
     }
   }
@@ -59,6 +65,7 @@ export class HiddenGuestFreezer {
 
   private freeze(guest: WebContents, entry: HiddenGuest): void {
     entry.timer = undefined
+
     // ponytail: a guest skipped here stays awake until its next hide; no re-check timer.
     if (
       guest.isDestroyed() ||
@@ -69,12 +76,15 @@ export class HiddenGuestFreezer {
     ) {
       return
     }
+
     try {
       guest.debugger.attach()
     } catch (error) {
       logger.debug('Cannot attach to hidden webview', { error })
+
       return
     }
+
     entry.frozen = true
     guest.debugger
       .sendCommand('Page.setWebLifecycleState', { state: 'frozen' })

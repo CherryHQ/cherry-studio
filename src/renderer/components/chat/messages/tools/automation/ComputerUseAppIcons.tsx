@@ -10,5 +10,6 @@ export function ComputerUseAppIcons({ cell, fallback }: { cell?: string; fallbac
     ([, cell]) => ipcApi.request('computer_use.get_call_apps', { cell }),
     { shouldRetryOnError: false }
   )
+
   return apps?.length ? apps.map((app) => <ComputerUseAppIcon key={app.id} app={app} />) : fallback
 }

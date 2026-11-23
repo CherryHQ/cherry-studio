@@ -52,9 +52,11 @@ function getCleanupPaths() {
 async function measureSessionCache(ses: Session, item: string): Promise<SizeMeasurement> {
   try {
     const bytes = await ses.getCacheSize()
+
     return { bytes, issues: [] }
   } catch (error) {
     logger.warn('Failed to query Electron session cache size', { item, error })
+
     return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
 }
@@ -69,10 +71,12 @@ function clearSessionNormalCache(ses: Session, item: string): Promise<CleanupSte
 
 export async function inspectNormalCache(): Promise<CacheCleanupSizeSnapshot> {
   const paths = getCleanupPaths()
+
   const sessions = [
     { item: 'default_session', root: paths.defaultSession, value: session.defaultSession },
     { item: 'webview_session', root: paths.webviewSession, value: session.fromPartition('persist:webview') }
   ]
+
   const previewSession = {
     item: 'html_artifact_preview_session',
     value: session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
@@ -81,20 +85,24 @@ export async function inspectNormalCache(): Promise<CacheCleanupSizeSnapshot> {
   const electronMeasurements = await Promise.all(
     [...sessions, previewSession].map(({ item, value }) => measureSessionCache(value, item))
   )
+
   const diskTargets = sessions.flatMap(({ item, root }) =>
     NORMAL_CACHE_RELATIVE_PATHS.map((relativePath) => ({
       item,
       path: path.join(root, relativePath)
     }))
   )
+
   diskTargets.push({ item: 'trace', path: paths.trace }, { item: 'legacy_trace', path: paths.legacyTrace })
 
   const diskMeasurement = await measurePaths(diskTargets)
+
   return toSizeSnapshot(mergeMeasurements([...electronMeasurements, diskMeasurement]), 'estimated')
 }
 
 export async function inspectSiteData(): Promise<CacheCleanupSizeSnapshot> {
   const paths = getCleanupPaths()
+
   const targets: Array<{ item: string; path: string; excludedPaths?: ReadonlySet<string> }> = COOKIE_RELATIVE_PATHS.map(
     (relativePath) => ({
       item: 'default_session_cookies',
@@ -120,11 +128,13 @@ export async function inspectSiteData(): Promise<CacheCleanupSizeSnapshot> {
 
   const measurement = await measurePaths(targets)
   measurement.issues.push(issue('html_artifact_preview_site_data', 'inspection_failed'))
+
   return toSizeSnapshot(measurement, 'estimated')
 }
 
 export async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
   const paths = getCleanupPaths()
+
   const [defaultSessionSteps, webviewSessionSteps, previewSessionSteps, traceStep, legacyTraceStep] = await Promise.all(
     [
       clearSessionNormalCache(session.defaultSession, 'default_session'),
@@ -134,6 +144,7 @@ export async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
       removeCleanupTarget({ item: 'legacy_trace', path: paths.legacyTrace, kind: 'directory' })
     ]
   )
+
   return resultFromSteps('normal_cache', [
     ...defaultSessionSteps,
     ...webviewSessionSteps,
@@ -159,5 +170,6 @@ export async function clearSiteData(): Promise<CacheCleanupGroupResult> {
       })
     )
   ])
+
   return resultFromSteps('site_data', steps)
 }

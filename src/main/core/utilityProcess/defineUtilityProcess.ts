@@ -11,16 +11,19 @@ export function validateUtilityProcessDefinition(definition: UtilityProcessDefin
       `utility process id must be a lowercase namespaced identifier like 'domain.name', got ${JSON.stringify(definition.id)}`
     )
   }
+
   if (typeof definition.entry !== 'string' || !ENTRY_PATTERN.test(definition.entry)) {
     throw new TypeError(
       `utility process '${definition.id}': entry must be a lowercase kebab-case build key, got ${JSON.stringify(definition.entry)}`
     )
   }
+
   if (!CANCELLATIONS.has(definition.cancellation)) {
     throw new TypeError(
       `utility process '${definition.id}': cancellation must be 'terminate' or 'cooperative', got ${JSON.stringify(definition.cancellation)}`
     )
   }
+
   if (definition.idleTimeoutMs !== undefined) {
     if (!Number.isInteger(definition.idleTimeoutMs) || definition.idleTimeoutMs <= 0) {
       throw new TypeError(
@@ -28,9 +31,11 @@ export function validateUtilityProcessDefinition(definition: UtilityProcessDefin
       )
     }
   }
+
   if (definition.createEnv !== undefined && typeof definition.createEnv !== 'function') {
     throw new TypeError(`utility process '${definition.id}': createEnv must be a function`)
   }
+
   if (definition.createInitData !== undefined && typeof definition.createInitData !== 'function') {
     throw new TypeError(`utility process '${definition.id}': createInitData must be a function`)
   }
@@ -41,5 +46,6 @@ export function defineUtilityProcess<Contract extends UtilityProcessContract, In
   definition: Omit<UtilityProcessDefinition<Contract, InitData>, '__contract'>
 ): UtilityProcessDefinition<Contract, InitData> {
   validateUtilityProcessDefinition(definition)
+
   return Object.freeze({ ...definition })
 }

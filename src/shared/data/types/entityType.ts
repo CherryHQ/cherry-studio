@@ -24,6 +24,7 @@ import { UniqueModelIdSchema } from './model'
  *   of schema-level cross-field validation.
  */
 export const EntityTypeSchema = z.enum(['assistant', 'topic', 'model', 'agent', 'knowledge', 'session', 'workspace'])
+
 export type EntityType = z.infer<typeof EntityTypeSchema>
 
 /**

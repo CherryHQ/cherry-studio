@@ -6,7 +6,9 @@ import { LingxiLight } from './light'
 
 const Lingxi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LingxiLight {...props} className={className} />
+
   if (variant === 'dark') return <LingxiDark {...props} className={className} />
+
   return (
     <>
       <LingxiLight className={cn('dark:hidden', className)} {...props} />

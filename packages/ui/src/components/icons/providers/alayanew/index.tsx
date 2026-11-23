@@ -4,6 +4,7 @@ import { AlayanewLight } from './light'
 
 const Alayanew = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AlayanewLight {...props} className={className} />
+
   return <AlayanewLight {...props} className={className} />
 }
 

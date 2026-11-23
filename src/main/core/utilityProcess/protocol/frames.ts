@@ -13,6 +13,7 @@ export type StreamMessage =
   | { kind: 'stream-end-ack'; sequence: number }
 
 export type StreamFrame = FrameIdentity & { requestId: number } & StreamMessage
+
 export type StreamOpenFrame = FrameIdentity & {
   kind: 'stream-open'
   requestId: number
@@ -21,6 +22,7 @@ export type StreamOpenFrame = FrameIdentity & {
   inputLimits: UtilityProcessStreamLimits
   outputLimits: UtilityProcessStreamLimits
 }
+
 export type StreamClosedFrame = FrameIdentity & { kind: 'stream-closed'; requestId: number }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
@@ -45,21 +47,30 @@ export interface RemoteErrorShape {
 export type ConnectFrame = FrameIdentity & { kind: 'connect'; initData: unknown }
 
 export type RequestFrame = FrameIdentity & { kind: 'request'; requestId: number; method: string; input: unknown }
+
 export type CancelFrame = FrameIdentity & { kind: 'cancel'; requestId: number }
+
 export type ShutdownFrame = FrameIdentity & { kind: 'shutdown' }
+
 export type HostReplyFrame = FrameIdentity & {
   kind: 'host-reply'
   requestId: number
   callId: number
   outcome: { value: unknown } | { error: RemoteErrorShape }
 }
+
 export type MainFrame = RequestFrame | CancelFrame | ShutdownFrame | HostReplyFrame | StreamOpenFrame | StreamFrame
 
 export type ReadyFrame = FrameIdentity & { kind: 'ready' }
+
 export type EventFrame = FrameIdentity & { kind: 'event'; requestId: number; event: unknown }
+
 export type ResultFrame = FrameIdentity & { kind: 'result'; requestId: number; output: unknown }
+
 export type ErrorFrame = FrameIdentity & { kind: 'error'; requestId: number; error: RemoteErrorShape }
+
 export type StartupErrorFrame = FrameIdentity & { kind: 'startup-error'; error: RemoteErrorShape }
+
 export type LogFrame = FrameIdentity & {
   kind: 'log'
   level: LogLevel
@@ -68,7 +79,9 @@ export type LogFrame = FrameIdentity & {
   fields?: Record<string, unknown>
   requestId?: number
 }
+
 export type ProtocolErrorFrame = FrameIdentity & { kind: 'protocol-error'; message: string; requestId?: number }
+
 export type ChildFrame =
   | StreamFrame
   | StreamClosedFrame

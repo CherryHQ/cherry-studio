@@ -11,11 +11,14 @@ export type FrontmatterRule = { requireSources: boolean }
 export const listMarkdownFiles = (dir: string): string[] => {
   if (!fs.existsSync(dir)) return []
   const files: string[] = []
+
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
+
     if (entry.isDirectory()) files.push(...listMarkdownFiles(full))
     else if (entry.name.endsWith('.md')) files.push(full)
   }
+
   return files.sort()
 }
 
@@ -25,6 +28,7 @@ export const checkFile = (repoRoot: string, filePath: string, rule: FrontmatterR
   const { data } = matter(fs.readFileSync(filePath, 'utf8'))
 
   const description = data.description
+
   if (typeof description !== 'string' || description.trim() === '') {
     failures.push(`${rel}: missing frontmatter \`description\``)
   } else if (description.includes('\n')) {
@@ -32,6 +36,7 @@ export const checkFile = (repoRoot: string, filePath: string, rule: FrontmatterR
   }
 
   const sources = data.sources
+
   if (sources === undefined) {
     if (rule.requireSources) {
       failures.push(`${rel}: missing frontmatter \`sources\` (code paths this doc describes)`)
@@ -54,25 +59,32 @@ export const checkFile = (repoRoot: string, filePath: string, rule: FrontmatterR
 
 export const checkDocsFrontmatter = (repoRoot: string): string[] => {
   const failures: string[] = []
+
   for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/dev/references'))) {
     failures.push(...checkFile(repoRoot, file, { requireSources: true }))
   }
+
   for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/dev/contrib'))) {
     failures.push(...checkFile(repoRoot, file, { requireSources: false }))
   }
+
   for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/dev/i18n'))) {
     failures.push(...checkFile(repoRoot, file, { requireSources: false }))
   }
+
   return failures
 }
 
 const main = () => {
   const failures = checkDocsFrontmatter(ROOT)
+
   if (failures.length > 0) {
     console.error(`Found ${failures.length} doc frontmatter violation(s):\n`)
+
     for (const failure of failures) console.error(`  ${failure}`)
     process.exit(1)
   }
+
   console.log('Doc frontmatter OK.')
 }
 

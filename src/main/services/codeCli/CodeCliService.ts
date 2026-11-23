@@ -61,14 +61,18 @@ const logger = loggerService.withContext('CodeCliService')
  */
 function appendBundledGitPathTail(env: Record<string, string>): void {
   const gitDir = getBundledGitDir()
+
   if (!gitDir) return
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const canonicalKey = pathKeys[0] ?? 'Path'
   const segments = pathKeys.flatMap((key) => (env[key] ?? '').split(';'))
   const updated = dedupePathSegments([...segments, gitDir]).join(';')
+
   for (const key of pathKeys) env[key] = updated
+
   if (pathKeys.length === 0) env[canonicalKey] = updated
 }
+
 const MACOS_APPLICATION_LOOKUP_SCRIPT = [
   'ObjC.import("AppKit")',
   'function run(argv) {',
@@ -108,19 +112,24 @@ export class CodeCliService extends BaseService {
     const preset = this.requirePreset(request.name)
     await application.get('BinaryManager').installByName(request)
     const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
+
     if (!snapshot || snapshot.availability.source === 'none') {
       throw new Error(`${preset.executable} is unavailable after installation`)
     }
+
     await this.installCliSkill(preset)
   }
 
   async removeCli(request: BinaryRemoveRequest): Promise<BinaryRemoveResult> {
     const preset = this.requirePreset(request.name)
     const result = await application.get('BinaryManager').removeTool(request)
+
     if (result.status === 'cleanup_blocked') return result
 
     const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
+
     if (snapshot) await this.reconcileCliSkill(preset, snapshot)
+
     return result
   }
 
@@ -131,7 +140,9 @@ export class CodeCliService extends BaseService {
 
     for (const preset of CODE_CLI_TOOL_PRESETS) {
       const snapshot = snapshots[preset.executable]
+
       if (!snapshot) continue
+
       try {
         await this.reconcileCliSkill(preset, snapshot)
       } catch (error) {
@@ -145,7 +156,9 @@ export class CodeCliService extends BaseService {
 
   private requirePreset(executable: string): CodeCliToolPreset {
     const preset = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[executable]
+
     if (!preset) throw new Error(`Unknown Code CLI: ${executable}`)
+
     return preset
   }
 
@@ -154,14 +167,17 @@ export class CodeCliService extends BaseService {
       toAsarUnpackedPath(application.getPath('feature.code_cli.skills.builtin')),
       preset.skillFolderName
     )
+
     await skillService.syncBuiltinSkill(preset.skillFolderName, sourcePath, app.getVersion(), preset.skillNamespace)
   }
 
   private async reconcileCliSkill(preset: CodeCliToolPreset, snapshot: BinaryToolSnapshot): Promise<void> {
     if (snapshot.availability.source !== 'none') {
       await this.installCliSkill(preset)
+
       return
     }
+
     if (snapshot.application?.status === 'absent') {
       await skillService.uninstallBuiltinSkill(preset.skillFolderName, preset.skillNamespace)
     }
@@ -181,6 +197,7 @@ export class CodeCliService extends BaseService {
    */
   public async checkClaudeLogin(signal?: AbortSignal): Promise<boolean> {
     signal?.throwIfAborted()
+
     if (!this.loginQuery || this.loginQuery.controller.signal.aborted) {
       const controller = new AbortController()
       const query = { controller, users: 0, promise: this.probeClaudeLogin(controller.signal) }
@@ -191,9 +208,11 @@ export class CodeCliService extends BaseService {
         })
         .catch(() => undefined)
     }
+
     const query = this.loginQuery
     query.users += 1
     let onAbort: (() => void) | undefined
+
     try {
       return await new Promise<boolean>((resolve, reject) => {
         onAbort = () => reject(signal?.reason)
@@ -203,6 +222,7 @@ export class CodeCliService extends BaseService {
     } finally {
       if (onAbort) signal?.removeEventListener('abort', onAbort)
       query.users -= 1
+
       if (query.users === 0) query.controller.abort()
     }
   }
@@ -215,28 +235,35 @@ export class CodeCliService extends BaseService {
           signal,
           killSignal: 'SIGKILL'
         })
+
         return true
       } catch (error) {
         signal.throwIfAborted()
+
         if ((error as { code?: unknown }).code === 44) return false
         throw error
       }
     }
+
     try {
       // Resolve from the same source the runtime uses (settingsBuilder reads the
       // shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched Electron
       // process does not inherit rc-exported vars, so probing process.env alone
       // falsely reports "not signed in".
       const shellEnv = await getShellEnv(signal)
+
       const configDir =
         shellEnv.CLAUDE_CONFIG_DIR ||
         process.env.CLAUDE_CONFIG_DIR ||
         path.join(application.getPath('sys.home'), '.claude')
+
       await fs.promises.access(path.join(configDir, '.credentials.json'))
       signal.throwIfAborted()
+
       return true
     } catch (error) {
       signal.throwIfAborted()
+
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
       throw error
     }
@@ -274,6 +301,7 @@ export class CodeCliService extends BaseService {
         ['-l', 'JavaScript', '-e', MACOS_APPLICATION_LOOKUP_SCRIPT, terminal.bundleId],
         { timeout: 3000 }
       )
+
       return stdout.trim() ? terminal : null
     }
 
@@ -284,11 +312,13 @@ export class CodeCliService extends BaseService {
       } else {
         // TODO: Check if terminal is available in linux
         await execAsync(`which ${terminal.id}`, { timeout: 2000 })
+
         return terminal
       }
     } catch (error) {
       logger.debug(`Terminal ${terminal.id} not available:`, error as Error)
     }
+
     return null
   }
 
@@ -308,10 +338,12 @@ export class CodeCliService extends BaseService {
             await execAsync('powershell -Command "Get-Host"', {
               timeout: 3000
             })
+
             return terminal
           } catch {
             try {
               await execAsync('pwsh -Command "Get-Host"', { timeout: 3000 })
+
               return terminal
             } catch {
               return null
@@ -322,6 +354,7 @@ export class CodeCliService extends BaseService {
           // Check for Windows Terminal via where command (doesn't launch the terminal)
           try {
             await execAsync('where wt', { timeout: 3000 })
+
             return terminal
           } catch {
             return null
@@ -331,6 +364,7 @@ export class CodeCliService extends BaseService {
           // Check for WSL
           try {
             await execAsync('wsl --status', { timeout: 3000 })
+
             return terminal
           } catch {
             return null
@@ -341,6 +375,7 @@ export class CodeCliService extends BaseService {
       }
     } catch (error) {
       logger.debug(`Windows terminal ${terminal.id} not available:`, error as Error)
+
       return null
     }
   }
@@ -349,6 +384,7 @@ export class CodeCliService extends BaseService {
     try {
       const command = terminal.id === TerminalApp.ALACRITTY ? 'alacritty' : 'wezterm'
       await execAsync(`${command} --version`, { timeout: 3000 })
+
       return terminal
     } catch {
       return null
@@ -364,6 +400,7 @@ export class CodeCliService extends BaseService {
     // Check cache first
     if (this.terminalsCache && now - this.terminalsCache.timestamp < this.TERMINALS_CACHE_DURATION) {
       logger.info(`Using cached terminals list (${this.terminalsCache.terminals.length} terminals)`)
+
       return this.terminalsCache.terminals
     }
 
@@ -402,6 +439,7 @@ export class CodeCliService extends BaseService {
 
       if (hasProbeFailure) {
         logger.warn('Terminal availability check was incomplete; preserving the previous cache if available')
+
         return this.terminalsCache?.terminals ?? availableTerminals
       }
 
@@ -413,6 +451,7 @@ export class CodeCliService extends BaseService {
       return availableTerminals
     } catch (error) {
       logger.error('Error checking terminal availability:', error as Error)
+
       // Return cached result if available, otherwise empty array
       return this.terminalsCache?.terminals || []
     }
@@ -442,12 +481,14 @@ export class CodeCliService extends BaseService {
     const systemTerminal = terminalCommands.find(
       (t) => t.id === defaultTerminal && availableTerminals.some((at) => at.id === t.id)
     )
+
     if (systemTerminal) {
       return systemTerminal
     }
 
     // If even system Terminal is not found, return the first available
     const firstAvailable = terminalCommands.find((t) => availableTerminals.some((at) => at.id === t.id))
+
     if (firstAvailable) {
       return firstAvailable
     }
@@ -463,6 +504,7 @@ export class CodeCliService extends BaseService {
     if (isMac || isWin) {
       return this.getAvailableTerminals()
     }
+
     // For other platforms, return empty array for now
     return []
   }
@@ -472,6 +514,7 @@ export class CodeCliService extends BaseService {
     if (cliTool === CodeCli.HERMES) {
       return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
     }
+
     return writeCliConfigFiles(cliTool, files)
   }
 
@@ -484,19 +527,25 @@ export class CodeCliService extends BaseService {
     const { cliTool, directory } = input
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Launch mode: ${input.mode}`)
+
     if (cliTool === CodeCli.OPENCLAW) {
       const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
       logger.error(message)
+
       return { success: false, message }
     }
+
     if (cliTool === CodeCli.DEEPSEEK_HARNESS) {
       const message = 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
       logger.error(message)
+
       return { success: false, message }
     }
+
     if (cliTool === CodeCli.HERMES) {
       const message = 'Hermes Agent is managed through hermes_dashboard.* IPC, not code_cli.run'
       logger.error(message)
+
       return { success: false, message }
     }
 
@@ -507,22 +556,27 @@ export class CodeCliService extends BaseService {
     // provider/model is injected (the renderer already cleared any prior config).
     // Gated to login-capable tools so a genuinely missing provider still errors.
     const isOwnLoginRun = input.mode === 'own-login' && LOGIN_CAPABLE_CLI_TOOLS.has(cliTool)
+
     // The IPC schema already enforces non-empty ids on the normal arm; these
     // guards keep the friendly messages for direct (test/service) callers.
     if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && !normal?.providerId.trim()) {
       const message = `Provider ID is required for ${cliTool}`
       logger.error(message)
+
       return { success: false, message }
     }
+
     if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && !normal?.model.trim()) {
       const message = `Model is required for ${cliTool}`
       logger.error(message)
+
       return { success: false, message }
     }
 
     if (!directory || !fs.existsSync(directory)) {
       const errorMessage = `Directory does not exist: ${directory}`
       logger.error(errorMessage)
+
       return {
         success: false,
         message: errorMessage
@@ -544,6 +598,7 @@ export class CodeCliService extends BaseService {
 
     if (availability.source === 'none') {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
+
       try {
         // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
         // recipe itself and writes no Preference — the CLI is a code-owned tool,
@@ -553,14 +608,17 @@ export class CodeCliService extends BaseService {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error(`Failed to install ${cliTool}:`, error as Error)
+
         return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
 
       snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
       availability = snapshot.availability
+
       if (availability.source === 'none') {
         const message = `${cliTool} is not available after install`
         logger.error(message)
+
         return { success: false, message }
       }
     } else {
@@ -583,12 +641,15 @@ export class CodeCliService extends BaseService {
     // The install request above is the only operation that declares ownership;
     // execution depends only on this live availability fact.
     const rawShellEnv = usesCherryExecutionEnv ? await getRawShellEnv() : undefined
+
     const rawPathEnv = Object.fromEntries(
       Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
     )
+
     const env: Record<string, string> = usesCherryExecutionEnv
       ? mergeBinaryExecutionEnv(rawPathEnv, [application.getPath('cherry.bin')])
       : {}
+
     // For a managed Windows launch buildEnvPrefix rewrites PATH inside the
     // terminal from `env`, so the bundled-git tail must land here too, not only
     // in the spawn env assembled below.
@@ -604,6 +665,7 @@ export class CodeCliService extends BaseService {
     const buildEnvPrefix = (isWindows: boolean) => {
       if (Object.keys(env).length === 0) {
         logger.info('No environment variables to set')
+
         return ''
       }
 
@@ -621,9 +683,11 @@ export class CodeCliService extends BaseService {
           if (!key || key.trim() === '') {
             return false
           }
+
           if (value === undefined || value === null) {
             return false
           }
+
           return true
         })
 
@@ -631,17 +695,21 @@ export class CodeCliService extends BaseService {
           .map(([key, value]) => {
             const exportCmd = `export ${key}=${posixQuote(String(value))}`
             logger.debug(`Setting env var: ${key}=${REDACTED}`)
+
             return exportCmd
           })
           .join(' && ')
+
         const clearAmbientMise = usesCherryExecutionEnv
           ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
           : ''
+
         return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
       }
     }
 
     const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
+
     // The win32 command is only ever embedded in the generated .bat below, where
     // cmd.exe expands %…% even inside double quotes — double it like the
     // directory paths, or a path such as "100% tools" corrupts the launch.
@@ -677,24 +745,29 @@ export class CodeCliService extends BaseService {
         // `GOOGLE_GENAI_API_VERSION=v1` exported in the user's shell can't redirect it to `/v1`.
         if (normal.gateway) env.GOOGLE_GENAI_API_VERSION = 'v1beta'
         const modelArg = normal.gateway ? formatGeminiGatewayModelId(normal.providerId, normal.model) : normal.model
+
         // Bare-concatenated into the launch command like OpenCode's model above, so reject a
         // model id carrying shell metacharacters rather than launch.
         if (!isShellSafeModelId(modelArg)) {
           const message = `Unsupported model id for ${cliTool}: ${modelArg}`
           logger.error(message)
+
           return { success: false, message }
         }
+
         baseCommand = `${baseCommand} --model ${modelArg}`
       }
     }
 
     if (cliTool === CodeCli.ANTIGRAVITY_CLI && normal) {
       let launchConfig
+
       try {
         launchConfig = await prepareAntigravityLaunch(normal)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         logger.error('Failed to prepare Antigravity CLI launch', error as Error)
+
         return { success: false, message }
       }
 
@@ -704,14 +777,17 @@ export class CodeCliService extends BaseService {
       if (!isShellSafeModelId(launchConfig.model)) {
         const message = `Unsupported model id for ${cliTool}: ${launchConfig.model}`
         logger.error(message)
+
         return { success: false, message }
       }
 
       Object.assign(env, launchConfig.env)
+
       const geminiDirArg =
         platform === 'win32'
           ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
           : posixQuote(`--gemini_dir=${launchConfig.geminiDir}`)
+
       const modelArg = platform === 'win32' ? `"${launchConfig.model}"` : posixQuote(launchConfig.model)
       baseCommand = `${baseCommand} ${geminiDirArg} --model ${modelArg}`
     }
@@ -745,6 +821,7 @@ export class CodeCliService extends BaseService {
         terminalArgs = args
         break
       }
+
       case 'win32': {
         // Windows - Use temp bat file for debugging
         const envPrefix = buildEnvPrefix(true)
@@ -848,6 +925,7 @@ export class CodeCliService extends BaseService {
                 logger.warn(`Failed to cleanup temp bat file: ${error}`)
               }
             }
+
             CodeCliService.pendingBatCleanups.clear()
           })
           CodeCliService.exitCleanupRegistered = true
@@ -860,6 +938,7 @@ export class CodeCliService extends BaseService {
               fs.unlinkSync(batFilePath)
               logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
             }
+
             // Remove from pending set
             CodeCliService.pendingBatCleanups.delete(batFilePath)
           } catch (error) {
@@ -871,6 +950,7 @@ export class CodeCliService extends BaseService {
 
         break
       }
+
       case 'linux': {
         // Linux - Prefer the XDG-configured default terminal, then try common emulators.
         const envPrefix = buildEnvPrefix(false)
@@ -884,6 +964,7 @@ export class CodeCliService extends BaseService {
           'x-terminal-emulator',
           'xterm'
         ]
+
         let foundTerminal: string | undefined
 
         for (const terminal of linuxTerminals) {
@@ -898,9 +979,11 @@ export class CodeCliService extends BaseService {
                 if (code === 0) {
                   foundTerminal = terminal
                 }
+
                 resolve(code)
               })
             })
+
             if (foundTerminal === terminal) break
           } catch (error) {
             // Continue trying next terminal
@@ -927,13 +1010,16 @@ export class CodeCliService extends BaseService {
           terminalCommand = 'xterm'
           terminalArgs = ['-e', `cd ${posixQuote(directory)} && clear && ${command} && bash`]
         }
+
         break
       }
+
       default:
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
     const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
+
     const processEnv = Object.fromEntries(
       Object.entries(baseProcessEnv).filter(
         ([key]) =>
@@ -941,7 +1027,9 @@ export class CodeCliService extends BaseService {
           !(platform === 'win32' ? key.toUpperCase().startsWith('MISE_') : key.startsWith('MISE_'))
       )
     )
+
     Object.assign(processEnv, env)
+
     // Bundled MinGit rides at the very tail of every Windows launch PATH so a
     // bare `git` resolves even with no system git, while any real git ahead
     // still wins (#16402). The tail is the only Cherry addition a system CLI
@@ -962,6 +1050,7 @@ export class CodeCliService extends BaseService {
         env: processEnv,
         shell: isWin
       })
+
       // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is
       // missing); without a listener that becomes an uncaught exception after
       // run() already reported success. Wait for the spawn/error race so launch
@@ -979,6 +1068,7 @@ export class CodeCliService extends BaseService {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const failureMessage = `Failed to launch terminal: ${errorMessage}`
       logger.error(failureMessage, error as Error)
+
       return {
         success: false,
         message: failureMessage
@@ -995,6 +1085,7 @@ export class CodeCliService extends BaseService {
    */
   private static escapeBatchTextForEcho(text: string): string {
     if (!text) return ''
+
     return text
       .replace(/%/g, '%%') // Escape % to avoid variable expansion
       .replace(/\r\n/g, ' ') // Windows newline to space
@@ -1011,6 +1102,7 @@ export class CodeCliService extends BaseService {
  */
 export function escapeBatchText(text: string): string {
   if (!text) return ''
+
   return text
     .replace(/\^/g, '^^') // Escape caret first (before other escapes)
     .replace(/%/g, '%%') // Escape % to avoid variable expansion

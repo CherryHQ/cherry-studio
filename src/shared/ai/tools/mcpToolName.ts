@@ -71,6 +71,7 @@ export function buildMcpToolName(
   }
 
   existingNames.add(name)
+
   return name
 }
 
@@ -78,6 +79,7 @@ function truncateToLength(str: string, maxLength: number): string {
   if (str.length <= maxLength) {
     return str
   }
+
   return str.slice(0, maxLength).replace(/_+$/, '')
 }
 
@@ -97,6 +99,7 @@ export function generateMcpToolFunctionName(
 }
 
 const FUNCTION_CALL_TOOL_NAME_MAX_LENGTH = 63
+
 /** `_` + a fixed-width base36 hash of the server name, reserved on truncation. */
 const SERVER_DISAMBIGUATOR_LENGTH = 7
 
@@ -106,10 +109,12 @@ const SERVER_DISAMBIGUATOR_LENGTH = 7
  */
 function hashServerName(serverName: string): string {
   let h = 0x811c9dc5
+
   for (let i = 0; i < serverName.length; i++) {
     h ^= serverName.charCodeAt(i)
     h = Math.imul(h, 0x01000193)
   }
+
   return (h >>> 0).toString(36).padStart(SERVER_DISAMBIGUATOR_LENGTH, '0').slice(-SERVER_DISAMBIGUATOR_LENGTH)
 }
 
@@ -132,11 +137,14 @@ export function buildFunctionCallToolName(serverName: string, toolName: string):
   const serverPart = serverName ? toCamelCase(serverName) : ''
   const toolPart = toCamelCase(toolName)
   const baseName = serverPart ? `mcp__${serverPart}__${toolPart}` : `mcp__${toolPart}`
+
   if (baseName.length <= FUNCTION_CALL_TOOL_NAME_MAX_LENGTH) {
     return baseName
   }
+
   const suffix = `_${hashServerName(serverName)}`
   const body = truncateToLength(baseName, FUNCTION_CALL_TOOL_NAME_MAX_LENGTH - suffix.length)
+
   return `${body}${suffix}`
 }
 
@@ -158,6 +166,7 @@ export function parseFunctionCallToolName(toolName: string | undefined): McpFunc
 
   const rest = toolName.slice('mcp__'.length)
   const delimiterIndex = rest.lastIndexOf('__')
+
   if (delimiterIndex <= 0 || delimiterIndex >= rest.length - 2) return null
 
   return {

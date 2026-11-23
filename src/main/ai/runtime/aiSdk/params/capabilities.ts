@@ -62,9 +62,13 @@ export interface ResolveCapabilitiesOptions {
 
 function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
   if (isAnthropicModel(model)) return 'anthropic'
+
   if (isGeminiModel(model)) return 'google'
+
   if (isGrokModel(model)) return 'xai'
+
   if (isOpenAIModel(model)) return 'openai'
+
   return undefined
 }
 
@@ -91,13 +95,17 @@ export function resolveCapabilities(
 
   // Build provider-builtin web search config when the plan routed search to the server side
   let webSearchPluginConfig: AppWebSearchPluginConfig | undefined
+
   if (options.webToolRoutes?.webSearch === 'server') {
     const preferenceService = application.get('PreferenceService')
+
     const webSearchConfig = {
       maxResults: preferenceService.get('chat.web_search.max_results'),
       excludeDomains: preferenceService.get('chat.web_search.exclude_domains')
     }
+
     const aiSdkProviderId = options.runtimeProviderId ?? getAiSdkProviderId(provider, model)
+
     if (extensionRegistry.has(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(
         aiSdkProviderId,
@@ -108,6 +116,7 @@ export function resolveCapabilities(
       )
     } else if (isAIGatewayProvider(provider) || provider.id === SystemProviderIds.gateway) {
       const gatewayProviderId = mapVertexAIGatewayModelToProviderId(model)
+
       if (gatewayProviderId) {
         webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(
           gatewayProviderId,

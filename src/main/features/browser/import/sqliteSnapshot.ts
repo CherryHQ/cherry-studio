@@ -13,6 +13,7 @@ export async function withBrowserSnapshot<T>(
   const directory = await mkdtemp(application.getPath('feature.browser.import.temp', 'snapshot-'))
   let source: Database.Database | undefined
   let snapshot: Database.Database | undefined
+
   try {
     signal.throwIfAborted()
     source = new Database(file, { readonly: true, fileMustExist: true, timeout: 1_000 })
@@ -20,6 +21,7 @@ export async function withBrowserSnapshot<T>(
     await source.backup(destination, {
       progress: () => {
         signal.throwIfAborted()
+
         return 100
       }
     })
@@ -27,6 +29,7 @@ export async function withBrowserSnapshot<T>(
     source = undefined
     await chmod(destination, 0o600)
     snapshot = new Database(destination, { readonly: true, fileMustExist: true })
+
     return await read(snapshot)
   } finally {
     snapshot?.close()

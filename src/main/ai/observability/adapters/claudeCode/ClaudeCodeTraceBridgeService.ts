@@ -35,6 +35,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
         enabled ? 'activated' : 'skipped'
       }`
     )
+
     if (enabled) {
       await this.activate()
     }
@@ -55,9 +56,11 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
 
   async prepareTrace(context: ClaudeCodeTraceContext): Promise<Record<string, string> | undefined> {
     const normalizedContext = this.registerTraceContext(context)
+
     if (!normalizedContext) return undefined
 
     const endpoint = await this.ensureServer()
+
     // INTENTIONAL DEV-ONLY BEHAVIOR. This whole bridge only runs when developer_mode is
     // enabled (see onReady), and these flags ask Claude Code to emit verbose telemetry —
     // user prompts (OTEL_LOG_USER_PROMPTS), tool details/content, and raw API request/response
@@ -102,6 +105,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
         traceId: context.traceId,
         rootSpanId: context.rootSpanId
       })
+
       return undefined
     }
 
@@ -116,11 +120,13 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
       topicId: normalizedContext.topicId,
       modelName: normalizedContext.modelName
     })
+
     return normalizedContext
   }
 
   private async ensureServer(): Promise<string> {
     if (this.endpoint) return this.endpoint
+
     if (this.startPromise) return this.startPromise
 
     this.startPromise = new Promise<string>((resolve, reject) => {
@@ -137,11 +143,14 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
       server.listen(0, '127.0.0.1', () => {
         server.off('error', fail)
         const address = server.address()
+
         if (!address || typeof address === 'string') {
           server.close()
           fail(new Error('Claude Code trace bridge did not bind a TCP port'))
+
           return
         }
+
         this.server = server
         this.endpoint = `http://127.0.0.1:${address.port}`
         logger.info('Claude Code trace bridge listening', { endpoint: this.endpoint })
@@ -157,6 +166,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
     this.server = undefined
     this.endpoint = undefined
     this.startPromise = undefined
+
     if (!server) return
 
     await new Promise<void>((resolve) => {
@@ -170,31 +180,39 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (req.method !== 'POST') {
       this.respond(res, 405)
+
       return
     }
 
     const pathname = this.getPathname(req)
+
     if (pathname !== '/v1/traces' && pathname !== '/v1/logs') {
       this.respond(res, 404)
+
       return
     }
 
     if (!isJsonContentType(req)) {
       this.respond(res, 415)
+
       return
     }
 
     try {
       const payload = await readJsonBody(req)
       observabilitySinks.writeRawOtlpPayload(pathname, payload)
+
       if (pathname === '/v1/traces') {
         this.ingestTraces(payload)
         this.respond(res, 200)
+
         return
       }
+
       if (pathname === '/v1/logs') {
         this.ingestLogs(payload)
         this.respond(res, 200)
+
         return
       }
     } catch (error) {
@@ -205,6 +223,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
 
   private ingestTraces(payload: Serializable): void {
     const spans = ClaudeCodeOtlpAdapter.spansFromPayload(payload, (traceId) => this.getTraceContext(traceId))
+
     for (const span of spans) {
       observabilitySinks.writeSpanEntity(span)
     }
@@ -212,6 +231,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
 
   private ingestLogs(payload: Serializable): void {
     const logEvents = ClaudeCodeOtlpAdapter.logEventsFromPayload(payload)
+
     for (const logEvent of logEvents) {
       observabilitySinks.writeSpanEvent(logEvent.traceId, logEvent.spanId, logEvent.event)
     }
@@ -234,10 +254,12 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   private getTraceContext(traceId: string): ClaudeCodeTraceContext | undefined {
     const normalizedTraceId = traceId.toLowerCase()
     const item = this.traceContexts.get(normalizedTraceId)
+
     if (!item) return undefined
 
     if (Date.now() > item.expiresAt) {
       this.traceContexts.delete(normalizedTraceId)
+
       return undefined
     }
 
@@ -264,14 +286,17 @@ async function readJsonBody(req: IncomingMessage): Promise<Serializable> {
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     size += buffer.length
+
     if (size > MAX_BODY_BYTES) {
       throw new Error('OTLP payload too large')
     }
+
     chunks.push(buffer)
   }
 
   let body = Buffer.concat(chunks)
   const encoding = getHeaderValue(req.headers['content-encoding']).toLowerCase()
+
   if (encoding === 'gzip') {
     try {
       // Cap the decompressed output so a gzip bomb can't allocate gigabytes before any size check.
@@ -281,6 +306,7 @@ async function readJsonBody(req: IncomingMessage): Promise<Serializable> {
       if (error instanceof RangeError) {
         throw new Error('OTLP payload too large after gzip decompression')
       }
+
       throw error
     }
   } else if (encoding !== '' && encoding !== 'identity') {
@@ -288,7 +314,9 @@ async function readJsonBody(req: IncomingMessage): Promise<Serializable> {
   }
 
   const text = body.toString('utf8')
+
   if (!text) return {}
+
   return SerializableSchema.parse(JSON.parse(text))
 }
 
@@ -298,6 +326,7 @@ function isJsonContentType(req: IncomingMessage): boolean {
 
 function getHeaderValue(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value.join(',')
+
   return value ?? ''
 }
 

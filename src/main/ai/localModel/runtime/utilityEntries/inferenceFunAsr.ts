@@ -22,9 +22,11 @@ function modelLoadFailure(error: unknown): Error & { code: string } {
 
 function getRecognizer(modelPaths: FunAsrModelPaths, logger: UtilityProcessLogger): Promise<any> {
   const key = `asr-recognizer|${modelPaths.encoder}|${modelPaths.llm}|${modelPaths.embedding}|${modelPaths.tokenizerDir}`
+
   return cacheResource(key, async () => {
     try {
       const { OfflineRecognizer } = getSherpa()
+
       const recognizer = new OfflineRecognizer({
         featConfig: { sampleRate: FUNASR_ASR_SAMPLE_RATE, featureDim: 80 },
         modelConfig: {
@@ -40,7 +42,9 @@ function getRecognizer(modelPaths: FunAsrModelPaths, logger: UtilityProcessLogge
           debug: 0
         }
       })
+
       logger.info('inference provider active', { provider: 'cpu', runtime: 'asr' })
+
       return recognizer
     } catch (error) {
       throw modelLoadFailure(error)
@@ -52,6 +56,7 @@ function getDetector(modelPath: string): Promise<any> {
   return cacheResource(`asr-vad|${modelPath}`, async () => {
     try {
       const { Vad } = getSherpa()
+
       return new Vad(
         {
           sileroVad: {
@@ -76,11 +81,13 @@ function getDetector(modelPath: string): Promise<any> {
 function toRecognizerSampleRate(samples: Float32Array, sampleRate: number): Float32Array {
   if (sampleRate === FUNASR_ASR_SAMPLE_RATE) return samples
   const { LinearResampler } = getSherpa()
+
   return new LinearResampler(sampleRate, FUNASR_ASR_SAMPLE_RATE).flush(samples)
 }
 
 function detectSpeech(detector: any, samples: Float32Array): Array<{ samples: Float32Array; start: number }> {
   const speech: Array<{ samples: Float32Array; start: number }> = []
+
   const drain = () => {
     while (!detector.isEmpty()) {
       const segment = detector.front(COPY_NATIVE_SAMPLES)
@@ -90,12 +97,15 @@ function detectSpeech(detector: any, samples: Float32Array): Array<{ samples: Fl
   }
 
   detector.reset()
+
   for (let offset = 0; offset < samples.length; offset += VAD_WINDOW_SIZE) {
     detector.acceptWaveform(samples.subarray(offset, offset + VAD_WINDOW_SIZE))
     drain()
   }
+
   detector.flush()
   drain()
+
   return speech
 }
 
@@ -103,6 +113,7 @@ function decodeSegment(recognizer: any, samples: Float32Array): string {
   const stream = recognizer.createStream()
   stream.acceptWaveform({ sampleRate: FUNASR_ASR_SAMPLE_RATE, samples })
   recognizer.decode(stream)
+
   return recognizer.getResult(stream).text.trim()
 }
 
@@ -115,6 +126,7 @@ export async function transcribeFunAsr(
   const samples = toRecognizerSampleRate(audio.samples, audio.sampleRate)
   const detector = await getDetector(modelPaths.voiceActivityDetector)
   const speechSegments = detectSpeech(detector, samples)
+
   if (!speechSegments.length) return { text: '', segments: [] }
 
   // The FunASR Nano decoder generates the transcript inside the same KV window
@@ -123,6 +135,7 @@ export async function transcribeFunAsr(
   // with a guaranteed output reserve instead of a fixed duration.
   const limits = await readFunAsrNanoLimits(modelPaths)
   const maxChunkSamples = computeFunAsrNanoChunkSamples(limits)
+
   if (limits.usedFallback) logger.warn('FunASR Nano model metadata incomplete; using documented chunk limits')
   else
     logger.debug('FunASR Nano chunk limits', {
@@ -138,12 +151,14 @@ export async function transcribeFunAsr(
     for (let offset = 0; offset < speech.samples.length; offset += maxChunkSamples) {
       const chunk = speech.samples.subarray(offset, offset + maxChunkSamples)
       const text = decodeSegment(recognizer, chunk)
+
       if (!text) {
         logger.debug('FunASR Nano chunk decoded empty', {
           startSecond: (speech.start + offset) / FUNASR_ASR_SAMPLE_RATE
         })
         continue
       }
+
       const start = (speech.start + offset) / FUNASR_ASR_SAMPLE_RATE
       segments.push({ text, start, end: start + chunk.length / FUNASR_ASR_SAMPLE_RATE })
     }

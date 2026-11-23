@@ -15,6 +15,7 @@ import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
 const THINKING_PREVIEW_MIN_DURATION_MS = 1000
+
 const THINKING_CONTENT_PANEL_CLASSNAME =
   'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto rounded-xl bg-muted text-[13px] leading-5 text-muted-foreground'
 
@@ -52,6 +53,7 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
     }),
     [id, content, isStreaming]
   )
+
   const { messageFont, fontSize } = useMessageRenderConfig()
 
   if (!content) return null
@@ -70,6 +72,7 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
     </div>
   )
 })
+
 ThinkingBlockContent.displayName = 'ThinkingBlockContent'
 
 const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
@@ -78,35 +81,46 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const contentId = useId()
   const contentRef = useRef<HTMLDivElement>(null)
   const followingRef = useRef(true)
+
   const [previousThoughtAutoCollapse, setPreviousThoughtAutoCollapse] = useMessageDisclosureState(
     `reasoning-preference:${id}`,
     thoughtAutoCollapse
   )
+
   const hasContent = !!content
 
   useEffect(() => {
     const panel = contentRef.current
+
     if (!panel || !isExpanded || !isStreaming) return
+
     const observer = new ResizeObserver(() => {
       if (followingRef.current) panel.scrollTop = getRealBottom(panel)
     })
+
     observer.observe(panel)
+
     if (panel.firstElementChild) observer.observe(panel.firstElementChild)
+
     return () => observer.disconnect()
   }, [hasContent, isExpanded, isStreaming])
   const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
+
   const previewText = useMemo(
     () => (!isThinking && showTitlePreview ? normalizeThinkingPreview(content ?? '') : ''),
     [content, isThinking, showTitlePreview]
   )
+
   const thinkingPreviewScanResult = useMemo(
     () => (isThinking ? scanThinkingPreview(content ?? '', thinkingPreviewScanStateRef.current) : undefined),
     [content, isThinking]
   )
+
   const nextStreamingPreview = thinkingPreviewScanResult?.preview ?? ''
+
   const streamingPreviewText = useMinimumDisplayDuration(nextStreamingPreview, {
     enabled: isThinking,
     getKey: getThinkingPreviewKey,
@@ -143,6 +157,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         }
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
+
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { enterReadingMode: !isExpanded })
@@ -183,6 +198,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
           id: contentId,
           onScroll: () => {
             const panel = contentRef.current
+
             if (!panel || !isExpanded || !isStreaming) return
             followingRef.current = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
           }
@@ -202,6 +218,7 @@ const ThinkingTimeSeconds = memo(({ isThinking }: { isThinking: boolean }) => {
   const { t } = useTranslation()
 
   if (isThinking) return t('message.tools.placeholder.thinking')
+
   return t('common.reasoning_content')
 })
 

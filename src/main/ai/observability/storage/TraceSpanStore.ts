@@ -92,12 +92,15 @@ export class TraceSpanStore {
 
   getTraceIdsByTopic(topicId: string): string[] {
     const traceIds = new Set<string>()
+
     for (const [traceId, meta] of this.traceMeta) {
       if (meta.topicId === topicId) traceIds.add(traceId)
     }
+
     for (const span of this.spans.values()) {
       if (span.topicId === topicId) traceIds.add(span.traceId)
     }
+
     return Array.from(traceIds)
   }
 
@@ -109,21 +112,26 @@ export class TraceSpanStore {
     const revision = this.nextRevision()
     this.spans.set(span.id, span)
     this.spanRevisions.set(span.id, revision)
+
     if (span.traceId) {
       let ids = this.traceSpanIds.get(span.traceId)
+
       if (!ids) {
         ids = new Set<string>()
         this.traceSpanIds.set(span.traceId, ids)
       }
+
       ids.add(span.id)
       this.traceOrder.set(span.traceId, this.orderSeq++)
     }
+
     if (span.traceId && (span.topicId || span.modelName)) {
       this.registerTraceMeta(span.traceId, {
         topicId: span.topicId,
         modelName: span.modelName
       })
     }
+
     this.trackBytes(span.id, estimateSpanBytes(span))
     this.enforceSpanLimit()
   }
@@ -136,8 +144,10 @@ export class TraceSpanStore {
    */
   touchSpan(spanId: string, deltaBytes: number): void {
     const span = this.spans.get(spanId)
+
     if (!span) return
     this.spanRevisions.set(spanId, this.nextRevision())
+
     if (span.traceId) this.traceOrder.set(span.traceId, this.orderSeq++)
     this.trackBytes(spanId, (this.spanBytes.get(spanId) ?? 0) + deltaBytes)
     this.enforceSpanLimit()
@@ -145,6 +155,7 @@ export class TraceSpanStore {
 
   deleteSpan(spanId: string): void {
     const span = this.spans.get(spanId)
+
     if (!span) return
     const revision = this.nextRevision()
     this.spans.delete(spanId)
@@ -156,24 +167,31 @@ export class TraceSpanStore {
 
   getSpans(query: TraceSpanQuery): SpanEntity[] {
     const spans: SpanEntity[] = []
+
     for (const spanId of this.traceSpanIds.get(query.traceId) ?? []) {
       const span = this.spans.get(spanId)
+
       if (span && this.matchesQuery(span, query)) spans.push(span)
     }
+
     return spans
   }
 
   getSpanChanges(query: TraceSpanQuery, afterRevision?: number): TraceSpanChanges {
     const revision = this.revisionSeq
+
     const resetRevision = Math.max(
       this.globalResetRevision,
       this.evictedResetRevision,
       this.traceResetRevisions.get(query.traceId) ?? 0
     )
+
     const reset = afterRevision === undefined || afterRevision > revision || afterRevision < resetRevision
+
     const spans = this.getSpans(query).filter(
       (span) => reset || (this.spanRevisions.get(span.id) ?? 0) > (afterRevision ?? 0)
     )
+
     return { revision, reset, spans }
   }
 
@@ -186,6 +204,7 @@ export class TraceSpanStore {
     ) {
       this.globalResetRevision = this.nextRevision()
     }
+
     this.spans.clear()
     this.traceMeta.clear()
     this.traceSpanIds.clear()
@@ -200,12 +219,15 @@ export class TraceSpanStore {
 
   clearTrace(traceId: string, modelName?: string): void {
     const removedIds: string[] = []
+
     for (const span of this.spans.values()) {
       if (span.traceId === traceId && this.matchesModel(span, modelName, false)) {
         removedIds.push(span.id)
       }
     }
+
     this.removeSpans(removedIds)
+
     if (!modelName) {
       this.traceMeta.delete(traceId)
     }
@@ -218,12 +240,15 @@ export class TraceSpanStore {
 
   private removeSpans(ids: string[]): void {
     const resetRevision = ids.some((id) => this.spans.has(id)) ? this.nextRevision() : undefined
+
     for (const id of ids) {
       const span = this.spans.get(id)
+
       if (!span) continue
       this.spans.delete(id)
       this.spanRevisions.delete(id)
       this.untrackBytes(id)
+
       if (resetRevision !== undefined) this.markTraceReset(span.traceId, resetRevision)
       this.untrackSpan(span.traceId, span.id)
     }
@@ -237,6 +262,7 @@ export class TraceSpanStore {
 
   private untrackBytes(spanId: string): void {
     const bytes = this.spanBytes.get(spanId)
+
     if (bytes === undefined) return
     this.spanBytes.delete(spanId)
     this.totalBytes = Math.max(0, this.totalBytes - bytes)
@@ -250,8 +276,10 @@ export class TraceSpanStore {
   private markTraceReset(traceId: string, revision: number): void {
     this.traceResetRevisions.delete(traceId)
     this.traceResetRevisions.set(traceId, revision)
+
     while (this.traceResetRevisions.size > MAX_TRACKED_RESETS) {
       const oldest = this.traceResetRevisions.entries().next().value
+
       if (!oldest) break
       this.traceResetRevisions.delete(oldest[0])
       this.evictedResetRevision = Math.max(this.evictedResetRevision, oldest[1])
@@ -268,6 +296,7 @@ export class TraceSpanStore {
   private enforceSpanLimit(): void {
     while (this.spans.size > this.maxSpans || this.totalBytes > this.maxSpanBytes) {
       const victim = this.oldestEndedTraceId()
+
       if (!victim) break
       this.clearTrace(victim)
       this.traceOrder.delete(victim)
@@ -277,29 +306,36 @@ export class TraceSpanStore {
   private oldestEndedTraceId(): string | undefined {
     let oldestTraceId: string | undefined
     let oldestOrder = Number.POSITIVE_INFINITY
+
     for (const [traceId, ids] of this.traceSpanIds) {
       if (ids.size === 0) continue
       let allEnded = true
+
       for (const spanId of ids) {
         if (!this.spans.get(spanId)?.isEnd) {
           allEnded = false
           break
         }
       }
+
       if (!allEnded) continue
       const order = this.traceOrder.get(traceId) ?? Number.POSITIVE_INFINITY
+
       if (order < oldestOrder) {
         oldestOrder = order
         oldestTraceId = traceId
       }
     }
+
     return oldestTraceId
   }
 
   private untrackSpan(traceId: string, spanId: string): void {
     const ids = this.traceSpanIds.get(traceId)
+
     if (!ids) return
     ids.delete(spanId)
+
     if (ids.size === 0) {
       this.traceSpanIds.delete(traceId)
       this.traceOrder.delete(traceId)
@@ -320,6 +356,7 @@ export class TraceSpanStore {
 
   private nextRevision(): number {
     this.revisionSeq += 1
+
     return this.revisionSeq
   }
 }

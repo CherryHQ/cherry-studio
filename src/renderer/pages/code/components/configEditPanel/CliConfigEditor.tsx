@@ -20,6 +20,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
   const [requestedTarget, setRequestedTarget] = useState<string>(files[0]?.target ?? '')
+
   const activeTarget = files.some((file) => file.target === requestedTarget)
     ? requestedTarget
     : (files[0]?.target ?? '')
@@ -38,6 +39,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
 
   const handleFormat = () => {
     if (!activeFile) return
+
     try {
       onChange(files.map((file) => (file.target === activeFile.target ? formatCliConfigDraftFile(file) : file)))
     } catch {

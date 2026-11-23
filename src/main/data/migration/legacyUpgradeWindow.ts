@@ -26,11 +26,14 @@ export function showLegacyUpgradeWindow(
   profile?: string
 ): Promise<void> {
   const prerequisite = target?.version === LEGACY_PREREQUISITE_VERSION
+
   const bridge =
     prerequisite &&
     target.edition === 'global' &&
     findLegacyBridgeTarget(target.edition, target.platform, target.arch, undefined, true)
+
   if (prerequisite && (!profile || !bridge)) throw new Error('Missing portable migration follow-up')
+
   const followup =
     bridge && profile
       ? {
@@ -40,6 +43,7 @@ export function showLegacyUpgradeWindow(
           createUpdater: () => createLegacyBridgeUpdater(bridge)
         }
       : undefined
+
   return new Promise((resolve, reject) => {
     const window = new BrowserWindow({
       width: 520,
@@ -59,6 +63,7 @@ export function showLegacyUpgradeWindow(
         sandbox: false
       }
     })
+
     const installer = target
       ? new LegacyBridgeInstaller(
           target.version,
@@ -70,22 +75,28 @@ export function showLegacyUpgradeWindow(
             ? undefined
             : () => {
                 if (!profile) throw new Error('Missing migration profile')
+
                 return prepareLegacyBridgeProfile(profile)
               },
           followup
         )
       : undefined
+
     let updateQuitting = false
+
     const beforeUpdateQuit = () => {
       updateQuitting = true
       application.markQuitting()
     }
+
     const beforeQuit = (event: Electron.Event) => {
       if (installer?.installing && !updateQuitting) event.preventDefault()
     }
+
     nativeUpdater.on('before-quit-for-update', beforeUpdateQuit)
     app.on('before-quit', beforeQuit)
     let settled = false
+
     const finish = async (error?: Error) => {
       if (settled || installer?.installing) return
       settled = true
@@ -93,12 +104,17 @@ export function showLegacyUpgradeWindow(
       await installer?.dispose()
       nativeUpdater.removeListener('before-quit-for-update', beforeUpdateQuit)
       app.removeListener('before-quit', beforeQuit)
+
       for (const channel of Object.values(LegacyUpgradeChannels)) ipcMain.removeHandler(channel)
+
       if (!window.isDestroyed()) window.destroy()
+
       if (error) reject(error)
       else resolve()
     }
+
     const timeout = setTimeout(() => finish(new Error('Upgrade window did not load')), 30_000)
+
     const guard = (event: IpcMainInvokeEvent) => {
       if (
         event.sender !== window.webContents ||
@@ -108,17 +124,21 @@ export function showLegacyUpgradeWindow(
         throw new Error('Untrusted upgrade window request')
       }
     }
+
     ipcMain.handle(LegacyUpgradeChannels.GetScreen, (event) => {
       guard(event)
       clearTimeout(timeout)
+
       return { ...screen, dark: nativeTheme.shouldUseDarkColors } satisfies LegacyUpgradeScreen
     })
     ipcMain.handle(LegacyUpgradeChannels.GetState, (event) => {
       guard(event)
+
       return installer?.state ?? { phase: 'idle' }
     })
     ipcMain.handle(LegacyUpgradeChannels.Install, (event) => {
       guard(event)
+
       if (!installer || settled) throw new Error('Automatic installation unavailable')
       installer.start()
     })
@@ -130,9 +150,12 @@ export function showLegacyUpgradeWindow(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The preboot IPC target is renderer-controlled; sender validation and the bridge/prerequisite literal check precede download selection.
     ipcMain.handle(LegacyUpgradeChannels.Download, async (event, target: unknown) => {
       guard(event)
+
       if (target !== 'bridge' && target !== 'prerequisite') throw new Error('Invalid upgrade download')
+
       if (downloading || settled || (installer && !['idle', 'failed'].includes(installer.state.phase))) return
       downloading = true
+
       try {
         await shell.openExternal(downloads[target])
         await finish()
@@ -142,6 +165,7 @@ export function showLegacyUpgradeWindow(
     })
     ipcMain.handle(LegacyUpgradeChannels.Quit, (event) => {
       guard(event)
+
       if (installer?.installing) return
       void finish()
     })
@@ -155,10 +179,12 @@ export function showLegacyUpgradeWindow(
       if (!installer?.installing) void finish()
     })
     window.once('ready-to-show', () => window.show())
+
     const loading =
       isDev && process.env.ELECTRON_RENDERER_URL
         ? window.loadURL(`${process.env.ELECTRON_RENDERER_URL}/windows/legacyUpgrade/index.html`)
         : window.loadFile(application.getPath('app.root', 'out/renderer/windows/legacyUpgrade/index.html'))
+
     void loading.catch((error: Error) => finish(error))
   })
 }

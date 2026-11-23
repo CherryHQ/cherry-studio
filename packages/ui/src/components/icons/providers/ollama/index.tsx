@@ -6,7 +6,9 @@ import { OllamaLight } from './light'
 
 const Ollama = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <OllamaLight {...props} className={className} />
+
   if (variant === 'dark') return <OllamaDark {...props} className={className} />
+
   return (
     <>
       <OllamaLight className={cn('dark:hidden', className)} {...props} />

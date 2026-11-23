@@ -30,6 +30,7 @@ export const MiniAppUrlSchema = z.string().min(1).refine(isAllowedMiniAppUrl, {
 export function isAllowedMiniAppUrl(value: string): boolean {
   try {
     const url = new URL(value)
+
     return MINI_APP_ALLOWED_URL_PROTOCOLS.includes(url.protocol as (typeof MINI_APP_ALLOWED_URL_PROTOCOLS)[number])
   } catch {
     return false
@@ -49,6 +50,7 @@ export const CreateMiniAppSchema = z.strictObject({
    */
   logo: CreateLogoSchema.optional()
 })
+
 export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
 
 /**
@@ -70,6 +72,7 @@ export const UpdateMiniAppSchema = z.strictObject({
   /** Installed apps only; `null` = follow the global quick model. */
   aiQuickModelId: UniqueModelIdSchema.nullable().optional()
 })
+
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 
 /**
@@ -78,6 +81,7 @@ export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 export const ListMiniAppsQuerySchema = z.strictObject({
   status: MiniAppStatusSchema.optional()
 })
+
 export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
 
 // ============================================================================

@@ -15,14 +15,17 @@ function parseAppEdition(value: unknown): AppEdition {
   if (value === undefined || value === 'global') {
     return 'global'
   }
+
   if (value === 'cn') {
     return 'cn'
   }
+
   throw new Error(`Unsupported application edition: ${String(value)}`)
 }
 
 function resolveAppEdition(): AppEdition {
   const developmentEdition = process.env.CHERRY_EDITION?.trim().toLowerCase()
+
   if (!app.isPackaged && developmentEdition) {
     return parseAppEdition(developmentEdition)
   }
@@ -38,6 +41,7 @@ let cachedAppEdition: AppEdition | undefined
 
 export function getAppEdition(): AppEdition {
   cachedAppEdition ??= resolveAppEdition()
+
   return cachedAppEdition
 }
 

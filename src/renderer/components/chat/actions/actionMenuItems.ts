@@ -16,9 +16,11 @@ export function actionsToCommandMenuExtraItems<TContext>(
 
   for (const action of actions) {
     if (!action.availability.visible) continue
+
     if (items.length > 0 && action.group !== previousGroup) {
       items.push({ type: 'separator' })
     }
+
     previousGroup = action.group
 
     if (action.children.length > 0) {

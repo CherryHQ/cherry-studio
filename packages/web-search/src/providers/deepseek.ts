@@ -15,7 +15,9 @@ const searchResultSchema = z.looseObject({
   summary: z.string().optional(),
   content: z.string().optional()
 })
+
 const searchSchema = z.looseObject({ results: z.array(searchResultSchema) })
+
 const fetchSchema = z.looseObject({
   title: z.string().optional(),
   content: z.string()
@@ -25,6 +27,7 @@ export const deepseek: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.deepseek,
   async execute(context) {
     const { call } = context
+
     if (call.capability === 'searchKeywords') {
       const payload = await requestJson(
         context,
@@ -39,6 +42,7 @@ export const deepseek: WebSearchProviderModule = {
         },
         searchSchema
       )
+
       return payload.results.slice(0, call.config.maxResults).map((item) => ({
         title: item.title.trim(),
         url: item.url,
@@ -47,6 +51,7 @@ export const deepseek: WebSearchProviderModule = {
         sourceInput: call.input
       }))
     }
+
     const payload = await requestJson(
       context,
       {
@@ -57,8 +62,11 @@ export const deepseek: WebSearchProviderModule = {
       },
       fetchSchema
     )
+
     const content = payload.content.trim()
+
     if (!content) throw invalidResponse(context, 'empty_content', 'DeepSeek Fetch returned empty content')
+
     return [{ title: payload.title?.trim() || call.input, content, url: call.input, sourceInput: call.input }]
   }
 }

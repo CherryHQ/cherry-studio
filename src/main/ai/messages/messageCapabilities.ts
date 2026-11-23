@@ -49,7 +49,9 @@ type GatedModality = keyof MediaCapabilities
 /** Image routing is already complete; only video/audio still need gating here. */
 function gatedModality(mediaType: string): GatedModality | undefined {
   if (mediaType.startsWith('video/')) return 'video'
+
   if (mediaType.startsWith('audio/')) return 'audio'
+
   return undefined
 }
 
@@ -71,13 +73,17 @@ export function stripUnsupportedMedia<T extends UIMessage = UIMessage>(messages:
   return messages.map((message) => {
     if (!message.parts?.length) return message
     let changed = false
+
     const parts = message.parts.map((part) => {
       if (part.type !== 'file') return part
       const modality = gatedModality(part.mediaType)
+
       if (!modality || caps[modality]) return part
       changed = true
+
       return { type: 'text', text: omittedMediaNote(modality) }
     })
+
     return changed ? { ...message, parts } : message
   })
 }
@@ -110,19 +116,26 @@ export function gateToolResultMedia(messages: ModelMessage[], caps: MediaCapabil
   return messages.map((message) => {
     if (message.role !== 'tool') return message
     let messageChanged = false
+
     const content = message.content.map((part) => {
       if (part.type !== 'tool-result' || part.output.type !== 'content') return part
       let changed = false
+
       const value = part.output.value.map((item) => {
         const modality = itemModality(item)
+
         if (!modality || caps[modality]) return item
         changed = true
+
         return { type: 'text' as const, text: omittedMediaNote(modality) }
       })
+
       if (!changed) return part
       messageChanged = true
+
       return { ...part, output: { ...part.output, value } }
     })
+
     return messageChanged ? { ...message, content } : message
   })
 }
@@ -153,14 +166,17 @@ export function routeToolResultMedia(
     if (message.role !== 'tool') {
       flushImages()
       out.push(message)
+
       return
     }
 
     let messageChanged = false
+
     const content = message.content.map((part) => {
       if (part.type !== 'tool-result' || part.output.type !== 'content') return part
       let partChanged = false
       let imageIndex = 0
+
       const value = part.output.value.map((item) => {
         if (item.type !== 'image-data') return item
         const anchor = `[tool-result attachment call_id=${JSON.stringify(part.toolCallId)} image=${++imageIndex}]`
@@ -174,15 +190,19 @@ export function routeToolResultMedia(
           }
         )
         partChanged = true
+
         return {
           type: 'text' as const,
           text: `${anchor} (${item.mediaType}): attached in the following user message`
         }
       })
+
       if (!partChanged) return part
       messageChanged = true
+
       return { ...part, output: { ...part.output, value } }
     })
+
     if (messageChanged) {
       changed = true
       out.push({ ...message, content })

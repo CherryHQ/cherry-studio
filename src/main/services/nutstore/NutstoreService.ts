@@ -48,15 +48,18 @@ export async function decryptToken(token: string) {
       app: 'cherrystudio',
       s: token
     })
+
     return JSON.parse(decrypted) as OAuthResponse
   } catch (error) {
     logger.error('Failed to decrypt token:', error as Error)
+
     return null
   }
 }
 
 export async function getDirectoryContents(token: string, target: string): Promise<FileStat[]> {
   const contents: FileStat[] = []
+
   if (!target.startsWith('/')) {
     target = '/' + target
   }
@@ -86,6 +89,7 @@ export async function getDirectoryContents(token: string, target: string): Promi
     const text = await response.text()
 
     const result = parseXml<WebDAVResponse>(text)
+
     const items = Array.isArray(result.multistatus.response)
       ? result.multistatus.response
       : [result.multistatus.response]
@@ -94,11 +98,13 @@ export async function getDirectoryContents(token: string, target: string): Promi
     contents.push(...items.slice(1).map(partial(convertToFileStat, '/dav')))
 
     const linkHeader = response.headers['link'] || response.headers['Link']
+
     if (!linkHeader) {
       break
     }
 
     const nextLink = extractNextLink(linkHeader)
+
     if (!nextLink) {
       break
     }
@@ -111,6 +117,7 @@ export async function getDirectoryContents(token: string, target: string): Promi
 
 function extractNextLink(linkHeader: string): string | null {
   const matches = linkHeader.match(/<([^>]+)>;\s*rel="next"/)
+
   return matches ? matches[1] : null
 }
 
@@ -136,5 +143,6 @@ function parseXml<T>(xml: string) {
     attributeNamePrefix: '',
     removeNSPrefix: true
   })
+
   return parser.parse(xml) as T
 }

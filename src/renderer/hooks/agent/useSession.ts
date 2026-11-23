@@ -46,7 +46,9 @@ const DEFAULT_SESSION_PAGE_SIZE = 20
 const SESSION_PINS_QUERY = { entityType: 'session' } as const
 const getSessionListQuery = (agentId?: string | null) => (agentId ? { agentId } : undefined)
 const logger = loggerService.withContext('useSession')
+
 export type AgentSessionSource = 'query' | 'pending' | 'none'
+
 type UseSessionsOptions = {
   pageSize?: number
   loadAll?: boolean
@@ -61,6 +63,7 @@ type DeleteSessionOutcomeOptions = {
 }
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
+
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
 
 /**
@@ -79,13 +82,17 @@ function useStructurallySharedSessions(sessions: AgentSessionEntity[]): AgentSes
     const nextSessions = sessions.map((session, index) => {
       const previous = previousById.get(session.id)
       const next = previous && isEqual(previous, session) ? previous : session
+
       if (next !== previousSessions[index]) {
         arrayChanged = true
       }
+
       return next
     })
+
     const sharedSessions = arrayChanged ? nextSessions : previousSessions
     previousSessionsRef.current = sharedSessions
+
     return sharedSessions
   }, [sessions])
 }
@@ -120,7 +127,9 @@ export const useSession = (sessionId: string | null) => {
   })
   useDataChange('/models', (effects) => {
     const overrideModel = sessionModelRef.current
+
     if (!sessionId || !overrideModel) return
+
     if (effects.some((effect) => !effect.entityIds || effect.entityIds.includes(overrideModel))) {
       void mutate()
     }
@@ -187,17 +196,21 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
   // NOT_FOUND is authoritative even if SWR still exposes cached data or the caller has an
   // optimistic entity. Otherwise a concurrently deleted session can be resurrected indefinitely.
   const isNotFound = isDataApiNotFoundError(result.error)
+
   const querySession =
     !isNotFound && activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
+
   // Only a pending session whose id matches the active id resolves; a leftover one is inert (never
   // returned, never counted as the source), so no path has to null it out to stay correct.
   const resolvedPendingSession =
     !isNotFound && activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
+
   // Unlike an explicitly selected pending entity, a list-backed fallback is caller-owned and may
   // arrive after this hook mounts. Resolve it directly instead of copying it into state. A
   // not-found response proves the list snapshot is stale; transient failures do not.
   const resolvedInitialSession =
     !isNotFound && activeSessionId && initialSession?.id === activeSessionId ? initialSession : undefined
+
   const fallbackSession = resolvedPendingSession ?? resolvedInitialSession
   const session = querySession ?? fallbackSession
   const sessionSource: AgentSessionSource = querySession ? 'query' : fallbackSession ? 'pending' : 'none'
@@ -211,10 +224,12 @@ export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialS
     },
     [setActiveSessionId]
   )
+
   const setActiveSession = useCallback(
     (entity: AgentSessionEntity) => selectSession(entity.id, entity),
     [selectSession]
   )
+
   const clearActiveSession = useCallback(() => selectSession(null, null), [selectSession])
 
   return {
@@ -260,12 +275,14 @@ export const useSessions = (
   // once fully loaded, `revalidateAll` still keeps mutations/passive refreshes
   // complete. Progressive pagination retains SWR's first-page revalidation.
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
+
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: getSessionListQuery(agentId),
     limit: pageSize,
     enabled,
     swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
+
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
 
@@ -275,33 +292,41 @@ export const useSessions = (
   // promotes pinned sessions.
   const flatSessions = useInfiniteFlatItems(pages)
   const sessions = useStructurallySharedSessions(flatSessions)
+
   const {
     data: pinList,
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
     refetch: refetchPins
   } = useQuery('/pins', { query: SESSION_PINS_QUERY, enabled })
+
   useDataChange('/pins', () => {
     if (enabled !== false) void refetchPins()
   })
+
   const pinIdBySessionId = useMemo(
     () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
     [pinList]
   )
+
   const pinIdBySessionIdRef = useRef(pinIdBySessionId)
   pinIdBySessionIdRef.current = pinIdBySessionId
+
   const readSessionListItems = useCallback((): SessionListItem[] => {
     const loadedPages = readCache<CursorPaginationResponse<AgentSessionEntity>[]>(
       '/agent-sessions',
       getSessionListQuery(agentId),
       { limit: pageSize }
     )
+
     const pins = readCache<Pin[]>('/pins', SESSION_PINS_QUERY)
     const pinnedIds = new Set(pins?.map((pin) => pin.entityId))
+
     return (loadedPages ?? []).flatMap((page) =>
       page.items.map((session) => ({ ...session, pinned: pinnedIds.has(session.id) }))
     )
   }, [agentId, pageSize, readCache])
+
   const total = sessions.length
   const hasMore = hasNext
   const isFullyLoaded = !loadAll || (!isLoading && !hasMore)
@@ -319,9 +344,11 @@ export const useSessions = (
   }, [loadAll, hasMore, isLoading, isRefreshing, loadNext])
 
   const reload = useCallback(() => refresh(), [refresh])
+
   const refreshFromDataChange = useCallback(() => {
     if (enabled !== false) void refresh()
   }, [enabled, refresh])
+
   useDataChange('/agent-sessions', refreshFromDataChange)
 
   const loadMore = useCallback(() => {
@@ -333,13 +360,17 @@ export const useSessions = (
   const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
     refresh: ['/agent-sessions', '/agent-workspaces']
   })
+
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       if (!agentId) {
         toast.error(t('agent.session.create.error.failed'))
+
         return null
       }
+
       let result: AgentSessionEntity
+
       try {
         result = await createTrigger({
           body: {
@@ -352,6 +383,7 @@ export const useSessions = (
         })
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
+
         return null
       }
 
@@ -374,17 +406,23 @@ export const useSessions = (
           permanent ? 'ai.agent.session.delete_permanently' : 'ai.agent.session.delete',
           { sessionIds: [id] }
         )
+
         const deleted = result.deletedIds.includes(id)
+
         if (deleted) closeConversationTabs('agents', result.deletedIds)
+
         try {
           await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
           logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
         }
+
         if (!deleted) {
           if (showFeedback) toast.info(t('recycle_bin.already_moved'))
+
           return { status: 'stale' }
         }
+
         return { status: 'succeeded' }
       } catch (error) {
         try {
@@ -392,7 +430,9 @@ export const useSessions = (
         } catch (refreshError) {
           logger.warn('Failed to refresh after Agent Session deletion failed', refreshError as Error, { sessionId: id })
         }
+
         const pinned = isAgentSessionPinnedError(error)
+
         if (showFeedback) {
           toast.error(
             pinned
@@ -400,6 +440,7 @@ export const useSessions = (
               : formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed'))
           )
         }
+
         return { status: 'failed', error: pinned ? t('recycle_bin.delete.pinned') : getErrorMessage(error) }
       }
     },
@@ -415,6 +456,7 @@ export const useSessions = (
   const restoreSession = useCallback(
     async (id: string): Promise<AgentSessionEntity> => {
       const session = await ipcApi.request('ai.agent.session.restore', { sessionId: id })
+
       try {
         // Inactive detail queries cannot revalidate a cached NOT_FOUND after undo.
         await writeCache(`/agent-sessions/${id}`, session)
@@ -422,7 +464,9 @@ export const useSessions = (
       } catch (error) {
         logger.warn('Failed to refresh after restoring Agent Session', error as Error, { sessionId: id })
       }
+
       logger.info('Restored Agent Session', { sessionId: id })
+
       return session
     },
     [invalidate, writeCache]
@@ -433,6 +477,7 @@ export const useSessions = (
       try {
         const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: ids })
         closeConversationTabs('agents', result.deletedIds)
+
         try {
           await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
@@ -440,9 +485,11 @@ export const useSessions = (
             sessionIds: result.deletedIds
           })
         }
+
         return result
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
+
         return null
       }
     },
@@ -463,13 +510,16 @@ export const useSessions = (
   const { trigger: reorderTrigger } = useMutation('PATCH', '/agent-sessions/:id/order', {
     refresh: ['/agent-sessions']
   })
+
   const reorderSession = useCallback(
     async (id: string, anchor: OrderRequest): Promise<boolean> => {
       try {
         await reorderTrigger({ params: { id }, body: anchor })
+
         return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
+
         return false
       }
     },
@@ -482,18 +532,22 @@ export const useSessions = (
   // row visibly relocates after pin/unpin.
   const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins', '/agent-sessions'] })
   const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/agent-sessions'] })
+
   const togglePin = useCallback(
     async (sessionId: string) => {
       const pinId = pinIdBySessionIdRef.current.get(sessionId)
+
       try {
         if (pinId) {
           await unpinTrigger({ params: { id: pinId } })
         } else {
           await pinTrigger({ body: { entityType: 'session', entityId: sessionId } })
         }
+
         return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.update.error.failed')))
+
         return false
       }
     },
@@ -535,6 +589,7 @@ export const useSessions = (
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()
+
   const { trigger: updateTrigger } = useMutation('PATCH', '/agent-sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
     // The non-null assertion mirrors useTopic.ts and crashes loud
@@ -542,6 +597,7 @@ export const useUpdateSession = () => {
     // '/agent-sessions/undefined' (which would miss every cache entry).
     refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`]
   })
+
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
@@ -553,12 +609,15 @@ export const useUpdateSession = () => {
       try {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { sessionId: id }, body: patch })
+
         if (options?.showSuccessToast ?? true) {
           toast.success(t('common.update_success'))
         }
+
         return result
       } catch (error) {
         toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
+
         return undefined
       }
     },
@@ -576,6 +635,7 @@ export const useUpdateSession = () => {
         return await setWorkspaceTrigger({ params: { sessionId: id }, body: workspace })
       } catch (error) {
         toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
+
         return undefined
       }
     },

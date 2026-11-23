@@ -70,14 +70,18 @@ function makeRunSignal(outerSignal: AbortSignal, timeoutMinutes: number | undefi
   if (!timeoutMinutes || timeoutMinutes <= 0) {
     return { signal: outerSignal, dispose: () => {} }
   }
+
   // Own the timeout so `dispose()` can actually release the timer on normal
   // completion (an `AbortSignal.timeout` keeps a live timer until it fires).
   const timeoutController = new AbortController()
+
   const timer = setTimeout(
     () => timeoutController.abort(new Error(`Task timed out after ${timeoutMinutes} minute(s)`)),
     timeoutMinutes * 60_000
   )
+
   const signal = AbortSignal.any([outerSignal, timeoutController.signal])
+
   return { signal, dispose: () => clearTimeout(timer) }
 }
 
@@ -89,11 +93,15 @@ function makeRunSignal(outerSignal: AbortSignal, timeoutMinutes: number | undefi
  */
 function loadReusableSession(taskScheduleId: string, agentId: string) {
   const session = agentSessionService.getByTaskScheduleId(taskScheduleId)
+
   if (!session) return null
+
   if (session.agentId !== agentId) {
     logger.warn('Reuse session belongs to another agent — rebinding', { taskScheduleId, agentId })
+
     return null
   }
+
   return session
 }
 
@@ -117,15 +125,18 @@ function resolveTaskSession(params: {
 
   if (reuse.enabled && reuseBinding) {
     const existing = loadReusableSession(reuseBinding.scheduleId, agentId)
+
     if (existing) {
       return existing
     }
+
     logger.info('Reuse session unavailable — creating a new one', {
       scheduleId: reuseBinding?.scheduleId
     })
   }
 
   const session = agentSessionService.create({ agentId, name, workspace }, sessionType, params.scheduleId)
+
   if (reuse.enabled && reuseBinding) {
     application.get('AgentJobsService').bindTaskSessionReuse({
       ...reuseBinding,
@@ -134,6 +145,7 @@ function resolveTaskSession(params: {
       workspace
     })
   }
+
   return session
 }
 
@@ -148,6 +160,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const taskName = scheduleSnapshot?.name ?? null
 
   const agent = agentService.getAgent(agentId)
+
   if (!agent) {
     throw new Error(`Agent not found: ${agentId}`)
   }
@@ -156,6 +169,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   // Identity is the reserved prompt, not the schedule name — see HEARTBEAT_PROMPT_SENTINEL.
   const isHeartbeat = prompt === HEARTBEAT_PROMPT_SENTINEL
+
   const workspace: AgentSessionWorkspaceSource = isHeartbeat
     ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
     : (ctx.input.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM })
@@ -165,18 +179,24 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   if (isHeartbeat) {
     if (!isHeartbeatEnabled(config)) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
+
       return { kind: 'skipped', result: 'Skipped (disabled)' }
     }
+
     // Runtime changes may bypass heartbeat configuration events; recheck capabilities at execution.
     const capabilities = Object.hasOwn(AGENT_RUNTIME_CAPABILITIES, agent.type)
       ? AGENT_RUNTIME_CAPABILITIES[agent.type]
       : undefined
+
     if (capabilities?.heartbeat !== true) {
       logger.debug('Heartbeat skipped (runtime lacks the capability)', { agentId, scheduleId, type: agent.type })
+
       return { kind: 'skipped', result: 'Skipped (capability)' }
     }
+
     const agentsDataRoot = application.getPath('feature.agents.data')
     const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
+
     // Revalidate at execution because directories may be replaced after provisioning.
     try {
       await assertAgentStorageDirectory(agentsDataRoot, agentDataPath)
@@ -188,6 +208,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         error
       })
       const liveTemplate = scheduleSnapshot?.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
+
       if (
         scheduleId &&
         scheduleSnapshot?.type === 'agent.task' &&
@@ -206,13 +227,18 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
             logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
           })
       }
+
       return { kind: 'skipped', result: 'Skipped (untrusted agent data path)' }
     }
+
     const content = await readHeartbeat(agentDataPath)
+
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
+
       return { kind: 'skipped', result: 'Skipped (no file)' }
     }
+
     effectivePrompt = frameScheduledTrigger({ kind: 'heartbeat', instruction: content })
   } else {
     effectivePrompt = frameScheduledTrigger({ kind: 'task', taskName, instruction: prompt })
@@ -220,6 +246,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   const expectedReuseRevision = normalizeTaskSessionReuseRevision(ctx.input.reuseRevision)
   const currentReuse = readTaskSessionReuse(scheduleSnapshot?.metadata)
+
   // A queued job captures the reuse epoch at enqueue time. It must not attach
   // to a sticky session selected by a newer task configuration.
   const reuseIsCurrent =
@@ -227,8 +254,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     scheduleSnapshot?.type === 'agent.task' &&
     currentReuse.enabled &&
     currentReuse.revision === expectedReuseRevision
+
   const reuseBinding = reuseIsCurrent && scheduleId ? { scheduleId, reuseRevision: expectedReuseRevision } : null
   const sessionType = isHeartbeat ? 'background' : 'conversation'
+
   let session = resolveTaskSession({
     sessionType,
     scheduleId,
@@ -238,18 +267,24 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     name: taskName ?? 'Scheduled task',
     workspace
   })
+
   // Snapshot the task's configured recipients before starting the run. Adapter availability affects
   // delivery, not authority: a temporarily disconnected configured channel must not hide `notify`.
   const subscribedChannels = scheduleId
     ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
     : []
+
   const trustedNotifyChannels = subscribedChannels
     .map((channel) => ({ id: channel.id, type: channel.type }))
     .sort((left, right) => left.id.localeCompare(right.id))
+
   const channelManager = application.get('ChannelManager')
+
   const channelListeners: StreamListener[] = subscribedChannels.flatMap((channel) => {
     const adapter = channelManager.getAdapter(channel.id)
+
     if (!adapter) return []
+
     // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
     // `[Task failed]` summary to the same chats, so leaving it on would double-notify.
     return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId, true))
@@ -261,22 +296,27 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   let resolveExecution!: (text: string) => void
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This native Promise reject forwards the original runtime failure to task completion without changing its identity.
   let rejectExecution!: (err: unknown) => void
+
   const executionDone = new Promise<string>((resolve, reject) => {
     resolveExecution = resolve
     rejectExecution = reject
   })
+
   let topicId = buildAgentSessionTopicId(session.id)
   let pausedStatus: 'cancelled' | 'interrupted' | undefined
   let completionActive = true
+
   const complete = (settle: () => void) => {
     if (!completionActive) return
     completionActive = false
+
     // `startRuntimeTurn` carries ordinary listeners into a queued successor. Remove this fire's
     // task/channel listeners synchronously, before the later runtime terminal listener can launch it.
     for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
     application.get('AiStreamManager').removeListener(topicId, `agent-task:${scheduleId ?? ctx.jobId}`)
     settle()
   }
+
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     ownsTaskResult: true,
@@ -296,11 +336,14 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       if (runSignal.aborted) {
         const reason = runSignal.reason
         complete(() => rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))))
+
         return
       }
+
       pausedStatus =
         result.reason === 'user-requested' || result.reason === 'remote-cancel' ? 'cancelled' : 'interrupted'
       complete(() => rejectExecution(new Error('Task interrupted')))
+
       if (pausedStatus === 'cancelled') {
         void application
           .get('JobManager')
@@ -325,6 +368,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const onRunAbort = () => {
     if (!completionActive) return
     completionActive = false
+
     for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
     application.get('AiStreamManager').removeListener(topicId, sentinel.id)
     const reason = runSignal.reason
@@ -333,12 +377,16 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       .abort(topicId, reason instanceof Error ? reason.message : String(reason ?? 'task-aborted'))
     rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
   }
+
   let runError: Error | null = null
   let resultText = ''
+
   try {
     let rebound = false
+
     while (true) {
       await ctx.patchMetadata({ sessionId: session.id })
+
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: effectivePrompt }],
@@ -347,16 +395,21 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         trustedNotifyChannels,
         requireIdle: { expectedAgentId: agentId }
       })
+
       if (started.mode === 'started') break
+
       if (runSignal.aborted) {
         completionActive = false
         const reason = runSignal.reason
         throw reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))
       }
+
       if (started.reason === 'busy') {
         completionActive = false
+
         return { kind: 'skipped', result: 'Skipped (session busy)' }
       }
+
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
       session = agentSessionService.create(
@@ -365,6 +418,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         scheduleId
       )
       topicId = buildAgentSessionTopicId(session.id)
+
       if (reuseBinding) {
         application.get('AgentJobsService').bindTaskSessionReuse({
           ...reuseBinding,
@@ -384,7 +438,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     resultText = await executionDone
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err))
+
     if (pausedStatus) await ctx.patchMetadata({ taskResultStatus: pausedStatus })
+
     if (!runSignal.aborted && !pausedStatus && subscribedChannels.length > 0) {
       await notifyTaskError(
         { id: scheduleId, name: taskName, durationMs: Date.now() - startTimeMs },
@@ -392,6 +448,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         subscribedChannels
       )
     }
+
     throw runError
   } finally {
     runSignal.removeEventListener('abort', onRunAbort)
@@ -407,6 +464,7 @@ async function notifyTaskError(
   subscribedChannels: Array<{ id: string }>
 ): Promise<void> {
   const channelManager = application.get('ChannelManager')
+
   try {
     const durationSec = Math.round(task.durationMs / 1000)
     const label = task.name ?? task.id ?? '(unknown)'
@@ -414,7 +472,9 @@ async function notifyTaskError(
 
     for (const ch of subscribedChannels) {
       const adapter = channelManager.getAdapter(ch.id)
+
       if (!adapter) continue
+
       for (const chatId of adapter.notifyChatIds) {
         adapter.sendMessage(chatId, text).catch((err) => {
           logger.warn('Failed to deliver task error notification', {

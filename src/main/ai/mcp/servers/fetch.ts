@@ -52,6 +52,7 @@ async function htmlToText(html: string): Promise<string> {
 async function htmlToMarkdown(html: string): Promise<string> {
   const { default: TurndownService } = await import('turndown')
   const turndownService = applyTableRules(new TurndownService())
+
   return turndownService.turndown(html)
 }
 

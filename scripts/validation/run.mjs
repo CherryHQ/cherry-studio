@@ -20,14 +20,19 @@ const { values } = parseArgs({
     'github-output': { type: 'boolean' }
   }
 })
+
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const groups = ['repository', 'lint', 'types', 'i18n', 'main', 'renderer', 'packages', 'platform', 'checks', 'tests']
+
 if (values.group && !groups.includes(values.group)) throw new Error(`Unknown validation group: ${values.group}`)
+
 if (values.shard && !/^\d+\/\d+$/.test(values.shard)) throw new Error('Expected --shard=N/M')
 
 let plan
+
 if (process.env.VALIDATION_PLAN) {
   plan = JSON.parse(process.env.VALIDATION_PLAN)
+
   if (
     !Array.isArray(plan.tasks) ||
     !Array.isArray(plan.projects) ||
@@ -48,9 +53,11 @@ if (process.env.VALIDATION_PLAN) {
 
 if (values['github-output']) {
   if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required')
+
   const scope = createHash('sha256')
     .update(JSON.stringify([plan.tasks, plan.projects, plan.platform]))
     .digest('hex')
+
   appendFileSync(
     process.env.GITHUB_OUTPUT,
     `scope=${scope}\nplan=${JSON.stringify(plan)}\n${Object.entries(selectedGroups(plan))
@@ -58,46 +65,62 @@ if (values['github-output']) {
       .join('\n')}\n`
   )
 }
+
 if (values.json) process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`)
 else {
   for (const task of plan.tasks)
     process.stdout.write(`${task}: ${plan.reasons?.[task]?.join(', ') ?? 'Selected by CI plan'}\n`)
   process.stdout.write(`Test projects: ${plan.projects.join(', ') || 'none'}\n`)
 }
+
 if (values.plan || values['github-output']) process.exit(0)
 
 const tasks = plan.tasks.filter(
   (task) => !values.group || values.group === 'checks' || checkTasks[task].group === values.group
 )
+
 const projects =
   values.group === 'platform' && plan.platform
     ? ['main', 'shared', 'system-speech']
     : plan.projects.filter((project) => {
         if (!values.group || values.group === 'tests') return true
+
         if (values.group === 'main') return ['main', 'preload'].includes(project)
+
         if (values.group === 'renderer') return project === 'renderer'
+
         if (values.group === 'packages') return !['main', 'preload', 'renderer'].includes(project)
+
         return false
       })
+
 function run(args) {
   if (!process.env.npm_execpath) throw new Error('Execute validation through pnpm check')
   process.stdout.write(`\n> pnpm ${args.join(' ')}\n`)
   const executable = process.env.npm_execpath
   const isScript = /\.[cm]?js$/.test(executable)
+
   const result = spawnSync(isScript ? process.execPath : executable, isScript ? [executable, ...args] : args, {
     cwd: root,
     stdio: 'inherit'
   })
+
   if (result.error) throw result.error
+
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
+
 if (tasks.some((task) => task.startsWith('types-')) || projects.length) {
   if (process.env.VALIDATION_WORKSPACE_PREPARED !== 'true') run(['run', 'postinstall'])
+
   if (tasks.some((task) => task.startsWith('types-'))) run(['--filter', '@cherrystudio/ai-sdk-provider', 'build'])
 }
+
 for (const task of tasks) run(checkTasks[task].args)
+
 if (projects.length) {
   if (projects.includes('main')) run(['rebuild:node'])
+
   const files =
     values.group === 'platform'
       ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'native/system-speech'], {
@@ -110,6 +133,7 @@ if (projects.length) {
               /\.(test|spec)\.tsx?$/.test(file) && readFileSync(join(root, file), 'utf8').includes('process.platform')
           )
       : []
+
   if (values.group === 'platform' && !files.length) throw new Error('No platform-gated tests found')
   run([
     'exec',

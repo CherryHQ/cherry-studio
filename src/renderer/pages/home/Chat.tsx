@@ -44,8 +44,10 @@ const CitationsPanel = React.lazy(() => import('@renderer/components/chat/citati
 const EMPTY_MODELS: ChatConversationControlsSnapshot['mentionedModels'] = []
 const NOOP_MODEL_SELECT: ChatConversationControlsSnapshot['onModelSelect'] = () => undefined
 const NOOP_MODELS_SELECT: ChatConversationControlsSnapshot['onMentionedModelsSelect'] = () => undefined
+
 const NOOP_MULTI_SELECT_MODE_CHANGE: ChatConversationControlsSnapshot['onMentionedModelMultiSelectModeChange'] = () =>
   undefined
+
 const NOOP_MODEL_SELECTOR_RESTORE: ChatConversationControlsSnapshot['onMentionedModelSelectorRestore'] = () => undefined
 
 type ChatTopBarControlsProps = Omit<ChatConversationControlsProps, 'iconOnly' | 'side'>
@@ -102,21 +104,28 @@ const Chat: FC<Props> = (props) => {
   const isActiveTab = useIsActiveTab()
   const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
+
   const citationPanelCitations =
     citationPanelState && citationPanelState.topicId === activeTopicId ? citationPanelState.citations : null
+
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
   })
+
   const [conversationControlsSnapshot, setConversationControlsSnapshot] =
     useState<ChatConversationControlsSnapshot | null>(null)
+
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
+
   const composerModels = activeConversationControlsSnapshot
     ? activeConversationControlsSnapshot.lockedMentionedModels.length > 1
       ? activeConversationControlsSnapshot.lockedMentionedModels
       : activeConversationControlsSnapshot.mentionedModelSelectorValue
     : EMPTY_MODELS
+
   const composerModelId = composerModels.length === 1 ? composerModels[0].id : undefined
+
   // Provider metadata supplies the user-facing name for both the single-model trigger and
   // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
@@ -127,6 +136,7 @@ const Chat: FC<Props> = (props) => {
           activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
           activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
+
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateToEnd = props.locateToEnd
   const locateMessageIdProp = props.locateMessageId
@@ -138,9 +148,11 @@ const Chat: FC<Props> = (props) => {
 
   useEffect(() => {
     setBranchLocateMessageId(undefined)
+
     if (!activeTopicId) return
 
     setTopicBranchLiveState(activeTopicId, null)
+
     return () => {
       setTopicBranchLiveState(activeTopicId, null)
     }
@@ -152,6 +164,7 @@ const Chat: FC<Props> = (props) => {
       if (!showConversation) return
 
       const topic = activeTopic
+
       if (!topic) return
 
       const name = await PromptPopup.show({
@@ -160,6 +173,7 @@ const Chat: FC<Props> = (props) => {
         defaultValue: topic.name || '',
         extraNode: <div className="text-muted-foreground mt-2">{t('chat.topics.edit.title_tip')}</div>
       })
+
       if (name && topic.name !== name) {
         await patchTopic(topic.id, { name, isNameManuallyEdited: true })
       }
@@ -170,13 +184,16 @@ const Chat: FC<Props> = (props) => {
     'topic.clear_messages',
     async () => {
       if (!activeTopic) return
+
       const confirmed = await popup.confirm({
         title: t('chat.input.clear.title'),
         content: t('chat.input.clear.content'),
         autoFocusConfirm: true,
         centered: true
       })
+
       if (!confirmed) return
+
       try {
         await clearTopicMessages(activeTopic.id)
       } catch (error) {
@@ -187,6 +204,7 @@ const Chat: FC<Props> = (props) => {
   )
 
   const citationsPanelOpen = citationPanelCitations !== null
+
   const openCitationInBrowser = useCallback(
     (url: string) => {
       if (!activeTopicId) return
@@ -205,6 +223,7 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId]
   )
+
   const handleAssistantChange = useCallback(
     async (nextAssistantId: string | null) => {
       if (!activeTopic || !nextAssistantId || nextAssistantId === activeTopic.assistantId) return
@@ -212,6 +231,7 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopic, patchTopic]
   )
+
   const handleRestoreComposerFocus = useCallback(() => {
     if (!activeTopicId) return
     void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
@@ -220,17 +240,22 @@ const Chat: FC<Props> = (props) => {
   const handleBranchLiveStateChange = useCallback(
     (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
       const topicId = state?.topicId ?? activeTopicId
+
       if (topicId) setTopicBranchLiveState(topicId, state)
     },
     [activeTopicId, setTopicBranchLiveState]
   )
+
   const locateMessageId = locateToEnd ? undefined : (locateMessageIdProp ?? branchLocateMessageId)
+
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
+
     if (locateMessageIdProp || locateToEnd) {
       onLocateMessageHandledProp?.()
     }
   }, [locateMessageIdProp, locateToEnd, onLocateMessageHandledProp])
+
   const centerContent =
     centerSurface?.content ??
     (activeTopic ? (
@@ -254,6 +279,7 @@ const Chat: FC<Props> = (props) => {
       // the empty center rather than spinning forever. Same split as AgentChat.
       <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
     ))
+
   // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
   const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>
 

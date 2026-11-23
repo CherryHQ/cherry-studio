@@ -18,6 +18,7 @@ export const getNodeText = (node: ReactNode): string => {
     if (node.props['aria-hidden'] === true || node.props['aria-hidden'] === 'true') {
       return ''
     }
+
     return getNodeText(node.props.children)
   }
 

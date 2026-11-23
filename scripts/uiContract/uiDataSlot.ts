@@ -16,14 +16,17 @@ import { mergeDataUi } from './runtime'
 
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- React slots forward native and custom props verbatim; only ref, event, style, className and data-ui fields are interpreted here.
 type AnyProps = Record<string, unknown>
+
 type RefTarget = Ref<unknown> | null | undefined
 
 // Match React event callback variance while retaining the callback's result.
 type SlotHandler<Result> = { invoke(...args: unknown[]): Result }['invoke']
+
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Event variance adds a callable view without parsing the other forwarded native and custom props.
 type SlotProps<Result> = AnyProps & {
   [Name in `on${Capitalize<string>}`]?: SlotHandler<Result>
 }
+
 type UiDataSlotProps<Result> = SlotProps<Result> & {
   children?: ReactElement<SlotProps<Result>> | ReactPortal | Exclude<ReactNode, ReactElement>
   ref?: RefTarget
@@ -32,7 +35,9 @@ type UiDataSlotProps<Result> = SlotProps<Result> & {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- React asChild refs may hold DOM nodes or custom imperative handles; forward the opaque instance and preserve cleanup semantics.
 function setForwardedRef(ref: RefTarget, node: unknown): void | (() => void) {
   if (typeof ref === 'function') return ref(node)
+
   if (ref !== null && ref !== undefined) ref.current = node
+
   return undefined
 }
 
@@ -43,16 +48,20 @@ function setForwardedRef(ref: RefTarget, node: unknown): void | (() => void) {
 function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotProps<Result>): SlotProps<Result> {
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Slot props remain open so native and custom child fields survive event composition verbatim.
   const overrideProps: SlotProps<Result> = { ...childProps }
+
   for (const propName in childProps) {
     const slotPropValue = slotProps[propName]
     const childPropValue = childProps[propName]
+
     if (/^on[A-Z]/.test(propName)) {
       if (slotPropValue && childPropValue) {
         overrideProps[propName] = (...args: unknown[]) => {
           // SAFETY: matching event keys carry the child callback declared by the input props.
           const result = (childPropValue as SlotHandler<Result>)(...args)
+
           // SAFETY: the slot callback follows the same declared event-result contract.
           ;(slotPropValue as SlotHandler<Result>)(...args)
+
           return result
         }
       } else if (slotPropValue) {
@@ -64,6 +73,7 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
       overrideProps[propName] = [slotPropValue, childPropValue].filter(Boolean).join(' ')
     }
   }
+
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- The merged child keeps the same opaque prop and callback-result contract as both inputs.
   return { ...slotProps, ...overrideProps }
 }
@@ -73,10 +83,13 @@ function getElementRef(element: ReactElement & RefAttributes<unknown>): RefTarge
   const props = element.props as AnyProps
   let getter = Object.getOwnPropertyDescriptor(props, 'ref')?.get
   let mayWarn = getter && 'isReactWarning' in getter && getter.isReactWarning
+
   if (mayWarn) return element.ref
   getter = Object.getOwnPropertyDescriptor(element, 'ref')?.get
   mayWarn = getter && 'isReactWarning' in getter && getter.isReactWarning
+
   if (mayWarn) return props.ref as RefTarget
+
   return (props.ref as RefTarget) || element.ref
 }
 
@@ -97,32 +110,41 @@ function getElementRef(element: ReactElement & RefAttributes<unknown>): RefTarge
 export function UiDataSlot<Result>({ ref, children, ...slotProps }: UiDataSlotProps<Result>): ReactNode {
   const latest = useRef<{ forwarded: RefTarget; child: RefTarget }>({ forwarded: undefined, child: undefined })
   latest.current.forwarded = ref
+
   const stableRef = useMemo(() => {
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The cloned child's React ref owns the instance type; this stable callback transparently forwards it to both captured targets.
     return (node: unknown) => {
       const refs = [latest.current.forwarded, latest.current.child]
       let hasCleanup = false
+
       const cleanups = refs.map((target) => {
         const cleanup = setForwardedRef(target, node)
+
         if (!hasCleanup && typeof cleanup === 'function') hasCleanup = true
+
         return cleanup
       })
+
       if (hasCleanup) {
         return () => {
           for (let index = 0; index < cleanups.length; index += 1) {
             const cleanup = cleanups[index]
+
             if (typeof cleanup === 'function') cleanup()
             else setForwardedRef(refs[index], null)
           }
         }
       }
+
       return undefined
     }
   }, [])
+
   // Dynamic asChild={false} renders this wrapper without cloned props. Active
   // slot implementations may forward behavior props without forwarding data-ui.
   if (Object.keys(slotProps).length === 0 && ref == null) return children
   const slotDataUi = typeof slotProps['data-ui'] === 'string' ? slotProps['data-ui'] : ''
+
   // eslint-disable-next-line @eslint-react/no-children-count -- a slot must validate its single child, like Radix's Slot.
   if (Children.count(children) !== 1 || !isValidElement(children)) {
     // Verbatim Radix Slot semantics: empty children render as-is; anything else
@@ -130,8 +152,10 @@ export function UiDataSlot<Result>({ ref, children, ...slotProps }: UiDataSlotPr
     if (children || children === 0) {
       throw new Error('UiDataSlot failed to slot onto its children. Expected a single React element child.')
     }
+
     return children
   }
+
   const child = children
 
   // SAFETY: the validated element is the child accepted by this component's typed props.
@@ -141,7 +165,9 @@ export function UiDataSlot<Result>({ ref, children, ...slotProps }: UiDataSlotPr
   latest.current.child = getElementRef(child)
   const mergedProps = mergeSlotProps(slotProps, childProps)
   mergedProps['data-ui'] = dataUi
+
   if (child.type !== Fragment) mergedProps.ref = stableRef
+
   // eslint-disable-next-line @eslint-react/no-clone-element -- merging props onto the child element is the point of a slot, like Radix's SlotClone.
   return cloneElement(child, mergedProps)
 }

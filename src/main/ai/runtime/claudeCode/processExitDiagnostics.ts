@@ -39,7 +39,9 @@ export function recordClaudeCodeProcessExit(
   const status = code !== null ? `exited with code ${code}` : `terminated by signal ${String(signal)}`
   diagnostics.terminalReason = `Claude Code process ${status}${stderr ? `. stderr: ${stderr}` : ''}`
   diagnostics.category = classifyClaudeCodeTerminalReason(stderr)
+
   if (code !== null) diagnostics.exitCode = code
+
   if (signal !== null) diagnostics.exitSignal = signal
 }
 
@@ -69,14 +71,18 @@ export function createClaudeCodeProcessExitError(
       : diagnostics.exitSignal
         ? `terminated by signal ${diagnostics.exitSignal}`
         : 'failed to start'
+
   const error = Object.assign(new Error(`Claude Code process ${status}`), {
     name: 'ClaudeCodeProcessExitError',
     claudeCodeExitCategory:
       diagnostics.category ?? classifyClaudeCodeTerminalReason(diagnostics.terminalReason ?? originalError.message),
     diagnosticReference: diagnostics.reference
   })
+
   if (diagnostics.exitCode !== undefined) Object.assign(error, { processExitCode: diagnostics.exitCode })
+
   if (diagnostics.exitSignal) Object.assign(error, { processExitSignal: diagnostics.exitSignal })
+
   return error
 }
 
@@ -84,10 +90,12 @@ export function createClaudeCodeProcessExitError(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Process and stream failures are untyped; only verified string diagnostics can establish a truncated JSON frame.
 export function canSalvageClaudeOutput(error: unknown, bufferedChars: number, aborted: boolean): boolean {
   if (aborted) return true
+
   if (bufferedChars >= 512 && typeof error === 'object' && error !== null) {
     try {
       const name = 'name' in error ? error.name : undefined
       const message = 'message' in error ? error.message : undefined
+
       return (
         typeof name === 'string' &&
         name.toLowerCase() === 'syntaxerror' &&
@@ -98,5 +106,6 @@ export function canSalvageClaudeOutput(error: unknown, bufferedChars: number, ab
       return false
     }
   }
+
   return false
 }

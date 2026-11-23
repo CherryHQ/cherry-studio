@@ -47,6 +47,7 @@ export function entries(host: HostPorts): Entries {
       const current = await host.models.current(thread)
       const inputs = await gatherInputs(context, thread, { models: { candidates: [], ...current } })
       const decided = await step(context, thread, (facts) => decideGoalCommand(facts, inputs, text, requestKey))
+
       return decided.result
     },
     async userStop(ports, thread, requestKey) {
@@ -60,16 +61,21 @@ export function entries(host: HostPorts): Entries {
     async stopSubagent(ports, child, requestKey) {
       const context = { ports, host }
       const { lineage } = await ports.ledger.read(child)
+
       if (lineage.kind !== 'subagent') return 'not-running'
       const inputs = await gatherInputs(context, lineage.parent)
+
       const executed = await step(context, lineage.parent, (facts) =>
         decideStopSubagent(facts, inputs, child, requestKey)
       )
+
       return executed.result
     },
     async messageSubagent(ports, child, text, requestKey, signal) {
       const { lineage } = await ports.ledger.read(child)
+
       if (lineage.kind !== 'subagent') return { status: 'refused', reason: 'The conversation is not a subagent.' }
+
       return messageSubagent(
         { ports, host },
         {

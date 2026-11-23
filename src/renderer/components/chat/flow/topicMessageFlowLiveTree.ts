@@ -43,6 +43,7 @@ function extractTopicMessageFlowLivePreview(parts: CherryMessagePart[]): string 
   for (const part of parts) {
     // Persisted part payloads may be malformed; display only verified string fields.
     let text: string | undefined
+
     switch (part.type) {
       case 'text':
         text = typeof part.text === 'string' ? part.text : undefined
@@ -65,6 +66,7 @@ function extractTopicMessageFlowLivePreview(parts: CherryMessagePart[]): string 
     }
 
     const preview = text?.trim()
+
     if (preview) return truncateLivePreview(preview)
   }
 
@@ -84,6 +86,7 @@ export function buildTopicMessageFlowLiveState({
     // message list); skip a parentless row defensively. The guard narrows `parentId`
     // to a non-null `string`; it never drops a real node.
     const parentId = metadata.parentId
+
     if (parentId == null) return []
 
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
@@ -101,7 +104,9 @@ export function buildTopicMessageFlowLiveState({
       status: isStreamingMessage ? 'pending' : (metadata.status ?? fallbackStatus),
       createdAt
     }
+
     if (metadata.siblingsGroupId) node.siblingsGroupId = metadata.siblingsGroupId
+
     return [node]
   })
 
@@ -159,6 +164,7 @@ export function mergeTopicMessageFlowLiveTree(
       siblingsGroupId: group.siblingsGroupId,
       nodes: group.nodes.slice()
     })
+
     for (const node of group.nodes) {
       existingTreeNodes.set(node.id, { ...node, parentId: group.parentId })
       groupedNodeIds.add(node.id)
@@ -167,9 +173,11 @@ export function mergeTopicMessageFlowLiveTree(
 
   for (const liveNode of liveState.nodes) {
     const existing = existingTreeNodes.get(liveNode.id)
+
     if (liveNode.siblingsGroupId && liveNode.siblingsGroupId !== 0) {
       regularNodes.delete(liveNode.id)
       const key = groupKey(liveNode.parentId, liveNode.siblingsGroupId)
+
       const group =
         siblingGroups.get(key) ??
         ({
@@ -177,6 +185,7 @@ export function mergeTopicMessageFlowLiveTree(
           siblingsGroupId: liveNode.siblingsGroupId,
           nodes: []
         } satisfies TreeResponse['siblingsGroups'][number])
+
       const nextNode = toTreeNode(liveNode, existing)
       const existingIndex = group.nodes.findIndex((node) => node.id === liveNode.id)
       group.nodes =
@@ -192,9 +201,11 @@ export function mergeTopicMessageFlowLiveTree(
   }
 
   const childParentIds = new Set<string>()
+
   for (const node of regularNodes.values()) {
     if (node.parentId) childParentIds.add(node.parentId)
   }
+
   for (const group of siblingGroups.values()) {
     if (group.parentId) childParentIds.add(group.parentId)
   }

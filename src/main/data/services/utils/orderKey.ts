@@ -98,6 +98,7 @@ interface ComputeOptions {
  */
 export function generateOrderKeySequence(count: number): string[] {
   if (count <= 0) return []
+
   return generateNKeysBetween(null, null, count)
 }
 
@@ -115,6 +116,7 @@ export function generateOrderKeyBetween(before: string | null, after: string | n
  */
 export function generateOrderKeySequenceBetween(before: string | null, after: string | null, count: number): string[] {
   if (count <= 0) return []
+
   return generateNKeysBetween(before, after, count)
 }
 
@@ -133,9 +135,11 @@ export function insertWithOrderKey<TTable extends TableWithOrderKey, TValues ext
   options: InsertWithOrderKeyOptions
 ): TTable['$inferSelect'] {
   const [row] = insertManyWithOrderKey(tx, table, [values], options)
+
   if (!row) {
     throw new Error('insertWithOrderKey: insert returned no rows')
   }
+
   return row
 }
 
@@ -160,6 +164,7 @@ export function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues
   const scope = options.scope
 
   let keys: string[]
+
   if (position === 'last') {
     const largest = selectRepairedBoundaryKey(tx, table, 'last', scope)
     keys = generateOrderKeySequenceBetween(largest, null, valuesList.length)
@@ -170,6 +175,7 @@ export function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues
 
   const rowsToInsert = valuesList.map((values, i) => ({ ...values, orderKey: keys[i] }))
   const inserted: TTable['$inferSelect'][] = tx.insert(table).values(rowsToInsert).returning().all()
+
   return inserted
 }
 
@@ -202,6 +208,7 @@ export function applyMoves(
   options: ApplyMovesOptions
 ): void {
   const { deduped, droppedCount } = dedupMoves(moves)
+
   if (droppedCount > 0) {
     logger.warn('applyMoves: dropped duplicate move entries, keeping last occurrence', {
       droppedCount,
@@ -216,6 +223,7 @@ export function applyMoves(
     assertAnchorNotSelf(move.id, move.anchor)
 
     const currentRow = selectRowByPk(tx, table, pkColumn, move.id, scope)
+
     if (!currentRow) {
       throw DataApiErrorFactory.notFound(getTableName(table), move.id)
     }
@@ -283,6 +291,7 @@ export function applyScopedMoves<T extends TableWithOrderKey>(
   // delegated to applyMoves, which throws NOT_FOUND when it walks to the missing
   // move within the derived scope.
   const scopes = new Set(rows.map((r) => r.scope))
+
   if (scopes.size > 1) {
     const scopeList = [...scopes].map((s) => String(s)).join(', ')
     const message = `applyScopedMoves: batch spans multiple scopes (${scopeList})`
@@ -337,10 +346,13 @@ export function computeNewOrderKey(
   if ('position' in request) {
     if (request.position === 'first') {
       const smallest = selectBoundaryKey(tx, table, 'first', exclusion)
+
       return generateOrderKeyBetween(null, smallest)
     }
+
     // 'last'
     const largest = selectBoundaryKey(tx, table, 'last', exclusion)
+
     return generateOrderKeyBetween(largest, null)
   }
 
@@ -348,6 +360,7 @@ export function computeNewOrderKey(
     const anchorId = request.before
     const anchorKey = requireOrderKey(tx, table, pkColumn, anchorId, scope)
     const predecessor = selectAdjacentKey(tx, table, 'predecessor', anchorKey, exclusion)
+
     return generateOrderKeyBetween(predecessor, anchorKey)
   }
 
@@ -355,6 +368,7 @@ export function computeNewOrderKey(
   const anchorId = request.after
   const anchorKey = requireOrderKey(tx, table, pkColumn, anchorId, scope)
   const successor = selectAdjacentKey(tx, table, 'successor', anchorKey, exclusion)
+
   return generateOrderKeyBetween(anchorKey, successor)
 }
 
@@ -365,10 +379,13 @@ export function computeNewOrderKey(
  */
 function dedupMoves(moves: Array<{ id: string; anchor: OrderRequest }>) {
   const byId = new Map<string, { id: string; anchor: OrderRequest }>()
+
   for (const m of moves) {
     byId.set(m.id, m)
   }
+
   const droppedCount = moves.length - byId.size
+
   return { deduped: [...byId.values()], droppedCount }
 }
 
@@ -380,14 +397,17 @@ function dedupMoves(moves: Array<{ id: string; anchor: OrderRequest }>) {
 function resolvePkValue(row: Record<string, unknown>, pkColumn: AnyColumn): string {
   const name = pkColumn.name
   const value = row[name]
+
   if (value === undefined || value === null || value === '') {
     throw new Error(`resolvePkValue: row is missing primary-key field "${name}"`)
   }
+
   return String(value)
 }
 
 function buildExclusion(pkColumn: AnyColumn, excludePkValue: string, scope?: SQL): SQL {
   const notSelf = ne(pkColumn, excludePkValue)
+
   return scope ? and(notSelf, scope)! : notSelf
 }
 
@@ -396,6 +416,7 @@ function assertAnchorNotSelf(moveId: string, anchor: OrderRequest): void {
     const message = `applyMoves: anchor "before" id "${moveId}" cannot equal the move's own id`
     throw DataApiErrorFactory.validation({ anchor: ['anchor "before" id must not equal the move id'] }, message)
   }
+
   if ('after' in anchor && anchor.after === moveId) {
     const message = `applyMoves: anchor "after" id "${moveId}" cannot equal the move's own id`
     throw DataApiErrorFactory.validation({ anchor: ['anchor "after" id must not equal the move id'] }, message)
@@ -408,6 +429,7 @@ function assertAnchorNotSelf(moveId: string, anchor: OrderRequest): void {
  */
 function selectBoundaryKey(tx: TxLike, table: TableWithOrderKey, which: 'first' | 'last', scope?: SQL): string | null {
   const orderExpr = which === 'first' ? asc(table.orderKey) : desc(table.orderKey)
+
   const rows = tx
     .select({ orderKey: table.orderKey })
     .from(table)
@@ -415,7 +437,9 @@ function selectBoundaryKey(tx: TxLike, table: TableWithOrderKey, which: 'first' 
     .orderBy(orderExpr)
     .limit(1)
     .all()
+
   const first = rows[0] as { orderKey: string | null } | undefined
+
   return first?.orderKey ?? null
 }
 
@@ -428,6 +452,7 @@ function selectBoundaryKey(tx: TxLike, table: TableWithOrderKey, which: 'first' 
 function isValidOrderKey(key: string): boolean {
   try {
     generateKeyBetween(key, null)
+
     return true
   } catch {
     return false
@@ -442,10 +467,12 @@ function collectInvalidBoundaryKeys(tx: TxLike, table: TableWithOrderKey, which:
   const side = which === 'last' ? 'predecessor' : 'successor'
   const invalidKeys: string[] = []
   let cursor = selectBoundaryKey(tx, table, which, scope)
+
   while (cursor !== null && !isValidOrderKey(cursor)) {
     invalidKeys.push(cursor)
     cursor = selectAdjacentKey(tx, table, side, cursor, scope)
   }
+
   return { invalidKeys, nearestValid: cursor }
 }
 
@@ -472,12 +499,14 @@ function selectRepairedBoundaryKey(
   scope?: SQL
 ): string | null {
   const { invalidKeys, nearestValid } = collectInvalidBoundaryKeys(tx, table, which, scope)
+
   if (invalidKeys.length === 0) return nearestValid
 
   // `invalidKeys` was collected extremum-inward; assigning in reverse walks
   // outward from `nearestValid`, preserving the rows' relative order.
   let anchor = nearestValid
   let newKey = ''
+
   for (const invalidKey of invalidKeys.reverse()) {
     newKey = which === 'last' ? generateOrderKeyBetween(anchor, null) : generateOrderKeyBetween(null, anchor)
     const where = scope ? and(eq(table.orderKey, invalidKey), scope)! : eq(table.orderKey, invalidKey)
@@ -489,6 +518,7 @@ function selectRepairedBoundaryKey(
     })
     anchor = newKey
   }
+
   // The last re-keyed value is the outermost of the run, so its replacement is
   // the scope's new extremum and the batch anchors beyond it.
   return newKey
@@ -516,6 +546,7 @@ function selectAdjacentKey(
 
   const rows = tx.select({ orderKey: column }).from(table).where(where).orderBy(orderExpr).limit(1).all()
   const first = rows[0] as { orderKey: string | null } | undefined
+
   return first?.orderKey ?? null
 }
 
@@ -531,9 +562,11 @@ function requireOrderKey(
   scope: SQL | undefined
 ): string {
   const row = selectRowByPk(tx, table, pkColumn, id, scope)
+
   if (!row) {
     throw DataApiErrorFactory.notFound(getTableName(table), id)
   }
+
   return row.orderKey
 }
 
@@ -547,5 +580,6 @@ function selectRowByPk(
   const where = scope ? and(eq(pkColumn, id), scope) : eq(pkColumn, id)
   const rows = tx.select({ orderKey: table.orderKey }).from(table).where(where).limit(1).all()
   const first = rows[0] as { orderKey: string } | undefined
+
   return first ?? null
 }

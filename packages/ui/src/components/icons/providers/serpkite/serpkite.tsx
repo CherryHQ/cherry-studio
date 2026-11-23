@@ -4,6 +4,7 @@ import { SerpKiteLight } from './light'
 
 const SerpKite = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SerpKiteLight {...props} className={className} />
+
   return <SerpKiteLight {...props} className={className} />
 }
 

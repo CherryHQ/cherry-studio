@@ -64,6 +64,7 @@ export const AnnotationCanvas = memo(function AnnotationCanvas({
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current
+
     if (!canvas) return
     canvas.width = Math.round(selection.width * scaleFactor)
     canvas.height = Math.round(selection.height * scaleFactor)
@@ -71,8 +72,10 @@ export const AnnotationCanvas = memo(function AnnotationCanvas({
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current
+
     if (!canvas) return
     const ctx = canvas.getContext('2d')
+
     if (!ctx) return
 
     ctx.setTransform(scaleFactor, 0, 0, scaleFactor, 0, 0)
@@ -84,9 +87,11 @@ export const AnnotationCanvas = memo(function AnnotationCanvas({
     // The capture's pixels are frozen, so only a new selection or image can invalidate it.
     let imageData: ImageData | null = null
     const hasMosaic = annotations.some((a) => a.type === 'mosaic') || activeDrawing?.type === 'mosaic'
+
     if (hasMosaic) {
       const key = `${selection.x},${selection.y},${selection.width},${selection.height},${scaleFactor}`
       const cached = mosaicSourceRef.current
+
       if (cached && cached.key === key && cached.image === image) {
         imageData = cached.data
       } else {
@@ -128,6 +133,7 @@ export const AnnotationCanvas = memo(function AnnotationCanvas({
       // Text is entered in a floating editor, so no capture and no drag state here.
       if (activeTool === 'text') {
         onTextRequest(point)
+
         return
       }
 
@@ -140,11 +146,13 @@ export const AnnotationCanvas = memo(function AnnotationCanvas({
   const handlePointerMove = useCallback(
     (e: ReactPointerEvent) => {
       const drawing = drawingRef.current
+
       if (!drawing) return
       const point = pointerToAbsolute(e)
       drawing.points.push(point)
 
       const preview = buildAnnotation(drawing.tool, drawing.startPoint, point, drawing.points, color, strokeWidth)
+
       if (preview) {
         onActiveDrawingChange(preview)
       }
@@ -163,11 +171,13 @@ export const AnnotationCanvas = memo(function AnnotationCanvas({
   const finishDrawing = useCallback(
     (finalPoint?: Point) => {
       const drawing = drawingRef.current
+
       if (!drawing) return
       drawingRef.current = null
 
       const endPoint = finalPoint ?? drawing.points[drawing.points.length - 1]
       const annotation = buildAnnotation(drawing.tool, drawing.startPoint, endPoint, drawing.points, color, strokeWidth)
+
       if (annotation) {
         if (isSignificantAnnotation(annotation)) {
           onCommit(annotation)

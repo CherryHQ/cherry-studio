@@ -1,6 +1,7 @@
 import type { ContextExpr, ContextReader, ContextValue } from '@shared/types/command'
 
 type ContextLiteral = string | number | boolean
+
 type ConstraintPolarity = 'truthy' | 'falsy'
 
 interface KeyConstraint {
@@ -52,6 +53,7 @@ const tokenize = (source: string): Token[] => {
     }
 
     const two = source.slice(index, index + 2)
+
     if (two === '&&' || two === '||' || two === '==' || two === '!=') {
       tokens.push({ type: 'operator', value: two })
       index += 2
@@ -72,6 +74,7 @@ const tokenize = (source: string): Token[] => {
 
       while (index < source.length) {
         const next = source[index]
+
         if (next === quote) {
           index++
           tokens.push({ type: 'string', value })
@@ -81,9 +84,11 @@ const tokenize = (source: string): Token[] => {
 
         if (next === '\\') {
           const escaped = source[index + 1]
+
           if (escaped == null) {
             fail('Unterminated string literal')
           }
+
           value += escaped
           index += 2
           continue
@@ -96,19 +101,24 @@ const tokenize = (source: string): Token[] => {
       if (!closed) {
         fail('Unterminated string literal')
       }
+
       continue
     }
 
     if (/[0-9]/.test(char)) {
       const start = index
+
       while (index < source.length && /[0-9.]/.test(source[index])) {
         index++
       }
+
       const raw = source.slice(start, index)
       const value = Number(raw)
+
       if (!Number.isFinite(value)) {
         fail(`Invalid number "${raw}"`)
       }
+
       tokens.push({ type: 'number', value })
       continue
     }
@@ -116,15 +126,19 @@ const tokenize = (source: string): Token[] => {
     if (isIdentifierStart(char)) {
       const start = index
       index++
+
       while (index < source.length && isIdentifierPart(source[index])) {
         index++
       }
+
       const value = source.slice(start, index)
+
       if (value === 'true' || value === 'false') {
         tokens.push({ type: 'boolean', value: value === 'true' })
       } else {
         tokens.push({ type: 'identifier', value })
       }
+
       continue
     }
 
@@ -132,6 +146,7 @@ const tokenize = (source: string): Token[] => {
   }
 
   tokens.push({ type: 'eof' })
+
   return tokens
 }
 
@@ -145,31 +160,38 @@ class Parser {
 
   parse(): ContextExpr {
     const expr = this.parseOr()
+
     if (this.peek().type !== 'eof') {
       this.fail('Unexpected trailing token')
     }
+
     return expr
   }
 
   private parseOr(): ContextExpr {
     const exprs = [this.parseAnd()]
+
     while (this.matchOperator('||')) {
       exprs.push(this.parseAnd())
     }
+
     return exprs.length === 1 ? exprs[0] : { type: 'or', exprs }
   }
 
   private parseAnd(): ContextExpr {
     const exprs = [this.parseEquality()]
+
     while (this.matchOperator('&&')) {
       exprs.push(this.parseEquality())
     }
+
     return exprs.length === 1 ? exprs[0] : { type: 'and', exprs }
   }
 
   private parseEquality(): ContextExpr {
     const left = this.parseUnary()
     const operator = this.matchOperator('==') ? '==' : this.matchOperator('!=') ? '!=' : null
+
     if (!operator) {
       return left
     }
@@ -179,6 +201,7 @@ class Parser {
     }
 
     const value = this.parseLiteral()
+
     return operator === '==' ? { type: 'equals', key: left.key, value } : { type: 'notEquals', key: left.key, value }
   }
 
@@ -186,19 +209,23 @@ class Parser {
     if (this.matchOperator('!')) {
       return { type: 'not', expr: this.parseUnary() }
     }
+
     return this.parsePrimary()
   }
 
   private parsePrimary(): ContextExpr {
     const token = this.peek()
+
     if (token.type === 'identifier') {
       this.index++
+
       return { type: 'key', key: token.value }
     }
 
     if (this.matchOperator('(')) {
       const expr = this.parseOr()
       this.expectOperator(')')
+
       return expr
     }
 
@@ -207,10 +234,13 @@ class Parser {
 
   private parseLiteral(): string | number | boolean {
     const token = this.peek()
+
     if (token.type === 'string' || token.type === 'number' || token.type === 'boolean') {
       this.index++
+
       return token.value
     }
+
     this.fail('Expected literal')
   }
 
@@ -220,10 +250,13 @@ class Parser {
 
   private matchOperator(value: '!' | '&&' | '||' | '==' | '!=' | '(' | ')'): boolean {
     const token = this.peek()
+
     if (token.type === 'operator' && token.value === value) {
       this.index++
+
       return true
     }
+
     return false
   }
 
@@ -240,9 +273,11 @@ class Parser {
 
 export const parseContextExpr = (source: string): ContextExpr => {
   const trimmed = source.trim()
+
   if (!trimmed) {
     throw new ContextExprParseError('Empty context expression', source, 0)
   }
+
   return new Parser(trimmed, tokenize(trimmed)).parse()
 }
 
@@ -250,9 +285,11 @@ const readContextValue = (context: ContextReader, key: string): ContextValue => 
   if (typeof context === 'function') {
     return context(key)
   }
+
   if (context instanceof Map) {
     return context.get(key)
   }
+
   return context[key]
 }
 
@@ -302,9 +339,11 @@ const createConstraint = (patch: Partial<KeyConstraint>): KeyConstraint => ({
 
 const cloneTerm = (term: ConstraintTerm): ConstraintTerm => {
   const next = new Map<string, KeyConstraint>()
+
   for (const [key, constraint] of term) {
     next.set(key, { ...constraint, notEquals: [...constraint.notEquals] })
   }
+
   return next
 }
 
@@ -321,6 +360,7 @@ const mergeConstraint = (left: KeyConstraint, right: KeyConstraint): KeyConstrai
     if (next.polarity && next.polarity !== right.polarity) {
       return undefined
     }
+
     next.polarity = right.polarity
   }
 
@@ -328,9 +368,11 @@ const mergeConstraint = (left: KeyConstraint, right: KeyConstraint): KeyConstrai
     if (next.equals !== undefined && !valuesEqual(next.equals, right.equals)) {
       return undefined
     }
+
     if (next.notEquals.some((value) => valuesEqual(value, right.equals as ContextLiteral))) {
       return undefined
     }
+
     next.equals = right.equals
   }
 
@@ -338,6 +380,7 @@ const mergeConstraint = (left: KeyConstraint, right: KeyConstraint): KeyConstrai
     if (next.equals !== undefined && valuesEqual(next.equals, value)) {
       return undefined
     }
+
     if (!next.notEquals.some((item) => valuesEqual(item, value))) {
       next.notEquals.push(value)
     }
@@ -345,6 +388,7 @@ const mergeConstraint = (left: KeyConstraint, right: KeyConstraint): KeyConstrai
 
   if (next.equals !== undefined && next.polarity) {
     const isTruthy = Boolean(next.equals)
+
     if ((next.polarity === 'truthy' && !isTruthy) || (next.polarity === 'falsy' && isTruthy)) {
       return undefined
     }
@@ -358,15 +402,18 @@ const mergeTerm = (left: ConstraintTerm, right: ConstraintTerm): ConstraintTerm 
 
   for (const [key, rightConstraint] of right) {
     const leftConstraint = next.get(key)
+
     if (!leftConstraint) {
       next.set(key, { ...rightConstraint, notEquals: [...rightConstraint.notEquals] })
       continue
     }
 
     const merged = mergeConstraint(leftConstraint, rightConstraint)
+
     if (!merged) {
       return undefined
     }
+
     next.set(key, merged)
   }
 
@@ -382,12 +429,15 @@ const mergeDnfTerms = (
   }
 
   const result: ConstraintTerm[] = []
+
   for (const leftTerm of left) {
     for (const rightTerm of right) {
       if (result.length >= DNF_TERM_LIMIT) {
         return undefined
       }
+
       const merged = mergeTerm(leftTerm, rightTerm)
+
       if (merged) {
         result.push(merged)
       }
@@ -404,9 +454,11 @@ const concatDnfTerms = (
   if (!left || !right) {
     return undefined
   }
+
   if (left.length + right.length > DNF_TERM_LIMIT) {
     return undefined
   }
+
   return [...left, ...right]
 }
 
@@ -441,11 +493,13 @@ const toDnfTerms = (expr: ContextExpr | undefined, negated = false): ConstraintT
           []
         )
       }
+
       return expr.exprs.reduce<ConstraintTerm[] | undefined>(
         (acc, item) => mergeDnfTerms(acc, toDnfTerms(item)),
         [new Map()]
       )
     }
+
     case 'or': {
       if (negated) {
         return expr.exprs.reduce<ConstraintTerm[] | undefined>(
@@ -453,6 +507,7 @@ const toDnfTerms = (expr: ContextExpr | undefined, negated = false): ConstraintT
           [new Map()]
         )
       }
+
       return expr.exprs.reduce<ConstraintTerm[] | undefined>((acc, item) => concatDnfTerms(acc, toDnfTerms(item)), [])
     }
   }
@@ -469,6 +524,7 @@ export const canContextExprsOverlap = (left: ContextExpr | undefined, right: Con
   if (!leftTerms || !rightTerms) {
     return true
   }
+
   if (leftTerms.length === 0 || rightTerms.length === 0) {
     return false
   }
@@ -494,8 +550,10 @@ export class ContextKeyService {
   set(key: string, value: ContextValue): void {
     if (value === undefined) {
       this.values.delete(key)
+
       return
     }
+
     this.values.set(key, value)
   }
 

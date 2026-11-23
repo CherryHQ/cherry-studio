@@ -8,6 +8,7 @@ import type { CodeMirrorTheme, LanguageConfig } from '../../../src/components/co
 // The app-facing getCmThemeNames/getCmThemeByName are async (themes-all loads on
 // demand); stories need sync values for argTypes, so resolve from a static import.
 const cmThemeExports = new Map<string, (typeof cmThemes)[keyof typeof cmThemes]>(Object.entries(cmThemes))
+
 const cmThemeNames = ['auto', 'light', 'dark']
   .concat([...cmThemeExports.keys()])
   .filter((item) => typeof cmThemeExports.get(item) !== 'function')
@@ -17,7 +18,9 @@ const resolveCmTheme = (name: string): CodeMirrorTheme => {
   if (name === 'light' || name === 'dark' || name === 'none') {
     return name
   }
+
   const candidate = cmThemeExports.get(name)
+
   return cmThemeNames.includes(name) && candidate ? (candidate as CodeMirrorTheme) : 'light'
 }
 
@@ -97,6 +100,7 @@ const meta: Meta<typeof CodeEditor> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // 基础示例（非流式）

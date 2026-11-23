@@ -95,16 +95,19 @@ try {
  */
 export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
   let backendPath: string
+
   try {
     backendPath = nativeCaptureBackendPath()
   } catch (error) {
     logger.warn('Skipping snap targets: the native backend could not be resolved', error as Error)
+
     return Promise.resolve([])
   }
 
   return new Promise((resolve) => {
     const t0 = performance.now()
     const t0Wall = Date.now()
+
     try {
       const worker = new Worker(enumeratorSource, { eval: true, workerData: { backendPath } })
       const spawnMs = performance.now() - t0
@@ -134,11 +137,13 @@ export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
                   `dispatch=${(total - bootMs - message.loadMs - message.enumMs).toFixed(0)}ms`
               )
             }
+
             resolve(message.windows)
           } else {
             logger.warn('Skipping snap targets: the enumerator worker failed', new Error(message.message))
             resolve([])
           }
+
           void worker.terminate()
         }
       )

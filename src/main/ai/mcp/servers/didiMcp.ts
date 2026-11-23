@@ -30,6 +30,7 @@ export function createDiDiMcpServer(apiKey = process.env.DIDI_API_KEY || ''): Mc
   async function callRemoteTool(name: string, args: Record<string, string>): Promise<CallToolResult> {
     try {
       const response = await makeRequest(apiKey, 'tools/call', { name, arguments: args })
+
       return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] }
     } catch (error) {
       logger.error(`Error calling tool ${name}:`, error as Error)
@@ -149,6 +150,7 @@ export function createDiDiMcpServer(apiKey = process.env.DIDI_API_KEY || ''): Mc
     },
     ({ order_id }) => callRemoteTool('taxi_query_order', { ...(order_id && { order_id }) })
   )
+
   return server
 }
 

@@ -48,8 +48,10 @@ function stopEventPropagation(event: { stopPropagation: () => void }) {
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === 'function') {
     ref(value)
+
     return
   }
+
   if (ref) ref.current = value
 }
 
@@ -67,11 +69,15 @@ function GroupHeaderPermanentDelete({ group }: { group: ResourceListGroup }) {
   const canRun = () => {
     if (pendingRef.current) return false
     const current = groupRef.current
+
     if (current.synthetic || !deleteRef.current) return false
+
     if (store.getUiSnapshot().renamingId) return false
     const eligible = eligibleRef.current
+
     return !eligible || eligible(current)
   }
+
   const canRunRef = useRef(canRun)
   canRunRef.current = canRun
 
@@ -81,8 +87,10 @@ function GroupHeaderPermanentDelete({ group }: { group: ResourceListGroup }) {
       if (!canRunRef.current()) return
       const onDelete = deleteRef.current
       const current = groupRef.current
+
       if (!onDelete) return
       pendingRef.current = true
+
       try {
         return Promise.resolve(onDelete(current)).finally(() => {
           pendingRef.current = false
@@ -94,6 +102,7 @@ function GroupHeaderPermanentDelete({ group }: { group: ResourceListGroup }) {
     },
     { enabled: () => canRunRef.current() }
   )
+
   return null
 }
 
@@ -118,6 +127,7 @@ function useLabelOverflow(label: string) {
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
+
     return () => observer.disconnect()
   }, [element, label])
 
@@ -149,6 +159,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
   const sectionState = useResourceListGroupState(section.id)
   const collapsed = sectionState.collapsed
   const sectionHeaderAction = meta.getSectionHeaderAction?.(section)
+
   const sectionHeaderActionAlwaysVisible =
     isValidElement<{ alwaysVisible?: boolean }>(sectionHeaderAction) && sectionHeaderAction.props.alwaysVisible === true
 
@@ -210,6 +221,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const meta = useResourceListMeta()
   const view = useResourceListView()
   const headerRef = useRef<HTMLDivElement | null>(null)
+
   const setHeaderRef = useCallback(
     (node: HTMLDivElement | null) => {
       headerRef.current = node
@@ -217,6 +229,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     },
     [ref]
   )
+
   const groupState = useResourceListGroupState(group.id)
   const labelOverflow = useLabelOverflow(group.label)
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
@@ -241,34 +254,41 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   // opened, so it keeps its own voice.
   const showsSelectedSurface = selected && !groupState.selectedVisible && !isBucketHeader
   const hasLeadingSlot = Boolean(groupHeaderIcon || groupHeaderLeadingAction)
+
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       onContextMenu?.(event)
     },
     [onContextMenu]
   )
+
   const handleClick = useCallback(() => {
     if (!isCollapsible) return
 
     if (clickBehavior === 'select-first-then-toggle' && !selected) {
       const firstItem = groupItems[0]
+
       if (firstItem) {
         actions.selectGroupHeaderItem(meta.getItemId(firstItem))
+
         return
       }
 
       if (meta.onEmptyGroupHeaderClick) {
         const handled = meta.onEmptyGroupHeaderClick(group)
+
         if (handled !== false) return
       }
     }
 
     actions.toggleGroup(group.id)
   }, [actions, clickBehavior, group, groupItems, isCollapsible, meta, selected])
+
   // Peeking at a group must not cost you the conversation you are in: on a header that would
   // otherwise switch away (`select-first-then-toggle`), the chevron is its own button that only
   // folds the group open or shut. Headers whose whole row already means "toggle" keep one button.
   const chevronIsOwnButton = clickBehavior === 'select-first-then-toggle'
+
   const handleChevronClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation()
@@ -280,9 +300,11 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   // Lazy: ContextMenuContent stays empty until right-click — stopPropagated bubbles must not reveal items.
   const headerContextMenuItems =
     groupHeaderContextMenu && groupHeaderContextMenu.length > 0 ? groupHeaderContextMenu : null
+
   const resolveHeaderContextMenuItems = useCallback(() => headerContextMenuItems ?? [], [headerContextMenuItems])
 
   if (!group.label) return null
+
   // Type separates kinds of header, not click behaviour: rows naming a manageable entity (agent,
   // assistant, workdir — the ones carrying hover actions) read as list content, while structural
   // buckets (time ranges, pinned) take the same recessed typography as the section headers above
@@ -295,6 +317,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     // in for one, so it has to read identically.
     showsSelectedSurface && 'font-medium'
   )
+
   const chevron = (
     <ChevronRight
       size={14}
@@ -302,6 +325,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
     />
   )
+
   const headerContent = (
     <div
       className={cn(
@@ -406,6 +430,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       )}
     </div>
   )
+
   const header = (
     <div
       ref={setHeaderRef}
@@ -502,8 +527,10 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)
+
             return
           }
+
           actions.showMoreInGroup(groupId)
         }}>
         {label}

@@ -56,28 +56,36 @@ export function useConversationNavigationOwner({
     if (draft && target.conversationType === 'agent') handOffAgentDraft(target.conversationId, draft)
 
     const existingTab = findConversationTab(tabs, target)
+
     if (existingTab) {
       if (messageId !== undefined) requestConversationLocate(existingTab.id, target.conversationId, messageId)
       setActiveTab(existingTab.id)
       reportOwnership(requestId, true)
+
       return
     }
 
     const key = targetKey(target)
     const pending = pendingNavigationsRef.current.get(key)
+
     if (pending) {
       pending.requestIds.add(requestId)
+
       if (messageId !== undefined) pending.messageId = messageId
+
       return
     }
 
     const app = getConversationSidebarApp(target)
+
     if (!app?.conversationRoute) {
       reportOwnership(requestId, false)
+
       return
     }
 
     pendingNavigationsRef.current.set(key, { requestIds: new Set([requestId]), target, messageId })
+
     try {
       openTab(app.conversationRoute.urlForKey(target.conversationId), {
         forceNew: true,
@@ -93,24 +101,29 @@ export function useConversationNavigationOwner({
   useEffect(() => {
     for (const [key, pending] of pendingNavigationsRef.current) {
       const openedTab = findConversationTab(tabs, pending.target)
+
       if (!openedTab) continue
 
       pendingNavigationsRef.current.delete(key)
+
       if (pending.messageId !== undefined)
         requestConversationLocate(openedTab.id, pending.target.conversationId, pending.messageId)
       setActiveTab(openedTab.id)
+
       for (const requestId of pending.requestIds) reportOwnership(requestId, true)
     }
   }, [setActiveTab, tabs])
 
   useEffect(() => {
     const tabIds = new Set(tabs.map((tab) => tab.id))
+
     for (const id of previousTabIdsRef.current) {
       if (!tabIds.has(id)) {
         clearConversationLocate(id)
         cacheService.deleteCasual(`scheduled-task.conversation.${id}`)
       }
     }
+
     previousTabIdsRef.current = tabIds
   }, [tabs])
 
@@ -119,7 +132,9 @@ export function useConversationNavigationOwner({
       for (const pending of pendingNavigationsRef.current.values()) {
         for (const requestId of pending.requestIds) reportOwnership(requestId, false)
       }
+
       pendingNavigationsRef.current.clear()
+
       for (const id of previousTabIdsRef.current) {
         clearConversationLocate(id)
         cacheService.deleteCasual(`scheduled-task.conversation.${id}`)

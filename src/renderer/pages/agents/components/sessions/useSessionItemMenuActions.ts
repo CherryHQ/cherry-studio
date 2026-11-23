@@ -43,12 +43,15 @@ export function useSessionItemMenuActions({
     async (session: AgentSessionEntity) => {
       const { getAgentSessionMessagesForExport } = await import('@renderer/services/agentSessionExport')
       const messages = await getAgentSessionMessagesForExport(session)
+
       if (messages.length < 2) return
 
       const topicId = buildAgentSessionTopicId(session.id)
       startTopicRenaming(topicId)
+
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
+
         if (summaryText) {
           await updateSession(
             { id: session.id, name: summaryText, isNameManuallyEdited: false },
@@ -79,6 +82,7 @@ export function useSessionItemMenuActions({
         import('@renderer/services/agentSessionExport'),
         import('@renderer/services/ExportService')
       ])
+
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportContentToNotes(title, markdown, notesPath)
@@ -94,9 +98,11 @@ export function useSessionItemMenuActions({
             import('@renderer/services/agentSessionExport'),
             import('@renderer/components/SaveToKnowledgePopup')
           ])
+
         const title = getAgentSessionExportTitle(session)
         const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
         const result = await SaveToKnowledgePopup.showForMessages(messages, title)
+
         if (result?.success) {
           toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
         }
@@ -111,6 +117,7 @@ export function useSessionItemMenuActions({
   const handleCopySessionMarkdown = useCallback(
     async (session: AgentSessionEntity) => {
       const { copyAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
+
       return copyAgentSessionAsMarkdown(session, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
@@ -119,6 +126,7 @@ export function useSessionItemMenuActions({
   const handleCopySessionPlainText = useCallback(
     async (session: AgentSessionEntity) => {
       const { copyAgentSessionAsPlainText } = await import('@renderer/services/agentSessionExport')
+
       return copyAgentSessionAsPlainText(session, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
@@ -127,6 +135,7 @@ export function useSessionItemMenuActions({
   const handleExportSessionMarkdown = useCallback(
     async (session: AgentSessionEntity) => {
       const { exportAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
+
       return exportAgentSessionAsMarkdown(session, undefined, undefined, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
@@ -135,6 +144,7 @@ export function useSessionItemMenuActions({
   const handleExportSessionMarkdownReason = useCallback(
     async (session: AgentSessionEntity) => {
       const { exportAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
+
       return exportAgentSessionAsMarkdown(session, true, undefined, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
@@ -144,6 +154,7 @@ export function useSessionItemMenuActions({
     async (session: AgentSessionEntity) => {
       const { agentSessionToMarkdown, getAgentSessionExportTitle } =
         await import('@renderer/services/agentSessionExport')
+
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await ipcApi.request('export.word.from_markdown', {
@@ -158,6 +169,7 @@ export function useSessionItemMenuActions({
     async (session: AgentSessionEntity) => {
       const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { exportMessagesToNotion }] =
         await Promise.all([import('@renderer/services/agentSessionExport'), import('@renderer/services/ExportService')])
+
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await exportMessagesToNotion(title, messages)
@@ -171,6 +183,7 @@ export function useSessionItemMenuActions({
         import('@renderer/services/agentSessionExport'),
         import('@renderer/services/ExportService')
       ])
+
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportMarkdownToYuque(title, markdown)
@@ -185,6 +198,7 @@ export function useSessionItemMenuActions({
           import('@renderer/services/agentSessionExport'),
           import('@renderer/components/ObsidianExportPopup')
         ])
+
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await ObsidianExportPopup.show({ title: title.replace(/\\/g, '_'), messages, processingMethod: '3' })
@@ -196,6 +210,7 @@ export function useSessionItemMenuActions({
     async (session: AgentSessionEntity) => {
       const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { exportMarkdownToJoplin }] =
         await Promise.all([import('@renderer/services/agentSessionExport'), import('@renderer/services/ExportService')])
+
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await exportMarkdownToJoplin(title, messages)
@@ -209,6 +224,7 @@ export function useSessionItemMenuActions({
         import('@renderer/services/agentSessionExport'),
         import('@renderer/services/ExportService')
       ])
+
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportMarkdownToSiyuan(title, markdown)

@@ -31,6 +31,7 @@ export type CreateKnowledgeBaseInput = Pick<
   CreateKnowledgeBaseDto,
   'name' | 'groupId' | 'embeddingModelId' | 'dimensions'
 >
+
 export type RestoreKnowledgeBaseInput = Pick<
   RestoreKnowledgeBaseDto,
   'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
@@ -39,6 +40,7 @@ export type RestoreKnowledgeBaseInput = Pick<
 export const useKnowledgeBases = (options: { enabled?: boolean; revalidateOnFocus?: boolean } = {}) => {
   const enabled = options.enabled !== false
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
+
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases', {
     query: KNOWLEDGE_BASES_QUERY,
     limit: KNOWLEDGE_BASES_MAX_LIMIT,
@@ -49,6 +51,7 @@ export const useKnowledgeBases = (options: { enabled?: boolean; revalidateOnFocu
       ...(options.revalidateOnFocus !== undefined && { revalidateOnFocus: options.revalidateOnFocus })
     }
   })
+
   const flatBases = useInfiniteFlatItems(pages)
   const isFullyLoaded = enabled && pages.length > 0 && !isLoading && !hasNext && !error
   const lastCompleteBasesRef = useRef<KnowledgeBaseListItem[]>(EMPTY_KNOWLEDGE_BASES)
@@ -83,10 +86,12 @@ export const useKnowledgeBaseReorder = () =>
     infinite: { limit: KNOWLEDGE_BASES_MAX_LIMIT },
     computeOptimistic: (items, id, anchor, idKey, request) => {
       const moving = items.find((item) => item[idKey] === id)
+
       if (!moving) throw new Error(`Knowledge base ${id} not found in the cached list`)
       const groupId = 'anchor' in request && request.groupId !== undefined ? request.groupId : (moving.groupId ?? null)
       const destination = items.filter((item) => item[idKey] !== id && (item.groupId ?? null) === groupId)
       const reordered = reorderLocally([...destination, { ...moving, groupId }], id, anchor, idKey)
+
       return [...items.filter((item) => item[idKey] !== id && (item.groupId ?? null) !== groupId), ...reordered]
     }
   })
@@ -136,6 +141,7 @@ export const useCreateKnowledgeBase = () => {
         }
 
         setIsCreating(false)
+
         return createdBase
       } catch (error) {
         const normalizedError = normalizeError(error)
@@ -208,6 +214,7 @@ export const useRestoreKnowledgeBase = () => {
         }
 
         setIsRestoring(false)
+
         return result
       } catch (error) {
         const normalizedError = normalizeError(error)
@@ -279,6 +286,7 @@ export const useEnableKnowledgeBaseEmbedding = () => {
         }
 
         setIsEnabling(false)
+
         return result
       } catch (error) {
         const normalizedError = normalizeError(error)

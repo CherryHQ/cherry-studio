@@ -129,6 +129,7 @@ export function validateCommand(command: string): string {
   }
 
   const trimmed = command.trim()
+
   if (!trimmed) {
     throw new Error('Invalid command: command cannot be empty')
   }
@@ -245,11 +246,13 @@ export function buildResolvedEnv(
 
       // Denylist process-affecting variables (DYLD_* on macOS, plus exact matches above).
       const canonicalKey = key.toUpperCase()
+
       if (DXT_ENV_DENYLIST.includes(canonicalKey) || canonicalKey.startsWith('DYLD_')) {
         throw new Error(`Invalid MCP package env: environment variable "${key}" is not allowed`)
       }
 
       const substituted = performVariableSubstitution(value, extractDir, userConfig)
+
       if (substituted.includes('\0')) {
         throw new Error(`Invalid MCP package env: null byte detected in value of environment variable "${key}"`)
       }
@@ -269,23 +272,29 @@ export function validatePackageUploadPayload(
   }
 
   const trimmedFileName = fileName.trim()
+
   if (!trimmedFileName) {
     throw new Error('Invalid MCP package upload: file name cannot be empty')
   }
+
   if (trimmedFileName !== fileName) {
     throw new Error('Invalid MCP package upload: file name cannot contain leading or trailing whitespace')
   }
+
   if (trimmedFileName.includes('\0') || /[/\\]/.test(trimmedFileName)) {
     throw new Error('Invalid MCP package upload: file name cannot contain path separators')
   }
+
   if (!/^[A-Za-z0-9._ ()@+-]+$/.test(trimmedFileName)) {
     throw new Error('Invalid MCP package upload: file name contains unsupported characters')
   }
+
   if (path.extname(trimmedFileName).toLowerCase() !== `.${packageFormat}`) {
     throw new Error(`Invalid MCP package upload: expected a .${packageFormat} file`)
   }
 
   let buffer: Buffer
+
   if (fileBuffer instanceof ArrayBuffer) {
     buffer = Buffer.from(fileBuffer)
   } else if (ArrayBuffer.isView(fileBuffer)) {
@@ -297,6 +306,7 @@ export function validatePackageUploadPayload(
   if (buffer.byteLength === 0) {
     throw new Error('Invalid MCP package upload: file buffer cannot be empty')
   }
+
   if (buffer.byteLength > MCP_PACKAGE_UPLOAD_MAX_BYTES) {
     throw new Error('Invalid MCP package upload: file exceeds the 100 MiB size limit')
   }
@@ -382,6 +392,7 @@ export class McpPackageService extends BaseService {
 
       // Ensure parent directory exists
       const parentDir = path.dirname(destination)
+
       if (!fs.existsSync(parentDir)) {
         fs.mkdirSync(parentDir, { recursive: true })
       }
@@ -441,6 +452,7 @@ export class McpPackageService extends BaseService {
       if (hasBackup && !fs.existsSync(destination) && fs.existsSync(backupDir)) {
         fs.renameSync(backupDir, destination)
       }
+
       if (fs.existsSync(stagedDir)) {
         try {
           fs.rmSync(stagedDir, { recursive: true, force: true })
@@ -448,6 +460,7 @@ export class McpPackageService extends BaseService {
           logger.warn(`Failed to remove staged MCP package directory: ${stagedDir}`, cleanupError as Error)
         }
       }
+
       throw error
     }
   }
@@ -475,15 +488,18 @@ export class McpPackageService extends BaseService {
     packageFormat: McpPackageFormat
   ): Promise<McpPackageUploadResult> {
     const packageLabel = packageFormat === 'mcpb' ? 'MCPB' : 'DXT'
+
     try {
       const fileData = validatePackageUploadPayload(fileBuffer, fileName, packageFormat)
       await fs.promises.mkdir(this.tempDir, { recursive: true })
       // `fileName` is renderer-supplied; basename it so a value like `../../evil` can't escape tempDir.
       const tempPath = path.join(this.tempDir, `temp_file_${uuidv4()}_${path.basename(fileName)}`)
       await fs.promises.writeFile(tempPath, fileData)
+
       return await this.uploadPackage(tempPath, packageFormat)
     } catch (error) {
       logger.error(`${packageLabel} upload error:`, error as Error)
+
       return {
         success: false,
         error: error instanceof Error ? error.message : `Failed to upload ${packageLabel} file`
@@ -505,6 +521,7 @@ export class McpPackageService extends BaseService {
       logger.debug(`Extracting ${packageLabel} file: ${filePath}`)
 
       const zip = new StreamZip.async({ file: filePath })
+
       try {
         // Reject any zip-slip entry before writing anything to disk, and any entries that
         // collide once case and Unicode are folded (they land on one file on Windows and
@@ -519,6 +536,7 @@ export class McpPackageService extends BaseService {
 
       // Read and validate the manifest.json
       const manifestPath = path.join(tempExtractDir, 'manifest.json')
+
       if (!fs.existsSync(manifestPath)) {
         throw new Error(`manifest.json not found in ${packageLabel} file`)
       }
@@ -528,32 +546,41 @@ export class McpPackageService extends BaseService {
 
       // Validate required fields in manifest
       let manifest: McpPackageManifest
+
       if (packageFormat === 'mcpb') {
         if (!parsedManifest.manifest_version) {
           throw new Error('Invalid manifest: missing manifest_version')
         }
+
         manifest = { ...parsedManifest, manifest_version: parsedManifest.manifest_version }
       } else {
         if (!parsedManifest.dxt_version) {
           throw new Error('Invalid manifest: missing dxt_version')
         }
+
         manifest = { ...parsedManifest, dxt_version: parsedManifest.dxt_version }
       }
+
       if (!manifest.name) {
         throw new Error('Invalid manifest: missing name')
       }
+
       if (!manifest.version) {
         throw new Error('Invalid manifest: missing version')
       }
+
       if (!manifest.server) {
         throw new Error('Invalid manifest: missing server configuration')
       }
+
       if (!manifest.server.mcp_config) {
         throw new Error('Invalid manifest: missing server.mcp_config')
       }
+
       if (!manifest.server.mcp_config.command) {
         throw new Error('Invalid manifest: missing server.mcp_config.command')
       }
+
       if (!Array.isArray(manifest.server.mcp_config.args)) {
         throw new Error('Invalid manifest: server.mcp_config.args must be an array')
       }
@@ -606,8 +633,10 @@ export class McpPackageService extends BaseService {
     try {
       // Read the manifest from the package server directory
       const manifestPath = path.join(dxtPath, 'manifest.json')
+
       if (!fs.existsSync(manifestPath)) {
         logger.error(`Manifest not found: ${manifestPath}`)
+
         return null
       }
 
@@ -616,6 +645,7 @@ export class McpPackageService extends BaseService {
 
       if (!manifest.server?.mcp_config) {
         logger.error('No mcp_config found in manifest')
+
         return null
       }
 
@@ -631,6 +661,7 @@ export class McpPackageService extends BaseService {
       return resolvedConfig
     } catch (error) {
       logger.error('Failed to resolve MCP config:', error as Error)
+
       return null
     }
   }
@@ -643,13 +674,16 @@ export class McpPackageService extends BaseService {
       if (fs.existsSync(serverDir)) {
         logger.debug(`Removing package server directory: ${serverDir}`)
         fs.rmSync(serverDir, { recursive: true, force: true })
+
         return true
       }
 
       logger.warn(`Server directory not found: ${serverDir}`)
+
       return false
     } catch (error) {
       logger.error('Failed to cleanup package server:', error as Error)
+
       return false
     }
   }

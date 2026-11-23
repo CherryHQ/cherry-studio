@@ -14,12 +14,16 @@ import { type LocalizedText, resolveLocalizedText } from '@shared/types/miniAppM
 function describeRename(name: { from: LocalizedText; to: LocalizedText }, language: string) {
   const from = resolveLocalizedText(name.from, language)
   const to = resolveLocalizedText(name.to, language)
+
   if (from !== to) return { from, to }
+
   const tableOf = (text: LocalizedText): Record<string, string | undefined> =>
     typeof text === 'string' ? { en: text } : text
+
   const before = tableOf(name.from)
   const after = tableOf(name.to)
   const locale = [...new Set([...Object.keys(before), ...Object.keys(after)])].find((l) => before[l] !== after[l])
+
   return locale ? { from: before[locale] ?? '', to: after[locale] ?? '', locale } : { from, to }
 }
 
@@ -39,9 +43,12 @@ export const UpdateReviewCard: FC<{
   const language = i18n.resolvedLanguage ?? i18n.language
   const added = update.status === 'needs-consent' ? update.added : []
   const addedHosts = update.status === 'needs-consent' ? update.addedHosts : []
+
   const unchanged =
     added.length === 0 && addedHosts.length === 0 && update.addedOptional.length === 0 && update.removed.length === 0
+
   const rename = update.identityChange?.name && describeRename(update.identityChange.name, language)
+
   return (
     <div className="flex flex-col gap-2">
       {/* Said out loud: an empty diff must read as "nothing changed", never as "nothing loaded". */}

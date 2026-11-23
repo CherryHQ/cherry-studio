@@ -13,6 +13,7 @@ export function ProviderBillingButton({ providerId, disabled }: { providerId: st
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const [open, setOpen] = useState(false)
+
   return (
     <>
       <Tooltip content={t('settings.provider.billing.title')}>

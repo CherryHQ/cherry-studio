@@ -37,6 +37,7 @@ export type NarrowedKnowledgeJobInput =
     }
 
 type JobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'>
+
 type JobInputObject = {
   baseId?: unknown
   itemId?: unknown
@@ -52,25 +53,35 @@ export function narrowKnowledgeJobInput(snapshot: JobSnapshotInput): NarrowedKno
   switch (snapshot.type) {
     case 'knowledge.copy-sources': {
       const payload = narrowCopySourcesJobPayload(snapshot.input)
+
       return payload ? { type: snapshot.type, input: payload } : null
     }
+
     case 'knowledge.prepare-root': {
       const payload = narrowItemJobPayload(snapshot.input)
+
       return payload ? { type: snapshot.type, input: payload } : null
     }
+
     case 'knowledge.index-documents': {
       const payload = narrowIndexDocumentsJobPayload(snapshot.input)
+
       return payload ? { type: snapshot.type, input: payload } : null
     }
+
     case 'knowledge.check-file-processing-result': {
       const payload = narrowFileProcessingCheckJobPayload(snapshot.input)
+
       return payload ? { type: snapshot.type, input: payload } : null
     }
+
     case 'knowledge.delete-subtree':
     case 'knowledge.reindex-subtree': {
       const payload = narrowSubtreeJobPayload(snapshot.input)
+
       return payload ? { type: snapshot.type, input: payload } : null
     }
+
     default:
       return null
   }
@@ -80,10 +91,14 @@ function narrowFileProcessingCheckJobPayload(
   rawInput: JobSnapshot['input']
 ): KnowledgeCheckFileProcessingResultPayload | null {
   const input = narrowJobInputObject(rawInput)
+
   if (!input) return null
   const basePayload = narrowItemJobPayload(rawInput)
+
   if (!basePayload) return null
+
   if (typeof input.fileProcessingTaskId !== 'string') return null
+
   if (typeof input.processedRelativePath !== 'string') return null
 
   return {
@@ -98,8 +113,11 @@ function narrowItemJobPayload(
   rawInput: JobSnapshot['input']
 ): KnowledgePrepareRootPayload | Pick<KnowledgeIndexDocumentsPayload, 'baseId' | 'itemId'> | null {
   const input = narrowJobInputObject(rawInput)
+
   if (!input) return null
+
   if (typeof input.baseId !== 'string') return null
+
   if (typeof input.itemId !== 'string') return null
 
   return {
@@ -114,15 +132,21 @@ function narrowIndexDocumentsJobPayload(rawInput: JobSnapshot['input']): Knowled
 
 function narrowCopySourcesJobPayload(rawInput: JobSnapshot['input']): KnowledgeCopySourcesPayload | null {
   const input = narrowJobInputObject(rawInput)
+
   if (!input) return null
   const basePayload = narrowItemJobPayload(rawInput)
+
   if (!basePayload) return null
+
   if (!Array.isArray(input.copies)) return null
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted copy entries may be historical or malformed; verify each entry's source and relative path before accepting the job input.
   const copiesAreValid = input.copies.every((copy: unknown) => {
     const entry = narrowJobInputObject(copy)
+
     return entry !== null && typeof entry.from === 'string' && typeof entry.relativePath === 'string'
   })
+
   if (!copiesAreValid) return null
 
   return {
@@ -136,9 +160,13 @@ function narrowSubtreeJobPayload(
   rawInput: JobSnapshot['input']
 ): KnowledgeDeleteSubtreePayload | KnowledgeReindexSubtreePayload | null {
   const input = narrowJobInputObject(rawInput)
+
   if (!input) return null
+
   if (typeof input.baseId !== 'string') return null
+
   if (!Array.isArray(input.rootItemIds)) return null
+
   if (!input.rootItemIds.every((itemId) => typeof itemId === 'string')) return null
 
   return {
@@ -149,5 +177,6 @@ function narrowSubtreeJobPayload(
 
 function narrowJobInputObject(rawInput: JobSnapshot['input']): JobInputObject | null {
   if (!rawInput || typeof rawInput !== 'object') return null
+
   return rawInput
 }

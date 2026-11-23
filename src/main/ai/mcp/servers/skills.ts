@@ -14,11 +14,14 @@ const REQUEST_TIMEOUT_MS = 15_000
 async function fetchMarketplaceJson<TResult>(url: string, parse: (raw: unknown) => TResult): Promise<TResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
   try {
     const response = await net.fetch(url, { method: 'GET', signal: controller.signal })
+
     if (!response.ok) {
       throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
     }
+
     return parse(await response.json())
   } finally {
     clearTimeout(timer)
@@ -59,6 +62,7 @@ export function createSkillsServer(agentId: string): McpServer {
       // A GitHub SKILL.md URL already identifies exactly one skill, so the registries have nothing to
       // add — and a skill they never indexed is only reachable this way.
       const githubResult = buildGithubSkillResult(query)
+
       const results = githubResult
         ? [githubResult]
         : await searchSkillMarketplaces(query.replace(/[-_]+/g, ' ').trim(), fetchMarketplaceJson, (source, error) => {
@@ -83,11 +87,13 @@ export function createSkillsServer(agentId: string): McpServer {
         source_url: r.sourceUrl,
         install_source: r.installSource
       }))
+
       for (const result of results) {
         issuedInstallSources.add(result.installSource)
       }
 
       logger.info('Skills search via tool', { agentId, query, resultCount: view.length })
+
       return {
         content: [
           {
@@ -125,6 +131,7 @@ export function createSkillsServer(agentId: string): McpServer {
       const enabled = skillService.toggle({ skillId: installed.id, agentId, isEnabled: true })
 
       logger.info('Skill installed via tool', { agentId, installSource, name: installed.name })
+
       return {
         content: [
           {

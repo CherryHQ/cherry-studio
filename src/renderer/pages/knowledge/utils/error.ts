@@ -41,6 +41,7 @@ const translateKnowledgeBaseErrorCode = (code: KnowledgeBaseErrorCode, t: Knowle
  */
 export const getKnowledgeBaseFailureReason = (base: Pick<KnowledgeBase, 'error'>, t: KnowledgeErrorTranslator) => {
   const parsedCode = KnowledgeBaseErrorCodeSchema.safeParse(base.error)
+
   if (parsedCode.success) {
     return translateKnowledgeBaseErrorCode(parsedCode.data, t)
   }
@@ -65,6 +66,7 @@ const translateKnowledgeItemErrorCode = (code: KnowledgeItemErrorCode, t: Knowle
 /** Failed item reason: known codes and the legacy empty-text message are localized; other messages pass through. */
 export const getKnowledgeItemFailureReason = (item: Pick<KnowledgeItem, 'error'>, t: KnowledgeErrorTranslator) => {
   const parsedCode = KnowledgeItemErrorCodeSchema.safeParse(item.error)
+
   if (parsedCode.success) {
     return translateKnowledgeItemErrorCode(parsedCode.data, t)
   }

@@ -61,6 +61,7 @@ class KnowledgeGraphManager {
     const manager = new KnowledgeGraphManager(memoryPath)
     await manager._ensureMemoryPathExists()
     await manager._loadGraphFromDisk()
+
     return manager
   }
 
@@ -68,6 +69,7 @@ class KnowledgeGraphManager {
     try {
       const directory = path.dirname(this.memoryPath)
       await fs.mkdir(directory, { recursive: true })
+
       try {
         await fs.access(this.memoryPath)
       } catch (error) {
@@ -84,14 +86,17 @@ class KnowledgeGraphManager {
   private async _loadGraphFromDisk(): Promise<void> {
     try {
       const data = await fs.readFile(this.memoryPath, 'utf-8')
+
       // Handle empty file case
       if (data.trim() === '') {
         this.entities = new Map()
         this.relations = new Set()
         // Optionally write the initial empty structure back
         await this._persistGraph()
+
         return
       }
+
       const graph: KnowledgeGraph = JSON.parse(data)
       this.entities.clear()
       this.relations.clear()
@@ -119,11 +124,13 @@ class KnowledgeGraphManager {
   // Persist the current in-memory graph to disk using a mutex
   private async _persistGraph(): Promise<void> {
     const release = await this.fileMutex.acquire()
+
     try {
       const graphData: KnowledgeGraph = {
         entities: Array.from(this.entities.values()),
         relations: Array.from(this.relations).map((rStr) => this._deserializeRelation(rStr))
       }
+
       await fs.writeFile(this.memoryPath, JSON.stringify(graphData, null, 2))
     } catch (error) {
       logger.error('Failed to save knowledge graph:', error as Error)
@@ -155,9 +162,11 @@ class KnowledgeGraphManager {
         newEntities.push(newEntity)
       }
     })
+
     if (newEntities.length > 0) {
       await this._persistGraph()
     }
+
     return newEntities
   }
 
@@ -168,17 +177,22 @@ class KnowledgeGraphManager {
       // Ensure related entities exist before creating a relation
       if (!this.entities.has(relation.from) || !this.entities.has(relation.to)) {
         logger.warn(`Skipping relation creation: Entity not found for relation ${relation.from} -> ${relation.to}`)
+
         return // Skip this relation
       }
+
       const relationStr = this._serializeRelation(relation)
+
       if (!this.relations.has(relationStr)) {
         this.relations.add(relationStr)
         newRelations.push(relation)
       }
     })
+
     if (newRelations.length > 0) {
       await this._persistGraph()
     }
+
     return newRelations
   }
 
@@ -190,14 +204,18 @@ class KnowledgeGraphManager {
     let changed = false
     observations.forEach((o) => {
       const entity = this.entities.get(o.entityName)
+
       if (!entity) {
         throw new Error(`Entity with name ${o.entityName} not found`)
       }
+
       // Ensure observations array exists
       if (!Array.isArray(entity.observations)) {
         entity.observations = []
       }
+
       const newObservations = o.contents.filter((content) => !entity.observations.includes(content))
+
       if (newObservations.length > 0) {
         entity.observations.push(...newObservations)
         results.push({ entityName: o.entityName, addedObservations: newObservations })
@@ -207,9 +225,11 @@ class KnowledgeGraphManager {
         results.push({ entityName: o.entityName, addedObservations: [] })
       }
     })
+
     if (changed) {
       await this._persistGraph()
     }
+
     return results
   }
 
@@ -229,6 +249,7 @@ class KnowledgeGraphManager {
     const relationsToDelete = new Set<string>()
     this.relations.forEach((relStr) => {
       const rel = this._deserializeRelation(relStr)
+
       if (namesToDelete.has(rel.from) || namesToDelete.has(rel.to)) {
         relationsToDelete.add(relStr)
       }
@@ -250,15 +271,18 @@ class KnowledgeGraphManager {
     let changed = false
     deletions.forEach((d) => {
       const entity = this.entities.get(d.entityName)
+
       if (entity && Array.isArray(entity.observations)) {
         const initialLength = entity.observations.length
         const observationsToDelete = new Set(d.observations)
         entity.observations = entity.observations.filter((o) => !observationsToDelete.has(o))
+
         if (entity.observations.length !== initialLength) {
           changed = true
         }
       }
     })
+
     if (changed) {
       await this._persistGraph()
     }
@@ -269,10 +293,12 @@ class KnowledgeGraphManager {
     let changed = false
     relations.forEach((rel) => {
       const relStr = this._serializeRelation(rel)
+
       if (this.relations.delete(relStr)) {
         changed = true
       }
     })
+
     if (changed) {
       await this._persistGraph()
     }
@@ -294,6 +320,7 @@ class KnowledgeGraphManager {
   @TraceMethod({ spanName: 'searchNodes', tag: 'KnowledgeGraph' })
   async searchNodes(query: string): Promise<KnowledgeGraph> {
     const lowerCaseQuery = query.toLowerCase()
+
     const filteredEntities = Array.from(this.entities.values()).filter(
       (e) =>
         e.name.toLowerCase().includes(lowerCaseQuery) ||
@@ -341,14 +368,19 @@ export function createMemoryEndpoint(envPath = ''): BuiltinMcpEndpoint {
       ? envPath
       : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
     : getDefaultMemoryPath()
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Graph loading and persistence can reject arbitrary values; log the failure before marking this manager unavailable.
   const manager = KnowledgeGraphManager.create(memoryPath).catch((error: unknown) => {
     logger.error('Failed to initialize KnowledgeGraphManager:', { error })
+
     return null
   })
+
   const getManager = async (): Promise<KnowledgeGraphManager> => {
     const initialized = await manager
+
     if (!initialized) throw new Error('Memory server failed to initialize. Cannot process requests.')
+
     return initialized
   }
 
@@ -356,6 +388,7 @@ export function createMemoryEndpoint(envPath = ''): BuiltinMcpEndpoint {
     createServer: () => {
       const server = new McpServer({ name: 'memory-server', version: '1.1.0' })
       registerMemoryTools(server, getManager)
+
       return server
     },
     close: async () => undefined
@@ -422,6 +455,7 @@ function registerMemoryTools(server: McpServer, getManager: () => Promise<Knowle
     },
     async ({ entityNames }) => {
       await (await getManager()).deleteEntities(entityNames)
+
       return text('Entities deleted successfully')
     }
   )
@@ -441,6 +475,7 @@ function registerMemoryTools(server: McpServer, getManager: () => Promise<Knowle
     },
     async ({ deletions }) => {
       await (await getManager()).deleteObservations(deletions)
+
       return text('Observations deleted successfully')
     }
   )
@@ -455,6 +490,7 @@ function registerMemoryTools(server: McpServer, getManager: () => Promise<Knowle
     },
     async ({ relations }) => {
       await (await getManager()).deleteRelations(relations)
+
       return text('Relations deleted successfully')
     }
   )

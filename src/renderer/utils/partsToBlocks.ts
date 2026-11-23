@@ -33,6 +33,7 @@ export function convertReferencesToCitationReferences(
   blockId: string
 ): CitationReferenceView[] | undefined {
   const citations = references.filter((ref): ref is CitationReference => ref.category === ReferenceCategory.CITATION)
+
   if (citations.length === 0) return undefined
 
   return citations.map((ref) => ({
@@ -56,15 +57,18 @@ function extractOpenRouterContent(entry: Record<string, unknown>): string | unde
   if (!entry.providerMetadata || typeof entry.providerMetadata !== 'object') return undefined
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The metadata object is checked above; its provider-specific values remain unvalidated.
   const providerMetadata = entry.providerMetadata as Record<string, unknown>
+
   if (!providerMetadata.openrouter || typeof providerMetadata.openrouter !== 'object') return undefined
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The namespace object is checked above; content is accepted only after the string check below.
   const openrouterMeta = providerMetadata.openrouter as Record<string, unknown>
+
   return typeof openrouterMeta.content === 'string' ? openrouterMeta.content : undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored citation fields are unvalidated; only a finite positive number may enter the display projection.
 function readExplicitCitationNumber(entry: Record<string, unknown>): number {
   const value = entry.number
+
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 }
 
@@ -83,11 +87,13 @@ function normalizeWebResult(result: unknown): Citation | null {
   if (!result || typeof result !== 'object') return null
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; each URL, title, content and citation number is validated before use.
   const entry = result as Record<string, unknown>
+
   const openAiUrlCitation =
     entry.url_citation && typeof entry.url_citation === 'object'
       ? // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested citation object is checked; URL and title remain unknown until the string checks below.
         (entry.url_citation as Record<string, unknown>)
       : undefined
+
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The web container is checked; provider-specific fields remain unknown until the scalar readers validate them.
   const webEntry = entry.web && typeof entry.web === 'object' ? (entry.web as Record<string, unknown>) : undefined
 
@@ -105,6 +111,7 @@ function normalizeWebResult(result: unknown): Citation | null {
     toHostOrUrl(url)
 
   const content = (typeof entry.content === 'string' && entry.content) || extractOpenRouterContent(entry)
+
   if (!url && !title && !content) return null
 
   return {
@@ -121,10 +128,12 @@ function normalizeWebResult(result: unknown): Citation | null {
 function normalizeWebResults(results: unknown): Citation[] {
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; stored provider extension fields remain unvalidated.
   const obj = results && typeof results === 'object' ? (results as Record<string, unknown>) : undefined
+
   // Gemini grounding format: { groundingChunks, groundingSupports }
   if (obj && Array.isArray(obj.groundingChunks)) {
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the array container is checked; optional chunk fields stay unvalidated and web values are inspected below.
     const chunks = obj.groundingChunks as Array<Record<string, unknown>>
+
     const groundingSupports: Citation['metadata'] =
       obj.groundingSupports && Array.isArray(obj.groundingSupports) ? obj.groundingSupports : undefined
 
@@ -133,7 +142,9 @@ function normalizeWebResults(results: unknown): Citation[] {
         // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The web container is checked; URI and title are accepted only after their string checks.
         const web = chunk?.web && typeof chunk.web === 'object' ? (chunk.web as Record<string, unknown>) : undefined
         const url = typeof web?.uri === 'string' ? web.uri : ''
+
         if (!url) return null
+
         const citation: Citation = {
           number: index + 1,
           url,
@@ -141,7 +152,9 @@ function normalizeWebResults(results: unknown): Citation[] {
           showFavicon: true,
           type: 'websearch'
         }
+
         if (groundingSupports) citation.metadata = groundingSupports
+
         return citation
       })
       .filter((citation) => citation !== null)
@@ -158,8 +171,10 @@ function assignMissingCitationNumbers(citations: Citation[]): Citation[] {
 
   return citations.map((citation) => {
     if (citation.number > 0) return citation
+
     while (assigned.has(nextNumber)) nextNumber += 1
     assigned.add(nextNumber)
+
     return { ...citation, number: nextNumber }
   })
 }
@@ -186,11 +201,13 @@ export function convertReferencesToCitations(references: ContentReference[]): Ci
       all.push(
         ...knowledge.map((item) => {
           const number = item.id > 0 && !usedNumbers.has(item.id) ? item.id : 0
+
           if (number > 0) usedNumbers.add(number)
           // v1 stored a file source as the whole markdown link `[name](http://file/x)`, so the
           // raw value is neither a linkable URL nor a readable title. Unwrap it the way v1's own
           // renderer did; the main process routes `http://file/` back to the stored file.
           const fileMatch = item.sourceUrl?.match(/\[(.*?)]\(http:\/\/file\/(.*?)\)/)
+
           return {
             number,
             url: fileMatch ? `http://file/${fileMatch[2]}` : item.sourceUrl || '',
@@ -220,11 +237,15 @@ export function convertReferencesToCitations(references: ContentReference[]): Ci
   }
 
   const urlSet = new Set<string>()
+
   const unique = all.filter((citation) => {
     if (citation.type === 'knowledge' || citation.type === 'memory') return true
+
     if (!citation.url) return true
+
     if (urlSet.has(citation.url)) return false
     urlSet.add(citation.url)
+
     return true
   })
 

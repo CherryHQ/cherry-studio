@@ -235,6 +235,7 @@ export const miniAppLogoFileRefTable = sqliteTable(
   },
   (t) => [index('malfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('malfr_source_id_idx').on(t.sourceId)]
 )
+
 export const assistantAvatarFileRefTable = sqliteTable(
   'assistant_avatar_file_ref',
   {
@@ -358,17 +359,31 @@ export function persistentRefAbsenceConditions(): SQL[] {
 }
 
 export type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
+
 export type InsertChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferInsert
+
 export type AgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferSelect
+
 export type InsertAgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferInsert
+
 export type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
+
 export type InsertPaintingFileRefRow = typeof paintingFileRefTable.$inferInsert
+
 export type JobFileRefRow = typeof jobFileRefTable.$inferSelect
+
 export type InsertJobFileRefRow = typeof jobFileRefTable.$inferInsert
+
 export type TranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferSelect
+
 export type InsertTranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferInsert
+
 export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelect
+
 export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
+
 export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect
+
 export type InsertMiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferInsert
+
 export type MiniAppFileRefRow = typeof miniAppFileRefTable.$inferSelect

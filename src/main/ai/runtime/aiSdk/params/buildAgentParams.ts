@@ -89,12 +89,14 @@ import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSu
 import type { RequestScope, SdkConfig } from './scope'
 
 const logger = loggerService.withContext('buildAgentParams')
+
 const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
   WEB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   KB_READ_TOOL_NAME
 ])
+
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
@@ -137,12 +139,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+
   const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
     provider,
     model,
     resolvedEndpoint,
     request.apiKeyOverride
   )
+
   applyHttpTrace(sdkConfig.providerSettings, {
     topicId: input.traceContext?.topicId ?? request.conversation.topicId,
     modelName: model.name ?? model.id
@@ -155,6 +159,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const retained = request.retainedContext ?? collectRetainedContext(request.messages ?? [])
   const fileAttachments = retained.fileAttachments
   const hasFileAttachments = fileAttachments.length > 0
+
   // Resolved before tool selection (fs_read's applies gate) and the tool
   // context (fs_read's per-call cap follows the effective persist threshold).
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
@@ -162,19 +167,24 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.conversation,
     assistant?.settings.contextSettings
   )
+
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
   // A marker minted on the last permitted tool step can never be read back —
   // the producing tool consumes that step and the loop ends.
   const hasReadBackStep = resolveToolCallLimit(assistant) > 1
+
   // Every condition a <persisted-output> marker needs to appear this request;
   // `resolveTruncateStorage` reuses the result rather than re-querying the row.
   const canOffloadToolOutputs =
     contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
+
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
+
   const toolSignals =
     request.contextOwner !== 'caller' && !request.disableTools && canModelConsumeTools(model)
       ? await resolveRequestToolSignals(request, assistant)
       : undefined
+
   const webToolRoutes =
     request.contextOwner === 'caller'
       ? NO_WEB_TOOL_ROUTES
@@ -197,6 +207,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
             : false,
           reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
         })
+
   const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
     ? await resolveTools(
         request,
@@ -217,8 +228,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         mcpResourceServerIds: new Set<string>(),
         mcpServerIds: new Set<string>()
       }
+
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
+
   const capabilities = assistant
     ? resolveCapabilities(model, provider, assistant, {
         webToolRoutes: finalWebToolRoutes,
@@ -230,15 +243,20 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { endpointType } = resolvedEndpoint
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
   const runtimeProviderId = sdkConfig.providerId
+
   const reasoningEndpointType =
     runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
+
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
   const serviceTierControl = providerRegistryService.resolveServiceTierControl(provider, model, endpointType)
+
   const invocationModel = reasoningProfile.support
     ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
     : model
+
   const customParameters = extractAiSdkStandardParams(assistant ? getCustomParameters(assistant) : {})
   customParameters.standardParams = filterStandardParams(customParameters.standardParams, model)
+
   const requestedMaxOutputTokens = resolveRequestedMaxOutputTokens(
     request.callOverrides?.maxOutputTokens,
     customParameters.standardParams.maxOutputTokens,
@@ -246,8 +264,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model,
     endpointType
   )
+
   const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
   const reasoningSelection = normalizeRequestedSelection(requestedReasoningSelection, invocationModel)
+
   const reasoning = resolveReasoningInvocation({
     selection: reasoningSelection,
     model: invocationModel,
@@ -255,6 +275,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
     assistantSummary: assistant?.settings.reasoning_summary
   })
+
   const nativeFileSupport = resolveNativeFileSupport(provider, model, {
     endpointType,
     aiSdkProviderId,
@@ -264,6 +285,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   let automationRun: Promise<AutomationRun> | undefined
   const automationAbort = new AbortController()
   let automationFinished = false
+
   const getAutomationRun =
     assistant && request.conversation.topicId && (toolSignals?.browserEnabled || toolSignals?.computerUseEnabled)
       ? () => {
@@ -281,6 +303,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
               if (topicService.getById(topicId).assistantId !== assistant.id)
                 throw new Error('Conversation owner changed')
               const settings = assistantDataService.getById(assistant.id).settings
+
               return {
                 computerApproval: { bypass: false, windowId: request.interactionWindowId },
                 browser:
@@ -294,9 +317,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
             },
             signal ? AbortSignal.any([signal, automationAbort.signal]) : automationAbort.signal
           )
+
           return automationRun
         }
       : undefined
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.conversation.topicId,
@@ -350,6 +375,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const contributions = collectFromFeatures(scope, features)
 
   const mcpInstructions = request.contextOwner === 'caller' ? '' : buildMcpInstructionsContext(mcpServerIds)
+
   const system =
     request.contextOwner === 'caller'
       ? request.system
@@ -364,6 +390,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
             webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
             mcpInstructions
           })
+
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -371,11 +398,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
   )
+
   if (request.contextOwner !== 'caller') {
     applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
   }
 
   const hookParts = [...contributions.hookParts]
+
   if (getAutomationRun) {
     const finish = async () => {
       automationFinished = true
@@ -383,11 +412,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       const run = await automationRun?.catch(() => undefined)
       await run?.finish()
     }
+
     hookParts.push({
       onFinish: finish,
       onAbort: finish,
       onError: async () => {
         await finish()
+
         return 'abort' as const
       }
     })
@@ -422,6 +453,7 @@ export function applyResponsesInstructions(
   if (!system || endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return
   const providerOptions = (options.providerOptions ??= {})
   const namespace = (providerOptions[providerOptionsKey] ??= {})
+
   if (namespace.instructions != null) return
   namespace.instructions = system
   // `instructions` does not displace the system input message; without this the
@@ -462,9 +494,11 @@ async function resolveRequestToolSignals(
   computerUseEnabled?: boolean
 }> {
   let mcpIdList = request.mcpToolIds
+
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }
+
   return {
     mcpToolIds: new Set(mcpIdList ?? []),
     mcpResourceServerIds: new Set(resolveMcpResourceServers(assistant).map((server) => server.id)),
@@ -509,6 +543,7 @@ export async function resolveTools(
 }> {
   const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled, computerUseEnabled } =
     signals ?? (await resolveRequestToolSignals(request, assistant))
+
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
     // resolving ownership by exact id without MCP network round trips.
@@ -516,6 +551,7 @@ export async function resolveTools(
   }
 
   const paintingModel = resolveConfiguredPaintingModel()
+
   const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
@@ -530,10 +566,12 @@ export async function resolveTools(
     knowledgeBaseIds,
     webToolRoutes
   })
+
   // Client tools (no `execute`) from assistant-less callers; merged below so
   // they share the registry/defer-exposition path.
   const clientTools = request.callOverrides?.tools
   const clientToolNames = new Set(Object.keys(clientTools ?? {}))
+
   // A lone fs_read has nothing to read back: no other tool can produce an
   // offloadable output mid-loop (#18084).
   const activeEntries =
@@ -543,24 +581,32 @@ export async function resolveTools(
     selected[0].name === FS_READ_TOOL_NAME
       ? []
       : selected
+
   let tools: ToolSet | undefined
+
   if (activeEntries.length > 0) {
     tools = {}
+
     for (const entry of activeEntries) tools[entry.name] = entry.tool
   }
+
   if (clientTools && Object.keys(clientTools).length > 0) {
     tools = {
       ...tools,
       ...clientTools
     }
   }
+
   // Meta-tools must see request-materialized entries rather than the process-wide static entries.
   const requestRegistry = new ToolRegistry()
+
   for (const entry of activeEntries) requestRegistry.register(entry)
   const exposed = await applyDeferExposition(tools, requestRegistry, model.contextWindow)
+
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
+
   return {
     tools: exposed.tools,
     deferredEntries: exposed.deferredEntries,
@@ -590,12 +636,14 @@ async function resolveRequestWebToolRoutes(
 
   const preferenceService = application.get('PreferenceService')
   const clientWebToolsEnabled = assistant.settings.enableWebSearch === true
+
   const [clientSearchAvailable, clientFetchAvailable] = clientWebToolsEnabled
     ? await Promise.all([
         resolveClientWebCapabilityAvailability('searchKeywords'),
         resolveClientWebCapabilityAvailability('fetchUrls')
       ])
     : [false, false]
+
   const modelToolsPreferred = preferenceService.get('chat.web_search.model_tools_preferred')
 
   return resolveWebToolRoutes(model, provider, {
@@ -611,6 +659,7 @@ async function resolveRequestWebToolRoutes(
   async function resolveClientWebCapabilityAvailability(capability: WebSearchCapability): Promise<boolean> {
     try {
       const clientProvider = await getProviderForCapability(undefined, capability, preferenceService)
+
       const fallbackProviders = await Promise.all(
         getWebSearchFallbackProviderIds(clientProvider.id, capability).map((providerId) =>
           getProviderById(providerId, preferenceService)
@@ -622,6 +671,7 @@ async function resolveRequestWebToolRoutes(
       if (!isPermanentWebSearchConfigError(error)) {
         logger.warn(`Failed to resolve the client ${capability} provider; falling back to the server tool`, { error })
       }
+
       return false
     }
   }
@@ -637,6 +687,7 @@ function resolveHasAnyKnowledgeBase(): boolean {
     return application.get('KnowledgeService').hasAnyBase()
   } catch (error) {
     logger.warn('Failed to check for knowledge bases during tool resolution; treating as present', { error })
+
     return true
   }
 }
@@ -687,14 +738,17 @@ function buildAgentOptions(
       reasoning
     }
   )
+
   let standardParams: Parameters<typeof stripUnsupportedModelParams>[0]['standardParams'] = {}
   let bodyParams: Parameters<typeof stripUnsupportedModelParams>[0]['bodyParams'] = {}
+
   if (assistant) {
     const {
       temperature = getTemperature(assistant.settings, model, reasoning),
       topP = getTopP(assistant.settings, model, reasoning),
       ...customRest
     } = customParameters.standardParams
+
     standardParams = {
       ...customRest,
       ...(temperature !== undefined && { temperature }),
@@ -719,6 +773,7 @@ function buildAgentOptions(
       serviceTierControl,
       request.serviceTier ?? assistant?.settings.service_tier
     )
+
     if (serviceTierControl.wire.delivery.type === 'request-body') {
       bodyParams = {
         ...bodyParams,
@@ -735,6 +790,7 @@ function buildAgentOptions(
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
   let effectiveProviderOptions = overridden.providerOptions
+
   if (
     request.fastMode === true &&
     isSupportFastMode(provider, model) &&
@@ -748,14 +804,17 @@ function buildAgentOptions(
     // Compatible adapters use different namespaces; Responses can drop tiers for non-OpenAI model IDs.
     bodyParams = { ...bodyParams, service_tier: provider.fastMode.serviceTier ?? 'priority' }
   }
+
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
     reasoning.budgetTokens
   )
+
   const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, {
     budgetTokens: effectiveBudgetTokens
   })
+
   if (maxOutputTokens !== undefined) {
     standardParams = { ...standardParams, maxOutputTokens }
   } else if ('maxOutputTokens' in standardParams) {
@@ -767,6 +826,7 @@ function buildAgentOptions(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )
+
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
   if (Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
@@ -774,13 +834,16 @@ function buildAgentOptions(
       sanitized.bodyParams
     )
   }
+
   const hasProviderOptions = Object.values(sanitized.providerOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
 
   const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
+
   // A provider that keys on the conversation declared the header; the caller's own headers win.
   const headers = sdkConfig.conversationHeader
     ? mergeHeaders({ [sdkConfig.conversationHeader]: request.conversation.id }, callerHeaders)
     : callerHeaders
+
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = request.contextOwner === 'caller' ? undefined : composeStopWhen(baseStopWhen, featureStopConditions)
@@ -814,7 +877,9 @@ function resolveEffectiveThinkingBudget(
   fallbackBudgetTokens: number | undefined
 ): number | undefined {
   const thinking = providerOptions[providerOptionsKey]?.thinking
+
   if (thinking === undefined) return fallbackBudgetTokens
+
   if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
 
   return thinking.type === 'enabled' && typeof thinking.budgetTokens === 'number' ? thinking.budgetTokens : undefined
@@ -834,24 +899,34 @@ export function applyCallOverrides(
   if (!callOverrides) return base
 
   const sampling: Pick<CallOverrides, 'temperature' | 'maxOutputTokens' | 'topP' | 'topK' | 'stopSequences'> = {}
+
   if (callOverrides.temperature !== undefined) sampling.temperature = callOverrides.temperature
+
   if (callOverrides.maxOutputTokens !== undefined) sampling.maxOutputTokens = callOverrides.maxOutputTokens
+
   if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
+
   if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK
+
   if (callOverrides.stopSequences !== undefined) sampling.stopSequences = callOverrides.stopSequences
+
   const standardParams = {
     ...base.standardParams,
     ...filterStandardParams<(typeof sampling)[keyof typeof sampling]>(sampling, model)
   }
 
   let providerOptions = base.providerOptions
+
   if (callOverrides.providerOptions) {
     const merged = new Map(Object.entries(providerOptions))
+
     for (const [pid, opts] of Object.entries(callOverrides.providerOptions)) {
       merged.set(pid, { ...merged.get(pid), ...opts })
     }
+
     providerOptions = Object.fromEntries(merged)
   }
+
   return { standardParams, providerOptions }
 }
 
@@ -872,6 +947,7 @@ export function composeStopWhen(
 ): StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined {
   if (featureStopConditions.length === 0) return baseStopWhen
   const base = baseStopWhen ?? stepCountIs(SDK_DEFAULT_STEP_COUNT)
+
   return [base, ...featureStopConditions]
 }
 
@@ -879,10 +955,13 @@ export function resolveToolCallLimit(assistant: Assistant | undefined): number {
   if (!assistant) return SDK_DEFAULT_STEP_COUNT
 
   const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+
   if (!enableMaxToolCalls) {
     return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
   }
+
   const raw = assistant.settings?.maxToolCalls
   const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
+
   return valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
 }

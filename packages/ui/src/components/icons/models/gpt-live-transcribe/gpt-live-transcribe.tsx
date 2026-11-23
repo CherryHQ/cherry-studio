@@ -4,6 +4,7 @@ import { GptLiveTranscribeLight } from './light'
 
 const GptLiveTranscribe = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptLiveTranscribeLight {...props} className={className} />
+
   return <GptLiveTranscribeLight {...props} className={className} />
 }
 

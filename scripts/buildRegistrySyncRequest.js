@@ -25,6 +25,7 @@ function buildRegistrySyncRequest({
     path: filePath,
     contents: fs.readFileSync(path.resolve(rootDirectory, filePath)).toString('base64')
   }))
+
   const deletions = deletionPaths.map((filePath) => ({ path: filePath }))
 
   return {
@@ -42,15 +43,19 @@ function buildRegistrySyncRequest({
 
 function requiredEnvironment(name) {
   const value = process.env[name]
+
   if (!value) throw new Error(`${name} is required`)
+
   return value
 }
 
 function main() {
   const [outputPath] = process.argv.slice(2)
+
   if (!outputPath) throw new Error('output path is required')
 
   const rootDirectory = process.cwd()
+
   const request = buildRegistrySyncRequest({
     rootDirectory,
     additionPaths: listStagedPaths('ACMR'),

@@ -48,12 +48,15 @@ function resolveInitialEndpointTypes(
   if (prefill?.endpointTypes?.length) {
     return [...prefill.endpointTypes]
   }
+
   if (prefill?.model?.endpointTypes?.length) {
     return [...prefill.model.endpointTypes]
   }
+
   if (prefill?.endpointType) {
     return [prefill.endpointType]
   }
+
   return [defaultEndpointType]
 }
 
@@ -88,6 +91,7 @@ export function capsToToggleSet(capabilities: string[]): Set<ModelCapabilityTogg
 
   for (const capability of capabilities) {
     const toggle = CAPABILITY_TO_TOGGLE[capability]
+
     if (toggle) {
       selected.add(toggle)
     }
@@ -143,6 +147,7 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
   }
 
   const inputModalities = new Set<ModelInputModality>()
+
   for (const modality of [MODALITY.IMAGE, MODALITY.AUDIO, MODALITY.VIDEO] as const) {
     if (
       model?.inputModalities?.includes(modality) ||
@@ -168,11 +173,13 @@ export function buildModelCapabilities(
     ...LEGACY_INPUT_MODALITY_CAPABILITIES,
     ...Object.values(TOGGLE_TO_CAPABILITY)
   ])
+
   if (classification.primaryType !== null) {
     for (const capability of UNEDITABLE_MODEL_TYPE_CAPABILITIES) {
       managedCapabilities.add(capability)
     }
   }
+
   const next = original.filter((capability) => !managedCapabilities.has(capability))
 
   if (classification.primaryType && classification.primaryType !== 'text') {

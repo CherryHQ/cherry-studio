@@ -14,5 +14,6 @@ export function findWindowAtPoint(x: number, y: number, windows: DetectedWindow[
       return w
     }
   }
+
   return null
 }

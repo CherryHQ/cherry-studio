@@ -34,9 +34,11 @@ export function resolveRequestedMaxOutputTokens(
   endpointType: EndpointType | undefined
 ): number | undefined {
   if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
+
   if (typeof customMaxOutputTokens === 'number') return customMaxOutputTokens
 
   const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
+
   if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
 
   return endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? model.maxOutputTokens : undefined
@@ -59,15 +61,19 @@ export function resolveOutputReservation(
 ): number | undefined {
   const assistant = loadAssistant(assistantId)
   let largest: number | undefined
+
   for (const model of models) {
     const reservation = resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, endpointTypeOf(model))
+
     if (reservation !== undefined && (largest === undefined || reservation > largest)) largest = reservation
   }
+
   return largest
 }
 
 function loadAssistant(assistantId: string | undefined): Assistant | undefined {
   if (!assistantId) return undefined
+
   try {
     return assistantDataService.getById(assistantId)
   } catch {
@@ -80,6 +86,7 @@ function endpointTypeOf(model: Model): EndpointType | undefined {
     return resolveEffectiveEndpoint(providerService.getByProviderId(model.providerId), model).endpointType
   } catch (error) {
     logger.warn('could not resolve endpoint for output reservation', { modelId: model.id, error })
+
     return undefined
   }
 }

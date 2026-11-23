@@ -21,6 +21,7 @@ const allExtensions = [...coreExtensions, ...extensions] as const
 type AllExtensionConfigs = (typeof allExtensions)[number]['config']
 
 type KnownAppProviderId = ExtractProviderIds<AllExtensionConfigs>
+
 export type AppProviderId = KnownAppProviderId | (string & {})
 
 export type AppProviderSettingsMap = UnionToIntersection<ExtensionToSettingsMap<(typeof allExtensions)[number]>>

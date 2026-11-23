@@ -48,21 +48,25 @@ export function WebviewAnnotationControls({
   const { theme } = useTheme()
   const editorFallbackAnchorRef = useRef<HTMLDivElement>(null)
   const [clearConfirmTargetId, setClearConfirmTargetId] = useState<string | null>(null)
+
   const locale = useMemo<WebviewAnnotationLocale>(
     () => ({
       edit: t('webview.annotation.edit')
     }),
     [t]
   )
+
   useEffect(() => setClearConfirmTargetId(null), [target.id])
   const { userTheme } = useUserTheme()
   // Same transform useUserTheme applies to `--cs-theme-primary`, so the guest gets an identical literal colour.
   const accent = useMemo(() => Color(userTheme.colorPrimary).toString(), [userTheme.colorPrimary])
+
   // Same transform useUserTheme applies to `--cs-theme-primary-foreground`, so pin digits stay readable on the accent.
   const accentForeground = useMemo(
     () => getForegroundColor(Color(userTheme.colorPrimary).hex()),
     [userTheme.colorPrimary]
   )
+
   const {
     enabled,
     count,
@@ -99,23 +103,30 @@ export function WebviewAnnotationControls({
 
   const handleClear = () => {
     if (clearConfirmTargetId !== target.id) return false
+
     return clear()
   }
 
   const disabled = !isWebviewReady || !isHostActive || !ready
   const annotationLabel = enabled ? t('webview.annotation.disable_mode') : t('webview.annotation.enable_mode')
+
   const annotationToggleLabel =
     count > 0 ? `${annotationLabel}, ${t('webview.annotation.count', { count })}` : annotationLabel
+
   const editorAnchorRect = editor?.anchor
   const editorUnavailable = editor?.error === 'element_unavailable'
+
   const editorAnchor = useMemo<RefObject<{ getBoundingClientRect: () => DOMRect }> | null>(() => {
     if (!editorAnchorRect) return null
+
     return {
       current: {
         getBoundingClientRect: () => {
           if (editorUnavailable) return editorFallbackAnchorRef.current?.getBoundingClientRect() ?? DOMRect.fromRect()
           const webviewRect = webviewRef.current?.getBoundingClientRect()
+
           if (!webviewRect) return DOMRect.fromRect()
+
           return DOMRect.fromRect({
             x: webviewRect.left + editorAnchorRect.x,
             y: webviewRect.top + editorAnchorRect.y,
@@ -285,6 +296,7 @@ function AnnotationCommentEditor({
   // Captured once: the parent remounts this component per editor request.
   const [initialContent] = useState(() => createComposerDraftContent({ text: initialComment, tokens: [] }))
   const extensions = useMemo(() => createComposerEditorPreset({ placeholder }), [placeholder])
+
   const editor = useRichTextEditorKernel({
     extensions,
     content: initialContent,
@@ -297,12 +309,16 @@ function AnnotationCommentEditor({
       handleKeyDown: (_view, event) => {
         if (event.key === 'Escape') {
           onCancel()
+
           return true
         }
+
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
           onSubmit()
+
           return true
         }
+
         return false
       }
     },

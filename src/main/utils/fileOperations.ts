@@ -41,6 +41,7 @@ export async function copyDirectoryRecursive(
     if (isOutsidePath(path.relative(options.allowedBasePath, source))) {
       throw new Error(`Source path is outside allowed directory: ${source}`)
     }
+
     if (isOutsidePath(path.relative(options.allowedBasePath, destination))) {
       throw new Error(`Destination path is outside allowed directory: ${destination}`)
     }
@@ -49,6 +50,7 @@ export async function copyDirectoryRecursive(
   try {
     // Verify source exists and is a directory
     const sourceStats = await fs.promises.lstat(source)
+
     if (!sourceStats.isDirectory()) {
       throw new Error(`Source is not a directory: ${source}`)
     }
@@ -89,6 +91,7 @@ export async function copyDirectoryRecursive(
             logger.warn('File disappeared during copy', { sourcePath })
             continue
           }
+
           throw error
         }
       } else {
@@ -131,14 +134,17 @@ export async function deleteDirectoryRecursive(dirPath: string, options?: { allo
     // Verify path exists before attempting deletion
     try {
       const stats = await fs.promises.lstat(dirPath)
+
       if (!stats.isDirectory()) {
         throw new Error(`Path is not a directory: ${dirPath}`)
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         logger.warn('Directory already deleted', { dirPath })
+
         return
       }
+
       throw error
     }
 
@@ -214,6 +220,7 @@ export async function getDirectorySize(
     }
 
     logger.debug('Calculated directory size', { dirPath, size: totalSize, depth })
+
     return totalSize
   } catch (error) {
     logger.error('Failed to calculate directory size', { dirPath, depth, error })

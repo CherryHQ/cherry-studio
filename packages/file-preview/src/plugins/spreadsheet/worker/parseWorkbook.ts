@@ -36,6 +36,7 @@ import { parseTheme, resolveColor, type ResolvedTheme } from './themeResolver'
 const FORMULA_BUDGET_MS = 5000
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 const BORDER_STYLE_KEYS = ['borderTop', 'borderRight', 'borderBottom', 'borderLeft'] as const
+
 const SUPPORTED_BORDER_STYLES: ReadonlySet<BorderEdge['style']> = new Set([
   'thin',
   'medium',
@@ -45,6 +46,7 @@ const SUPPORTED_BORDER_STYLES: ReadonlySet<BorderEdge['style']> = new Set([
   'double',
   'hair'
 ])
+
 const HORIZONTAL_ALIGNMENT_MAP: ReadonlyMap<string, NonNullable<CellStyle['hAlign']>> = new Map([
   ['left', 'left'],
   ['center', 'center'],
@@ -52,11 +54,13 @@ const HORIZONTAL_ALIGNMENT_MAP: ReadonlyMap<string, NonNullable<CellStyle['hAlig
   ['right', 'right'],
   ['justify', 'justify']
 ])
+
 const VERTICAL_ALIGNMENT_MAP: ReadonlyMap<string, NonNullable<CellStyle['vAlign']>> = new Map([
   ['top', 'top'],
   ['middle', 'middle'],
   ['bottom', 'bottom']
 ])
+
 const IMAGE_MIME_BY_EXTENSION: ReadonlyMap<string, string> = new Map([
   ['png', 'image/png'],
   ['jpeg', 'image/jpeg'],
@@ -65,6 +69,7 @@ const IMAGE_MIME_BY_EXTENSION: ReadonlyMap<string, string> = new Map([
   ['bmp', 'image/bmp'],
   ['webp', 'image/webp']
 ])
+
 const FORMULA_DATE_KEY_STRIDE = MAX_COLS + 1
 
 /** Internal formula cell collected during the first parsing pass for later evaluation. */
@@ -117,6 +122,7 @@ interface WorksheetModelCol {
   width?: number
   hidden?: boolean
 }
+
 interface WorksheetModelWithLayout {
   cols?: WorksheetModelCol[]
 }
@@ -165,11 +171,13 @@ interface RectUsedRange {
 /** 'A1:D1' -> MergeRange with a 1-based inclusive range. */
 function parseMergeRef(ref: string): MergeRange | null {
   const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref)
+
   if (!match) return null
   const left = colNameToIndex(match[1])
   const top = Number(match[2])
   const right = colNameToIndex(match[3])
   const bottom = Number(match[4])
+
   return { top, left, bottom, right }
 }
 
@@ -178,41 +186,51 @@ function errorResultToString(result: ExcelJS.CellFormulaValue['result']): string
   if (typeof result === 'object' && result !== null && 'error' in result) {
     return result.error
   }
+
   return undefined
 }
 
 function colNameToIndex(name: string): number {
   let n = 0
+
   for (let i = 0; i < name.length; i++) {
     n = n * 26 + (name.charCodeAt(i) - 64)
   }
+
   return n
 }
 
 function buildSparseAxisIndex(sizesByIndex: Record<number, number>, defaultSize: number): SparseAxisIndex {
   const defaultSizePx = Math.max(defaultSize, 0)
+
   const overridePositions = Object.keys(sizesByIndex)
     .map(Number)
     .filter((position) => Number.isInteger(position) && position >= 1)
     .sort((a, b) => a - b)
+
   const cumulativeDeltas = new Array<number>(overridePositions.length)
   let cumulativeDelta = 0
+
   for (let index = 0; index < overridePositions.length; index++) {
     const position = overridePositions[index]
     cumulativeDelta += Math.max(sizesByIndex[position] ?? defaultSizePx, 0) - defaultSizePx
     cumulativeDeltas[index] = cumulativeDelta
   }
+
   return { defaultSizePx, overridePositions, cumulativeDeltas }
 }
 
 function upperBound(values: number[], target: number): number {
   let low = 0
   let high = values.length
+
   while (low < high) {
     const mid = Math.floor((low + high) / 2)
+
     if (values[mid] <= target) low = mid + 1
     else high = mid
   }
+
   return low
 }
 
@@ -220,6 +238,7 @@ function axisOffsetFromIndex(index: number, axis: SparseAxisIndex): number {
   const before = Math.max(index, 1) - 1
   const overrideCount = upperBound(axis.overridePositions, before)
   const correction = overrideCount > 0 ? axis.cumulativeDeltas[overrideCount - 1] : 0
+
   return before * axis.defaultSizePx + correction
 }
 
@@ -227,15 +246,19 @@ function axisCountFromIndex(endPx: number, axis: SparseAxisIndex, maxCount: numb
   if (!Number.isFinite(endPx) || endPx <= 0) return { count: 0, truncated: false }
 
   const maxExtentPx = axisOffsetFromIndex(maxCount + 1, axis)
+
   if (endPx > maxExtentPx) return { count: maxCount, truncated: true }
 
   let low = 1
   let high = maxCount
+
   while (low < high) {
     const mid = Math.floor((low + high) / 2)
+
     if (axisOffsetFromIndex(mid + 1, axis) >= endPx) high = mid
     else low = mid + 1
   }
+
   return { count: low, truncated: false }
 }
 
@@ -277,21 +300,26 @@ function parseA1Range(ref: string): ParsedA1Range | null {
   let sheet: string | undefined
   let rest = ref
   const bangIndex = ref.lastIndexOf('!')
+
   if (bangIndex !== -1) {
     // Quoted sheet names escape an embedded apostrophe by doubling it, e.g. `'Bob''s Data'`. Strip the outer quotes,
     // then unescape `''` -> `'` so the lookup key matches the parsed sheet name.
     sheet = ref.slice(0, bangIndex).replace(/^'|'$/g, '').replace(/''/g, "'")
     rest = ref.slice(bangIndex + 1)
   }
+
   const cellPattern = /\$?([A-Z]+)\$?(\d+)/g
   const cells: { col: number; row: number }[] = []
   let match: RegExpExecArray | null
+
   while ((match = cellPattern.exec(rest)) !== null) {
     cells.push({ col: colNameToIndex(match[1]), row: Number(match[2]) })
   }
+
   if (cells.length === 0) return null
   const cols = cells.map((c) => c.col)
   const rows = cells.map((c) => c.row)
+
   return {
     sheet,
     top: Math.min(...rows),
@@ -314,22 +342,29 @@ function readRangeFromValueReader(
   ref: string
 ): (string | number | null)[][] | null {
   const parsed = parseA1Range(ref)
+
   if (!parsed) return null
   const rangeRows = parsed.bottom - parsed.top + 1
   const rangeCols = parsed.right - parsed.left + 1
+
   if (rangeRows * rangeCols > MAX_CHART_RANGE_CELLS) {
     throw new Error(`chart range ${ref} exceeds ${MAX_CHART_RANGE_CELLS} cells`)
   }
+
   const refSheet = parsed.sheet ?? fallbackSheet
   const result: (string | number | null)[][] = []
+
   for (let r = parsed.top; r <= parsed.bottom; r++) {
     const rowValues: (string | number | null)[] = []
+
     for (let c = parsed.left; c <= parsed.right; c++) {
       const raw = readValue(refSheet, r, c)
       rowValues.push(typeof raw === 'boolean' ? (raw ? 1 : 0) : (raw ?? null))
     }
+
     result.push(rowValues)
   }
+
   return result
 }
 
@@ -377,33 +412,41 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   let hasAny = false
 
   const font = cell.font
+
   if (font) {
     if (font.name) {
       style.fontFamily = font.name
       hasAny = true
     }
+
     if (font.size) {
       style.fontSizePx = font.size * (4 / 3)
       hasAny = true
     }
+
     if (font.bold) {
       style.bold = true
       hasAny = true
     }
+
     if (font.italic) {
       style.italic = true
       hasAny = true
     }
+
     if (font.underline) {
       style.underline = true
       hasAny = true
     }
+
     if (font.strike) {
       style.strike = true
       hasAny = true
     }
+
     if (font.color) {
       const resolved = resolveColor(font.color, theme)
+
       if (resolved) {
         style.color = resolved
         hasAny = true
@@ -412,9 +455,11 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   }
 
   const fill = cell.fill
+
   if (fill && fill.type === 'pattern') {
     if (fill.pattern === 'solid' && fill.fgColor) {
       const resolved = resolveColor(fill.fgColor, theme)
+
       if (resolved) {
         style.bg = resolved
         hasAny = true
@@ -422,18 +467,22 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
     } else if (fill.pattern !== 'none' && fill.fgColor) {
       // Non-solid pattern: approximate fgColor as a solid fill.
       const resolved = resolveColor(fill.fgColor, theme)
+
       if (resolved) {
         style.bg = resolved
         hasAny = true
       }
+
       warnings.add('cell-fill-pattern-approximated')
     }
   }
 
   const border = cell.border
+
   if (border) {
     BORDER_SIDES.forEach((side, i) => {
       const edge = border[side]
+
       if (edge?.style && SUPPORTED_BORDER_STYLES.has(edge.style as BorderEdge['style'])) {
         const color = resolveColor(edge.color, theme) ?? '#000000'
         style[BORDER_STYLE_KEYS[i]] = { style: edge.style as BorderEdge['style'], color }
@@ -448,25 +497,31 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   }
 
   const alignment = cell.alignment
+
   if (alignment) {
     if (alignment.horizontal) {
       const mapped = HORIZONTAL_ALIGNMENT_MAP.get(alignment.horizontal)
+
       if (mapped) {
         style.hAlign = mapped
         hasAny = true
       }
     }
+
     if (alignment.vertical) {
       const mapped = VERTICAL_ALIGNMENT_MAP.get(alignment.vertical)
+
       if (mapped) {
         style.vAlign = mapped
         hasAny = true
       }
     }
+
     if (alignment.wrapText) {
       style.wrap = true
       hasAny = true
     }
+
     if (alignment.indent) {
       style.indent = alignment.indent
       hasAny = true
@@ -474,6 +529,7 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   }
 
   const numFmt = cell.numFmt
+
   if (numFmt && numFmt !== 'General') {
     style.numFmt = numFmt
     hasAny = true
@@ -494,10 +550,12 @@ class StyleTable {
     // TODO(#16957): replace it only if a collision-safe key demonstrates a meaningful parse-time improvement.
     const key = JSON.stringify(style)
     const existing = this.map.get(key)
+
     if (existing !== undefined) return existing
     const id = this.list.length
     this.map.set(key, id)
     this.list.push(style)
+
     return id
   }
 
@@ -519,16 +577,22 @@ const XDR_NS = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDraw
 async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): Promise<ArrayBuffer> {
   const drawingFiles = zip.file(/^xl\/drawings\/[a-zA-Z0-9]+\.xml$/)
   let modified = false
+
   for (const file of drawingFiles) {
     const xml = await file.async('string')
+
     if (/<xdr:wsDr[\s>]/.test(xml)) continue
+
     const prefixed = xml
       .replace(/<(\/?)(?![a-zA-Z0-9._-]+:)(?![?!])([a-zA-Z][a-zA-Z0-9._-]*)/g, '<$1xdr:$2')
       .replace(/<xdr:wsDr/, `<xdr:wsDr xmlns:xdr="${XDR_NS}"`)
+
     zip.file(file.name, prefixed)
     modified = true
   }
+
   if (!modified) return original
+
   // JSZip has no in-place entry rewrite: changing any drawing regenerates the package. The 256 MiB declared-size
   // preflight bounds well-formed inputs; avoiding this temporary peak requires a ZIP writer that can copy raw entries.
   // TODO(#16959): preserve unaffected compressed entries or remove this workaround through an upstream ExcelJS fix.
@@ -539,8 +603,10 @@ async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): P
 // non-empty variant drops styled-but-empty cells, so read existing cells by index instead.
 function forEachExistingCell(row: ExcelJS.Row, iteratee: (cell: ExcelJS.Cell, colNumber: number) => void): void {
   const lastCol = Math.min(row.cellCount, MAX_COLS)
+
   for (let colNumber = 1; colNumber <= lastCol; colNumber++) {
     const cell = row.findCell(colNumber)
+
     if (cell) iteratee(cell, colNumber)
   }
 }
@@ -560,17 +626,22 @@ export async function loadExcelJsWorkbook(data: ArrayBuffer): Promise<ExcelJS.Wo
   const parseWorkbookPart = xlsx.parseWorkbook.bind(xlsx)
   xlsx.parseWorkbook = async (stream) => ({ ...(await parseWorkbookPart(stream)), definedNames: [] })
   await workbook.xlsx.load(data, { ignoreNodes: ['mergeCells', 'dataValidations'] })
+
   return workbook
 }
 
 async function readMergeRefs(zip: JSZip, sheetPartPath: string): Promise<string[]> {
   const xml = await zip.file(sheetPartPath)?.async('string')
+
   if (!xml) return []
   const refs: string[] = []
+
   for (const match of xml.matchAll(MERGE_CELL_REF_PATTERN)) {
     refs.push(match[2])
+
     if (refs.length > MAX_MERGED_RANGES) break
   }
+
   return refs
 }
 
@@ -586,23 +657,28 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   let zip: JSZip
   let dataForExcelJs = data
   const warnings = new Set<string>()
+
   try {
     zip = await JSZip.loadAsync(data)
     dataForExcelJs = await normalizeDrawingsForExcelJs(zip, data)
   } catch (err) {
     throw new Error(`Failed to parse xlsx file: ${err instanceof Error ? err.message : String(err)}`)
   }
+
   const sheetPartPathsPromise = createChartSheetPartPathMap(zip).catch((err) => {
     warnings.add(`chart-workbook-index-failed:${err instanceof Error ? err.message : String(err)}`)
+
     return new Map<string, string>()
   })
 
   let workbook: ExcelJS.Workbook
+
   try {
     workbook = await loadExcelJsWorkbook(dataForExcelJs)
   } catch (err) {
     throw new Error(`Failed to parse xlsx file: ${err instanceof Error ? err.message : String(err)}`)
   }
+
   const themeXmlFile = zip.file('xl/theme/theme1.xml')
   const themeXml = themeXmlFile ? await themeXmlFile.async('string') : null
   const theme = parseTheme(themeXml)
@@ -623,20 +699,25 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
   const setFormulaDateSerial = (sheetName: string, row: number, col: number, serial: number): void => {
     let serials = formulaDateSerialsBySheet.get(sheetName)
+
     if (!serials) {
       serials = new Map<number, number>()
       formulaDateSerialsBySheet.set(sheetName, serials)
     }
+
     serials.set(row * FORMULA_DATE_KEY_STRIDE + col, serial)
   }
 
   const readParsedCellValue: CellValueReader = (sheetName, row, col) => {
     const dateSerial = formulaDateSerialsBySheet.get(sheetName)?.get(row * FORMULA_DATE_KEY_STRIDE + col)
+
     if (dateSerial !== undefined) return dateSerial
+
     return sheetCellsByName.get(sheetName)?.[`${row}:${col}`]?.raw ?? null
   }
 
   const sheetPartPaths = await sheetPartPathsPromise
+
   for (const worksheet of workbook.worksheets) {
     const cells: Record<string, CellRenderModel> = {}
     sheetCellsByName.set(worksheet.name, cells)
@@ -656,6 +737,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
         if (rowNumber > MAX_ROWS) {
           warnings.add('sheet-truncated')
+
           return
         }
 
@@ -669,6 +751,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         if (value === null || value === undefined) {
           cellModel.text = ''
           cells[key] = cellModel
+
           return
         }
 
@@ -682,16 +765,19 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
           if (hasResult) {
             const dateResult = value.result instanceof Date ? value.result : null
+
             const rawResult: string | number | boolean | null =
               errorStr !== undefined
                 ? errorStr
                 : dateResult
                   ? dateResult.toISOString()
                   : (value.result as string | number | boolean)
+
             cellModel.raw = rawResult
             cellModel.formula = formulaText || undefined
             cellModel.formulaState = 'cached'
             cellModel.text = formatCellValue(dateResult ?? rawResult, cell.numFmt, date1904)
+
             // Keep date math numeric without duplicating every ordinary cell into a second value table.
             if (dateResult) {
               setFormulaDateSerial(worksheet.name, rowNumber, colNumber, dateToExcelSerial(dateResult))
@@ -714,7 +800,9 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
             cellModel.text = ''
             warnings.add('shared-formula-without-cache-unevaluated')
           }
+
           cells[key] = cellModel
+
           return
         }
 
@@ -722,6 +810,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.raw = value.error
           cellModel.text = value.error
           cells[key] = cellModel
+
           return
         }
 
@@ -731,6 +820,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.raw = text
           cellModel.text = text
           cells[key] = cellModel
+
           return
         }
 
@@ -740,6 +830,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.text = text
           warnings.add('richtext-run-styles-dropped')
           cells[key] = cellModel
+
           return
         }
 
@@ -749,6 +840,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cells[key] = cellModel
           // numfmt renders in the 1900 system, so formulas use that serial regardless of date1904.
           setFormulaDateSerial(worksheet.name, rowNumber, colNumber, dateToExcelSerial(value))
+
           return
         }
 
@@ -764,22 +856,27 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     const sheetPartPath = sheetPartPaths.get(worksheet.name)
     const mergeRefs = sheetPartPath ? await readMergeRefs(zip, sheetPartPath) : []
     const mergeCount = Math.min(mergeRefs.length, MAX_MERGED_RANGES)
+
     for (let index = 0; index < mergeCount; index++) {
       const ref = mergeRefs[index]
       const range = parseMergeRef(ref)
+
       if (range) {
         merges.push(range)
         maxRow = Math.max(maxRow, range.bottom)
         maxCol = Math.max(maxCol, range.right)
       }
     }
+
     if (mergeRefs.length > MAX_MERGED_RANGES) warnings.add('merged-ranges-truncated')
 
     // Per-sheet custom default row height/column width from sheetFormatPr. Fall back when ExcelJS gives 0/missing.
     const sheetProps = worksheet.properties
+
     const defaultRowHeightPx = sheetProps?.defaultRowHeight
       ? ptToPx(sheetProps.defaultRowHeight)
       : DEFAULT_ROW_HEIGHT_PX
+
     const defaultColWidthPx = sheetProps?.defaultColWidth
       ? charWidthToPx(sheetProps.defaultColWidth)
       : DEFAULT_COL_WIDTH_PX
@@ -793,6 +890,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     const internalRows = (worksheet as ExcelJS.Worksheet & WorksheetWithInternalRows)._rows
     internalRows?.forEach((row) => {
       if (!row) return
+
       if (row.hidden) {
         rowHeightsPx[row.number] = 0
       } else if (row.height !== undefined) {
@@ -804,6 +902,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       const min = colModel.min ?? 0
       // Whole-column definitions often have max=16384. Expand only to the render limit to avoid cloning huge maps.
       const max = Math.min(colModel.max ?? min, MAX_COLS)
+
       for (let c = min; c <= max; c++) {
         if (colModel.hidden) {
           colWidthsPx[c] = 0
@@ -819,6 +918,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       rows: buildSparseAxisIndex(rowHeightsPx, defaultRowHeightPx),
       cols: buildSparseAxisIndex(colWidthsPx, defaultColWidthPx)
     }
+
     axisIndexesBySheet.set(worksheet.name, axisIndexes)
 
     // Floating images. A crafted image with huge <xdr:col>/<xdr:row> must not scan up to the anchor.
@@ -832,20 +932,27 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         warnings.add('floating-objects-truncated')
         break
       }
+
       const excelImageId = Number(img.imageId)
       let renderImageId = imageIdCache.get(excelImageId)
+
       if (renderImageId === undefined) {
         const stored = workbook.getImage(excelImageId)
+
         if (stored?.buffer) {
           const mime = imageMimeForExtension(stored.extension)
+
           if (!mime) {
             warnings.add('image-format-unsupported')
             continue
           }
+
           const source = stored.buffer
+
           const bytes = ArrayBuffer.isView(source)
             ? new Uint8Array(source.buffer, source.byteOffset, source.byteLength)
             : new Uint8Array(source)
+
           const copy = new ArrayBuffer(bytes.byteLength)
           new Uint8Array(copy).set(bytes)
           renderImageId = nextImageId++
@@ -853,6 +960,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           imageIdCache.set(excelImageId, renderImageId)
         }
       }
+
       if (renderImageId === undefined) continue
 
       const tl = img.range.tl
@@ -862,6 +970,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       let width: number
       let height: number
       const ext = (img.range as ExcelJS.ImageRange & ImageRangeWithExt).ext
+
       if (img.range.br) {
         const br = img.range.br
         const brX = colX(br.nativeCol + 1) + br.nativeColOff / 9525
@@ -883,11 +992,13 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       const usedRange = usedRangeForPxRect(rect, axisIndexes.rows, axisIndexes.cols)
       maxRow = Math.max(maxRow, Math.ceil(tl.nativeRow + 1), usedRange.rowCount)
       maxCol = Math.max(maxCol, Math.ceil(tl.nativeCol + 1), usedRange.colCount)
+
       if (usedRange.truncated) warnings.add('sheet-truncated')
     }
 
     const rowCount = Math.min(Math.max(maxRow, 1), MAX_ROWS)
     const colCount = Math.min(Math.max(maxCol, 1), MAX_COLS)
+
     if (maxRow > MAX_ROWS || maxCol > MAX_COLS) {
       warnings.add('sheet-truncated')
     }
@@ -920,27 +1031,34 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     // Forward refs to formula cells later in file order evaluate recursively before falling back to parsed cell data.
     // The evaluator has memoization and cycle detection, so re-entry is safe.
     const pendingByKey = new Map<string, PendingFormulaCell>()
+
     for (const pending of pendingFormulas) {
       pendingByKey.set(`${pending.sheetName}!${pending.row}:${pending.col}`, pending)
     }
 
     // eslint-disable-next-line prefer-const -- evalContext and evaluator reference each other, so declare before assign.
     let evaluator: ReturnType<typeof createFormulaEvaluator>
+
     const evalContext: EvalContext = {
       getCellValue(ref: FormulaCellRef) {
         const refKey = `${ref.sheet}!${ref.row}:${ref.col}`
         const pending = pendingByKey.get(refKey)
+
         if (pending) {
           // Memoization makes completed cells O(1). Cycles/failures are classified by the evaluator as unevaluated -> null.
           const outcome = evaluator.evaluate(pending.formula, { sheet: ref.sheet, row: ref.row, col: ref.col })
+
           if (outcome.state === 'evaluated') {
             return outcome.value ?? null
           }
+
           return null
         }
+
         return readParsedCellValue(ref.sheet, ref.row, ref.col)
       }
     }
+
     evaluator = createFormulaEvaluator(evalContext, FORMULA_BUDGET_MS)
 
     for (const pending of pendingFormulas) {
@@ -949,10 +1067,13 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         row: pending.row,
         col: pending.col
       })
+
       const cellsForSheet = sheetCellsByName.get(pending.sheetName)
+
       if (!cellsForSheet) continue
       const key = `${pending.row}:${pending.col}`
       const cellModel = cellsForSheet[key]
+
       if (!cellModel) continue
 
       if (outcome.state === 'evaluated') {
@@ -970,6 +1091,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   for (const worksheet of workbook.worksheets) {
     const sheetModel = sheets.find((s) => s.name === worksheet.name)
     const axisIndexes = axisIndexesBySheet.get(worksheet.name)
+
     if (!sheetModel || !axisIndexes) continue
 
     const layout: SheetLayoutAccessor = {
@@ -997,13 +1119,17 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         MAX_FLOATING_OBJECTS - sheetModel.floatingImages.length,
         sheetPartPaths
       )
+
       sheetModel.charts = charts
+
       for (const chart of charts) {
         const usedRange = usedRangeForPxRect(chart.rect, axisIndexes.rows, axisIndexes.cols)
         sheetModel.rowCount = Math.max(sheetModel.rowCount, usedRange.rowCount)
         sheetModel.colCount = Math.max(sheetModel.colCount, usedRange.colCount)
+
         if (usedRange.truncated) warnings.add('sheet-truncated')
       }
+
       chartWarnings.forEach((w) => warnings.add(w))
     } catch (err) {
       warnings.add(`chart-parse-failed:${err instanceof Error ? err.message : String(err)}`)

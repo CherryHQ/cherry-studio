@@ -40,6 +40,7 @@ const EChartsPreview = ({
     async (content: string, container: HTMLDivElement) => {
       if (!content) {
         optionRef.current = null
+
         return
       }
 
@@ -51,6 +52,7 @@ const EChartsPreview = ({
       }
 
       let option: EChartsCoreOption
+
       try {
         option = JSON.parse(content) as EChartsCoreOption
       } catch {
@@ -61,6 +63,7 @@ const EChartsPreview = ({
       optionRef.current = option
 
       const { width, height } = container.getBoundingClientRect()
+
       if (!chartRef.current && (width === 0 || height === 0)) {
         return
       }
@@ -80,6 +83,7 @@ const EChartsPreview = ({
     if (wasStreamingRef.current && !isStreaming) {
       triggerImmediateRender(children)
     }
+
     wasStreamingRef.current = isStreaming
   }, [children, isStreaming, triggerImmediateRender])
 
@@ -94,6 +98,7 @@ const EChartsPreview = ({
   // because ECharts does not automatically detect container size changes.
   useEffect(() => {
     const container = containerRef.current
+
     if (!container) {
       return
     }
@@ -104,6 +109,7 @@ const EChartsPreview = ({
       }
 
       const option = optionRef.current
+
       if (!option || chartRef.current) {
         return
       }
@@ -119,17 +125,20 @@ const EChartsPreview = ({
     }
 
     let resizeObserver: ResizeObserver | null = null
+
     if (typeof ResizeObserver !== 'undefined') {
       const { width, height } = container.getBoundingClientRect()
       initChartIfReady(width, height)
 
       resizeObserver = new ResizeObserver((entries) => {
         const entry = entries[0]
+
         if (!entry) {
           return
         }
 
         const { width, height } = entry.contentRect
+
         if (width === 0 || height === 0) {
           return
         }

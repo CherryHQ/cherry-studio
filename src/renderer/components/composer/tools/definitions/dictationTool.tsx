@@ -24,6 +24,7 @@ const SETTINGS_RECOVERY_ERRORS = new Set<DictationErrorCategory>([
   'microphone_unavailable',
   'microphone_unreadable'
 ])
+
 const PHASE_TRANSLATION_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = {
   starting: 'settings.voice.dictation.phase.starting',
   recording: 'settings.voice.dictation.phase.recording',
@@ -60,6 +61,7 @@ function restoreFocus(inputAdapter?: QuickPanelInputAdapter) {
 function runAction<TResult>(action: () => TResult | Promise<TResult>, inputAdapter?: QuickPanelInputAdapter) {
   try {
     const result = action()
+
     if (result instanceof Promise) {
       void result.catch(() => undefined).finally(() => restoreFocus(inputAdapter))
     } else {
@@ -73,18 +75,22 @@ function runAction<TResult>(action: () => TResult | Promise<TResult>, inputAdapt
 const DictationComposerRuntime = ({ context }: { context: DictationContext }) => {
   const enabled = useDictationEnabled()
   const { launcher, t } = context
+
   const snapshot = useSyncExternalStore(
     dictationService.subscribe,
     dictationService.getSnapshot,
     dictationService.getSnapshot
   )
+
   const { elapsedMs, error, phase, recoveryAvailable, retryAvailable } = snapshot
 
   const launchers = useMemo(() => {
     const status =
       phase === 'failed' ? t(dictationErrorKey(error)) : phase !== 'idle' ? t(PHASE_TRANSLATION_KEYS[phase]) : undefined
+
     const processing = phase === 'stopping' || phase === 'transcribing'
     const active = phase !== 'idle' && (phase !== 'failed' || Boolean(retryAvailable) || recoveryAvailable)
+
     const actionLabel =
       phase === 'recording'
         ? t('settings.voice.action.stop_recording')
@@ -97,6 +103,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
               : retryAvailable
                 ? t('settings.voice.action.retry')
                 : t('chat.input.dictation.action.start')
+
     const icon =
       phase === 'recording' ? (
         <Square />
@@ -109,6 +116,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
       ) : (
         <Mic />
       )
+
     const submenu: ComposerToolLauncher[] = []
 
     if (phase === 'recording') {
@@ -122,6 +130,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
           runAction(() => dictationService.stop(), inputAdapter)
       })
     }
+
     if (phase === 'recorded') {
       submenu.push({
         id: 'dictation:transcribe',
@@ -133,6 +142,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
           runAction(() => dictationService.transcribeRecording(), inputAdapter)
       })
     }
+
     if (active && !recoveryAvailable && phase !== 'recorded') {
       submenu.push({
         id: 'dictation:cancel',
@@ -144,6 +154,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
           runAction(() => dictationService.cancel(), inputAdapter)
       })
     }
+
     if (retryAvailable) {
       submenu.push({
         id: 'dictation:retry',
@@ -155,6 +166,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
           runAction(() => dictationService.retry(), inputAdapter)
       })
     }
+
     if (recoveryAvailable) {
       submenu.push(
         {
@@ -177,6 +189,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
         }
       )
     }
+
     if (phase === 'failed' || phase === 'recorded' || recoveryAvailable) {
       submenu.push({
         id: 'dictation:discard',
@@ -188,6 +201,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
           runAction(() => dictationService.discard(), inputAdapter)
       })
     }
+
     if (error && SETTINGS_RECOVERY_ERRORS.has(error)) {
       submenu.push({
         id: 'dictation:open-settings',
@@ -238,6 +252,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
   }, [enabled, elapsedMs, error, phase, recoveryAvailable, retryAvailable, t])
 
   useEffect(() => launcher.registerLaunchers(launchers), [launcher, launchers])
+
   return null
 }
 

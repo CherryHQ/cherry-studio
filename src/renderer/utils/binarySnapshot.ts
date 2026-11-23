@@ -38,7 +38,9 @@ export interface InterpretBinarySnapshotOptions {
 const isNewerVersion = (latest?: string, installed?: string): boolean => {
   const validLatest = latest ? semverValid(latest) : null
   const validInstalled = installed ? semverValid(installed) : null
+
   if (!validLatest || !validInstalled) return false
+
   try {
     return semverGt(validLatest, validInstalled)
   } catch {
@@ -55,12 +57,15 @@ export function interpretBinarySnapshot(
   const application = snapshot?.application
   const applicationStatus = application?.status
   const exactApplied = applicationStatus === 'applied'
+
   const applicationVersion =
     application && (application.status === 'applied' || application.status === 'broken')
       ? application.version
       : undefined
+
   const installedVersion =
     availability.source === 'mise' || availability.source === 'bundled' ? availability.version : undefined
+
   return {
     source: availability.source,
     installed: availability.source !== 'none',

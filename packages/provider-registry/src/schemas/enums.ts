@@ -29,6 +29,7 @@ export const ENDPOINT_TYPE = {
   OPENAI_TEXT_TO_SPEECH: 'openai-text-to-speech',
   OPENAI_VIDEO_GENERATION: 'openai-video-generation'
 } as const
+
 export type EndpointType = (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,6 +54,7 @@ export const MODEL_CAPABILITY = {
   FILE_SEARCH: 'file-search',
   COMPUTER_USE: 'computer-use'
 } as const
+
 export type ModelCapability = (typeof MODEL_CAPABILITY)[keyof typeof MODEL_CAPABILITY]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,6 +71,7 @@ export const SERVER_TOOL = {
   WEB_SEARCH: 'web-search',
   URL_CONTEXT: 'url-context'
 } as const
+
 export type ServerTool = (typeof SERVER_TOOL)[keyof typeof SERVER_TOOL]
 
 export const SERVER_TOOL_MODEL_SCOPE = {
@@ -77,6 +80,7 @@ export const SERVER_TOOL_MODEL_SCOPE = {
   /** Tool-specific model eligibility must also pass. */
   MODEL_DEPENDENT: 'model-dependent'
 } as const
+
 export type ServerToolModelScope = (typeof SERVER_TOOL_MODEL_SCOPE)[keyof typeof SERVER_TOOL_MODEL_SCOPE]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,6 +151,7 @@ export const CANONICAL_PARAM_KEY = {
   TOP_SCALE: 'topScale',
   UPSCALE_FACTOR: 'upscaleFactor'
 } as const
+
 export type CanonicalParamKey = (typeof CANONICAL_PARAM_KEY)[keyof typeof CANONICAL_PARAM_KEY]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -160,6 +165,7 @@ export const MODALITY = {
   VIDEO: 'video',
   VECTOR: 'vector'
 } as const
+
 export type Modality = (typeof MODALITY)[keyof typeof MODALITY]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,6 +177,7 @@ export const CURRENCY = {
   USD: 'USD',
   CNY: 'CNY'
 } as const
+
 export type Currency = (typeof CURRENCY)[keyof typeof CURRENCY]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -188,6 +195,7 @@ export const REASONING_EFFORT = {
   ULTRA: 'ultra',
   AUTO: 'auto'
 } as const
+
 export type ReasoningEffort = (typeof REASONING_EFFORT)[keyof typeof REASONING_EFFORT]
 
 /**

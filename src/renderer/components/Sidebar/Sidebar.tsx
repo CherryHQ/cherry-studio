@@ -67,9 +67,11 @@ export function Sidebar({
   const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
   const showUserInFooter = isMac && !isFullscreen
+
   const showFooter = Boolean(
     extensionsLabel || onExtensionsClick || actions || userAction || (showUserInFooter && user)
   )
+
   const showSearch = Boolean(onSearchClick)
 
   const handleDismiss = useCallback(() => {
@@ -97,6 +99,7 @@ export function Sidebar({
 
       if (open) {
         clearHoverDismiss()
+
         return
       }
 
@@ -113,6 +116,7 @@ export function Sidebar({
 
       if (open) {
         clearHoverDismiss()
+
         return
       }
 
@@ -128,9 +132,11 @@ export function Sidebar({
     onReorder: onEntriesReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }
+
   const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
   const contentLayout = isFloating ? 'full' : layout
   const showHeaderDivider = !showUserInFooter && contentLayout === 'icon' && (isFullscreen || !hasLeadingWindowControls)
+
   const emptyState =
     entries.length === 0 && contentLayout === 'full' && emptyHint ? (
       <p className="px-4 py-3 text-xs text-muted-foreground [-webkit-app-region:no-drag]">{emptyHint}</p>
@@ -145,6 +151,7 @@ export function Sidebar({
     onExtensionsClick,
     onOverlayOpenChange: handleFooterOverlayOpenChange
   }
+
   const userButton = user ? (
     <Button
       variant="ghost"
@@ -171,6 +178,7 @@ export function Sidebar({
       )}
     </Button>
   ) : null
+
   const header =
     !showUserInFooter && user && userButton ? (
       <div
@@ -202,6 +210,7 @@ export function Sidebar({
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
             floatingPointerInsideRef.current = false
+
             if (!contextMenuOpenRef.current && !footerOverlayOpenRef.current) {
               scheduleHoverDismiss()
             }

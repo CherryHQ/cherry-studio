@@ -22,7 +22,9 @@ function readConversationName(appId: ConversationAppId, id: string): Promise<{ n
 
 function boundConversationKey(tab: Tab, appId: ConversationAppId): string | undefined {
   const app = getSidebarApp(appId)
+
   if (tab.type !== 'route' || !app?.conversationRoute || !tabBelongsToApp(app, tab.url)) return undefined
+
   return app.conversationRoute.keyFromUrl(tab.url)
 }
 
@@ -54,7 +56,9 @@ export function useConversationTabTitleChangeSync() {
   const relabel = (appId: ConversationAppId, id: string, name: string | null | undefined) => {
     const title = name?.trim()
     const context = contextRef.current
+
     if (!mountedRef.current || !context || !title) return
+
     for (const tab of context.tabs) {
       if (tab.title !== title && boundConversationKey(tab, appId) === id) context.updateTab(tab.id, { title })
     }
@@ -62,11 +66,15 @@ export function useConversationTabTitleChangeSync() {
 
   useDataChange(Object.values(NAME_ENDPOINT), (effects) => {
     const tabs = contextRef.current?.tabs
+
     if (!tabs) return
+
     for (const effect of effects) {
       const appId = CONVERSATION_APP_IDS.find((candidate) => NAME_ENDPOINT[candidate] === effect.endpoint)
+
       if (!appId) continue
       const bound = new Set(tabs.map((tab) => boundConversationKey(tab, appId)))
+
       for (const id of effect.entityIds ?? []) {
         if (!id || !bound.has(id)) continue
         const key = `${appId}:${id}`

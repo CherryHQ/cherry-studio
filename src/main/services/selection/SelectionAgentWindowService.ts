@@ -27,6 +27,7 @@ import { getSelectionNativePanel } from './selectionNativePanel'
 const logger = loggerService.withContext('SelectionAgentWindowService')
 
 const COMPOSE_WIDTH = 560
+
 /** Placeholder until the renderer reports the compose bar's measured height. */
 const COMPOSE_INITIAL_HEIGHT = 160
 const CONVERSATION_SIZE = { width: 560, height: 620 }
@@ -66,6 +67,7 @@ export class SelectionAgentWindowService extends BaseService {
 
   protected onInit(): void {
     const wm = application.get('WindowManager')
+
     // [macOS] The yellow light and Cmd+M collapse instead of minimizing to the Dock.
     if (isMac) getSelectionNativePanel().setMiniaturizeHandler((handle) => this.collapseByHandle(handle))
     this.registerDisposable(
@@ -81,12 +83,14 @@ export class SelectionAgentWindowService extends BaseService {
         this.replaceable.delete(id)
         this.summaries.delete(id)
         this.shrinking.delete(id)
+
         if (this.collapsed.delete(id)) this.syncCapsules()
       })
     )
     this.registerDisposable(
       wm.onWindowDestroyedByType(WindowType.SelectionCapsule, ({ id }) => {
         this.capsuleHostSizes.delete(id)
+
         for (const [displayId, hostId] of this.capsuleHosts) {
           if (hostId === id) this.capsuleHosts.delete(displayId)
         }
@@ -113,6 +117,7 @@ export class SelectionAgentWindowService extends BaseService {
     for (const id of this.replaceable) {
       // A collapsed window keeps its report for when it is restored.
       if (this.collapsed.has(id)) continue
+
       // A hidden one already went back to the pool.
       if (wm.getWindow(id)?.isVisible()) wm.close(id)
       this.replaceable.delete(id)
@@ -121,26 +126,33 @@ export class SelectionAgentWindowService extends BaseService {
     const windowId = wm.open(WindowType.SelectionAgent, {
       initData: { ...action, sessionId: randomUUID() } satisfies SelectionActionSession
     })
+
     const window = wm.getWindow(windowId)
+
     if (!window) {
       logger.error(`Failed to get selection agent window ${windowId}`)
+
       return
     }
 
     this.layouts.set(windowId, mode)
     this.summaries.delete(windowId)
     this.applyLayoutLimits(window, mode)
+
     const display = anchor
       ? screen.getDisplayMatching(anchor)
       : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+
     window.setBounds(placeSelectionAgentWindow(size, anchor, display.workArea))
     this.show(window, isFullScreen)
+
     // Without this, the IME candidate panel stays out of the full-screen Space and never appears.
     if (isMac && isFullScreen) wm.behavior.hideMacDockWhileShown(windowId)
   }
 
   setReplaceable(windowId: string, replaceable: boolean): void {
     if (!this.layouts.has(windowId)) return
+
     if (replaceable) this.replaceable.add(windowId)
     else this.replaceable.delete(windowId)
   }
@@ -149,27 +161,33 @@ export class SelectionAgentWindowService extends BaseService {
   setSummary(windowId: string, summary: SelectionAgentSummary): void {
     if (!this.layouts.has(windowId)) return
     this.summaries.set(windowId, summary)
+
     if (this.collapsed.has(windowId)) this.syncCapsules()
   }
 
   /** Hides a started window into a capsule; the compose bar cannot collapse, nor a window with nothing to show yet. */
   collapse(windowId: string): void {
     if (this.layouts.get(windowId) !== 'conversation' || this.collapsed.has(windowId)) return
+
     if (!this.summaries.has(windowId)) return
     const wm = application.get('WindowManager')
     const window = wm.getWindow(windowId)
+
     if (!window || window.isDestroyed() || !window.isVisible()) return
 
     const bounds = window.getBounds()
     const display = screen.getDisplayMatching(bounds)
     this.collapsed.set(windowId, { displayId: display.id, collapsedAt: Date.now() })
+
     const hide = () => {
       if (window.isDestroyed()) return
       wm.hide(windowId)
       this.syncCapsules()
     }
+
     if (!this.shouldAnimate()) {
       hide()
+
       return
     }
 
@@ -179,6 +197,7 @@ export class SelectionAgentWindowService extends BaseService {
     void this.animate(window, placeSelectionCapsuleSlot(display.workArea), 0).then(() => {
       this.shrinking.delete(windowId)
       hide()
+
       if (window.isDestroyed()) return
       window.setBounds(bounds)
       window.setOpacity(1)
@@ -189,8 +208,10 @@ export class SelectionAgentWindowService extends BaseService {
   /** Closes or collapses a window that lost focus, unless it already went into a capsule or something else hid it. */
   dismissBlurred(windowId: string, dismissal: 'close' | 'collapse'): void {
     if (this.collapsed.has(windowId)) return
+
     // A screenshot from the composer hides the window and shows it again; closing it meanwhile strands it.
     if (!application.get('WindowManager').getWindow(windowId)?.isVisible()) return
+
     if (dismissal === 'collapse') this.collapse(windowId)
     else application.get('WindowManager').close(windowId)
   }
@@ -198,14 +219,17 @@ export class SelectionAgentWindowService extends BaseService {
   /** Shows a collapsed window again where it was; only the capsule host showing it may ask. */
   restore(hostId: string, windowId: string): void {
     const entry = this.collapsed.get(windowId)
+
     if (!entry || !this.isShownBy(hostId, windowId)) return
     this.collapsed.delete(windowId)
     const wm = application.get('WindowManager')
     const window = wm.getWindow(windowId)
+
     if (window && !window.isDestroyed()) {
       const display = this.resolveDisplay(entry.displayId)
       // [macOS] What the capsule's display shows now decides, not what the window first opened over.
       const isFullScreen = isMac && getSelectionNativePanel().isFullScreenAppInFront(display.bounds)
+
       if (this.shouldAnimate()) {
         const bounds = window.getBounds()
         window.setMinimumSize(0, 0)
@@ -218,9 +242,11 @@ export class SelectionAgentWindowService extends BaseService {
       } else {
         this.show(window, isFullScreen)
       }
+
       // Same as open(): without it, the IME candidate panel stays out of the full-screen Space.
       if (isMac && isFullScreen) wm.behavior.hideMacDockWhileShown(windowId)
     }
+
     this.syncCapsules()
   }
 
@@ -235,7 +261,9 @@ export class SelectionAgentWindowService extends BaseService {
   /** Anchors a capsule host at the size its renderer measured, showing it on the first measurement. */
   fitCapsuleHost(hostId: string, size: Size): void {
     const window = application.get('WindowManager').getWindow(hostId)
+
     if (!window || window.isDestroyed() || size.width <= 0 || size.height <= 0) return
+
     if (![...this.capsuleHosts.values()].includes(hostId)) return
     const zoom = window.webContents.getZoomFactor()
     this.capsuleHostSizes.set(hostId, {
@@ -243,6 +271,7 @@ export class SelectionAgentWindowService extends BaseService {
       height: Math.ceil(size.height * zoom)
     })
     this.placeCapsuleHosts()
+
     if (!window.isVisible()) this.showCapsuleHost(window)
   }
 
@@ -250,24 +279,30 @@ export class SelectionAgentWindowService extends BaseService {
   resize(windowId: string, layout: SelectionAgentWindowLayout): void {
     if (this.layouts.get(windowId) !== 'compose') return
     const window = application.get('WindowManager').getWindow(windowId)
+
     if (!window || window.isDestroyed()) return
 
     const bounds = window.getBounds()
+
     // The renderer measures CSS pixels, which the page zoom scales into window pixels.
     const size =
       layout.mode === 'compose'
         ? { width: bounds.width, height: Math.ceil(layout.height * window.webContents.getZoomFactor()) }
         : CONVERSATION_SIZE
+
     this.layouts.set(windowId, layout.mode)
     const next = resizeSelectionAgentWindow(bounds, size, screen.getDisplayMatching(bounds).workArea)
+
     // Only the expansion animates; the compose bar follows its content as the user types.
     if (layout.mode === 'conversation' && this.shouldAnimate()) {
       // Like collapse and restore, the layout's limits apply once the window reaches its size.
       void this.animate(window, next, 1).then(() => {
         if (!window.isDestroyed()) this.applyLayoutLimits(window, layout.mode)
       })
+
       return
     }
+
     this.applyLayoutLimits(window, layout.mode)
     window.setBounds(next)
   }
@@ -291,15 +326,19 @@ export class SelectionAgentWindowService extends BaseService {
 
   private collapseByHandle(handle: Buffer): void {
     const wm = application.get('WindowManager')
+
     const window = wm
       .getWindowsByType(WindowType.SelectionAgent)
       .find((candidate) => !candidate.isDestroyed() && candidate.getNativeWindowHandle().equals(handle))
+
     const windowId = window && wm.getWindowId(window)
+
     if (windowId) this.collapse(windowId)
   }
 
   private isShownBy(hostId: string, windowId: string): boolean {
     const entry = this.collapsed.get(windowId)
+
     return entry !== undefined && this.capsuleHosts.get(this.resolveDisplay(entry.displayId).id) === hostId
   }
 
@@ -312,8 +351,10 @@ export class SelectionAgentWindowService extends BaseService {
   private syncCapsules(): void {
     const wm = application.get('WindowManager')
     const stacks = new Map<number, CollapsedSelectionAgent[]>()
+
     for (const [windowId, { displayId, collapsedAt }] of this.collapsed) {
       const summary = this.summaries.get(windowId)
+
       if (!summary || this.shrinking.has(windowId)) continue
       const id = this.resolveDisplay(displayId).id
       stacks.set(id, [...(stacks.get(id) ?? []), { capsule: { ...summary, windowId }, collapsedAt }])
@@ -325,6 +366,7 @@ export class SelectionAgentWindowService extends BaseService {
         .get('CacheService')
         .setShared(`selection.agent_capsules.${displayId}`, stack ? orderSelectionAgentCapsules(stack) : [])
       const hostId = this.capsuleHosts.get(displayId)
+
       if (stack && !hostId) {
         this.capsuleHosts.set(displayId, wm.open(WindowType.SelectionCapsule, { initData: { displayId } }))
       } else if (!stack && hostId) {
@@ -333,14 +375,17 @@ export class SelectionAgentWindowService extends BaseService {
         wm.close(hostId)
       }
     }
+
     this.placeCapsuleHosts()
   }
 
   private placeCapsuleHosts(): void {
     const wm = application.get('WindowManager')
+
     for (const [displayId, hostId] of this.capsuleHosts) {
       const size = this.capsuleHostSizes.get(hostId)
       const window = wm.getWindow(hostId)
+
       if (size && window && !window.isDestroyed()) {
         window.setBounds(placeSelectionCapsuleHost(size, this.resolveDisplay(displayId).workArea))
       }
@@ -359,6 +404,7 @@ export class SelectionAgentWindowService extends BaseService {
   private show(window: BrowserWindow, isFullScreen: boolean): void {
     if (!isMac) {
       window.show()
+
       return
     }
 
@@ -369,7 +415,9 @@ export class SelectionAgentWindowService extends BaseService {
       window.setAlwaysOnTop(true)
       getSelectionNativePanel().moveToActiveSpace(window.getNativeWindowHandle())
       window.show()
+
       if (!pinned) window.setAlwaysOnTop(false)
+
       return
     }
 

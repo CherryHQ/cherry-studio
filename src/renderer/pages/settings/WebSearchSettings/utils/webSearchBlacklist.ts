@@ -30,6 +30,7 @@ export function parseWebSearchBlacklistInput(input: string): WebSearchBlacklistP
     }
 
     const parsed = parseMatchPattern(trimmedEntry)
+
     if (parsed === null) {
       invalidEntries.push(trimmedEntry)
       continue

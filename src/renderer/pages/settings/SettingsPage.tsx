@@ -46,6 +46,7 @@ const SettingsPage: FC = () => {
   const openExternalLink = (event: MouseEvent<HTMLDivElement>) => {
     if (event.type === 'auxclick' && event.button !== 1) return
     const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href]')
+
     if (!anchor || !/^https?:\/\//i.test(anchor.getAttribute('href') ?? '')) return
     event.preventDefault()
     event.stopPropagation()
@@ -94,6 +95,7 @@ const SettingsPage: FC = () => {
                 {settingsMenu.map((item, index) => {
                   if (item.groupKey === BUILTIN_TOOLS_GROUP_KEY) {
                     if (item !== builtinTools[0]) return null
+
                     return (
                       <MenuItem
                         key={item.route}
@@ -106,7 +108,9 @@ const SettingsPage: FC = () => {
                       />
                     )
                   }
+
                   const startsNewGroup = index > 0 && item.groupKey !== settingsMenu[index - 1].groupKey
+
                   return (
                     <Fragment key={item.route}>
                       {startsNewGroup && (

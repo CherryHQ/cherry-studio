@@ -11,6 +11,7 @@ export interface AudioSpectrum {
 export function createAudioSpectrum(input: MediaStream | HTMLAudioElement): AudioSpectrum | undefined {
   if (typeof AudioContext === 'undefined') return undefined
   let allocatedContext: AudioContext | undefined
+
   try {
     const context = new AudioContext()
     allocatedContext = context
@@ -20,11 +21,14 @@ export function createAudioSpectrum(input: MediaStream | HTMLAudioElement): Audi
     const microphone = 'getTracks' in input
     const source = microphone ? context.createMediaStreamSource(input) : context.createMediaElementSource(input)
     let closing: Promise<void> | undefined
+
     if (!microphone) source.connect(context.destination)
     source.connect(analyser)
+
     if (microphone)
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- WebAudio resume may reject; the logger records the original failure without assuming an Error shape.
       void context.resume().catch((error: unknown) => logger.warn('Could not resume audio spectrum', { error }))
+
     return {
       analyser,
       resume: () => context.resume(),
@@ -32,12 +36,14 @@ export function createAudioSpectrum(input: MediaStream | HTMLAudioElement): Audi
         if (closing) return closing
         source.disconnect()
         analyser.disconnect()
+
         return (closing = context.close())
       }
     }
   } catch (error) {
     void allocatedContext?.close().catch(() => undefined)
     logger.warn('Could not create audio spectrum', { error })
+
     return undefined
   }
 }

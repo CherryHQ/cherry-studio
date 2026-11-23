@@ -25,6 +25,7 @@ export interface SidebarListProps {
  */
 export function SidebarList({ layout, ...props }: SidebarListProps) {
   if (layout === 'icon') return <IconList {...props} />
+
   return <FullList {...props} />
 }
 
@@ -50,6 +51,7 @@ function EntryContextMenu({
 
 function createAuxClickHandler(entry: ResolvedSidebarEntry, guardClick: SidebarClickGuard) {
   if (entry.disabled || !entry.onOpenNewTab) return undefined
+
   return guardClick(entry.key, (e: React.MouseEvent) => {
     if (e.button === 1) {
       e.preventDefault()

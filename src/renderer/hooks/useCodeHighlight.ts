@@ -11,6 +11,7 @@ interface UseCodeHighlightOptions {
 
 export function useCodeHighlight({ value, language, callerId }: UseCodeHighlightOptions) {
   const { activeCodeTheme, highlightRange, cleanupTokenizers } = useCodeStyle()
+
   type Request = {
     value: string
     language: string
@@ -20,6 +21,7 @@ export function useCodeHighlight({ value, language, callerId }: UseCodeHighlight
     run: typeof highlightRange
     callerId: string
   }
+
   const [highlighted, setHighlighted] = useState<{ request: Request; result: HighlightResult } | null>(null)
   const pending = useRef<Request | null>(null)
   const processing = useRef(false)
@@ -36,13 +38,16 @@ export function useCodeHighlight({ value, language, callerId }: UseCodeHighlight
         run: highlightRange,
         callerId
       }
+
       if (processing.current) return
       processing.current = true
+
       try {
         while (pending.current) {
           const request = pending.current
           pending.current = null
           const result = await request.run(request.value, request.language, request.callerId, request.range)
+
           if (request.generation === generation.current && !pending.current) setHighlighted({ request, result })
         }
       } finally {
@@ -70,5 +75,6 @@ export function useCodeHighlight({ value, language, callerId }: UseCodeHighlight
 
   const current = highlighted?.request
   const tokens = highlighted && current?.value === value && current.language === language ? highlighted.result : null
+
   return { tokens, highlightLines, resetHighlight }
 }

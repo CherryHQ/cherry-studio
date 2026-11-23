@@ -34,12 +34,15 @@ class MermaidRenderService {
     return new Promise((resolve, reject) => {
       const waiter = { resolve, reject }
       const queued = this.queue.find((job) => job.diagramId === diagramId)
+
       if (queued) {
         queued.source = source
         queued.theme = theme
         queued.waiters.push(waiter)
+
         return
       }
+
       this.queue.push({ source, theme, diagramId, waiters: [waiter] })
       this.next()
     })
@@ -48,13 +51,16 @@ class MermaidRenderService {
   private next() {
     if (this.running) return
     const job = this.queue.shift()
+
     if (!job) return
     const worker = (this.worker ??= this.spawn())
     const id = ++this.nextId
+
     const timer = setTimeout(() => {
       logger.warn(`Stopping a Mermaid render that exceeded ${MERMAID_RENDER_DEADLINE_MS} ms`)
       this.restart(new Error(`Diagram took longer than ${MERMAID_RENDER_DEADLINE_MS / 1000} s to render`))
     }, MERMAID_RENDER_DEADLINE_MS)
+
     this.running = { id, job, timer }
     const request: MermaidRenderRequest = { id, source: job.source, theme: job.theme, diagramId: job.diagramId }
     worker.postMessage(request)
@@ -67,17 +73,21 @@ class MermaidRenderService {
       const { job, timer } = this.running
       clearTimeout(timer)
       this.running = null
+
       for (const waiter of job.waiters) {
         if ('svg' in data) waiter.resolve(data.svg)
         else waiter.reject(new Error(data.error))
       }
+
       this.next()
     }
+
     worker.onerror = (event) => {
       if (this.worker !== worker) return
       logger.error('Mermaid worker failed', new Error(event.message))
       this.restart(new Error('Diagram renderer stopped unexpectedly'))
     }
+
     return worker
   }
 
@@ -85,11 +95,14 @@ class MermaidRenderService {
   private restart(error: Error) {
     this.worker?.terminate()
     this.worker = null
+
     if (this.running) {
       clearTimeout(this.running.timer)
+
       for (const waiter of this.running.job.waiters) waiter.reject(error)
       this.running = null
     }
+
     this.next()
   }
 }

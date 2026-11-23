@@ -122,9 +122,11 @@ class CopilotService {
   private getTokenFilePath = (): string => {
     // Legacy path: token was previously stored directly under userData
     const oldTokenFilePath = path.join(application.getPath('app.userdata'), CONFIG.TOKEN_FILE_NAME)
+
     if (fs.existsSync(oldTokenFilePath)) {
       return oldTokenFilePath
     }
+
     return application.getPath('feature.copilot.token_file')
   }
 
@@ -151,6 +153,7 @@ class CopilotService {
       }
 
       const data = await response.json()
+
       return {
         login: data.login,
         avatar: data.avatar_url
@@ -223,6 +226,7 @@ class CopilotService {
 
         const data = (await response.json()) as TokenResponse
         const { access_token } = data
+
         if (access_token) {
           return { access_token }
         }
@@ -232,6 +236,7 @@ class CopilotService {
 
         // 仅在最后一次尝试失败时记录详细错误
         const isLastAttempt = attempt === CONFIG.POLLING.MAX_ATTEMPTS - 1
+
         if (isLastAttempt) {
           logger.error(`Token polling failed after ${CONFIG.POLLING.MAX_ATTEMPTS} attempts:`, error as Error)
         }
@@ -249,6 +254,7 @@ class CopilotService {
       const encryptedToken = safeStorage.encryptString(token)
       // 确保目录存在
       const dir = path.dirname(this.tokenFilePath)
+
       if (!fs.existsSync(dir)) {
         await fs.promises.mkdir(dir, { recursive: true })
       }

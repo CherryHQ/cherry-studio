@@ -6,7 +6,9 @@ import { DolphinAiLight } from './light'
 
 const DolphinAi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DolphinAiLight {...props} className={className} />
+
   if (variant === 'dark') return <DolphinAiDark {...props} className={className} />
+
   return (
     <>
       <DolphinAiLight className={cn('dark:hidden', className)} {...props} />

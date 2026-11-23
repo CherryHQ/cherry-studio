@@ -6,7 +6,9 @@ import { LovableLight } from './light'
 
 const Lovable = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LovableLight {...props} className={className} />
+
   if (variant === 'dark') return <LovableDark {...props} className={className} />
+
   return (
     <>
       <LovableLight className={cn('dark:hidden', className)} {...props} />

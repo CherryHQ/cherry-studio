@@ -38,6 +38,7 @@ export function buildPieChart(
   const legend = option.legend
   const frames = props.timeline?.frames ?? []
   const hasTimeline = frames.length > 1
+
   const timeline: TimelineComponentOption | undefined = hasTimeline
     ? {
         axisType: 'category',
@@ -78,6 +79,7 @@ export function buildPieChart(
         }
       }
     : undefined
+
   const baseOption: EChartsCoreOption = {
     ...option,
     animation,

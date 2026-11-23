@@ -19,15 +19,20 @@ export type ProviderListEntry =
  */
 export function getGroupedPresetIds(providers: Provider[]): Set<string> {
   const counts = new Map<string, number>()
+
   for (const provider of providers) {
     const preset = provider.presetProviderId
+
     if (!preset) continue
     counts.set(preset, (counts.get(preset) ?? 0) + 1)
   }
+
   const grouped = new Set<string>()
+
   for (const [preset, count] of counts) {
     if (count >= 2) grouped.add(preset)
   }
+
   return grouped
 }
 
@@ -47,13 +52,16 @@ export function groupProvidersByPreset(providers: Provider[]): ProviderListEntry
 
   for (const provider of providers) {
     const preset = provider.presetProviderId
+
     if (preset && groupedPresets.has(preset)) {
       const existingIndex = groupIndexByPreset.get(preset)
+
       if (existingIndex === undefined) {
         groupIndexByPreset.set(preset, entries.length)
         entries.push({ kind: 'group', presetProviderId: preset, members: [provider] })
       } else {
         const existing = entries[existingIndex]
+
         if (existing.kind === 'group') {
           existing.members.push(provider)
         }
@@ -73,5 +81,6 @@ export function restoreProviderStatusSlots(providers: Provider[], reordered: Pro
   let enabledIndex = 0
   let disabledIndex = 0
   const next = providers.map((provider) => (provider.isEnabled ? enabled[enabledIndex++] : disabled[disabledIndex++]))
+
   return next.every((provider, index) => provider.id === providers[index].id) ? providers : next
 }

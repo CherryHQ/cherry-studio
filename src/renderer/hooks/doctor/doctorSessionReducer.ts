@@ -64,10 +64,12 @@ export function doctorSessionReducer(state: DoctorSessionState, action: DoctorSe
       return { ...state, descriptionDraft: action.description }
     case 'reveal-evidence': {
       const checkIds = state.evidenceGrant?.runId === action.runId ? state.evidenceGrant.checkIds : []
+
       return checkIds.includes(action.checkId)
         ? state
         : { ...state, evidenceGrant: { runId: action.runId, checkIds: [...checkIds, action.checkId] } }
     }
+
     case 'mark-check-fixed':
       return state.fixedRunId === action.runId && state.fixedCheckIds.includes(action.checkId)
         ? state

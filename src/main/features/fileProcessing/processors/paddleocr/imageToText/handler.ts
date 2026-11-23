@@ -20,9 +20,11 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
       async execute(executionContext) {
         const client = await createPaddleClient(apiHost, apiKey)
         const result = await client.ocr({ filePath: file.path, model }, { signal: executionContext.signal })
+
         const text = result.pages
           .flatMap((p) => {
             const recTexts = (p.prunedResult as { rec_texts?: unknown })?.rec_texts
+
             return Array.isArray(recTexts) ? recTexts.filter((value): value is string => typeof value === 'string') : []
           })
           .join('\n')
@@ -42,11 +44,13 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
 async function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
   signal?.throwIfAborted()
   const capability = getRequiredCapability(config, 'image_to_text', 'paddleocr')
+
   if (file.type !== FILE_TYPE.IMAGE) {
     throw new Error('PaddleOCR text extraction only supports image files')
   }
 
   const stat = await fs.stat(file.path)
+
   if (stat.size >= PADDLE_MAX_FILE_SIZE) {
     throw new Error('PaddleOCR file is too large (must be smaller than 50MB)')
   }

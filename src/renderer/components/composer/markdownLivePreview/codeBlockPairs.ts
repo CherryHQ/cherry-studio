@@ -12,6 +12,7 @@ const CLOSERS: ReadonlyMap<string, string> = new Map([
   ['"', '"'],
   ["'", "'"]
 ])
+
 const CLOSER_CHARACTERS = new Set(CLOSERS.values())
 const CAN_PAIR_BEFORE = /^$|^[\s)\]}:;,]/
 const WORD_CHARACTER = /[\p{L}\p{N}_]/u
@@ -22,6 +23,7 @@ const pairKey = new PluginKey<number[]>('composerMarkdownCodePairs')
 function readNeighbors(state: EditorState, position: number) {
   const $position = state.doc.resolve(position)
   const { parent, parentOffset } = $position
+
   return {
     previous: parent.textBetween(Math.max(0, parentOffset - 1), parentOffset, undefined, TOKEN_PLACEHOLDER),
     next: parent.textBetween(
@@ -41,6 +43,7 @@ function handlePairInput(
   isCodeLine: (position: number) => boolean
 ) {
   const { state } = view
+
   if (view.composing || text.length !== 1 || !isCodeLine(from)) return false
   const closer = CLOSERS.get(text)
 
@@ -48,16 +51,20 @@ function handlePairInput(
     if (!closer || !isCodeLine(to)) return false
     const transaction = state.tr.insertText(closer, to).insertText(text, from)
     view.dispatch(transaction.setSelection(TextSelection.create(transaction.doc, from + 1, to + 1)).scrollIntoView())
+
     return true
   }
 
   const { previous, next } = readNeighbors(state, from)
+
   if (CLOSER_CHARACTERS.has(text) && next === text && pairKey.getState(state)?.includes(from)) {
     view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, from + 1)).scrollIntoView())
+
     return true
   }
 
   const isQuoteAfterWord = text === closer && WORD_CHARACTER.test(previous)
+
   if (!closer || isQuoteAfterWord || !CAN_PAIR_BEFORE.test(next)) return false
 
   const transaction = state.tr.insertText(text + closer, from)
@@ -67,6 +74,7 @@ function handlePairInput(
       .setMeta(pairKey, from + 1)
       .scrollIntoView()
   )
+
   return true
 }
 
@@ -74,11 +82,14 @@ function handlePairBackspace(view: EditorView, event: KeyboardEvent) {
   if (event.key !== 'Backspace' || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false
   const { state } = view
   const { empty, from } = state.selection
+
   if (view.composing || !empty || !pairKey.getState(state)?.includes(from)) return false
 
   const { previous, next } = readNeighbors(state, from)
+
   if (CLOSERS.get(previous) !== next) return false
   view.dispatch(state.tr.delete(from - 1, from + 1).scrollIntoView())
+
   return true
 }
 
@@ -90,9 +101,11 @@ export function createCodePairPlugin(findCodeLine: FindCodeLine) {
       apply: (transaction, closers, _previous, state) => {
         const added = transaction.getMeta(pairKey) as number | undefined
         const { $head } = state.selection
+
         return [
           ...closers.flatMap((position) => {
             const mapped = transaction.mapping.mapResult(position)
+
             return mapped.deleted ? [] : [mapped.pos]
           }),
           ...(added === undefined ? [] : [added])
@@ -103,6 +116,7 @@ export function createCodePairPlugin(findCodeLine: FindCodeLine) {
       handleTextInput: (view, from, to, text) =>
         handlePairInput(view, from, to, text, (position) => {
           const match = findCodeLine(view.state, position)
+
           return match !== null && match.line !== match.block.open && match.line !== match.block.close
         }),
       handleKeyDown: handlePairBackspace

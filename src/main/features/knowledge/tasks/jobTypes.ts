@@ -48,8 +48,13 @@ declare module '@main/core/job/jobRegistry' {
 }
 
 export type KnowledgeCopySourcesPayload = JobPayloadOf<'knowledge.copy-sources'>
+
 export type KnowledgePrepareRootPayload = JobPayloadOf<'knowledge.prepare-root'>
+
 export type KnowledgeIndexDocumentsPayload = JobPayloadOf<'knowledge.index-documents'>
+
 export type KnowledgeCheckFileProcessingResultPayload = JobPayloadOf<'knowledge.check-file-processing-result'>
+
 export type KnowledgeDeleteSubtreePayload = JobPayloadOf<'knowledge.delete-subtree'>
+
 export type KnowledgeReindexSubtreePayload = JobPayloadOf<'knowledge.reindex-subtree'>

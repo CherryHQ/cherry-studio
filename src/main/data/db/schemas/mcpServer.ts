@@ -64,4 +64,5 @@ export const mcpServerTable = sqliteTable(
 )
 
 export type InsertMcpServerRow = typeof mcpServerTable.$inferInsert
+
 export type McpServerRow = typeof mcpServerTable.$inferSelect

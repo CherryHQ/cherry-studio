@@ -45,6 +45,7 @@ export const PlusButton = Extension.create<PlusButtonOptions>({
     return {
       render() {
         const element = document.createElement('div')
+
         return element
       }
     }
@@ -52,6 +53,7 @@ export const PlusButton = Extension.create<PlusButtonOptions>({
 
   addProseMirrorPlugins() {
     const element = this.options.render()
+
     return [
       PlusButtonPlugin({
         computePositionConfig: { ...defaultComputePositionConfig, ...this.options.computePositionConfig },
@@ -73,6 +75,7 @@ export const PlusButton = Extension.create<PlusButtonOptions>({
           const endOfBlock = $from.end($from.depth)
 
           const paragraphNode = schema.nodes.paragraph
+
           if (!paragraphNode) return false
 
           let tr = state.tr.insert(endOfBlock, paragraphNode.create())

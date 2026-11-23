@@ -19,5 +19,6 @@ export function createWebSearchProvider(
   apiKeyRotationState: ApiKeyRotationState
 ): WebSearchProviderDriver {
   const Provider = WEB_SEARCH_PROVIDER_REGISTRY[provider.id]
+
   return new Provider(provider, apiKeyRotationState)
 }

@@ -37,6 +37,7 @@ export function parseProviderApiKeys(value: string) {
     }
 
     seenKeys.add(key)
+
     return true
   })
 }
@@ -66,6 +67,7 @@ export function mergeProviderApiKeyEntries(value: string, existingKeys: readonly
     }
 
     const reusableEnabledEntry = existingEnabledKeys[enabledCursor]
+
     if (reusableEnabledEntry) {
       usedEntryIds.add(reusableEnabledEntry.id)
       nextEntries.push({ ...reusableEnabledEntry, key, isEnabled: true })
@@ -77,6 +79,7 @@ export function mergeProviderApiKeyEntries(value: string, existingKeys: readonly
   }
 
   const untouchedDisabledEntries = existingKeys.filter((item) => !item.isEnabled && !usedEntryIds.has(item.id))
+
   return [...nextEntries, ...untouchedDisabledEntries]
 }
 
@@ -102,6 +105,7 @@ function syncApiKeyValueFromServer(value: ApiKeyValue, serverApiKey: string): Ap
   }
 
   const normalizedInputApiKey = toEnabledApiKeyString(value.inputApiKey)
+
   if (normalizedInputApiKey === serverApiKey) {
     return createApiKeyValue(serverApiKey)
   }
@@ -130,6 +134,7 @@ export function useProviderApiKey(providerId: string) {
       if (!provider) {
         return
       }
+
       if (parseProviderApiKeys(value).some((key) => [...key].some((character) => character.charCodeAt(0) > 0xff))) {
         throw new Error('API key contains characters unsupported by HTTP headers')
       }
@@ -193,6 +198,7 @@ export function useProviderApiKey(providerId: string) {
 
       if (hasPendingSync) {
         saveLater(normalizedInputApiKey)
+
         return
       }
 
@@ -206,6 +212,7 @@ export function useProviderApiKey(providerId: string) {
 
     const currentValue = valueRef.current
     const normalizedInputApiKey = toEnabledApiKeyString(currentValue.inputApiKey)
+
     if (normalizedInputApiKey === currentValue.serverApiKey) {
       return
     }

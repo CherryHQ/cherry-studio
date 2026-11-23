@@ -20,5 +20,6 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
 }> {
   const apiGatewayService = application.get('ApiGatewayService')
   const { baseUrl, apiKey } = await apiGatewayService.ensureInternalGateway()
+
   return { baseUrl, apiKey, usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId) }
 }

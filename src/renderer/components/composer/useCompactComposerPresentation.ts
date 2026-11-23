@@ -16,10 +16,12 @@ type CompactMeasurement = {
 
 export function useCompactComposerPresentation({ enabled, frameRef, isComposing }: CompactComposerPresentationOptions) {
   const [requestedRevision, setRequestedRevision] = useState(0)
+
   const [measurement, setMeasurement] = useState<CompactMeasurement>({
     presentation: 'compact',
     revision: -1
   })
+
   const measurementScheduledRef = useRef(false)
   const mountedRef = useRef(true)
   const wasEnabledRef = useRef(enabled)
@@ -34,6 +36,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     measurementScheduledRef.current = true
     queueMicrotask(() => {
       measurementScheduledRef.current = false
+
       if (mountedRef.current) {
         setRequestedRevision((revision) => revision + 1)
       }
@@ -42,6 +45,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
 
   useEffect(() => {
     mountedRef.current = true
+
     return () => {
       mountedRef.current = false
     }
@@ -50,12 +54,14 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
   useLayoutEffect(() => {
     if (!enabled) {
       wasEnabledRef.current = false
+
       return
     }
 
     if (!wasEnabledRef.current) {
       wasEnabledRef.current = true
       requestMeasurement()
+
       return
     }
 
@@ -64,13 +70,16 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     const frame = frameRef.current
     const editorElement = frame?.querySelector<HTMLElement>('.composer-tiptap')
     const compactRowElement = frame?.closest<HTMLElement>('[data-composer-compact-row]')
+
     if (!editorElement || !compactRowElement) return
 
     const scrollViewport = editorElement.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
     const hasMultipleLines = editorElement.querySelector(':scope > p + p') !== null
     const hasEditorOverflow = editorElement.scrollHeight > editorElement.clientHeight + COMPOSER_OVERFLOW_TOLERANCE_PX
+
     const hasViewportOverflow =
       scrollViewport && scrollViewport.scrollHeight > scrollViewport.clientHeight + COMPOSER_OVERFLOW_TOLERANCE_PX
+
     const hasCompactRowOverflow =
       compactRowElement.scrollWidth > compactRowElement.clientWidth + COMPOSER_OVERFLOW_TOLERANCE_PX
 
@@ -86,6 +95,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
 
     const frame = frameRef.current
     const inputbarElement = frame?.closest<HTMLElement>('[data-composer-inputbar]')
+
     if (!frame || !inputbarElement) return
 
     // Observe the frame rather than `.composer-tiptap`: Tiptap builds the
@@ -97,6 +107,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
       attachEditorResizeObserver()
       requestMeasurement()
     })
+
     mutationObserver.observe(frame, {
       characterData: true,
       childList: true,
@@ -114,6 +125,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     function attachEditorResizeObserver() {
       if (typeof ResizeObserver === 'undefined') return
       const editorElement = composerFrame.querySelector<HTMLElement>('.composer-tiptap')
+
       if (!editorElement || editorElement === observedEditorElement) return
 
       editorResizeObserver?.disconnect()
@@ -122,6 +134,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
       lastSeenRenderedCompact = renderedIsCompactRef.current
       editorResizeObserver = new ResizeObserver((entries) => {
         const nextEditorWidth = entries[0]?.contentRect.width ?? editorElement.getBoundingClientRect().width
+
         if (nextEditorWidth === lastEditorWidth) return
 
         lastEditorWidth = nextEditorWidth
@@ -130,25 +143,30 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
         const renderedCompactNow = renderedIsCompactRef.current
         const flipDrivenWidthChange = renderedCompactNow !== lastSeenRenderedCompact
         lastSeenRenderedCompact = renderedCompactNow
+
         if (flipDrivenWidthChange) return
 
         requestMeasurement()
       })
       editorResizeObserver.observe(editorElement)
     }
+
     attachEditorResizeObserver()
 
     let lastInputbarWidth = inputbarElement.getBoundingClientRect().width
+
     const resizeObserver =
       typeof ResizeObserver === 'undefined'
         ? null
         : new ResizeObserver((entries) => {
             const nextInputbarWidth = entries[0]?.contentRect.width ?? inputbarElement.getBoundingClientRect().width
+
             if (nextInputbarWidth === lastInputbarWidth) return
 
             lastInputbarWidth = nextInputbarWidth
             requestMeasurement()
           })
+
     resizeObserver?.observe(inputbarElement)
 
     return () => {

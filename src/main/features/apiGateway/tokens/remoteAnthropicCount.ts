@@ -33,6 +33,7 @@ export async function tryRemoteAnthropicCount(
 ): Promise<number | undefined> {
   try {
     const cfg = await providerToAiSdkConfig(provider, model)
+
     const settings = cfg.providerSettings as {
       baseURL?: string
       apiKey?: string
@@ -41,11 +42,13 @@ export async function tryRemoteAnthropicCount(
       // installs — reused so count traffic honours the app proxy / relay auth, not bypasses it.
       fetch?: typeof globalThis.fetch
     }
+
     const apiKey = settings.apiKey
     // ai-core baseURL ends in `/v1`; the official SDK re-appends `/v1/messages/count_tokens`,
     // so strip the trailing `/v1` to avoid `…/v1/v1/…`. Relay-shaped configs put the URL/key
     // in other fields → undefined here → local fallback.
     const baseURL = settings.baseURL?.replace(/\/v1\/?$/, '')
+
     if (!apiKey || !baseURL) return undefined
 
     const client = new Anthropic({
@@ -56,11 +59,14 @@ export async function tryRemoteAnthropicCount(
       timeout: REMOTE_COUNT_TIMEOUT_MS,
       maxRetries: 0
     })
+
     const params: MessageCountTokensParams = { model: apiModelId, ...request }
     const { input_tokens } = await client.messages.countTokens(params, { signal })
+
     return input_tokens
   } catch (error) {
     logger.warn('remote count_tokens failed, falling back to local estimate', error as Error)
+
     return undefined
   }
 }

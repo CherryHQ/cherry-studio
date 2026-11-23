@@ -97,9 +97,11 @@ const GeneralSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
 
   const [language, setLanguage] = usePreference('app.language')
+
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
   )
+
   const [launchOnBoot, setLaunchOnBoot] = usePreference('app.launch_on_boot')
   const [trayPreferences, setTrayPreferences] = useMultiplePreferences(TRAY_PREFERENCE_KEYS)
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
@@ -110,12 +112,15 @@ const GeneralSettings: FC = () => {
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
+
   const [remoteDebuggingEnabled, setRemoteDebuggingEnabled] = usePreference('BootConfig.app.remote_debugging.enabled', {
     optimistic: false
   })
+
   const [remoteDebuggingPort, setRemoteDebuggingPort] = usePreference('BootConfig.app.remote_debugging.port', {
     optimistic: false
   })
+
   const [clientId] = usePreference('app.user.id')
   const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
@@ -123,11 +128,13 @@ const GeneralSettings: FC = () => {
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
   const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
   const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
+
   const displayLanguage = isAppLanguage(language)
     ? language
     : isAppLanguage(resolvedLanguage)
       ? resolvedLanguage
       : defaultLanguage
+
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
@@ -140,6 +147,7 @@ const GeneralSettings: FC = () => {
   const pendingProxyPreferenceSave = useRef<(() => void) | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
   const configuredRetryFallbackModelIds = useMemo(() => retryFallbackModelIds ?? [], [retryFallbackModelIds])
+
   const {
     resolvedSelectedModelIds: resolvedRetryFallbackModelIds,
     isLoading: isFallbackSelectorDataLoading,
@@ -154,23 +162,30 @@ const GeneralSettings: FC = () => {
     showTagFilter: false,
     showPinnedModels: false
   })
+
   // Catalog failures make all selections unknown. Cloud sync only affects managed
   // Cloud IDs, so it must not hide known stale non-Cloud selections.
   const canEvaluateFallbackStale =
     !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null && fallbackProvidersCatalogError == null
+
   const isFallbackCloudAvailabilityKnown = fallbackCloudAvailabilityReady && fallbackCloudAvailabilityError == null
+
   const classifiedRetryFallbackModelIds = useMemo(() => {
     if (isFallbackCloudAvailabilityKnown) return resolvedRetryFallbackModelIds
+
     const unknownCloudIds = configuredRetryFallbackModelIds.filter(
       (id) => isUniqueModelId(id) && isManagedCherryCloudModel(parseUniqueModelId(id).providerId)
     )
+
     // Presentation-only: keep unknown Cloud selections neutral. Do not change
     // selector resolution, persisted IDs, or runtime fallback behavior.
     return [...new Set([...resolvedRetryFallbackModelIds, ...unknownCloudIds])]
   }, [configuredRetryFallbackModelIds, isFallbackCloudAvailabilityKnown, resolvedRetryFallbackModelIds])
+
   const hasInvalidRetryFallbackModels =
     canEvaluateFallbackStale &&
     hasStaleSelectedModelIds(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds)
+
   const retryFallbackModelsTriggerLabel = canEvaluateFallbackStale
     ? getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds, t)
     : configuredRetryFallbackModelIds.length > 0
@@ -205,6 +220,7 @@ const GeneralSettings: FC = () => {
   const saveProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
       toast.error(t('message.error.invalid.proxy.url'))
+
       return
     }
 
@@ -214,6 +230,7 @@ const GeneralSettings: FC = () => {
   const onSetProxyUrl = (event: FocusEvent<HTMLInputElement>) => {
     if (isProxyTestAction(event)) {
       pendingProxyPreferenceSave.current = saveProxyUrl
+
       return
     }
 
@@ -227,6 +244,7 @@ const GeneralSettings: FC = () => {
   const onSetProxyBypassRules = (event: FocusEvent<HTMLInputElement>) => {
     if (isProxyTestAction(event)) {
       pendingProxyPreferenceSave.current = saveProxyBypassRules
+
       return
     }
 
@@ -244,6 +262,7 @@ const GeneralSettings: FC = () => {
     pendingProxyPreferenceSave.current = null
     const input = { ...proxyTestInput.current }
     const generation = ++proxyTestGeneration.current
+
     const isCurrent = () =>
       generation === proxyTestGeneration.current &&
       input.mode === proxyTestInput.current.mode &&
@@ -252,8 +271,10 @@ const GeneralSettings: FC = () => {
 
     setProxyTestLoading(true)
     setProxyTestResult(null)
+
     try {
       const result = await ipcApi.request('proxy.test_connection', input)
+
       if (isCurrent()) setProxyTestResult(result)
     } catch (error) {
       if (isCurrent()) toast.error(formatErrorMessage(error))
@@ -316,6 +337,7 @@ const GeneralSettings: FC = () => {
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     try {
@@ -338,6 +360,7 @@ const GeneralSettings: FC = () => {
     if (developerSettingsSaving.current) return
     developerSettingsSaving.current = true
     setIsSavingDeveloperSettings(true)
+
     try {
       await save()
     } catch (error) {
@@ -360,8 +383,10 @@ const GeneralSettings: FC = () => {
   const handleRemoteDebuggingPortChange = async (port: number | null) => {
     if (port === null || !Number.isInteger(port) || port < 1 || port > 65534) {
       toast.error(t('settings.developer.cdp.invalid_port'))
+
       return
     }
+
     try {
       await setRemoteDebuggingPort(port)
     } catch (error) {

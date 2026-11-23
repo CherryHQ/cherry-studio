@@ -19,11 +19,13 @@ const GEMINI_AGGREGATOR_PROVIDERS = new Set(['aihubmix', 'dmxapi', 'new-api', 'c
 
 const hasEndpoint = (p: Provider, type: string): boolean =>
   Boolean(p.endpointConfigs?.[type as 'anthropic-messages']?.baseUrl)
+
 const hasAnthropic = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 const hasChat = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
 const hasResponses = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.OPENAI_RESPONSES)
 const hasOpenAILike = (p: Provider): boolean => hasChat(p) || hasResponses(p)
 const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+
 const filterGeminiProviders = (providers: Provider[]): Provider[] =>
   providers.filter((p) => isGeminiProvider(p) || hasGemini(p) || GEMINI_AGGREGATOR_PROVIDERS.has(p.id))
 

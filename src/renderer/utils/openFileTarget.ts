@@ -20,6 +20,7 @@ export interface FileOpenActions {
 export async function openFileTarget(path: string, actions: FileOpenActions): Promise<void> {
   try {
     const directory = actions.isDirectory ? await actions.isDirectory(path) : false
+
     if (directory || !actions.openArtifactFile) {
       await actions.openPath?.(path)
     } else {

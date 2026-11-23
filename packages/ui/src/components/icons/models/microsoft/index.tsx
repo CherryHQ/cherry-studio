@@ -4,6 +4,7 @@ import { MicrosoftLight } from './light'
 
 const Microsoft = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MicrosoftLight {...props} className={className} />
+
   return <MicrosoftLight {...props} className={className} />
 }
 

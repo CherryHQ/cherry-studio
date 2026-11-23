@@ -45,7 +45,9 @@ type Stage =
 /** Pulls each open's payload; a fresh `sessionId` remounts the content so no state leaks between opens. */
 const SelectionAgentWindow: FC = () => {
   const action = useWindowInitData<SelectionActionSession>()
+
   if (!action || !isAgentSelectionAction(action)) return null
+
   // Composer surfaces need a quick panel context, which ConversationShell provides in other windows.
   return (
     <QuickPanelProvider key={action.sessionId}>
@@ -61,18 +63,23 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
   const [actionItems] = usePreference('feature.selection.action_items')
   const [isPinned, setIsPinned] = useState(isAutoPin)
   const [opacity, setOpacity] = useState(initialOpacity)
+
   const [stage, setStage] = useState<Stage>(() =>
     action.isBuiltIn ? { kind: 'compose', sending: false, error: null } : { kind: 'starting' }
   )
+
   const [composeText, setComposeText] = useState('')
   const shellRef = useRef<HTMLDivElement>(null)
   const selectedText = action.selectedText ?? ''
   const actionName = action.isBuiltIn ? t(action.name) : action.name
+
   // The binding is changed in the selection settings while this window stays open, so follow it there.
   const target = useMemo(() => {
     const current = parseSelectionActions(actionItems ?? []).find((item) => item.id === action.id)
+
     return getSelectionAgentTarget(current && isAgentSelectionAction(current) ? current : action)
   }, [action, actionItems])
+
   const { agent: boundAgent } = useAgent(action.isBuiltIn ? null : target.agentId)
   const agentName = boundAgent?.name ?? actionName
 
@@ -93,9 +100,11 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
         const sessionId = await createSelectionAgentSession(target)
         setStage({ kind: 'conversation', sessionId, firstMessage })
         void ipcApi.request('selection.resize_agent_window', { mode: 'conversation' })
+
         return null
       } catch (error) {
         logger.error('Failed to create the selection agent session', error as Error)
+
         return isSelectionWorkspaceUnavailableError(error)
           ? t('selection.agent.workspace_unavailable_hint')
           : formatErrorMessage(error)
@@ -111,15 +120,18 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
     const text = expandSelectionPrompt(action.prompt, selectedText)
     void start(target, { text, tokens: [] }).then((message) => message && setStage({ kind: 'failed', message }))
   }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(startCustomAction, [])
 
   const handleComposeSend = useCallback(
     async (draft: ComposerSerializedDraft) => {
       const normalized = trimComposerDraftBoundaryBlankLines(draft)
+
       if (!normalized.text.trim()) return
       setStage({ kind: 'compose', sending: true, error: null })
       const message = await start(target, normalized)
+
       if (message) setStage({ kind: 'compose', sending: false, error: message })
     },
     [start, target]
@@ -149,7 +161,9 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
   const isCompose = stage.kind === 'compose'
   useLayoutEffect(() => {
     const shell = shellRef.current
+
     if (!isCompose || !shell) return
+
     // The window fits the compose bar; observing reports the current size too, which fits the first frame.
     const observer = new ResizeObserver(() => {
       void ipcApi.request('selection.resize_agent_window', {
@@ -157,7 +171,9 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
         height: shell.offsetHeight + SHELL_MARGIN
       })
     })
+
     observer.observe(shell)
+
     return () => observer.disconnect()
   }, [isCompose])
 

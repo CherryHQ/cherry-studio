@@ -30,7 +30,9 @@ export function resolveServiceTierWireValue(
 ): string {
   const effective = selection && control.options.includes(selection) ? selection : control.default
   const value = control.wire.values[effective]
+
   if (!value) throw new Error(`Missing wire value for service tier '${effective}'`)
+
   return value
 }
 
@@ -42,11 +44,14 @@ export function applyServiceTierToProviderOptions<T extends ProviderOptions>(
 ): T {
   if (control.wire.delivery.type === 'request-body') {
     const namespace = providerOptions[providerOptionsKey]
+
     if (!namespace || !Object.hasOwn(namespace, control.wire.delivery.key)) return providerOptions
     const cleanedNamespace = { ...namespace }
     delete cleanedNamespace[control.wire.delivery.key]
+
     return { ...providerOptions, [providerOptionsKey]: cleanedNamespace }
   }
+
   return {
     ...providerOptions,
     [providerOptionsKey]: {
@@ -80,6 +85,7 @@ export function extractAiSdkStandardParams<T>(customParams: Record<string, T>) {
       providerEntries.push([key, value])
     }
   }
+
   return { standardParams, providerParams: Object.fromEntries(providerEntries) }
 }
 
@@ -97,12 +103,14 @@ export function buildCapabilityProviderOptions(
 ): ProviderOptions {
   const rawProviderId = context.runtimeProviderId
   const providerOptionsKey = context.providerOptionsKey
+
   const resolvedReasoningOptions = capabilities.enableReasoning
     ? encodeReasoningOptions(providerOptionsKey, context.reasoning)
     : {
         providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : providerOptionsKey,
         options: {}
       }
+
   const reasoningOptions = shouldNormalizeOpenAICompatibleReasoning(rawProviderId, context.endpointType)
     ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
     : resolvedReasoningOptions
@@ -177,6 +185,7 @@ export function buildCapabilityProviderOptions(
     capabilities,
     providerSpecificOptions
   })
+
   return providerSpecificOptions
 }
 
@@ -192,9 +201,11 @@ export function buildResolvedReasoningProviderOptions(context: {
   reasoning: ResolvedReasoningInvocation
 }) {
   const encoded = encodeReasoningOptions(context.providerOptionsKey, context.reasoning)
+
   const options = shouldNormalizeOpenAICompatibleReasoning(context.aiSdkProviderId, context.endpointType)
     ? normalizeOpenAICompatibleParams(encoded.options)
     : encoded.options
+
   if (Object.keys(options).length === 0) return {}
 
   return {
@@ -232,14 +243,17 @@ export function mergeCustomProviderParameters(
 ): ProviderOptions {
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]
+
   const normalizedProviderParams =
     adapterFamily === 'openai-compatible' || adapterFamily === 'github-copilot-openai-compatible'
       ? normalizeOpenAICompatibleParams(providerParams)
       : providerParams
 
   const updatedNamespaces = new Map<string, Map<string, JSONValue | undefined>>()
+
   for (const key of Object.keys(normalizedProviderParams)) {
     const isProviderNamespace = isCustomProviderNamespace(key, providerOptions, rawProviderId)
+
     const value =
       (adapterFamily === 'openai-compatible' || adapterFamily === 'github-copilot-openai-compatible') &&
       isProviderNamespace &&
@@ -248,17 +262,22 @@ export function mergeCustomProviderParameters(
       !Array.isArray(normalizedProviderParams[key])
         ? normalizeOpenAICompatibleParams(normalizedProviderParams[key])
         : normalizedProviderParams[key]
+
     const mergeNamespace =
       actualAiSdkProviderIds.includes(key) || (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId))
+
     const namespace =
       actualAiSdkProviderIds.includes(key) || (key === rawProviderId && key === SystemProviderIds.gateway)
         ? key
         : primaryAiSdkProviderId
+
     let fields = updatedNamespaces.get(namespace)
+
     if (!fields) {
       fields = new Map(Object.entries(providerOptions[namespace] ?? {}))
       updatedNamespaces.set(namespace, fields)
     }
+
     if (mergeNamespace) {
       for (const [field, fieldValue] of Object.entries<JSONValue | undefined>(value ?? {})) {
         fields.set(field, fieldValue)
@@ -267,12 +286,15 @@ export function mergeCustomProviderParameters(
       fields.set(key, value)
     }
   }
+
   if (updatedNamespaces.size === 0) return providerOptions
 
   const result = new Map(Object.entries(providerOptions))
+
   for (const [namespace, fields] of updatedNamespaces) {
     result.set(namespace, Object.fromEntries(fields))
   }
+
   return Object.fromEntries(result)
 }
 
@@ -280,8 +302,10 @@ function normalizeOpenAICompatibleParams<T>(params: Record<string, T>) {
   if (!('reasoning_effort' in params)) return params
 
   const normalized = { ...params }
+
   if (!('reasoningEffort' in normalized)) normalized.reasoningEffort = normalized.reasoning_effort
   delete normalized.reasoning_effort
+
   return normalized
 }
 
@@ -292,6 +316,7 @@ function buildOpenAIProviderOptions(
 ) {
   const { enableReasoning } = capabilities
   let providerOptions: OpenAIResponsesProviderOptions = {}
+
   if (enableReasoning) {
     providerOptions = {
       ...providerOptions,
@@ -324,6 +349,7 @@ function buildGeminiProviderOptions(
   providerOptionsKey = 'google'
 ) {
   const { enableGenerateImage } = capabilities
+
   let providerOptions: GoogleGenerativeAIProviderOptions = {
     safetySettings: [
       {
@@ -348,10 +374,13 @@ function buildGeminiProviderOptions(
       }
     ]
   }
+
   providerOptions = { ...providerOptions, ...reasoningOptions }
+
   if (enableGenerateImage) {
     providerOptions = { ...providerOptions, ...buildGeminiGenerateImageParams() }
   }
+
   return { [providerOptionsKey]: { ...providerOptions } }
 }
 
@@ -362,16 +391,20 @@ function buildXAIProviderOptions(reasoningOptions: JSONObject) {
 function buildBedrockProviderOptions(model: Model, reasoningOptions: JSONObject) {
   const providerOptions: BedrockProviderOptions = { ...reasoningOptions }
   const betaHeaders = addAnthropicHeaders(model)
+
   if (betaHeaders.length > 0) {
     providerOptions.anthropicBeta = betaHeaders
   }
+
   return { bedrock: providerOptions }
 }
 
 function buildOllamaProviderOptions(model: Model, reasoningOptions: JSONObject) {
   const ollama = { ...reasoningOptions }
+
   // Without a declared context window, Ollama sizes it from available VRAM.
   if (model.contextWindow) ollama.options = { num_ctx: model.contextWindow }
+
   return { ollama }
 }
 
@@ -410,5 +443,6 @@ function buildAIGatewayOptions(
     case ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION:
       return buildGenericProviderOptions(reasoning.providerId, model, provider, capabilities, reasoning.options)
   }
+
   return { [reasoning.providerId]: reasoning.options }
 }

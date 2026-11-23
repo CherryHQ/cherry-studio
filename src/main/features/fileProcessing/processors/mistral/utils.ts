@@ -55,6 +55,7 @@ export function parseMistralOcrResponse(response: MistralOcrResponse) {
 
 export function buildTextExtractionResult(response: MistralOcrResponse): ImageToTextHandlerOutput {
   const parsedResponse = parseMistralOcrResponse(response)
+
   const markdown = parsedResponse.pages
     .map((page) => inlinePageTables(page).trim())
     .filter(Boolean)
@@ -73,6 +74,7 @@ export function buildTextExtractionResult(response: MistralOcrResponse): ImageTo
 
 export function buildMarkdownConversionResult(response: MistralOcrResponse): DocumentToMarkdownHandlerOutput {
   const parsedResponse = parseMistralOcrResponse(response)
+
   const markdownContent = parsedResponse.pages
     .map((page) => inlinePageTables(page).trim())
     .filter(Boolean)
@@ -92,9 +94,11 @@ export function buildMarkdownConversionResult(response: MistralOcrResponse): Doc
 function inlinePageTables(page: MistralOcrPage): string {
   return (page.tables ?? []).reduce((markdown, table) => {
     const placeholder = `[${table.id}](${table.id})`
+
     if (!markdown.includes(placeholder)) {
       return `${markdown}\n\n${table.content}`
     }
+
     // Replacer function: a plain string replacement would expand `$&` / `$'` inside table content.
     return markdown.replace(placeholder, () => table.content)
   }, page.markdown)
@@ -102,6 +106,7 @@ function inlinePageTables(page: MistralOcrPage): string {
 
 export async function uploadDocument(context: PreparedMistralContext): Promise<string> {
   const fileBuffer = await fs.readFile(context.file.path)
+
   const uploadedFile = await context.client.files.upload(
     {
       file: {
@@ -152,5 +157,6 @@ async function createImageDataUrl(file: FileInfo): Promise<string> {
   }
 
   const buffer = await fs.readFile(filePath)
+
   return `data:${mime};base64,${buffer.toString('base64')}`
 }

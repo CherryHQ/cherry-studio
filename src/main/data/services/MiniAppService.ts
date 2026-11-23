@@ -53,6 +53,7 @@ export type UpdateMiniAppInput = UpdateMiniAppDto & { logo?: LogoBindInput }
 /** Preset id set, used for write-time collision rejection. */
 const presetMiniAppIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
 const customMutableFields = ['name', 'url', 'logo'] as const
+
 // A local app's identity IS its package: `url` edits escape the sandbox, `logo` is its face in
 // notifications. Only `status`/`orderKey` stay editable; the packaged icon goes via setInstalledLogo().
 const IDENTITY_FIELDS = ['url', 'name', 'logo'] as const
@@ -109,6 +110,7 @@ function rowToMiniApp(row: MiniAppRow & InstallationExtras): MiniApp {
   // `file_entry_id` FK is `on delete cascade`), so letting `getUrl` throw
   // surfaces a real invariant break instead of swallowing it.
   const logoFileId = getSingleFileRefId(miniAppLogoFileRefTable, clean.appId)
+
   const base = {
     appId: brandId(clean.appId),
     name: clean.name,
@@ -126,6 +128,7 @@ function rowToMiniApp(row: MiniAppRow & InstallationExtras): MiniApp {
     // Not a case to handle: the installation row is what MAKES an app an app, and
     // both are written in one transaction — a null here is a broken invariant.
     const manifest = MiniAppManifestSchema.parse(row.manifestJson)
+
     return {
       ...base,
       kind: 'app',
@@ -143,6 +146,7 @@ function rowToMiniApp(row: MiniAppRow & InstallationExtras): MiniApp {
   }
 
   const app: SiteMiniApp = { ...base, kind: 'site', presetMiniAppId }
+
   if (presetMiniAppId !== null) {
     app.bordered = clean.bordered
     app.background = clean.background
@@ -150,6 +154,7 @@ function rowToMiniApp(row: MiniAppRow & InstallationExtras): MiniApp {
     app.configuration = clean.configuration
     app.nameKey = clean.nameKey
   }
+
   return app
 }
 
@@ -157,7 +162,9 @@ export class MiniAppService {
   /** Get a miniapp by appId. Throws NOT_FOUND if absent. */
   getByAppId(appId: string): MiniApp {
     const [row] = joinedMiniApp().where(eq(miniAppTable.appId, appId)).limit(1).all()
+
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
+
     return rowToMiniApp(row)
   }
 
@@ -173,9 +180,12 @@ export class MiniAppService {
     items.sort((a, b) => {
       const order = (s: MiniAppStatus) => (s === 'pinned' ? 0 : s === 'enabled' ? 1 : 2)
       const diff = order(a.status) - order(b.status)
+
       if (diff !== 0) return diff
+
       return a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0
     })
+
     return items
   }
 
@@ -189,12 +199,14 @@ export class MiniAppService {
     }
 
     const status: MiniAppStatus = 'enabled'
+
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const logoCols = reconcileLogoSlotTx(tx, miniAppLogoFileRefTable, dto.appId, dto.logo) ?? {
             logoKey: null
           }
+
           const inserted = insertWithOrderKey(
             tx,
             miniAppTable,
@@ -212,11 +224,14 @@ export class MiniAppService {
               scope: orderScopeForStatus(status)
             }
           )
+
           return inserted
         }),
       defaultHandlersFor('MiniApp', dto.appId)
     )
+
     logger.info('Created custom miniapp', { appId: row.appId, orderKey: row.orderKey })
+
     // Only site rows are created here (the custom-site form is the sole entry), so
     // there is no installation row to join — say so explicitly.
     return rowToMiniApp({ ...row, version: null, manifestJson: null, aiModelId: null, aiQuickModelId: null })
@@ -238,7 +253,9 @@ export class MiniAppService {
     const hasStatusUpdate = dto.status !== undefined
     const hasCustomUpdate = customMutableFields.some((field) => hasOwnDefined(dto, field))
     const modelUpdates: Pick<UpdateMiniAppInput, 'aiModelId' | 'aiQuickModelId'> = {}
+
     if (dto.aiModelId !== undefined) modelUpdates.aiModelId = dto.aiModelId
+
     if (dto.aiQuickModelId !== undefined) modelUpdates.aiQuickModelId = dto.aiQuickModelId
     const hasAiModelUpdate = Object.keys(modelUpdates).length > 0
 
@@ -263,6 +280,7 @@ export class MiniAppService {
             .where(eq(miniAppTable.appId, appId))
             .limit(1)
             .all()
+
           if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
           if (existing.kind === 'app' && IDENTITY_FIELDS.some((k) => dto[k] !== undefined)) {
@@ -287,15 +305,18 @@ export class MiniAppService {
                 'only installed mini apps have a model setting'
               )
             }
+
             tx.update(miniAppInstallationTable).set(modelUpdates).where(eq(miniAppInstallationTable.appId, appId)).run()
           }
 
           const updates: Partial<InsertMiniAppRow> = {}
 
           if (dto.name !== undefined) updates.name = dto.name
+
           if (dto.url !== undefined) updates.url = dto.url
           // DB-only logo reconcile: replace the slot's file_ref + set the logo key.
           const logoCols = reconcileLogoSlotTx(tx, miniAppLogoFileRefTable, appId, dto.logo)
+
           if (logoCols) {
             updates.logoKey = logoCols.logoKey
           }
@@ -303,9 +324,11 @@ export class MiniAppService {
           if (hasStatusUpdate) {
             const targetStatus = dto.status as MiniAppStatus
             updates.status = targetStatus
+
             if (existing.status !== targetStatus) {
               if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
                 const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
+
                 const [before] = tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
@@ -313,12 +336,14 @@ export class MiniAppService {
                   .orderBy(desc(miniAppTable.orderKey))
                   .limit(1)
                   .all()
+
                 const [same] = tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
                   .where(and(visibleScope, eq(miniAppTable.orderKey, existing.orderKey)))
                   .limit(1)
                   .all()
+
                 const [after] = tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
@@ -345,6 +370,7 @@ export class MiniAppService {
                   .orderBy(desc(miniAppTable.orderKey))
                   .limit(1)
                   .all()
+
                 updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)
               }
             }
@@ -353,12 +379,15 @@ export class MiniAppService {
           // A model-only PATCH touched the installation row alone; an empty SET is a Drizzle error.
           if (Object.keys(updates).length === 0) return existing
           const [updated] = tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning().all()
+
           return updated
         }),
       defaultHandlersFor('MiniApp', appId)
     )
+
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
     logger.info('Updated miniapp', { appId, changes: Object.keys(dto) })
+
     // Re-read through the join: the written row alone would yield a LocalMiniApp
     // with no version. A row becomes a MiniApp by exactly one path.
     return this.getByAppId(appId)
@@ -380,6 +409,7 @@ export class MiniAppService {
             .where(eq(miniAppTable.appId, appId))
             .limit(1)
             .all()
+
           if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
           if (existing.kind !== 'app') {
@@ -411,6 +441,7 @@ export class MiniAppService {
             .where(eq(miniAppTable.appId, appId))
             .limit(1)
             .all()
+
           if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
           // Must go through `uninstallMiniApp`, which is journalled and removes the files.
@@ -453,6 +484,7 @@ export class MiniAppService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           const ids = moves.map((move) => move.id)
+
           const rows = tx
             .select({ appId: miniAppTable.appId, status: miniAppTable.status })
             .from(miniAppTable)
@@ -465,6 +497,7 @@ export class MiniAppService {
 
           const hasVisible = rows.some((row) => isVisibleStatus(row.status))
           const hasHidden = rows.some((row) => !isVisibleStatus(row.status))
+
           if (hasVisible && hasHidden) {
             const message = 'MiniApp reorder batch cannot span visible and hidden lists'
             throw DataApiErrorFactory.validation({ _root: [message] }, message)

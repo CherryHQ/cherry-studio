@@ -37,24 +37,29 @@ export function createCustomParamsFetch(
 
   const serializedCustomParams = JSON.stringify(customParams) ?? '{}'
   let cachedByParams = customParamsFetchCache.get(innerFetch)
+
   if (!cachedByParams) {
     cachedByParams = new Map()
     customParamsFetchCache.set(innerFetch, cachedByParams)
   }
 
   const cachedFetch = cachedByParams.get(serializedCustomParams)
+
   if (cachedFetch) {
     cachedByParams.delete(serializedCustomParams)
     cachedByParams.set(serializedCustomParams, cachedFetch)
+
     return cachedFetch
   }
 
   // SAFETY: Parsed JSON is consumed only as an object-spread source, which also accepts scalar roots.
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- A top-level toJSON may return scalar JSON; preserve the existing spread semantics.
   const customParamsSnapshot = JSON.parse(serializedCustomParams) as Record<string, unknown>
+
   const wrappedFetch: typeof globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method?.toUpperCase() === 'POST' && typeof init.body === 'string') {
       let body: JSONValue
+
       try {
         body = JSON.parse(init.body)
       } catch {
@@ -74,8 +79,11 @@ export function createCustomParamsFetch(
 
   if (cachedByParams.size >= CUSTOM_PARAMS_FETCH_CACHE_SIZE) {
     const oldestKey = cachedByParams.keys().next().value
+
     if (oldestKey !== undefined) cachedByParams.delete(oldestKey)
   }
+
   cachedByParams.set(serializedCustomParams, wrappedFetch)
+
   return wrappedFetch
 }

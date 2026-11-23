@@ -27,10 +27,12 @@ interface AgentSessionImageCaptureHostProps {
 const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: AgentSessionImageCaptureHostProps) => {
   const captureTarget = useRef({ activeAgent, modelFallback, session }).current
   const topicId = useMemo(() => buildAgentSessionTopicId(captureTarget.session.id), [captureTarget.session.id])
+
   const loadMessages = useCallback(
     () => getAgentSessionMessagesForExport(captureTarget.session, { modelFallback: captureTarget.modelFallback }),
     [captureTarget]
   )
+
   const handleLoadError = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent export loading can reject any value; preserve the original failure when settling pending capture actions.
     (error: unknown) => {
@@ -45,11 +47,13 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
     },
     [captureTarget.session.id]
   )
+
   const { messages, partsByMessageId } = useMessageImageCaptureMessages({
     loadMessages,
     mapMessage: exportViewToUIMessage,
     onError: handleLoadError
   })
+
   const sessionExportTitle = useMemo(() => getAgentSessionExportTitle(captureTarget.session), [captureTarget.session])
 
   const topic = useMemo<Topic>(

@@ -50,6 +50,7 @@ export function useDeepSeekHarnessController({
   const { status, url } = useManagedToolStatus('deepseek-harness', isDeepSeekHarness)
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
+
   const settings = useMemo(
     () => normalizeDeepSeekHarnessSettings(currentProviderConfig?.config),
     [currentProviderConfig?.config]
@@ -78,19 +79,24 @@ export function useDeepSeekHarnessController({
       errorToastKey: 'code.select_provider_model',
       logLabel: 'Invalid DeepSeek Harness model id configured'
     })
+
     if (!parsedModelId || !enabledProvider) return
 
     try {
       setLaunching(true)
+
       const result = await ipcApi.request('deepseek_harness.start', {
         mode: isApiGatewayProviderId(enabledProvider.id) ? 'gateway' : 'direct',
         uniqueModelId: parsedModelId.uniqueModelId,
         ...settings
       })
+
       if (!result.success) {
         toast.error(result.message)
+
         return
       }
+
       openWebUi(result.url)
     } catch (error) {
       logger.error('Failed to launch DeepSeek Harness', error as Error)
@@ -104,14 +110,18 @@ export function useDeepSeekHarnessController({
     try {
       setStopping(true)
       const result = await ipcApi.request('deepseek_harness.stop')
+
       if (!result.success) {
         toast.error(result.message)
+
         return false
       }
+
       return true
     } catch (error) {
       logger.error('Failed to stop DeepSeek Harness', error as Error)
       toast.error(t('code.launch.error'))
+
       return false
     } finally {
       setStopping(false)
@@ -122,8 +132,10 @@ export function useDeepSeekHarnessController({
     try {
       if (url) {
         openWebUi(url)
+
         return
       }
+
       throw new Error('DeepSeek Harness Web UI is not running')
     } catch (error) {
       logger.error('Failed to open DeepSeek Harness Web UI', error as Error)

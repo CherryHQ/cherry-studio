@@ -38,6 +38,7 @@ export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelectio
   const { workspacePath, filePath } = selection
   // A POSIX root already ends in `/`. Another slash makes `//a\b.txt`, which file preview reads as UNC.
   const joined = workspacePath.endsWith('/') ? `${workspacePath}${filePath}` : `${workspacePath}/${filePath}`
+
   return normalizeFilePreviewPath(joined)
 }
 
@@ -61,8 +62,11 @@ export const isUncPath = (path: string): boolean => /^(?:\\\\|\/\/)[^\\/]+[\\/]+
 // the main window has no Node `process`). A POSIX path keeps `\` literal.
 const backslashIsSeparator = (path: string): boolean => {
   const trimmed = path.trim()
+
   if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return false
+
   if (/^[A-Za-z]:[/\\]/.test(trimmed) || isUncPath(trimmed)) return true
+
   return isWin
 }
 
@@ -70,16 +74,21 @@ const pathSegmentPattern = (path: string): RegExp => (backslashIsSeparator(path)
 
 export const getPathBasename = (path: string): string => {
   const withoutTrailing = path.replace(backslashIsSeparator(path) ? /[\\/]+$/ : /\/+$/, '')
+
   if (!withoutTrailing) return path
   const segments = withoutTrailing.split(pathSegmentPattern(withoutTrailing)).filter(Boolean)
+
   return segments.at(-1) ?? withoutTrailing
 }
 
 export const normalizeTreePath = (path: string): string => {
   const normalized = backslashIsSeparator(path) ? path.replace(/\\/g, '/') : path
   const withoutTrailingSlash = normalized.replace(/\/+$/, '')
+
   if (/^[A-Za-z]:$/.test(withoutTrailingSlash)) return `${withoutTrailingSlash}/`
+
   if (!withoutTrailingSlash && normalized.startsWith('/')) return '/'
+
   return withoutTrailingSlash
 }
 
@@ -91,22 +100,30 @@ export const hasParentTraversal = (path: string): boolean =>
 export const getPathDirname = (path: string): string => {
   const normalized = normalizeTreePath(path)
   const basename = getPathBasename(normalized)
+
   if (!basename || normalized === basename) return ''
 
   const dirname = normalized.slice(0, normalized.length - basename.length).replace(/\/+$/, '')
+
   if (!dirname && normalized.startsWith('/')) return '/'
+
   if (/^[A-Za-z]:$/.test(dirname)) return `${dirname}/`
+
   return dirname
 }
 
 export const normalizeArtifactPaneFilePath = (workspacePath: string, rawPath: string): string | null => {
   const workspace = normalizeTreePath(workspacePath)
   const normalized = normalizeTreePath(rawPath)
+
   if (!normalized) return null
 
   if (normalized === workspace) return null
+
   if (workspace === '/' && normalized.startsWith('/')) return normalized.slice(1)
+
   if (normalized.startsWith(`${workspace}/`)) return normalized.slice(workspace.length + 1)
+
   if (isAbsoluteTreePath(normalized)) return null
 
   return normalized.replace(/^\/+/, '')
@@ -124,19 +141,24 @@ export const resolveArtifactPaneFileSelection = (
   rawPath: string
 ): ArtifactPaneFileSelection | null => {
   const normalizedRawPath = normalizeTreePath(rawPath)
+
   if (!normalizedRawPath) return null
 
   const parsedWorkspacePath = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : null
   const normalizedWorkspacePath = parsedWorkspacePath?.success ? normalizeTreePath(parsedWorkspacePath.data) : null
   const windowsWorkspaceMatch = normalizedWorkspacePath?.match(/^([A-Za-z]):\/(.+)$/)
+
   const malformedWorkspacePrefix = windowsWorkspaceMatch
     ? `${windowsWorkspaceMatch[1]}:${windowsWorkspaceMatch[2]}`.toLowerCase()
     : null
+
   const normalizedRawPathKey = normalizedRawPath.toLowerCase()
+
   const isMalformedWorkspacePath =
     malformedWorkspacePrefix !== null &&
     (normalizedRawPathKey === malformedWorkspacePrefix ||
       normalizedRawPathKey.startsWith(`${malformedWorkspacePrefix}/`))
+
   if (
     normalizedWorkspacePath &&
     /^[A-Za-z]:\//.test(normalizedWorkspacePath) &&
@@ -145,16 +167,20 @@ export const resolveArtifactPaneFileSelection = (
   ) {
     return null
   }
+
   const normalized = isMalformedWorkspacePath
     ? normalizedRawPath.replace(/^([A-Za-z]:)(?=[^/])/, '$1/')
     : normalizedRawPath
+
   if (parsedWorkspacePath?.success) {
     const validWorkspacePath = parsedWorkspacePath.data
     const workspaceFilePath = normalizeArtifactPaneFilePath(validWorkspacePath, normalized)
+
     if (workspaceFilePath) {
       if (!hasParentTraversal(workspaceFilePath)) {
         return { workspacePath: validWorkspacePath, filePath: workspaceFilePath }
       }
+
       // Deliberate: a workspace-relative artifact path that climbs out via `..` is allowed — the
       // agent legitimately creates files outside the workspace — but re-root it to the resolved
       // file's directory (like the absolute-path branch below) so the displayed tree root and the
@@ -163,6 +189,7 @@ export const resolveArtifactPaneFileSelection = (
       const resolvedAbsolute = joinPath(normalizeTreePath(validWorkspacePath), workspaceFilePath)
       const escapedWorkspacePath = getPathDirname(resolvedAbsolute)
       const escapedFilePath = getPathBasename(resolvedAbsolute)
+
       return escapedWorkspacePath && escapedFilePath && escapedFilePath !== escapedWorkspacePath
         ? { workspacePath: escapedWorkspacePath, filePath: escapedFilePath }
         : null
@@ -173,6 +200,7 @@ export const resolveArtifactPaneFileSelection = (
 
   const externalWorkspacePath = getPathDirname(normalized)
   const filePath = getPathBasename(normalized)
+
   if (!externalWorkspacePath || !filePath || filePath === externalWorkspacePath) return null
 
   return { workspacePath: externalWorkspacePath, filePath }

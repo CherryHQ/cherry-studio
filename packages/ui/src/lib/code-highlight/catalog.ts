@@ -89,15 +89,20 @@ export const CODE_LANGUAGES = {
 const aliases = new Map(
   Object.entries(CODE_LANGUAGES).flatMap(([name, values]) => [name, ...values].map((value) => [value, name]))
 )
+
 export const CODE_THEME_NAMES = Object.keys(themes)
 export const DEFAULT_LANGUAGES = ['text', 'javascript', 'typescript', 'python', 'java', 'markdown', 'json']
+
 export function normalizeCodeLanguage(language: string): string {
   const value = language.trim().toLowerCase()
+
   return aliases.get(value) ?? value
 }
+
 export function supportsCodeLanguage(language: string): boolean {
   return aliases.has(language.trim().toLowerCase())
 }
+
 export function resolveCodeTheme(name: string, fallback = 'one-light'): string {
   return name === 'cherry' || Object.hasOwn(themes, name) ? name : fallback
 }

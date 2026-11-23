@@ -4,6 +4,7 @@ import { ChatgptImageLatestLight } from './light'
 
 const ChatgptImageLatest = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ChatgptImageLatestLight {...props} className={className} />
+
   return <ChatgptImageLatestLight {...props} className={className} />
 }
 

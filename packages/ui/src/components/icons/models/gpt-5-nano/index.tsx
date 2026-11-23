@@ -4,6 +4,7 @@ import { Gpt5NanoLight } from './light'
 
 const Gpt5Nano = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt5NanoLight {...props} className={className} />
+
   return <Gpt5NanoLight {...props} className={className} />
 }
 

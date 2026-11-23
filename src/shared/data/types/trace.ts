@@ -80,5 +80,6 @@ export const TraceIdSchema = z.string().regex(/^[0-9a-f]{32}$/, 'traceId must be
  */
 export function deriveRootSpanId(traceId: string): string {
   const head = traceId.slice(0, 16).toLowerCase()
+
   return /^[0-9a-f]{16}$/.test(head) && head !== '0000000000000000' ? head : '1111111111111111'
 }

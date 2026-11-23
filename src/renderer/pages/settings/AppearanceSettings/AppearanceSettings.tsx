@@ -46,6 +46,7 @@ import ThemeColorPicker from './components/ThemeColorPicker'
 
 const DEFAULT_COLOR_PRIMARY = '#00b96b'
 const DEFAULT_ZOOM_FACTOR = 1
+
 const THEME_COLOR_PRESETS = [
   DEFAULT_COLOR_PRIMARY,
   '#EF4444', // Red
@@ -55,6 +56,7 @@ const THEME_COLOR_PRESETS = [
 ]
 
 type TFunction = (key: string) => string
+
 type MenuPresentationModeChangeOptions = {
   currentMode: MenuPresentationMode
   mode: MenuPresentationMode
@@ -89,6 +91,7 @@ export async function confirmMenuPresentationModeChange({
     cancelText: t('common.cancel'),
     centered: true
   })
+
   if (!confirmed) return
 
   try {
@@ -120,10 +123,12 @@ const AppearanceSettings: FC = () => {
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [topicListPosition, setTopicListPosition] = usePreference('topic.tab.position')
   const [sessionListPosition, setSessionListPosition] = usePreference('agent.session.position')
+
   const [codeExecution, setCodeExecution] = useMultiplePreferences({
     enabled: 'chat.code.execution.enabled',
     timeoutMinutes: 'chat.code.execution.timeout_minutes'
   })
+
   const [codeImageTools, setCodeImageTools] = usePreference('chat.code.image_tools')
 
   const [currentZoom, setCurrentZoom] = useState(1.0)
@@ -213,6 +218,7 @@ const AppearanceSettings: FC = () => {
       cancelText: t('common.cancel'),
       centered: true
     })
+
     if (!confirmed) return
 
     try {

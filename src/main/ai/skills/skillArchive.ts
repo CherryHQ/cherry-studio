@@ -26,6 +26,7 @@ const logger = loggerService.withContext('SkillArchive')
 /** What one installed skill may weigh — the directory holding SKILL.md is all that reaches the library. */
 export const MAX_SKILL_SIZE = 100 * 1024 * 1024 // 100MB
 export const MAX_SKILL_FILES = 20_000
+
 /**
  * What may be unpacked while looking for that skill. An archive is routinely a repository zipball
  * carrying one skill plus the whole repository around it, none of which is installed, so this bounds
@@ -37,31 +38,39 @@ export const MAX_ARCHIVE_ENTRIES = 50_000
 /** Export the complete package without following links outside the installed skill. */
 export async function exportSkillArchive(skillDir: string): Promise<Uint8Array> {
   const root = await fs.promises.realpath(skillDir)
+
   if (!(await findSkillMdPath(root))) throw new Error('Missing SKILL.md')
   const entries: { name: string; data: Buffer; mode: number }[] = []
   let size = 0
   let count = 0
+
   const walk = async (directory: string): Promise<void> => {
     for (const entry of await fs.promises.readdir(directory, { withFileTypes: true })) {
       if (++count > MAX_SKILL_FILES) throw new Error('Skill has too many files')
       const filename = path.join(directory, entry.name)
       const real = await fs.promises.realpath(filename)
+
       if (entry.isSymbolicLink() || isOutsidePath(path.relative(root, real))) {
         throw new Error('Cannot export a skill containing symbolic links')
       }
+
       if (entry.isDirectory()) {
         await walk(filename)
       } else if (entry.isFile()) {
         const snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(real))
+
         try {
           if (size + snapshot.size > MAX_SKILL_SIZE) throw new Error('Skill exceeds the export size limit')
           const chunks: Buffer[] = []
+
           for await (const chunk of snapshot.createReadStream()) {
             const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
             size += bytes.length
+
             if (size > MAX_SKILL_SIZE) throw new Error('Skill exceeds the export size limit')
             chunks.push(bytes)
           }
+
           entries.push({
             name: path.relative(root, filename).split(path.sep).join('/'),
             data: Buffer.concat(chunks),
@@ -75,19 +84,24 @@ export async function exportSkillArchive(skillDir: string): Promise<Uint8Array> 
       }
     }
   }
+
   await walk(root)
   const { ZipArchive } = await import('archiver')
   const archive = new ZipArchive()
+
   for (const entry of entries) archive.append(entry.data, { name: entry.name, mode: entry.mode })
   const [, archived] = await Promise.all([archive.finalize(), buffer(archive)])
+
   return archived
 }
 
 export async function validateZipFile(zipFilePath: string): Promise<void> {
   const stats = await fs.promises.stat(zipFilePath)
+
   if (!stats.isFile()) {
     throw new SkillImportError('INVALID_ZIP_FILE', `Not a file: ${zipFilePath}`)
   }
+
   if (!zipFilePath.toLowerCase().endsWith('.zip')) {
     throw new SkillImportError('INVALID_ZIP_FILE', `Not a ZIP file: ${zipFilePath}`)
   }
@@ -119,6 +133,7 @@ export async function extractZip(zipFilePath: string, destDir: string): Promise<
         `Skill archive expands to ${totalSize} bytes when extracted, over the ${MAX_ARCHIVE_SIZE}-byte limit`
       )
     }
+
     if (entries.length > MAX_ARCHIVE_ENTRIES) {
       throw new Error(`Skill archive contains ${entries.length} entries, over the ${MAX_ARCHIVE_ENTRIES}-entry limit`)
     }
@@ -142,10 +157,12 @@ export async function assertSkillDirectoryWithinLimits(skillDir: string): Promis
   const walk = async (directory: string): Promise<void> => {
     for (const entry of await fs.promises.readdir(directory, { withFileTypes: true })) {
       const entryPath = path.join(directory, entry.name)
+
       if (entry.isDirectory()) {
         await walk(entryPath)
         continue
       }
+
       if (!entry.isFile()) continue
 
       fileCount += 1
@@ -158,6 +175,7 @@ export async function assertSkillDirectoryWithinLimits(skillDir: string): Promis
   if (totalSize > MAX_SKILL_SIZE) {
     throw new Error(`Skill holds ${totalSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
   }
+
   if (fileCount > MAX_SKILL_FILES) {
     throw new Error(`Skill holds ${fileCount} files, over the ${MAX_SKILL_FILES}-file limit`)
   }
@@ -170,9 +188,11 @@ export async function assertSkillDirectoryWithinLimits(skillDir: string): Promis
  */
 async function assertNoSymlinkComponents(repoDir: string, relativePath: string): Promise<void> {
   let current = repoDir
+
   for (const part of relativePath.split(path.sep).filter(Boolean)) {
     current = path.join(current, part)
     const stats = await fs.promises.lstat(current).catch(() => null)
+
     if (stats?.isSymbolicLink()) {
       throw new Error(`Skill directory path passes through a symlink: ${relativePath}`)
     }
@@ -189,11 +209,14 @@ export async function resolveSkillDirectory(
     // Reject a directoryPath that escapes the clone root — a crafted identifier could otherwise
     // point install at an arbitrary local directory (path traversal).
     const relative = path.relative(repoDir, resolved)
+
     if (isOutsidePath(relative)) {
       throw new Error(`Skill directory path escapes the repository: ${directoryPath}`)
     }
+
     await assertNoSymlinkComponents(repoDir, relative)
     const skillMdPath = await findSkillMdPath(resolved)
+
     if (skillMdPath) return validateRepositorySkillDirectory(repoDir, resolved, skillMdPath)
 
     // Fail closed: an explicit directoryPath with no SKILL.md must NOT fall back to guessing a
@@ -205,6 +228,7 @@ export async function resolveSkillDirectory(
 
   if (skillName) {
     const matches: typeof candidates = []
+
     for (const candidate of candidates) {
       try {
         const metadata = await parseSkillMetadata(
@@ -213,6 +237,7 @@ export async function resolveSkillDirectory(
           'skills',
           { calculateSize: false }
         )
+
         if (metadata.name === skillName) matches.push(candidate)
       } catch (error) {
         logger.warn('Failed to parse repository skill candidate', {
@@ -225,9 +250,11 @@ export async function resolveSkillDirectory(
     if (matches.length === 1) {
       return validateRepositorySkillDirectory(repoDir, matches[0].folderPath)
     }
+
     if (matches.length > 1) {
       throw new Error(`Multiple SKILL.md files declare the specified skill: ${skillName}`)
     }
+
     throw new Error(`No SKILL.md found for the specified skill: ${skillName}`)
   }
 
@@ -242,10 +269,12 @@ export async function resolveSkillDirectory(
       candidateCount: candidates.length,
       selected: candidates[0].folderPath
     })
+
     return validateRepositorySkillDirectory(repoDir, candidates[0].folderPath)
   }
 
   const rootSkill = await findSkillMdPath(repoDir)
+
   if (rootSkill) return validateRepositorySkillDirectory(repoDir, repoDir, rootSkill)
 
   throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `No skill directory found in ${repoDir}`)
@@ -260,17 +289,22 @@ export async function validateRepositorySkillDirectory(
     fs.promises.realpath(repoDir),
     fs.promises.realpath(skillDir)
   ])
+
   const relativeSkillPath = path.relative(repoRealPath, skillRealPath)
+
   if (isOutsidePath(relativeSkillPath)) {
     throw new Error(`Skill directory resolves outside the repository: ${skillDir}`)
   }
 
   const skillMdPath = knownSkillMdPath ?? (await findSkillMdPath(skillRealPath))
+
   if (!skillMdPath) throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `No SKILL.md found in ${skillDir}`)
   const skillMdRealPath = await fs.promises.realpath(skillMdPath)
   const relativeDescriptorPath = path.relative(repoRealPath, skillMdRealPath)
+
   if (isOutsidePath(relativeDescriptorPath)) {
     throw new Error(`Skill descriptor resolves outside the repository: ${skillMdPath}`)
   }
+
   return skillRealPath
 }

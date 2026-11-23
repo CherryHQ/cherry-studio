@@ -55,6 +55,7 @@ const TranslateInputPane = ({
 }: Props) => {
   const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
   const isDictationIdle = useSyncExternalStore(
     dictationService.subscribe,
     () => dictationService.getSnapshot().phase === 'idle'
@@ -62,16 +63,19 @@ const TranslateInputPane = ({
 
   useEffect(() => {
     if (disabled) return
+
     return voiceTargetManager.bind({
       targetId: TARGET_ID,
       owner: window,
       sourceEntityId: 'translate-page-source',
       captureReplaceRange: () => {
         const textarea = textareaRef.current
+
         return textarea && !textarea.disabled ? { from: textarea.selectionStart, to: textarea.selectionEnd } : null
       },
       replaceRange: (range: VoiceReplaceRange, insertedText: string) => {
         const textarea = textareaRef.current
+
         if (
           !textarea ||
           textarea.disabled ||
@@ -85,6 +89,7 @@ const TranslateInputPane = ({
         textarea.setRangeText(insertedText, range.from, range.to, 'end')
         onTextChange(textarea.value)
         textarea.focus()
+
         return true
       }
     })
@@ -104,6 +109,7 @@ const TranslateInputPane = ({
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current
+
     if (!textarea) return
     textarea.style.height = 'auto'
     textarea.style.height = `${textarea.scrollHeight}px`

@@ -11,6 +11,7 @@ export function filterWebSearchResponseWithBlacklist(
 ): WebSearchResponse {
   if (!response.results.length || !blacklistPatterns.length) return response
   const { results, diagnostics } = filterResultsByUrlRules(response.results, blacklistPatterns)
+
   for (const diagnostic of diagnostics) {
     const message =
       diagnostic.kind === 'url'
@@ -18,8 +19,10 @@ export function filterWebSearchResponseWithBlacklist(
         : diagnostic.kind === 'regex'
           ? 'Invalid web search blacklist regex pattern'
           : 'Invalid web search blacklist match pattern'
+
     logger.warn(message, { [diagnostic.kind === 'url' ? 'url' : 'pattern']: diagnostic.value, error: diagnostic.error })
   }
+
   return { ...response, results }
 }
 
@@ -30,6 +33,7 @@ export function filterWebSearchResponseWithBlacklist(
 export function toExcludedSiteDomains(blacklistPatterns: readonly string[]): string[] {
   return blacklistPatterns.flatMap((rule) => {
     const pattern = parseMatchPattern(rule.trim())
+
     return pattern &&
       !pattern.allURLs &&
       pattern.scheme === '*' &&

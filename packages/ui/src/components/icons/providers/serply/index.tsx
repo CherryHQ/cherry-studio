@@ -4,6 +4,7 @@ import { SerplyLight } from './light'
 
 const Serply = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SerplyLight {...props} className={className} />
+
   return <SerplyLight {...props} className={className} />
 }
 

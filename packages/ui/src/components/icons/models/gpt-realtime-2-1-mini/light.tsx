@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const GptRealtime21MiniLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -41,5 +42,7 @@ const GptRealtime21MiniLight: IconComponent = (props: SVGProps<SVGSVGElement>) =
     </svg>
   )
 }
+
 export { GptRealtime21MiniLight }
+
 export default GptRealtime21MiniLight

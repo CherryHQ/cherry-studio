@@ -43,24 +43,30 @@ const MiniAppPage: FC = () => {
   const app = useMemo((): MiniApp | null => {
     if (!appId) return null
     const found = allApps.find((a) => a.appId === appId)
+
     if (found) return found
+
     // Prefer the shared transient descriptor over a window-local keep-alive snapshot.
     // Reopening OpenClaw republishes its live URL; detached windows must observe it too.
     if (transientDescriptor) return toTransientMiniApp(transientDescriptor)
     const cached = openedKeepAliveMiniApps.find((a) => a.appId === appId)
+
     return cached ?? null
   }, [appId, allApps, openedKeepAliveMiniApps, transientDescriptor])
 
   const displayName = useMemo(() => {
     if (!app) return null
+
     return app.nameKey ? t(app.nameKey) : app.name
   }, [app, t])
 
   useEffect(() => {
     if (!app || !displayName || !currentTabId || !currentTab || !updateTab) return
+
     if (!isMiniAppTabUrl(currentTab.url, app.appId)) return
     // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
     const tabIcon = app.logoSrc ?? app.logo
+
     if (currentTab.title === displayName && currentTab.icon === tabIcon) return
 
     updateTab(currentTabId, {
@@ -77,12 +83,15 @@ const MiniAppPage: FC = () => {
   const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
   useEffect(() => {
     if (sharedCacheReady) return
+
     return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
   }, [sharedCacheReady])
+
   // The keep-alive fallback lets a transient app (no database row) hold the pane;
   // a split id equal to the active app is dropped, one `<webview>` fills one pane.
   const splitApp = useMemo((): MiniApp | null => {
     if (!splitOpen || !splitMiniAppId || splitMiniAppId === appId) return null
+
     return (
       allApps.find((a) => a.appId === splitMiniAppId) ??
       openedKeepAliveMiniApps.find((a) => a.appId === splitMiniAppId) ??
@@ -113,6 +122,7 @@ const MiniAppPage: FC = () => {
   // Show error state for DataApi errors
   if (error) {
     const isNotFound = error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
+
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">

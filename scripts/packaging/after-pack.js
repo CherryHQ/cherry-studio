@@ -8,9 +8,11 @@ const { readProjectBuildMetadata, replacePackagedBetterSqlite3 } = require('../l
 function installComputerUseRuntime(context) {
   const platform = context.electronPlatformName
   const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
+
   if (!['darwin', 'win32', 'linux'].includes(platform) || !arch) {
     throw new Error(`Unsupported Computer Use packaging target: ${platform}-${context.arch}`)
   }
+
   const projectRequire = createRequire(path.join(context.packager.projectDir, 'package.json'))
   const sdkEntry = projectRequire.resolve('@cherrystudio/computer-use')
   const sdkRoot = path.dirname(path.dirname(sdkEntry))
@@ -18,6 +20,7 @@ function installComputerUseRuntime(context) {
   const packageName = `@cherrystudio/computer-use-${platform}-${arch}`
   const manifestPath = createRequire(sdkEntry).resolve(`${packageName}/package.json`)
   const nativeRoot = path.dirname(manifestPath)
+
   if (JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version !== sdkVersion) {
     throw new Error(`${packageName} must match SDK version ${sdkVersion}`)
   }
@@ -28,12 +31,16 @@ function installComputerUseRuntime(context) {
       : platform === 'win32'
         ? 'open-computer-use.exe'
         : 'open-computer-use'
+
   const source = path.join(nativeRoot, 'runtime', name)
   const executable = platform === 'darwin' ? path.join(source, 'Contents/MacOS/OpenComputerUse') : source
+
   const executables =
     platform === 'linux' ? [executable, path.join(nativeRoot, 'runtime/open-computer-use-wayland')] : [executable]
+
   for (const file of executables) {
     fs.accessSync(file, platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
+
     if (!fs.statSync(file).isFile()) throw new Error(`Computer Use runtime is not a file: ${file}`)
   }
 
@@ -43,29 +50,35 @@ function installComputerUseRuntime(context) {
     recursive: true,
     verbatimSymlinks: true
   })
+
   for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) {
     fs.copyFileSync(path.join(nativeRoot, file), path.join(destination, file))
   }
 }
+
 exports.installComputerUseRuntime = installComputerUseRuntime
 
 exports.default = async function (context) {
   installComputerUseRuntime(context)
   const platform = context.packager.platform.name
+
   if (platform === 'windows') {
     fs.rmSync(path.join(context.appOutDir, 'LICENSE.electron.txt'), { force: true })
     fs.rmSync(path.join(context.appOutDir, 'LICENSES.chromium.html'), { force: true })
   } else if (platform === 'linux') {
     const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
+
     if (!arch) throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
 
     const projectRoot = path.join(__dirname, '../..')
+
     const { destination, manifest } = replacePackagedBetterSqlite3({
       projectRoot,
       appOutDir: context.appOutDir,
       arch,
       metadata: readProjectBuildMetadata(projectRoot)
     })
+
     process.stdout.write(
       `Installed GLIBC-compatible better-sqlite3 for linux-${arch} at ${destination} ` +
         `(ABI ${manifest.electronAbi}, ${JSON.stringify(manifest.requirements)})\n`

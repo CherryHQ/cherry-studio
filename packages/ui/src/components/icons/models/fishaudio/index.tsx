@@ -6,7 +6,9 @@ import { FishaudioLight } from './light'
 
 const Fishaudio = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <FishaudioLight {...props} className={className} />
+
   if (variant === 'dark') return <FishaudioDark {...props} className={className} />
+
   return (
     <>
       <FishaudioLight className={cn('dark:hidden', className)} {...props} />

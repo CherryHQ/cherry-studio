@@ -11,6 +11,7 @@ export default function useUserTheme() {
   const setOptionalCssVar = (name: string, value?: string) => {
     if (value?.trim()) {
       document.documentElement.style.setProperty(name, `'${value}'`)
+
       return
     }
 

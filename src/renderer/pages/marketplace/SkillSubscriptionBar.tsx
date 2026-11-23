@@ -52,6 +52,7 @@ export function SkillSubscriptionBar({
     },
     []
   )
+
   return (
     <div className="flex shrink-0 items-center gap-2 py-3">
       <ScrollArea
@@ -153,13 +154,17 @@ export function SkillSubscriptionBar({
           onConfirm={async () => {
             if (!removeId) return false
             setRemoving(true)
+
             try {
               await ipcApi.request('skill.subscription.remove', { sourceId: removeId })
+
               if (sourceId === removeId) onSelect(null)
               setRemoveId(null)
+
               return true
             } catch {
               toast.error(t('common.delete_failed'))
+
               return false
             } finally {
               setRemoving(false)
@@ -187,6 +192,7 @@ function AddSubscriptionDialog({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const pending = useRef(false)
+
   return (
     <Dialog
       open={open}
@@ -211,10 +217,12 @@ function AddSubscriptionDialog({
           className="mt-6"
           onSubmit={async (event) => {
             event.preventDefault()
+
             if (pending.current || !normalizeSubscriptionUrl(url)) return
             pending.current = true
             setBusy(true)
             setError('')
+
             try {
               const source = await ipcApi.request('skill.subscription.add', { url })
               onAdded(source.id)
@@ -226,6 +234,7 @@ function AddSubscriptionDialog({
                   : cause instanceof IpcError && cause.code === skillErrorCodes.SUBSCRIPTION_INVALID
                     ? 'marketplace.subscription.invalid_url'
                     : 'marketplace.subscription.load_failed'
+
               setError(t(key))
             } finally {
               pending.current = false

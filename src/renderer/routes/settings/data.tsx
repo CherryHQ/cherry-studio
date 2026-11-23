@@ -9,6 +9,7 @@ export const Route = createFileRoute('/settings/data')({
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Panel query values are unvalidated until dataPanelSearchSchema accepts them; unrelated keys are stripped there.
   validateSearch: (search: Record<string, unknown>) => {
     const parsed = dataPanelSearchSchema.safeParse(search)
+
     return parsed.success ? parsed.data : {}
   }
 })

@@ -41,6 +41,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 
 const logger = loggerService.withContext('PdfTranslationService')
 const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v2'
+
 const babeldocStreamProgressSchema = z.strictObject({
   schema: z.literal(BABELDOC_STREAM_SCHEMA),
   type: z.literal('progress'),
@@ -48,12 +49,14 @@ const babeldocStreamProgressSchema = z.strictObject({
   stage_progress: z.number().finite().min(0).max(100).nullable(),
   overall_progress: z.number().finite().min(0).max(100)
 })
+
 const babeldocStreamErrorSchema = z.strictObject({
   schema: z.literal(BABELDOC_STREAM_SCHEMA),
   type: z.literal('error'),
   name: z.string().min(1),
   message: z.string().min(1)
 })
+
 const babeldocStreamFinishSchema = z.strictObject({
   schema: z.literal(BABELDOC_STREAM_SCHEMA),
   type: z.literal('finish'),
@@ -64,11 +67,13 @@ const babeldocStreamFinishSchema = z.strictObject({
     total_seconds: z.number().finite().nonnegative()
   })
 })
+
 const babeldocStreamEventSchema = z.discriminatedUnion('type', [
   babeldocStreamProgressSchema,
   babeldocStreamErrorSchema,
   babeldocStreamFinishSchema
 ])
+
 // Env vars forwarded from the user shell into the BabelDOC (Python) sidecar. The
 // allowlist deliberately excludes the user's provider API keys (OPENAI_API_KEY, …):
 // BabelDOC's key is injected via babeldoc.toml pointing at the local gateway, so
@@ -94,6 +99,7 @@ const SIDECAR_ENV_KEYS = new Set([
   'TMPDIR',
   'WINDIR'
 ])
+
 const BABELDOC_LANGUAGE_ALIASES: ReadonlyMap<string, string> = new Map([
   ['zh-hans', 'zh-CN'],
   ['zh-hant', 'zh-TW']
@@ -127,8 +133,10 @@ interface ActivePdfTranslation {
 const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
   if (code === 'auto' || code === 'unknown') return 'auto'
   const alias = BABELDOC_LANGUAGE_ALIASES.get(code)
+
   if (alias) return alias
   const [language, region] = code.split('-', 2)
+
   return region ? `${language}-${region.toUpperCase()}` : language
 }
 
@@ -147,24 +155,31 @@ const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
  */
 const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost: string) => {
   const proxyEnv: Record<string, string> = {}
+
   for (const [key, value] of Object.entries(getProxyEnvironment(process.env))) {
     if (SIDECAR_ENV_KEYS.has(key.toUpperCase())) proxyEnv[key] = value
   }
+
   const bypass = proxyEnv.NO_PROXY ?? proxyEnv.no_proxy ?? inheritedNoProxy ?? ''
+
   const hosts = bypass
     .split(',')
     .map((entry) => entry.trim())
     .map((entry) => {
       const address = entry.startsWith('[') && entry.endsWith(']') ? entry.slice(1, -1) : entry
+
       // httpx wraps IPv6 NO_PROXY entries itself; inherited brackets break its URL parser.
       return isIPv6(address) ? address : entry
     })
     .filter(Boolean)
     .filter((entry, index, entries) => !isIPv6(entry) || entries.indexOf(entry) === index)
+
   // `new URL('http://[::1]:1/').hostname` keeps the brackets; NO_PROXY wants the bare address.
   const host = gatewayHost.replace(/^\[|\]$/g, '')
+
   if (!hosts.includes(host)) hosts.push(host)
   const noProxy = hosts.join(',')
+
   return { ...proxyEnv, NO_PROXY: noProxy, no_proxy: noProxy }
 }
 
@@ -175,12 +190,15 @@ const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost:
 const buildSidecarCaBundleEnv = (allowedEnv: Record<string, string>) => {
   const getNonEmptyEnv = (name: string): string | undefined =>
     Object.entries(allowedEnv).find(([key, value]) => key.toUpperCase() === name && value.trim())?.[1]
+
   const sslCertFile = getNonEmptyEnv('SSL_CERT_FILE')
   const derived: Record<string, string> = {}
+
   if (!sslCertFile || getNonEmptyEnv('REQUESTS_CA_BUNDLE') || getNonEmptyEnv('CURL_CA_BUNDLE')) return derived
 
   derived.REQUESTS_CA_BUNDLE = sslCertFile
   derived.CURL_CA_BUNDLE = sslCertFile
+
   return derived
 }
 
@@ -204,8 +222,10 @@ export class PdfTranslationService extends BaseService {
   protected async onStop(): Promise<void> {
     for (const job of this.activeJobs.values()) {
       job.cancelled = true
+
       if (job.child) killProcessTree(job.child)
     }
+
     await Promise.allSettled(this.activeRuns)
   }
 
@@ -224,6 +244,7 @@ export class PdfTranslationService extends BaseService {
         this.activeRuns.delete(run)
       }
     )
+
     return run
   }
 
@@ -243,6 +264,7 @@ export class PdfTranslationService extends BaseService {
       progressStage: null,
       stageProgress: null
     }
+
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
     let gateway: { baseUrl: string; apiKey: string; dispose: () => void } | undefined
 
@@ -252,6 +274,7 @@ export class PdfTranslationService extends BaseService {
       // the id wedged in `activeJobs`.
       this.activeJobs.set(request.jobId, job)
       await fs.promises.access(request.sourcePath, fs.constants.R_OK)
+
       if (path.extname(request.sourcePath).toLowerCase() !== '.pdf') {
         throw new Error('PDF translation requires a .pdf source file')
       }
@@ -293,6 +316,7 @@ export class PdfTranslationService extends BaseService {
       const outputPath = AbsoluteFilePathSchema.parse(path.join(outputDir, fileName))
       await fs.promises.access(outputPath, fs.constants.R_OK)
       this.reportProgress(job, { stage: 'rendering', stageProgress: 100, overallProgress: 100 }, onProgress)
+
       // `await` (not a bare `return`) so the `finally` below cannot delete the temp dir
       // out from under the copy into FileManager.
       return await this.persistResult(request, outputPath, job)
@@ -305,6 +329,7 @@ export class PdfTranslationService extends BaseService {
         const level = error instanceof IpcError ? 'warn' : 'error'
         logger[level]('PDF translation failed', error as Error, { jobId: request.jobId })
       }
+
       throw error
     } finally {
       gateway?.dispose()
@@ -319,8 +344,10 @@ export class PdfTranslationService extends BaseService {
 
   public cancel(jobId: string): void {
     const job = this.activeJobs.get(jobId)
+
     if (!job) return
     job.cancelled = true
+
     if (job.child) killProcessTree(job.child)
   }
 
@@ -346,6 +373,7 @@ export class PdfTranslationService extends BaseService {
         path: outputPath,
         cleanupPolicy: 'delete_when_unreferenced'
       })
+
       translated = created
       const entry = await this.renameToDisplayName(created, request)
       const fileName = entry.ext ? `${entry.name}.${entry.ext}` : entry.name
@@ -361,23 +389,29 @@ export class PdfTranslationService extends BaseService {
           targetLanguage: toPersistedLangCodeOrNull(request.targetLangCode),
           targetFileEntryId: entry.id
         }
+
         if (source) input.sourceFileEntryId = source.id
+
         return translateHistoryService.createFileTx(tx, input)
       })
+
       notifyDataApiDataChange([{ endpoint: '/translate/histories', kind: 'membership', entityIds: [history.id] }])
 
       return { outputPath: fileManager.getPhysicalPath(entry.id), fileName }
     } catch (error) {
       const cancelled = job.cancelled
+
       if (!cancelled) {
         logger.error('Failed to persist translated PDF result', error as Error, { jobId: request.jobId })
       }
+
       if (translated) {
         const translatedId = translated.id
         await fileManager.permanentDelete(translatedId).catch((cleanupError) => {
           logger.error(`Failed to delete orphaned translated PDF entry ${translatedId}`, cleanupError as Error)
         })
       }
+
       if (cancelled) this.throwIfCancelled(job)
       throw new IpcError(
         translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
@@ -397,12 +431,15 @@ export class PdfTranslationService extends BaseService {
    */
   private async renameToDisplayName(entry: FileEntry, request: PdfTranslationRequest): Promise<FileEntry> {
     const displayName = `${path.parse(request.sourcePath).name}.${normalizeLanguageCode(request.targetLangCode)}`
+
     if (!SafeNameSchema.safeParse(displayName).success) {
       logger.warn('Kept the BabelDOC-derived name; the display name is not a safe file name', {
         jobId: request.jobId
       })
+
       return entry
     }
+
     try {
       return await application.get('FileManager').rename(entry.id, displayName)
     } catch (error) {
@@ -411,6 +448,7 @@ export class PdfTranslationService extends BaseService {
         error: String(error),
         jobId: request.jobId
       })
+
       return entry
     }
   }
@@ -435,6 +473,7 @@ export class PdfTranslationService extends BaseService {
         jobId,
         sourcePath
       })
+
       return null
     }
   }
@@ -443,22 +482,27 @@ export class PdfTranslationService extends BaseService {
     const binaryManager = application.get('BinaryManager')
     const snapshot = (await binaryManager.getToolSnapshots([BABELDOC_TOOL_NAME]))[BABELDOC_TOOL_NAME]
     const status = getBabelDocInstallationStatus(snapshot)
+
     if (status === 'missing') {
       throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not installed')
     }
+
     if (status === 'outdated') {
       throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_OUTDATED, 'BabelDOC must be updated')
     }
 
     const installedPath = await getBinaryPath(BABELDOC_TOOL_NAME)
+
     if (!path.isAbsolute(installedPath)) {
       throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not available')
     }
+
     try {
       await fs.promises.access(installedPath, fs.constants.X_OK)
     } catch {
       throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not available')
     }
+
     return installedPath
   }
 
@@ -474,6 +518,7 @@ export class PdfTranslationService extends BaseService {
   ): Promise<void> {
     const configPath = path.join(outputDir, 'babeldoc.toml')
     await fs.promises.writeFile(configPath, stringifyToml({ babeldoc: { 'openai-api-key': apiKey } }), { mode: 0o600 })
+
     const args = [
       '--config',
       configPath,
@@ -499,6 +544,7 @@ export class PdfTranslationService extends BaseService {
       'no_watermark',
       '--no-dual'
     ]
+
     const env = await this.buildSidecarEnv(baseUrl)
 
     try {
@@ -509,6 +555,7 @@ export class PdfTranslationService extends BaseService {
         // there would pop a console window — so it stays off.
         const child = crossPlatformSpawn(executable, args, { cwd: outputDir, env, detached: !isWin })
         job.child = child
+
         // A cancel that landed during the pre-spawn await window (resolveSidecar →
         // gateway → mkdir → writeFile) killed a still-null child; re-check now so the
         // freshly-spawned sidecar is terminated instead of running the full translation.
@@ -520,28 +567,38 @@ export class PdfTranslationService extends BaseService {
 
         progressLines?.on('line', (line) => {
           let candidate: unknown
+
           try {
             candidate = JSON.parse(line)
           } catch {
             logger.warn('Ignored malformed BabelDOC Stream event')
+
             return
           }
+
           const parsed = babeldocStreamEventSchema.safeParse(candidate)
+
           if (!parsed.success) {
             logger.warn('Ignored invalid BabelDOC Stream event')
+
             return
           }
+
           if (parsed.data.type === 'error') {
             sidecarError ??=
               parsed.data.name === 'ScannedPDFError' || parsed.data.message.includes('Scanned PDF detected')
                 ? createOcrRequiredError()
                 : new Error(parsed.data.message)
+
             return
           }
+
           if (parsed.data.type === 'finish') {
             finishReceived = true
+
             return
           }
+
           this.reportProgress(
             job,
             {
@@ -562,6 +619,7 @@ export class PdfTranslationService extends BaseService {
         child.once('close', (code, signal) => {
           progressLines?.close()
           job.child = null
+
           if (job.cancelled) {
             reject(new Error('PDF translation cancelled'))
           } else if (sidecarError) {
@@ -592,6 +650,7 @@ export class PdfTranslationService extends BaseService {
     onProgress?: (progress: PdfTranslationProgress) => void
   ): void {
     if (progress.overallProgress < job.overallProgress) return
+
     if (
       job.progressStage === progress.stage &&
       job.stageProgress === progress.stageProgress &&
@@ -599,6 +658,7 @@ export class PdfTranslationService extends BaseService {
     ) {
       return
     }
+
     job.overallProgress = progress.overallProgress
     job.progressStage = progress.stage
     job.stageProgress = progress.stageProgress
@@ -613,11 +673,13 @@ export class PdfTranslationService extends BaseService {
     const shellEnv = await getShellEnv()
     const inChina = await regionService.isInChina().catch(() => false)
     const allowedEnv: Record<string, string> = {}
+
     for (const [key, value] of Object.entries(shellEnv)) {
       if (SIDECAR_ENV_KEYS.has(key.toUpperCase())) allowedEnv[key] = value
     }
 
     const runtimeHome = application.getPath('feature.pdf_translation.babeldoc')
+
     const env: Parameters<typeof mergeBinaryExecutionEnv>[0] = {
       ...allowedEnv,
       ...buildSidecarCaBundleEnv(allowedEnv),
@@ -626,7 +688,9 @@ export class PdfTranslationService extends BaseService {
       USERPROFILE: runtimeHome,
       PYTHONUTF8: '1'
     }
+
     if (inChina) env.BABELDOC_ASSET_UPSTREAM = 'modelscope'
+
     return mergeBinaryExecutionEnv(env)
   }
 }

@@ -119,6 +119,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
             builtinIgnore,
             (p) => {
               const parsed = this.parseChokidarPath(p)
+
               return !parsed || userIgnore(parsed)
             }
           ]
@@ -142,9 +143,12 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
 
   private handleError(err: Error): void {
     const code = (err as NodeJS.ErrnoException).code
+
     const isWindowsLockError =
       isWin && (code === 'EPERM' || code === 'EBUSY' || err.message.includes('EPERM') || err.message.includes('EBUSY'))
+
     const shouldFallbackToPolling = code === 'EMFILE' || err.message.includes('EMFILE') || isWindowsLockError
+
     if (!this.closed && !this.usingPolling && shouldFallbackToPolling) {
       logger.warn(`chokidar native watcher hit ${code ?? 'an OS error'}; falling back to polling`, err)
       const oldWatcher = this.fsw
@@ -152,6 +156,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
       this.usingPolling = true
       this.fsw = this.createWatcher(true)
       void oldWatcher.close().catch((closeErr) => logger.warn('Failed to close native watcher', closeErr as Error))
+
       return
     }
 
@@ -173,6 +178,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    */
   private parseChokidarPath(raw: string): AbsoluteFilePath | null {
     const result = AbsoluteFilePathSchema.safeParse(raw)
+
     return result.success ? result.data : null
   }
 
@@ -205,19 +211,24 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
   private handle(ev: RawWatcherPathEvent): void {
     if (this.closed) return
     const path = this.parseChokidarPath(ev.path)
+
     if (!path) {
       logger.warn('chokidar emitted a path that does not satisfy AbsoluteFilePathSchema', { path: ev.path })
+
       return
     }
+
     if (ev.kind === 'add' || ev.kind === 'unlink') {
       const presence = ev.kind === 'add' ? 'present' : 'missing'
       danglingCache.onFsEvent(path, presence, 'watcher')
     }
+
     this.emitter.fire({ kind: ev.kind, path })
   }
 
   onEvent(listener: WatcherListener): () => void {
     const subscription = this.emitter.event(listener)
+
     return () => subscription.dispose()
   }
 

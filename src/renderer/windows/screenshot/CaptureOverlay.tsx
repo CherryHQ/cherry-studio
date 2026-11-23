@@ -58,6 +58,7 @@ const CaptureOverlay: FC = () => {
   // events the annotation tools need.
   const annotationActive = annotation.state.activeTool !== null || annotation.state.annotations.length > 0
   const ocrBounds = state.phase === 'selected' && !annotationActive ? state.selection : null
+
   const ocr = useOcr(
     mediaId ?? null,
     ocrBounds,
@@ -65,6 +66,7 @@ const CaptureOverlay: FC = () => {
     initData?.ocrAvailable ?? false,
     initData?.autoOcr ?? false
   )
+
   const { resetOcr } = ocr
 
   // Fetch and decode share one effect so a session change disposes both in a single step;
@@ -79,10 +81,12 @@ const CaptureOverlay: FC = () => {
     void (async () => {
       try {
         const response = await fetch(imageUrl, { signal: controller.signal })
+
         // A 404 / 400 from the protocol handler is a resolved fetch; unchecked, its error
         // body would become the "image" and paint an empty overlay.
         if (!response.ok) throw new Error(`capture fetch failed: ${response.status}`)
         const blob = await response.blob()
+
         // Cleanup runs synchronously and can land between the awaits — abort has nothing
         // left to cancel there, so a stale effect would paint the previous session's capture.
         if (disposed) return
@@ -94,6 +98,7 @@ const CaptureOverlay: FC = () => {
         const image = new Image()
         image.src = objectUrl
         await image.decode()
+
         if (disposed) return
 
         imageRef.current = image
@@ -110,6 +115,7 @@ const CaptureOverlay: FC = () => {
     return () => {
       disposed = true // Must precede abort(), which triggers the catch synchronously.
       controller.abort() // Stop a full-screen PNG still in transit, not just its result.
+
       // Safe once decoded — the bitmap is the image element's, not the URL's.
       if (objectUrl) URL.revokeObjectURL(objectUrl)
       objectUrlRef.current = null
@@ -126,10 +132,12 @@ const CaptureOverlay: FC = () => {
    */
   useIpcOn('screenshot.session_ended', () => {
     exportRef.current = null
+
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current)
       objectUrlRef.current = null
     }
+
     imageRef.current = null
     // Also unmounts the overlay body, dropping the annotation canvas and its backing store.
     setImageLoaded(false)
@@ -175,14 +183,17 @@ const CaptureOverlay: FC = () => {
   // since only the cursor's display is focused at reveal and keys would act on the one just left.
   useEffect(() => {
     const handleLeave = () => setMouseInWindow(false)
+
     const handleEnter = () => {
       setMouseInWindow(true)
       // Not `overlay_active`: that means "took over the interaction" and resets the
       // other overlay's selection, which hovering must not do.
       void ipcApi.request('screenshot.overlay_focus')
     }
+
     document.addEventListener('pointerleave', handleLeave)
     document.addEventListener('pointerenter', handleEnter)
+
     return () => {
       document.removeEventListener('pointerleave', handleLeave)
       document.removeEventListener('pointerenter', handleEnter)
@@ -217,12 +228,16 @@ const CaptureOverlay: FC = () => {
   const handleExport = useCallback(
     async (action: 'commit' | 'copy' | 'save' | 'result', text = '') => {
       if (!imageRef.current || !state.selection || !initData) return
+
       if (exportRef.current?.mediaId === initData.mediaId) {
         if (action === 'result') throw new Error('A screenshot export is already pending')
+
         return
       }
+
       const token = { mediaId: initData.mediaId }
       exportRef.current = token
+
       try {
         const pngBytes = await generateSelectionPng(
           imageRef.current,
@@ -230,16 +245,20 @@ const CaptureOverlay: FC = () => {
           initData.display.scaleFactor,
           annotationCanvasRef.current
         )
+
         if (exportRef.current !== token) return
         const result = { pngBytes, mediaId: token.mediaId }
+
         if (action === 'result') await ipcApi.request('screenshot.submit_result', { ...result, text })
         else {
           const route =
             action === 'commit' ? 'screenshot.commit' : action === 'copy' ? 'screenshot.copy' : 'screenshot.save'
+
           await ipcApi.request(route, result)
         }
       } catch (error) {
         logger.error('Failed to export the selection', error as Error)
+
         if (action === 'result') throw error
       } finally {
         if (exportRef.current === token) exportRef.current = null
@@ -252,6 +271,7 @@ const CaptureOverlay: FC = () => {
   const handleCopy = useCallback(() => void handleExport('copy'), [handleExport])
   const handleSave = useCallback(() => void handleExport('save'), [handleExport])
   const handleSubmitResult = useCallback((text: string) => handleExport('result', text), [handleExport])
+
   const handleCancel = useCallback(() => {
     void ipcApi.request('screenshot.cancel')
   }, [])
@@ -269,6 +289,7 @@ const CaptureOverlay: FC = () => {
   const handleDoubleClick = useCallback(
     (e: ReactMouseEvent) => {
       if (state.phase !== 'selected' || annotation.state.activeTool !== null) return
+
       // The overlay covers the whole display, so viewport coordinates are already logical ones.
       if (!isPointInSelection(e.clientX, e.clientY, state.selection)) return
       void handleExport('commit')
@@ -365,10 +386,12 @@ function OverlayContent({
     () => ({ x: 0, y: 0, width: logicalWidth, height: logicalHeight }),
     [logicalWidth, logicalHeight]
   )
+
   // Falls back to the whole display so clicking empty desktop selects the screen. Never null
   // while idle, so CaptureCanvas cannot decide window-vs-drag on pointerdown — see its handler.
   const highlightRect = useMemo(() => {
     if (state.phase !== 'idle' || !state.pointerPosition) return null
+
     return findWindowAtPoint(state.pointerPosition.x, state.pointerPosition.y, windows) ?? fullDisplayRect
   }, [state.phase, state.pointerPosition, windows, fullDisplayRect])
 

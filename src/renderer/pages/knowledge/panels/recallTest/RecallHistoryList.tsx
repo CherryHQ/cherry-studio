@@ -7,6 +7,7 @@ import { useRecallQuery } from './RecallTestProvider'
 
 const RecallHistoryList = () => {
   const { t } = useTranslation()
+
   const {
     state: { historyItems },
     actions: { selectHistory, removeHistory, clearHistory }

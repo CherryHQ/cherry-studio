@@ -30,6 +30,7 @@ export function ensureIndexMeta(executor: SqliteExecutor, input: IndexMetaInput)
 
   const stored = executor.execute(`SELECT base_id FROM meta WHERE id = 1`)
   const storedBaseId = stored.rows[0]?.base_id as string | undefined
+
   if (storedBaseId !== input.baseId) {
     throw new Error(
       `index.sqlite belongs to a different base: expected base_id '${input.baseId}', found '${storedBaseId ?? '(none)'}'`
@@ -46,16 +47,20 @@ export function ensureIndexMeta(executor: SqliteExecutor, input: IndexMetaInput)
  */
 export function readIndexSchemaVersion(executor: SqliteExecutor): number | null {
   const hasMeta = executor.execute(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'`)
+
   if (hasMeta.rows.length === 0) {
     return null
   }
+
   const result = executor.execute(`SELECT schema_version FROM meta WHERE id = 1`)
   const version = result.rows[0]?.schema_version
+
   return typeof version === 'number' ? version : null
 }
 
 /** Whether the index database holds at least one material row (store-open diagnostics probe). */
 export function hasAnyMaterial(executor: SqliteExecutor): boolean {
   const result = executor.execute(`SELECT 1 FROM material LIMIT 1`)
+
   return result.rows.length > 0
 }

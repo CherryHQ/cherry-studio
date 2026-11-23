@@ -28,14 +28,18 @@ export async function loadTranslationFiles(historyId: string): Promise<Translati
   const refs = await dataApiService.get('/files/refs', {
     query: { sourceType: translateHistorySourceType, sourceId: historyId }
   })
+
   // The database enforces one entry per role; Map provides direct role lookup here.
   const byRole = new Map(
     refs.flatMap((ref) => (ref.sourceType === translateHistorySourceType ? [[ref.role, ref.fileEntryId] as const] : []))
   )
+
   const ids = [...byRole.values()]
+
   if (ids.length === 0) return { source: null, target: null }
 
   const paths = await ipcApi.request('file.batch_get_physical_paths', { ids })
+
   const toFile = (entryId: FileEntryId | undefined): TranslationFile | null =>
     entryId ? { entryId, path: paths[entryId] ?? null } : null
 
@@ -54,6 +58,7 @@ export async function loadTranslationFiles(historyId: string): Promise<Translati
  */
 export function isPdfTranslation(history: TranslateHistory): boolean {
   const isPdfName = (name: string) => name.toLowerCase().endsWith('.pdf')
+
   return history.kind === 'file' && isPdfName(history.sourceText) && isPdfName(history.targetText)
 }
 

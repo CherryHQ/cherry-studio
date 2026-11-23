@@ -1,7 +1,9 @@
 export const SpeechInputKind = { Text: 'text', TextStream: 'text-stream' } as const
+
 export type SpeechInputKind = (typeof SpeechInputKind)[keyof typeof SpeechInputKind]
 
 export const SpeechOutputKind = { Audio: 'audio', PcmStream: 'pcm-stream' } as const
+
 export type SpeechOutputKind = (typeof SpeechOutputKind)[keyof typeof SpeechOutputKind]
 
 export interface SpeechPcmFormat {
@@ -24,9 +26,11 @@ export type SpeechStreamEvent = SpeechStreamIdentity &
   ({ readonly type: 'pcm'; readonly chunk: SpeechPcmChunk } | { readonly type: 'end'; readonly frames: number })
 
 export const TranscriptionInputKind = { Audio: 'audio', PcmStream: 'pcm-stream' } as const
+
 export type TranscriptionInputKind = (typeof TranscriptionInputKind)[keyof typeof TranscriptionInputKind]
 
 export const TranscriptionOutputKind = { Final: 'final', Revisions: 'revisions' } as const
+
 export type TranscriptionOutputKind = (typeof TranscriptionOutputKind)[keyof typeof TranscriptionOutputKind]
 
 export interface VoiceCapabilities {
@@ -50,4 +54,5 @@ export type TranscriptionStreamEvent = { readonly sessionId: string; readonly re
 )
 
 export const SPEECH_TEXT_STREAM_LIMIT = 5_000
+
 export type SpeechTextEvent = { readonly type: 'text'; readonly text: string } | { readonly type: 'flush' }

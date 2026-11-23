@@ -50,6 +50,7 @@ export type SendMessageOptions = {
 }
 
 export type ChannelStreamOutcome = { status: 'success' | 'paused' }
+
 export type ChannelStreamErrorOptions = { suppressDelivery: boolean }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
@@ -124,6 +125,7 @@ export abstract class ChannelAdapter extends EventEmitter {
           const errorDetail = meta?.error ? `: ${typeof meta.error === 'string' ? meta.error : String(meta.error)}` : ''
           this.emitLog(level, `${message}${errorDetail}`)
         }
+
         return acc
       },
       {} as ChannelAdapter['log']
@@ -165,6 +167,7 @@ export abstract class ChannelAdapter extends EventEmitter {
 
   private emitStatusChange(connected: boolean, error?: string): void {
     const event: ChannelStatusEvent = { channelId: this.channelId, connected }
+
     if (error) event.error = error
     this.emit('statusChange', event)
   }
@@ -181,6 +184,7 @@ export abstract class ChannelAdapter extends EventEmitter {
     const signal = this.connectAbort.signal
 
     const ready = await this.checkReady()
+
     if (ready) {
       await this.performConnect(signal)
     } else {

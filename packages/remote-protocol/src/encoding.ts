@@ -18,5 +18,6 @@ function validateStrings(value: z.infer<ReturnType<typeof z.json>>): void {
 export function encodeCanonical(value: unknown): Uint8Array {
   const json = z.json().parse(value)
   validateStrings(json)
+
   return new TextEncoder().encode(canonicalize(json))
 }

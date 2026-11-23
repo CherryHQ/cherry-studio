@@ -42,16 +42,27 @@ export function pickMessageLeafActions(
   const actions: Partial<MessageLeafActionCapabilities> = {}
 
   if (capabilities.previewFile) actions.previewFile = capabilities.previewFile
+
   if (capabilities.openFile) actions.openFile = capabilities.openFile
+
   if (capabilities.subscribeToolProgress) actions.subscribeToolProgress = capabilities.subscribeToolProgress
+
   if (capabilities.openExternalUrl) actions.openExternalUrl = capabilities.openExternalUrl
+
   if (capabilities.copyText) actions.copyText = capabilities.copyText
+
   if (capabilities.copyRichContent) actions.copyRichContent = capabilities.copyRichContent
+
   if (capabilities.copyImage) actions.copyImage = capabilities.copyImage
+
   if (capabilities.exportTableAsExcel) actions.exportTableAsExcel = capabilities.exportTableAsExcel
+
   if (capabilities.notifyInfo) actions.notifyInfo = capabilities.notifyInfo
+
   if (capabilities.notifySuccess) actions.notifySuccess = capabilities.notifySuccess
+
   if (capabilities.notifyWarning) actions.notifyWarning = capabilities.notifyWarning
+
   if (capabilities.notifyError) actions.notifyError = capabilities.notifyError
 
   return actions

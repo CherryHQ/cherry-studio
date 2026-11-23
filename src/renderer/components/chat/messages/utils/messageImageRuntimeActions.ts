@@ -32,6 +32,7 @@ export function flushPendingMessageImageActions<TRequest extends MessageImageAct
   targetId
 }: FlushPendingMessageImageActionsOptions<TRequest>): void {
   const requests = consumePendingActions(targetId)
+
   for (const request of requests) {
     settleActionRequest(request, runMessageImageAction(runtime, request.type))
   }
@@ -43,5 +44,6 @@ export function bindCaptureMessageImageRuntime<TRequest extends MessageImageActi
   ...flushOptions
 }: BindCaptureMessageImageRuntimeOptions<TRequest>): () => void {
   flushPendingMessageImageActions(flushOptions)
+
   return () => rejectPendingActions(flushOptions.targetId, new Error(cancelMessage))
 }

@@ -18,9 +18,11 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
   const quota = reason === 'quota_exhausted'
   const signIn = reason === 'sign_in_required'
   const session = useCherryAccountSession(signIn)
+
   const offerSubscription = quota
     ? exhaustion.isFreeModel && exhaustion.isSubscribed === false
     : reason === 'subscription_required'
+
   const modelType = exhaustion.isFreeModel ? 'free' : 'paid'
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
         subscribed: exhaustion.isSubscribed
       })
     }
+
     if (offerSubscription) trackSubscriptionEntryView('quota_notice')
   }, [exhaustion.isSubscribed, modelType, offerSubscription, quota])
 
@@ -40,6 +43,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
     not_in_plan: t('chat.input.quota_notice.not_in_plan'),
     unknown: t(exhaustion.reason === 'unknown' && exhaustion.state === 'error' ? 'error.unknown' : 'common.loading')
   }
+
   const Icon = quota || reason === 'unknown' ? Clock : Lock
 
   return (
@@ -82,6 +86,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
                 modelType
               })
             }
+
             if (offerSubscription) void startCherryCloudSubscription('quota_notice')
             else openSettingsTab('/settings/profile')
           }}>

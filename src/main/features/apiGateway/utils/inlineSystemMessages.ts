@@ -55,6 +55,7 @@ const systemText = (message: CherryUIMessage): string =>
 /** Whether any `role: 'system'` message sits after the conversation has started. */
 export function hasNonLeadingSystemMessage(messages: CherryUIMessage[]): boolean {
   const firstNonSystem = messages.findIndex((message) => message.role !== 'system')
+
   return firstNonSystem !== -1 && messages.slice(firstNonSystem).some((message) => message.role === 'system')
 }
 
@@ -67,12 +68,15 @@ export function hoistSystemMessages(messages: CherryUIMessage[]): CherryUIMessag
 
   const system = messages.filter((message) => message.role === 'system')
   const rest = messages.filter((message) => message.role !== 'system')
+
   const text = system
     .flatMap((part) => {
       const text = systemText(part)
+
       return text ? [text] : []
     })
     .join('\n\n')
+
   if (!text) return rest
 
   return [{ ...system[0], role: 'system', parts: [{ type: 'text', text }] }, ...rest]
@@ -83,6 +87,7 @@ export const MID_CONVERSATION_SYSTEM_BETA = 'mid-conversation-system-2026-04-07'
 
 function negotiatedMidConversationSystem(requestHeaders: Headers | undefined): boolean {
   const betas = requestHeaders?.get('anthropic-beta')
+
   return (
     betas !== null && betas !== undefined && betas.split(',').some((b) => b.trim() === MID_CONVERSATION_SYSTEM_BETA)
   )
@@ -98,7 +103,9 @@ function midConversationSystemUnsupported(): Error & { status: number } {
     `Unexpected role "system" in input message role list: ` +
       `anthropic-beta ${MID_CONVERSATION_SYSTEM_BETA} is not supported for this target model.`
   ) as Error & { status: number }
+
   error.status = 400
+
   return error
 }
 
@@ -113,7 +120,10 @@ export function positionInlineSystemMessages(
   requestHeaders: Headers | undefined
 ): CherryUIMessage[] {
   if (keepsSystemMessagesInPlace(endpointType)) return messages
+
   if (!hasNonLeadingSystemMessage(messages)) return messages
+
   if (negotiatedMidConversationSystem(requestHeaders)) throw midConversationSystemUnsupported()
+
   return hoistSystemMessages(messages)
 }

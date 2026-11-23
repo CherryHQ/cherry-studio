@@ -10,5 +10,6 @@ export const Route = createFileRoute('/app/file-preview')({
 
 function FilePreviewRoute() {
   const { path } = Route.useSearch()
+
   return <FilePreviewPage filePath={path} />
 }

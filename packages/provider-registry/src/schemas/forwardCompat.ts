@@ -28,10 +28,13 @@ export function looseArray<T extends z.ZodType>(item: T, { min }: { min?: number
   const array = z.array(z.unknown()).transform((values) =>
     values.reduce<z.output<T>[]>((kept, value) => {
       const parsed = item.safeParse(value)
+
       if (parsed.success) kept.push(parsed.data)
+
       return kept
     }, [])
   )
+
   return min === undefined
     ? array
     : array.refine((values) => values.length >= min, { message: `expected at least ${min} recognized value(s)` })

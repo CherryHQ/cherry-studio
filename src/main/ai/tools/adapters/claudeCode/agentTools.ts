@@ -17,15 +17,19 @@ import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/
 
 function sanitizeDescription(value: string): string {
   let out = ''
+
   for (let i = 0; i < value.length; i++) {
     const code = value.charCodeAt(i)
+
     if (code === 0x09 || code === 0x0a || code === 0x0d) {
       out += value[i]
       continue
     }
+
     if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) continue
     out += value[i]
   }
+
   return out
 }
 
@@ -33,6 +37,7 @@ const logger = loggerService.withContext('ClaudeCodeAgentTools')
 
 export function descriptorToTool(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): Tool {
   const access = resolveClaudeToolAccess(descriptor, policy)
+
   return descriptorToToolWithAccess(descriptor, access)
 }
 
@@ -68,12 +73,15 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
     // A genuinely unknown/deleted server is skipped — not marked failed, so it can't spuriously trigger
     // the carry-forward of stale descriptors reserved for transient listTools fetch failures below.
     const server = mcpServerService.findByIdOrName(id)
+
     if (!server) continue
+
     try {
       const tools = application.get('McpCatalogService').listTools(server.id)
 
       for (const tool of tools) {
         const sourceAccess = resolveMcpSourceToolAccess(server, tool)
+
         if (!sourceAccess.enabled) continue
         descriptors.push({
           id: buildClaudeMcpToolName(server.name, tool.name),
@@ -103,6 +111,7 @@ export async function listClaudeAgentToolDescriptors(agent: Pick<AgentEntity, 'm
   failedMcpIds: Set<string>
 }> {
   const mcpCatalog = await listMcpDescriptors(agent.mcps ?? [])
+
   return {
     descriptors: [...claudeRegistrySdkDescriptors(), ...mcpCatalog.descriptors],
     failedMcpIds: mcpCatalog.failedMcpIds
@@ -114,6 +123,7 @@ function findRuntimeDescriptor(
   runtimeName: string
 ): ClaudeToolDescriptor | undefined {
   const normalizedRuntimeName = normalizeClaudeBuiltinName(runtimeName)
+
   return descriptors.find(
     (item) =>
       item.id === runtimeName ||
@@ -172,20 +182,25 @@ export async function createClaudeAgentToolPolicySnapshot(
     // policy's `disallowed`/`descriptors` (which would re-enable a just-disabled tool).
     const sequence = ++rebuildSequence
     const catalog = await listClaudeAgentToolDescriptors(nextAgent)
+
     if (sequence !== rebuildSequence) return
     const nextDescriptors = [...catalog.descriptors]
+
     // A transient MCP fetch failure must not silently drop that server's tools from the catalog —
     // carry forward the previously-known descriptors for any failed MCP so a hiccup can't widen the
     // tool surface or break resolution mid-session.
     if (catalog.failedMcpIds.size > 0) {
       const existingIds = new Set(nextDescriptors.map((descriptor) => descriptor.id))
+
       for (const descriptor of descriptors) {
         if (descriptor.origin !== 'mcp' || !descriptor.sourceId) continue
+
         if (!catalog.failedMcpIds.has(descriptor.sourceId) || existingIds.has(descriptor.id)) continue
         nextDescriptors.push(descriptor)
         existingIds.add(descriptor.id)
       }
     }
+
     descriptors = nextDescriptors
     // Same derivation as the build-time SDK `disallowedTools`, recomputed on every live update so a
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
@@ -200,15 +215,19 @@ export async function createClaudeAgentToolPolicySnapshot(
       if (options.autoAllowRuntimeNameExceptions?.includes(runtimeName)) {
         return injectedRuntimeToolRequiringApproval(runtimeName)
       }
+
       if (
         options.autoAllowRuntimeNames?.includes(runtimeName) ||
         options.autoAllowRuntimeNamePrefixes?.some((prefix) => runtimeName.startsWith(prefix))
       ) {
         return injectedRuntimeTool(runtimeName)
       }
+
       const descriptor = findRuntimeDescriptor(descriptors, runtimeName)
+
       if (!descriptor) return undefined
       const access = resolveClaudeToolAccess(descriptor, policy)
+
       return descriptorToToolWithAccess(descriptor, access)
     },
 

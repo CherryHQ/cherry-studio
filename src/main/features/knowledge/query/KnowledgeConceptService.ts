@@ -16,23 +16,29 @@ const logger = loggerService.withContext('Knowledge:ConceptService')
 
 /** Max characters {@link KnowledgeConceptService.readConcept} returns in one slice, so a large document can't flood the agent's context. */
 const CONCEPT_READ_MAX_CHARS = 20_000
+
 /** Default returned-match cap for {@link KnowledgeConceptService.grepConcept} (the agent may raise it up to {@link CONCEPT_GREP_MAX_MATCHES}). */
 const CONCEPT_GREP_DEFAULT_MAX_MATCHES = 50
+
 /** Hard ceiling on returned grep matches, bounding the response size. */
 const CONCEPT_GREP_MAX_MATCHES = 200
+
 /** Characters of context kept on each side of a grep match in its snippet. */
 const CONCEPT_GREP_SNIPPET_PAD = 60
+
 /**
  * Max characters of any single line {@link KnowledgeConceptService.grepConcept} hands to ripgrep; matches past this
  * point on an over-long line are not scanned. It bounds each JSON record ripgrep emits (the record carries the whole
  * line plus every submatch), so one huge single-line document cannot balloon the output buffered in the main process.
  */
 const CONCEPT_GREP_MAX_LINE_CHARS = 2000
+
 /**
  * Wall-clock cap on one ripgrep run. The default engine is linear-time, but `--engine auto` falls back to backtracking
  * PCRE2 for look-around / backreferences, which can grind through its per-line match limit on every line.
  */
 const CONCEPT_GREP_TIMEOUT_MS = 5000
+
 /** Hard ceiling on nodes {@link KnowledgeConceptService.getOrganizationTree} returns, bounding the response for a huge base. */
 export const KNOWLEDGE_TREE_MAX_NODES = 1000
 
@@ -132,18 +138,22 @@ type RipgrepJsonRecord =
 
 async function runConceptRipgrep(args: string[], input: string): Promise<string> {
   const result = await runRipgrep([...args, '-'], { input, timeoutMs: CONCEPT_GREP_TIMEOUT_MS })
+
   if (!result.ok) {
     throw new Error('kb_read grep is unavailable: the bundled ripgrep binary could not be started')
   }
+
   // A slow or rejected pattern goes back to the model to rewrite — never fall back to an in-process RegExp.
   if (result.exitCode === null) {
     const message = `kb_read pattern did not finish within ${CONCEPT_GREP_TIMEOUT_MS / 1000}s; simplify it (avoid nested quantifiers such as (a+)+)`
     throw DataApiErrorFactory.validation({ pattern: [message] }, message)
   }
+
   if (result.exitCode > 1) {
     const message = result.stderr.trim()
     throw DataApiErrorFactory.validation({ pattern: [message] }, `Invalid kb_read regular expression: ${message}`)
   }
+
   return result.stdout
 }
 
@@ -160,6 +170,7 @@ async function grepConceptText(
 ): Promise<{ totalMatches: number; matches: KnowledgeConceptGrepMatch[] }> {
   const lines = text.split('\n')
   const input = lines.map((line) => line.slice(0, CONCEPT_GREP_MAX_LINE_CHARS)).join('\n')
+
   const args = [
     '--no-config',
     '--text',
@@ -174,10 +185,12 @@ async function grepConceptText(
   ]
 
   const totalMatches = Number((await runConceptRipgrep([...args, '--count-matches'], input)).trim() || 0)
+
   if (totalMatches === 0) return { totalMatches, matches: [] }
 
   const lineStarts: number[] = []
   let lineStart = 0
+
   for (const line of lines) {
     lineStarts.push(lineStart)
     lineStart += line.length + 1
@@ -185,14 +198,18 @@ async function grepConceptText(
 
   const matches: KnowledgeConceptGrepMatch[] = []
   const stdout = await runConceptRipgrep([...args, '--json', '--max-count', String(limit)], input)
+
   for (const rawRecord of stdout.split('\n')) {
     if (matches.length >= limit) break
+
     if (!rawRecord) continue
     const record = JSON.parse(rawRecord) as RipgrepJsonRecord
+
     if (record.type !== 'match') continue
 
     const { line_number: line, lines: matchedLine, submatches } = record.data
     const lineBytes = Buffer.from(matchedLine.text, 'utf-8')
+
     for (const { match, start } of submatches) {
       if (matches.length >= limit) break
       const charStart = lineStarts[line - 1] + lineBytes.subarray(0, start).toString('utf-8').length
@@ -267,6 +284,7 @@ export class KnowledgeConceptService {
       Math.max(options.maxMatches ?? CONCEPT_GREP_DEFAULT_MAX_MATCHES, 1),
       CONCEPT_GREP_MAX_MATCHES
     )
+
     const { totalMatches, matches } = await grepConceptText(text, options.pattern, options.ignoreCase ?? true, limit)
 
     return {
@@ -288,12 +306,14 @@ export class KnowledgeConceptService {
    */
   async deleteConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
     const { found, notFound } = await this.resolveConceptItemIds(baseId, conceptIds, 'deleteConcepts')
+
     if (found.length > 0) {
       await this.ingestionService.deleteItems(
         baseId,
         found.map((entry) => entry.itemId)
       )
     }
+
     return { applied: found.map((entry) => entry.conceptId), notFound }
   }
 
@@ -305,12 +325,14 @@ export class KnowledgeConceptService {
    */
   async refreshConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
     const { found, notFound } = await this.resolveConceptItemIds(baseId, conceptIds, 'refreshConcepts')
+
     if (found.length > 0) {
       await this.ingestionService.reindexItems(
         baseId,
         found.map((entry) => entry.itemId)
       )
     }
+
     return { applied: found.map((entry) => entry.conceptId), notFound }
   }
 
@@ -332,9 +354,11 @@ export class KnowledgeConceptService {
     // Index children by their parent groupId (null = base root); each bucket keeps
     // getItemsByBaseId's createdAt/id order, so siblings emit in a stable order.
     const childrenByGroupId = new Map<string | null, KnowledgeItem[]>()
+
     for (const item of items) {
       const key = item.groupId ?? null
       const bucket = childrenByGroupId.get(key)
+
       if (bucket) {
         bucket.push(item)
       } else {
@@ -350,11 +374,14 @@ export class KnowledgeConceptService {
       if (truncated || (maxDepth !== undefined && depth > maxDepth)) {
         return
       }
+
       for (const item of childrenByGroupId.get(groupId) ?? []) {
         if (nodes.length >= KNOWLEDGE_TREE_MAX_NODES) {
           truncated = true
+
           return
         }
+
         nodes.push({
           depth,
           title: getKnowledgeItemDisplayTitle(item),
@@ -363,6 +390,7 @@ export class KnowledgeConceptService {
           // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
           conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
         })
+
         if (item.type === 'directory') {
           walk(item.id, depth + 1)
         }
@@ -400,11 +428,13 @@ export class KnowledgeConceptService {
       if (seen.has(conceptId)) {
         continue
       }
+
       seen.add(conceptId)
 
       const ref = await runStoreOperation(store, baseId, operation, () => store.getMaterialByRelativePath(conceptId))
       // Identity re-check: the resolved material id must still be a visible item in this base.
       const item = ref ? loadVisibleItems(baseId, [ref.materialId]).get(ref.materialId) : undefined
+
       if (ref && item) {
         found.push({ conceptId, itemId: ref.materialId })
       } else {
@@ -434,16 +464,19 @@ export class KnowledgeConceptService {
     const store = vectorStoreService.getIndexStore(base)
 
     const ref = await runStoreOperation(store, baseId, operation, () => store.getMaterialByRelativePath(conceptId))
+
     if (!ref) {
       throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
     }
 
     const item = loadVisibleItems(baseId, [ref.materialId]).get(ref.materialId)
+
     if (!item) {
       throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
     }
 
     const text = await runStoreOperation(store, baseId, operation, () => store.readMaterialContent(ref.materialId))
+
     if (text == null) {
       // The material resolved and the item is visible + completed, yet it has no content row — an
       // invariant violation or a reindex TOCTOU race, NOT a bad conceptId. Use a distinct resource so the

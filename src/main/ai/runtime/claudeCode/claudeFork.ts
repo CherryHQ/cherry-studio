@@ -14,13 +14,17 @@ async function findSession(configDir: string, sessionId: string): Promise<string
   if (!/^[a-f0-9-]{36}$/i.test(sessionId)) throw new AgentSessionForkError('history_corrupt')
   const root = path.join(configDir, 'projects')
   const files: string[] = []
+
   for (const project of await readdir(root, { withFileTypes: true })) {
     if (!project.isDirectory() || project.isSymbolicLink()) continue
     const directory = path.join(root, project.name)
+
     if ((await readdir(directory)).includes(sessionId + '.jsonl'))
       files.push(path.join(directory, sessionId + '.jsonl'))
   }
+
   if (files.length !== 1) throw new AgentSessionForkError(files.length ? 'history_corrupt' : 'history_missing')
+
   return files[0]
 }
 
@@ -35,34 +39,46 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
   const entries: SessionStoreEntry[] = []
   let start = 0
   let end = 0
+
   for (end = bytes.indexOf(10); end >= 0; end = bytes.indexOf(10, start)) {
     const line = bytes.toString('utf8', start, end)
     start = end + 1
+
     if (line.trim().length === 0) continue
     const entry = JSON.parse(line) as SessionStoreEntry
     entries.push(entry)
+
     if (entry.uuid === checkpoint.messageUuid && entry.type === 'assistant' && !entry.isSidechain) break
   }
+
   if (end < 0) throw new AgentSessionForkError('history_missing')
+
   if (!bytes.subarray(0, start).equals(await readForkPrefix(file, start)))
     throw new AgentSessionForkError('history_changed')
+
   const checkpoints = input.checkpoints
     .map((value) => parseClaudeForkCheckpoint(value))
     .map((value) => {
       if (value.runtimeSessionId !== checkpoint.runtimeSessionId) {
         throw new AgentSessionForkError('history_changed')
       }
+
       return value
     })
+
   const checkpointEntryCounts = checkpoints.map((value) => {
     const index = entries.findIndex(
       (entry) => entry.uuid === value.messageUuid && entry.type === 'assistant' && !entry.isSidechain
     )
+
     if (index < 0) throw new AgentSessionForkError('history_changed')
+
     return index + 1
   })
+
   const { default: createWorker } = await import('./forkWorker?nodeWorker')
   input.signal.throwIfAborted()
+
   const workerData: ClaudeForkWorkerInput = {
     entries,
     checkpoint,
@@ -71,7 +87,9 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
     artifactDirectory: path.join(input.artifactDirectory, 'claude'),
     targetCwd: input.targetCwd
   }
+
   const worker = createWorker({ workerData, env: { ...process.env } })
+
   return runForkWorker(
     worker,
     input.signal,

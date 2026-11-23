@@ -11,28 +11,35 @@ const EXCLUDED_FILE_PATTERNS = [/\.gen\.[jt]sx?$/, /\.(?:spec|test|stories)\.[jt
 
 export function isUiSourceFile(file: string): boolean {
   const normalized = file.replaceAll('\\', '/')
+
   if (!/\.(?:html|jsx|tsx)$/.test(normalized)) return false
+
   if (normalized.includes('/node_modules/') || normalized.includes('/__tests__/')) return false
+
   return !EXCLUDED_FILE_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
 async function collectFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true })
   const files: string[] = []
+
   for (const entry of entries) {
     const path = resolve(directory, entry.name)
+
     if (entry.isDirectory()) {
       if (!EXCLUDED_DIRECTORIES.has(entry.name)) files.push(...(await collectFiles(path)))
     } else if (isUiSourceFile(path)) {
       files.push(path)
     }
   }
+
   return files
 }
 
 export function windowNameFromHtml(sourceFile: string): string {
   const parts = sourceFile.replace(/\/index\.html$/, '').split('/')
   const windowIndex = parts.lastIndexOf('windows')
+
   return (windowIndex >= 0 ? parts.slice(windowIndex + 1) : parts.slice(-2)).join('.') || 'main'
 }
 
@@ -55,20 +62,25 @@ export async function scanUiSources(root: string): Promise<UiNodeDescriptor[]> {
     .sort()
 
   const descriptors: UiNodeDescriptor[] = []
+
   for (const file of files) {
     const source = await readFile(file, 'utf8')
     const sourceFile = normalizeSourceFile(root, file)
+
     try {
       const result = file.endsWith('.html')
         ? transformHtml(source, { sourceFile, windowName: windowNameFromHtml(sourceFile) })
         : transformJsx(source, { sourceFile })
+
       descriptors.push(...result.descriptors)
     } catch (error) {
       throw new Error(`Failed to scan UI contract source ${sourceFile}`, { cause: error })
     }
   }
+
   if (descriptors.length === 0) {
     throw new Error(`UI contract scan found no semantic boundaries under ${root}`)
   }
+
   return descriptors
 }

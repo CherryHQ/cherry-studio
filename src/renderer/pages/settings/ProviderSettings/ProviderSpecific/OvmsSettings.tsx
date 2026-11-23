@@ -32,6 +32,7 @@ const OvmsSettings: FC = () => {
       const status = await ipcApi.request('ovms.get_status')
       setOvmsStatus(status)
     }
+
     void checkStatus()
   }, [isSupported])
 
@@ -44,6 +45,7 @@ const OvmsSettings: FC = () => {
       setIsInstallingOvms(false)
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error)
+
       const errCodeMsg = {
         '100': t('ovms.failed.install_code_100'),
         '101': t('ovms.failed.install_code_101'),
@@ -54,6 +56,7 @@ const OvmsSettings: FC = () => {
         '106': t('ovms.failed.install_code_106'),
         '110': t('ovms.failed.install_code_110')
       }
+
       const match = errMsg.match(/code (\d+)/)
       const code = match ? match[1] : 'unknown'
       const errorMsg = code in errCodeMsg ? (errCodeMsg[code as keyof typeof errCodeMsg] ?? errMsg) : errMsg

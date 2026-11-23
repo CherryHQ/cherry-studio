@@ -51,5 +51,6 @@ export function createPreviewI18n(locale: string): i18n {
     ),
     interpolation: { escapeValue: false }
   })
+
   return instance
 }

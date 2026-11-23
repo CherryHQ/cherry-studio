@@ -103,6 +103,7 @@ export const RestoreJournalSchema = z.discriminatedUnion('state', [
 ])
 
 export type RestoreJournal = z.infer<typeof RestoreJournalSchema>
+
 export type RestoreJournalState = RestoreJournal['state']
 
 export type ReadJournalResult =
@@ -116,17 +117,20 @@ function journalFilePath(): string {
 
 export function readRestoreJournal(): ReadJournalResult {
   let raw: string
+
   try {
     raw = fs.readFileSync(journalFilePath(), 'utf8')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return { kind: 'none' }
     }
+
     // Unreadable ≠ absent: treat as corrupt so hasPendingRestore stays fail-safe.
     return { kind: 'corrupt', error: String(error) }
   }
 
   let parsed: unknown
+
   try {
     parsed = JSON.parse(raw)
   } catch (error) {
@@ -134,9 +138,11 @@ export function readRestoreJournal(): ReadJournalResult {
   }
 
   const result = RestoreJournalSchema.safeParse(parsed)
+
   if (!result.success) {
     return { kind: 'corrupt', error: result.error.message }
   }
+
   return { kind: 'ok', journal: result.data }
 }
 
@@ -151,16 +157,19 @@ export function writeRestoreJournal(journal: RestoreJournal): void {
   const tmpPath = `${journalPath}.tmp`
 
   const fd = fs.openSync(tmpPath, 'w')
+
   try {
     fs.writeSync(fd, JSON.stringify(journal, null, 2))
     fs.fsyncSync(fd)
   } finally {
     fs.closeSync(fd)
   }
+
   fs.renameSync(tmpPath, journalPath)
 
   if (process.platform !== 'win32') {
     const dirFd = fs.openSync(path.dirname(journalPath), 'r')
+
     try {
       fs.fsyncSync(dirFd)
     } finally {
@@ -180,6 +189,7 @@ export function removeRestoreJournal(): void {
 
   if (process.platform !== 'win32') {
     const dirFd = fs.openSync(path.dirname(journalPath), 'r')
+
     try {
       fs.fsyncSync(dirFd)
     } finally {
@@ -195,8 +205,10 @@ export function removeRestoreJournal(): void {
  */
 export function hasPendingRestore(): boolean {
   const result = readRestoreJournal()
+
   if (result.kind === 'corrupt') {
     return true
   }
+
   return result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
 }

@@ -32,13 +32,16 @@ export function readArchive(configDir: string, cwd: string, sessionId: string): 
       workerData: { sessionId, cwd, chunkBytes: ARCHIVE_CHUNK_BYTES },
       env: { ...process.env, CLAUDE_CONFIG_DIR: configDir }
     })
+
     const archive: NativeArchive = { messages: [], children: [], entries: [] }
     let received = false
+
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Worker/deserialization failures must reject archive loading with the original reason before terminating the worker.
     const fail = (error: unknown) => {
       reject(error)
       void worker.terminate()
     }
+
     worker.on('message', (frame: ArchiveFrame) => {
       try {
         switch (frame.kind) {
@@ -46,29 +49,37 @@ export function readArchive(configDir: string, cwd: string, sessionId: string): 
           case 'done':
             received = true
             resolve(frame.kind === 'done' ? archive : null)
+
             return
           case 'child':
             archive.children.push({ agentId: frame.agentId, messages: [] })
             break
           case 'child-messages': {
             const child = archive.children.at(-1)
+
             if (child?.agentId !== frame.agentId) throw new Error('Claude archive worker sent an unexpected child')
+
             for (const buffer of frame.buffers) child.messages.push(deserialize(new Uint8Array(buffer)))
             break
           }
+
           case 'entries': {
             let batch = archive.entries.at(-1)
+
             if (!batch || batch.subpath !== frame.subpath) {
               batch = { subpath: frame.subpath, entries: [] }
               archive.entries.push(batch)
             }
+
             for (const buffer of frame.buffers) batch.entries.push(deserialize(new Uint8Array(buffer)))
             break
           }
+
           case 'messages':
             for (const buffer of frame.buffers) archive.messages.push(deserialize(new Uint8Array(buffer)))
             break
         }
+
         worker.postMessage('ack')
       } catch (error) {
         fail(error)

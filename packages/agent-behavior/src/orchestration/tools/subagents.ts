@@ -31,7 +31,9 @@ const DESCRIPTION = [
   '- You see the final report, not the intermediate steps.',
   '- Run it in the foreground when you need its result to go on. Use background: true only when you have independent work to do meanwhile; you are notified when it finishes.'
 ].join('\n')
+
 const ID = { type: 'string', description: 'The id a subagent result or notification gave.' }
+
 const SPAWN_SCHEMA = {
   type: 'object',
   properties: {
@@ -54,11 +56,13 @@ const SPAWN_SCHEMA = {
   },
   required: ['description', 'prompt']
 }
+
 const MESSAGE_SCHEMA = {
   type: 'object',
   properties: { id: ID, message: { type: 'string', description: 'What to tell the subagent.' } },
   required: ['id', 'message']
 }
+
 // Subagents cannot start or manage subagents: a child conversation never gets these tools.
 const SUBAGENT_TOOL = {
   replay: 'safe',
@@ -73,13 +77,16 @@ async function modelFacts(host: HostPorts, thread: ThreadId, query: string | und
     query ? host.models.find(query, thread) : [],
     host.models.current(thread)
   ])
+
   return { candidates, parentModelKey, defaultChildModelKey, supportsTools }
 }
 
 /** The child the commit created under `key` (H1 reports every spawn it applied). */
 function spawnedChild(spawned: TransactResult<JsonValue>['spawned'], key: Key): ThreadId {
   const found = spawned.find((entry) => entry.key === key)
+
   if (!found) throw new Error(`The commit reported no child spawned under ${key}`)
+
   return found.child
 }
 
@@ -88,20 +95,25 @@ async function spawn(context: Context, call: ToolCall): Promise<ToolOutcome> {
   const named = stringField(fieldsOf(call.args), 'model')?.trim() || undefined
   const models = await modelFacts(context.host, call.thread, named)
   const inputs = await gatherInputs(context, call.thread, { args: call.args, models })
+
   // A turn stopped while the host answered has taken its children already; a child spawned now would run on.
   if (call.signal.aborted) return { text: TURN_STOPPED, isError: true }
   const executed = await step(context, call.thread, (facts) => decideSpawn(facts, inputs, call.key))
   const decision = executed.result
+
   if (decision.kind === 'refused') return { text: decision.text, isError: true }
   const child = decision.child ?? spawnedChild(executed.spawned, decision.key)
+
   if (decision.background)
     return {
       text: startedText(child),
       isError: false,
       details: { sessionId: child, fork: decision.fork, background: true }
     }
+
   // A stop during the spawn commit found the child with no run yet, so a run started now would go on unstopped.
   if (call.signal.aborted) return abandonSpawn(context, call.thread, call.key)
+
   return runChild(context, call.thread, child, 1, decision.input, call.key)
 }
 
@@ -113,24 +125,31 @@ export type SubagentMessageReceipt =
 export async function messageSubagent(context: Context, call: ToolCall): Promise<SubagentMessageReceipt> {
   for (;;) {
     const inputs = await gatherInputs(context, call.thread, { args: call.args })
+
     const executed = await step(context, call.thread, (facts) =>
       decideMessage(facts, inputs, call.key, call.signal.aborted)
     )
+
     const decision = executed.result
+
     switch (decision.kind) {
       case 'refused':
         return { status: 'refused', reason: decision.text }
       case 'queued':
         if (executed.messaged?.status === 'withdrawn') {
           await step(context, call.thread, (facts) => decideSteerWithdrawn(facts, call.key))
+
           return { status: 'refused', reason: notDeliveredText(decision.child) }
         }
+
         if (executed.messaged?.status === 'started') {
           const { run } = executed.messaged
           const text = stringField(fieldsOf(call.args), 'message')!.trim()
           await step(context, call.thread, (facts) => decideMessageStarted(facts, call.key, run, text))
+
           return { status: 'continued', child: decision.child }
         }
+
         return { status: 'queued', child: decision.child }
       case 'continued':
         return { status: 'continued', child: decision.child }
@@ -145,9 +164,12 @@ export async function messageSubagent(context: Context, call: ToolCall): Promise
 async function stop(context: Context, call: ToolCall): Promise<ToolOutcome> {
   const inputs = await gatherInputs(context, call.thread, { args: call.args })
   const decision = (await step(context, call.thread, (facts) => decideStop(facts, inputs))).result
+
   if (decision.kind === 'refused') return { text: decision.text, isError: true }
+
   if (decision.kind === 'not-running' || decision.kind === 'ended') return decision.result
   const answer = await context.ports.helpers.awaitAnswer(decision.child, decision.run, decision.key)
+
   return stoppedResult(decision.child, decision.run, answer)
 }
 
@@ -169,7 +191,9 @@ export function subagentTools(host: HostPorts): ToolDefinition[] {
       schema: MESSAGE_SCHEMA,
       run: async (call, ports) => {
         const result = await messageSubagent({ ports, host }, call)
+
         if (result.status === 'refused') return { text: result.reason, isError: true }
+
         return {
           text: result.status === 'continued' ? continuedText(result.child) : queuedText(result.child),
           isError: false,

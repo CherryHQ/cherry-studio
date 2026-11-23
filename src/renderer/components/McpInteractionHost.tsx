@@ -24,7 +24,9 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { EventPayload } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('McpInteractionHost')
+
 type Interaction = EventPayload<'mcp.interaction.requested'>
+
 type FormField = {
   type?: string
   title?: string
@@ -41,6 +43,7 @@ type FormField = {
   maxLength?: number
   format?: string
 }
+
 type ElicitationParams = {
   mode?: string
   message?: string
@@ -58,6 +61,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
   const { t } = useTranslation()
   const params = (current.payload as { params?: ElicitationParams })?.params ?? {}
   const schema = params.requestedSchema
+
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Server defaults remain unvalidated until the requested form schema is checked on acceptance; preserve them for the controls and validator.
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     Object.fromEntries(
@@ -66,6 +70,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
         .map(([name, field]) => [name, field.default])
     )
   )
+
   const [validationError, setValidationError] = useState<string>()
   const [submitting, setSubmitting] = useState(false)
   const busy = useRef(false)
@@ -73,14 +78,17 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
   const active = useRef(true)
   useEffect(() => {
     active.current = true
+
     return () => {
       active.current = false
     }
   }, [])
   let url: URL | undefined
+
   try {
     if (params.url) {
       const parsed = new URL(params.url)
+
       if (['https:', 'http:'].includes(parsed.protocol) && !parsed.username && !parsed.password) url = parsed
     }
   } catch {
@@ -96,28 +104,35 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
       if (value !== undefined) return { ...previous, [name]: value }
       const next = { ...previous }
       delete next[name]
+
       return next
     })
 
   const finish = async (decision: 'accept' | 'decline' | 'cancel') => {
     if (busy.current || !active.current) return
+
     if (decision === 'accept' && !form.current?.reportValidity()) return
     busy.current = true
     setSubmitting(true)
+
     try {
       if (decision === 'accept' && current.kind === 'elicitation' && params.mode !== 'url' && schema) {
         const { CfWorkerJsonSchemaValidator } = await import('@modelcontextprotocol/client/validators/cf-worker')
         const result = new CfWorkerJsonSchemaValidator().getValidator(schema)(values)
+
         if (!result.valid) throw new Error(result.errorMessage)
       }
+
       if (!active.current) return
       await ipcApi.request('mcp.interaction.respond', { requestId: current.requestId, decision, value: values })
       remove(current.requestId)
     } catch (error) {
       logger.error('Failed to respond to MCP interaction', error as Error)
+
       if (active.current) setValidationError(error instanceof Error ? error.message : String(error))
     } finally {
       busy.current = false
+
       if (active.current) setSubmitting(false)
     }
   }
@@ -128,6 +143,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
       : current.kind === 'sampling'
         ? t('settings.mcp.interaction.sampling.title')
         : t('settings.mcp.interaction.roots.title')
+
   const description =
     current.kind === 'elicitation'
       ? (params.message ?? t('settings.mcp.interaction.elicitation.description'))
@@ -160,6 +176,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
               const multiOptions = field.items && choices(field.items)
               const required = schema?.required?.includes(name)
               const value = Object.hasOwn(values, name) ? values[name] : undefined
+
               return (
                 <div key={name} className="space-y-2">
                   <Label htmlFor={id}>
@@ -192,6 +209,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
                     <div className="space-y-2">
                       {multiOptions.map((option) => {
                         const selected: unknown[] = Array.isArray(value) ? value : []
+
                         return (
                           <Label key={option.const} className="flex items-center gap-2">
                             <Checkbox
@@ -300,5 +318,6 @@ export function McpInteractionHost(): React.ReactElement | null {
     )
   )
   useIpcOn('mcp.interaction.ended', ({ requestId }) => remove(requestId))
+
   return queue[0] ? <McpInteractionDialog key={queue[0].requestId} current={queue[0]} remove={remove} /> : null
 }

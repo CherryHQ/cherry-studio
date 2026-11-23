@@ -10,10 +10,12 @@ export const Route = createFileRoute('/app/agents')({
     middlewares: [
       ({ search, next }) => {
         const destination = next(search)
+
         if (!destination.agentId || destination.intent) return destination
 
         const normalized = { ...destination }
         delete normalized.sessionId
+
         return normalized
       }
     ]
@@ -23,13 +25,16 @@ export const Route = createFileRoute('/app/agents')({
 
     if (search.agentId) {
       const sessionId = await resolveAgentEntrySessionIdForAgent(search.agentId)
+
       if (sessionId) {
         throw redirect({ to: '/app/agents', search: { sessionId }, replace: true })
       }
+
       return
     }
 
     const sessionId = await resolveAgentEntrySessionId()
+
     if (sessionId) {
       throw redirect({ to: '/app/agents', search: { sessionId }, replace: true })
     }

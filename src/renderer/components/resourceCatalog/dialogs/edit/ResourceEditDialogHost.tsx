@@ -20,6 +20,7 @@ type ResourceEditDialogHostProps = {
 }
 
 const logger = loggerService.withContext('ResourceEditDialogHost')
+
 export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDialogHostProps) {
   const [open, setOpen] = useState(target !== null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -46,6 +47,7 @@ export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDia
 
       if (nextOpen) {
         onOpenChange(true)
+
         return
       }
 

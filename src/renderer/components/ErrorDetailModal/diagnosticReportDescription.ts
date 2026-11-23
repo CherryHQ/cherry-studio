@@ -20,7 +20,9 @@ export function resolveDiagnosticReportLocation(
       defaultValue: language?.toLowerCase().startsWith('zh') ? '工作对话' : 'Work conversation'
     })
   }
+
   if (location.trim() === 'home') return t('error.diagnostic_report.locations.home')
+
   return location
 }
 
@@ -52,6 +54,7 @@ type DiagnosticReportField = {
 function nonEmptyText(value: string | null | undefined): string | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
+
   return normalized.length > 0 ? normalized : undefined
 }
 
@@ -60,6 +63,7 @@ function diagnosticReportField(
   value: string | undefined
 ): DiagnosticReportField | undefined {
   const text = nonEmptyText(value)
+
   return text ? { id, value: text } : undefined
 }
 
@@ -72,9 +76,11 @@ function combineErrorParts(
   const errorMessage = nonEmptyText(message)
   const raw = errorName && errorMessage ? `${errorName}: ${errorMessage}` : (errorName ?? errorMessage)
   const localizedMessage = nonEmptyText(localized)
+
   if (localizedMessage && errorMessage && localizedMessage !== errorMessage) {
     return `${localizedMessage} (${errorMessage})`
   }
+
   return localizedMessage ?? raw
 }
 
@@ -84,7 +90,9 @@ function combineModelParts(
 ): string | undefined {
   const providerName = nonEmptyText(provider)
   const modelId = nonEmptyText(model)
+
   if (providerName && modelId) return `${providerName}:${modelId}`
+
   return providerName ?? modelId
 }
 
@@ -95,6 +103,7 @@ function truncateUtf8(value: string): string {
 
   for (const character of normalizeDiagnosticDescription(value)) {
     const characterBytes = encoder.encode(character).byteLength
+
     if (byteLength + characterBytes > DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES) break
     result += character
     byteLength += characterBytes

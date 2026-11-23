@@ -39,33 +39,41 @@ export async function prepareDurableDesktop(
     input.modelId,
     input.knowledgeBaseIds
   )
+
   await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
+
   const snapshot = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
     input.modelId,
     input.knowledgeBaseIds
   )
+
   const { session, agent } = snapshot
   const cwd = session.workspace.path
   await prepareAgentSessionWorkspaceDirectory(session)
   let permissionMode = agent.configuration?.permission_mode ?? 'default'
   let disabled = new Set((agent.disabledTools ?? []).map(normalizePiDisabledToolId))
   const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
+
   const mountedServers = resolveMountedMcpServers(agent, {
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
     computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     channelLinked: snapshot.linkedChannel !== null
   })
+
   const mountedPolicies = listBuiltinToolPolicies({ mountedServers })
+
   const policies = (approval: string, enforce = false) =>
     new Set(
       mountedPolicies
         .filter((policy) => policy.approval === approval && (!enforce || policy.bypassApproval === 'enforce'))
         .map((policy) => buildPiMcpToolName(policy.serverName, policy.toolName))
     )
+
   const scope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, input.knowledgeBaseIds)
   const enabled = (name: string) => !disabled.has(buildPiMcpToolName('cherry-tools', name))
+
   const prompt = await buildAgentRuntimePrompt({
     agent,
     workspacePath: cwd,
@@ -79,6 +87,7 @@ export async function prepareDurableDesktop(
         (enabled(KB_SEARCH_TOOL_NAME) || enabled(KB_READ_TOOL_NAME))
     })
   })
+
   const [
     native,
     tools,
@@ -100,6 +109,7 @@ export async function prepareDurableDesktop(
     loadPiSdk(),
     getShellEnv()
   ])
+
   const mcp = await createDurableMcp(
     buildAgentMcpServers(
       session,
@@ -113,9 +123,11 @@ export async function prepareDurableDesktop(
       input.modelId
     )
   )
+
   try {
     const isDisabled = (name: string) => {
       const tool = mcp.metadata.get(name)
+
       return (
         disabled.has(name) ||
         Boolean(
@@ -125,17 +137,21 @@ export async function prepareDurableDesktop(
         )
       )
     }
+
     const skills = pi.loadSkills({
       cwd,
       agentDir: application.getPath('feature.agents.pi.root'),
       skillPaths: [...snapshot.additionalSkillPaths],
       includeDefaults: false
     })
+
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
+
     const bash = tools.createBashTool({
       commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env))
     })
+
     registry.install(
       native.defineExtension({
         ...coding,
@@ -158,6 +174,7 @@ export async function prepareDurableDesktop(
             key: 'agent_identity',
             async render() {
               const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
+
               return { text, source: { kind: 'memory-files', resources } }
             }
           },
@@ -165,11 +182,14 @@ export async function prepareDurableDesktop(
             key: 'project_context',
             render() {
               const files = pi.loadProjectContextFiles({ cwd, agentDir: application.getPath('feature.agents.pi.root') })
+
               if (!files.length) return undefined
+
               const entries = files.map((file) => ({
                 ...file,
                 text: `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`
               }))
+
               return {
                 text: ['Project-specific instructions and guidelines:', ...entries.map((entry) => entry.text)].join(
                   '\n\n'
@@ -203,18 +223,21 @@ export async function prepareDurableDesktop(
         ]
       })
     )
+
     if (namespace) {
       for (const extension of registry.snapshot().installed()) {
         registry.uninstall(extension)
         registry.install(native.defineExtension({ ...extension, name: `${namespace}/${extension.name}` }))
       }
     }
+
     const environment = new NodeExecutionEnv({
       cwd,
       shellPath: resolvePiShellPath(),
       // Per-call PATH overrides the SDK's inherited environment. Merge the complete PATH here.
       shellEnv: mergePiShellExecutionEnv(env)
     })
+
     const agentConfig: AgentChange = {
       ...(namespace && { extensions: registry.snapshot().installed() }),
       tools: {
@@ -229,6 +252,7 @@ export async function prepareDurableDesktop(
         .filter(Boolean)
         .join('\n\n')
     }
+
     return {
       snapshot,
       registry,
@@ -257,12 +281,14 @@ export async function prepareDurableDesktop(
           next.modelId,
           next.knowledgeBaseIds
         )
+
         const mode = current.agent.configuration?.permission_mode ?? 'default'
         // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
         const permissionChanged = mode !== permissionMode
         permissionMode = mode
         const names = (current.agent.disabledTools ?? []).map(normalizePiDisabledToolId)
         disabled = active ? new Set([...disabled, ...names]) : new Set(names)
+
         return { signature: current.signature, permissionChanged }
       },
       async close() {

@@ -17,12 +17,15 @@ import {
 import * as z from 'zod'
 
 const issuerStamp = { issuer: z.string().optional() }
+
 const StoredOAuthClientInformationSchema: z.ZodType<StoredOAuthClientInformation> = z.union([
   OAuthClientInformationFullSchema.extend(issuerStamp),
   OAuthClientInformationSchema.extend(issuerStamp)
 ])
+
 const StoredOAuthTokensSchema: z.ZodType<StoredOAuthTokens> = OAuthTokensSchema.extend(issuerStamp)
 const AuthorizationServerMetadataSchema = z.union([OAuthMetadataSchema, OpenIdProviderDiscoveryMetadataSchema])
+
 const OAuthDiscoveryStateSchema: z.ZodType<OAuthDiscoveryState> = z.object({
   authorizationServerUrl: z.string(),
   authorizationServerMetadata: AuthorizationServerMetadataSchema.optional(),
@@ -37,6 +40,7 @@ export const OAuthSecretDataSchema = z.object({
   codeVerifier: z.string().optional(),
   state: z.string().optional()
 })
+
 export type OAuthSecretData = z.infer<typeof OAuthSecretDataSchema>
 
 export const OAuthStorageSchema = z.object({
@@ -44,6 +48,7 @@ export const OAuthStorageSchema = z.object({
   discoveryState: OAuthDiscoveryStateSchema.optional(),
   lastUpdated: z.number()
 })
+
 export type OAuthStorageData = z.infer<typeof OAuthStorageSchema>
 
 export const LegacyOAuthStorageSchema = z.object({

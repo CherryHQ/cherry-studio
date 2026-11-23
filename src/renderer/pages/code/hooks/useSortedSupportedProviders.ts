@@ -38,7 +38,9 @@ export function useSortedSupportedProviders({
     const filtered = prependedProviders?.length
       ? [...prependedProviders, ...filterProviders(providers)]
       : filterProviders(providers)
+
     const entries = new Map(Object.entries(currentToolState.providers))
+
     const baseSorted = [...filtered]
       .map((provider, index) => ({
         provider,
@@ -49,23 +51,32 @@ export function useSortedSupportedProviders({
         if (a.sortIndex !== undefined && b.sortIndex !== undefined && a.sortIndex !== b.sortIndex) {
           return a.sortIndex - b.sortIndex
         }
+
         if (a.sortIndex !== undefined && b.sortIndex === undefined) return -1
+
         if (a.sortIndex === undefined && b.sortIndex !== undefined) return 1
+
         return a.index - b.index
       })
       .map(({ provider }) => provider)
 
     const orderedIds = optimisticProviderOrder?.toolId === selectedCliTool ? optimisticProviderOrder.ids : null
+
     if (!orderedIds) return baseSorted
 
     const optimisticIndex = new Map(orderedIds.map((id, index) => [id, index]))
     const stableIndex = new Map(baseSorted.map((provider, index) => [provider.id, index]))
+
     return [...baseSorted].sort((a, b) => {
       const ai = optimisticIndex.get(a.id)
       const bi = optimisticIndex.get(b.id)
+
       if (ai !== undefined && bi !== undefined) return ai - bi
+
       if (ai !== undefined) return -1
+
       if (bi !== undefined) return 1
+
       return (stableIndex.get(a.id) ?? 0) - (stableIndex.get(b.id) ?? 0)
     })
   }, [filterProviders, providers, currentToolState, optimisticProviderOrder, selectedCliTool, prependedProviders])
@@ -74,6 +85,7 @@ export function useSortedSupportedProviders({
     async (nextProviders: Provider[]) => {
       const orderedIds = nextProviders.map((p) => p.id)
       setOptimisticProviderOrder({ toolId: selectedCliTool, ids: orderedIds })
+
       try {
         await reorderProviders(orderedIds)
       } catch (error) {

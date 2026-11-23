@@ -21,6 +21,7 @@ async function lstatIfExists(targetPath: string) {
 
 export async function resolveRealOrNearestExistingPath(targetPath: string): Promise<AbsoluteFilePath> {
   const absoluteTargetPath = asAbsolutePath(path.resolve(targetPath))
+
   try {
     return await realpath(absoluteTargetPath)
   } catch {
@@ -29,11 +30,13 @@ export async function resolveRealOrNearestExistingPath(targetPath: string): Prom
     while (true) {
       try {
         const realCurrentPath = await realpath(currentPath)
+
         return asAbsolutePath(
           path.normalize(path.join(realCurrentPath, path.relative(currentPath, absoluteTargetPath)))
         )
       } catch {
         const parentPath = asAbsolutePath(path.dirname(currentPath))
+
         if (parentPath === currentPath) return absoluteTargetPath
         currentPath = parentPath
       }
@@ -48,24 +51,30 @@ export async function resolveRealOrNearestExistingPath(targetPath: string): Prom
 export async function assertAgentStoragePath(agentsDataRoot: string, targetPath: string): Promise<void> {
   const root = asAbsolutePath(path.resolve(agentsDataRoot))
   const target = asAbsolutePath(path.resolve(targetPath))
+
   if (target !== root && !isPathInside(target, root)) {
     throw new Error(`Agent storage path escapes its root: ${target}`)
   }
 
   const rootStat = await lstatIfExists(root)
+
   if (!rootStat?.isDirectory || rootStat.isSymbolicLink) {
     throw new Error(`Agent storage root must be a real directory: ${root}`)
   }
 
   let current = root
   const relative = path.relative(root, target)
+
   for (const segment of relative ? relative.split(path.sep) : []) {
     current = asAbsolutePath(path.join(current, segment))
     const currentStat = await lstatIfExists(current)
+
     if (!currentStat) break
+
     if (currentStat.isSymbolicLink) {
       throw new Error(`Agent storage path contains a symbolic link: ${current}`)
     }
+
     if (current !== target && !currentStat.isDirectory) {
       throw new Error(`Agent storage path parent is not a directory: ${current}`)
     }
@@ -75,6 +84,7 @@ export async function assertAgentStoragePath(agentsDataRoot: string, targetPath:
     resolveRealOrNearestExistingPath(root),
     resolveRealOrNearestExistingPath(target)
   ])
+
   if (realTarget !== realRoot && !isPathInside(realTarget, realRoot)) {
     throw new Error(`Agent storage path resolves outside its root: ${target}`)
   }
@@ -88,6 +98,7 @@ export async function assertAgentStoragePath(agentsDataRoot: string, targetPath:
 export async function assertAgentStorageDirectory(agentsDataRoot: string, targetPath: string): Promise<void> {
   await assertAgentStoragePath(agentsDataRoot, targetPath)
   const targetStat = await lstat(asAbsolutePath(path.resolve(targetPath)))
+
   if (!targetStat.isDirectory || targetStat.isSymbolicLink) {
     throw new Error(`Agent storage directory must be a real directory: ${targetPath}`)
   }
@@ -100,6 +111,7 @@ export async function ensureAgentStorageDirectory(agentsDataRoot: string, target
   await ensureDir(asAbsolutePath(path.resolve(targetPath)))
   await assertAgentStoragePath(agentsDataRoot, targetPath)
   const targetStat = await lstat(asAbsolutePath(path.resolve(targetPath)))
+
   if (!targetStat.isDirectory || targetStat.isSymbolicLink) {
     throw new Error(`Agent storage directory must be a real directory: ${targetPath}`)
   }
@@ -113,17 +125,21 @@ function assertAgentId(agentId: string): void {
 
 export function agentDataDirectoryPath(agentsDataRoot: string, agentId: string): string {
   assertAgentId(agentId)
+
   return path.join(agentsDataRoot, agentId)
 }
 
 async function ensureEmptyFile(filePath: string): Promise<void> {
   const existing = await lstatIfExists(filePath)
+
   if (existing) {
     if (!existing.isFile || existing.isSymbolicLink) {
       throw new Error(`Agent data file must be a real file: ${filePath}`)
     }
+
     return
   }
+
   try {
     const handle = await open(filePath, 'wx', 0o600)
     await handle.close()
@@ -131,6 +147,7 @@ async function ensureEmptyFile(filePath: string): Promise<void> {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
 
     const racedFile = await lstatIfExists(filePath)
+
     if (!racedFile?.isFile || racedFile.isSymbolicLink) {
       throw new Error(`Agent data file must be a real file: ${filePath}`)
     }
@@ -153,6 +170,7 @@ export async function ensureAgentDataDirectory(
   }
 
   await assertAgentDataDirectory(agentsDataRoot, agentId)
+
   return agentDataPath
 }
 
@@ -160,13 +178,16 @@ export async function createAgentDataDirectory(agentsDataRoot: string, agentId: 
   const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
   await ensureAgentStorageDirectory(agentsDataRoot, agentsDataRoot)
   await assertAgentStoragePath(agentsDataRoot, agentDataPath)
+
   if (await lstatIfExists(agentDataPath)) {
     throw new Error(`Agent data directory already exists: ${agentDataPath}`)
   }
 
   await mkdir(asAbsolutePath(agentDataPath))
+
   try {
     await ensureAgentDataDirectory(agentsDataRoot, agentId)
+
     return agentDataPath
   } catch (error) {
     await removeAgentDataDirectory(agentsDataRoot, agentId).catch(() => undefined)
@@ -179,12 +200,14 @@ export async function assertAgentDataDirectory(agentsDataRoot: string, agentId: 
   await assertAgentStoragePath(agentsDataRoot, agentDataPath)
 
   const rootStat = await lstatIfExists(agentDataPath)
+
   if (!rootStat?.isDirectory || rootStat.isSymbolicLink) {
     throw new Error(`Agent data directory must be a real directory: ${agentDataPath}`)
   }
 
   const memoryPath = path.join(agentDataPath, 'memory')
   const memoryStat = await lstatIfExists(memoryPath)
+
   if (!memoryStat?.isDirectory || memoryStat.isSymbolicLink) {
     throw new Error(`Agent memory directory must be a real directory: ${memoryPath}`)
   }
@@ -192,26 +215,32 @@ export async function assertAgentDataDirectory(agentsDataRoot: string, agentId: 
   for (const filename of AGENT_DATA_FILES) {
     const filePath = path.join(agentDataPath, filename)
     const fileStat = await lstatIfExists(filePath)
+
     if (fileStat && (!fileStat.isFile || fileStat.isSymbolicLink)) {
       throw new Error(`Agent data file must be a real file: ${filePath}`)
     }
   }
+
   return agentDataPath
 }
 
 export async function removeAgentStorageSubdirectory(agentsDataRoot: string, targetPath: string): Promise<void> {
   const root = asAbsolutePath(path.resolve(agentsDataRoot))
   const target = asAbsolutePath(path.resolve(targetPath))
+
   if (!isPathInside(target, root)) {
     throw new Error(`Refusing to recursively remove the Agent storage root or an outside path: ${target}`)
   }
 
   const targetStat = await lstatIfExists(target)
+
   if (!targetStat) return
   await assertAgentStoragePath(root, target)
+
   if (!targetStat.isDirectory || targetStat.isSymbolicLink) {
     throw new Error(`Refusing to recursively remove unsafe agent storage path: ${target}`)
   }
+
   await removeDir(target)
 }
 

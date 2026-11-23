@@ -16,12 +16,16 @@ async function downloadWithRedirects(url, destinationPath) {
         .get(url, (response) => {
           if (response.statusCode == 301 || response.statusCode == 302) {
             request(response.headers.location)
+
             return
           }
+
           if (response.statusCode !== 200) {
             reject(new Error(`Download failed: ${response.statusCode} ${response.statusMessage}`))
+
             return
           }
+
           const file = fs.createWriteStream(destinationPath)
           response.pipe(file)
           file.on('finish', () => resolve())
@@ -30,6 +34,7 @@ async function downloadWithRedirects(url, destinationPath) {
           reject(err)
         })
     }
+
     request(url)
   })
 }

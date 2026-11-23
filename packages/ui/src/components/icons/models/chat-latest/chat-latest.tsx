@@ -4,6 +4,7 @@ import { ChatLatestLight } from './light'
 
 const ChatLatest = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ChatLatestLight {...props} className={className} />
+
   return <ChatLatestLight {...props} className={className} />
 }
 

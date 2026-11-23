@@ -41,8 +41,11 @@ export function matchesIdentity(frame: FrameIdentity, identity: FrameIdentity): 
 
 export function isRemoteError(value: unknown): value is RemoteErrorShape {
   if (!isRecord(value)) return false
+
   if (typeof value.name !== 'string' || typeof value.message !== 'string') return false
+
   if (value.stack !== undefined && typeof value.stack !== 'string') return false
+
   return value.code === undefined || typeof value.code === 'string' || typeof value.code === 'number'
 }
 
@@ -53,6 +56,7 @@ export function isConnectFrame(value: unknown): value is ConnectFrame {
 export function isMainFrame(value: unknown): value is MainFrame {
   if (!isFrameIdentity(value)) return false
   const frame = value
+
   switch (frame.kind) {
     case 'stream-open':
       return (
@@ -91,6 +95,7 @@ export function isMainFrame(value: unknown): value is MainFrame {
 export function isChildFrame(value: unknown): value is ChildFrame {
   if (!isFrameIdentity(value)) return false
   const frame = value
+
   switch (frame.kind) {
     case 'stream-data':
     case 'stream-credit':
@@ -134,8 +139,11 @@ export function isChildFrame(value: unknown): value is ChildFrame {
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stream envelopes arrive with only their identity validated; sequence, metadata and native byte payloads are checked here.
 function isStreamMessage(frame: Record<string, unknown>): boolean {
   if (!isRequestId(frame.requestId) || !Number.isSafeInteger(frame.sequence)) return false
+
   if (frame.kind === 'stream-end' || frame.kind === 'stream-end-ack') return (frame.sequence as number) >= 0
+
   if ((frame.sequence as number) < 1) return false
+
   return (
     frame.kind === 'stream-credit' ||
     (typeof frame.metadata === 'string' && (frame.payload === undefined || frame.payload instanceof Uint8Array))

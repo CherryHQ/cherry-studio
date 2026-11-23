@@ -29,6 +29,7 @@ function mergeContribution(body: JSONObject, contribution: JSONObject): void {
       const previous = Object.hasOwn(body, k) ? body[k] : undefined
       const target = isPlainObject(previous) ? previous : {}
       mergeContribution(target, v)
+
       if (Object.keys(target).length > 0) setOwnField(body, k, target)
     } else if (v !== undefined && v !== '' && v !== 'auto') {
       setOwnField(body, k, v)
@@ -49,21 +50,27 @@ function mergeContribution(body: JSONObject, contribution: JSONObject): void {
 export function buildImageRequest(paramValues: ParamValues, profile: WireProfile) {
   const values: Record<string, ParamValues[keyof ParamValues]> = paramValues
   const body: Record<string, JSONValue> = {}
+
   for (const key of profile.forward ?? []) {
     const value = values[key]
+
     if (skipValue(value)) continue
     setOwnField(body, wireName(key), value)
   }
+
   for (const [key, rule] of Object.entries(profile.fields ?? {})) {
     if (!rule) continue
     const value = values[key]
+
     if (skipValue(value)) continue
+
     if (rule.contribute) {
       mergeContribution(body, rule.contribute(value, paramValues))
     } else if (rule.to) {
       setOwnField(body, rule.to, rule.map ? rule.map(value, paramValues) : value)
     }
   }
+
   return body
 }
 
@@ -86,6 +93,7 @@ function jsonBag<T>(bag: Record<string, T>) {
  *  what `passthrough` forwards. */
 function passthroughExtras<T>(vendorBag: Record<string, T>, profile: WireProfile) {
   const mapped = new Set<string>([...(profile.forward ?? []), ...Object.keys(profile.fields ?? {})])
+
   return Object.fromEntries(Object.entries(vendorBag).filter(([key]) => !mapped.has(key)))
 }
 
@@ -118,19 +126,24 @@ export function buildVendorProviderOptions<T = never>(
   const extras = passthroughExtras(vendorBag, registration.profile)
   const body = registration.passthrough ? { ...jsonBag(extras), ...mapped } : mapped
   const result = new Map<string, Record<string, JSONValue | T>>()
+
   // The primary body rides under the registration's delivery key when it overrides
   // the provider id (Vertex: id `google-vertex`, but the SDK reads `providerOptions.vertex`).
   if (Object.keys(body).length > 0) result.set(registration.key ?? providerId, body)
+
   // The `openai` mirror carries the CLEAN OpenAI image body (mapped fields only),
   // never the passthrough vendor bag: `@ai-sdk/openai` rejects unknown fields,
   // while the provider's own key (e.g. aihubmix, whose custom model reads the bag)
   // gets the full body. With no passthrough (the openai family) body === mapped, so
   // this is unchanged for them.
   if (registration.dualOpenAI && Object.keys(mapped).length > 0) result.set('openai', mapped)
+
   // Sibling-key bodies (dmxapi → google.imageConfig), emitted only when non-empty.
   for (const extra of registration.also ?? []) {
     const extraBody = buildImageRequest(paramValues, extra.profile)
+
     if (Object.keys(extraBody).length > 0) result.set(extra.key, extraBody)
   }
+
   return Object.fromEntries(result)
 }

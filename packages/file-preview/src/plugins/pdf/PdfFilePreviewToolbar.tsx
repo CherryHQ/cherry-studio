@@ -44,9 +44,11 @@ export function PdfFilePreviewToolbar({
 
   const commitPage = () => {
     const pageNumber = Number(pageValue)
+
     if (Number.isInteger(pageNumber) && pageNumber > 0) {
       onJumpToPage(pageNumber)
     }
+
     setPageValue(hasPages ? String(currentPage) : '')
   }
 

@@ -4,6 +4,7 @@ import { OpenrouterLight } from './light'
 
 const Openrouter = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <OpenrouterLight {...props} className={className} />
+
   return <OpenrouterLight {...props} className={className} />
 }
 

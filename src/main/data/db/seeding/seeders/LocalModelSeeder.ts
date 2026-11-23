@@ -19,6 +19,7 @@ import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
 
 type LocalEmbeddingProviderRow = Omit<InsertUserProviderRow, 'orderKey'>
+
 type LocalEmbeddingModelRow = Omit<InsertUserModelRow, 'orderKey'>
 
 function createLocalEmbeddingProviderRow(): LocalEmbeddingProviderRow {
@@ -83,11 +84,13 @@ export class LocalModelSeeder implements ISeeder {
         .where(eq(userModelTable.id, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
         .limit(1)
         .all()
+
       if (existing) {
         tx.update(userModelTable)
           .set({ name: LOCAL_EMBEDDING_MODEL_NAME })
           .where(eq(userModelTable.id, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
           .run()
+
         return
       }
 

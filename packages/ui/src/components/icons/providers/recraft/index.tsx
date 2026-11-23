@@ -6,7 +6,9 @@ import { RecraftLight } from './light'
 
 const Recraft = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <RecraftLight {...props} className={className} />
+
   if (variant === 'dark') return <RecraftDark {...props} className={className} />
+
   return (
     <>
       <RecraftLight className={cn('dark:hidden', className)} {...props} />

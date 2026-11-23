@@ -6,7 +6,9 @@ import { XiaoyiLight } from './light'
 
 const Xiaoyi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <XiaoyiLight {...props} className={className} />
+
   if (variant === 'dark') return <XiaoyiDark {...props} className={className} />
+
   return (
     <>
       <XiaoyiLight className={cn('dark:hidden', className)} {...props} />

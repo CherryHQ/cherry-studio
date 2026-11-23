@@ -9,7 +9,9 @@ export function getCustomParameters(assistant: Assistant): Record<string, unknow
 
       if (param.type === 'json') {
         const value = param.value
+
         if (value === 'undefined') return [[param.name, undefined]]
+
         try {
           return [[param.name, JSON.parse(String(value))]]
         } catch {
@@ -25,7 +27,10 @@ export function getCustomParameters(assistant: Assistant): Record<string, unknow
 /** Tag used by the response-side reasoning extraction middleware. */
 export function getReasoningTagName(modelId: string | undefined): string {
   if (modelId?.includes('gpt-oss')) return 'reasoning'
+
   if (modelId?.includes('gemini')) return 'thought'
+
   if (modelId?.includes('seed-oss-36b')) return 'seed:think'
+
   return 'think'
 }

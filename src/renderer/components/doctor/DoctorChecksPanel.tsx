@@ -35,11 +35,14 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   const [agentOpen, setAgentOpen] = useState(false)
   const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
   const dataPath = viewModel.report?.basics.userDataPath
+
   const sortedRows = viewModel.rows.toSorted(
     (a, b) => CHECK_STATUS_PRIORITY[a.status] - CHECK_STATUS_PRIORITY[b.status]
   )
+
   const copyResults = async () => {
     if (!viewModel.report) return
+
     try {
       await navigator.clipboard.writeText(
         formatDoctorReportForCopy(viewModel.report, {

@@ -31,6 +31,7 @@ const writeLimiter = new ConcurrentRateLimiter('clipboard.write', 30, 1)
 function assertInFront(appId: string, senderId: number, permission: 'clipboard.read' | 'clipboard.write'): void {
   const inFront =
     application.get('MiniAppRuntimeService').isGuestVisible(senderId) && webContents.fromId(senderId)?.isFocused()
+
   if (!inFront) {
     throw new PermissionDeniedError(
       appId,
@@ -44,6 +45,7 @@ export const clipboardCapability = {
   async read(appId: string, senderId: number) {
     assertInFront(appId, senderId, 'clipboard.read')
     const release = readLimiter.acquire(appId)
+
     try {
       // Clipped, never refused: the app cannot make the user's clipboard smaller.
       return { text: (await clipboard.readText()).slice(0, MINI_APP_GUEST_LIMITS.clipboardTextChars) }
@@ -57,8 +59,10 @@ export const clipboardCapability = {
     const { text } = WriteParams.parse(params)
     assertInFront(appId, senderId, 'clipboard.write')
     const release = writeLimiter.acquire(appId)
+
     try {
       await clipboard.writeText(text)
+
       return { ok: true }
     } finally {
       release()

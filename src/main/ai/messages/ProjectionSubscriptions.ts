@@ -22,6 +22,7 @@ export class ProjectionSubscriptions {
   ): Promise<MessageProjectionView | null> {
     this.detach(sender, id)
     let subscriptions = this.windows.get(sender)
+
     if (!subscriptions) {
       const windowSubscriptions = new Map<string, () => void>()
       subscriptions = windowSubscriptions
@@ -31,16 +32,24 @@ export class ProjectionSubscriptions {
         this.windows.delete(sender)
       })
     }
+
     const marker = () => {}
+
     subscriptions.set(id, marker)
+
     try {
       const source = await resolve()
+
       if (sender.isDestroyed() || subscriptions.get(id) !== marker) return null
+
       if (!source) {
         subscriptions.delete(id)
+
         return null
       }
+
       subscriptions.set(id, source.subscribe(send))
+
       return source.snapshot()
     } catch (error) {
       if (subscriptions.get(id) === marker) subscriptions.delete(id)

@@ -4,6 +4,7 @@ import { SkyworkLight } from './light'
 
 const Skywork = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SkyworkLight {...props} className={className} />
+
   return <SkyworkLight {...props} className={className} />
 }
 

@@ -13,6 +13,7 @@ import { renderSvgInShadowHost } from './utils'
 // 管理 viz 实例
 const vizInitializer = new AsyncInitializer(async () => {
   const module = await import('@viz-js/viz')
+
   return await module.instance()
 })
 
@@ -36,11 +37,13 @@ const GraphvizPreview = ({
       // Viz ignores its node/edge default options, so prepend defaults to the body; Helvetica has Graphviz metrics.
       // ponytail: assumes the first `{` opens the body; a `{` in a quoted graph name before it would break this.
       const font = 'fontname="Helvetica,Arial,sans-serif"'
+
       const defaults = [
         `graph [bgcolor="transparent" color="${roles.border}" fontcolor="${roles.text}" ${font}];`,
         `node [color="${roles.border}" fontcolor="${roles.text}" ${font}];`,
         `edge [color="${roles.line}" fontcolor="${roles.text}" ${font}];`
       ].join(' ')
+
       const svg = viz.renderString(content.replace('{', `{ ${defaults}`), { format: 'svg' })
       renderSvgInShadowHost(svg, container)
     },

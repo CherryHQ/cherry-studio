@@ -10,6 +10,7 @@ import CutoffSettings from './CutoffSettings'
 
 const settingRowClassName = 'min-h-8 items-center justify-between gap-3'
 const settingLabelClassName = 'min-w-0 flex-1'
+
 type CompressionMethod = 'none' | 'cutoff'
 
 const CompressionSettings = () => {
@@ -20,7 +21,9 @@ const CompressionSettings = () => {
   const handleCompressionMethodChange = (value: CompressionMethod) => {
     void persist(() => {
       const config: Parameters<typeof updateCompressionConfig>[0] = { method: value }
+
       if (value === 'cutoff') config.cutoffLimit = compressionConfig?.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT
+
       return updateCompressionConfig(config)
     }, 'Failed to save web search compression method')
   }

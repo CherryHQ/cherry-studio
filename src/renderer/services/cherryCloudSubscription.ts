@@ -16,6 +16,7 @@ export async function startCherryCloudSubscription(
 ): Promise<void> {
   const flowId = recordSubscribeClick()
   cacheService.setPersist('ui.cherry_cloud.subscribe_prompt_seen', true)
+
   try {
     await ipcApi.request('cherry_cloud.subscription.start', { source, flowId, ...details })
   } catch (error) {

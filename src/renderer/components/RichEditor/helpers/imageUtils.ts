@@ -25,6 +25,7 @@ export async function compressImage(file: File, options: ImageCompressionOptions
 
     if (!ctx) {
       reject(new Error('无法获取 Canvas 上下文'))
+
       return
     }
 

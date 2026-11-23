@@ -25,7 +25,9 @@ export function registerImageModeChooser(fn: ImageModeChooserFn): void {
 export async function chooseImageExportMode(imageCount: number): Promise<ImageExportMode | null | undefined> {
   if (!chooser) {
     logger.warn('No image-mode chooser registered; aborting an image-bearing markdown export')
+
     return undefined
   }
+
   return chooser(imageCount)
 }

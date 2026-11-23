@@ -2,6 +2,7 @@ import type { CreateMcpServerDto, UpdateMcpServerDto } from '@shared/data/api/sc
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 type McpServerDraft = Partial<McpServer> & { url?: string }
+
 type CreateMcpServerDraft = McpServerDraft & Pick<McpServer, 'name'>
 
 const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMcpServerDto => {
@@ -11,6 +12,7 @@ const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMcpServerDt
   delete dto.createdAt
   delete dto.updatedAt
   delete dto.url
+
   return dto
 }
 

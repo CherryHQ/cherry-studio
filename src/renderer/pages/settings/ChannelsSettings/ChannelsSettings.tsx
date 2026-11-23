@@ -26,6 +26,7 @@ const ChannelsSettings: FC = () => {
           <MenuList className={settingsSubmenuListClassName}>
             {AVAILABLE_CHANNELS.map((ch) => {
               const iconSrc = getChannelTypeIcon(ch.type)
+
               return (
                 <MenuItem
                   key={ch.type}

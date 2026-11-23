@@ -7,6 +7,7 @@ import { reconcileSessionListItems } from './sessionListItemSharing'
 function createSessions(count: number, renamedId?: string): AgentSessionEntity[] {
   return Array.from({ length: count }, (_, index) => {
     const id = `benchmark-session-${index}`
+
     return {
       id,
       agentId: 'benchmark-agent',
@@ -33,9 +34,11 @@ function createSessions(count: number, renamedId?: string): AgentSessionEntity[]
 
 function countReusedItems(previous: readonly unknown[], next: readonly unknown[]): number {
   let reused = 0
+
   for (let index = 0; index < next.length; index++) {
     if (next[index] === previous[index]) reused++
   }
+
   return reused
 }
 
@@ -54,6 +57,7 @@ function createScenario(count: number) {
   const equalReused = countReusedItems(initial.items, equalRefresh.items)
   const pinReused = countReusedItems(initial.items, pinUpdate.items)
   const nameReused = countReusedItems(initial.items, nameUpdate.items)
+
   if (equalReused !== count || pinReused !== count - 1 || nameReused !== count - 1) {
     throw new Error('Session list benchmark scenario does not preserve the expected memo-row inputs')
   }

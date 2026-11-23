@@ -37,6 +37,7 @@ function SelectionAgentRuntime(): null {
   // A pooled window loads what the compose bar labels while it waits, so a fresh bar shows its
   // agent and workspace at once instead of fallbacks. The agent read must match the bar's own.
   const [actionItems] = usePreference('feature.selection.action_items')
+
   const askAgentId = useMemo(
     () =>
       parseSelectionActions(actionItems ?? []).find(
@@ -45,9 +46,11 @@ function SelectionAgentRuntime(): null {
       )?.agentId ?? null,
     [actionItems]
   )
+
   useSelectionAgents([askAgentId])
   const { refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
   useDataChange('/agent-workspaces', () => void refetchWorkspaces())
+
   return null
 }
 

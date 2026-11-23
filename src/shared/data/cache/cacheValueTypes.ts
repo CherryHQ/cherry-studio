@@ -200,11 +200,17 @@ export type CachePaintingGenerationState = {
 }
 
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
+
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
+
 export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null
+
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
+
 export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
+
 export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
+
 export type CacheAgentSessionTurnOrigin = AutonomousTurnOrigin | null
 
 /**
@@ -245,5 +251,6 @@ export type CacheMiniAppAttention = {
 
 /** System Doctor run state; see `@shared/types/doctor`. */
 export type CacheDoctorState = DoctorState
+
 /** Doctor Agent analysis state; see `@shared/types/doctorAgent`. */
 export type CacheDoctorAgentState = DoctorAgentState

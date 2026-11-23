@@ -31,7 +31,9 @@ import {
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 
 const logger = loggerService.withContext('ShortcutService')
+
 type ShortcutHandler = (window?: BrowserWindow) => void
+
 type RegisteredShortcut = {
   key: CommandShortcutPreferenceKey<CommandId>
   handler: ShortcutHandler
@@ -56,6 +58,7 @@ const contextKeys = Array.from(
   new Set(
     globalKeybindings.flatMap((rule) => {
       const command = findCommandDefinition(rule.command)
+
       return [...collectContextKeys(command?.enablement), ...collectContextKeys(rule.when)].filter(
         (key) => key !== 'platform'
       )
@@ -108,6 +111,7 @@ export class ShortcutService extends BaseService {
 
   private subscribeToPreferenceChanges(): void {
     const preferenceService = application.get('PreferenceService')
+
     for (const rule of globalKeybindings) {
       this.registerDisposable(
         preferenceService.subscribeChange(rule.preferenceKey, () => {
@@ -137,13 +141,17 @@ export class ShortcutService extends BaseService {
         if (input.type !== 'keyDown' || input.isComposing) return
 
         const preferenceService = application.get('PreferenceService')
+
         const context: ContextReader = (key) => {
           if (key === 'platform') return process.platform
+
           return toContextValue(preferenceService.get(key as PreferenceKeyType))
         }
+
         const preferences = Object.fromEntries(
           localKeybindings.map((rule) => [rule.command, preferenceService.get(rule.preferenceKey)])
         ) as Partial<Record<CommandId, PreferenceShortcutType>>
+
         const command = resolveCommandByKeybinding({
           binding: getShortcutBindingFromKeyboardEvent(
             {
@@ -168,13 +176,17 @@ export class ShortcutService extends BaseService {
         event.preventDefault()
         this.handlers.get(command)?.(window)
       }
+
       const onClosed = () => {
         this.registeredWindows.delete(window)
+
         if (this.mainWindow === window) {
           this.mainWindow = null
         }
       }
+
       const { webContents } = window
+
       const onDidAttachWebview = (_event: Electron.Event, guestContents: WebContents) => {
         const cleanup = () => {
           guestContents.off('before-input-event', onBeforeInput)
@@ -207,29 +219,35 @@ export class ShortcutService extends BaseService {
 
     // Build the desired set of accelerators
     const desired = new Map<string, RegisteredShortcut>()
+
     const context: ContextReader = (key) => {
       if (key === 'platform') {
         return process.platform
       }
+
       return toContextValue(preferenceService.get(key as PreferenceKeyType))
     }
 
     for (const rule of globalKeybindings) {
       const command = findCommandDefinition(rule.command)
+
       if (!command || !evaluateContextExpr(command.enablement, context)) {
         continue
       }
 
       const rawPref = preferenceService.get(rule.preferenceKey) as PreferenceShortcutType | undefined
+
       const resolved = resolveCommandKeybinding({
         command: rule.command,
         preference: rawPref,
         context,
         platform: process.platform as SupportedPlatform
       })
+
       if (!resolved?.enabled || !resolved.binding.length) continue
 
       const handler = this.handlers.get(rule.command)
+
       if (!handler) continue
 
       if (resolved.accelerator) {
@@ -239,6 +257,7 @@ export class ShortcutService extends BaseService {
       if (resolved.additionalBindings) {
         for (const variant of resolved.additionalBindings) {
           const variantAccelerator = variant.join('+')
+
           if (variantAccelerator) {
             desired.set(variantAccelerator, { key: rule.preferenceKey, handler, window })
           }
@@ -247,6 +266,7 @@ export class ShortcutService extends BaseService {
     }
 
     const activeKeys = new Set(Array.from(desired.values(), (entry) => entry.key))
+
     for (const key of this.conflictedKeys) {
       if (!activeKeys.has(key)) {
         this.clearRegistrationConflict(key)
@@ -256,12 +276,14 @@ export class ShortcutService extends BaseService {
     // Unregister shortcuts that are no longer needed or have a different handler
     for (const [accelerator, previous] of this.registeredAccelerators) {
       const entry = desired.get(accelerator)
+
       if (!entry || entry.handler !== previous.handler || entry.window !== previous.window) {
         try {
           globalShortcut.unregister(accelerator)
         } catch (error) {
           logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
         }
+
         this.registeredAccelerators.delete(accelerator)
       }
     }
@@ -272,12 +294,14 @@ export class ShortcutService extends BaseService {
         try {
           const success = globalShortcut.register(accelerator, () => {
             const targetWindow = win?.isDestroyed?.() ? undefined : win
+
             try {
               handler(targetWindow)
             } catch (error) {
               logger.error(`Shortcut handler threw for accelerator: ${accelerator}`, error as Error)
             }
           })
+
           if (success) {
             this.registeredAccelerators.set(accelerator, { key, handler, window: win })
             this.clearRegistrationConflict(key)
@@ -306,6 +330,7 @@ export class ShortcutService extends BaseService {
         logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
       }
     }
+
     this.registeredAccelerators.clear()
   }
 
@@ -328,6 +353,7 @@ export class ShortcutService extends BaseService {
     if (!this.conflictedKeys.delete(key)) {
       return
     }
+
     this.emitRegistrationConflict({ key, hasConflict: false })
   }
 

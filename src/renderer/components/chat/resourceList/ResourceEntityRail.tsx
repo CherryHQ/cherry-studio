@@ -50,6 +50,7 @@ const ENTITY_RAIL_PINNED_SECTION_ID = 'resource-entity-rail:section:pinned'
 const ENTITY_RAIL_DEFAULT_SECTION_ID = 'resource-entity-rail:section:default'
 const ENTITY_RAIL_PINNED_GROUP_ID = 'resource-entity-rail:group:pinned'
 const ENTITY_RAIL_DEFAULT_GROUP_ID = 'resource-entity-rail:group:default'
+
 // When `groupByGroup` is on, each group id becomes its own collapsible section below the pinned one;
 // ungrouped entities collapse together under a distinct internal bucket.
 const ENTITY_RAIL_GROUP_SECTION_PREFIX = 'resource-entity-rail:section:'
@@ -65,6 +66,7 @@ function getEntityRailCanonicalGroupId(resourceListSectionId: string): string | 
 
   try {
     const value = JSON.parse(resourceListSectionId.slice(ENTITY_RAIL_GROUP_SECTION_PREFIX.length))
+
     return Array.isArray(value) && value[0] === 'group' && typeof value[1] === 'string' ? value[1] : null
   } catch {
     return null
@@ -73,6 +75,7 @@ function getEntityRailCanonicalGroupId(resourceListSectionId: string): string | 
 
 function getEntityRailGroupRank(item: ResourceEntityRailItem) {
   if (item.pinned) return 0
+
   return item.groupId ? 2 : 1
 }
 
@@ -81,7 +84,9 @@ function sortEntityRailItemsForGroupGrouping<T extends ResourceEntityRailItem>(i
     .map((item, index) => ({ item, index, rank: getEntityRailGroupRank(item) }))
     .sort((a, b) => {
       const rankDifference = a.rank - b.rank
+
       if (rankDifference !== 0) return rankDifference
+
       if (a.rank !== 2) return a.index - b.index
 
       return compareResourceOrderKey(a.item.groupOrderKey, b.item.groupOrderKey) || a.index - b.index
@@ -172,31 +177,38 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const effectiveListRef = listRef ?? fallbackListRef
   const effectiveSelectedId = selectionSuppressed ? null : selectedId
   const effectiveSelectedClickId = selectedClickId === undefined ? selectedId : selectedClickId
+
   const handleItemClick = useCallback(
     (item: T) => {
       if (effectiveSelectedClickId === item.id && onSelectedClick) {
         void onSelectedClick(item)
+
         return
       }
+
       void onSelect(item)
     },
     [effectiveSelectedClickId, onSelect, onSelectedClick]
   )
+
   // Keyboard activation (Enter/Space) goes through the list's `selectItem` action, not the row's
   // onClick, so route it back through `handleItemClick` to keep keyboard and mouse in sync —
   // including the "activate the already-selected entity to toggle its pane" behavior.
   const handleSelectItemById = useCallback(
     (id: string) => {
       const item = items.find((entry) => entry.id === id)
+
       if (item) handleItemClick(item)
     },
     [handleItemClick, items]
   )
+
   const runContextMenuAction = useCallback(
     async (item: T, action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled || !onContextMenuAction) return
 
       const confirm = action.confirm
+
       if (confirm) {
         // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
         // surfaces failures (toast + retry), so a rejected action is never silent.
@@ -208,6 +220,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           danger: confirm.destructive,
           action: () => onContextMenuAction(item, action)
         })
+
         return
       }
 
@@ -215,14 +228,17 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     },
     [onContextMenuAction]
   )
+
   const renderItem = useCallback(
     (item: T) => {
       const actions = getContextMenuActions?.(item) ?? []
       const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
       const hasTrailingAction = Boolean(item.trailingAction)
+
       const extraItems = hasVisibleMenuActions
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
         : []
+
       // No row onClick: selection for mouse, row-Enter, and listbox-keyboard all funnel through
       // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
       // every path stays consistent and fires exactly once.
@@ -258,6 +274,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           )}
         </ResourceList.Item>
       )
+
       if (!actions.length || !onContextMenuAction) return row
 
       return (
@@ -272,6 +289,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     },
     [getContextMenuActions, onContextMenuAction, runContextMenuAction, t]
   )
+
   const empty = useMemo(
     () =>
       emptyFallback ?? (
@@ -281,10 +299,12 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       ),
     [emptyFallback, t, variant]
   )
+
   const providerItems = useMemo(
     () => (groupByGroup ? sortEntityRailItemsForGroupGrouping(items) : items),
     [groupByGroup, items]
   )
+
   // Collapsible sections matching the modern layout's left assistant/agent layout (minus the nested
   // topics/sessions): pinned entities float into "已固定" at the top, the rest sit under the
   // "助手" / "智能体" section below. Section headers stay flush-left; the entity rows keep their
@@ -293,46 +313,58 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const sectionBy = useMemo<(item: T) => ResourceListSection>(
     () => (item) => {
       if (item.pinned) return { id: ENTITY_RAIL_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
+
       if (groupByGroup) {
         const groupBucketKey = getEntityRailGroupBucketKey(item.groupId)
+
         return item.groupId && item.groupName
           ? { id: `${ENTITY_RAIL_GROUP_SECTION_PREFIX}${groupBucketKey}`, label: item.groupName }
           : { id: `${ENTITY_RAIL_GROUP_SECTION_PREFIX}${groupBucketKey}`, label: t('assistants.groups.ungrouped') }
       }
+
       return { id: ENTITY_RAIL_DEFAULT_SECTION_ID, label: defaultGroupLabel ?? '' }
     },
     [defaultGroupLabel, groupByGroup, t]
   )
+
   // Header-less groups (one per section, distinct ids) keep entity avatars visible and stop
   // drag-reorder from crossing the pinned/non-pinned (or per-group) boundary.
   const groupBy = useMemo<(item: T) => ResourceListGroup>(
     () => (item) => {
       if (item.pinned) return { id: ENTITY_RAIL_PINNED_GROUP_ID, label: '' }
+
       if (groupByGroup) {
         return { id: `${ENTITY_RAIL_GROUP_GROUP_PREFIX}${getEntityRailGroupBucketKey(item.groupId)}`, label: '' }
       }
+
       return { id: ENTITY_RAIL_DEFAULT_GROUP_ID, label: '' }
     },
     [groupByGroup]
   )
+
   const handleReorder = useCallback(
     (payload: ResourceListReorderPayload) => {
       if (payload.type === 'item') {
         void onReorder?.(payload)
+
         return
       }
+
       const groupId = getEntityRailCanonicalGroupId(payload.activeGroupId)
       const anchorGroupId = getEntityRailCanonicalGroupId(payload.overGroupId)
+
       if (!groupId || !anchorGroupId || !onGroupReorder) return
 
       void onGroupReorder(groupId, buildResourceListGroupDropAnchor(payload, anchorGroupId))
     },
     [onGroupReorder, onReorder]
   )
+
   const canDragGroup = useCallback(
     (group: ResourceListGroup) => groupReorderEnabled && getEntityRailCanonicalGroupId(group.id) !== null,
     [groupReorderEnabled]
   )
+
   const canDropGroup = useCallback(
     (payload: { activeGroupId: string; overGroupId: string }) =>
       groupReorderEnabled &&
@@ -340,6 +372,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       getEntityRailCanonicalGroupId(payload.overGroupId) !== null,
     [groupReorderEnabled]
   )
+
   // Alias the compound provider to a local before rendering — same pattern as TopicResourceList/SessionResourceList.
   // Written inline as `<ResourceList.Provider>` it gets auto-rewritten to `<ResourceList>` by the
   // React-19 "drop Context .Provider" lint fixer (ResourceList.Provider only looks like a Context).

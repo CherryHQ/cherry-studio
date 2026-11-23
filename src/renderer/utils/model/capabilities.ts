@@ -39,6 +39,7 @@ export const getRawModelId = (model: Model): string => model.apiModelId ?? parse
 // canonical, but a few renderer checks still try name as a fallback.
 export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T) => {
   const modelWithNameAsId = { ...model, apiModelId: model.name }
+
   return {
     idResult: fn(model),
     nameResult: fn(modelWithNameAsId)
@@ -92,8 +93,10 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
       const modelId = getLowerBaseModelName(getRawModelId(model))
       const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
       const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
+
       if (!groups[groupKey]) groups[groupKey] = []
       groups[groupKey].push(model)
+
       return groups
     },
     {} as Record<string, Model[]>
@@ -112,11 +115,15 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
   {
     validator: (model: Model) => {
       const modelId = getLowerBaseModelName(getRawModelId(model))
+
       if (modelId.includes('chat')) return false
+
       if (modelId.includes('codex')) {
         if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) return false
+
         return true
       }
+
       return isGPT5FamilyModel(model)
     },
     values: ['low', 'medium', 'high']
@@ -130,12 +137,14 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
 export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
   if (!model || !isSupportVerbosityModel(model)) return [undefined]
   let supportedValues: ValidOpenAIVerbosity[] = []
+
   for (const { validator, values } of MODEL_SUPPORTED_VERBOSITY) {
     if (validator(model)) {
       supportedValues = [null, ...values]
       break
     }
   }
+
   return [undefined, ...supportedValues]
 }
 

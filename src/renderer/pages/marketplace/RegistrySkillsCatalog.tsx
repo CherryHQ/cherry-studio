@@ -17,7 +17,9 @@ import { MarketplaceSkillDialog } from './MarketplaceSkillDialog'
 import { MarketplaceSkillIcon } from './MarketplaceSkillIcon'
 
 export const SKILL_REGISTRY_SOURCES = ['skills.sh', 'claude-plugins.dev'] as const
+
 export type SkillRegistrySource = (typeof SKILL_REGISTRY_SOURCES)[number]
+
 const DISPLAY_PAGE_SIZE = 30
 
 export function RegistrySkillsCatalog({
@@ -44,6 +46,7 @@ export function RegistrySkillsCatalog({
   const installed = useInstalledSkills()
   const { install, isInstalling } = useSkillInstall()
   const pending = useRef(new Set<string>())
+
   const ranking = useSWRInfinite(
     (page, previous) =>
       active && !keyword && (!previous || previous.hasMore)
@@ -52,22 +55,29 @@ export function RegistrySkillsCatalog({
     ([, registry, cursor]: [string, SkillRegistrySource, number]) => loadSkillRegistryPage(registry, cursor),
     { revalidateOnFocus: false, revalidateFirstPage: false, shouldRetryOnError: false }
   )
+
   const { data, error, isLoading, isValidating, size, setSize, mutate } = ranking
+
   const ranked = useMemo(() => {
     const unique = new Map<string, SkillSearchResult>()
+
     for (const page of data ?? [])
       for (const item of page.items) {
         if (!unique.has(item.installSource)) unique.set(item.installSource, item)
       }
+
     return [...unique.values()]
   }, [data])
+
   const hasMore = data?.at(-1)?.hasMore ?? false
   const items = keyword ? results : ranked.slice(0, visibleCount)
+
   const installedSources = useMemo(
     () =>
       new Set(
         installed.skills.flatMap((skill) => {
           const source = skill.sourceUrl ? parseSkillSourceUrl(skill.sourceUrl) : null
+
           return source ? [source.installSource] : []
         })
       ),
@@ -78,26 +88,34 @@ export function RegistrySkillsCatalog({
     clear()
     content.current?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')?.scrollTo({ top: 0 })
     setVisibleCount(DISPLAY_PAGE_SIZE)
+
     if (!active || !keyword) {
       setDebouncing(false)
+
       return
     }
+
     setDebouncing(true)
+
     const timer = setTimeout(() => {
       setDebouncing(false)
       void search(keyword)
     }, 300)
+
     return () => clearTimeout(timer)
   }, [active, keyword, clear, search])
 
   useEffect(() => {
     if (!active || keyword || error || isValidating || !data || data.length < size) return
+
     if (visibleCount > ranked.length && hasMore) void setSize(size + 1)
   }, [active, keyword, error, isValidating, data, size, visibleCount, ranked.length, hasMore, setSize])
 
   useEffect(() => {
     if (!active || keyword || error || isLoading || isValidating || !sentinel.current) return
+
     if (visibleCount > ranked.length || (visibleCount === ranked.length && !hasMore)) return
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -107,15 +125,19 @@ export function RegistrySkillsCatalog({
       },
       { root: content.current?.closest('[data-slot="scroll-area-viewport"]') }
     )
+
     observer.observe(sentinel.current)
+
     return () => observer.disconnect()
   }, [active, keyword, error, isLoading, isValidating, visibleCount, ranked.length, hasMore])
 
   const add = async (item: SkillSearchResult) => {
     if (pending.current.has(item.installSource)) return
     pending.current.add(item.installSource)
+
     try {
       const result = await install(item.installSource)
+
       if (result.skill) {
         toast.success(t('settings.skills.installSuccess', { name: item.name }))
       } else {
@@ -127,6 +149,7 @@ export function RegistrySkillsCatalog({
   }
 
   const selectedSource = displayedSelection?.sourceUrl ? parseSkillSourceUrl(displayedSelection.sourceUrl) : null
+
   const repository =
     selectedSource?.sourceRegistry === source && selectedSource.installSource === displayedSelection?.installSource
       ? 'https://github.com/' +
@@ -136,6 +159,7 @@ export function RegistrySkillsCatalog({
           .slice(0, 2)
           .join('/')
       : null
+
   const selectedSkill: MarketplaceSkill | null = displayedSelection
     ? {
         id: displayedSelection.installSource,
@@ -159,6 +183,7 @@ export function RegistrySkillsCatalog({
         isCollection: false
       }
     : null
+
   const selectedInstalled = displayedSelection ? installedSources.has(displayedSelection.installSource) : false
   const selectedBusy = displayedSelection ? isInstalling(displayedSelection.installSource) : false
 
@@ -178,6 +203,7 @@ export function RegistrySkillsCatalog({
           const added = installedSources.has(item.installSource)
           const busy = isInstalling(item.installSource)
           const supported = parseSkillSourceUrl(item.sourceUrl ?? '')?.installSource === item.installSource
+
           return (
             <MarketplaceCard
               name={item.name}

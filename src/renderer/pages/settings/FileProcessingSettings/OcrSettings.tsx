@@ -15,10 +15,12 @@ const EMPTY_MENU_ENTRIES: FileProcessingMenuEntry[] = []
 const OcrSettings: FC = () => {
   const { t } = useTranslation()
   const { theme: themeMode } = useTheme()
+
   const { defaultImageProcessor, processors, setApiKeys, setCapabilityField, setDefaultProcessor, setLanguageOptions } =
     useFileProcessingPreferences()
 
   const availableProcessors = useAvailableFileProcessors()
+
   const visibleProcessorIds = useMemo(
     () =>
       availableProcessors.status === 'ready' || !defaultImageProcessor
@@ -26,6 +28,7 @@ const OcrSettings: FC = () => {
         : new Set([defaultImageProcessor]),
     [availableProcessors.processorIds, availableProcessors.status, defaultImageProcessor]
   )
+
   const menuEntries = useMemo(
     () =>
       getFeatureSections(processors, visibleProcessorIds).find((section) => section.feature === 'image_to_text')

@@ -19,6 +19,7 @@ export function NumberShortcutSettings({
   const secondary = isMac ? '⌃' : 'Alt+'
   const conversationLabel = `${primary} 1–9 ${t('settings.shortcuts.number_keys.conversations')}`
   const tabLabel = `${primary} 1–9 ${t('settings.shortcuts.number_keys.tabs')}`
+
   return (
     <SettingGroup className="mb-6">
       <SettingRow id="setting-shortcut-number-keys" className="scroll-mt-6">

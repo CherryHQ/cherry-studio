@@ -12,7 +12,9 @@ import { getFileTypeByExt } from '@shared/utils/file'
 
 const logger = loggerService.withContext('useFileHydration')
 const FILE_IPC_BATCH_SIZE = 500
+
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
+
 type BatchKey = readonly ['files-hydration', FileBatchRoute, string, readonly FileEntryId[]]
 
 async function fetchFileBatch([, route, , ids]: BatchKey) {
@@ -31,6 +33,7 @@ async function fetchFileBatch([, route, , ids]: BatchKey) {
 function useFileBatch<Route extends FileBatchRoute>(route: Route, batches: FileEntryId[][], scope: string) {
   const getKey = (index: number): BatchKey | null =>
     batches[index] ? ['files-hydration', route, scope, batches[index]] : null
+
   const { data, error, isValidating, size, setSize, mutate } = useSWRInfinite(getKey, fetchFileBatch, {
     revalidateFirstPage: false,
     revalidateIfStale: false,
@@ -57,16 +60,20 @@ function useFileBatch<Route extends FileBatchRoute>(route: Route, batches: FileE
     () => Object.assign({}, ...(batches.length > 0 ? (data ?? []) : [])) as OutputFor<Route>,
     [batches.length, data]
   )
+
   return { records, refresh: mutate, cacheKey: unstable_serialize(getKey) }
 }
 
 export function useFileHydration(pages: readonly { items: FileEntry[] }[], fileType?: FileType) {
   const { cache, mutate } = useSWRConfig()
+
   const batches = useMemo(() => {
     const rows = pages.map(({ items }) =>
       items.filter((entry) => !fileType || getFileTypeByExt(entry.ext ?? '') === fileType)
     )
+
     const ids = rows.flatMap((items) => chunk(items.map(({ id }) => id).sort(), FILE_IPC_BATCH_SIZE))
+
     const internalIds = rows.flatMap((items) =>
       chunk(
         items
@@ -76,30 +83,39 @@ export function useFileHydration(pages: readonly { items: FileEntry[] }[], fileT
         FILE_IPC_BATCH_SIZE
       )
     )
+
     return { ids, internalIds }
   }, [fileType, pages])
+
   const scope = fileType ?? ''
+
   const {
     records: metadataById,
     refresh: refreshMetadata,
     cacheKey: metadataCacheKey
   } = useFileBatch('file.batch_get_metadata', batches.ids, scope)
+
   const {
     records: physicalPathById,
     refresh: refreshPaths,
     cacheKey: pathsCacheKey
   } = useFileBatch('file.batch_get_physical_paths', batches.internalIds, scope)
+
   const {
     records: danglingStateById,
     refresh: refreshDangling,
     cacheKey: danglingCacheKey
   } = useFileBatch('file.batch_get_dangling_states', batches.ids, scope)
+
   const refresh = useCallback(async () => {
     const infinitePrefix = unstable_serialize(() => ['files-hydration'])
+
     const keys = [...cache.keys()].filter((key) => {
       if ([metadataCacheKey, pathsCacheKey, danglingCacheKey].includes(key)) return false
+
       return key.startsWith(infinitePrefix)
     })
+
     await Promise.all([
       mutate((key) => Array.isArray(key) && key[0] === 'files-hydration', undefined),
       ...keys.map((key) => mutate(key, undefined))

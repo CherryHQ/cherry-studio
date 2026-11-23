@@ -25,9 +25,11 @@ const TERMINAL_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 
 const chunkKnowledgeItemIds = (itemIds: string[]) => {
   const batches: string[][] = []
+
   for (let index = 0; index < itemIds.length; index += KNOWLEDGE_RUNTIME_ITEMS_MAX) {
     batches.push(itemIds.slice(index, index + KNOWLEDGE_RUNTIME_ITEMS_MAX))
   }
+
   return batches
 }
 
@@ -72,12 +74,15 @@ export const useKnowledgeItems = (
   // direct children (drill-down). Memoized so a stable object re-keys the query only on change.
   const sortBy = sort?.sortBy
   const sortOrder = sort?.sortOrder
+
   const query = useMemo(() => {
     const params: ListKnowledgeItemsQueryParams = { groupId }
+
     if (sortBy && sortOrder) {
       params.sortBy = sortBy
       params.sortOrder = sortOrder
     }
+
     return params
   }, [groupId, sortBy, sortOrder])
 
@@ -117,6 +122,7 @@ export const useKnowledgeItems = (
     if (isLoadingMore || !hasMore) {
       return
     }
+
     loadStartPagesRef.current = pages.length
     setIsLoadingMore(true)
     loadNext()
@@ -174,6 +180,7 @@ export const useAddKnowledgeItems = (baseId: string) => {
 
       let submitError: Error | undefined
       let result: KnowledgeAddItemsResult | undefined
+
       try {
         result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
       } catch (error) {
@@ -232,6 +239,7 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
       setIsDeleting(true)
 
       let deleteError: Error | undefined
+
       try {
         for (const batchItemIds of chunkKnowledgeItemIds(itemIds)) {
           await ipcApi.request('knowledge.delete_items', { baseId, itemIds: batchItemIds })
@@ -292,6 +300,7 @@ export const useReindexKnowledgeItem = (baseId: string) => {
       setIsReindexing(true)
 
       let reindexError: Error | undefined
+
       try {
         for (const batchItemIds of chunkKnowledgeItemIds(itemIds)) {
           await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: batchItemIds })

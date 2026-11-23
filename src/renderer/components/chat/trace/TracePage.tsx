@@ -29,6 +29,7 @@ export const TracePage = ({ topicId, traceId }: TracePageProps) => {
     (changedSpans: SpanEntity[], reset: boolean) => {
       const mutation = reset ? model.reset(changedSpans) : model.applySpanChanges(changedSpans)
       traceIdleRef.current = model.isIdle
+
       if (mutation) setTreeRevision(mutation.revision)
     },
     [model]
@@ -44,6 +45,7 @@ export const TracePage = ({ topicId, traceId }: TracePageProps) => {
   const handleNodeToggle = useCallback(
     (nodeId: string) => {
       const mutation = model.toggle(nodeId)
+
       if (mutation) setTreeRevision(mutation.revision)
     },
     [model]
@@ -62,6 +64,7 @@ export const TracePage = ({ topicId, traceId }: TracePageProps) => {
   const resetKeyRef = useRef(`${topicId}:${traceId}`)
   useEffect(() => {
     const key = `${topicId}:${traceId}`
+
     if (resetKeyRef.current === key) return
     resetKeyRef.current = key
     const mutation = model.reset([])
@@ -81,6 +84,7 @@ export const TracePage = ({ topicId, traceId }: TracePageProps) => {
 
     const stop = () => {
       finished = true
+
       if (timeoutId) {
         clearTimeout(timeoutId)
         timeoutId = null
@@ -90,24 +94,29 @@ export const TracePage = ({ topicId, traceId }: TracePageProps) => {
     const poll = async (): Promise<number> => {
       try {
         const result = await window.api.trace.getData(topicId, traceId, cursor)
+
         if (cancelled) return TRACE_IDLE_POLL_INTERVAL_MS
         cursor = result.cursor
         failureCountRef.current = 0
         applySpanChanges(result.spans, result.reset)
+
         return traceIdleRef.current ? TRACE_IDLE_POLL_INTERVAL_MS : TRACE_POLL_INTERVAL_MS
       } catch (error) {
         if (cancelled) return TRACE_IDLE_POLL_INTERVAL_MS
         failureCountRef.current++
+
         if (failureCountRef.current >= 3) {
           stop()
           setPollError(error instanceof Error ? error.message : String(error))
         }
+
         return TRACE_POLL_INTERVAL_MS
       }
     }
 
     const run = async () => {
       const nextInterval = await poll()
+
       // Schedule only after the request settles so a slow trace read can never create
       // overlapping IPC requests and concurrent full-file parsing work.
       if (cancelled || finished) return
@@ -118,6 +127,7 @@ export const TracePage = ({ topicId, traceId }: TracePageProps) => {
       const mutation = model.reset([])
       traceIdleRef.current = true
       setTreeRevision(mutation.revision)
+
       return
     }
 
@@ -125,6 +135,7 @@ export const TracePage = ({ topicId, traceId }: TracePageProps) => {
 
     return () => {
       cancelled = true
+
       if (timeoutId) {
         clearTimeout(timeoutId)
         timeoutId = null

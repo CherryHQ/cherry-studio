@@ -36,14 +36,17 @@ export function createCopySourcesJobHandler(
     async execute(ctx) {
       const { baseId, itemId, copies } = ctx.input
       ctx.signal.throwIfAborted()
+
       if ('skip' in resolveLiveKnowledgeItem(itemId)) {
         logger.info('Skipping source copy for a missing or deleting item', { baseId, itemId, jobId: ctx.jobId })
         reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
+
         return
       }
 
       reportKnowledgeProgress(ctx, 0, { stage: 'copying' })
       const prepared: PreparedAtomicWrite[] = []
+
       try {
         for (const copy of copies) {
           prepared.push(await prepareFileCopyIntoKnowledgeBaseAt(baseId, copy.from, copy.relativePath, ctx.signal))
@@ -53,18 +56,23 @@ export function createCopySourcesJobHandler(
           // A delete that landed while the bytes were streaming must win over the commit.
           ctx.signal.throwIfAborted()
           const live = resolveLiveKnowledgeItem(itemId)
+
           if ('skip' in live) {
             return false
           }
+
           for (const write of prepared) {
             await write.commit()
           }
+
           // The bytes are in raw/ now, so the item leaves `preparing` in the same section.
           if (live.item.status === 'preparing') {
             knowledgeItemService.updateStatus(itemId, 'processing')
           }
+
           return true
         })
+
         if (!committed) {
           await abortPreparedCopies(prepared)
           logger.info('Discarding source copy for an item deleted during the copy', {
@@ -73,6 +81,7 @@ export function createCopySourcesJobHandler(
             jobId: ctx.jobId
           })
           reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
+
           return
         }
       } catch (error) {

@@ -20,6 +20,7 @@ export function useShowWorkspace() {
     },
     [setShowWorkspace, t]
   )
+
   const toggleShowWorkspace = useCallback(() => {
     updateShowWorkspace(!showWorkspace)
   }, [showWorkspace, updateShowWorkspace])

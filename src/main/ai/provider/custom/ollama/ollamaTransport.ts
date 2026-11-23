@@ -25,6 +25,7 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
 // Electron's proxy-aware `customFetch`, wired in via `ollamaProvider.ts`) rides
 // on Chromium's network stack, which has no analogous default timeout to trip.
 const IMAGE_GENERATION_TIMEOUT_MS = 15 * 60 * 1000
+
 const longRunningDispatcher = new Agent({
   headersTimeout: IMAGE_GENERATION_TIMEOUT_MS,
   bodyTimeout: IMAGE_GENERATION_TIMEOUT_MS
@@ -53,6 +54,7 @@ class OllamaTransport implements ImageGenerationTransport {
     const [width, height] = input.size?.split('x').map(Number) ?? []
     const steps = input.providerParams.steps
     const fetchImpl = this.fetch ?? fetch
+
     const requestOptions: NonNullable<Parameters<typeof fetchImpl>[1]> = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.headers },
@@ -66,6 +68,7 @@ class OllamaTransport implements ImageGenerationTransport {
       }),
       signal: input.signal
     }
+
     if (!this.fetch) Object.assign(requestOptions, { dispatcher: longRunningDispatcher })
     const response = await fetchImpl(`${this.baseURL}/generate`, requestOptions)
 
@@ -75,9 +78,11 @@ class OllamaTransport implements ImageGenerationTransport {
     }
 
     const data = await response.json()
+
     if (!data.image) {
       return { imageUrls: [] }
     }
+
     // Return the bare base64 payload, not a `data:` URI: the patched `ai` SDK's
     // generateImage() only auto-downloads strings starting with `http(s)://`;
     // anything else is passed straight through as `GeneratedFile.data` verbatim

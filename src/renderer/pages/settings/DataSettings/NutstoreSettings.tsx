@@ -68,6 +68,7 @@ const NutstoreSettings: FC = () => {
 
     if (!nutstoreToken) {
       toast.error(t('settings.data.nutstore.login.failed'))
+
       return
     }
 
@@ -82,6 +83,7 @@ const NutstoreSettings: FC = () => {
         if (decrypted) {
           setNutstoreUsername(decrypted.username)
           setNutstorePass(decrypted.access_token)
+
           if (!nutstorePath) {
             void setNutstorePath('/cherry-studio')
             // setStoragePath('/cherry-studio')
@@ -89,6 +91,7 @@ const NutstoreSettings: FC = () => {
         }
       }
     }
+
     void decryptTokenEffect()
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
@@ -98,6 +101,7 @@ const NutstoreSettings: FC = () => {
       title: t('settings.data.nutstore.logout.title'),
       content: t('settings.data.nutstore.logout.content')
     })
+
     if (confirmedLogout) {
       void setNutstoreToken('')
       void setNutstorePath('')
@@ -109,6 +113,7 @@ const NutstoreSettings: FC = () => {
   const handleCheckConnection = async () => {
     if (!nutstoreToken) return
     setCheckConnectionLoading(true)
+
     try {
       const isConnectedToNutstore = await checkConnection()
 
@@ -137,6 +142,7 @@ const NutstoreSettings: FC = () => {
 
   const onSyncIntervalChange = async (value: number) => {
     await setNutstoreSyncInterval(value)
+
     if (value === 0) {
       await setNutstoreAutoSync(false)
     } else {
@@ -164,6 +170,7 @@ const NutstoreSettings: FC = () => {
         const { username, access_token } = result
         const token = window.btoa(`${username}:${access_token}`)
         const items = await window.api.nutstore.getDirectoryContents(token, target)
+
         return items.map(fileStatToStatModel)
       },
       mkdirs: async (path) => {

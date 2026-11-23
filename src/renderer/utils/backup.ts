@@ -32,6 +32,7 @@ const TLS_CERTIFICATE_FAILURE_PATTERNS = [
 function isTlsCertificateFailure(error: unknown): boolean {
   if (!(error instanceof Error) || !error.message) return false
   const message = error.message.toLowerCase()
+
   return TLS_CERTIFICATE_FAILURE_PATTERNS.some((pattern) => message.includes(pattern))
 }
 
@@ -50,21 +51,27 @@ function resolveBackupErrorKey(error: unknown): string | null {
   if (!(error instanceof Error)) {
     return null
   }
+
   if (error.message.includes(BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE)) {
     return 'backup.error.webdav_too_large'
   }
+
   if (error.message.includes(BACKUP_NEWER_VERSION_ERROR_CODE)) {
     return 'backup.error.newer_version'
   }
+
   if (error.message.includes(BACKUP_OPERATION_BUSY_ERROR_CODE) || error.name === 'BackupOperationBusyError') {
     return 'backup.error.operation_busy'
   }
+
   if (error.message.includes(BACKUP_BACKGROUND_TASKS_ERROR_CODE)) {
     return 'backup.error.background_tasks'
   }
+
   if (error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)) {
     return 'backup.error.active_data_writers'
   }
+
   return null
 }
 
@@ -75,6 +82,7 @@ export function getLocalizedBackupErrorMessage(
   options?: { tlsCertificateHint?: boolean }
 ): string {
   const errorMessage = error instanceof Error ? error.message : ''
+
   const errorCode =
     typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
       ? error.code
@@ -82,6 +90,7 @@ export function getLocalizedBackupErrorMessage(
 
   // Disk-full carries a parameterized payload, so it renders outside the key union.
   const diskFullDetails = errorMessage.match(new RegExp(`${BACKUP_DISK_FULL_ERROR_CODE}:(\\d+)`))
+
   if (diskFullDetails) {
     return i18n.t('backup.error.disk_full_with_available', {
       available: formatFileSize(Number(diskFullDetails[1]))
@@ -89,11 +98,13 @@ export function getLocalizedBackupErrorMessage(
   }
 
   const resolvedKey = resolveBackupErrorKey(error)
+
   if (resolvedKey) {
     return i18n.t(resolvedKey)
   }
 
   let messageKey: BackupMessageKey = fallbackKey
+
   if (errorCode === 'ENOSPC' || errorMessage.includes('ENOSPC') || /no space left on device/i.test(errorMessage)) {
     messageKey = 'backup.error.disk_full'
   } else if (options?.tlsCertificateHint === true && isTlsCertificateFailure(error)) {

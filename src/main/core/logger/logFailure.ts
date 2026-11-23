@@ -13,6 +13,7 @@ export function logFailure(
   level: 'error' | 'warn' = 'error'
 ): void {
   let frames: string[] | undefined
+
   try {
     const stack = error instanceof Error ? error.stack : undefined
     const header = error instanceof Error ? `${Error.prototype.toString.call(error)}\n` : undefined
@@ -27,12 +28,14 @@ export function logFailure(
   } catch {
     // Unreadable diagnostics cannot establish trusted reporting frames.
   }
+
   const context = {
     operation,
     failure,
     errorName: 'OperationError',
     errorMessage: failure.reason
   }
+
   if (frames?.length) Object.assign(context, { stack: [`OperationError: ${failure.reason}`, ...frames].join('\n') })
   logger[level](message, {
     ...context,

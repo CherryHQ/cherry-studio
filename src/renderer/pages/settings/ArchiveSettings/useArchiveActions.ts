@@ -30,12 +30,15 @@ async function reconcileNotFound<TResult, TRefresh>(
 ) {
   try {
     await run()
+
     return undefined
   } catch (error) {
     if (!isNotFound(error)) throw error
     await refresh()
+
     try {
       await dataApiService.get(activePath)
+
       return ALREADY_ACTIVE
     } catch {
       throw error
@@ -59,8 +62,10 @@ function useArchiveActionRunner() {
             success: t('settings.data.trash.permanent_delete.success'),
             error: t('settings.data.trash.permanent_delete.error')
           }
+
     try {
       const result = await run()
+
       if (result === NO_LONGER_IN_RECYCLE_BIN) {
         toast.info(t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin'))
       } else {
@@ -84,10 +89,14 @@ async function runSinglePermanentDelete(
   await runAction('permanent_delete', async () => {
     outcome = await run([item])
     const [failure] = outcome.failed
+
     if (failure?.reason === 'no-longer-in-recycle-bin') return NO_LONGER_IN_RECYCLE_BIN
+
     if (failure) throw new Error(failure.error)
+
     return undefined
   })
+
   return outcome
 }
 
@@ -98,6 +107,7 @@ async function runDataPermanentDeletes<TDelete, TRefresh>(
   staleMessage: string
 ): Promise<ArchiveBatchOutcome> {
   const staleIds = new Set<string>()
+
   const outcome = await runPerItem(targets, async (item) => {
     try {
       await deleteItem(item)
@@ -106,14 +116,17 @@ async function runDataPermanentDeletes<TDelete, TRefresh>(
         staleIds.add(item.id)
         throw new Error(staleMessage)
       }
+
       throw error
     }
   })
+
   try {
     await refresh()
   } catch (error) {
     logger.warn('failed to refresh trash after permanent delete', error as Error)
   }
+
   return classifyStaleFailures(outcome, staleIds)
 }
 
@@ -133,12 +146,14 @@ async function inspectFailedFileIds(
 ): Promise<{ activeIds: Set<string>; missingIds: Set<string> }> {
   const activeIds = new Set<string>()
   const missingIds = new Set<string>()
+
   for (let index = 0; index < failures.length; index += FILE_DETAIL_LOOKUP_CONCURRENCY) {
     const chunk = failures.slice(index, index + FILE_DETAIL_LOOKUP_CONCURRENCY)
     await Promise.all(
       chunk.map(async ({ id }) => {
         try {
           const entry = await dataApiService.get(`/files/entries/${id}`)
+
           if (entry.origin === 'external' || entry.deletedAt == null) activeIds.add(id)
         } catch (error) {
           if (isDataApiNotFoundError(error)) missingIds.add(id)
@@ -146,6 +161,7 @@ async function inspectFailedFileIds(
       })
     )
   }
+
   return { activeIds, missingIds }
 }
 
@@ -162,6 +178,7 @@ function useDataArchiveActions<TRefresh>(
   const restoreMutation = useMutation('POST', `/${domain}/:id/restore`, {
     refresh: ({ args }) => [`/${domain}`, `/${domain}/${args!.params.id}`]
   })
+
   const deleteMutation = useMutation('DELETE', `/${domain}/:id`)
 
   const restoreItem = (item: ArchiveItem) =>
@@ -169,6 +186,7 @@ function useDataArchiveActions<TRefresh>(
 
   const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
+
     try {
       await runAction('restore', () => restoreItem(item), buildRestoreSuccessAction?.(item))
     } finally {
@@ -177,6 +195,7 @@ function useDataArchiveActions<TRefresh>(
   }
 
   const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
+
   const handleDeleteMany = (targets: ArchiveItem[]) =>
     runDataPermanentDeletes(
       targets,
@@ -184,6 +203,7 @@ function useDataArchiveActions<TRefresh>(
       refresh,
       t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
     )
+
   const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
 
   return {
@@ -218,11 +238,13 @@ export function useAgentArchiveActions<TRefresh>(refresh: () => Promise<TRefresh
     reconcileNotFound(
       async () => {
         const restored = await ipcApi.request('ai.agent.restore', { agentId: item.id })
+
         try {
           await invalidate(['/agents', `/agents/${item.id}`])
         } catch (error) {
           logger.warn('failed to refresh agents after restore', error as Error)
         }
+
         return restored
       },
       refresh,
@@ -232,6 +254,7 @@ export function useAgentArchiveActions<TRefresh>(refresh: () => Promise<TRefresh
 
   const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
+
     try {
       await runAction('restore', () => restoreItem(item))
     } finally {
@@ -240,28 +263,34 @@ export function useAgentArchiveActions<TRefresh>(refresh: () => Promise<TRefresh
   }
 
   const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
+
   const handleDeleteMany = async (targets: ArchiveItem[]) => {
     const staleIds = new Set<string>()
     const staleMessage = t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
+
     const outcome = await runPerItem(targets, async (target) => {
       const result = await ipcApi.request('ai.agent.delete', {
         agentId: target.id,
         deleteSessions: false,
         permanent: true
       })
+
       if (!result.deleted) {
         staleIds.add(target.id)
         throw new Error(staleMessage)
       }
     })
+
     // Retained sessions lose their agent id, so their rows move too.
     try {
       await invalidate(['/agents', '/agent-sessions'])
     } catch (error) {
       logger.warn('failed to refresh agents after permanent delete', error as Error)
     }
+
     return classifyStaleFailures(outcome, staleIds)
   }
+
   const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
 
   return {
@@ -284,12 +313,14 @@ export function useSessionArchiveActions<TRefresh>(refresh: () => Promise<TRefre
     reconcileNotFound(
       async () => {
         const restored = await ipcApi.request('ai.agent.session.restore', { sessionId: item.id })
+
         try {
           await writeCache(`/agent-sessions/${item.id}`, restored)
           await invalidate(['/agent-sessions', `/agent-sessions/${item.id}`, '/agents/*'])
         } catch (error) {
           logger.warn('failed to refresh sessions after restore', error as Error)
         }
+
         return restored
       },
       refresh,
@@ -299,6 +330,7 @@ export function useSessionArchiveActions<TRefresh>(refresh: () => Promise<TRefre
 
   const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
+
     try {
       // A session is a conversation too, so it gets the same way back as a restored topic.
       await runAction('restore', () => restoreItem(item), {
@@ -311,24 +343,30 @@ export function useSessionArchiveActions<TRefresh>(refresh: () => Promise<TRefre
   }
 
   const handleRestoreMany = (targets: ArchiveItem[]) => runPerItem(targets, restoreItem)
+
   const handleDeleteMany = async (targets: ArchiveItem[]) => {
     const staleIds = new Set<string>()
     const staleMessage = t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
+
     const outcome = await runPerItem(targets, async (target) => {
       const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: [target.id], permanent: true })
+
       if (!result.deletedIds.includes(target.id)) {
         staleIds.add(target.id)
         throw new Error(staleMessage)
       }
     })
+
     // `/agents/*` stays: the parent agent survives and its session counts change.
     try {
       await invalidate(['/agent-sessions', '/agents/*'])
     } catch (error) {
       logger.warn('failed to refresh sessions after permanent delete', error as Error)
     }
+
     return classifyStaleFailures(outcome, staleIds)
   }
+
   const handleDelete = (item: ArchiveItem) => runSinglePermanentDelete(item, runAction, handleDeleteMany)
 
   return {
@@ -364,14 +402,19 @@ export function useFileArchiveActions() {
       'file.batch_restore',
       targets.map((item) => item.id)
     )
+
     const outcome: ArchiveBatchOutcome = { succeeded: result.succeeded, failed: result.failed }
+
     try {
       await invalidateFiles()
     } catch (error) {
       logger.warn('failed to refresh files after restore', error as Error)
     }
+
     const { activeIds: activeAfterFailure } = await inspectFailedFileIds(outcome.failed)
+
     if (activeAfterFailure.size === 0) return outcome
+
     return {
       succeeded: [...outcome.succeeded, ...activeAfterFailure],
       failed: outcome.failed.filter(({ id }) => !activeAfterFailure.has(id))
@@ -383,16 +426,21 @@ export function useFileArchiveActions() {
       'file.batch_permanent_delete_from_trash',
       targets.map((item) => item.id)
     )
+
     const outcome: ArchiveBatchOutcome = { succeeded: result.succeeded, failed: result.failed }
+
     try {
       await invalidatePurgedFiles()
     } catch (error) {
       logger.warn('failed to refresh files after permanent delete', error as Error)
     }
+
     const { activeIds, missingIds } = await inspectFailedFileIds(outcome.failed)
     const staleIds = new Set([...activeIds, ...missingIds])
+
     if (staleIds.size === 0) return outcome
     const staleMessage = t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
+
     return classifyStaleFailures(
       {
         ...outcome,
@@ -406,10 +454,12 @@ export function useFileArchiveActions() {
 
   const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)
+
     try {
       await runAction('restore', async () => {
         const outcome = await restoreItems([item])
         const [failure] = outcome.failed
+
         if (failure) throw new Error(failure.error)
       })
     } finally {

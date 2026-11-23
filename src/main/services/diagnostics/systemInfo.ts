@@ -30,6 +30,7 @@ function collectValue<T>(warnings: Set<DiagnosticWarning>, collector: () => T): 
     return collector()
   } catch {
     warnings.add('system_info_unavailable')
+
     return undefined
   }
 }

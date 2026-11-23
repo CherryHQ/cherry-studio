@@ -25,6 +25,7 @@ export const CreateGroupSchema = z.strictObject({
   entityType: EntityTypeSchema,
   name: GroupNameInputSchema
 })
+
 export type CreateGroupDto = z.infer<typeof CreateGroupSchema>
 
 /**
@@ -33,6 +34,7 @@ export type CreateGroupDto = z.infer<typeof CreateGroupSchema>
 export const UpdateGroupSchema = z.strictObject({
   name: GroupNameInputSchema.optional()
 })
+
 export type UpdateGroupDto = z.infer<typeof UpdateGroupSchema>
 
 /**
@@ -42,6 +44,7 @@ export type UpdateGroupDto = z.infer<typeof UpdateGroupSchema>
 export const ListGroupsQuerySchema = z.strictObject({
   entityType: EntityTypeSchema
 })
+
 export type ListGroupsQuery = z.infer<typeof ListGroupsQuerySchema>
 
 // ============================================================================

@@ -4,6 +4,7 @@ import { Gpt4oMiniTranscribeLight } from './light'
 
 const Gpt4oMiniTranscribe = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt4oMiniTranscribeLight {...props} className={className} />
+
   return <Gpt4oMiniTranscribeLight {...props} className={className} />
 }
 

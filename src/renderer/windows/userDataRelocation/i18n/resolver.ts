@@ -5,8 +5,11 @@ import { relocationLocales } from './locales'
 
 function detectLanguage(): keyof typeof relocationLocales {
   const language = (navigator.language || navigator.languages?.[0] || 'en').toLowerCase()
+
   if (language.includes('zh-tw') || language.includes('zh-hk')) return 'zh-TW'
+
   if (language.includes('zh')) return 'zh-CN'
+
   return 'en'
 }
 

@@ -16,6 +16,7 @@ import { REMOTE_CONNECT_PATH } from './routes/remote'
  */
 export function isLoopbackAddress(address: string | undefined): boolean {
   if (!address) return true
+
   return address === '::1' || address.startsWith('127.') || address.startsWith('::ffff:127.')
 }
 
@@ -25,22 +26,29 @@ function readRemoteAddress(request: Request): string | undefined {
     ip?: string
     runtime?: { node?: { req?: { socket?: { remoteAddress?: string } } } }
   }
+
   return carrier.ip ?? carrier.runtime?.node?.req?.socket?.remoteAddress
 }
 
 /** Returns a 403 body for a non-loopback request unless it is the remote-access upgrade. */
 export function screenLanRequest(request: Request, pathname: string): { error: string } | undefined {
   const preferences = application.get('PreferenceService')
+
   const enabled =
     preferences.get('feature.api_gateway.enabled') && preferences.get('feature.api_gateway.host') === '0.0.0.0'
+
   if (pathname === REMOTE_CONNECT_PATH && !enabled) return { error: 'Forbidden: LAN access is disabled' }
+
   if (isLoopbackAddress(readRemoteAddress(request))) return undefined
+
   if (!enabled) return { error: 'Forbidden: LAN access is disabled' }
+
   if (
     request.method === 'GET' &&
     pathname === REMOTE_CONNECT_PATH &&
     request.headers.get('upgrade')?.toLowerCase() === 'websocket'
   )
     return undefined
+
   return { error: 'Forbidden: this endpoint is not reachable over the LAN' }
 }

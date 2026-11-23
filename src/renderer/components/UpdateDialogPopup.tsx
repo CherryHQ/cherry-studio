@@ -40,6 +40,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
 
   const handleInstall = async () => {
     setIsInstalling(true)
+
     try {
       // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
       // await handleSaveData()

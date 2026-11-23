@@ -43,6 +43,7 @@ function filterWindowsCommandCandidates(candidates: readonly string[], extension
   const allowedExtensions = new Set(
     extensions.map((extension) => (extension.startsWith('.') ? extension : `.${extension}`).toLowerCase())
   )
+
   const currentDirectory = path.win32.resolve(process.cwd()).toLowerCase()
   const seen = new Set<string>()
   const result: string[] = []
@@ -50,16 +51,19 @@ function filterWindowsCommandCandidates(candidates: readonly string[], extension
   for (const candidate of candidates) {
     const resolvedPath = path.win32.resolve(candidate.trim())
     const lowerPath = resolvedPath.toLowerCase()
+
     if (!allowedExtensions.has(path.win32.extname(lowerPath)) || seen.has(lowerPath)) {
       continue
     }
 
     const relativeToCurrentDirectory = path.win32.relative(currentDirectory, lowerPath)
+
     const isInCurrentDirectory =
       relativeToCurrentDirectory === '' ||
       (!relativeToCurrentDirectory.startsWith(`..${path.win32.sep}`) &&
         relativeToCurrentDirectory !== '..' &&
         !path.win32.isAbsolute(relativeToCurrentDirectory))
+
     if (isInCurrentDirectory) {
       logger.warn('Skipping potentially malicious executable in current directory', { path: resolvedPath })
       continue
@@ -80,10 +84,12 @@ async function findWindowsCommandCandidates(
 ): Promise<string[]> {
   signal?.throwIfAborted()
   let timeoutId: ReturnType<typeof setTimeout> | undefined
+
   try {
     const timeout = new Promise<undefined>((resolve) => {
       timeoutId = setTimeout(() => resolve(undefined), COMMAND_LOOKUP_TIMEOUT_MS)
     })
+
     const candidates = await Promise.race([
       which(command, {
         all: true,
@@ -94,10 +100,13 @@ async function findWindowsCommandCandidates(
       }),
       timeout
     ])
+
     signal?.throwIfAborted()
+
     if (candidates === undefined) {
       throw new Error(`Timed out resolving command '${command}' on Windows`)
     }
+
     return filterWindowsCommandCandidates(candidates ?? [], extensions)
   } catch (error) {
     logger.warn(`Error checking command '${command}'`, { error, platform: 'windows' })
@@ -120,9 +129,11 @@ function findWindowsCommandCandidatesSync(
       path: getPathFromEnvironment(env) ?? '',
       pathExt: toWindowsPathExt(extensions)
     })
+
     return filterWindowsCommandCandidates(candidates ?? [], extensions)
   } catch (error) {
     logger.warn(`Error checking command '${command}'`, { error, platform: 'windows' })
+
     return []
   }
 }
@@ -130,11 +141,13 @@ function findWindowsCommandCandidatesSync(
 /** Absolute MCP stdio commands skip the bare-name regex and `command -v`. */
 function resolveExistingAbsoluteCommand(command: string): string | null {
   const trimmed = command.trim()
+
   if (!trimmed || !path.isAbsolute(trimmed)) {
     return null
   }
 
   const resolved = path.resolve(trimmed)
+
   if (!path.isAbsolute(resolved)) {
     return null
   }
@@ -143,9 +156,11 @@ function resolveExistingAbsoluteCommand(command: string): string | null {
     if (!fs.statSync(resolved).isFile()) {
       return null
     }
+
     fs.accessSync(resolved, isWin ? fs.constants.F_OK : fs.constants.X_OK)
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
+
     if (code === 'ENOENT' || code === 'ENOTDIR') return null
     throw error
   }
@@ -166,6 +181,7 @@ export async function findCommandInShellEnv(
 ): Promise<string | null> {
   signal?.throwIfAborted()
   const absoluteCommand = resolveExistingAbsoluteCommand(command)
+
   if (absoluteCommand) {
     return absoluteCommand
   }
@@ -173,6 +189,7 @@ export async function findCommandInShellEnv(
   // Validate command name to prevent command injection
   if (!VALID_COMMAND_NAME_REGEX.test(command)) {
     logger.warn(`Invalid command name '${command}' - must only contain alphanumeric characters, underscore, or hyphen`)
+
     return null
   }
 
@@ -183,12 +200,15 @@ export async function findCommandInShellEnv(
       DEFAULT_WINDOWS_COMMAND_EXTENSIONS,
       signal
     )
+
     const exePath = candidates.find((candidate) => candidate.toLowerCase().endsWith('.exe'))
     const cmdPath = candidates.find((candidate) => candidate.toLowerCase().endsWith('.cmd'))
     const commandPath = exePath ?? cmdPath ?? null
+
     if (!commandPath) {
       logger.debug(`Command '${command}' not found in shell environment`)
     }
+
     return commandPath
   }
 
@@ -213,6 +233,7 @@ export async function findCommandInShellEnv(
     })
 
     let output = ''
+
     const timeoutId = setTimeout(() => {
       if (resolved) return
       child.kill('SIGKILL')
@@ -229,6 +250,7 @@ export async function findCommandInShellEnv(
 
     child.on('close', (code) => {
       clearTimeout(timeoutId)
+
       if (resolved) return
 
       if (code === 0 && output.trim()) {
@@ -253,6 +275,7 @@ export async function findCommandInShellEnv(
 
     child.on('error', (error) => {
       clearTimeout(timeoutId)
+
       if (resolved) return
       logger.warn(`Error checking command '${command}':`, { error, platform: 'unix' })
       resolved = true
@@ -288,8 +311,10 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   if (name === 'git') {
     for (const root of getCommonGitRoots()) {
       const gitPath = path.join(root, 'cmd', 'git.exe')
+
       if (fs.existsSync(gitPath)) {
         logger.debug(`Found ${name} at common path`, { path: gitPath })
+
         return gitPath
       }
     }
@@ -297,9 +322,11 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
 
   const candidates = findWindowsCommandCandidatesSync(name, options?.env ?? process.env, extensions)
   const commandPath = candidates[0] ?? null
+
   if (commandPath) {
     logger.debug(`Found ${name} in PATH`, { path: commandPath })
   }
+
   return commandPath
 }
 
@@ -326,6 +353,7 @@ export async function findViaMise(
   signal?: AbortSignal
 ): Promise<string | null> {
   signal?.throwIfAborted()
+
   if (!isWin) {
     return null
   }
@@ -336,8 +364,10 @@ export async function findViaMise(
   }
 
   const misePath = await findMiseExecutable(env, signal)
+
   if (!misePath) {
     logger.debug('mise not found, skipping mise fallback')
+
     return null
   }
 
@@ -351,20 +381,25 @@ export async function findViaMise(
     })
 
     const resolvedPath = result.trim().split(/\r?\n/)[0]?.trim()
+
     if (!resolvedPath || !path.win32.isAbsolute(resolvedPath)) {
       logger.debug(`mise which ${name} returned non-absolute path: ${resolvedPath}`)
+
       return null
     }
 
     if (!fs.existsSync(resolvedPath)) {
       logger.debug(`mise which ${name} returned non-existent path: ${resolvedPath}`)
+
       return null
     }
 
     logger.debug(`Found ${name} via mise`, { path: resolvedPath })
+
     return resolvedPath
   } catch (error) {
     signal?.throwIfAborted()
+
     if ((error as { code?: unknown }).code === 1) return null
     throw error
   }
@@ -406,6 +441,7 @@ export async function findExecutableInEnv(
 
   // Cross-platform: try shell environment lookup first
   const found = await findCommandInShellEnv(name, env, signal)
+
   if (found && !isBundledGit(found)) {
     return found
   }
@@ -413,6 +449,7 @@ export async function findExecutableInEnv(
   // Windows fallback: findExecutable handles .cmd/.exe filtering and security checks
   if (isWin) {
     const winFound = findExecutable(name, { env })
+
     if (winFound && !isBundledGit(winFound)) {
       return winFound
     }
@@ -420,6 +457,7 @@ export async function findExecutableInEnv(
     // Ask mise for the real binary path
     try {
       const viaMise = await findViaMise(name, env, signal)
+
       if (viaMise) return viaMise
     } catch (error) {
       signal?.throwIfAborted()
@@ -460,26 +498,34 @@ export function findGitBash(customPath?: string | null): string | null {
   // 1. Check custom path from config first
   if (customPath) {
     const validated = validateGitBashPath(customPath)
+
     if (validated) {
       logger.debug('Using custom Git Bash path from config', { path: validated })
+
       return validated
     }
+
     logger.warn('Custom Git Bash path provided but invalid', { path: customPath })
   }
 
   // 2. Check environment variable override
   const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+
   if (envOverride) {
     const validated = validateGitBashPath(envOverride)
+
     if (validated) {
       logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override for bash.exe', { path: validated })
+
       return validated
     }
+
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
   // 3. Find git.exe via findExecutable (checks PATH + common Git install paths)
   const gitPath = findExecutable('git')
+
   if (gitPath) {
     // Derive bash.exe from git.exe location
     // Different Git installations have different directory structures
@@ -491,8 +537,10 @@ export function findGitBash(customPath?: string | null): string | null {
 
     for (const bashPath of possibleBashPaths) {
       const resolvedBashPath = path.resolve(bashPath)
+
       if (fs.existsSync(resolvedBashPath)) {
         logger.debug('Found bash.exe via git.exe path derivation', { path: resolvedBashPath })
+
         return resolvedBashPath
       }
     }
@@ -506,13 +554,16 @@ export function findGitBash(customPath?: string | null): string | null {
   // 4. Fallback: check common Git installation paths directly
   for (const root of getCommonGitRoots()) {
     const fullPath = path.join(root, 'bin', 'bash.exe')
+
     if (fs.existsSync(fullPath)) {
       logger.debug('Found bash.exe at common path', { path: fullPath })
+
       return fullPath
     }
   }
 
   logger.debug('bash.exe not found - checked git derivation and common paths')
+
   return null
 }
 
@@ -525,16 +576,20 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 
   if (!fs.existsSync(resolved)) {
     logger.warn('Custom Git Bash path does not exist', { path: resolved })
+
     return null
   }
 
   const executableName = path.basename(resolved).toLowerCase()
+
   if (executableName !== 'bash.exe') {
     logger.warn('Custom Git Bash path is not bash.exe', { path: resolved })
+
     return null
   }
 
   logger.debug('Validated custom Git Bash path', { path: resolved })
+
   return resolved
 }
 
@@ -554,19 +609,25 @@ export function autoDiscoverGitBash(): string | null {
 
   // 1. Check environment variable override first (highest priority)
   const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+
   if (envOverride) {
     const validated = validateGitBashPath(envOverride)
+
     if (validated) {
       logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override', { path: validated })
+
       return validated
     }
+
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
   // 2. Auto-discovery
   const discoveredPath = findGitBash()
+
   if (discoveredPath) {
     logger.debug('Auto-discovered Git Bash path', { path: discoveredPath })
   }
+
   return discoveredPath
 }

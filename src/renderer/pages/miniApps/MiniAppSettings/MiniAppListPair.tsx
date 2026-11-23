@@ -20,6 +20,7 @@ type Props = Pick<
  */
 const MiniAppListPair: FC<Props> = ({ visible, hidden, hide, show, reorderVisible, reorderHidden, swap, reset }) => {
   const { t } = useTranslation()
+
   return (
     <PageSidePanelSection
       title={t('settings.miniApps.group.display')}

@@ -25,4 +25,5 @@ export const agentWorkspaceTable = sqliteTable(
 )
 
 export type AgentWorkspaceRow = typeof agentWorkspaceTable.$inferSelect
+
 export type InsertAgentWorkspaceRow = typeof agentWorkspaceTable.$inferInsert

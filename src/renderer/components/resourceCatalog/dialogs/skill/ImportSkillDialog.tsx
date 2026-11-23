@@ -19,9 +19,13 @@ interface Props {
 }
 
 type ImportStatus = { kind: 'idle' } | { kind: 'error'; message: string }
+
 type InstallingKey = null | 'zip' | 'directory'
+
 type ImportKind = 'zip' | 'directory'
+
 type ImportItemStatus = 'pending' | 'installing' | 'success' | 'error'
+
 type ImportItem = {
   id: string
   kind: ImportKind
@@ -68,6 +72,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preview/install failures and missing results are untyped; only usable Error text augments the localized install message.
     (e: unknown, fallbackName?: string) => {
       const prefix = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
+
       return e instanceof Error && readErrorMessage(e) ? formatErrorMessageWithPrefix(e, prefix) : prefix
     },
     [t]
@@ -96,6 +101,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
           try {
             const skill = item.kind === 'zip' ? await installFromZip(item.path) : await installFromDirectory(item.path)
+
             if (!skill) {
               failedCount += 1
               updateItem(item.id, { status: 'error', error: getInstallErrorMessage(undefined, item.name) })
@@ -124,6 +130,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
               })
             })
           }
+
           return
         }
 
@@ -131,6 +138,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
           nextItems.length === 1 && lastSkill
             ? t('settings.skills.installSuccess', { name: lastSkill.name })
             : t('settings.skills.batchInstallComplete', { count: successCount })
+
         toast.success(message)
         onOpenChange(false)
       } finally {
@@ -159,20 +167,25 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
   const getNameFromPath = (filePath: string) => {
     const name = filePath.split(/[/\\]/).pop()
+
     return name || filePath
   }
 
   const handleZipPick = async () => {
     if (installing) return
+
     try {
       const selected = await window.api.file.select({
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
         properties: ['openFile', 'multiSelections']
       })
+
       if (!selected || selected.length === 0) return
+
       const zipItems = selected.map((file, index) =>
         createImportItem('zip', file.path, file.name ?? getNameFromPath(file.path), index)
       )
+
       await runImportQueue(zipItems, 'zip')
     } catch (e) {
       setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
@@ -181,14 +194,18 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
   const handleDirPick = async () => {
     if (installing) return
+
     try {
       const selected = await window.api.file.select({
         properties: ['openDirectory', 'multiSelections']
       })
+
       if (!selected || selected.length === 0) return
+
       const directoryItems = selected.map((directory, index) =>
         createImportItem('directory', directory.path, directory.name ?? getNameFromPath(directory.path), index)
       )
+
       await runImportQueue(directoryItems, 'directory')
     } catch (e) {
       setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
@@ -202,6 +219,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
    */
   const handleDroppedEntries = async (files: File[]) => {
     if (installing) return
+
     if (files.length === 0) return
 
     try {
@@ -209,12 +227,14 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
       for (const [index, file] of files.entries()) {
         const filePath = window.api.file.getPathForFile(file)
+
         if (!filePath) continue
 
         const meta = await ipcApi.request(
           'file.get_metadata',
           createFilePathHandle(AbsoluteFilePathSchema.parse(filePath))
         )
+
         // A `null` metadata (path unreadable / vanished — near-nil since dropped
         // paths resolve) folds into "not a directory": it falls through to the
         // filename-based zip/invalid classification below, and a genuine read
@@ -272,6 +292,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
 
               if ('target' in event && event.target && 'files' in event.target) {
                 const target = event.target
+
                 return target.files ? Array.from(target.files) : []
               }
 
@@ -282,6 +303,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             onDrop={(files, _rejections, event) => {
               const droppedFiles =
                 'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : files
+
               void handleDroppedEntries(droppedFiles)
             }}
             className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center whitespace-normal shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
@@ -367,12 +389,15 @@ function ImportItemStatusIcon({ status }: { status: ImportItemStatus }) {
   if (status === 'installing') {
     return <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-foreground-tertiary" />
   }
+
   if (status === 'success') {
     return <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success" />
   }
+
   if (status === 'error') {
     return <CircleAlert size={14} className="mt-0.5 shrink-0 text-error" />
   }
+
   return <span className="mt-1.5 size-2 shrink-0 rounded-full border border-border-strong bg-muted" />
 }
 

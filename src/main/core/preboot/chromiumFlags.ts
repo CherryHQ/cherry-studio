@@ -25,6 +25,7 @@ import { bootConfigService } from '@main/data/bootConfig'
 /** KDE sessions get KWallet from Chromium's own detection; leave them alone. */
 function isKdeSession(): boolean {
   const { XDG_CURRENT_DESKTOP = '', DESKTOP_SESSION = '', KDE_FULL_SESSION } = process.env
+
   return Boolean(KDE_FULL_SESSION) || /kde/i.test(`${XDG_CURRENT_DESKTOP}:${DESKTOP_SESSION}`)
 }
 

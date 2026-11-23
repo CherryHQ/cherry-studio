@@ -55,17 +55,22 @@ export function SkillCatalogPicker({
       mode === 'create' ? availableSkills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id) : [],
     [availableSkills, mode]
   )
+
   const selectableIds = useMemo(
     () => availableSkills.filter((skill) => mode === 'edit' || skill.source !== 'builtin').map((skill) => skill.id),
     [availableSkills, mode]
   )
+
   const selectableIdSet = useMemo(() => new Set(selectableIds), [selectableIds])
+
   const preservedHiddenSelectedIds = useMemo(
     () => (mode === 'edit' ? selectedIds.filter((id) => !selectableIdSet.has(id)) : []),
     [mode, selectableIdSet, selectedIds]
   )
+
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const enabledIds = useMemo(() => new Set([...selectedIds, ...builtinIds]), [builtinIds, selectedIds])
+
   const catalog = useMemo<CatalogItem[]>(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
@@ -89,6 +94,7 @@ export function SkillCatalogPicker({
         }
       })
   }, [availableSkills, mode, query, t])
+
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id))
 
   const setSelected = (id: string, enabled: boolean) => {

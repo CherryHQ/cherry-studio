@@ -50,6 +50,7 @@ export class CpuProfiler {
 
   async stopAndWrite(filePath: string): Promise<void> {
     if (!this.session) return
+
     try {
       const { profile } = await this.session.post('Profiler.stop')
       writeFileSync(filePath, JSON.stringify(profile))
@@ -120,14 +121,18 @@ export class EventLoopLagSampler {
     this.timer = setInterval(() => {
       const now = performance.now()
       const lag = now - this.expected
+
       if (lag > 0) {
         this.fires++
         this.totalLag += lag
+
         if (lag > this.maxLag) this.maxLag = lag
+
         if (lag > this.thresholdMs) this.spikes.push({ at: this.expected - this.epoch, lag })
       } else {
         this.fires++
       }
+
       this.expected = now + this.intervalMs
     }, this.intervalMs)
     // Never keep the process alive just for the sampler.
@@ -139,6 +144,7 @@ export class EventLoopLagSampler {
       clearInterval(this.timer)
       this.timer = null
     }
+
     return {
       spikes: this.spikes,
       fires: this.fires,
@@ -155,6 +161,7 @@ export function formatPhaseProfile(phase: string, spans: ServiceSpan[], lag: Lag
   const nameCol = Math.max(24, ...spans.map((s) => s.name.length))
 
   lines.push(`[Diagnostics] ${phase} — service spans (sorted by start offset)`)
+
   for (const s of [...spans].sort((a, b) => a.startOffset - b.startOffset)) {
     lines.push(
       `  ${s.name.padEnd(nameCol)}  start=${s.startOffset.toFixed(1).padStart(8)}ms` +
@@ -170,8 +177,10 @@ export function formatPhaseProfile(phase: string, spans: ServiceSpan[], lag: Lag
       `maxLag=${lag.maxLag.toFixed(1)}ms fires=${lag.fires} span=${lag.span.toFixed(1)}ms ` +
       `(spikes >${thresholdMs}ms: ${lag.spikes.length})`
   )
+
   for (const sp of [...lag.spikes].sort((a, b) => a.at - b.at)) {
     lines.push(`  blocked=${sp.lag.toFixed(1).padStart(8)}ms  starting at offset=${sp.at.toFixed(1).padStart(8)}ms`)
   }
+
   return lines.join('\n')
 }

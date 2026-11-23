@@ -4,6 +4,7 @@ import { AllenaiLight } from './light'
 
 const Allenai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AllenaiLight {...props} className={className} />
+
   return <AllenaiLight {...props} className={className} />
 }
 

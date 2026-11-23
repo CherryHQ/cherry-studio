@@ -33,11 +33,13 @@ export class TranslateLanguageService {
   list(): TranslateLanguage[] {
     const db = application.get('DbService').getDb()
     const rows = db.select().from(translateLanguageTable).orderBy(asc(translateLanguageTable.createdAt)).all()
+
     return rows.map(rowToTranslateLanguage)
   }
 
   getByLangCode(langCode: string): TranslateLanguage {
     const db = application.get('DbService').getDb()
+
     const [row] = db
       .select()
       .from(translateLanguageTable)
@@ -75,6 +77,7 @@ export class TranslateLanguageService {
     }
 
     logger.info('Created translate language', { langCode })
+
     return rowToTranslateLanguage(row)
   }
 
@@ -94,7 +97,9 @@ export class TranslateLanguageService {
       }
 
       const updates: Partial<typeof translateLanguageTable.$inferInsert> = {}
+
       if (dto.value !== undefined) updates.value = dto.value
+
       if (dto.emoji !== undefined) updates.emoji = dto.emoji
 
       if (Object.keys(updates).length === 0) {
@@ -113,6 +118,7 @@ export class TranslateLanguageService {
       }
 
       logger.info('Updated translate language', { langCode, changes: Object.keys(dto) })
+
       return rowToTranslateLanguage(row)
     })
   }

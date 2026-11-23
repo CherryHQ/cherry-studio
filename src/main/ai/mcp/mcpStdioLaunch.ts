@@ -37,8 +37,10 @@ export async function resolveStdioLaunch({
 
   if (server.dxtPath) {
     const packages = application.get('McpPackageService')
+
     if (!packages.isReady) throw new Error('MCP package service is not ready')
     const resolvedConfig = packages.getResolvedMcpConfig(server.dxtPath)
+
     if (resolvedConfig) {
       command = resolvedConfig.command
       launchArgs = resolvedConfig.args
@@ -50,6 +52,7 @@ export async function resolveStdioLaunch({
   }
 
   const loginShellEnv = await getShellEnv(signal)
+
   const launch = await resolveLaunchCommand({
     command,
     args: launchArgs,
@@ -59,5 +62,6 @@ export async function resolveStdioLaunch({
     signal,
     resolutionCache
   })
+
   return { launch, loginShellEnv, serverEnv }
 }

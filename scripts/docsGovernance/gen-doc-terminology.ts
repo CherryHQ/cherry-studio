@@ -7,6 +7,7 @@ const GLOSSARY_PATH = path.join(ROOT, 'scripts/i18n-glossary.json')
 const OUTPUT_PATH = path.join(ROOT, 'docs/dev/i18n/terminology.md')
 
 type Term = { note?: unknown; 'zh-cn'?: unknown }
+
 type Glossary = { doNotTranslate?: unknown; terms?: unknown }
 
 const escapeCell = (value: string): string => value.replaceAll('|', '\\|').replaceAll('\n', ' ')
@@ -15,14 +16,18 @@ export const generateTerminology = (glossary: Glossary): string => {
   if (!Array.isArray(glossary.doNotTranslate) || !glossary.doNotTranslate.every((value) => typeof value === 'string')) {
     throw new Error('doNotTranslate must be a string array')
   }
+
   if (typeof glossary.terms !== 'object' || glossary.terms === null || Array.isArray(glossary.terms)) {
     throw new Error('terms must be an object')
   }
+
   const terms = Object.entries(glossary.terms as Record<string, Term>).sort(([left], [right]) =>
     left.localeCompare(right)
   )
+
   for (const [english, term] of terms) {
     if (typeof term['zh-cn'] !== 'string' || !term['zh-cn'].trim()) throw new Error(`${english}: missing zh-cn term`)
+
     if (typeof term.note !== 'string' || !term.note.trim()) throw new Error(`${english}: missing terminology note`)
   }
 
@@ -56,16 +61,22 @@ export const generateTerminology = (glossary: Glossary): string => {
 const main = (): void => {
   const glossary = JSON.parse(fs.readFileSync(GLOSSARY_PATH, 'utf8')) as Glossary
   const generated = generateTerminology(glossary)
+
   if (process.argv.includes('--check')) {
     const current = fs.existsSync(OUTPUT_PATH) ? fs.readFileSync(OUTPUT_PATH, 'utf8') : ''
+
     if (current !== generated) {
       console.error('docs/dev/i18n/terminology.md is stale — run `pnpm docs:terminology`.')
       process.exitCode = 1
+
       return
     }
+
     console.log('Documentation terminology OK.')
+
     return
   }
+
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true })
   fs.writeFileSync(OUTPUT_PATH, generated)
   console.log('Wrote docs/dev/i18n/terminology.md.')

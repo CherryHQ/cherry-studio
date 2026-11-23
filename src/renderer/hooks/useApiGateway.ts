@@ -43,6 +43,7 @@ export const useApiGateway = () => {
 
   useEffect(() => {
     if (cacheService.isSharedCacheReady()) return
+
     return cacheService.onSharedCacheReady(() => setApiGatewayLoading(false))
   }, [])
 
@@ -53,16 +54,22 @@ export const useApiGateway = () => {
   const startApiGateway = useCallback(async (): Promise<boolean> => {
     if (apiGatewayLoading) return false
     setApiGatewayLoading(true)
+
     try {
       const result = await ipcApi.request('api_gateway.start')
+
       if (result.success) {
         toast.success(t('apiGateway.messages.startSuccess'))
+
         return true
       }
+
       toast.error({ title: t('apiGateway.messages.startError').trim(), description: result.error })
+
       return false
     } catch (error: any) {
       toast.error({ title: t('apiGateway.messages.startError').trim(), description: error.message || String(error) })
+
       return false
     } finally {
       setApiGatewayLoading(false)
@@ -72,8 +79,10 @@ export const useApiGateway = () => {
   const stopApiGateway = useCallback(async () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
+
     try {
       const result = await ipcApi.request('api_gateway.stop')
+
       if (result.success) {
         toast.success(t('apiGateway.messages.stopSuccess'))
       } else {
@@ -89,8 +98,10 @@ export const useApiGateway = () => {
   const restartApiGateway = useCallback(async () => {
     if (apiGatewayLoading) return
     setApiGatewayLoading(true)
+
     try {
       const result = await ipcApi.request('api_gateway.restart')
+
       if (result.success) {
         toast.success(t('apiGateway.messages.restartSuccess'))
       } else {

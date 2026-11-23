@@ -72,9 +72,13 @@ function Button({
   // Determine spinner size based on button size
   const getSpinnerSize = () => {
     if (size === 'icon-sm') return 13
+
     if (size === 'sm') return 14
+
     if (size === 'icon-navbar') return 18
+
     if (size === 'lg' || size === 'icon-lg') return 18
+
     return 16
   }
 

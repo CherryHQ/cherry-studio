@@ -40,9 +40,11 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
   const orderedNodes = [...graph.nodes].sort((a, b) => compareGraphNodes(a, b, depthById))
   const orderConstraints = buildSiblingOrderConstraints(orderedNodes)
   const nodeOrder = new Map(orderedNodes.map((node, index) => [node.id, index]))
+
   const visibleEdges = getVisibleEdges({ ...graph, nodes: orderedNodes }).sort((a, b) =>
     compareGraphEdges(a, b, nodeOrder)
   )
+
   if (orderedNodes.length === 0) {
     return {
       nodes: [],
@@ -150,13 +152,16 @@ function getDepthById(graph: TopicMessageFlowGraph): Map<string, number> {
     if (depthById.has(id)) return depthById.get(id)!
 
     const parentId = parentById.get(id)
+
     if (!parentId || !parentById.has(parentId)) {
       depthById.set(id, 0)
+
       return 0
     }
 
     const depth = getDepth(parentId) + 1
     depthById.set(id, depth)
+
     return depth
   }
 
@@ -173,9 +178,11 @@ function compareGraphNodes(
   depthById: Map<string, number>
 ) {
   const depth = (depthById.get(a.id) ?? 0) - (depthById.get(b.id) ?? 0)
+
   if (depth !== 0) return depth
 
   const createdAt = Date.parse(a.data.createdAt) - Date.parse(b.data.createdAt)
+
   if (createdAt !== 0) return createdAt
 
   return a.id.localeCompare(b.id)
@@ -188,6 +195,7 @@ function buildSiblingOrderConstraints(orderedNodes: TopicMessageFlowGraph['nodes
   for (const node of orderedNodes) {
     const parentKey = node.parentId ?? '__root__'
     const siblings = nodesByParent.get(parentKey)
+
     if (siblings) {
       siblings.push(node)
     } else {
@@ -206,9 +214,11 @@ function buildSiblingOrderConstraints(orderedNodes: TopicMessageFlowGraph['nodes
 
 function compareGraphEdges(a: TopicMessageFlowGraphEdge, b: TopicMessageFlowGraphEdge, nodeOrder: Map<string, number>) {
   const source = (nodeOrder.get(a.source) ?? 0) - (nodeOrder.get(b.source) ?? 0)
+
   if (source !== 0) return source
 
   const target = (nodeOrder.get(a.target) ?? 0) - (nodeOrder.get(b.target) ?? 0)
+
   if (target !== 0) return target
 
   return a.id.localeCompare(b.id)
@@ -222,7 +232,10 @@ function getVisibleEdges(graph: TopicMessageFlowGraph): TopicMessageFlowGraphEdg
 
 function getEdgeState(edge: TopicMessageFlowGraphEdge): TopicMessageFlowEdgeState {
   if (edge.data.isActivePath) return 'active'
+
   if (edge.data.isInactiveBranch) return 'inactive'
+
   if (edge.data.isSiblingBranch) return 'sibling'
+
   return 'default'
 }

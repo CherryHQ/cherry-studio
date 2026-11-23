@@ -21,10 +21,12 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('WorkspaceSelector')
 const DEFAULT_MIN_LIST_HEIGHT = 144
+
 const loadWorkspaceDeleteConfirmDialog = () =>
   import('@renderer/components/resourceCatalog/dialogs/workspace').then((module) => ({
     default: module.WorkspaceDeleteConfirmDialog
   }))
+
 const WorkspaceDeleteConfirmDialog = lazy(() => loadWorkspaceDeleteConfirmDialog())
 const preloadWorkspaceDeleteConfirmDialog = () => void loadWorkspaceDeleteConfirmDialog()
 
@@ -48,6 +50,7 @@ export type WorkspaceSelectorProps = SharedProps & {
 
 function workspaceMatchesSearch(workspace: AgentWorkspaceEntity, searchValue: string) {
   const query = searchValue.trim().toLowerCase()
+
   if (!query) return true
 
   return workspace.name.toLowerCase().includes(query) || workspace.path.toLowerCase().includes(query)
@@ -85,6 +88,7 @@ export function WorkspaceSelector({
       if (openProp === undefined) {
         setInternalOpen(nextOpen)
       }
+
       onOpenChange?.(nextOpen)
     },
     [onOpenChange, openProp]
@@ -93,6 +97,7 @@ export function WorkspaceSelector({
   useEffect(() => {
     if (open) {
       void refetch()
+
       return
     }
 
@@ -119,6 +124,7 @@ export function WorkspaceSelector({
     async (workspaceId: string | null) => {
       if (workspaceId === selectedId) {
         handleOpenChange(false)
+
         return
       }
 
@@ -132,21 +138,25 @@ export function WorkspaceSelector({
     handleOpenChange(false)
 
     let folderPath: string | null
+
     try {
       folderPath = await window.api.file.selectFolder({ properties: ['openDirectory', 'createDirectory'] })
     } catch (error) {
       logger.error('Failed to select workspace folder', error as Error)
       toast.error(t('agent.session.workspace_selector.select_failed'))
+
       return
     }
 
     if (!folderPath) return
 
     setIsCreatingWorkspace(true)
+
     try {
       const workspace = await ipcApi.request('ai.agent.workspace.register', {
         path: AbsoluteFilePathSchema.parse(folderPath)
       })
+
       await invalidate('/agent-workspaces')
       await onChange(workspace.id)
     } catch (error) {

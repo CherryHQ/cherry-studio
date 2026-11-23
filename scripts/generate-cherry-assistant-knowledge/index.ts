@@ -28,6 +28,7 @@ function serializeAgentTemplate(agentDir: string): string {
   // SAFETY: Repository-owned templates have object roots; the native JSON parser supplies their JSON-only values.
   const parsed = JSON.parse(fs.readFileSync(templatePath, 'utf-8')) as Record<string, JsonValue>
   const agent = Object.fromEntries(Object.entries(parsed).filter(([key]) => !key.startsWith('_')))
+
   return `${JSON.stringify(agent, null, 2)}\n`
 }
 
@@ -57,8 +58,10 @@ const isCheck = process.argv.includes('--check')
 
 if (isCheck) {
   let valid = true
+
   for (const output of outputs) {
     const relativeOutput = path.relative(ROOT_DIR, output.path)
+
     if (!fs.existsSync(output.path)) {
       console.error(`build:builtin-knowledge:check failed - ${relativeOutput} does not exist`)
       valid = false
@@ -67,9 +70,11 @@ if (isCheck) {
       valid = false
     }
   }
+
   if (!valid) {
     process.exit(1)
   }
+
   console.log('build:builtin-knowledge:check passed')
 } else {
   for (const output of outputs) {

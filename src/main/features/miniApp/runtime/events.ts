@@ -24,9 +24,11 @@ export function emitToApp<Event extends MiniAppEvent>(
   payload: MiniAppEventPayloads[Event]
 ): number {
   let delivered = 0
+
   for (const id of application.get('MiniAppRuntimeService').guestsOf(appId)) {
     if (emitToGuest(id, event, payload)) delivered += 1
   }
+
   return delivered
 }
 
@@ -39,7 +41,9 @@ export function emitToGuest<Event extends MiniAppEvent>(
   // `fromId` returns undefined for a webContents that died since registration.
   // Under this execution model that is the common case, not an anomaly.
   const contents = webContents.fromId(webContentsId)
+
   if (!contents) return false
   contents.send(MINI_APP_EVENT_CHANNEL, { event, payload })
+
   return true
 }

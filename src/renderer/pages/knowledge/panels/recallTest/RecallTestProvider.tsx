@@ -100,16 +100,20 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
         query: trimmedQuery,
         results: searchResults
       })
+
       if (!isCurrentSearch()) {
         return
       }
+
       setResults(searchResults.map(mapRecallResult))
     } catch (error) {
       const normalizedError = toError(error)
       logger.error('Knowledge recall search IPC failed', normalizedError, { baseId: searchBaseId, query: trimmedQuery })
+
       if (!isCurrentSearch()) {
         return
       }
+
       toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.recall.search_failed')))
       setResults([])
     }
@@ -150,6 +154,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
     },
     meta: { baseId }
   }
+
   const resultValue = useMemo<RecallResultContextValue>(
     () => ({
       state: {

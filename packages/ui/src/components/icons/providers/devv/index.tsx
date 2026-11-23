@@ -6,7 +6,9 @@ import { DevvLight } from './light'
 
 const Devv = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DevvLight {...props} className={className} />
+
   if (variant === 'dark') return <DevvDark {...props} className={className} />
+
   return (
     <>
       <DevvLight className={cn('dark:hidden', className)} {...props} />

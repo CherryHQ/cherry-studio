@@ -6,6 +6,7 @@ const MESSAGE_PART_ID_PATTERN = /^(.+)-(?:part|block)-(\d+)$/
 
 export function parseMessagePartId(partId: string): { messageId: string; partIndex: number } | null {
   const match = partId.match(MESSAGE_PART_ID_PATTERN)
+
   if (!match) return null
 
   return { messageId: match[1], partIndex: Number.parseInt(match[2], 10) }

@@ -15,6 +15,7 @@ export function createBuiltinAssistantSession(
 ): AgentSessionEntity {
   const assistantInput = loadBuiltinAgentEnsureInput(BUILTIN_AGENT_ROLE.ASSISTANT)
   const sessionId = uuidv4()
+
   const ensured = application.get('DbService').withWriteTx((tx) => {
     const result = agentService.ensureBuiltinAgentTx(tx, assistantInput)
     agentSessionService.createTx(tx, sessionId, {
@@ -22,12 +23,15 @@ export function createBuiltinAssistantSession(
       name: '',
       workspace
     })
+
     return result
   })
 
   if (ensured.created || ensured.restored) {
     agentService.emitAgentCreated(ensured.agent)
   }
+
   agentSessionService.notifyReadModelChange([sessionId], 'membership')
+
   return agentSessionService.getById(sessionId)
 }

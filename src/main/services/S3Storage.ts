@@ -50,13 +50,16 @@ export default class S3Storage {
 
         const isInWhiteList = VIRTUAL_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix))
         const bucketPrefix = `${bucket.toLowerCase()}.`
+
         if (isInWhiteList && hostname.startsWith(bucketPrefix)) {
           endpointUrl.hostname = hostname.slice(bucketPrefix.length)
           resolvedEndpoint = endpointUrl.toString()
         }
+
         return !isInWhiteList
       } catch (e) {
         logger.warn(`[S3Storage] Failed to parse endpoint, fallback to Path-Style: ${endpoint}`, e as Error)
+
         return true
       }
     })()
@@ -89,6 +92,7 @@ export default class S3Storage {
    */
   private buildKey(key: string): string {
     if (!this.root) return key
+
     return key.startsWith(`${this.root}/`) ? key : `${this.root}/${key}`
   }
 
@@ -103,12 +107,14 @@ export default class S3Storage {
     const forwardAbort = () => abortController.abort(options.signal?.reason)
 
     options.signal?.addEventListener('abort', forwardAbort, { once: true })
+
     if (options.signal?.aborted) {
       forwardAbort()
     }
 
     try {
       const contentType = key.endsWith('.zip') ? 'application/zip' : 'application/octet-stream'
+
       const upload = new Upload({
         client: this.client,
         abortController,
@@ -120,12 +126,14 @@ export default class S3Storage {
           ContentLength: contentLength
         }
       })
+
       return await upload.done()
     } catch (error) {
       logFailure(logger, '[S3Storage] Error putting object:', error, 'storage.s3storage', classifyStorageFailure(error))
       throw error
     } finally {
       options.signal?.removeEventListener('abort', forwardAbort)
+
       if (data instanceof Readable && !data.destroyed) data.destroy()
     }
   }
@@ -133,9 +141,11 @@ export default class S3Storage {
   async getFileStream(key: string): Promise<Readable> {
     try {
       const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: this.buildKey(key) }))
+
       if (!res.Body || !(res.Body instanceof Readable)) {
         throw new Error('Empty body received from S3')
       }
+
       return res.Body
     } catch (error) {
       logFailure(logger, '[S3Storage] Error getting object:', error, 'storage.s3storage', classifyStorageFailure(error))
@@ -175,6 +185,7 @@ export default class S3Storage {
     try {
       do {
         signal?.throwIfAborted()
+
         const res = await this.client.send(
           new ListObjectsV2Command({
             Bucket: this.bucket,
@@ -215,6 +226,7 @@ export default class S3Storage {
   async checkConnection() {
     try {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }))
+
       return true
     } catch (error) {
       logFailure(

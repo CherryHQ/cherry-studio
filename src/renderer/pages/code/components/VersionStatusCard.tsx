@@ -59,13 +59,16 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const removing = status.operation?.status === 'removing'
   const failedInstall = status.operation?.status === 'failed' && status.operation.action === 'install'
   const failedRemoval = status.operation?.status === 'failed' && status.operation.action === 'remove'
+
   const retryInstall =
     !failedRemoval &&
     !!onInstall &&
     (failedInstall || status.applicationStatus === 'broken' || status.applicationStatus === 'unknown')
+
   const canRemove = !!onRemove && (status.applicationStatus === 'applied' || status.applicationStatus === 'broken')
   const installing = isInstalling || isUpgrading
   const busy = installing || removing
+
   // "Up to date" must describe a genuinely current tool. A runnable-but-not-applied
   // mise state (broken/conflict/unknown) still reports installed with no upgrade, so
   // gate the badge on a clean application fact to avoid pairing it with Retry. A
@@ -75,6 +78,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
     status.applicationStatus !== 'broken' &&
     status.applicationStatus !== 'conflict' &&
     status.applicationStatus !== 'unknown'
+
   const launchUnavailable = !running && !canLaunch
 
   const launchButton = (

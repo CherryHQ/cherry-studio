@@ -20,6 +20,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 
   const previewItems = citations.slice(0, 3)
   const count = citations.length
+
   if (!count) return null
 
   const handleOpenCitationsPanel = () => {
@@ -35,6 +36,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
       <div className="flex items-center gap-0.5">
         {previewItems.map((citation) => {
           const hostname = getCitationHostname(citation)
+
           return (
             <div
               key={`${citation.number}-${citation.url || citation.title}`}

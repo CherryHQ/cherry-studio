@@ -15,12 +15,14 @@ import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
 const logger = loggerService.withContext('AutomationReplTools')
+
 const UNREADABLE_OUTPUT_NOTE =
   'This automation tool result could not be read back from the conversation history. Ignore it and observe the current state again before acting.'
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Conversation history may contain unreadable REPL results; validate the content blocks before projecting model-visible output.
 function automationReplModelOutput(output: unknown): ToolResultOutput {
   const unreadable = { type: 'text', value: UNREADABLE_OUTPUT_NOTE } as const
+
   if (
     typeof output !== 'object' ||
     output === null ||
@@ -32,10 +34,12 @@ function automationReplModelOutput(output: unknown): ToolResultOutput {
   }
 
   const value: Extract<ToolResultOutput, { type: 'content' }>['value'] = []
+
   for (const part of output.content) {
     if (typeof part !== 'object' || part === null || Array.isArray(part) || typeof part.type !== 'string') {
       return unreadable
     }
+
     if (part.type === 'text') {
       if (typeof part.text !== 'string') return unreadable
       value.push({ type: 'text', text: part.text })
@@ -44,6 +48,7 @@ function automationReplModelOutput(output: unknown): ToolResultOutput {
       value.push({ type: 'image-data', data: part.data, mediaType: part.mimeType })
     }
   }
+
   return { type: 'content', value }
 }
 
@@ -51,6 +56,7 @@ export function createAutomationReplToolEntries(): ToolEntry[] {
   return [false, true].map((reset) => {
     const name = reset ? 'automation_repl_reset' : 'automation_repl'
     const inputSchema = reset ? automationReplResetInput : automationReplInput
+
     const fallbackTool = tool<z.input<typeof inputSchema>, CallToolResult>({
       description: reset
         ? 'Reset automation JS state and release control leases; user-stopped control remains stopped.'
@@ -59,12 +65,16 @@ export function createAutomationReplToolEntries(): ToolEntry[] {
       execute: async (args, options) => {
         const { request } = getToolCallContext(options)
         const run = await request.automationRun?.()
+
         if (!run) throw new Error('Automation requires a conversation-owned run')
+
         if (reset) return run.reset()
+
         return run.execute(automationReplInput.parse(args).code, options.abortSignal)
       },
       toModelOutput: ({ output, toolCallId }) => {
         const result = automationReplModelOutput(output)
+
         if (result.type === 'text') {
           logger.warn('Unreadable automation tool output', {
             toolName: name,
@@ -72,9 +82,11 @@ export function createAutomationReplToolEntries(): ToolEntry[] {
             reason: 'invalid-output-shape'
           })
         }
+
         return result
       }
     })
+
     return {
       name,
       namespace: 'automation',

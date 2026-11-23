@@ -4,6 +4,7 @@ import { TogetherLight } from './light'
 
 const Together = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TogetherLight {...props} className={className} />
+
   return <TogetherLight {...props} className={className} />
 }
 

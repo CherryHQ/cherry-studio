@@ -10,6 +10,7 @@ export function extractAgentSessionId(topicId: string): string {
   if (!isAgentSessionTopic(topicId)) {
     throw new Error(`Not an agent session topicId: ${topicId}`)
   }
+
   return topicId.slice(AGENT_SESSION_PREFIX.length)
 }
 

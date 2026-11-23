@@ -58,9 +58,11 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   async state(): Promise<string> {
     await this.beginAuthorization?.()
     const discovery = this.authorizationFlow.getStore()?.discovery
+
     if (discovery) await this.storage.saveDiscoveryState(discovery)
     const state = randomUUID()
     await this.storage.saveState(state)
+
     return state
   }
 
@@ -74,6 +76,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 
   async withAuthorizationCallback<T>(callback: () => Promise<T>): Promise<T> {
     const discovery = this.authorizationFlow.getStore()?.discovery ?? (await this.storage.getDiscoveryState())
+
     return this.authorizationFlow.run({ discovery, callback: true }, callback)
   }
 
@@ -81,6 +84,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     const expected = await this.storage.getState()
     const actual = params.get('state')
     await this.storage.saveState(undefined)
+
     if (!expected || !actual || expected !== actual) {
       throw new Error('OAuth callback state mismatch')
     }
@@ -105,9 +109,12 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
     // Only an active authorized request can consume the callback and finish authorization.
     const prepareAuthorization = this.prepareAuthorization
+
     if (!prepareAuthorization) throw new UnauthorizedError()
     await prepareAuthorization()
+
     if (this.prepareAuthorization !== prepareAuthorization) throw new UnauthorizedError()
+
     try {
       await open(sanitizeUrl(authorizationUrl.toString()))
       logger.debug('Browser opened automatically.')
@@ -127,6 +134,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 
   async saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
     const flow = this.authorizationFlow.getStore()
+
     // Persist the redirect binding only after state() acquires the authorization lease.
     if (flow) flow.discovery = state
     else await this.storage.saveDiscoveryState(state)
@@ -134,6 +142,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 
   async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
     const flow = this.authorizationFlow.getStore()
+
     // New challenges must rediscover endpoints; callbacks stay bound to the redirect's issuer.
     return flow?.callback ? flow.discovery : undefined
   }
@@ -141,10 +150,13 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): Promise<void> {
     logger.debug(`Invalidating credentials with scope: ${scope}`)
     const discovery = this.authorizationFlow.getStore()?.discovery
+
     const ctx = discovery
       ? { issuer: discovery.authorizationServerMetadata?.issuer ?? discovery.authorizationServerUrl }
       : undefined
+
     await this.storage.clear(scope, ctx)
+
     if (scope === 'tokens' && !(discovery ?? (await this.storage.getDiscoveryState()))?.authorizationServerUrl) {
       await this.storage.clear('client', ctx)
     }

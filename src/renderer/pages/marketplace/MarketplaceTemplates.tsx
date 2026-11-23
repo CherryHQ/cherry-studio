@@ -61,23 +61,29 @@ export function MarketplaceTemplates({
     []
   )
   const trigger = useRef<HTMLButtonElement | null>(null)
+
   const filtered = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase()
+
     const matched = items.filter(
       (item) =>
         (preview || !categories || !category || item.groups.includes(category)) &&
         [item.name, item.description, item.prompt, ...item.groups].join(' ').toLocaleLowerCase().includes(keyword)
     )
+
     return preview ? matched.slice(0, 6) : matched
   }, [items, query, preview, category, categories])
+
   const categoryLabel = (group: string) =>
     groupTranslations.get(group)?.get(i18n.language) ??
     groupTranslations.get(group)?.get('en-US') ??
     getMarketplaceCategoryLabel(group, t)
+
   const add = (item: MarketplaceTemplate) => {
     setSelected(null)
     setCreating(item)
   }
+
   return (
     <div className={preview ? '' : 'flex h-full min-h-0 flex-col'}>
       {!preview && categories && onCategoryChange ? (

@@ -35,26 +35,36 @@ const decisions = new Map<string, Promise<CommandPolicyDecision>>()
 function evaluate({ command, dialect, builtinRole }: CommandCheckInput): Promise<CommandPolicyDecision> {
   const key = JSON.stringify([command, dialect, builtinRole ?? null])
   const cached = decisions.get(key)
+
   if (cached) return cached
+
   const pending = evaluateCommandPolicy({ command, dialect, builtinRole }).then((decision) => {
     // A configuration failure has no rule hit; let the next call retry loading the parser.
     if (decision.effect === 'deny' && decision.hits.length === 0) decisions.delete(key)
+
     return decision
   })
+
   decisions.set(key, pending)
+
   if (decisions.size > MAX_CACHED_DECISIONS) decisions.delete(decisions.keys().next().value!)
+
   return pending
 }
 
 /** The only entry point for shell command consent: parse, match the bundled policy, apply the mode. */
 export async function checkCommand(input: CommandCheckInput): Promise<CommandCheck> {
   const decision = await evaluate(input)
+
   const verdict: Pick<CommandCheck, 'effect' | 'reason'> = {
     effect: decision.effect === 'ask' && input.permissionMode !== 'auto' ? 'allow' : decision.effect
   }
+
   if (decision.reason) verdict.reason = decision.reason
   const directory: Pick<CommandCheck['evidence'], 'cwd'> = {}
+
   if (input.cwd) directory.cwd = input.cwd
+
   return {
     ...verdict,
     evidence: {

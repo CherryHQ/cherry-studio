@@ -48,11 +48,13 @@ export function ResourceCatalogView({
   filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
+
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType, {
     onOpenSkill,
     onLaunchSkill,
     onConfirmArchiveAgentSessions: (agentName, action) => archiveAgentSessionsPopup.show({ agentName, t, action })
   })
+
   const hasActiveDialog = Boolean(
     dialogs.assistantImportOpen ||
     (resourceType === 'assistant' && dialogs.assistantExportOpen) ||
@@ -64,11 +66,14 @@ export function ResourceCatalogView({
     dialogs.createDialogKind ||
     dialogs.editDialogTarget
   )
+
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
+
   const visibleResources = useMemo(
     () => (filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources),
     [filterResource, gridProps.resources]
   )
+
   const hasHiddenResources = Boolean(filterResource && gridProps.resources.length > 0 && visibleResources.length === 0)
 
   useEffect(() => {

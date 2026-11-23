@@ -42,6 +42,7 @@ export class IpcAdapter implements Disposable {
   setup(): void {
     if (this.initialized) {
       logger.warn('IPC handlers already initialized')
+
       return
     }
 
@@ -51,6 +52,7 @@ export class IpcAdapter implements Disposable {
       // capability, so verify the caller before touching the request.
       if (!this.isTrustedSender(event, `request ${request?.method} ${request?.path}`)) {
         const error = new DataApiError(ErrorCode.PERMISSION_DENIED, 'Untrusted IPC sender', 403)
+
         return {
           id: request?.id ?? '',
           status: error.status,
@@ -70,6 +72,7 @@ export class IpcAdapter implements Disposable {
         logger.error(`Data request failed: ${request.method} ${request.path}`, error as Error)
 
         const apiError = toDataApiError(error, `${request.method} ${request.path}`)
+
         const errorResponse: DataResponse = {
           id: request.id,
           status: apiError.status,
@@ -98,6 +101,7 @@ export class IpcAdapter implements Disposable {
       senderType: event.sender.getType(),
       senderUrl: event.senderFrame?.url
     })
+
     return false
   }
 

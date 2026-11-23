@@ -119,6 +119,7 @@ const DANGEROUS_EXTS = new Set([
  */
 export function normalizeExt(ext: string | null | undefined): string | null {
   if (!ext) return null
+
   const normalized = ext
     .replace(/^[\s.]+/, '')
     .replace(/[\s.]+$/, '')
@@ -134,7 +135,9 @@ export function normalizeExt(ext: string | null | undefined): string | null {
  */
 export function isDangerExt(ext: string | null | undefined): boolean {
   const normalized = normalizeExt(ext)
+
   if (!normalized) return false
+
   return DANGEROUS_EXTS.has(normalized)
 }
 
@@ -162,12 +165,17 @@ export function isDangerExt(ext: string | null | undefined): boolean {
  */
 function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
   const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
+
   if (sepIdx > 0) {
     const dir = absolutePath.slice(0, sepIdx)
+
     if (/^\\\\[^\\]+$/.test(dir)) return absolutePath
+
     return AbsoluteFilePathSchema.parse(/^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir)
   }
+
   if (sepIdx === 0) return AbsoluteFilePathSchema.parse('/')
+
   return absolutePath
 }
 
@@ -204,14 +212,18 @@ function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
 export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
   const foldWindowsSeparators =
     absolutePath.startsWith('\\\\') || absolutePath.startsWith('//') || /^[A-Za-z]:[/\\]/.test(absolutePath)
+
   let normalized = foldWindowsSeparators ? absolutePath.replace(/\\/g, '/') : absolutePath
+
   if (/^[A-Za-z]:/.test(normalized)) {
     normalized = '/' + normalized
   }
+
   const encoded = normalized
     .split('/')
     .map((segment) => (/^[A-Za-z]:$/.test(segment) ? segment : encodeURIComponent(segment)))
     .join('/')
+
   // `//server/share/…` — drop the separator pair so `server` becomes the URL
   // authority rather than the first path segment of an empty authority.
   return encoded.startsWith('//') ? `file://${encoded.slice(2)}` : `file://${encoded}`
@@ -233,13 +245,17 @@ export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
  */
 export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
   const url = typeof fileUrl === 'string' ? new URL(fileUrl) : fileUrl
+
   if (url.protocol !== 'file:') {
     throw new TypeError('Expected a file:// URL')
   }
 
   const pathname = decodeURIComponent(url.pathname)
+
   if (url.hostname) return `//${url.hostname}${pathname}`
+
   if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1)
+
   return pathname
 }
 
@@ -277,5 +293,6 @@ export function tryFileUrlToPath(fileUrl: string | URL): string | undefined {
  */
 export function toSafeFileUrl(absolutePath: AbsoluteFilePath, ext: string | null): FileUrlString {
   const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath
+
   return toFileUrl(effectivePath)
 }

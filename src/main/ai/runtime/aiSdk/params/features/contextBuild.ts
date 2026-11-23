@@ -45,6 +45,7 @@ const logger = loggerService.withContext('contextBuild')
 /** head/tail kept inline in the truncation marker (carried from P1 / #14916). */
 const HEAD_CHARS = 500
 const TAIL_CHARS = 1_000
+
 /** Never drop below this many messages in the sliding-window fallback. */
 const MIN_MESSAGES_KEPT = 2
 
@@ -73,20 +74,24 @@ export function resolveInFlightTruncateThreshold(
   outputReservation?: number
 ): number {
   const window = resolveContextWindow(contextWindow)
+
   if (window === null) return configuredChars
   const inputRoom = resolveInputRoom(window, outputReservation)
   const windowBudget = Math.floor(inputRoom * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO * APPROX_CHARS_PER_TOKEN)
+
   return Math.max(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD, Math.min(configuredChars, windowBudget))
 }
 
 /** Exported for direct middleware testing. Returns null when the layer is off. */
 export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptions | null {
   const settings = scope.contextSettings
+
   if (scope.request.contextOwner === 'caller' || !settings.enabled) return null
 
   // Optional on `Model` and optional here: a window-less model gets no
   // window-derived budget rather than a `NaN` one (see resolveContextWindow).
   const contextWindow = resolveContextWindow(scope.model.contextWindow)
+
   if (contextWindow === null) {
     logger.warn('model declares no contextWindow — window-relative budgets disabled for this request', {
       modelId: scope.model.id
@@ -122,7 +127,9 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
       // everything else → default opaque policy.
       perTool: scope.registry.getAll().flatMap((entry): NonNullable<TruncateOptions['perTool']> => {
         if (entry.truncatable === false) return [entry.name]
+
         if (entry.codec) return [{ name: entry.name, codec: entry.codec }]
+
         return []
       })
     },
@@ -162,8 +169,10 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
  */
 export function hasAnchorRow(messageId: string | undefined): boolean {
   if (messageId === undefined) return false
+
   try {
     messageService.getById(messageId)
+
     return true
   } catch (error) {
     // getById throws NOT_FOUND for missing rows (it never returns null) —
@@ -180,6 +189,7 @@ export function hasAnchorRow(messageId: string | undefined): boolean {
  */
 function resolveTruncateStorage(scope: RequestScope): VFSStorageAdapter | undefined {
   if (!scope.canOffloadToolOutputs) return undefined
+
   return createFileManagerStorageAdapter({
     messageId: scope.requestContext.requestId,
     persistedOutputPaths: scope.requestContext.persistedOutputPaths
@@ -204,7 +214,9 @@ function dropOldestUntilUnderBudget(
   tokenInfo: Parameters<NonNullable<ContextMiddlewareOptions['onBeforeCompress']>>[1]
 ): typeof history {
   const { currentTokens, limit } = tokenInfo
+
   if (currentTokens <= limit) return history
+
   if (history.length <= MIN_MESSAGES_KEPT) return history
 
   const totalLen = history.reduce((sum, m) => sum + JSON.stringify(m).length, 0)
@@ -216,17 +228,23 @@ function dropOldestUntilUnderBudget(
 
   let cursor = dropFromIdx
   let dropped = 0
+
   for (const turn of groupIntoTurns(history)) {
     if (turn.startIndex < dropFromIdx) continue
+
     if (lenToDrop <= 0) break
+
     // Only drop a turn we can drop ENTIRELY while leaving the minimum tail.
     if (turn.endIndex > maxCursor) break
+
     for (let i = turn.startIndex; i < turn.endIndex; i++) {
       lenToDrop -= JSON.stringify(history[i]).length
       dropped++
     }
+
     cursor = turn.endIndex
   }
+
   if (dropped === 0) return history
 
   const kept = [...history.slice(0, dropFromIdx), ...history.slice(cursor)]
@@ -236,6 +254,7 @@ function dropOldestUntilUnderBudget(
     currentTokens,
     limit
   })
+
   return kept
 }
 
@@ -245,6 +264,7 @@ function createContextBuildPlugin(scope: RequestScope) {
     enforce: 'pre',
     configureContext: (context) => {
       const options = buildContextOptions(scope)
+
       if (!options) return
       context.middlewares = context.middlewares || []
       context.middlewares.push(createContextMiddleware(options))

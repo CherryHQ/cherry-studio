@@ -1,5 +1,6 @@
 export function resolveFilesystemBaseDir(args: string[] = [], envs: Record<string, string> = {}): string | undefined {
   const envWorkspaceRoot = envs.WORKSPACE_ROOT?.trim()
+
   if (envWorkspaceRoot) {
     return envWorkspaceRoot
   }

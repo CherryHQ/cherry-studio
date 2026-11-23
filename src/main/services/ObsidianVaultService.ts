@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 
 const logger = loggerService.withContext('ObsidianVaultService')
+
 interface VaultInfo {
   path: string
   name: string
@@ -38,6 +39,7 @@ class ObsidianVaultService {
         logger.debug(`Resolved Obsidian config path (linux): ${this.obsidianConfigPath}`)
       }
     }
+
     return this.obsidianConfigPath
   }
 
@@ -47,6 +49,7 @@ class ObsidianVaultService {
   getVaults(): VaultInfo[] {
     try {
       const obsidianConfigPath = this.getObsidianConfigPath()
+
       if (!fs.existsSync(obsidianConfigPath)) {
         return []
       }
@@ -64,6 +67,7 @@ class ObsidianVaultService {
       }))
     } catch (error) {
       logger.error('Failed to get Obsidian Vault:', error as Error)
+
       return []
     }
   }
@@ -77,19 +81,23 @@ class ObsidianVaultService {
     try {
       // 检查vault路径是否存在
       let stats: fs.Stats
+
       try {
         stats = await fs.promises.stat(vaultPath)
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
           logger.error(`Vault path does not exist: ${vaultPath}`)
+
           return []
         }
+
         throw error
       }
 
       // 检查是否是目录
       if (!stats.isDirectory()) {
         logger.error(`Vault path is not a directory: ${vaultPath}`)
+
         return []
       }
 
@@ -116,10 +124,12 @@ class ObsidianVaultService {
       }
 
       let items
+
       try {
         items = await fs.promises.readdir(dirPath, { withFileTypes: true })
       } catch (err) {
         logger.error(`Failed to read directory ${dirPath}:`, err as Error)
+
         return
       }
 
@@ -159,13 +169,16 @@ class ObsidianVaultService {
 
       if (!vault) {
         logger.error(`Vault not found: ${vaultName}`)
+
         return []
       }
 
       logger.debug(`Get Vault file structure: ${vault.name} ${vault.path}`)
+
       return await this.getVaultStructure(vault.path)
     } catch (error) {
       logger.error('Failed to get Vault file structure:', error as Error)
+
       return []
     }
   }

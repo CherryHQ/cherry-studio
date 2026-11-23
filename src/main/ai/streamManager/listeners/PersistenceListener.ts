@@ -67,11 +67,13 @@ export class PersistenceListener implements StreamListener {
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
+
     return this.persistAssistant(result.finalMessage, 'success', result.runtimeTiming, result)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
+
     return this.persistAssistant(result.finalMessage, 'paused', result.runtimeTiming, result)
   }
 
@@ -79,12 +81,14 @@ export class PersistenceListener implements StreamListener {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     result.failure ??= toExecutionFailure(result.error, result.modelId)
+
     const withErrorPart = mergeErrorIntoMessage(
       result.finalMessage,
       result.error,
       result.failure,
       result.anchorMessageId
     )
+
     return this.persistAssistant(withErrorPart, 'error', result.runtimeTiming, result)
   }
 
@@ -106,12 +110,14 @@ export class PersistenceListener implements StreamListener {
       status === 'success'
         ? this.opts.backend.canPersistEmptySuccessTerminal
         : this.opts.backend.canPersistEmptyTerminal
+
     if (!finalMessage && !canPersistEmpty) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
         status
       })
+
       return
     }
 
@@ -121,10 +127,13 @@ export class PersistenceListener implements StreamListener {
           parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
         })
       : finalMessage
+
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     result.finalMessage = finalMessageForPersistence
     const runtimeStats: { -readonly [K in keyof MessageRuntimeStatsInput]: MessageRuntimeStatsInput[K] } = {}
+
     if (runtimeTiming) runtimeStats.runtimeTiming = runtimeTiming
+
     if (typeof contextTokens === 'number' && Number.isFinite(contextTokens)) runtimeStats.contextTokens = contextTokens
 
     try {
@@ -133,8 +142,10 @@ export class PersistenceListener implements StreamListener {
         status,
         modelId: this.opts.modelId
       }
+
       if (Object.keys(runtimeStats).length > 0) input.runtimeStats = runtimeStats
       const saved = await this.opts.backend.persistAssistant(input)
+
       if (saved) result.persistence = { status: 'saved', message: saved }
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
@@ -157,6 +168,7 @@ export class PersistenceListener implements StreamListener {
         'message.persist',
         { source: 'application', kind: 'reliability', reason: 'persistence_failed', outcome: 'failed' }
       )
+
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
       try {
@@ -169,6 +181,7 @@ export class PersistenceListener implements StreamListener {
           err: markErr
         })
       }
+
       // Surface the persistence error now; the manager suppresses the original terminal notification.
       try {
         this.opts.onPersistFailed(serializeError(err))
@@ -180,6 +193,7 @@ export class PersistenceListener implements StreamListener {
           err: notifyErr
         })
       }
+
       throw new TerminalPersistenceError('Terminal persistence failed after attempting to surface the error')
     }
 
@@ -204,11 +218,14 @@ function mergeErrorIntoMessage(
 ): CherryUIMessage {
   const baseParts = (base?.parts ?? []) as CherryMessagePart[]
   const errorPart: CherryMessagePart = { type: 'data-error', data: { ...error, executionFailure: failure } }
+
   const message: CherryUIMessage = {
     id: base?.id ?? anchorMessageId ?? crypto.randomUUID(),
     role: 'assistant',
     parts: [...baseParts, errorPart]
   }
+
   if (base?.metadata) message.metadata = base.metadata
+
   return message
 }

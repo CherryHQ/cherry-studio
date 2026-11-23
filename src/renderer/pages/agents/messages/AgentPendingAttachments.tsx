@@ -21,14 +21,18 @@ export const AgentPendingAttachments = memo(function AgentPendingAttachments({
     let retired = false
     let reading = false
     let dirty = false
+
     const refresh = async () => {
       dirty = true
+
       if (reading) return
       reading = true
+
       try {
         while (dirty && !retired) {
           dirty = false
           const items = await ipcApi.request('ai.agent.attachment_selections.list', { sessionId })
+
           if (!retired) setSnapshot({ sessionId, items })
         }
       } catch (error) {
@@ -37,16 +41,20 @@ export const AgentPendingAttachments = memo(function AgentPendingAttachments({
         reading = false
       }
     }
+
     const unsubscribe = ipcApi.on('ai.agent.attachment_selections.changed', (event) => {
       if (event.sessionId === sessionId) void refresh()
     })
+
     void refresh()
+
     return () => {
       retired = true
       unsubscribe()
     }
   }, [sessionId])
   const selections = snapshot?.sessionId === sessionId ? snapshot.items : []
+
   return selections
     .filter((selection) => selection.items.length && !(selection.messageId && messageIds.includes(selection.messageId)))
     .map((selection) => (
@@ -54,11 +62,14 @@ export const AgentPendingAttachments = memo(function AgentPendingAttachments({
         <MessageUserLayout>
           {selection.items.map((item) => {
             const state = item.upload?.state
+
             const percent = Math.min(
               100,
               Math.floor((Number(item.upload?.committedOffset ?? 0) / Math.max(1, item.byteLength)) * 100)
             )
+
             const dot = item.filename.lastIndexOf('.')
+
             return (
               <MessageAttachments
                 key={item.attachmentId}

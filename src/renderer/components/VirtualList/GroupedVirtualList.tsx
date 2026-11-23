@@ -132,6 +132,7 @@ function GroupedVirtualList<TGroup, TItem, THeader = TGroup, TFooter = unknown>(
   const estimateRowSize = useCallback(
     (index: number) => {
       const row = rows[index]
+
       if (!row) return 0
 
       if (row.type === 'group-header') {

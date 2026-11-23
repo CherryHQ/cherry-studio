@@ -5,6 +5,7 @@ import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 export type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
+
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 
 export interface UseExecutionOverlayOptions {
@@ -45,13 +46,17 @@ export function useExecutionOverlay(
   // Register callbacks before acquiring an already-published terminal view.
   useEffect(() => {
     const onLeave = optionsRef.current.onLeave
+
     const offUpdate = executionStreamOverlayService.onUpdate(topicId, (executionId, event) =>
       optionsRef.current.onUpdate?.(executionId, event)
     )
+
     const offFinish = executionStreamOverlayService.onFinish(topicId, (executionId, event) =>
       onFinishRef.current?.(executionId, event)
     )
+
     executionStreamOverlayService.acquire(topicId)
+
     return () => {
       offUpdate()
       offFinish()
@@ -69,12 +74,14 @@ export function useExecutionOverlay(
     (listener: () => void) => executionStreamOverlayService.subscribe(topicId, listener),
     [topicId]
   )
+
   const view = useSyncExternalStore(
     subscribe,
     useCallback(() => executionStreamOverlayService.getView(topicId), [topicId])
   )
 
   const api = useRef<ExecutionOverlayApi>(undefined as never)
+
   if (!api.current) {
     api.current = {
       overlay: view.overlay,
@@ -85,7 +92,9 @@ export function useExecutionOverlay(
       clear: () => executionStreamOverlayService.clear(topicIdRef.current)
     }
   }
+
   api.current.overlay = view.overlay
   api.current.liveAssistants = view.liveAssistants
+
   return api.current
 }

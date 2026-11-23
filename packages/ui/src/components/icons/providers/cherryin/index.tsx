@@ -4,6 +4,7 @@ import { CherryinLight } from './light'
 
 const Cherryin = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <CherryinLight {...props} className={className} />
+
   return <CherryinLight {...props} className={className} />
 }
 

@@ -24,11 +24,14 @@ export interface PaintingSizeInfo {
 export function usePaintingSizeInfo(painting: PaintingData): PaintingSizeInfo {
   const { t } = useTranslation()
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
+
   const configItems = useMemo(
     () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
     [registrySupport, painting.mode]
   )
+
   const ratio = useMemo(() => resolveRatio(painting.params, configItems), [painting.params, configItems])
   const sizeLabel = useMemo(() => resolveSizeLabel(painting.params, configItems, t), [painting.params, configItems, t])
+
   return { ratio, sizeLabel }
 }

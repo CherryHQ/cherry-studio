@@ -42,6 +42,7 @@ const NpxSearch: FC = () => {
 
     if (!searchScope.trim()) {
       toast.warning(t('settings.mcp.npx_list.scope_required'))
+
       return
     }
 
@@ -54,9 +55,11 @@ const NpxSearch: FC = () => {
     try {
       // Call npxFinder to search for packages
       const packages = await npxFinder(searchScope)
+
       // Map the packages to our desired format
       const formattedResults: SearchResult[] = packages.map((pkg) => {
         let configSample
+
         if (pkg.original?.readme) {
           configSample = getMcpConfigSampleFromReadme(pkg.original.readme)
         }
@@ -82,6 +85,7 @@ const NpxSearch: FC = () => {
     } catch (error: unknown) {
       setSearchResults([])
       _searchResults = []
+
       if (error instanceof Error) {
         toast.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
       } else {
@@ -142,6 +146,7 @@ const NpxSearch: FC = () => {
         <div className="mx-auto flex w-full max-w-300 flex-1 flex-col gap-2 pr-1">
           {searchResults?.map((record) => {
             const isInstalled = mcpServers.some((server) => server.name === record.name)
+
             return (
               <div
                 key={record.name}

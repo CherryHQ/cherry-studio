@@ -35,6 +35,7 @@ export function useRemoveCliToolDialog({
         if (!removeTarget) return
 
         setIsRemoving(true)
+
         try {
           await remove(removeTarget)
         } finally {

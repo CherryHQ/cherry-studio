@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 export const NotificationCategorySchema = z.enum(['system', 'usage', 'official'])
+
 export type NotificationCategory = z.infer<typeof NotificationCategorySchema>
 
 export const NotificationTaskResultSchema = z.object({
@@ -11,6 +12,7 @@ export const NotificationTaskResultSchema = z.object({
   durationMs: z.number().finite().nonnegative().optional(),
   errorSummary: z.string().optional()
 })
+
 export type NotificationTaskResult = z.infer<typeof NotificationTaskResultSchema>
 
 export const NotificationTargetSchema = z
@@ -34,6 +36,7 @@ export const NotificationTargetSchema = z
     })
   ])
   .and(z.object({ result: NotificationTaskResultSchema.optional() }))
+
 export type NotificationTarget = z.infer<typeof NotificationTargetSchema>
 
 /** Authoritative outcomes only; resultId must survive retries and restart, and change for each run. */
@@ -55,4 +58,5 @@ export const NotificationRecordSchema = z.strictObject({
   dismissedAt: z.number().nullable(),
   target: NotificationTargetSchema.nullable()
 })
+
 export type NotificationRecord = z.infer<typeof NotificationRecordSchema>

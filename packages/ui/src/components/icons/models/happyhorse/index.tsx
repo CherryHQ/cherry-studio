@@ -6,7 +6,9 @@ import { HappyhorseLight } from './light'
 
 const Happyhorse = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <HappyhorseLight {...props} className={className} />
+
   if (variant === 'dark') return <HappyhorseDark {...props} className={className} />
+
   return (
     <>
       <HappyhorseLight className={cn('dark:hidden', className)} {...props} />

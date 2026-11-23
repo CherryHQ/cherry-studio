@@ -21,6 +21,7 @@ export class PiChildTasks {
     const origin = this.origin(id)
     const previous = this.states.get(id)
     const isBackgrounded = background ?? previous?.isBackgrounded ?? false
+
     if (
       previous &&
       previous.status === status &&
@@ -28,6 +29,7 @@ export class PiChildTasks {
       previous.toolUseId === origin?.toolCallId
     )
       return
+
     const data: AgentTaskEventPartData = {
       event: !previous ? 'started' : status === 'in_progress' ? 'updated' : 'notification',
       taskId: id,
@@ -37,6 +39,7 @@ export class PiChildTasks {
       status,
       isBackgrounded
     }
+
     this.states.set(id, data)
     this.emit({ type: 'background-task-event', data })
   }
@@ -44,6 +47,7 @@ export class PiChildTasks {
   showSubagents(views: readonly SubagentView[], listRunning: boolean): void {
     for (const view of views)
       this.publish(view.sessionId, view.status === 'finished' ? childTaskStatus(view.outcome) : 'in_progress', true)
+
     if (!listRunning) return
     this.emit({
       type: 'background-tasks',

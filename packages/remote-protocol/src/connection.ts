@@ -29,10 +29,12 @@ export const remoteLimits = Object.freeze({
 })
 
 const empty = z.strictObject({})
+
 export const remoteEndpointSnapshotSchema = z.looseObject({
   desktopIdentity: opaqueId,
   endpoints: z.array(directEndpointSchema).max(32)
 })
+
 const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
   params,
   result,
@@ -41,6 +43,7 @@ const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) 
 
 export function connectionMethods<A extends z.ZodType>(authorization: A) {
   const token = z.looseObject({ authorization, accessToken: opaqueId, expiresAt: timestamp })
+
   return {
     'connection.hello': method(
       protocolSupportSchema,

@@ -31,6 +31,7 @@ export class WebviewRuntimeService {
 
   readonly subscribe = (listener: () => void) => {
     this.listeners.add(listener)
+
     return () => {
       this.listeners.delete(listener)
     }
@@ -42,10 +43,13 @@ export class WebviewRuntimeService {
     const previous = new Map(this.resources.map((resource) => [resource.key, resource]))
     const desired = new Map(demands.map((demand) => [demand.key, demand]))
     const next: WebviewResource[] = []
+
     for (const demand of demands) {
       const existing = previous.get(demand.key)
       const source = demand.source ?? existing?.source
+
       if (!source || (!existing && !demand.visible)) continue
+
       if (existing && existing.source.partition === source.partition) {
         next.push(
           isEqual(existing.source, source) &&
@@ -72,26 +76,34 @@ export class WebviewRuntimeService {
         })
       }
     }
+
     const candidates = next
       .filter((item) => {
         const demand = desired.get(item.key)!
+
         return !demand.visible && !demand.protected
       })
       .sort((a, b) => desired.get(a.key)!.lastAccessTime - desired.get(b.key)!.lastAccessTime)
+
     const evicted = new Set(candidates.slice(0, Math.max(0, next.length - capacity)))
     // Preserve insertion order: moving a live Electron webview can recreate its guest.
     const surviving = new Map(next.flatMap((item) => (!evicted.has(item) ? [[item.key, item]] : [])))
+
     const ordered = this.resources.flatMap((item) => {
       const updated = surviving.get(item.key)
+
       if (!updated) return []
       surviving.delete(item.key)
+
       return [updated]
     })
+
     this.publish([...ordered, ...surviving.values()])
   }
 
   restart(key: string): void {
     const current = this.get(key)
+
     if (!current) return
     this.publish(
       this.resources.map((resource) =>
@@ -106,12 +118,14 @@ export class WebviewRuntimeService {
 
   reportLoaded(key: string, instance: number, loaded: boolean): void {
     const resource = this.get(key)
+
     if (loaded && !resource?.element) return
     this.update(key, instance, { loaded })
   }
 
   private update(key: string, instance: number, patch: Partial<Pick<WebviewResource, 'element' | 'loaded'>>): void {
     const current = this.get(key)
+
     if (
       !current ||
       current.instance !== instance ||
@@ -132,6 +146,7 @@ export class WebviewRuntimeService {
   private publish(next: readonly WebviewResource[]): void {
     if (next.length === this.resources.length && next.every((item, i) => item === this.resources[i])) return
     this.resources = next
+
     for (const listener of this.listeners) listener()
   }
 }

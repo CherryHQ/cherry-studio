@@ -23,6 +23,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
+
 type UpdateAgentModelInput = {
   agentId: string
   modelId: UniqueModelId
@@ -46,11 +47,14 @@ export const useAgent = (id: string | null) => {
       keepPreviousData: false
     }
   })
+
   useDataChange('/agents/:agentId', (effects) => {
     if (id && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(id))) void refetch()
   })
+
   const agent = useMemo((): AgentEntity | undefined => {
     if (!data || isDataApiNotFoundError(error)) return undefined
+
     return {
       ...data,
       configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'agent' })
@@ -74,10 +78,12 @@ export const useAgent = (id: string | null) => {
 export const useAgents = (options: { enabled?: boolean } = {}) => {
   const { t } = useTranslation()
   const enabled = options.enabled ?? true
+
   const { data, isLoading, error, refetch } = useQuery('/agents', {
     enabled,
     query: { limit: AGENTS_MAX_LIMIT }
   })
+
   useDataChange(enabled ? '/agents' : [], () => void refetch())
   const agents = useMemo<AgentEntity[]>(() => data?.items ?? [], [data])
   const invalidate = useInvalidateCache()
@@ -87,10 +93,12 @@ export const useAgents = (options: { enabled?: boolean } = {}) => {
       try {
         const result = await createAgentAndRefresh(form, () => invalidate('/agents'))
         toast.success(t('common.add_success'))
+
         return { success: true, data: result }
       } catch (error) {
         const msg = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
         toast.error(msg)
+
         return { success: false, error: error instanceof Error ? error : new Error(msg) }
       }
     },
@@ -118,6 +126,7 @@ export const useAgents = (options: { enabled?: boolean } = {}) => {
  */
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
+
   const { trigger: updateTrigger } = useMutation('PATCH', '/agents/:agentId', {
     refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
   })
@@ -127,6 +136,7 @@ export const useUpdateAgent = () => {
       try {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { agentId: id }, body: patch })
+
         if (options?.showSuccessToast ?? true) {
           toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
@@ -137,6 +147,7 @@ export const useUpdateAgent = () => {
         }
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
+
         return undefined
       }
     },
@@ -146,7 +157,9 @@ export const useUpdateAgent = () => {
   const updateModel = useCallback(
     async ({ agentId, modelId, reasoningEffort }: UpdateAgentModelInput, options?: UpdateAgentBaseOptions) => {
       const form: UpdateAgentForm = { id: agentId, model: modelId }
+
       if (reasoningEffort !== undefined) form.configuration = { reasoning_effort: reasoningEffort }
+
       return updateAgent(form, options)
     },
     [updateAgent]

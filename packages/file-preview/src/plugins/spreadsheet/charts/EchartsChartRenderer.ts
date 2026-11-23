@@ -31,12 +31,15 @@ export const echartsChartRenderer: ChartRenderer = {
 
     const resizeObserver = new ResizeObserver(() => {
       if (container.clientWidth === 0 || container.clientHeight === 0) return
+
       if (!hasSized) {
         hasSized = true
         instance.setOption(buildChartOption(chart))
       }
+
       instance.resize()
     })
+
     resizeObserver.observe(container)
 
     return () => {

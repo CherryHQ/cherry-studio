@@ -40,12 +40,15 @@ export const KnowledgeModelSelect = ({
 }: KnowledgeModelSelectProps) => {
   const { models } = useModels({ enabled: true })
   const selectorValue: UniqueModelId | undefined = value && isUniqueModelId(value) ? value : undefined
+
   const selectedModel = useMemo(
     () => (selectorValue ? models.find((model) => model.id === selectorValue) : undefined),
     [models, selectorValue]
   )
+
   const hasValue = Boolean(value)
   const triggerLabel = selectedModel?.name ?? (value || placeholder)
+
   return (
     <ModelSelector
       showSubscriptionOffers={false}

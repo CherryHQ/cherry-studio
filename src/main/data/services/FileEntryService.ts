@@ -336,17 +336,20 @@ function rowToFileEntry(row: FileEntryRow): FileEntry {
       size: row.size,
       contentHash: row.contentHash
     }
+
     // deletedAt is `optional` on the BO — present iff the DB column is
     // non-null. Bypass `nullsToUndefined` so we don't pull in a helper
     // whose project-wide meaning is "every null becomes undefined";
     // here only this specific column flips.
     if (row.deletedAt !== null) Object.assign(file, { deletedAt: row.deletedAt })
+
     return FileEntrySchema.parse({
       ...file,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     })
   }
+
   return FileEntrySchema.parse({
     id: row.id,
     origin: 'external',
@@ -386,30 +389,38 @@ function rowToFileEntrySafe(row: FileEntryRow): FileEntry | null {
       id: row.id,
       issues: error.issues
     })
+
     return null
   }
 }
 
 type ListSortBy = NonNullable<ListCursorQuery['sortBy']>
+
 type ListSortOrder = NonNullable<ListCursorQuery['sortOrder']>
+
 const DEFAULT_LIST_SORT_BY: ListSortBy = 'createdAt'
 const DEFAULT_LIST_SORT_ORDER: ListSortOrder = 'asc'
 const FILE_ENTRY_SIZE_NULL_SORT_VALUE = -1
+
 // SafeExtSchema rejects whitespace, so this non-empty cursor key is reserved for NULL ext and sorts before real ext values.
 const FILE_ENTRY_EXT_NULL_SORT_VALUE = ' '
 const FILE_EXTENSIONS_BY_TYPE = new Map<FileType, string[]>()
+
 for (const [extension, fileType] of Object.entries(fileTypeMap)) {
   const extensions = FILE_EXTENSIONS_BY_TYPE.get(fileType) ?? []
   extensions.push(extension)
   FILE_EXTENSIONS_BY_TYPE.set(fileType, extensions)
 }
+
 const KNOWN_FILE_EXTENSIONS = Object.keys(fileTypeMap)
 
 function getFileTypeFilterCondition(fileType: FileType): SQL {
   const normalizedExtension = sql<string>`lower(${fileEntryTable.ext})`
+
   if (fileType === 'other') {
     return or(isNull(fileEntryTable.ext), notInArray(normalizedExtension, KNOWN_FILE_EXTENSIONS))!
   }
+
   return inArray(normalizedExtension, FILE_EXTENSIONS_BY_TYPE.get(fileType) ?? [])
 }
 
@@ -466,6 +477,7 @@ class FileEntryServiceImpl implements FileEntryService {
 
   findByIdTx(tx: DbOrTx, id: FileEntryId): FileEntry | null {
     const rows = tx.select().from(fileEntryTable).where(eq(fileEntryTable.id, id)).limit(1).all()
+
     return rows.length === 0 ? null : rowToFileEntry(rows[0])
   }
 
@@ -475,9 +487,11 @@ class FileEntryServiceImpl implements FileEntryService {
 
   getByIdTx(tx: DbOrTx, id: FileEntryId): FileEntry {
     const entry = this.findByIdTx(tx, id)
+
     if (!entry) {
       throw DataApiErrorFactory.notFound('FileEntry', id)
     }
+
     return entry
   }
 
@@ -488,6 +502,7 @@ class FileEntryServiceImpl implements FileEntryService {
       .where(eq(fileEntryTable.externalPath, canonicalPath))
       .limit(1)
       .all()
+
     return rows.length === 0 ? null : rowToFileEntry(rows[0])
   }
 
@@ -507,6 +522,7 @@ class FileEntryServiceImpl implements FileEntryService {
       // dedupe pass).
       .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
       .all()
+
     return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
   }
 
@@ -523,6 +539,7 @@ class FileEntryServiceImpl implements FileEntryService {
       )
       .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
       .all()
+
     return rows.map(rowToFileEntrySafe).filter((entry): entry is FileEntry => entry !== null)
   }
 
@@ -532,12 +549,15 @@ class FileEntryServiceImpl implements FileEntryService {
       .from(fileEntryTable)
       .where(and(eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)))
       .all()
+
     return rows[0]?.value ?? 0
   }
 
   findInternalMissingContentHash(afterId: FileEntryId | null, limit: number): InternalFileEntry[] {
     const conditions: SQL[] = [eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)]
+
     if (afterId !== null) conditions.push(gt(fileEntryTable.id, afterId))
+
     const rows = this.getDb()
       .select()
       .from(fileEntryTable)
@@ -545,9 +565,12 @@ class FileEntryServiceImpl implements FileEntryService {
       .orderBy(asc(fileEntryTable.id))
       .limit(limit)
       .all()
+
     return rows.map((row) => {
       const entry = rowToFileEntry(row)
+
       if (entry.origin !== 'internal') throw new Error('Expected an internal file entry')
+
       return entry
     })
   }
@@ -563,13 +586,16 @@ class FileEntryServiceImpl implements FileEntryService {
         .from(fileEntryTable)
         .where(and(eq(fileEntryTable.id, id), eq(fileEntryTable.origin, 'internal')))
         .get()
+
       if (!row || row.size === null) {
         throw DataApiErrorFactory.notFound('InternalFileEntry', id)
       }
+
       tx.update(fileEntryTable)
         .set({ contentHash: null, updatedAt: commitAt })
         .where(and(eq(fileEntryTable.id, id), eq(fileEntryTable.origin, 'internal')))
         .run()
+
       return {
         size: row.size,
         contentHash: row.contentHash === null ? null : ContentHashSchema.parse(row.contentHash),
@@ -582,6 +608,7 @@ class FileEntryServiceImpl implements FileEntryService {
   completeInternalContentCommit(id: FileEntryId, metadata: { size: number; contentHash: ContentHash }): boolean {
     const size = InternalEntrySchema.shape.size.parse(metadata.size)
     const contentHash = ContentHashSchema.parse(metadata.contentHash)
+
     const rows = this.getDb()
       .update(fileEntryTable)
       .set({
@@ -592,6 +619,7 @@ class FileEntryServiceImpl implements FileEntryService {
       .where(and(eq(fileEntryTable.id, id), eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)))
       .returning({ id: fileEntryTable.id })
       .all()
+
     return rows.length > 0
   }
 
@@ -609,6 +637,7 @@ class FileEntryServiceImpl implements FileEntryService {
       .where(and(eq(fileEntryTable.id, id), eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)))
       .returning({ id: fileEntryTable.id })
       .all()
+
     return rows.length > 0
   }
 
@@ -625,9 +654,11 @@ class FileEntryServiceImpl implements FileEntryService {
 
   findManyTx(tx: DbOrTx, query: FindEntriesQuery = {}): FileEntry[] {
     const conditions: SQL[] = []
+
     if (query.origin) {
       conditions.push(eq(fileEntryTable.origin, query.origin))
     }
+
     if (query.inTrash === true) {
       conditions.push(isNotNull(fileEntryTable.deletedAt))
     } else {
@@ -644,27 +675,33 @@ class FileEntryServiceImpl implements FileEntryService {
     if (query.limit !== undefined) {
       queryBuilder = queryBuilder.limit(query.limit)
     }
+
     if (query.offset !== undefined) {
       queryBuilder = queryBuilder.offset(query.offset)
     }
 
     const rows = queryBuilder.all()
+
     return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
   }
 
   listCursor(query: ListCursorQuery = {}): FileEntryListResponse {
     const filterConditions: SQL[] = []
+
     if (query.ids) {
       filterConditions.push(inArray(fileEntryTable.id, query.ids))
     }
+
     if (query.origin) {
       filterConditions.push(eq(fileEntryTable.origin, query.origin))
     }
+
     if (query.inTrash === true) {
       filterConditions.push(isNotNull(fileEntryTable.deletedAt))
     } else {
       filterConditions.push(isNull(fileEntryTable.deletedAt))
     }
+
     if (query.fileType) {
       filterConditions.push(getFileTypeFilterCondition(query.fileType))
     }
@@ -675,6 +712,7 @@ class FileEntryServiceImpl implements FileEntryService {
     const ordering = keysetOrdering(sortExpression, fileEntryTable.id, { major: sortOrder, tie: sortOrder })
     const cursor = decodeListCursor(query.cursor, getListCursorParser(sortBy), 'file-entry')
     const conditions = [...filterConditions]
+
     if (cursor) {
       conditions.push(ordering.where(cursor))
     }
@@ -690,6 +728,7 @@ class FileEntryServiceImpl implements FileEntryService {
       .orderBy(...ordering.orderBy)
       .limit(pageSize + 1)
       .all()
+
     const totalRow = this.getDb().select({ value: count() }).from(fileEntryTable).where(filterWhere).all()
     const pageRows = rows.slice(0, pageSize)
 
@@ -705,16 +744,19 @@ class FileEntryServiceImpl implements FileEntryService {
 
   getStats(): FileEntryStats {
     const db = this.getDb()
+
     const activeTotalRows = db
       .select({ count: count() })
       .from(fileEntryTable)
       .where(isNull(fileEntryTable.deletedAt))
       .all()
+
     const trashTotalRows = db
       .select({ count: count() })
       .from(fileEntryTable)
       .where(isNotNull(fileEntryTable.deletedAt))
       .all()
+
     const extRows = db
       .select({ ext: fileEntryTable.ext, count: count() })
       .from(fileEntryTable)
@@ -735,13 +777,16 @@ class FileEntryServiceImpl implements FileEntryService {
       eq(fileEntryTable.cleanupPolicy, 'manual'),
       ...persistentRefAbsenceConditions()
     ]
+
     if (query.origin) conditions.push(eq(fileEntryTable.origin, query.origin))
+
     const rows = this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
       .all()
+
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }
 
@@ -752,7 +797,9 @@ class FileEntryServiceImpl implements FileEntryService {
       lt(fileEntryTable.createdAt, Date.now() - opts.graceMs),
       ...persistentRefAbsenceConditions()
     ]
+
     if (opts.excludedIds?.length) conditions.push(notInArray(fileEntryTable.id, [...opts.excludedIds]))
+
     const rows = this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
@@ -760,11 +807,13 @@ class FileEntryServiceImpl implements FileEntryService {
       .orderBy(asc(fileEntryTable.createdAt))
       .limit(opts.limit)
       .all()
+
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }
 
   listAllIds(): Set<FileEntryId> {
     const rows = this.getDb().select({ id: fileEntryTable.id }).from(fileEntryTable).all()
+
     return new Set(rows.map((r) => r.id))
   }
 
@@ -776,6 +825,7 @@ class FileEntryServiceImpl implements FileEntryService {
     const parsed = CreateFileEntryRowSchema.parse(values)
     const now = Date.now()
     const id = parsed.origin === 'internal' ? parsed.id : uuidv7()
+
     const rows = tx
       .insert(fileEntryTable)
       .values({
@@ -793,6 +843,7 @@ class FileEntryServiceImpl implements FileEntryService {
       })
       .returning()
       .all()
+
     return rowToFileEntry(rows[0])
   }
 
@@ -807,8 +858,11 @@ class FileEntryServiceImpl implements FileEntryService {
     // `rowToFileEntry`'s schema parse — leaving the row permanently
     // un-parseable.
     if (values.name !== undefined) SafeNameSchema.parse(values.name)
+
     if (values.ext !== undefined) InternalEntrySchema.shape.ext.parse(values.ext)
+
     if (values.cleanupPolicy !== undefined) CleanupPolicySchema.parse(values.cleanupPolicy)
+
     // Enforce the one-way cleanup-policy invariant at the write site
     // (file-entry-cleanup.md §4.2): a runtime `manual` -> `delete_when_unreferenced`
     // transition does not exist. It is load-bearing — removing the volume safety
@@ -819,6 +873,7 @@ class FileEntryServiceImpl implements FileEntryService {
     // structural, so a future main-side caller cannot demote by accident.
     if (values.cleanupPolicy === 'delete_when_unreferenced') {
       const current = this.findByIdTx(tx, id)
+
       if (current?.cleanupPolicy === 'manual') {
         throw DataApiErrorFactory.invalidOperation(
           'update FileEntry',
@@ -826,17 +881,24 @@ class FileEntryServiceImpl implements FileEntryService {
         )
       }
     }
+
     const updates: Partial<typeof fileEntryTable.$inferInsert> = {
       updatedAt: Date.now()
     }
+
     if (values.name !== undefined) updates.name = values.name
+
     if (values.ext !== undefined) updates.ext = values.ext
+
     if (values.cleanupPolicy !== undefined) updates.cleanupPolicy = values.cleanupPolicy
+
     if (values.deletedAt !== undefined) updates.deletedAt = values.deletedAt
     const rows = tx.update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning().all()
+
     if (rows.length === 0) {
       throw DataApiErrorFactory.notFound('FileEntry', id)
     }
+
     return rowToFileEntry(rows[0])
   }
 
@@ -860,18 +922,22 @@ class FileEntryServiceImpl implements FileEntryService {
     // otherwise persist a poison value SQLite happily stores but that later
     // makes the row unreadable once `canonicalizeAbsolutePath` throws on it.
     SafeNameSchema.parse(name)
+
     if (externalPath.includes('\0')) {
       throw new Error('setExternalPathAndNameTx: externalPath contains a null byte')
     }
+
     const rows = tx
       .update(fileEntryTable)
       .set({ externalPath, name, updatedAt: Date.now() })
       .where(eq(fileEntryTable.id, id))
       .returning()
       .all()
+
     if (rows.length === 0) {
       throw DataApiErrorFactory.notFound('FileEntry', id)
     }
+
     return rowToFileEntry(rows[0])
   }
 
@@ -899,10 +965,13 @@ class FileEntryServiceImpl implements FileEntryService {
       )
       .limit(limit)
       .all()
+
     const ids = rows.map((row) => row.id)
+
     if (ids.length === 0) return ids
 
     tx.delete(fileEntryTable).where(inArray(fileEntryTable.id, ids)).run()
+
     return ids
   }
 }

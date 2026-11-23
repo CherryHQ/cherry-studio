@@ -21,6 +21,7 @@ import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 export type CherryCloudOfferFilter = (offer: CherryCloudPlanModel) => boolean
 
 export const CHERRY_CLOUD_SELECTOR_PROVIDER_IDS = [CHERRYAI_PROVIDER_ID, CHERRY_CLOUD_PROVIDER_ID] as const
+
 const NON_CHAT_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.RERANK,
@@ -43,10 +44,12 @@ export function useCherryCloudModelSelectorPolicy({
   const { activePaid, upcomingPaid } = useCherryCloudPlans(enabled)
   const { providers } = useProviders({ enabled: true }, { enabled })
   const hasPaidPlan = Boolean(activePaid || upcomingPaid)
+
   const orderedProviderIds = useMemo(() => {
     const otherProviderIds = prioritizedProviderIds.filter(
       (id) => !CHERRY_CLOUD_SELECTOR_PROVIDER_IDS.some((cloudId) => cloudId === id)
     )
+
     return hasPaidPlan
       ? [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...otherProviderIds]
       : [
@@ -57,15 +60,19 @@ export function useCherryCloudModelSelectorPolicy({
           ...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS
         ]
   }, [hasPaidPlan, prioritizedProviderIds, providers])
+
   const { isModelHidden, isModelFree, getModelDescription, isModelUnavailable } = availability
+
   const modelFilter = useCallback<ModelSelectorFilter>(
     (model, provider) => !isModelHidden(model, includeAgentOnlyModels) && (filter?.(model, provider) ?? true),
     [isModelHidden, filter, includeAgentOnlyModels]
   )
+
   const getModelPresentation = useCallback(
     (model: Model, provider: Provider) => {
       const staticTags = getModelDisplayTags(model, undefined, provider)
       const tags = isModelFree(model) && !staticTags.includes('free') ? [...staticTags, 'free' as const] : staticTags
+
       return {
         tags,
         description: getModelDescription(model),
@@ -75,6 +82,7 @@ export function useCherryCloudModelSelectorPolicy({
     },
     [getModelDescription, isModelFree, isModelUnavailable]
   )
+
   return { availability, modelFilter, getModelPresentation, prioritizedProviderIds: orderedProviderIds }
 }
 
@@ -82,6 +90,7 @@ export function useCherryCloudModelSelectorPolicy({
 export function useCherryCloudModelSelectorData(options: UseModelSelectorDataOptions) {
   const { availability, modelFilter, getModelPresentation, prioritizedProviderIds } =
     useCherryCloudModelSelectorPolicy(options)
+
   const composition = useMemo(
     () => ({
       getModelPresentation,
@@ -89,12 +98,14 @@ export function useCherryCloudModelSelectorData(options: UseModelSelectorDataOpt
     }),
     [getModelPresentation]
   )
+
   const data = useModelSelectorData({
     ...options,
     filter: modelFilter,
     prioritizedProviderIds,
     composition
   })
+
   return {
     ...data,
     cloudAvailabilityReady: availability.isAvailabilityReady,
@@ -110,6 +121,7 @@ export function useCherryCloudModelSelectorOffers(
 ) {
   const { session, plansQuery, activePaid, upcomingPaid, isPlansReady } = useCherryCloudPlans(enabled)
   const [cachedPlanModels, setCachedPlanModels] = usePersistCache('ui.cherry_cloud.plan_models')
+
   const livePlanModels = useMemo(
     () =>
       plansQuery.data &&
@@ -119,15 +131,18 @@ export function useCherryCloudModelSelectorOffers(
       ),
     [plansQuery.data]
   )
+
   useEffect(() => {
     if (livePlanModels && isPlansReady) setCachedPlanModels(livePlanModels)
   }, [isPlansReady, livePlanModels, setCachedPlanModels])
   const signedOut = session.status?.phase === 'signed-out'
+
   const { data: publicPlans } = useSWR(
     enabled && showOffers && signedOut ? 'cherry-cloud/public-plans' : null,
     () => ipcApi.request('cherry_cloud.public_plans.get'),
     { shouldRetryOnError: false }
   )
+
   const publicPlanModels = useMemo(
     () =>
       publicPlans &&
@@ -137,17 +152,21 @@ export function useCherryCloudModelSelectorOffers(
       ),
     [publicPlans]
   )
+
   const paidPlan = activePaid ?? upcomingPaid
   const canOfferSubscription = showOffers && (signedOut || (isPlansReady && !paidPlan))
+
   const offers = useMemo(() => {
     const planModels = canOfferSubscription
       ? signedOut
         ? (publicPlanModels ?? cachedPlanModels)
         : (livePlanModels ?? [])
       : []
+
     return planModels
       .filter((model) => {
         const features = new Set(model.available_features)
+
         return (
           (includeAgentOnlyModels ? features.has('agent') : features.has('chat') && features.has('translate')) &&
           isCherryCloudChatOffer(model) &&
@@ -168,5 +187,6 @@ export function useCherryCloudModelSelectorOffers(
     includeAgentOnlyModels,
     offerFilter
   ])
+
   return { offers, paidPlan, canOfferSubscription, signedOut }
 }

@@ -175,12 +175,21 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
 ])
 
 export type WebviewAnnotationTarget = z.infer<typeof WebviewAnnotationTargetSchema>
+
 export type WebviewElementLocator = z.infer<typeof WebviewElementLocatorSchema>
+
 export type WebviewRegionRect = z.infer<typeof WebviewRegionRectSchema>
+
 export type WebviewAnnotationAnchorRect = z.infer<typeof WebviewAnnotationAnchorRectSchema>
+
 export type WebviewAnnotationRegion = z.infer<typeof WebviewAnnotationRegionSchema>
+
 export type WebviewAnnotation = z.infer<typeof WebviewAnnotationSchema>
+
 export type WebviewAnnotationLocale = z.infer<typeof WebviewAnnotationLocaleSchema>
+
 export type WebviewAnnotationTheme = z.infer<typeof WebviewAnnotationThemeSchema>
+
 export type WebviewAnnotationHostCommand = z.infer<typeof WebviewAnnotationHostCommandSchema>
+
 export type WebviewAnnotationGuestEvent = z.infer<typeof WebviewAnnotationGuestEventSchema>

@@ -25,14 +25,17 @@ export class CherryCloudSubscriptionAnalyticsService {
 
   recordClick(): string {
     this.lastSubscribeClick = { at: Date.now(), flowId: crypto.randomUUID() }
+
     return this.lastSubscribeClick.flowId
   }
 
   clickAttribution(): Pick<ActivationEvent, 'sinceClick' | 'flowId'> {
     if (this.lastSubscribeClick === null) return { sinceClick: 'none' }
     const minutes = (Date.now() - this.lastSubscribeClick.at) / 60_000
+
     if (minutes >= 24 * 60) return { sinceClick: 'over_24h' }
     const sinceClick = minutes < 5 ? 'under_5m' : minutes < 30 ? 'under_30m' : 'under_24h'
+
     return { sinceClick, flowId: this.lastSubscribeClick.flowId }
   }
 }

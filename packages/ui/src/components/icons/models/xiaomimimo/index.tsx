@@ -6,7 +6,9 @@ import { XiaomimimoLight } from './light'
 
 const Xiaomimimo = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <XiaomimimoLight {...props} className={className} />
+
   if (variant === 'dark') return <XiaomimimoDark {...props} className={className} />
+
   return (
     <>
       <XiaomimimoLight className={cn('dark:hidden', className)} {...props} />

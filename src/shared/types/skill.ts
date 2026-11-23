@@ -11,6 +11,7 @@ import * as z from 'zod'
 // ============================================================================
 
 export const SkillSearchSourceSchema = z.enum(['claude-plugins.dev', 'skills.sh', 'clawhub.ai', 'github'])
+
 export type SkillSearchSource = z.infer<typeof SkillSearchSourceSchema>
 
 // ============================================================================
@@ -39,6 +40,7 @@ export const ClaudePluginsSkillItemSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional()
 })
+
 export type ClaudePluginsSkillItem = z.infer<typeof ClaudePluginsSkillItemSchema>
 
 export const ClaudePluginsSearchResponseSchema = z.object({
@@ -59,6 +61,7 @@ export const SkillsShSearchItemSchema = z.object({
   installs: z.number(),
   source: z.string() // "owner/repo"
 })
+
 export type SkillsShSearchItem = z.infer<typeof SkillsShSearchItemSchema>
 
 export const SkillsShSearchResponseSchema = z.object({
@@ -80,6 +83,7 @@ export const ClawhubSearchItemSchema = z.object({
   updatedAt: z.number(),
   ownerHandle: z.string().optional()
 })
+
 export type ClawhubSearchItem = z.infer<typeof ClawhubSearchItemSchema>
 
 export const ClawhubSearchResponseSchema = z.object({
@@ -115,6 +119,7 @@ export const ClawhubSkillDetailSchema = z.object({
     })
     .nullable()
 })
+
 export type ClawhubSkillDetail = z.infer<typeof ClawhubSkillDetailSchema>
 
 // ============================================================================
@@ -132,6 +137,7 @@ export const SkillSearchResultSchema = z.object({
   sourceUrl: z.string().nullable().default(null), // URL to the skill's page on the registry
   installSource: z.string() // opaque handle passed to install IPC
 })
+
 export type SkillSearchResult = z.infer<typeof SkillSearchResultSchema>
 
 // ============================================================================
@@ -157,6 +163,7 @@ export const InstalledSkillSchema = z.object({
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
+
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
 export const SkillRemoteUpdateCheckSchema = z.discriminatedUnion('state', [
@@ -176,6 +183,7 @@ export const SkillRemoteUpdateCheckSchema = z.discriminatedUnion('state', [
     revision: z.string().min(1)
   })
 ])
+
 export type SkillRemoteUpdateCheck = z.infer<typeof SkillRemoteUpdateCheckSchema>
 
 // ============================================================================

@@ -61,15 +61,18 @@ function TaskRow({
   const [editOpen, setEditOpen] = useState<boolean>()
   const [deleteOpen, setDeleteOpen] = useState<boolean>()
   const paused = task.status === 'paused'
+
   const perform = async <TResult,>(command: () => Promise<TResult>) => {
     if (busy) return
     setBusy(true)
+
     try {
       await command()
     } finally {
       setBusy(false)
     }
   }
+
   return (
     <div
       className={cn(
@@ -176,6 +179,7 @@ function TaskRow({
           onConfirm={async () => {
             if (busy) return false
             setBusy(true)
+
             try {
               return await deleteTask(task.agentId, task.id, { onDeleted })
             } finally {
@@ -197,13 +201,16 @@ export function ScheduledTaskGroup({
   onDeleted
 }: ScheduledTaskGroupProps) {
   const { t } = useTranslation()
+
   const statusLabel = {
     active: t('agent.tasks.status.active'),
     paused: t('agent.tasks.status.paused'),
     completed: t('agent.tasks.status.completed')
   }[status]
+
   const [expanded, setExpanded] = useState(true)
   const contentId = useId()
+
   return (
     <section aria-label={statusLabel} className="flex flex-col gap-1">
       <h2 className="flex h-9 items-center">

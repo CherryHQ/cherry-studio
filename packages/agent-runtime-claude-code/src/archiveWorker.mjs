@@ -22,24 +22,30 @@ async function send(message, transfer = []) {
 async function sendRecords(header, records) {
   let buffers = []
   let bytes = 0
+
   for (const record of records) {
     const encoded = serialize(record)
+
     if (encoded.byteLength > chunkBytes) {
       throw new Error(`Claude archive record exceeds the ${chunkBytes}-byte transfer limit`)
     }
+
     // Also bound the number of transferable buffers when records are tiny.
     if (bytes + encoded.byteLength > chunkBytes || buffers.length === 256) {
       await send({ ...header, buffers }, buffers)
       buffers = []
       bytes = 0
     }
+
     buffers.push(encoded.buffer)
     bytes += encoded.byteLength
   }
+
   if (buffers.length > 0) await send({ ...header, buffers }, buffers)
 }
 
 const info = await getSessionInfo(sessionId, options)
+
 if (!info || info.sessionId !== sessionId) {
   parentPort.postMessage({ kind: 'missing' })
 } else {
@@ -57,6 +63,7 @@ if (!info || info.sessionId !== sessionId) {
           isApiErrorMessage: entry.isApiErrorMessage,
           ...(Object.hasOwn(entry, 'parentAgentId') && { parentAgentId: entry.parentAgentId })
         }))
+
         await sendRecords({ kind: 'entries', subpath: key.subpath }, entries)
       },
       async load() {
@@ -65,10 +72,12 @@ if (!info || info.sessionId !== sessionId) {
     },
     { ...options, includeSubagents: true }
   )
+
   for (const agentId of await listSubagents(sessionId, options)) {
     await send({ kind: 'child', agentId })
     await sendRecords({ kind: 'child-messages', agentId }, await getSubagentMessages(sessionId, agentId, options))
   }
+
   await sendRecords({ kind: 'messages' }, await getSessionMessages(sessionId, options))
   parentPort.postMessage({ kind: 'done' })
 }

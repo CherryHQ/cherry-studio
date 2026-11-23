@@ -31,6 +31,7 @@ interface BrowserPages {
   pages: readonly AgentBrowserResource[]
   activePageId?: string
 }
+
 const emptyPages: readonly AgentBrowserResource[] = []
 
 /** Guests outlive presentation subscriptions and retain active Agent turns without an app tab. */
@@ -45,6 +46,7 @@ export class AgentBrowserRuntimeService {
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
+
     return () => this.listeners.delete(listener)
   }
 
@@ -59,6 +61,7 @@ export class AgentBrowserRuntimeService {
       if (previousSessionId === sessionId || !previousOwners.delete(ownerTabId)) continue
       this.releaseUnowned(previousSessionId)
     }
+
     const owners = this.owners.get(sessionId) ?? new Set<string>()
     owners.add(ownerTabId)
     this.owners.set(sessionId, owners)
@@ -68,6 +71,7 @@ export class AgentBrowserRuntimeService {
 
   ensure(sessionId: string, url?: string, profile: WebviewSecurityProfile = WebviewSecurityProfile.AgentBrowser): void {
     const existing = this.get(sessionId)
+
     if (existing) {
       if (url) this.navigate(sessionId, existing.pageId, url, profile)
     } else if (!this.hasSession(sessionId) || url) {
@@ -86,9 +90,11 @@ export class AgentBrowserRuntimeService {
     options: { pageId?: string; activate?: boolean; previewKey?: string; reuse?: boolean } = {}
   ): string | undefined {
     if (!this.owners.has(sessionId)) return
+
     if (url !== 'about:blank') url = normalizeBrowserEntryUrl(url)
     const pages = this.getPages(sessionId)
     const securityProfile = url.startsWith('file:') ? WebviewSecurityProfile.AgentHtmlArtifact : profile
+
     const existing = pages.find((page) =>
       options.pageId
         ? page.pageId === options.pageId
@@ -99,12 +105,17 @@ export class AgentBrowserRuntimeService {
             page.url === url &&
             page.securityProfile === securityProfile
     )
+
     const activate = options.activate ?? true
+
     if (existing) {
       if (options.previewKey || options.pageId) this.navigate(sessionId, existing.pageId, url, securityProfile)
+
       if (activate) this.activate(sessionId, existing.pageId)
+
       return existing.pageId
     }
+
     const pageId = options.pageId ?? crypto.randomUUID()
     const previous = this.sessions.get(sessionId)
     this.sessions.set(sessionId, {
@@ -131,26 +142,33 @@ export class AgentBrowserRuntimeService {
     })
     this.ids = [...this.sessions.keys()]
     this.emit()
+
     return pageId
   }
 
   navigate(sessionId: string, pageId: string, url: string, profile?: WebviewSecurityProfile): void {
     const existing = this.get(sessionId, pageId)
+
     if (!existing) return
+
     if (url !== 'about:blank') url = normalizeBrowserEntryUrl(url)
+
     const securityProfile = url.startsWith('file:')
       ? WebviewSecurityProfile.AgentHtmlArtifact
       : (profile ??
         (existing.securityProfile === WebviewSecurityProfile.AgentHtmlArtifact
           ? WebviewSecurityProfile.AgentBrowser
           : existing.securityProfile))
+
     this.update(sessionId, { sourceUrl: url, securityProfile }, pageId)
   }
 
   activate(sessionId: string, pageId: string): void {
     const session = this.sessions.get(sessionId)
+
     if (!session || session.activePageId === pageId || !this.get(sessionId, pageId)) return
     const page = this.get(sessionId, pageId)
+
     if (page?.ready && page.securityProfile === WebviewSecurityProfile.AgentBrowser)
       rememberBrowserPageUrl(`${this.scope}:${sessionId}`, page.url)
     this.sessions.set(sessionId, { ...session, activePageId: pageId })
@@ -163,9 +181,11 @@ export class AgentBrowserRuntimeService {
 
   closePages(sessionId: string, pageIds: readonly string[]): void {
     const session = this.sessions.get(sessionId)
+
     if (!session) return
     const closed = new Set(pageIds)
     const pages = session.pages.filter((page) => !closed.has(page.pageId))
+
     if (pages.length === session.pages.length) return
     const activeIndex = session.pages.findIndex((page) => page.pageId === session.activePageId)
     this.sessions.set(sessionId, {
@@ -181,12 +201,14 @@ export class AgentBrowserRuntimeService {
   update(sessionId: string, patch: Partial<Omit<AgentBrowserResource, 'sessionId' | 'pageId'>>, pageId?: string): void {
     const existing = this.get(sessionId, pageId)
     const session = this.sessions.get(sessionId)
+
     if (
       !existing ||
       !session ||
       Object.entries(patch).every(([key, value]) => existing[key as keyof AgentBrowserResource] === value)
     )
       return
+
     if (
       patch.url !== undefined &&
       existing.securityProfile === WebviewSecurityProfile.AgentBrowser &&
@@ -209,8 +231,10 @@ export class AgentBrowserRuntimeService {
 
   private releaseUnowned(sessionId: string): void {
     if (this.owners.get(sessionId)?.size) return
+
     if (this.scope === 'agent') {
       const key = `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
+
       if (classifyTurn(cacheService.getShared(key)?.status).isTurnActive) {
         if (!this.turnSubscriptions.has(sessionId)) {
           this.turnSubscriptions.set(
@@ -218,19 +242,23 @@ export class AgentBrowserRuntimeService {
             cacheService.subscribe(key, () => this.releaseUnowned(sessionId))
           )
         }
+
         return
       }
     }
+
     this.close(sessionId)
   }
 
   syncOwners(sessionByTab: ReadonlyMap<string, string>): void {
     this.owners.clear()
+
     for (const [tabId, sessionId] of sessionByTab) {
       const owners = this.owners.get(sessionId) ?? new Set<string>()
       owners.add(tabId)
       this.owners.set(sessionId, owners)
     }
+
     for (const sessionId of this.sessions.keys()) {
       if (!this.owners.has(sessionId)) this.close(sessionId)
     }
@@ -240,6 +268,7 @@ export class AgentBrowserRuntimeService {
     this.turnSubscriptions.get(sessionId)?.()
     this.turnSubscriptions.delete(sessionId)
     this.owners.delete(sessionId)
+
     if (!this.sessions.delete(sessionId)) return
     this.ids = [...this.sessions.keys()]
     this.emit()

@@ -95,6 +95,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const { t } = useTranslation()
   const [showImageUploader, setShowImageUploader] = useState(false)
   const [showMathInput, setShowMathInput] = useState(false)
+
   const [placeholderCallbacks, setPlaceholderCallbacks] = useState<{
     onMathSubmit?: (latex: string) => void
     onMathCancel?: () => void
@@ -156,6 +157,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     if (editor) {
       editor.chain().focus().setImage({ src: imageUrl }).run()
     }
+
     setShowImageUploader(false)
   }
 
@@ -210,6 +212,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             } else {
               handleImageSelect(imageUrl)
             }
+
             setShowImageUploader(false)
           }}
           onClose={() => {
@@ -217,6 +220,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               placeholderCallbacks.onImageCancel()
               setPlaceholderCallbacks((prev) => ({ ...prev, onImageSelect: undefined, onImageCancel: undefined }))
             }
+
             setShowImageUploader(false)
           }}
         />
@@ -234,6 +238,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               editor.chain().focus().insertBlockMath({ latex: formula }).run()
             }
           }
+
           setPlaceholderCallbacks((prev) => ({
             ...prev,
             onMathSubmit: undefined,
@@ -256,6 +261,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               mathPosition: undefined
             }))
           }
+
           setShowMathInput(false)
         }}
         onFormulaChange={(formula) => {
@@ -264,6 +270,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           } else {
             if (editor) {
               const mathNodeType = editor.schema.nodes.inlineMath || editor.schema.nodes.blockMath
+
               if (mathNodeType === editor.schema.nodes.inlineMath) {
                 editor.chain().updateInlineMath({ latex: formula }).run()
               } else if (mathNodeType === editor.schema.nodes.blockMath) {

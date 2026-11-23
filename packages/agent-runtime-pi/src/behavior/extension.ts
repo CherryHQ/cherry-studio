@@ -47,14 +47,19 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       if (conv.lineage.kind === 'subagent' && tool.availability === 'parent-only') continue
       pi.registerTool(nativeTool(adapter, conv, tool))
     }
+
     pi.on('agent_start', (_event, ctx) => {
       const run = conv.active
+
       // README host obligations: only the adapter starts runs here; this one has no input, run number or end.
       if (!run) {
         adapter.report(new Error(`A run the behavior adapter did not start began in ${conv.thread}`))
+
         return
       }
+
       run.pending = false
+
       // Pi drops an abort made before it started the run (a prompt's input handlers); repeat it now.
       if (run.stopRequested) ctx.abort()
     })
@@ -79,9 +84,12 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       'context',
       reporting(adapter, (event: ContextEvent) => {
         const filter = adapter.installation.filter
+
         if (!filter) return undefined
         const omit = filter.omit(conv.thread, readFacts(adapter, conv.thread))
+
         if (omit.length === 0) return undefined
+
         return { messages: withoutMarkers(event.messages, omittedMarkers(conv.manager.getBranch(), omit)) }
       })
     )
@@ -95,21 +103,28 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
         // oxlint-disable-next-line no-restricted-globals -- Capture one tool invocation input before behavior stores it across native execution.
         const args = structuredClone(event.input) as JsonValue
         const call: ToolCallFact = { callId: event.toolCallId, callKey: key, name: event.toolName, args }
+
         if (run && !nested) run.window.push(call)
         const gate = adapter.installation.gate
+
         if (!gate) return undefined
         const goalRound = run?.startedBy === ENTRY_KINDS.goalRound
+
         const facts: GateFacts = {
           plan: latestPlan(historyOf(conv.manager.getBranch(), conv.thread)),
           goalRound,
           callWindow: goalRound && run ? [...run.window] : []
         }
+
         // H9: the run's abort signal, which aborts when the call's turn stops.
         const signal = ctx.signal ?? new AbortController().signal
         const gated = { key, thread: conv.thread, tool: event.toolName, args, nested, signal }
         const verdict = await gate.before(gated, facts, adapter.gatePorts)
+
         if (verdict.block !== undefined) return { block: true, reason: `${BLOCKED_PREFIX}${verdict.block}` }
+
         if (verdict.args !== undefined) replaceArgs(event.input, verdict.args)
+
         return undefined
       })
     )
@@ -117,7 +132,9 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       'tool_result',
       reporting(adapter, async (event: ToolResultEvent) => {
         const gate = adapter.installation.gate
+
         if (!gate) return undefined
+
         const gated: GateCall = {
           key: callKeyFor(conv.thread, event.toolCallId),
           thread: conv.thread,
@@ -125,26 +142,34 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
           args: event.input as JsonValue,
           nested: event.parentToolCallId !== undefined
         }
+
         const content: ToolResultEvent['content'] = []
         let changed = false
         let isError = event.isError
         let details = event.details
+
         for (let i = 0; i < event.content.length;) {
           const part = event.content[i]
+
           if (part.type !== 'text') {
             content.push(part)
             i++
             continue
           }
+
           const span: ToolResultEvent['content'] = []
+
           while (i < event.content.length && event.content[i].type === 'text') span.push(event.content[i++])
+
           // oxlint-disable-next-line anti-slop/no-known-value-widening -- Build the readonly fact before gating; optional native details must remain absent when unavailable.
           const result: { -readonly [K in keyof ToolResultFact]: ToolResultFact[K] } = {
             text: textOf(span),
             isError
           }
+
           if (details !== undefined) result.details = details as JsonValue
           const replaced = await gate.after(gated, result, adapter.gatePorts)
+
           if (!replaced) content.push(...span)
           else {
             changed = true
@@ -153,6 +178,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
             details = replaced.details
           }
         }
+
         return changed ? { content, isError, details, structuredContent: event.structuredContent } : undefined
       })
     )
@@ -189,18 +215,23 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
     exposure: 'model-only',
     async execute(toolCallId, params, signal) {
       const owner = conv.active && { thread: conv.thread, run: conv.active.run }
+
       const call = {
         key: callKeyFor(conv.thread, toolCallId),
         thread: conv.thread,
         args: params as JsonValue,
         signal: signal ?? new AbortController().signal
       }
+
       const outcome = await adapter.withScope({ owner, signal: call.signal }, (ports) => tool.run(call, ports))
+
       const result: Awaited<ReturnType<NativeTool['execute']>> = {
         content: [{ type: 'text', text: outcome.text }],
         details: outcome.details
       }
+
       if (outcome.isError) Object.assign(result, { isError: true })
+
       return result
     }
   }
@@ -212,7 +243,9 @@ function replaceArgs(input: ToolResultEvent['input'], args: JsonValue): void {
     throw new TypeError('A gate can only rewrite tool arguments to an object')
   // Array.isArray excludes arrays at runtime; TypeScript retains JsonValue's readonly-array member.
   const fields = args as { readonly [key: string]: JsonValue }
+
   for (const field of Object.keys(input)) delete input[field]
+
   for (const field of Object.keys(fields)) {
     Object.defineProperty(input, field, {
       value: fields[field],
@@ -226,6 +259,7 @@ function replaceArgs(input: ToolResultEvent['input'], args: JsonValue): void {
 /** H11: the meter's answer for the next request of `conv`'s run, with the conversation's lineage. */
 function allow(adapter: Adapter, conv: Conversation, requestsInRun: number): RequestAllowance {
   const lineage = conv.lineage.kind === 'subagent' ? 'child' : 'root'
+
   return adapter.installation.meter?.allow(conv.thread, requestsInRun, lineage) ?? { ok: true }
 }
 
@@ -235,16 +269,21 @@ export function meterRequests(adapter: Adapter, conv: Conversation, session: Age
   session.agent.streamFunction = (model, context, options) => {
     const run = conv.active
     const allowance = allow(adapter, conv, run?.requests ?? 0)
+
     if (!allowance.ok) {
       if (run) run.refused = allowance.text
+
       return lazyStream(model, async () => {
         throw new Error(allowance.text)
       })
     }
+
     if (run) run.requests += 1
     const summary = session.isCompacting ? conv.summary : undefined
     const output = stream(model, context, summary ? { ...options, sessionId: conv.thread } : options)
+
     if (!summary) return output
+
     return Promise.resolve(output).then((output) => {
       const key = nativeSummaryKey(`${summary.key}:${++summary.requests}`)
       const result = output.result.bind(output)
@@ -253,18 +292,24 @@ export function meterRequests(adapter: Adapter, conv: Conversation, session: Age
         (saved ??= result().then((message) => {
           const usage = usageFact(message.usage)
           const encoded = encodeEntry({ type: 'summary-usage', value: { ...summary.owner, usage } }, key)
+
           if (!encoded.data || typeof encoded.data !== 'object' || Array.isArray(encoded.data))
             throw new Error('Invalid native summary accounting')
+
           const data = {
             ...encoded.data,
             nativeThread: conv.thread
           }
+
           if (summary.run !== undefined) Object.assign(data, { nativeRun: summary.run })
           conv.manager.appendCustomEntry(encoded.kind, data)
+
           if (summary.run)
             conv.runUsage[summary.run - 1] = addUsage(conv.runUsage[summary.run - 1] ?? ZERO_USAGE, usage)
+
           return message
         }))
+
       return output
     })
   }

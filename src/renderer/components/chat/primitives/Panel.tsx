@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 type PanelVariant = 'plain' | 'surface' | 'bordered'
+
 type PanelPadding = 'none' | 'sm' | 'md'
 
 export interface PanelProps extends Omit<ComponentProps<'section'>, 'title'> {

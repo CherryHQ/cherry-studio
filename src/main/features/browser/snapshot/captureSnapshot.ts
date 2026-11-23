@@ -25,6 +25,7 @@ export interface RawSnapshot {
 
 export async function captureSnapshot(session: GuestSession, options: CommandOptions = {}): Promise<RawSnapshot> {
   const ax = await session.send('Accessibility.getFullAXTree', undefined, options)
+
   const [dom, viewport] = await Promise.all([
     ax.nodes.length > 20_000
       ? undefined
@@ -46,5 +47,6 @@ export async function captureSnapshot(session: GuestSession, options: CommandOpt
       options
     )
   ])
+
   return { ax: ax.nodes, dom, viewport: viewport.result.value, frameId: session.mainFrameId }
 }

@@ -19,6 +19,7 @@ const DELIVERY_STATUS_CLASS_NAMES: Record<AgentSessionDeliveryStatus, string> = 
 export function getSessionDeliveryStatus(status: string | undefined, t: TFunction) {
   if (status && Object.hasOwn(DELIVERY_STATUS_LABEL_KEYS, status)) {
     const deliveryStatus = status as AgentSessionDeliveryStatus
+
     return {
       className: DELIVERY_STATUS_CLASS_NAMES[deliveryStatus],
       label: t(DELIVERY_STATUS_LABEL_KEYS[deliveryStatus])

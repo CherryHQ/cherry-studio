@@ -36,6 +36,7 @@ export const CreatePromptSchema = PromptSchema.pick({
     message: 'Global prompts cannot have an initial binding target',
     path: ['bindingTarget']
   })
+
 export type CreatePromptDto = z.infer<typeof CreatePromptSchema>
 
 export const UpdatePromptSchema = PromptSchema.pick({ title: true, content: true, visibility: true })
@@ -48,6 +49,7 @@ export const UpdatePromptSchema = PromptSchema.pick({ title: true, content: true
     message: 'Expected bindings are only valid when making a prompt global',
     path: ['expectedBindings']
   })
+
 export type UpdatePromptDto = z.infer<typeof UpdatePromptSchema>
 
 const PromptTextSearchQuerySchema = z.strictObject({
@@ -71,7 +73,9 @@ const PromptTargetListQuerySchema = z.discriminatedUnion('targetType', [
 ])
 
 export const ListPromptsQuerySchema = z.union([PromptSearchQuerySchema, PromptTargetListQuerySchema])
+
 export type ListPromptsQueryParams = z.input<typeof ListPromptsQuerySchema>
+
 export type ListPromptsQuery = z.output<typeof ListPromptsQuerySchema>
 
 export const PromptBindingParamsSchema = z.discriminatedUnion('targetType', [
@@ -86,6 +90,7 @@ export const PromptBindingParamsSchema = z.discriminatedUnion('targetType', [
     targetId: PromptAgentBindingTargetSchema.shape.id
   })
 ])
+
 export type PromptBindingParams = z.infer<typeof PromptBindingParamsSchema>
 
 export const PromptBindingTargetParamsSchema = z.discriminatedUnion('targetType', [
@@ -98,6 +103,7 @@ export const PromptBindingTargetParamsSchema = z.discriminatedUnion('targetType'
     targetId: PromptAgentBindingTargetSchema.shape.id
   })
 ])
+
 export type PromptBindingTargetParams = z.infer<typeof PromptBindingTargetParamsSchema>
 
 // ============================================================================

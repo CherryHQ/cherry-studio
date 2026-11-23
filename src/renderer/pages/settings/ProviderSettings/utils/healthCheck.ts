@@ -63,14 +63,17 @@ export function resolveModelCheckCredentials(
     if (policy.requiresApiKey) {
       throw new ModelCheckCredentialsError('api_key_required')
     }
+
     return [{ kind: 'provider-auth', id: 'provider-auth', key: '' }]
   }
 
   if (selection.mode === 'single') {
     const selectedEntry = enabledEntries.find((entry) => entry.id === selection.keyId)
+
     if (!selectedEntry) {
       throw new ModelCheckCredentialsError('api_key_unavailable')
     }
+
     return [{ kind: 'api-key', entry: selectedEntry }]
   }
 
@@ -88,9 +91,11 @@ export async function checkModelWithMultipleKeys(
   return Promise.all(
     credentials.map(async (credential) => {
       signal?.throwIfAborted()
+
       try {
         const apiKey = credential.kind === 'api-key' ? credential.entry.key : credential.key
         const { latency } = await checkApi(model.id, { apiKey, timeout, signal })
+
         return {
           kind: 'ok',
           credential,
@@ -118,8 +123,10 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]) {
   if (failedResults.length > 0) {
     const errorStrings = failedResults.flatMap((result) => {
       const s = healthCheckErrorToDisplayString(result.error)
+
       return s !== '' ? [s] : []
     })
+
     const errors = [...new Set(errorStrings)].join('; ')
 
     return {
@@ -153,6 +160,7 @@ export function getModelHealthCheckGenerationOutput(model: Model): ModelHealthCh
 
 export function getModelHealthCheckSkipReason(model: Model): ModelHealthCheckSkipReason | null {
   const generationOutput = getModelHealthCheckGenerationOutput(model)
+
   if (generationOutput) {
     return {
       kind: 'generation_cost',
@@ -197,15 +205,19 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
   }
 
   const summaryParts: string[] = []
+
   if (successCount > 0) {
     summaryParts.push(t('settings.models.check.model_status_passed', { count: successCount }))
   }
+
   if (partialCount > 0) {
     summaryParts.push(t('settings.models.check.model_status_partial', { count: partialCount }))
   }
+
   if (failedCount > 0) {
     summaryParts.push(t('settings.models.check.model_status_failed', { count: failedCount }))
   }
+
   if (skippedCount > 0) {
     summaryParts.push(t('settings.models.check.model_status_skipped', { count: skippedCount }))
   }
@@ -215,6 +227,7 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
   }
 
   const summary = summaryParts.join(', ')
+
   return t('settings.models.check.model_status_summary', {
     provider: providerName ?? t('common.unknown'),
     summary
@@ -231,6 +244,7 @@ export async function checkApi(
   options?: { apiKey?: string; timeout?: number; signal?: AbortSignal }
 ): Promise<{ latency: number }> {
   options?.signal?.throwIfAborted()
+
   return await ipcApi.request('ai.provider.model.check', {
     apiKeyOverride: options?.apiKey,
     uniqueModelId,

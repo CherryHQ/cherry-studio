@@ -120,13 +120,16 @@ function deriveResourceListItems<T extends ResourceListItemBase>({
     next = next.filter((item) => {
       for (const filterId of filters) {
         const filter = filterById.get(filterId)
+
         if (filter && !filter.predicate(item)) return false
       }
+
       return true
     })
   }
 
   const sort = sortId ? sortById.get(sortId) : null
+
   if (sort) {
     next.sort(sort.comparator)
   }
@@ -146,6 +149,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
 
   if (!groupBy) {
     const group = { id: 'all', label: '', synthetic: true }
+
     return [
       {
         group,
@@ -161,6 +165,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
   }
 
   const groups = new Map<string, { group: ResourceListGroup; items: T[] }>()
+
   for (const group of groupSeeds) {
     groups.set(group.id, { group, items: [] })
   }
@@ -168,6 +173,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
   for (const item of items) {
     const group = getResourceListGroup(item, groupBy)
     const existing = groups.get(group.id)
+
     if (existing) {
       existing.items.push(item)
     } else {
@@ -215,6 +221,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
     const section = sectionBy(item) ?? UNSECTIONED_RESOURCE_SECTION
 
     const existing = sections.get(section.id)
+
     if (existing) {
       existing.items.push(item)
     } else {
@@ -225,10 +232,13 @@ function buildResourceListSections<T extends ResourceListItemBase>({
   for (const groupSeed of groupSeeds) {
     const section = groupSeed.section ?? UNSECTIONED_RESOURCE_SECTION
     const group = getResourceListGroupFromSeed(groupSeed)
+
     if (!seededSectionOrder.has(section.id)) {
       seededSectionOrder.set(section.id, seededSectionOrder.size)
     }
+
     const existing = sections.get(section.id)
+
     if (existing) {
       existing.groupSeeds.push(group)
     } else {
@@ -239,15 +249,21 @@ function buildResourceListSections<T extends ResourceListItemBase>({
   const sectionEntries = [...sections.values()].sort((left, right) => {
     const leftOrder = seededSectionOrder.get(left.section.id)
     const rightOrder = seededSectionOrder.get(right.section.id)
+
     if (leftOrder === undefined && rightOrder === undefined) return 0
+
     if (leftOrder === undefined) return -1
+
     if (rightOrder === undefined) return 1
+
     return leftOrder - rightOrder
   })
+
   const showSectionHeaders = sectionEntries.length > 1
 
   return sectionEntries.map(({ section, items, groupSeeds }) => {
     const collapsed = showSectionHeaders && Boolean(section.label) && collapsedIdSet.has(section.id)
+
     const groups = buildResourceListGroups({
       collapsedIds,
       defaultGroupVisibleCount,
@@ -256,6 +272,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
       groupVisibleCounts,
       items
     })
+
     const visibleGroups = collapsed
       ? groups.map((group) => ({
           ...group,
@@ -301,6 +318,7 @@ function findResourceListRevealTarget<T extends ResourceListItemBase>({
   sectionBy
 }: FindRevealTargetOptions<T>) {
   const targetItem = items.find((item) => getItemId(item) === itemId)
+
   if (!targetItem) return null
   const targetSectionId = sectionBy ? (sectionBy(targetItem)?.id ?? UNSECTIONED_RESOURCE_SECTION.id) : null
 
@@ -313,6 +331,7 @@ function findResourceListRevealTarget<T extends ResourceListItemBase>({
   const targetIndexInGroup = groupItems.findIndex((item) => getItemId(item) === itemId)
   const currentVisibleCount = groupVisibleCounts[targetGroupId] ?? defaultGroupVisibleCount
   const targetVisibleCount = targetIndexInGroup + 1
+
   const visibleCount =
     targetIndexInGroup >= 0 && targetVisibleCount > currentVisibleCount ? targetVisibleCount : undefined
 
@@ -428,20 +447,25 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
       return { ...state, filters: action.filters }
     case 'toggleFilter': {
       const next = new Set(state.filters)
+
       if (next.has(action.filterId)) {
         next.delete(action.filterId)
       } else {
         next.add(action.filterId)
       }
+
       return { ...state, filters: [...next] }
     }
+
     case 'setSort':
       return { ...state, sort: action.sort }
     case 'setActiveItem':
       if (state.activeId === action.id) return state
+
       return { ...state, activeId: action.id }
     case 'selectItem':
       if (state.selectedId === action.id && state.activeId === action.id) return state
+
       return { ...state, activeId: action.id, selectedId: action.id }
     case 'startRename':
       return { ...state, renamingId: action.id }
@@ -458,6 +482,7 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
         }
       }
     }
+
     case 'collapseGroupItems':
       return {
         ...state,
@@ -474,24 +499,32 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
     case 'collapseGroups': {
       const collapsedGroups = new Set(state.collapsedGroups)
       const groupVisibleCounts = { ...state.groupVisibleCounts }
+
       for (const groupId of action.groupIds) {
         collapsedGroups.add(groupId)
         groupVisibleCounts[groupId] = action.defaultCount
       }
+
       return { ...state, collapsedGroups: [...collapsedGroups], groupVisibleCounts }
     }
+
     case 'resetGroupVisibleCounts': {
       const groupVisibleCounts = { ...state.groupVisibleCounts }
+
       for (const groupId of action.groupIds) {
         groupVisibleCounts[groupId] = action.defaultCount
       }
+
       return { ...state, groupVisibleCounts }
     }
+
     case 'toggleGroup': {
       const wasCollapsed = state.collapsedGroups.includes(action.groupId)
+
       const collapsedGroups = wasCollapsed
         ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
         : [...state.collapsedGroups, action.groupId]
+
       if (wasCollapsed) return { ...state, collapsedGroups }
 
       return {
@@ -503,10 +536,12 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
         }
       }
     }
+
     case 'revealItem': {
       const nextGroupVisibleCounts = { ...state.groupVisibleCounts }
 
       const targetGroupId = action.groupIds[0]
+
       if (targetGroupId && action.visibleCount !== undefined) {
         nextGroupVisibleCounts[targetGroupId] = Math.max(
           nextGroupVisibleCounts[targetGroupId] ?? 0,
@@ -527,6 +562,7 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
         revealFocus: { itemId: action.itemId, requestId: action.requestId }
       }
     }
+
     case 'clearRevealFocus': {
       if (state.revealFocus?.itemId !== action.itemId || state.revealFocus.requestId !== action.requestId) {
         return state
@@ -534,6 +570,7 @@ function reducer(state: ResourceListProviderState, action: ProviderAction): Reso
 
       return { ...state, revealFocus: null }
     }
+
     case 'startDrag':
       return { ...state, draggingId: action.id }
     case 'endDrag':
@@ -603,15 +640,18 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
   const sortById = useMemo(() => new Map(sortOptions.map((option) => [option.id, option])), [sortOptions])
   const isControlled = collapsedState !== undefined
+
   const effectiveCollapsedIds = useMemo(
     () => normalizeCollapsedIds(collapsedState ?? state.collapsedGroups),
     [collapsedState, state.collapsedGroups]
   )
+
   const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
   const collapsedStateRef = useRef<readonly string[]>([])
   const uiStoreRef = useRef<ResourceListUiService | null>(null)
+
   if (!uiStoreRef.current) {
     uiStoreRef.current = new ResourceListUiService({
       activeId: state.activeId,
@@ -621,22 +661,27 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       selectedId: effectiveSelectedId
     })
   }
+
   const uiStore = uiStoreRef.current
+
   const getGroupHeaderClickBehavior = useCallback(
     (group: ResourceListGroup) =>
       typeof groupHeaderClickBehavior === 'function' ? groupHeaderClickBehavior(group) : groupHeaderClickBehavior,
     [groupHeaderClickBehavior]
   )
+
   const seedGroups = useMemo(() => groupSeeds.map(getResourceListGroupFromSeed), [groupSeeds])
 
   useEffect(() => {
     if (!revealRequest) return
 
     const requestKey = `${revealRequest.requestId}:${revealRequest.itemId}`
+
     if (handledRevealRequestRef.current === requestKey) return
 
     const query = revealRequest.clearQuery ? '' : state.query
     const filters = revealRequest.clearFilters ? [] : state.filters
+
     const revealItems = deriveResourceListItems({
       filterById,
       filters,
@@ -646,6 +691,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       sortById,
       sortId: state.sort
     })
+
     const revealTarget = findResourceListRevealTarget({
       defaultGroupVisibleCount,
       getItemId,
@@ -655,13 +701,17 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       items: revealItems,
       sectionBy
     })
+
     if (!revealTarget) return
+
     const revealGroupIds = [revealTarget.targetGroupId].filter(
       (groupId): groupId is string => typeof groupId === 'string'
     )
+
     const revealSectionIds = [revealTarget.targetSectionId].filter(
       (sectionId): sectionId is string => typeof sectionId === 'string'
     )
+
     const revealIds = [...revealGroupIds, ...revealSectionIds]
 
     if (isControlled && revealIds.some((id) => effectiveCollapsedIds.includes(id))) {
@@ -703,6 +753,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     if (!state.revealFocus) return
 
     const { itemId, requestId } = state.revealFocus
+
     const timeout = window.setTimeout(() => {
       dispatch({ type: 'clearRevealFocus', itemId, requestId })
     }, 1000)
@@ -767,10 +818,12 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   ])
 
   const visibleItems = useMemo(() => viewGroups.flatMap((group) => group.items), [viewGroups])
+
   const stateGroups = useMemo(
     () => (sectionBy ? [...buildSectionStateGroups(viewSections), ...viewGroups] : viewGroups),
     [sectionBy, viewGroups, viewSections]
   )
+
   useLayoutEffect(() => {
     uiStore.setSelectedId(effectiveSelectedId)
   }, [effectiveSelectedId, uiStore])
@@ -836,12 +889,14 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       },
       selectItem: (id: string) => {
         uiStore.setActiveId(id)
+
         if (!isSelectedControlled) {
           uiStore.setSelectedId(id)
           dispatch({ type: 'selectItem', id })
         } else {
           dispatch({ type: 'setActiveItem', id })
         }
+
         handlersRef.current.onSelectItem?.(id)
       },
       startRename: (id: string) => {
@@ -863,6 +918,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
           uiStore.setSelectedId(id)
           dispatch({ type: 'selectItem', id })
         }
+
         const handleSelect = handlersRef.current.onGroupHeaderSelectItem ?? handlersRef.current.onSelectItem
         handleSelect?.(id)
       },
@@ -879,6 +935,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         if (isControlled) {
           const removeSet = new Set(groupIds)
           notifyControlledCollapsedStateChange(collapsedStateRef.current.filter((id) => !removeSet.has(id)))
+
           return
         }
 
@@ -888,6 +945,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         if (isControlled) {
           dispatch({ type: 'resetGroupVisibleCounts', groupIds, defaultCount: defaultGroupVisibleCount })
           notifyControlledCollapsedStateChange([...collapsedStateRef.current, ...groupIds])
+
           return
         }
 
@@ -896,13 +954,17 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       toggleGroup: (groupId: string) => {
         if (isControlled) {
           const wasCollapsed = collapsedStateRef.current.includes(groupId)
+
           const nextCollapsedIds = wasCollapsed
             ? collapsedStateRef.current.filter((id) => id !== groupId)
             : [...collapsedStateRef.current, groupId]
+
           if (!wasCollapsed) {
             dispatch({ type: 'resetGroupVisibleCounts', groupIds: [groupId], defaultCount: defaultGroupVisibleCount })
           }
+
           notifyControlledCollapsedStateChange(nextCollapsedIds)
+
           return
         }
 

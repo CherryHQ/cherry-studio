@@ -20,8 +20,10 @@ export function DoctorCheckNotices({
 }) {
   const { t } = useTranslation()
   const { session, viewModel } = controller
+
   const retryLabelKey =
     retryLabel ?? (viewModel.status === 'canceled' || viewModel.status === 'failed' ? 'rerun' : 'run_basic')
+
   const retryLabelText = t(
     retryLabelKey === 'rerun' ? 'settings.doctor.actions.rerun' : 'settings.doctor.actions.run_basic'
   )

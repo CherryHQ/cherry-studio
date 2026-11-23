@@ -24,9 +24,11 @@ const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')
+
   const [webdavAllowSelfSignedTls, setWebdavAllowSelfSignedTls] = usePreference(
     'data.backup.webdav.allow_self_signed_tls'
   )
+
   const [webdavDisableStream, setWebdavDisableStream] = usePreference('data.backup.webdav.disable_stream')
   const [webdavHost, setWebdavHost] = usePreference('data.backup.webdav.host')
   const [webdavMaxBackups, setWebdavMaxBackups] = usePreference('data.backup.webdav.max_backups')
@@ -46,6 +48,7 @@ const WebDavSettings: FC = () => {
 
   const onSyncIntervalChange = async (value: number) => {
     await setWebdavSyncInterval(value)
+
     if (value === 0) {
       await setWebdavAutoSync(false)
     } else {

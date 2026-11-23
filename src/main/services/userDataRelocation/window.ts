@@ -51,6 +51,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
 
   const close = () => {
     unregisterIpc()
+
     if (!hasWindow()) return
     programmaticClose = true
     window!.close()
@@ -60,6 +61,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
   const requestRestart = async () => {
     if (restartRequested) return
     restartRequested = true
+
     try {
       if (await options.onRestart()) close()
     } finally {
@@ -77,6 +79,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
         logger.warn('Rejected relocation IPC request from untrusted sender', { channel })
         throw new Error(`Rejected IPC request from untrusted sender: ${channel}`)
       }
+
       return handler()
     })
   }
@@ -107,10 +110,13 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
 
   window.on('close', (event) => {
     if (programmaticClose) return
+
     if (CRITICAL_STAGES.has(stage)) {
       event.preventDefault()
+
       return
     }
+
     event.preventDefault()
     restartAfterWindowEvent()
   })
@@ -118,11 +124,13 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
   window.webContents.on('render-process-gone', (_event, details) => {
     unavailable = true
     logger.error('Relocation renderer process exited', { reason: details.reason, stage })
+
     if (!CRITICAL_STAGES.has(stage)) restartAfterWindowEvent()
   })
   window.webContents.on('unresponsive', () => {
     unavailable = true
     logger.error('Relocation renderer became unresponsive', { stage })
+
     if (!CRITICAL_STAGES.has(stage)) restartAfterWindowEvent()
   })
 
@@ -138,21 +146,27 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
       webContents.removeListener('did-fail-load', didFailLoad)
       webContents.removeListener('render-process-gone', didExit)
     }
+
     const finish = (ready: boolean, reason?: string) => {
       if (settled) return
       settled = true
       cleanup()
+
       if (!ready) {
         unavailable = true
         logger.error('Relocation window unavailable; continuing headlessly', { reason })
       }
+
       resolve()
     }
+
     const didFinishLoad = () => finish(true)
+
     const didFailLoad = (_event: Event, code: number, description: string, _url: string, isMainFrame?: boolean) => {
       if (isMainFrame === false) return
       finish(false, description || String(code))
     }
+
     const didExit = (_event: Event, details: { reason?: string }) => finish(false, details.reason ?? 'renderer exited')
 
     webContents.once('did-finish-load', didFinishLoad)
@@ -177,6 +191,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     waitForReady: () => readyPromise,
     updateProgress: (progress) => {
       stage = progress.stage
+
       if (hasWindow() && !unavailable) {
         window!.webContents.send(UserDataRelocationIpcChannels.Progress, progress)
       }

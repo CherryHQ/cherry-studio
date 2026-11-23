@@ -20,6 +20,7 @@ const documentProcessingFieldClassName =
 const DocumentProcessingSettings: FC = () => {
   const { t } = useTranslation()
   const { theme: themeMode } = useTheme()
+
   const {
     defaultDocumentProcessor,
     processors,
@@ -30,6 +31,7 @@ const DocumentProcessingSettings: FC = () => {
   } = useFileProcessingPreferences()
 
   const availableProcessors = useAvailableFileProcessors()
+
   const visibleProcessorIds = useMemo(
     () =>
       availableProcessors.status === 'ready' || !defaultDocumentProcessor
@@ -37,6 +39,7 @@ const DocumentProcessingSettings: FC = () => {
         : new Set([defaultDocumentProcessor]),
     [availableProcessors.processorIds, availableProcessors.status, defaultDocumentProcessor]
   )
+
   const menuEntries = useMemo(
     () =>
       getFeatureSections(processors, visibleProcessorIds).find((section) => section.feature === 'document_to_markdown')

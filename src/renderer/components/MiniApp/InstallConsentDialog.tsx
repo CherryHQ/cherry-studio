@@ -36,17 +36,22 @@ export const InstallConsentDialog: FC<{
   const name = resolveLocalizedText(preview.manifest.name, language)
   // Optional leaves are on unless unticked — tracking the exceptions keeps "all on" the default.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set())
+
   const toggleOptional = (leaf: string, on: boolean) =>
     setDeclined((prev) => {
       const next = new Set(prev)
+
       if (on) next.delete(leaf)
       else next.add(leaf)
+
       return next
     })
+
   const installed = preview.installed
   const relation = preview.kind === 'upgrade' ? 'upgrade' : preview.installed?.relation
   // A downgrade starts with the wipe ON: data the newer version wrote is the likelier hazard.
   const [clearData, setClearData] = useState(relation === 'downgrade')
+
   const sourceLabel = {
     file: t('miniApp.install.source_file'),
     url: t('miniApp.install.source_url'),
@@ -66,8 +71,10 @@ export const InstallConsentDialog: FC<{
         grantedOptional: preview.update.addedOptional.filter((leaf) => !declined.has(leaf)),
         consented: preview.update.status === 'needs-consent'
       })
+
       return
     }
+
     onConfirm({ grantedOptional: preview.optional.filter((leaf) => !declined.has(leaf)), clearData })
   }
 

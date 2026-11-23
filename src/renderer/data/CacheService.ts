@@ -204,13 +204,16 @@ export class CacheService {
    */
   private getInternal(key: string): any {
     const entry = this.memoryCache.get(key)
+
     if (entry === undefined) {
       return undefined
     }
+
     // Check TTL (lazy cleanup)
     if (entry.expireAt && Date.now() > entry.expireAt) {
       this.memoryCache.delete(key)
       this.notifySubscribers(key)
+
       return undefined
     }
 
@@ -285,6 +288,7 @@ export class CacheService {
     if (existingEntry && isEqual(existingEntry.value, value)) {
       // Value is same, only update TTL if needed
       const newExpireAt = ttl ? Date.now() + ttl : undefined
+
       if (!Object.is(existingEntry.expireAt, newExpireAt)) {
         existingEntry.expireAt = newExpireAt
         this.scheduleMemoryExpiry(newExpireAt)
@@ -292,6 +296,7 @@ export class CacheService {
       } else {
         logger.verbose(`Skipped memory cache update for key "${key}" - value and TTL unchanged`)
       }
+
       return // Skip notification
     }
 
@@ -316,14 +321,18 @@ export class CacheService {
         this.memoryExpiryDeadline = Infinity
         const expired: string[] = []
         let next = Infinity
+
         for (const [key, entry] of this.memoryCache) {
           if (entry.expireAt === undefined) continue
+
           if (entry.expireAt <= Date.now()) {
             this.memoryCache.delete(key)
             expired.push(key)
           } else next = Math.min(next, entry.expireAt)
         }
+
         for (const key of expired) this.notifySubscribers(key)
+
         if (next !== Infinity) this.scheduleMemoryExpiry(next)
       },
       Math.min(2 ** 31 - 1, Math.max(1, expireAt - Date.now()))
@@ -365,6 +374,7 @@ export class CacheService {
    */
   private hasInternal(key: string): boolean {
     const entry = this.memoryCache.get(key)
+
     if (entry === undefined) {
       return false
     }
@@ -373,6 +383,7 @@ export class CacheService {
     if (entry.expireAt && Date.now() > entry.expireAt) {
       this.memoryCache.delete(key)
       this.notifySubscribers(key)
+
       return false
     }
 
@@ -414,18 +425,21 @@ export class CacheService {
     // Check if key is being used by hooks
     if (this.activeHookCounts.get(key)) {
       logger.error(`Cannot delete key "${key}" as it's being used by useCache hook`)
+
       return false
     }
 
     // Check if key exists before attempting deletion
     if (!this.memoryCache.has(key)) {
       logger.verbose(`Skipped memory cache delete for key "${key}" - not exists`)
+
       return true
     }
 
     this.memoryCache.delete(key)
     this.notifySubscribers(key)
     logger.verbose(`Deleted memory cache key "${key}"`)
+
     return true
   }
 
@@ -436,6 +450,7 @@ export class CacheService {
    */
   hasTTL<K extends UseCacheKey>(key: K): boolean {
     const entry = this.memoryCache.get(key)
+
     return entry?.expireAt !== undefined
   }
 
@@ -457,6 +472,7 @@ export class CacheService {
    */
   hasTTLCasual(key: Exclude<string, UseCacheKey>): boolean {
     const entry = this.memoryCache.get(key)
+
     return entry?.expireAt !== undefined
   }
 
@@ -467,6 +483,7 @@ export class CacheService {
    */
   hasSharedTTL<K extends SharedCacheKey>(key: K): boolean {
     const entry = this.sharedCache.get(key)
+
     return entry?.expireAt !== undefined
   }
 
@@ -515,12 +532,14 @@ export class CacheService {
    */
   private getSharedInternal(key: string): any {
     const entry = this.sharedCache.get(key)
+
     if (!entry) return undefined
 
     // Check TTL (lazy cleanup)
     if (entry.expireAt && Date.now() > entry.expireAt) {
       this.sharedCache.delete(key)
       this.notifySubscribers(key)
+
       return undefined
     }
 
@@ -562,6 +581,7 @@ export class CacheService {
       } else {
         logger.verbose(`Skipped shared cache update for key "${key}" - value and TTL unchanged`)
       }
+
       return // Skip local update and notification
     }
 
@@ -598,12 +618,14 @@ export class CacheService {
    */
   private hasSharedInternal(key: string): boolean {
     const entry = this.sharedCache.get(key)
+
     if (!entry) return false
 
     // Check TTL
     if (entry.expireAt && Date.now() > entry.expireAt) {
       this.sharedCache.delete(key)
       this.notifySubscribers(key)
+
       return false
     }
 
@@ -626,12 +648,14 @@ export class CacheService {
     // Check if key is being used by hooks
     if (this.activeHookCounts.get(key)) {
       logger.error(`Cannot delete key "${key}" as it's being used by useSharedCache hook`)
+
       return false
     }
 
     // Check if key exists before attempting deletion
     if (!this.sharedCache.has(key)) {
       logger.verbose(`Skipped shared cache delete for key "${key}" - not exists`)
+
       return true
     }
 
@@ -645,6 +669,7 @@ export class CacheService {
       value: undefined // undefined means deletion
     })
     logger.verbose(`Deleted shared cache key "${key}"`)
+
     return true
   }
 
@@ -657,6 +682,7 @@ export class CacheService {
    */
   getPersist<K extends RendererPersistCacheKey>(key: K): RendererPersistCacheSchema[K] {
     const value = this.persistCache.get(key)
+
     if (value !== undefined) {
       return value
     }
@@ -666,6 +692,7 @@ export class CacheService {
     this.persistCache.set(key, defaultValue)
     this.schedulePersistSave()
     logger.warn(`Missing persist cache key "${key}", using default value`)
+
     return defaultValue
   }
 
@@ -687,11 +714,13 @@ export class CacheService {
   ): void {
     const nextValue =
       typeof value === 'function' ? value(this.getPersist(key) as ReadonlyValue<RendererPersistCacheSchema[K]>) : value
+
     const existingValue = this.persistCache.get(key)
 
     // Use deep comparison for persist cache (usually objects)
     if (isEqual(existingValue, nextValue)) {
       logger.verbose(`Skipped persist cache update for key "${key}" - value unchanged`)
+
       return // Skip all updates
     }
 
@@ -757,12 +786,14 @@ export class CacheService {
    */
   unregisterHook(key: string): void {
     const currentCount = this.activeHookCounts.get(key)
+
     if (!currentCount) {
       return
     }
 
     if (currentCount === 1) {
       this.activeHookCounts.delete(key)
+
       return
     }
 
@@ -845,14 +876,17 @@ export class CacheService {
 
       // Estimate memory: key size + value size + metadata overhead
       estimatedBytes += this.estimateSize(key) + this.estimateSize(entry.value)
+
       if (entry.expireAt) estimatedBytes += 8 // number size
 
       if (hasTTL) withTTLCount++
+
       if (isExpired) {
         expiredCount++
       } else {
         validCount++
       }
+
       hookReferences += hookCount
 
       if (includeDetails) {
@@ -948,12 +982,15 @@ export class CacheService {
   onSharedCacheReady(callback: () => void): () => void {
     if (this.sharedCacheReady) {
       callback()
+
       return () => {}
     }
 
     this.sharedCacheReadyCallbacks.push(callback)
+
     return () => {
       const idx = this.sharedCacheReadyCallbacks.indexOf(callback)
+
       if (idx >= 0) {
         this.sharedCacheReadyCallbacks.splice(idx, 1)
       }
@@ -977,6 +1014,7 @@ export class CacheService {
     if (!window.api?.cache?.getAllShared) {
       logger.warn('Cache getAllShared API not available')
       this.markSharedCacheReady()
+
       return
     }
 
@@ -1035,6 +1073,7 @@ export class CacheService {
 
     return () => {
       keySubscribers.delete(callback)
+
       if (keySubscribers.size === 0) {
         this.subscribers.delete(key)
       }
@@ -1047,6 +1086,7 @@ export class CacheService {
    */
   notifySubscribers(key: string): void {
     const keySubscribers = this.subscribers.get(key)
+
     if (keySubscribers) {
       keySubscribers.forEach((callback) => {
         try {
@@ -1071,10 +1111,12 @@ export class CacheService {
 
     try {
       const stored = localStorage.getItem(STORAGE_PERSIST_KEY)
+
       if (!stored) {
         // No stored data, save defaults to localStorage
         this.savePersistCache()
         logger.debug('Initialized persist cache with default values')
+
         return
       }
 
@@ -1082,6 +1124,7 @@ export class CacheService {
 
       // Only load keys that exist in schema, overriding defaults
       const schemaKeys = Object.keys(DefaultRendererPersistCache) as RendererPersistCacheKey[]
+
       for (const key of schemaKeys) {
         if (key in data) {
           this.persistCache.set(key, data[key])
@@ -1106,12 +1149,14 @@ export class CacheService {
     try {
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Persisted values may come from older localStorage data; preserve raw values until JSON serialization handles them.
       const data: Record<string, unknown> = {}
+
       for (const [key, value] of this.persistCache.entries()) {
         data[key] = value
       }
 
       const jsonData = JSON.stringify(data)
       const size = jsonData.length
+
       if (size > 1024 * 1024 * 2) {
         logger.warn(
           `Persist cache is too large (${(size / (1024 * 1024)).toFixed(
@@ -1159,6 +1204,7 @@ export class CacheService {
   private setupIpcListeners(): void {
     if (!window.api?.cache?.onSync) {
       logger.warn('Cache sync API not available')
+
       return
     }
 
@@ -1173,6 +1219,7 @@ export class CacheService {
           // subscribeSharedChange, renderer hooks must re-render on it).
           this.sharedCache.delete(message.key)
           this.notifySubscribers(message.key)
+
           return
         }
 
@@ -1185,6 +1232,7 @@ export class CacheService {
         // notifying would only cause re-renders plus reference churn.
         if (existingEntry && isEqual(existingEntry.value, message.value)) {
           existingEntry.expireAt = message.expireAt
+
           return
         }
 
@@ -1193,6 +1241,7 @@ export class CacheService {
           value: message.value,
           expireAt: message.expireAt
         }
+
         this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
@@ -1228,6 +1277,7 @@ export class CacheService {
     clearTimeout(this.memoryExpiryTimer)
     this.memoryExpiryTimer = undefined
     this.memoryExpiryDeadline = Infinity
+
     if (this.persistSaveTimer) {
       clearTimeout(this.persistSaveTimer)
     }

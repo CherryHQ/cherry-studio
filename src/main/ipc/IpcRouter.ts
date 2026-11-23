@@ -31,14 +31,17 @@ export class IpcRouter<S extends Record<string, RouteDef>> {
     if (!Object.hasOwn(this.schemas, route)) {
       throw new IpcError(IpcErrorCode.ROUTE_NOT_FOUND, `Unknown IpcApi route: ${route}`)
     }
+
     const def = this.schemas[route as keyof S]
 
     const parsed = def.input.safeParse(input)
+
     if (!parsed.success) {
       throw new IpcError(IpcErrorCode.VALIDATION_FAILED, `Invalid input for ${route}`, { issues: parsed.error.issues })
     }
 
     const handler = this.handlers[route as keyof S]
+
     // `parsed.data` is `unknown` here — the generic bound cannot narrow the inferred
     // input type inside the mapped handler signature. Soundness is guaranteed at the
     // constructor boundary by the `IpcHandlersFor<S>` constraint, not at this call.

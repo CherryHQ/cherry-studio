@@ -31,6 +31,7 @@ const anchorIdPrefixFor = (messageId: string) => `${ANCHOR_ID_PREFIX}:${messageI
 /** Index span from the first to the last text part — the only stretch an edit can rewrite. */
 function getEditableTextSpan(parts: CherryMessagePart[]): { start: number; end: number } | null {
   const start = parts.findIndex((part) => part.type === 'text')
+
   return start === -1 ? null : { start, end: parts.findLastIndex((part) => part.type === 'text') }
 }
 
@@ -50,9 +51,11 @@ function getToolLabel(part: CherryMessagePart): string | undefined {
       : part.type.startsWith('tool-')
         ? part.type.slice('tool-'.length)
         : undefined
+
   if (!toolName) return undefined
 
   const mcpSegments = toolName.startsWith('mcp__') ? toolName.slice('mcp__'.length).split('__') : []
+
   return mcpSegments.length >= 2 ? `${mcpSegments[0]}:${mcpSegments.slice(1).join(':')}` : toolName
 }
 
@@ -60,6 +63,7 @@ function getAnchorLabel(part: CherryMessagePart): string {
   if (part.type === 'reasoning') return i18n.t('chat.input.editing_part.reasoning')
 
   const toolLabel = getToolLabel(part)
+
   return toolLabel
     ? i18n.t('chat.input.editing_part.tool', { name: toolLabel })
     : i18n.t('chat.input.editing_part.content')
@@ -75,6 +79,7 @@ function readAnchorPartIndex(token: ComposerSerializedToken, messageId: string):
   if (token.kind !== 'messagePart' || !token.id.startsWith(anchorIdPrefixFor(messageId))) return undefined
 
   const partIndex = token.id.slice(anchorIdPrefixFor(messageId).length)
+
   return /^\d+$/.test(partIndex) ? Number(partIndex) : undefined
 }
 
@@ -94,6 +99,7 @@ function readAnchorPartIndex(token: ComposerSerializedToken, messageId: string):
 function buildEditableText(parts: CherryMessagePart[], messageId: string) {
   const anchors: ComposerSerializedToken[] = []
   const span = getEditableTextSpan(parts)
+
   if (!span) return { text: '', anchors }
 
   let text = ''
@@ -101,6 +107,7 @@ function buildEditableText(parts: CherryMessagePart[], messageId: string) {
 
   for (let index = span.start; index <= span.end; index++) {
     const part = parts[index]
+
     if (part.type === 'file' || part.type === 'data-translation' || isHiddenPart(part)) continue
 
     if (part.type === 'text') {
@@ -142,12 +149,15 @@ export function replaceEditedMessageParts(
   editedParts: CherryMessagePart[]
 ): CherryMessagePart[] {
   const span = getEditableTextSpan(originalParts)
+
   if (!span) return editedParts
 
   const isKept = (part: CherryMessagePart) =>
     part.type !== 'file' && part.type !== 'data-translation' && !isDroppedOnEdit(part)
+
   const prefix = originalParts.slice(0, span.start).filter(isKept)
   const suffix = originalParts.slice(span.end + 1).filter(isKept)
+
   const hiddenInsideSpan = originalParts
     .slice(span.start, span.end + 1)
     .filter((part) => isKept(part) && isHiddenPart(part))
@@ -155,7 +165,9 @@ export function replaceEditedMessageParts(
   const anchors = draft.tokens
     .flatMap((token) => {
       const partIndex = readAnchorPartIndex(token, messageId)
+
       if (partIndex === undefined || partIndex <= span.start || partIndex >= span.end) return []
+
       return [{ token, partIndex, part: originalParts[partIndex] }]
     })
     .toSorted((a, b) => a.token.textOffset - b.token.textOffset || a.token.index - b.token.index)
@@ -169,6 +181,7 @@ export function replaceEditedMessageParts(
 
   const pushText = (value: string) => {
     const text = trimTextBoundaryBlankLines(value)
+
     if (!text) return
     const template = body.some((part) => part.type === 'text') ? undefined : textTemplate
     body.push(template?.type === 'text' ? { ...template, text } : { type: 'text', text })
@@ -183,6 +196,7 @@ export function replaceEditedMessageParts(
     body.push(anchor.part)
     cursor = offset
   }
+
   pushText(draft.text.slice(cursor))
 
   return [...prefix, ...body, ...tail, ...hiddenInsideSpan, ...suffix]
@@ -195,18 +209,22 @@ function findEditableFileToken(
   usedTokenIds: Set<string>
 ) {
   const cherry = readCherryMeta(part)
+
   const sourceIds = [cherry?.fileTokenSourceId, cherry?.fileEntryId, path].filter(
     (sourceId): sourceId is string => !!sourceId
   )
+
   const matchedToken = fileTokens.find(
     (token) =>
       !usedTokenIds.has(token.id) && sourceIds.some((sourceId) => readComposerFileTokenIdSuffix(token.id) === sourceId)
   )
+
   if (matchedToken) return matchedToken
 
   // Only fall back when exactly one file token remains unused — guessing among multiple unmatched
   // tokens could attach a part to the wrong token source id.
   const unusedTokens = fileTokens.filter((token) => !usedTokenIds.has(token.id))
+
   return unusedTokens.length === 1 ? unusedTokens[0] : undefined
 }
 
@@ -219,8 +237,11 @@ function getFileExtension(value: string | undefined, mediaType: string | undefin
   const source = value ?? ''
   const fileName = source.split(/[\\/]/).pop() ?? source
   const extension = fileName.includes('.') ? `.${fileName.split('.').pop()}` : ''
+
   if (extension !== '.') return extension.toLowerCase()
+
   if (mediaType?.startsWith('image/')) return `.${mediaType.slice('image/'.length)}`
+
   return ''
 }
 
@@ -231,6 +252,7 @@ function createEditableAttachment(
   tokenPayload: ComposerMessageTokenPayload | undefined
 ): ComposerAttachment | null {
   const url = part.url
+
   if (!url) return null
 
   const name =
@@ -239,6 +261,7 @@ function createEditableAttachment(
     part.filename ||
     url.split(/[\\/]/).pop() ||
     `attachment-${index + 1}`
+
   const ext = tokenPayload?.ext || getFileExtension(name || url, part.mediaType)
   const type = part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : (tokenPayload?.type ?? getFileTypeByExt(ext))
 
@@ -261,12 +284,14 @@ function createEditableAttachment(
 export function createEditableMessageDraft(parts: CherryMessagePart[], messageId: string): EditableMessageDraft {
   const textParts = parts.filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
   const { text, anchors } = buildEditableText(parts, messageId)
+
   // Recover the composer snapshot even when the reply was split across multiple text parts
   // (e.g. text → tool → text), so file/knowledge tokens remain restorable.
   const composer =
     textParts.length === 1
       ? readCherryMeta(textParts[0])?.composer
       : textParts.map((part) => readCherryMeta(part)?.composer).find((snapshot) => snapshot !== undefined)
+
   const draftTokens =
     composer?.tokens.flatMap((token) =>
       isComposerDraftTokenKind(token.kind)
@@ -278,28 +303,37 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
           ]
         : []
     ) ?? []
+
   const fileTokens = draftTokens.filter((token) => token.kind === 'file')
   const usedFileTokenIds = new Set<string>()
   const attachmentByMatchedTokenId = new Map<string, ComposerAttachment>()
+
   const files = parts.flatMap((part, index) => {
     if (part.type !== 'file') return []
     const path = part.url
     const token = path ? findEditableFileToken(part, path, fileTokens, usedFileTokenIds) : undefined
+
     if (token) usedFileTokenIds.add(token.id)
     const cherry = readCherryMeta(part)
+
     const fileTokenSourceId =
       getComposerFileTokenSourceId({ fileTokenSourceId: cherry?.fileTokenSourceId }) ??
       createComposerFileTokenSourceId()
+
     const file = createEditableAttachment(part, index, fileTokenSourceId, readFileTokenPayload(token?.payload))
+
     if (token && file) attachmentByMatchedTokenId.set(token.id, file)
+
     return file ? [file] : []
   })
+
   // Live composer file tokens carry the attachment as their payload; the stored snapshot only
   // carries the serialized display fields. Restore the attachment so the token renders the same.
   const normalizedDraftTokens = draftTokens.map((token) => {
     if (token.kind !== 'file') return token
 
     const file = attachmentByMatchedTokenId.get(token.id)
+
     if (!file) return token
 
     return { ...token, id: composerFileTokenIdFromSourceId(file.fileTokenSourceId), payload: file }
@@ -313,6 +347,7 @@ export function getEditableKnowledgeBases(
   selectableKnowledgeBases: readonly KnowledgeBase[]
 ) {
   const knowledgeTokenIds = getComposerTokenIds(draftTokens, 'knowledge')
+
   if (knowledgeTokenIds.size === 0) return []
 
   return selectableKnowledgeBases.filter((base) => knowledgeTokenIds.has(chatComposerTokenId.knowledge(base)))

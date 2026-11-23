@@ -15,8 +15,11 @@ export async function requestJson<T>(
   body?: z.core.util.JSONType
 ): Promise<T> {
   const headers = {}
+
   if (connection.apiKey) Object.assign(headers, { Authorization: `Bearer ${connection.apiKey}` })
+
   if (body !== undefined) Object.assign(headers, { 'Content-Type': 'application/json' })
+
   const response = await net.fetch(`${connection.apiHost}${endpoint}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers,
@@ -25,14 +28,18 @@ export async function requestJson<T>(
     credentials: 'omit',
     signal
   })
+
   if (!response.ok) {
     await response.body?.cancel()
     assertSuccessful(response)
   }
+
   const payload: unknown = await response.json().catch(() => undefined)
   signal?.throwIfAborted()
   const result = schema.safeParse(payload)
+
   if (!result.success) throw new Error(t('file_processing.errors.open_mineru_invalid_response'))
+
   return result.data
 }
 
@@ -58,10 +65,13 @@ export async function withTransferResponse<T>(
     signal: init.signal,
     configuredApiHost: connection.apiHost
   })
+
   const dispatcher = createPinnedDispatcher(target)
   let response: Response | undefined
+
   try {
     response = await fetch(target.url, { ...init, redirect: 'manual', ...{ dispatcher } })
+
     return await consume(response)
   } finally {
     if (response?.body && !response.body.locked) await response.body.cancel().catch(() => {})

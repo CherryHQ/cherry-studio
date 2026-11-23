@@ -32,7 +32,9 @@ const PROCESS_CONTENT_CLASS_NAME =
 
 function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number {
   const completedAt = runtimeTiming.completedAt
+
   if (completedAt === undefined) return 0
+
   const intervals = runtimeTiming.spans
     .filter((span) => span.kind === 'approval-wait')
     .map((span) => ({
@@ -45,6 +47,7 @@ function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number 
   let durationMs = 0
   let mergedStart: number | undefined
   let mergedEnd: number | undefined
+
   for (const interval of intervals) {
     if (mergedStart === undefined || mergedEnd === undefined) {
       mergedStart = interval.startedAt
@@ -57,7 +60,9 @@ function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number 
       mergedEnd = interval.completedAt
     }
   }
+
   if (mergedStart !== undefined && mergedEnd !== undefined) durationMs += mergedEnd - mergedStart
+
   return durationMs
 }
 
@@ -79,12 +84,15 @@ const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
   toolItems: ToolRenderItem[]
 }) {
   const { t } = useTranslation()
+
   const effectiveCreatedAt = useMemo(() => {
     if (startedAtMs !== undefined && Number.isFinite(startedAtMs)) {
       return new Date(startedAtMs).toISOString()
     }
+
     return createdAt
   }, [createdAt, startedAtMs])
+
   const elapsedMs = usePlaceholderElapsedMs(true, effectiveCreatedAt, 1000)
   const elapsedText = formatPlaceholderElapsed(elapsedMs, t)
   const summary = t('message.processing').replace(/(?:\.{3}|…)\s*$/u, '')
@@ -96,24 +104,33 @@ const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
 const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props) {
   const { children, message, toolItems } = props
   const { t } = useTranslation()
+
   const [isExpanded, setIsExpanded] = useMessageDisclosureState(
     'completed-process',
     props.phase === 'completed' && (props.defaultExpanded ?? false)
   )
+
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const runtimeTiming = message.stats?.runtimeTiming
+
   const completedElapsedMs = useMemo(() => {
     if (props.phase === 'active') return undefined
+
     if (runtimeTiming?.completedAt !== undefined) {
       const wallClockMs = Math.max(0, runtimeTiming.completedAt - runtimeTiming.startedAt)
+
       return Math.max(0, wallClockMs - getApprovalWaitDurationMs(runtimeTiming))
     }
+
     if (typeof message.stats?.timeCompletionMs === 'number') return message.stats.timeCompletionMs
+
     if (!message.updatedAt) return undefined
 
     const startedAt = Date.parse(message.createdAt)
     const finishedAt = Date.parse(message.updatedAt)
+
     if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt) || finishedAt < startedAt) return undefined
+
     return finishedAt - startedAt
   }, [message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, props.phase, runtimeTiming])
 
@@ -140,6 +157,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
 
   const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
   const summary = props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed')
+
   const header = (
     <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )

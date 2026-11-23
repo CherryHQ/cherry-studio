@@ -75,8 +75,10 @@ export function ActionMenu<TContext = unknown>({
           if (action.confirm) {
             event.preventDefault()
             setPendingAction(action)
+
             return
           }
+
           void runAction(action)
         }}>
         <ContextMenuItemContent icon={action.icon} shortcut={action.shortcut}>

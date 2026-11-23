@@ -44,6 +44,7 @@ export function ArtifactPaneBreadcrumb({
   getFolderMenuItems
 }: ArtifactPaneBreadcrumbProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
+
   if (!relativePath) {
     return (
       <Breadcrumb className="min-w-0" title={fullPath}>
@@ -62,6 +63,7 @@ export function ArtifactPaneBreadcrumb({
   }
 
   const segments = relativePath.split('/')
+
   return (
     <Breadcrumb className="min-w-0" title={fullPath}>
       <BreadcrumbList className="flex-nowrap gap-0.5 sm:gap-0.5">
@@ -69,6 +71,7 @@ export function ArtifactPaneBreadcrumb({
           const isLast = index === segments.length - 1
           // A folder segment lists its own entries; the file segment lists its siblings.
           const folderId = segments.slice(0, isLast ? index : index + 1).join('/')
+
           return (
             <Fragment key={index}>
               <BreadcrumbItem className="min-w-0 shrink">
@@ -76,6 +79,7 @@ export function ArtifactPaneBreadcrumb({
                   open={openIndex === index}
                   onOpenChange={(open) => {
                     setOpenIndex(open ? index : null)
+
                     if (open && folderId) onLoadFolder(folderId)
                   }}>
                   <CommandContextMenu
@@ -132,6 +136,7 @@ function FolderTree({
 }) {
   // Local to the popover so expanding here never changes the pane's tree.
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+
   return (
     <FileTree
       nodes={entries}

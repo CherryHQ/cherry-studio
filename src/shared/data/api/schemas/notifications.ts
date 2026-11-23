@@ -8,10 +8,13 @@ export const ListNotificationsQuerySchema = z.object({
   cursor: z.string().max(256).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50)
 })
+
 export type ListNotificationsQuery = z.infer<typeof ListNotificationsQuerySchema>
+
 export type NotificationPage = CursorPaginationResponse<NotificationRecord>
 
 export const ReadNotificationSchema = z.strictObject({ read: z.literal(true) })
+
 export const ReadConversationNotificationsSchema = z.strictObject({
   conversationType: z.enum(['assistant', 'agent']),
   conversationId: z.string().min(1)

@@ -34,6 +34,7 @@ const PERMISSION_MODE_ICONS: Record<PermissionMode, typeof Hand> = {
 
 export function PermissionModeIcon({ mode, size = 18 }: { mode: PermissionMode; size?: number }): ReactNode {
   const Icon = PERMISSION_MODE_ICONS[mode] ?? Hand
+
   return (
     <Icon
       size={size}
@@ -64,6 +65,7 @@ export function PermissionModeWarning({
   t: TFunction
 }) {
   const warning = getPermissionModeWarning(card, t)
+
   if (!warning) return null
 
   const trigger = (
@@ -102,6 +104,7 @@ export function PermissionModeSelectItem({
   t: TFunction
 }) {
   const warning = getPermissionModeWarning(card, t)
+
   const option = (
     <SelectItem
       value={card.mode}
@@ -158,6 +161,7 @@ export function FullAccessConfirmDialog({
     scopeKind === 'channel'
       ? 'agent.settings.tooling.permissionMode.fullAccessConfirm.channelLabel'
       : 'agent.settings.tooling.permissionMode.fullAccessConfirm.agentLabel'
+
   const scopeFallback = scopeKind === 'channel' ? 'Channel' : 'Agent'
 
   return (
@@ -227,10 +231,13 @@ export function PermissionModeSelect({
         onValueChange={(next) => {
           // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
           if (!next) return
+
           if (next === 'bypassPermissions' && value !== 'bypassPermissions') {
             setFullAccessPending(true)
+
             return
           }
+
           setFullAccessPending(false)
           onValueChange(next as PermissionMode)
         }}>

@@ -14,6 +14,7 @@ interface ModelEndpointTypeSelectProps {
 
 export function ModelEndpointTypeSelect({ value, onChange }: ModelEndpointTypeSelectProps) {
   const { t } = useTranslation()
+
   const options: ComboboxOption[] = MODEL_ENDPOINT_OPTIONS.map((option) => ({
     value: option.id,
     label: t(option.label)

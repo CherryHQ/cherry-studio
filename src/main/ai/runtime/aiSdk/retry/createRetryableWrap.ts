@@ -88,16 +88,21 @@ function lazyFallbackRetryable(
   wrapFallbackModel?: WrapLanguageModel
 ): Retryable<LanguageModel> {
   let cached: Promise<RetryFallback | null> | undefined
+
   return async (context) => {
     if (!isErrorAttempt(context.current)) return undefined
     cached ??= resolveFallback()
     const fallback = await cached
+
     if (!fallback) {
       cached = undefined
+
       return undefined
     }
+
     onFallbackActivated?.(fallback)
     const model = wrapFallbackModel?.(fallback.model) ?? fallback.model
+
     return fallback.options ? { model, options: fallback.options } : { model }
   }
 }
@@ -111,25 +116,33 @@ function apiKeyFallbackRetryable(
   const resolvedFallbacks = resolveFallbacks.map((resolveFallback) =>
     lazyFallbackRetryable(resolveFallback, onFallbackActivated, wrapFallbackModel)
   )
+
   let nextFallbackIndex = 0
+
   return (context) => {
     if (!isErrorAttempt(context.current)) return undefined
     const attemptError = context.current.error
     const terminalError = RetryError.isInstance(attemptError) ? attemptError.lastError : attemptError
+
     if (
       !APICallError.isInstance(terminalError) ||
       (terminalError.statusCode !== 401 && terminalError.statusCode !== 429)
     ) {
       return undefined
     }
+
     const resolve = resolvedFallbacks[nextFallbackIndex]
+
     if (!resolve) {
       onExhausted?.(terminalError)
+
       return undefined
     }
+
     return Promise.resolve(resolve(context)).then((fallback) => {
       if (!fallback) return undefined
       nextFallbackIndex += 1
+
       return { ...fallback, maxAttempts: resolveFallbacks.length + 1 }
     })
   }
@@ -138,8 +151,10 @@ function apiKeyFallbackRetryable(
 function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryPartData, { state: 'retrying' }> {
   const { current, attempts } = context
   let reason = 'unknown'
+
   if (isErrorAttempt(current)) {
     const { error } = current
+
     if (APICallError.isInstance(error)) {
       reason =
         error.statusCode !== undefined
@@ -151,6 +166,7 @@ function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryP
   } else {
     reason = 'result rejected'
   }
+
   return { state: 'retrying', modelId: current.model.modelId, attempt: attempts.length + 1, reason }
 }
 
@@ -159,6 +175,7 @@ function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryP
  */
 export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLanguageModel | undefined {
   const apiKeyFallbacks = options.apiKeyFallbacks ?? []
+
   if (!options.retryPolicy.enabled && apiKeyFallbacks.length === 0) return undefined
 
   // `max_attempts` is the number of RETRIES (matches the "Max retry attempts"
@@ -166,11 +183,13 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
   // original call in `maxAttempts`, so +1 yields that many same-model retries.
   const retryCount = options.retryPolicy.maxAttempts
   const backoffEnabled = options.retryPolicy.backoffEnabled
+
   const transientRetry = and(error.isRetryable(true), not(error.statusCode(401, 429))).retry({
     maxAttempts: retryCount + 1,
     delay: RETRY_BASE_DELAY_MS,
     ...(backoffEnabled && { backoffFactor: 2 })
   })
+
   const retries: Retries<LanguageModel> = [
     // Same-model transient retry on retryable errors: honors Retry-After headers,
     // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
@@ -199,17 +218,21 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
             specificationVersion: 'v3',
             transformParams: async ({ params }) => {
               options.onPrimaryActivated?.()
+
               return params
             }
           }
         })
       : base
+
     let retryActive = false
+
     const settleRetryStatus = () => {
       if (!retryActive) return
       retryActive = false
       options.onRetryEvent?.({ state: 'settled' })
     }
+
     const wrapApiKeyFallback: WrapLanguageModel | undefined = options.retryPolicy.enabled
       ? (model) =>
           createRetryableModel({
@@ -223,9 +246,11 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
             }
           })
       : undefined
+
     let activeApiKeyModel = primary
     let activeApiKeyFallback: RetryFallback | undefined
     let exhaustedApiKeyError: APICallError | undefined
+
     const requestApiKeyModel: LanguageModelV3 = {
       specificationVersion: 'v3',
       get provider() {
@@ -239,12 +264,16 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       },
       doGenerate: (callOptions) => {
         if (exhaustedApiKeyError) throw exhaustedApiKeyError
+
         if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
+
         return activeApiKeyModel.doGenerate(callOptions)
       },
       doStream: (callOptions) => {
         if (exhaustedApiKeyError) throw exhaustedApiKeyError
+
         if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
+
         return activeApiKeyModel.doStream(callOptions)
       }
     }
@@ -262,6 +291,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
                 },
                 (model) => {
                   activeApiKeyModel = wrapApiKeyFallback?.(model) ?? model
+
                   return activeApiKeyModel
                 },
                 (error) => {
@@ -290,6 +320,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       onRetry: (context) => {
         const event = describeAttempt(context)
         const failedModelId = context.attempts.at(-1)?.model.modelId
+
         if (failedModelId && failedModelId !== event.modelId) {
           logger.warn('falling back to a different model', {
             ...options.diagnosticContext,
@@ -301,6 +332,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         } else {
           logger.info('retrying model call', { ...options.diagnosticContext, ...event })
         }
+
         retryActive = true
         options.onRetryEvent?.(event)
       },

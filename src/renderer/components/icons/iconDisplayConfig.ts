@@ -14,8 +14,10 @@ export function getIconDisplayConfig(
   iconId: string | undefined
 ): IconDisplayConfig | undefined {
   if (!iconId) return undefined
+
   const isTile =
     getProviderIconAssetMetrics({ kind: 'provider', iconId }).kind === 'tile' ||
     getProviderIconAssetMetrics({ kind: 'model', iconId }).kind === 'tile'
+
   return isTile ? { scale: 1, borderRadius: context === 'mini-app' ? 10 : 5 } : defaultIcon
 }

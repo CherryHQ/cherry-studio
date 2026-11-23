@@ -37,9 +37,11 @@ function useResourceCardMenuItems({
 }: Omit<ResourceCardMenuProps, 'triggerClassName'>): readonly CommandContextMenuExtraItem[] {
   const { t } = useTranslation()
   const resourceGroupId = resource.type === 'assistant' ? (resource.groupId ?? null) : null
+
   const [localGroupId, setLocalGroupId] = useState<string | null>(() =>
     resource.type === 'assistant' ? (resource.groupId ?? null) : null
   )
+
   const [bindingPending, setBindingPending] = useState(false)
   const bindingPendingRef = useRef(false)
 
@@ -57,9 +59,11 @@ function useResourceCardMenuItems({
   const persistGroup = useCallback(
     async (nextGroupId: string | null, previousGroupId: string | null) => {
       if (!canAssignGroup) return
+
       if (bindingPendingRef.current) return
       bindingPendingRef.current = true
       setBindingPending(true)
+
       try {
         if (resource.type === 'assistant') {
           await updateAssistant({ groupId: nextGroupId })
@@ -85,6 +89,7 @@ function useResourceCardMenuItems({
     (groupId: string) => {
       if (bindingPendingRef.current) return
       const previousGroupId = localGroupId
+
       if (previousGroupId === groupId) return
       setLocalGroupId(groupId)
       void persistGroup(groupId, previousGroupId)
@@ -155,8 +160,10 @@ function useResourceCardMenuItems({
     }
 
     const isOwner = resource.type === 'assistant' || resource.type === 'agent'
+
     const protectedAgent =
       resource.type === 'agent' && isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)
+
     if (isOwner)
       items.push({
         type: 'item',
@@ -168,6 +175,7 @@ function useResourceCardMenuItems({
           onClose?.()
         }
       })
+
     if (!isOwner)
       items.push({
         type: 'item',

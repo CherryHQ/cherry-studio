@@ -113,6 +113,7 @@ function filterByteStringResponseHeaders(headers: Record<string, string[]> | und
       for (let index = 0; index < value.length; index++) {
         if (value.charCodeAt(index) > 0xff) return false
       }
+
       return true
     })
 

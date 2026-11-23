@@ -110,6 +110,7 @@ function isSupportedLanguage(value: string | null): value is LanguageVarious {
 /** `?lang=` on the docs routes, defaulting to (and validated against) the app's own language list. */
 export function resolveDocsLanguage(url: URL): LanguageVarious {
   const requested = url.searchParams.get('lang')
+
   return isSupportedLanguage(requested) ? requested : getAppLanguage()
 }
 
@@ -130,6 +131,7 @@ export function buildOpenApiDocument(app: AnyElysia, lang: LanguageVarious, serv
   const { paths, components } = toOpenAPISchema(app, undefined, undefined, { zod: z.toJSONSchema })
 
   const descriptions = docDescriptions(lang)
+
   const byKey = new Map<string, string>(
     Object.entries(DOC_DESCRIPTIONS).map(([slot, key]) => [key, descriptions[slot as DocDescriptionSlot]])
   )
@@ -139,6 +141,7 @@ export function buildOpenApiDocument(app: AnyElysia, lang: LanguageVarious, serv
       if (!operation || typeof operation !== 'object' || Array.isArray(operation)) continue
       const { description } = operation as DocOperation
       const translated = description === undefined ? undefined : byKey.get(description)
+
       if (translated !== undefined) (operation as DocOperation).description = translated
     }
   }

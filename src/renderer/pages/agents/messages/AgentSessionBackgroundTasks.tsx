@@ -18,6 +18,7 @@ export default function AgentSessionBackgroundTasks({ sessionId }: Props) {
   const tasks = useAgentSessionBackgroundTasks(sessionId)
   const messageId = useMessagePartsScopeId()
   const parts = useMessageParts(messageId ?? '')
+
   const backgroundTasks = tasks.filter(
     (task) =>
       !(
@@ -41,6 +42,7 @@ export default function AgentSessionBackgroundTasks({ sessionId }: Props) {
         {backgroundTasks.map((task) => {
           const isWorkflow = task.type === 'local_workflow'
           const toolCallId = isWorkflow ? undefined : task.toolCallId
+
           const content = (
             <>
               {isWorkflow ? (

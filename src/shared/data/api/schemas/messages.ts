@@ -56,6 +56,7 @@ export const CreateMessageSchema = z.strictObject({
   /** Set this message as the active node in the topic (default: true) */
   setAsActive: z.boolean().optional()
 })
+
 export type CreateMessageDto = z.infer<typeof CreateMessageSchema>
 
 /** DTO for reserving a new empty branch below an assistant message. */
@@ -63,6 +64,7 @@ export const ReserveBranchSchema = z.strictObject({
   /** Whether the new reserved branch becomes the topic's selected node. */
   activate: z.boolean().optional()
 })
+
 export type ReserveBranchDto = z.infer<typeof ReserveBranchSchema>
 
 /**
@@ -78,12 +80,14 @@ export const UpdateMessageSchema = z.strictObject({
   /** Update status */
   status: MessageStatusSchema.optional()
 })
+
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 
 /**
  * Strategy for updating activeNodeId when the active message is deleted
  */
 export const ActiveNodeStrategySchema = z.enum(['parent', 'clear'])
+
 export type ActiveNodeStrategy = z.infer<typeof ActiveNodeStrategySchema>
 
 /**
@@ -131,6 +135,7 @@ export const BranchMessagesQuerySchema = z.strictObject({
   /** Whether to include siblingsGroup in response */
   includeSiblings: z.boolean().optional()
 })
+
 export type BranchMessagesQueryParams = z.infer<typeof BranchMessagesQuerySchema> & CursorPaginationParams
 
 /**
@@ -142,11 +147,13 @@ export const DeleteMessageQuerySchema = z.strictObject({
   /** Reject deletion unless the target is an awaiting-input user leaf. */
   awaitingInputOnly: z.boolean().optional()
 })
+
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
 export const DeleteBranchQuerySchema = z.strictObject({
   topicId: z.string().min(1)
 })
+
 export type DeleteBranchQuery = z.infer<typeof DeleteBranchQuerySchema>
 
 /**
@@ -156,6 +163,7 @@ export const PathThroughQuerySchema = z.strictObject({
   /** Node the returned path must pass through. */
   nodeId: z.string().min(1)
 })
+
 export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
 
 // ============================================================================

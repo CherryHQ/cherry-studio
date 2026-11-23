@@ -17,6 +17,7 @@ export const saveBailianToken = (token: string): void => {
 
 export const getBailianToken = (): string | null => {
   const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+
   return token
 }
 
@@ -81,9 +82,11 @@ async function fetchAllMcpServers(token: string): Promise<BailianServer[]> {
     if (response.status === 401 || response.status === 403) {
       throw new Error('unauthorized')
     }
+
     if (response.status === 500) {
       throw new Error('server_error')
     }
+
     if (!response.ok) {
       throw new Error(`Status: ${response.status}`)
     }
@@ -136,6 +139,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
             Authorization: `Bearer ${token}`
           }
         }
+
         allServers.push(mcpServer)
       } catch (err) {
         logger.error(`Error processing Bailian server ${server.id}:`, err as Error)
@@ -155,6 +159,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
       clearBailianToken()
       message = t('settings.mcp.sync.unauthorized', 'Sync Unauthorized')
       logger.error('Unauthorized access during sync')
+
       return {
         success: false,
         message,
@@ -166,6 +171,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
       message = t('settings.mcp.sync.error')
       errorDetails = 'Status: 500'
       logger.error('Server error during sync')
+
       return {
         success: false,
         message,
@@ -178,6 +184,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
     logger.error('Bailian sync error:', error as Error)
     message = t('settings.mcp.sync.error')
     errorDetails = String(error)
+
     return {
       success: false,
       message,

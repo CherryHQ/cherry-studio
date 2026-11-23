@@ -28,6 +28,7 @@ const SelectionActionAskAgentModal: FC<SelectionActionAskAgentModalProps> = ({
   // null keeps Cherry Assistant as the default instead of pinning its id.
   const [agentId, setAgentId] = useState<string | null>(null)
   const [workspace, setWorkspace] = useState<AgentSessionWorkspaceSource>({ type: AGENT_WORKSPACE_TYPE.SYSTEM })
+
   const builtinAssistantId =
     agents.find((agent) => agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT)?.id ?? null
 

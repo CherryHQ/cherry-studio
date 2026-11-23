@@ -124,32 +124,44 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
 
   function conversation(thread: ThreadId): Conversation {
     const found = conversations.get(thread)
+
     if (!found) throw new Error(`Unknown thread ${thread}`)
+
     return found
   }
+
   function track<T>(work: Promise<T>): Promise<T> {
     pending.add(work)
+
     const forget = () => {
       pending.delete(work)
     }
+
     work.then(forget, forget)
+
     return work
   }
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Job, lifecycle and observer catches share this forwarding path; retain the rejection value for the host's error handler.
   const report = (error: unknown) => options.onError?.(error)
 
   /** One port call: rejects once its call ended or the harness closed; `body` runs synchronously up to its first await. */
   async function enter<T>(scope: Scope, body: () => T | Promise<T>): Promise<T> {
     if (closed) throw new Error('The coding-agent harness is closed')
+
     if (scope.ended) throw new Error('port used after its call ended')
+
     return body()
   }
+
   async function remember<T extends JsonValue>(name: Key, produce: () => Promise<T>): Promise<T> {
     if (!memo.has(name)) {
       const value = await produce()
+
       // A concurrent producer may have stored first; the first writer wins.
       if (!memo.has(name)) memo.set(name, value)
     }
+
     return memo.get(name) as T
   }
 
@@ -168,13 +180,18 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
               thread,
               (facts) => {
                 const next = decide(facts)
+
                 if (next.ops.some((op) => op.type === 'spawn-child')) accepting()
+
                 return next
               },
               scope.owner
             )
+
             adapter.results(thread)
+
             if (scope.opening) scope.opening.push(...applied.jobs)
+
             const launched = await Promise.allSettled(
               applied.children.map((child) =>
                 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native child-session construction can reject with any value; record the failed child before rethrowing that same rejection.
@@ -193,11 +210,15 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
                 })
               )
             )
+
             if (!scope.opening && !closing) for (const job of applied.jobs) startJob(job, scope.input)
+
             const failures = launched.flatMap((result) =>
               result.status === 'rejected' ? [result.reason as unknown] : []
             )
+
             if (failures.length) throw failures.length === 1 ? failures[0] : new AggregateError(failures)
+
             return { result: step.result, effects: step.effects, spawned: applied.spawned }
           }),
         modelContext: (thread) => enter(scope, () => modelContext(adapter, thread))
@@ -206,6 +227,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         start: (thread, input, key) =>
           enter(scope, () => {
             accepting()
+
             return startTurn(adapter, conversation(thread), input, key)
           }),
         retract: (thread, key) => enter(scope, () => retract(conversation(thread), key)),
@@ -213,6 +235,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         stop: (thread, _cause, turn) =>
           enter(scope, () => {
             const conv = conversation(thread)
+
             return turn === undefined || latestStart(conv) === turn ? stopRun(adapter, conv) : undefined
           })
       },
@@ -221,6 +244,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
           enter(scope, async () => {
             accepting()
             const conv = conversation(child)
+
             const accepted = messageChild(
               adapter,
               conv,
@@ -230,23 +254,29 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
               reservedRun,
               scope.input?.thread === child ? scope.input.id : undefined
             )
+
             if (accepted.status !== 'queued') return accepted
             // Wait for actual consumption so a message crossing normal completion reports the subsequent run.
             const submission = conv.submissions.get(key)!
             const { signal } = scope
             const abort = () => withdraw(conv, key)
+
             if (signal?.aborted) abort()
             signal?.addEventListener('abort', abort, { once: true })
+
             try {
               await waitFor(conv, () => submission.state !== 'queued')
             } finally {
               signal?.removeEventListener('abort', abort)
             }
+
             const result: MessageResult =
               submission.state === 'withdrawn'
                 ? { run: accepted.run, status: 'withdrawn' }
                 : { run: submission.run!, status: submission.run === accepted.run ? 'queued' : 'started' }
+
             submission.admission = result
+
             return result
           }),
         awaitAnswer: (child, run, key) => enter(scope, () => awaitAnswer(conversation(child), run, key)),
@@ -254,6 +284,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         stop: (child, run) =>
           enter(scope, async () => {
             const conv = conversations.get(child)
+
             if (conv?.active?.run === run) await stopRun(adapter, conv)
           })
       },
@@ -262,6 +293,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         untilIdle: (thread) =>
           enter(scope, () => {
             const conv = conversation(thread)
+
             return waitFor(
               conv,
               () => conv.active === undefined && conv.hostCompacts === 0 && conv.hostPrompts === 0 && piIdle(conv)
@@ -270,6 +302,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         untilDone: (thread, key) =>
           enter(scope, () => {
             const conv = conversation(thread)
+
             return waitFor(conv, () => inputDone(conv, key))
           })
       },
@@ -277,28 +310,34 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       clock
     }
   }
+
   async function withScope<T>(
     call: CallScope,
     body: (ports: BoundPorts) => Promise<T>,
     opening?: JobRecord[]
   ): Promise<T> {
     const scope: Scope = { ...call, ended: false, opening }
+
     try {
       return await body(bound(scope))
     } finally {
       scope.ended = true
     }
   }
+
   function lifecycle(
     call: (handlers: LifecycleHandlers, ports: BoundPorts) => Promise<void>,
     opening?: JobRecord[]
   ): Promise<void> {
     const handlers = installation.lifecycle
+
     return handlers ? withScope({}, (ports) => call(handlers, ports), opening) : Promise.resolve()
   }
+
   /** H4 coding-agent: an in-process promise per job, started from the next microtask. */
   function startJob(job: JobRecord, input?: CallScope['input']): void {
     const scope: Scope = { ended: false, input }
+
     const run = async () => {
       try {
         if (closing || closed) return
@@ -311,29 +350,38 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         scope.ended = true
       }
     }
+
     void track(Promise.resolve().then(run))
   }
+
   /** Counts an open for `settled()` and, until it settles, for `close()`. */
   function launch<T>(open: Promise<T>): Promise<T> {
     const launched = track(open)
     launching.add(launched)
+
     const forget = () => {
       launching.delete(launched)
     }
+
     launched.then(forget, forget)
+
     return launched
   }
+
   /** A conversation the host opens: its session, `onOpen`, then what waited for both. */
   async function openRoot(conv: Conversation): Promise<void> {
     try {
       await openNative(conv)
+
       if (conv.reopened) await restoreChildren(conv)
     } catch (error) {
       // Never opened: the host may open it again.
       conversations.delete(conv.thread)
       throw error
     }
+
     const opening: JobRecord[] = []
+
     try {
       accepting()
       // After Pi's session_start: `onOpen` may stop or start turns, which need the session.
@@ -348,28 +396,37 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       }
     }
   }
+
   async function restoreChildren(parent: Conversation): Promise<void> {
     if (!parent.manager.isPersisted()) return
     const history = historyOf(parent.manager.getBranch(), parent.thread)
+
     for (const item of history)
       if (item.kind === 'assistant') for (const call of item.toolCalls) parent.callIds.set(call.callKey, call.callId)
+
     const ids = new Set(
       history.flatMap((item) =>
         item.kind === 'record' && item.record.type === 'subagent-run' ? [item.record.value.sessionId] : []
       )
     )
+
     if (!ids.size) return
     const files = await SessionManager.list(parent.manager.getCwd(), parent.manager.getSessionDir())
+
     for (const id of ids) {
       const candidates = files.filter(
         (file) => file.id === id && file.parentSessionPath === parent.manager.getSessionFile()
       )
+
       if (candidates.length !== 1) continue
       const manager = SessionManager.openExisting(candidates[0].path, id)
+
       const origin = historyOf(manager.getBranch(), id).findLast(
         (item) => item.kind === 'record' && item.record.type === 'subagent-origin'
       )
+
       if (origin?.kind !== 'record' || origin.record.type !== 'subagent-origin') continue
+
       const child = newConversation(
         id,
         manager,
@@ -377,7 +434,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         undefined,
         true
       )
+
       conversations.set(id, child)
+
       try {
         await openNative(child)
       } catch (error) {
@@ -387,22 +446,27 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         report(error)
         continue
       }
+
       await restoreChildren(child)
     }
   }
+
   async function openNative(conv: Conversation): Promise<void> {
     const child =
       conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
+
     const native = await options.openSession({
       sessionManager: conv.manager,
       extension: conversationExtension(adapter, conv),
       ...(child && { child })
     })
+
     if (closing) {
       // close() disposes only the sessions it found built: this one is disposed here, before anything runs on it.
       await native.dispose()
       throw new Error('The coding-agent harness is closed')
     }
+
     conv.native = native
     meterRequests(adapter, conv, native.session)
     native.session.subscribe((event) => {
@@ -440,16 +504,19 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     results(thread) {
       const conv = conversation(thread)
       const input = conv.active && conv.submissions.get(conv.active.key)?.input
+
       const marker =
         input && typeof input !== 'string'
           ? decodeEntry({ id: runtimeId(conv.active!.key), kind: input.kind, data: input.data })
           : undefined
+
       const notification =
         marker?.kind === 'marker' && marker.marker.type === 'subagent-notification'
           ? marker.marker.runs
           : conv.active
             ? []
             : undefined
+
       const results = subagentResults(readFacts(adapter, thread).history, conv.active !== undefined, notification)
       options.onResults?.(
         thread,
@@ -507,7 +574,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     async openConversation(sessionManager) {
       accepting()
       const thread = runtimeId<'thread'>(sessionManager.getSessionId())
+
       if (conversations.has(thread)) throw new Error(`Conversation ${thread} is already open`)
+
       // [plan choice] A stored session holds entries before it opens; a new one is empty.
       const conv = newConversation(
         thread,
@@ -516,8 +585,10 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         undefined,
         sessionManager.getEntries().length > 0
       )
+
       conversations.set(thread, conv)
       await launch(openRoot(conv))
+
       return thread
     },
     toolCallId: (call) => conversation(call.thread).callIds.get(call.key),
@@ -537,13 +608,16 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     prompt(thread, text, promptOptions, signal) {
       if (closing || closed) return Promise.reject(new Error('The coding-agent harness is closed'))
       users += 1
+
       return promptUser(adapter, conversation(thread), `user:${users}`, text, promptOptions, signal)
     },
     async compact(thread, instructions) {
       accepting()
       const conv = conversation(thread)
+
       if (!conv.native) throw new Error(`Conversation ${thread} has no session`)
       conv.hostCompacts += 1
+
       // In flight until `onCompacted` has returned too (H5).
       try {
         await conv.native.compact(instructions)
@@ -571,9 +645,11 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       // Every run first: a parent's tool call may be waiting on a foreground child.
       const aborts = await Promise.allSettled(all.flatMap((conv) => conv.native?.session.abort() ?? []))
       await Promise.all(all.map((conv) => waitFor(conv, () => conv.hostPrompts === 0)))
+
       const failures = [...stops, ...aborts].flatMap((settled) =>
         settled.status === 'rejected' ? [settled.reason as unknown] : []
       )
+
       // A session that fails to abort or dispose does not keep the others open.
       for (const conv of all)
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native dispose failures are collected with other shutdown rejections without preventing remaining sessions from closing.
@@ -581,6 +657,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
           failures.push(error)
         })
       closed = true
+
       if (failures.length > 0) throw failures.length === 1 ? failures[0] : new AggregateError(failures)
     }
   }

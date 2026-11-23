@@ -145,12 +145,16 @@ const api = {
     openExternal: async (url: string, options?: Electron.OpenExternalOptions): Promise<void> => {
       if (!resolveSafeExternalUrl(url)) throw new Error('Blocked openExternal for invalid URL')
       const result = await ipcApi.request('system.shell.open_external_website', { url, options })
+
       if (typeof result !== 'object' || result === null || !('ok' in result)) {
         throw new Error('Invalid IpcApi result')
       }
+
       if (result.ok === true && 'data' in result && result.data === undefined) return
+
       if (result.ok === false && 'error' in result) {
         const error = result.error
+
         if (
           typeof error === 'object' &&
           error !== null &&
@@ -166,6 +170,7 @@ const api = {
           })
         }
       }
+
       throw new Error('Invalid IpcApi result')
     }
   },
@@ -201,6 +206,7 @@ const api = {
       const channel = IpcChannel.Shortcut_RegistrationConflict
       const listener = (_: Electron.IpcRendererEvent, payload: ShortcutRegistrationConflictPayload) => callback(payload)
       ipcRenderer.on(channel, listener)
+
       return () => {
         ipcRenderer.removeListener(channel, listener)
       }
@@ -215,6 +221,7 @@ const api = {
     onSync: (callback: (message: CacheSyncMessage) => void) => {
       const listener = (_: any, message: CacheSyncMessage) => callback(message)
       ipcRenderer.on(IpcChannel.Cache_Sync, listener)
+
       return () => ipcRenderer.off(IpcChannel.Cache_Sync, listener)
     },
 
@@ -238,6 +245,7 @@ const api = {
     onChanged: (callback: (key: UnifiedPreferenceKeyType, value: any) => void) => {
       const listener = (_: any, key: UnifiedPreferenceKeyType, value: any) => callback(key, value)
       ipcRenderer.on(IpcChannel.Preference_Changed, listener)
+
       return () => ipcRenderer.off(IpcChannel.Preference_Changed, listener)
     }
   },
@@ -248,6 +256,7 @@ const api = {
     onDataChanged: (callback: (effects: DataApiDataChangeEffect[]) => void) => {
       const listener = (_: any, effects: DataApiDataChangeEffect[]) => callback(effects)
       ipcRenderer.on(IpcChannel.DataApi_DataChanged, listener)
+
       return () => ipcRenderer.off(IpcChannel.DataApi_DataChanged, listener)
     }
   },

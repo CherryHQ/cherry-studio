@@ -79,6 +79,7 @@ const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
   KB_SEARCH_TOOL_NAME,
   KB_READ_TOOL_NAME
 ])
+
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
 
@@ -99,15 +100,19 @@ function toHostOrUrl(url: string): string {
 function sourceIdToNumber(sourceId: unknown): number | undefined {
   if (typeof sourceId !== 'string') return undefined
   const match = sourceId.match(/^citation-(\d+)$/)
+
   if (!match) return undefined
   const value = Number(match[1])
+
   return Number.isFinite(value) && value >= 0 ? value + 1 : undefined
 }
 
 /** `mcp__cherry-tools__web_search` → `web_search`; null for any other server or tool. */
 function citableCherryToolName(wireName: string): string | null {
   const parsed = parseFunctionCallToolName(wireName)
+
   if (!parsed || ![CHERRY_TOOLS_MCP_SERVER, 'cherry_tools'].includes(parsed.serverPart)) return null
+
   return CITABLE_TOOL_NAMES.has(parsed.toolPart) ? parsed.toolPart : null
 }
 
@@ -120,22 +125,28 @@ function citableCherryToolName(wireName: string): string | null {
 function resolveCitableToolName(part: CherryMessagePart): string | null {
   if (!isToolUIPart(part)) return null
   const toolPart = part
+
   if (toolPart.state !== 'output-available') return null
 
   const rawName = getToolName(toolPart)
+
   if (CITABLE_TOOL_NAMES.has(rawName)) {
     if (part.type !== 'dynamic-tool') return rawName
 
     const partMetadata = readCherryMeta(part)?.tool
     const outputMetadata = extractOutputMetadata((toolPart as { output?: unknown }).output).metadata
+
     const belongsToCherryTools = (metadata: ToolMetadata | typeof partMetadata | undefined) =>
       metadata?.serverId === CHERRY_TOOLS_MCP_SERVER || metadata?.serverName === CHERRY_TOOLS_MCP_SERVER
+
     return belongsToCherryTools(partMetadata) || belongsToCherryTools(outputMetadata) ? rawName : null
   }
 
   if (rawName === TOOL_INVOKE_TOOL_NAME) {
     const input = toolPart.input
+
     if (isRecord(input) && typeof input.name === 'string' && CITABLE_TOOL_NAMES.has(input.name)) return input.name
+
     return null
   }
 
@@ -143,6 +154,7 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
   // in the input rather than the part's own name — the `tool_invoke` shape with an MCP-style name.
   if (rawName === PI_TOOL_CALL_TOOL_NAME) {
     const input = toolPart.input
+
     return isRecord(input) && typeof input.name === 'string' ? citableCherryToolName(input.name) : null
   }
 
@@ -151,7 +163,9 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
 
 function toSnippet(content: string): string {
   const trimmed = content.trim()
+
   if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+
   return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
@@ -166,14 +180,20 @@ function parseKbReadCitation(
   output: unknown
 ): { id: string; baseId?: string; conceptId: string; title: string; content: string } | null {
   const read = kbReadOutputSchema.safeParse(output)
+
   if (read.success) {
     const { id, baseId, conceptId, title, content } = read.data
+
     return id ? { id, baseId, conceptId, title, content: toSnippet(content) } : null
   }
+
   const grep = kbGrepOutputSchema.safeParse(output)
+
   if (!grep.success) return null
   const { id, baseId, conceptId, title, matches } = grep.data
+
   if (!id || matches.length === 0) return null
+
   return { id, baseId, conceptId, title, content: toSnippet(matches.map((match) => match.snippet).join(' … ')) }
 }
 
@@ -192,24 +212,32 @@ type CitableToolOutput =
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool parts can contain persisted/deferred skeletons or MCP envelopes; unwrap the result and parse the tool-specific citation schema before use.
 function parseCitableToolOutput(toolName: string, output: unknown): CitableToolOutput | null {
   let rawOutput = output
+
   if (isPersistedToolOutput(output)) {
     const ref = output.$persistedToolOutput
+
     if (ref.shape === 'entities') rawOutput = ref.skeleton
   } else if (isDeferredToolOutput(output) && output.skeleton !== undefined) {
     rawOutput = output.skeleton
   }
+
   const { response } = extractOutputMetadata(rawOutput)
 
   if (toolName === KB_SEARCH_TOOL_NAME) {
     const parsed = kbSearchOutputSchema.safeParse(response)
+
     return parsed.success ? { kind: 'knowledge', items: parsed.data } : null
   }
+
   if (toolName === KB_READ_TOOL_NAME) {
     // Read-mode content is the document itself; MCP results still need their envelope removed.
     const item = parseKbReadCitation(rawOutput) ?? parseKbReadCitation(response)
+
     return item ? { kind: 'knowledge', items: [item] } : null
   }
+
   const parsed = webSearchOutputSchema.safeParse(response)
+
   return parsed.success ? { kind: 'web', items: parsed.data } : null
 }
 
@@ -222,6 +250,7 @@ function parseCitableToolOutput(toolName: string, output: unknown): CitableToolO
  */
 function documentKey(item: { baseId?: string; conceptId?: string }): string | undefined {
   if (!item.conceptId) return undefined
+
   // NUL separator: neither id can contain one, so the join is unambiguous.
   return `${item.baseId ?? ''}\u0000${item.conceptId}`
 }
@@ -230,6 +259,7 @@ function documentKey(item: { baseId?: string; conceptId?: string }): string | un
 function markerNumberOfId(id: string | number): number | undefined {
   if (typeof id === 'number') return id
   const suffix = id.match(/(\d+)$/)?.[1]
+
   return suffix ? Number(suffix) : undefined
 }
 
@@ -253,6 +283,7 @@ export function resolveMessageCitations(
   for (const part of parts) {
     if (part.type !== 'source-url' || typeof part.url !== 'string' || !part.url || byUrl.has(part.url)) continue
     const number = sourceIdToNumber(part.sourceId) ?? all.length + 1
+
     const citation: Citation = {
       number,
       url: part.url,
@@ -260,6 +291,7 @@ export function resolveMessageCitations(
       showFavicon: true,
       type: 'websearch'
     }
+
     byId.set(String(number), citation)
     byMarkerNumber.set(number, citation)
     byUrl.set(part.url, citation)
@@ -275,6 +307,7 @@ export function resolveMessageCitations(
   const trackMarkerNumber = (id: string | number, citation: Citation) => {
     if (!ownScope) return
     const markerNumber = markerNumberOfId(id)
+
     if (markerNumber !== undefined && !toolMarkerCandidates.has(markerNumber)) {
       toolMarkerCandidates.set(markerNumber, citation)
     }
@@ -282,16 +315,20 @@ export function resolveMessageCitations(
 
   const addKnowledgeCitation = (item: KnowledgeCitationInput) => {
     const key = String(item.id)
+
     if (byId.has(key)) return
     // One citation per document, the knowledge-base counterpart of the URL dedup below: kb_search
     // can return several chunks of one file and kb_read may then quote that same file again, but
     // the reader only cares which document backed the statement. First occurrence wins.
     const document = documentKey(item)
     const existing = document ? byDocument.get(document) : undefined
+
     if (existing) {
       byId.set(key, existing)
+
       return
     }
+
     const citation: Citation = {
       number: nextNumber++,
       url: '',
@@ -300,7 +337,9 @@ export function resolveMessageCitations(
       showFavicon: false,
       type: 'knowledge'
     }
+
     byId.set(key, citation)
+
     if (document) byDocument.set(document, citation)
     all.push(citation)
     trackMarkerNumber(item.id, citation)
@@ -308,23 +347,32 @@ export function resolveMessageCitations(
 
   const addToolPart = (part: CherryMessagePart) => {
     const toolName = resolveCitableToolName(part)
+
     if (!toolName) return
     const output = parseCitableToolOutput(toolName, (part as { output?: unknown }).output)
+
     if (!output || output.items.length === 0) return
+
     if (ownScope) lookupCallCount += 1
+
     if (output.kind === 'knowledge') {
       for (const item of output.items) addKnowledgeCitation(item)
+
       return
     }
+
     for (const item of output.items) {
       const key = String(item.id)
+
       if (byId.has(key)) continue
       const existing = item.url ? byUrl.get(item.url) : undefined
+
       if (existing) {
         // Same URL surfaced by another call — alias this id to the first citation.
         byId.set(key, existing)
         continue
       }
+
       const citation: Citation = {
         number: nextNumber++,
         url: item.url,
@@ -333,7 +381,9 @@ export function resolveMessageCitations(
         showFavicon: true,
         type: 'websearch'
       }
+
       byId.set(key, citation)
+
       if (item.url) byUrl.set(item.url, citation)
       all.push(citation)
       trackMarkerNumber(item.id, citation)
@@ -342,6 +392,7 @@ export function resolveMessageCitations(
 
   for (const part of parts) addToolPart(part)
   ownScope = false
+
   for (const part of priorParts) addToolPart(part)
 
   if (lookupCallCount === 1) {
@@ -351,6 +402,7 @@ export function resolveMessageCitations(
   }
 
   if (all.length === 0) return EMPTY_MESSAGE_CITATIONS
+
   return { byId, byMarkerNumber, all }
 }
 
@@ -382,11 +434,15 @@ function isSameRegistry(
   prefixCountByMessageId: ReadonlyMap<string, number>
 ): boolean {
   if (previous.parts.length !== parts.length) return false
+
   if (previous.prefixCountByMessageId.size !== prefixCountByMessageId.size) return false
+
   if (parts.some((part, index) => previous.parts[index] !== part)) return false
+
   for (const [messageId, count] of prefixCountByMessageId) {
     if (previous.prefixCountByMessageId.get(messageId) !== count) return false
   }
+
   return true
 }
 
@@ -402,13 +458,17 @@ export function buildCitationPartsRegistry(
 ): CitationPartsRegistry {
   const parts: CherryMessagePart[] = []
   const prefixCountByMessageId = new Map<string, number>()
+
   for (const messageId of messageIds) {
     prefixCountByMessageId.set(messageId, parts.length)
+
     for (const part of partsByMessageId[messageId] ?? EMPTY_PARTS) {
       if (resolveCitableToolName(part) !== null) parts.push(part)
     }
   }
+
   if (previous && isSameRegistry(previous, parts, prefixCountByMessageId)) return previous
+
   return { parts, prefixCountByMessageId }
 }
 
@@ -418,6 +478,7 @@ export function getPriorCitationParts(
   messageId: string
 ): readonly CherryMessagePart[] {
   const count = registry.prefixCountByMessageId.get(messageId) ?? registry.parts.length
+
   return count === 0 ? EMPTY_PARTS : registry.parts.slice(0, count)
 }
 
@@ -437,23 +498,31 @@ export interface ResolvedCitationMarkers {
 
 function createCitationLookup(citations: MessageCitations) {
   const cleanCache = new Map<Citation, Citation>()
+
   const clean = (citation: Citation): Citation => {
     const cached = cleanCache.get(citation)
+
     if (cached) return cached
     const cleaned = citation.content ? { ...citation, content: cleanMarkdownContent(citation.content) } : citation
     cleanCache.set(citation, cleaned)
+
     return cleaned
   }
 
   const markerNumberMap = new Map<number, Citation>()
+
   for (const [markerNumber, citation] of citations.byMarkerNumber) markerNumberMap.set(markerNumber, clean(citation))
 
   const lookup = new Map<string, Citation>()
+
   for (const [id, citation] of citations.byId) lookup.set(id, clean(citation))
+
   for (const [markerNumber, citation] of markerNumberMap) {
     const key = String(markerNumber)
+
     if (!lookup.has(key)) lookup.set(key, citation)
   }
+
   return { lookup, markerNumberMap }
 }
 
@@ -470,6 +539,7 @@ function canonicalizeMarkers(content: string): string {
         .slice('[cite:'.length, -1)
         .match(/[\w-]+/g)
         ?.filter((id) => id !== 'cite')
+
       return ids?.length ? ids.map((id) => `[cite:${id}]`).join('') : marker
     })
   )
@@ -477,6 +547,7 @@ function canonicalizeMarkers(content: string): string {
 
 function normalizeMarkerContent(content: string, markerNumberMap: Map<number, Citation>): string {
   const canonical = canonicalizeMarkers(content)
+
   return markerNumberMap.size > 0
     ? normalizeCitationMarks(canonical, markerNumberMap, WEB_SEARCH_SOURCE.AISDK)
     : canonical
@@ -486,12 +557,16 @@ function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation
   return text.replace(/\[cite:[\w-]+\](?:[ \t]*\[cite:[\w-]+\])+/g, (run) => {
     const seen = new Set<Citation>()
     const kept: string[] = []
+
     for (const match of run.matchAll(/\[cite:([\w-]+)\]/g)) {
       const citation = byMarker.get(match[1])
+
       if (citation && seen.has(citation)) continue
+
       if (citation) seen.add(citation)
       kept.push(match[0])
     }
+
     return kept.join('')
   })
 }
@@ -514,21 +589,27 @@ export function resolveCitationMarkerParts(
     const cited: Citation[] = []
     const seenInPart = new Set<Citation>()
     const normalized = normalizeMarkerContent(content, markerNumberMap)
+
     const collapsed = mapMarkdownOutsideCode(normalized, (text) => {
       for (const match of text.matchAll(/\[cite:([\w-]+)\]/g)) {
         const citation = lookup.get(match[1])
+
         if (!citation) continue
         let display = displayed.get(citation)
+
         if (!display) {
           display = { ...citation, number: nextDisplayNumber++ }
           displayed.set(citation, display)
         }
+
         byMarker.set(match[1], display)
+
         if (!seenInPart.has(display)) {
           seenInPart.add(display)
           cited.push(display)
         }
       }
+
       return collapseMarkerRuns(text, byMarker)
     })
 
@@ -567,14 +648,18 @@ export function toExportableCitations(
   // Earlier turns only answer ids own parts do not mint, so fold them only on an unresolved
   // marker: eager folding made a whole-topic export quadratic in the number of search calls.
   let resolution = resolveCitationMarkers(content, resolveMessageCitations(parts))
+
   if (priorParts.length > 0 && hasUnresolvedMarker(resolution)) {
     resolution = resolveCitationMarkers(content, resolveMessageCitations(parts, priorParts))
   }
+
   const { content: resolved, byMarker, cited } = resolution
+
   return {
     content: mapMarkdownOutsideCode(resolved, (text) =>
       text.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
         const citation = byMarker.get(id)
+
         return citation ? `${space}[${citation.number}]` : ''
       })
     ),
@@ -593,8 +678,10 @@ function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): bo
         }
       }
     }
+
     return text
   })
+
   return unresolved
 }
 
@@ -621,24 +708,31 @@ export function withToolCitationTags(
   displayByMarker?: ReadonlyMap<string, Citation>
 ) {
   let projection: ResolvedCitationMarkers
+
   if (displayByMarker) {
     const { markerNumberMap } = createCitationLookup(citations)
     const cited: Citation[] = []
     const seen = new Set<Citation>()
+
     const resolved = mapMarkdownOutsideCode(normalizeMarkerContent(content, markerNumberMap), (text) => {
       for (const match of text.matchAll(/\[cite:([\w-]+)\]/g)) {
         const citation = displayByMarker.get(match[1])
+
         if (citation && !seen.has(citation)) {
           seen.add(citation)
           cited.push(citation)
         }
       }
+
       return collapseMarkerRuns(text, displayByMarker)
     })
+
     projection = { content: resolved, byMarker: new Map(displayByMarker), cited }
   } else {
     projection = resolveCitationMarkers(content, citations)
   }
+
   const { content: resolved, byMarker, cited } = projection
+
   return { content: mapCitationMarksToTags(resolved, byMarker), cited }
 }

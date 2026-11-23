@@ -99,6 +99,7 @@ const SessionItem = ({
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
   const { isRenaming, isNewlyRenamed } = useTopicRenameState(topicId)
+
   const {
     status,
     awaitingApprovalAnchors,
@@ -106,6 +107,7 @@ const SessionItem = ({
     isPending: isStreamPending,
     markSeen
   } = useTopicStreamStatus(topicId)
+
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
@@ -113,6 +115,7 @@ const SessionItem = ({
   // The row truncates its title, so the hover card carries the full name, when the session
   // was last active, and the workspace it runs in (absent for system workspaces).
   const workspacePath = session.workspace?.path
+
   const hoverCard = (
     <div className="flex max-w-72 flex-col gap-0.5 text-left">
       <span className="font-medium">{sessionName}</span>
@@ -129,6 +132,7 @@ const SessionItem = ({
       )}
     </div>
   )
+
   // A live stream can pause for tool approval without a status transition
   // (anchors set mid-stream), while the MCP needsApproval path ends the stream
   // with the terminal 'awaiting-approval' status — the badge must cover both.
@@ -136,6 +140,7 @@ const SessionItem = ({
   // stays on the selected row too (it only yields to hover actions).
   const showAwaitingApprovalBadge = awaitingApprovalAnchors.length > 0 || classifyTurn(status).isAwaitingApproval
   const isStreamErrored = status === 'error'
+
   // The status overlay (spinner / red / green dot) sits at ONE fixed spot
   // (right-1.5) on every row so the indicators line up. Running (spinner) and
   // errored (red) are ongoing states that stay on the selected row too — only
@@ -152,25 +157,31 @@ const SessionItem = ({
         : !isActive && isStreamFulfilled
           ? 'done'
           : null
+
   const showStreamIndicator = !shortcutHint && conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => onOpenRenameDialog(session), [onOpenRenameDialog, session])
   const handleDelete = useCallback(() => onDelete(session.id), [onDelete, session.id])
+
   const handleDeletePermanently = useMemo(
     () => (onDeletePermanently ? () => onDeletePermanently(session.id) : undefined),
     [onDeletePermanently, session.id]
   )
+
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
+
   const handleToggleSidebar = useCallback(() => {
     onToggleSidebar?.(session)
   }, [onToggleSidebar, session])
+
   const handleOpenInNewTab = useCallback(() => {
     onOpenInNewTab?.(session)
   }, [onOpenInNewTab, session])
+
   const handleOpenInNewWindow = useCallback(() => {
     onOpenInNewWindow?.(session)
   }, [onOpenInNewWindow, session])
@@ -242,6 +253,7 @@ const SessionItem = ({
   )
 
   const { getActions: getMenuActions, handleMenuAction } = useSessionMenuActions(actionContext)
+
   const deleteAction = useMemo(
     () => getMenuActions().find((action) => action.id === 'session.delete'),
     [getMenuActions]
@@ -252,8 +264,10 @@ const SessionItem = ({
       // ⌘/Ctrl-click opens the session in a new tab (browser-style), matching the hover action.
       if ((event.metaKey || event.ctrlKey) && onOpenInNewTab && !active) {
         handleOpenInNewTab()
+
         return
       }
+
       if (rightPanelState?.maximized) rightPanelActions?.minimize()
       onPress(session.id)
     },
@@ -364,6 +378,7 @@ const SessionItem = ({
             disabled={!deleteAction?.availability.enabled}
             onClick={(event) => {
               event.stopPropagation()
+
               if (deleteAction) void handleMenuAction(deleteAction)
             }}>
             <Archive size={14} className="size-3.5!" />

@@ -12,7 +12,9 @@ export const cherryinHandlers: IpcHandlersFor<typeof cherryinRequestSchemas> = {
       oauthServer,
       apiHost
     })
+
     if (!apiKeys) throw new OAuthServiceError('No API keys received')
+
     return { apiKeys }
   },
   'cherryin.get_balance': ({ apiHost }) => cherryInOAuthService.getBalance(apiHost),

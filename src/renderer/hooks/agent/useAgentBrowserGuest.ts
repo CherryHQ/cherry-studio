@@ -23,6 +23,7 @@ export function useAgentBrowserGuest(
     let cancelled = false
     let attaching = false
     let tabId: string | undefined
+
     const unsubscribeFocus = ipcApi.on('browser.input.focus_requested', (request) => {
       if (
         request.sessionId !== sessionId ||
@@ -32,17 +33,20 @@ export function useAgentBrowserGuest(
       )
         return
       let status: InputFor<'browser.input.focused'>['status'] = 'unavailable'
+
       try {
         if (guest?.isConnected) {
           if (guest.closest('[inert]')) status = 'background'
           else {
             guest.focus()
+
             if (guest.ownerDocument.activeElement === guest) status = 'focused'
           }
         }
       } catch (error) {
         logger.debug('Browser guest could not receive input focus', { error })
       }
+
       void ipcApi
         .request('browser.input.focused', {
           sessionId: request.sessionId,
@@ -53,11 +57,15 @@ export function useAgentBrowserGuest(
         })
         .catch((error) => logger.debug('Browser input focus request ended', { error }))
     })
+
     const detach = (id: string) => {
       const input: InputFor<'browser.pane.detach'> = { sessionId, tabId: id }
+
       if (scope) input.scope = scope
+
       return ipcApi.request('browser.pane.detach', input)
     }
+
     const attach = () => {
       if (attaching || tabId) return
       attaching = true
@@ -65,14 +73,18 @@ export function useAgentBrowserGuest(
         try {
           if (cancelled) return
           const webviewId = guest.getWebContentsId()
+
           if (!webviewId) return
+
           const input: InputFor<'browser.pane.attach'> = {
             sessionId,
             webviewId,
             pageId
           }
+
           if (scope) input.scope = scope
           const result = await ipcApi.request('browser.pane.attach', input)
+
           if (cancelled) await detach(result.tabId)
           else {
             tabId = result.tabId
@@ -85,12 +97,15 @@ export function useAgentBrowserGuest(
         }
       })
     }
+
     guest.addEventListener('dom-ready', attach)
     attach()
+
     return () => {
       cancelled = true
       unsubscribeFocus()
       guest.removeEventListener('dom-ready', attach)
+
       if (tabId) {
         const detachedId = tabId
         void queue
@@ -99,5 +114,6 @@ export function useAgentBrowserGuest(
       }
     }
   }, [sessionId, guest, revision, scope, pageId])
+
   return binding?.guest === guest && binding?.sessionId === sessionId ? binding?.tabId : undefined
 }

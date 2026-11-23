@@ -8,6 +8,7 @@ export const tabHandlers: IpcHandlersFor<typeof tabRequestSchemas> = {
   'tab.drag_end': async (_input, { senderId }) => {
     if (!senderId) return
     const win = application.get('WindowManager').getWindow(senderId)
+
     if (win && !win.isDestroyed() && win.getOpacity() < 1) win.setOpacity(1)
   }
 }

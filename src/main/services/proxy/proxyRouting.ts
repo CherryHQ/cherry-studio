@@ -20,17 +20,21 @@ export function normalizeProxyEndpoint(proxyUrl: string | undefined): ProxyEndpo
 
   const url = new URL(proxyUrl)
   const displayOrigin = `${url.protocol}//${url.host}`
+
   if (url.protocol === 'http:' || url.protocol === 'https:') {
     return { kind: 'http', url: url.toString(), displayOrigin }
   }
+
   if (url.protocol !== 'socks:' && url.protocol !== 'socks4:' && url.protocol !== 'socks5:') {
     throw new Error(`Unsupported proxy protocol: ${url.protocol}`)
   }
 
   const port = Number(url.port)
+
   if (!Number.isInteger(port) || port <= 0) {
     throw new Error('SOCKS proxy URL must include a valid port')
   }
+
   return {
     kind: 'socks',
     version: url.protocol === 'socks4:' ? 4 : 5,

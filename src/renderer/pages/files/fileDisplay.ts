@@ -78,6 +78,7 @@ export function getFormatLabel(format: string): string {
     ['odp', 'PPT'],
     ['bin', 'Binary']
   ])
+
   return map.get(format) || format.toUpperCase()
 }
 

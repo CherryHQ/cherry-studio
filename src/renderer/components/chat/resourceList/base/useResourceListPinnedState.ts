@@ -47,11 +47,13 @@ export function useResourceListPinnedState({
 
   const pinnedIds = useMemo(() => {
     const ids = sourcePinnedIds.filter((id) => optimisticPinnedById[id] !== false)
+
     for (const [id, pinned] of Object.entries(optimisticPinnedById)) {
       if (pinned && !sourcePinnedIdSet.has(id)) {
         ids.push(id)
       }
     }
+
     return ids
   }, [optimisticPinnedById, sourcePinnedIdSet, sourcePinnedIds])
 
@@ -75,6 +77,7 @@ export function useResourceListPinnedState({
         setOptimisticPinnedById((prev) => {
           const next = { ...prev }
           delete next[id]
+
           return next
         })
         throw error

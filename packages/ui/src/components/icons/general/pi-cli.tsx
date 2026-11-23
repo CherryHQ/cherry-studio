@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../types'
+
 const PiCli: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -14,5 +15,7 @@ const PiCli: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     <path d="M17.5 12H23v11h-5.5V12Z" />
   </svg>
 )
+
 export { PiCli }
+
 export default PiCli

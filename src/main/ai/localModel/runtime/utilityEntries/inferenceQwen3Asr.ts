@@ -14,13 +14,16 @@ export async function transcribeQwen3Asr(
   { signal }: UtilityProcessHandlerContext<never>
 ): Promise<{ text: string; segments: AsrSegment[] }> {
   signal.throwIfAborted()
+
   if (source.sampleRate !== 16_000 || !source.samples.length || !source.samples.every(Number.isFinite))
     throw Object.assign(new Error('Invalid ASR PCM'), { code: 'VOICE_AUDIO_INVALID' })
   const model = await loadModel(modelDir)
   signal.throwIfAborted()
   const result = await model.transcribe(source.samples, { sampleRate: source.sampleRate, maxTokens: 4096 })
   signal.throwIfAborted()
+
   if (result.reachedMaxTokens || !result.isFinal) throw new Error('ASR output was truncated')
+
   return { text: result.text.trim(), segments: [] }
 }
 
@@ -28,12 +31,14 @@ function loadModel(modelDir: string): Promise<Qwen3AsrModel> {
   cached ??= (async () => {
     try {
       const runtime = await getMlxAsr()
+
       return await runtime.Qwen3AsrModel.load(modelDir)
     } catch (cause) {
       cached = undefined
       throw Object.assign(new Error('ASR model initialization failed', { cause }), { code: 'ASR_MODEL_LOAD_FAILED' })
     }
   })()
+
   return cached
 }
 
@@ -46,6 +51,7 @@ export const asrStreamHandlers: UtilityProcessStreamHandlers<AsrInferenceContrac
     let finished = false
     await write({ metadata: { type: 'ready' } })
     let frames = 0
+
     const publish = async (result: Qwen3AsrResult) => {
       if (result.reachedMaxTokens) throw new Error('ASR output was truncated')
       await write({
@@ -58,9 +64,11 @@ export const asrStreamHandlers: UtilityProcessStreamHandlers<AsrInferenceContrac
         }
       })
     }
+
     try {
       for await (const chunk of input) {
         signal.throwIfAborted()
+
         if (
           chunk.metadata.startFrame !== frames ||
           chunk.payload.byteLength % 4 ||
@@ -69,21 +77,27 @@ export const asrStreamHandlers: UtilityProcessStreamHandlers<AsrInferenceContrac
         )
           throw new Error('Invalid ASR PCM sequence')
         const samples = new Float32Array(chunk.payload.slice().buffer)
+
         if (!samples.every(Number.isFinite) || frames + samples.length > sampleRate * 300)
           throw new Error('Invalid ASR PCM')
         frames += samples.length
         stream ??= await model.createStream({ sampleRate, chunkSeconds: 2 })
         const result = await stream.feed(samples)
         signal.throwIfAborted()
+
         if (result) await publish(result)
       }
+
       signal.throwIfAborted()
+
       if (!stream) return { text: '' }
       const result = await stream.finish()
       finished = true
       signal.throwIfAborted()
+
       if (!result.isFinal) throw new Error('ASR did not finalize')
       await publish(result)
+
       return { text: result.text.trim() }
     } finally {
       if (stream && !finished && !signal.aborted) {

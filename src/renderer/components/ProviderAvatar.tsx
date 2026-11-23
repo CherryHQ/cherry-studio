@@ -53,6 +53,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
     typeof resolvedLogo === 'string' && resolvedLogo.startsWith('icon:')
       ? resolveProviderIconRef(resolvedLogo.slice('icon:'.length))
       : undefined
+
   const providerIconRef = resolvedLogo ? undefined : resolveProviderIconRef(providerId)
   const builtinIconRef = explicitBuiltinIconRef ?? providerIconRef
   const builtinIcon = useIcon(builtinIconRef)
@@ -60,6 +61,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   const isCompactDisplay = displayContext === 'sidebar' || displayContext === 'toolbar'
   const resolvedSize = size ?? 32
   let displayConfig: IconDisplayConfig | undefined
+
   if (displayContext === 'provider-list') {
     displayConfig = getIconDisplayConfig('provider-list', builtinIconRef?.meta.id ?? providerId)
   } else if (isCompactDisplay && builtinIconRef) {
@@ -67,11 +69,13 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
       kind: builtinIconRef.kind,
       iconId: builtinIconRef.meta.id
     })
+
     displayConfig = {
       scale: metrics.canvasScale * ((artworkSize ?? resolvedSize) / resolvedSize),
       borderRadius: metrics.kind === 'tile' ? 3 : undefined
     }
   }
+
   const resolvedIconStyle: React.CSSProperties | undefined = displayConfig
     ? {
         width: `${displayConfig.scale * 100}%`,

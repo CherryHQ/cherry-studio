@@ -49,6 +49,7 @@ const meta: Meta<typeof IconsShowcase> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof IconsShowcase>
 
 /**

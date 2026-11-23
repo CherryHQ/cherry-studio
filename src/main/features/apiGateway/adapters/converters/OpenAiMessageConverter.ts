@@ -28,6 +28,7 @@ import { isBlankToolName } from './toolName'
 const logger = loggerService.withContext('OpenAiMessageConverter')
 
 let uiMessageSeq = 0
+
 function nextUIMessageId(): string {
   return `gateway-msg-${Date.now()}-${uiMessageSeq++}`
 }
@@ -70,6 +71,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
   toUIMessages(params: ExtendedChatCompletionCreateParams): CherryUIMessage[] {
     // tool_call_id → result output.
     const toolResultOutputs = new Map<string, string>()
+
     for (const msg of params.messages) {
       if (msg.role === 'tool') {
         const toolMsg = msg
@@ -81,10 +83,13 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     }
 
     const messages: CherryUIMessage[] = []
+
     for (const msg of params.messages) {
       const converted = this.convertMessage(msg, toolResultOutputs)
+
       if (converted) messages.push(converted)
     }
+
     return messages
   }
 
@@ -116,6 +121,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     if (msg.role !== 'system' && msg.role !== 'developer') return null
 
     let text = ''
+
     if (typeof msg.content === 'string') {
       text = msg.content
     } else if (Array.isArray(msg.content)) {
@@ -124,18 +130,22 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
         .map((part) => part.text)
         .join('\n')
     }
+
     if (!text) return null
+
     return { id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] }
   }
 
   private convertUserMessage(msg: ChatCompletionUserMessageParam): CherryUIMessage | null {
     if (typeof msg.content === 'string') {
       if (!msg.content) return null
+
       return { id: nextUIMessageId(), role: 'user', parts: [{ type: 'text', text: msg.content }] }
     }
 
     if (Array.isArray(msg.content)) {
       const parts: CherryUIMessage['parts'] = []
+
       for (const part of msg.content) {
         if (part.type === 'text') {
           const p: TextUIPart = { type: 'text', text: part.text }
@@ -149,6 +159,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
           parts.push(p)
         }
       }
+
       if (parts.length > 0) return { id: nextUIMessageId(), role: 'user', parts }
     }
 
@@ -180,21 +191,26 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     for (const toolCall of msg.tool_calls ?? []) {
       if (toolCall.type !== 'function') continue
       let input: unknown
+
       try {
         input = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {}
       } catch {
         // oxlint-disable-next-line anti-slop/no-known-value-widening -- The raw fallback shares the SDK's unknown input contract with arbitrary parsed JSON; tool validation happens later.
         input = { raw: toolCall.function.arguments }
       }
+
       const hasResult = toolResultOutputs.has(toolCall.id)
       const base = { type: 'dynamic-tool' as const, toolName: toolCall.function.name, toolCallId: toolCall.id }
+
       const part: DynamicToolUIPart = hasResult
         ? { ...base, state: 'output-available', input, output: toolResultOutputs.get(toolCall.id) }
         : { ...base, state: 'input-available', input }
+
       parts.push(part)
     }
 
     if (parts.length > 0) return { id: nextUIMessageId(), role: 'assistant', parts }
+
     return null
   }
 
@@ -203,6 +219,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
    */
   toAiSdkTools(params: ExtendedChatCompletionCreateParams): ToolSet | undefined {
     const tools = params.tools
+
     if (!tools || tools.length === 0) return undefined
 
     const aiSdkTools: ToolSet = {}
@@ -210,6 +227,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
 
     for (const [index, toolDef] of tools.entries()) {
       if (toolDef.type !== 'function') continue
+
       if (isBlankToolName(toolDef.function.name)) {
         droppedTools.push({
           index,
@@ -227,6 +245,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
         description: toolDef.function.description || '',
         inputSchema: jsonSchema(schema)
       })
+
       if (typeof toolDef.function.strict === 'boolean') aiTool.strict = toolDef.function.strict
 
       aiSdkTools[toolDef.function.name] = aiTool
@@ -275,6 +294,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     overrideReasoning = false
   ): ProviderOptions | undefined {
     if (overrideReasoning) return undefined
+
     return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }

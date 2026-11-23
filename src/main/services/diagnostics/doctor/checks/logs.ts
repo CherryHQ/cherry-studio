@@ -5,6 +5,7 @@ import { recentLogScan } from '../logScan'
 import { defineDoctorCheck } from '../types'
 
 const RECENT_LOG_RANGE_MS = 24 * 60 * 60 * 1000
+
 const NAV_TARGET_BY_DOMAIN: Partial<Record<DiagnosticDomain, DoctorNavigateTarget>> = {
   provider: '/settings/provider',
   network: '/settings/general',
@@ -18,22 +19,29 @@ export const recentLogFindings = defineDoctorCheck({
   timeoutMs: 20_000,
   async run(ctx) {
     const scanned = await recentLogScan(ctx)
+
     const findings = diagnose(
       scanned.records.filter((record) => record.timestampMs >= scanned.toMs - RECENT_LOG_RANGE_MS)
     )
+
     if (findings.length === 0) {
       if (!scanned.complete) throw new Error('No findings in the readable logs, but the scan is incomplete')
+
       return { status: 'pass' }
     }
 
     const actions: DoctorAction<'logs-recent-findings'>[] = []
+
     if (findings.some((finding) => finding.attribution === 'app-bug')) actions.push({ kind: 'report' })
     const targets = new Set<DoctorNavigateTarget>()
+
     for (const finding of findings) {
       if (finding.attribution !== 'user-fixable') continue
       const target = NAV_TARGET_BY_DOMAIN[finding.domain]
+
       if (target) targets.add(target)
     }
+
     for (const target of targets) actions.push({ kind: 'navigate', target })
 
     const attribution: DoctorAttribution = findings.some((finding) => finding.attribution === 'app-bug')
@@ -41,6 +49,7 @@ export const recentLogFindings = defineDoctorCheck({
       : findings.some((finding) => finding.attribution === 'user-fixable')
         ? 'user-fixable'
         : 'transient'
+
     const occurrences = findings.reduce((total, finding) => total + finding.count, 0)
 
     return {

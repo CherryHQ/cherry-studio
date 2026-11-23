@@ -47,12 +47,14 @@ const QueritContentsResponseSchema = QueritStatusSchema.extend({
 function queritUrl(apiHost: string, endpoint: 'search' | 'contents'): string {
   const url = new URL(apiUrl(apiHost, endpoint))
   url.pathname = url.pathname.replace(/\/(?:v1\/)?(search|contents)$/, '/v1/$1')
+
   return url.toString()
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Querit HTTP JSON must pass its status schema, including numeric-string status codes, before classification.
 function checkQueritError(context: ProtocolContext, value: unknown): void {
   const parsed = QueritStatusSchema.safeParse(value)
+
   if (parsed.success && parsed.data.error_code === 200) return
   checkProviderError(context, value, 'error_code')
 }
@@ -61,13 +63,16 @@ export const querit: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.querit,
   async execute(context) {
     const { call } = context
+
     if (call.capability === 'searchKeywords') {
       const url = queritUrl(context.apiHost, 'search')
       const headers = bearer(context)
       const body = { query: call.input, count: call.config.maxResults }
+
       if (call.config.excludeDomains?.length) {
         Object.assign(body, { filters: { sites: { exclude: call.config.excludeDomains } } })
       }
+
       const payload = await requestJson(
         context,
         {
@@ -79,8 +84,10 @@ export const querit: WebSearchProviderModule = {
         QueritSearchResponseSchema,
         (value) => checkQueritError(context, value)
       )
+
       return payload.results.result.flatMap((item) => {
         const url = item.url?.trim()
+
         return url
           ? [
               {
@@ -93,6 +100,7 @@ export const querit: WebSearchProviderModule = {
           : []
       })
     }
+
     const payload = await requestJson(
       context,
       {
@@ -104,16 +112,22 @@ export const querit: WebSearchProviderModule = {
       QueritContentsResponseSchema,
       (value) => checkQueritError(context, value)
     )
+
     const page = payload.results[0]
     const statuses = payload.statuses ?? []
+
     const status =
       statuses.find((entry) => page?.id !== undefined && entry.id === page.id) ??
       (statuses.length === 1 && (page?.id === undefined || statuses[0].id === undefined) ? statuses[0] : undefined)
+
     if (status?.status === 'failed') {
       throw protocolError(context, 'page_fetch_failed', `Querit could not fetch page content for ${call.input.trim()}`)
     }
+
     const content = page?.content?.trim()
+
     if (!content) throw invalidResponse(context, 'empty_content', 'Querit contents returned empty content')
+
     return [
       {
         title: page.extrasMeta?.title?.trim() || call.input,

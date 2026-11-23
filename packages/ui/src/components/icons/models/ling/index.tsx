@@ -6,7 +6,9 @@ import { LingLight } from './light'
 
 const Ling = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <LingLight {...props} className={className} />
+
   if (variant === 'dark') return <LingDark {...props} className={className} />
+
   return (
     <>
       <LingLight className={cn('dark:hidden', className)} {...props} />

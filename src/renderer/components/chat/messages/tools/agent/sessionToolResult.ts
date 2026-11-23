@@ -50,12 +50,15 @@ function isSessionReadToolName(toolName: string | undefined): boolean {
 
 export function isCherrySessionToolResponse(toolResponse: ToolResponseLike): boolean {
   const { tool } = toolResponse
+
   const isSessionTool =
     isSessionCreateToolName(tool.name) ||
     isSessionSendToolName(tool.name) ||
     isSessionSearchToolName(tool.name) ||
     isSessionReadToolName(tool.name)
+
   if (!isSessionTool) return false
+
   return tool.type !== 'mcp' || ('serverId' in tool && tool.serverId === 'cherry-tools')
 }
 
@@ -84,9 +87,12 @@ function parseJsonResult(value: unknown) {
       : typeof value === 'string'
         ? value
         : undefined
+
   if (text === undefined) return isRecord(value) ? value : undefined
+
   try {
     const parsed: unknown = JSON.parse(text)
+
     return isRecord(parsed) ? parsed : undefined
   } catch {
     return undefined
@@ -96,6 +102,7 @@ function parseJsonResult(value: unknown) {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- session_create output comes from tool-response transport; validate success, session ID and nested delivery strings before creating a card.
 export function parseSessionCreateResult(value: unknown): SessionCreateResult | undefined {
   const candidate = parseJsonResult(value)
+
   if (!candidate || candidate.ok !== true || typeof candidate.sessionId !== 'string') return undefined
   const delivery = isRecord(candidate.delivery) ? candidate.delivery : undefined
   const sender = delivery && isRecord(delivery.sender) ? delivery.sender : undefined
@@ -131,13 +138,16 @@ export function parseSessionCreateResult(value: unknown): SessionCreateResult | 
 export function getSessionCreateTargetAgentName(result: SessionCreateResult | undefined): string | undefined {
   const receiverId = result?.delivery?.receiver?.agentId ?? result?.agentId
   const senderId = result?.delivery?.sender?.agentId
+
   if (!receiverId || !senderId || receiverId === senderId) return undefined
+
   return result?.delivery?.receiverSnapshot?.agentName?.trim() || undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- session_send output comes from tool-response transport; validate success and nested receiver/snapshot strings before creating a navigation target.
 export function parseSessionSendResult(value: unknown): SessionSendResult | undefined {
   const candidate = parseJsonResult(value)
+
   if (!candidate || candidate.ok !== true) return undefined
 
   const delivery = isRecord(candidate.delivery) ? candidate.delivery : undefined
@@ -176,6 +186,7 @@ export interface SessionSearchResultSession {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- session_search output may be JSON or an MCP envelope; validate session entries and optional agent names before rendering openable cards.
 export function parseSessionSearchResult(value: unknown): SessionSearchResultSession[] {
   const candidate = parseJsonResult(value)
+
   if (!candidate || !Array.isArray(candidate.sessions)) return []
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search arrays can contain malformed entries; validate every field used by navigation before constructing a target.
@@ -188,6 +199,7 @@ export function parseSessionSearchResult(value: unknown): SessionSearchResultSes
     ) {
       return []
     }
+
     return [
       {
         sessionId: session.sessionId,
@@ -207,9 +219,12 @@ export interface SessionReadResult {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- session_read output may be JSON or an MCP envelope; require a session ID and an addressable agent/topic source before navigation.
 export function parseSessionReadResult(value: unknown): SessionReadResult | undefined {
   const candidate = parseJsonResult(value)
+
   if (!candidate || typeof candidate.sessionId !== 'string') return undefined
+
   // Temporary conversations are ephemeral and have no addressable surface to open.
   if (candidate.source !== 'agent' && candidate.source !== 'topic') return undefined
+
   return { conversationType: candidate.source === 'topic' ? 'assistant' : 'agent', sessionId: candidate.sessionId }
 }
 
@@ -222,8 +237,10 @@ export function getSessionToolTargets(toolResponse: ToolResponseLike): SessionTo
 
   if (isSessionCreateToolName(toolName)) {
     const result = parseSessionCreateResult(toolResponse.response)
+
     if (!result) return []
     const title = typeof input?.title === 'string' ? input.title.trim() : ''
+
     return [
       {
         agentName: getSessionCreateTargetAgentName(result),
@@ -239,7 +256,9 @@ export function getSessionToolTargets(toolResponse: ToolResponseLike): SessionTo
   if (isSessionSendToolName(toolName)) {
     const result = parseSessionSendResult(toolResponse.response)
     const sessionId = result?.delivery?.receiver?.sessionId
+
     if (!sessionId) return []
+
     return [
       {
         agentName: result.delivery?.receiverSnapshot?.agentName?.trim() || undefined,
@@ -267,7 +286,9 @@ export function getSessionToolTargets(toolResponse: ToolResponseLike): SessionTo
 
   if (!isSessionReadToolName(toolName)) return []
   const result = parseSessionReadResult(toolResponse.response)
+
   if (!result) return []
+
   return [
     {
       conversationType: result.conversationType,

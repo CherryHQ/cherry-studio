@@ -32,4 +32,5 @@ export const agentGlobalSkillTable = sqliteTable(
 )
 
 export type AgentGlobalSkillRow = typeof agentGlobalSkillTable.$inferSelect
+
 export type InsertAgentGlobalSkillRow = typeof agentGlobalSkillTable.$inferInsert

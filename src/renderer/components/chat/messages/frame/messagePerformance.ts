@@ -24,17 +24,22 @@ export interface MessagePerformanceViewModel {
 export function getMessageTokenUsage(stats: MessageStats) {
   const inputTokens = stats.inputTokens
   const outputTokens = stats.outputTokens
+
   const componentTotal =
     inputTokens !== undefined || outputTokens !== undefined ? (inputTokens ?? 0) + (outputTokens ?? 0) : undefined
+
   const totalTokens = stats.totalTokens !== undefined && stats.totalTokens > 0 ? stats.totalTokens : componentTotal
 
   if (![inputTokens, outputTokens, totalTokens].some((value) => value !== undefined && value > 0)) return {}
+
   return { inputTokens, outputTokens, totalTokens }
 }
 
 function intervalFromRuntimeSpan(span: MessageRuntimeSpan, rangeEnd: number): MessagePerformanceInterval | undefined {
   const completedAt = span.completedAt ?? rangeEnd
+
   if (completedAt <= span.startedAt) return undefined
+
   return {
     id: span.id,
     lane: span.kind === 'tool-execution' ? 'tool' : 'approval',
@@ -50,13 +55,16 @@ function complementIntervals(
   measured: readonly MessagePerformanceInterval[]
 ): MessagePerformanceInterval[] {
   const merged: Array<{ startedAt: number; completedAt: number }> = []
+
   for (const interval of [...measured].sort((left, right) => left.startedAt - right.startedAt)) {
     const clipped = {
       startedAt: Math.max(startedAt, interval.startedAt),
       completedAt: Math.min(completedAt, interval.completedAt)
     }
+
     if (clipped.completedAt <= clipped.startedAt) continue
     const tail = merged.at(-1)
+
     if (tail && clipped.startedAt <= tail.completedAt) {
       tail.completedAt = Math.max(tail.completedAt, clipped.completedAt)
     } else {
@@ -66,6 +74,7 @@ function complementIntervals(
 
   const gaps: MessagePerformanceInterval[] = []
   let cursor = startedAt
+
   for (const interval of merged) {
     if (interval.startedAt > cursor) {
       gaps.push({
@@ -75,8 +84,10 @@ function complementIntervals(
         completedAt: interval.startedAt
       })
     }
+
     cursor = Math.max(cursor, interval.completedAt)
   }
+
   if (cursor < completedAt) {
     gaps.push({
       id: `other:${gaps.length}`,
@@ -85,6 +96,7 @@ function complementIntervals(
       completedAt
     })
   }
+
   return gaps
 }
 
@@ -95,18 +107,23 @@ function buildRuntimeViewModel(
 ): MessagePerformanceViewModel {
   const runtime = stats.runtimeTiming!
   const rangeEnd = runtime.completedAt ?? now
+
   const runtimeIntervals = runtime.spans
     .map((span) => intervalFromRuntimeSpan(span, rangeEnd))
     .filter((span): span is MessagePerformanceInterval => span !== undefined)
 
   const modelIntervals: MessagePerformanceInterval[] = []
+
   for (const record of records) {
     if (record.recordKind !== 'invocation') continue
     const completedAt = Date.parse(record.createdAt)
     const fullDurationMs = record.timeCompletionMs ?? undefined
+
     const startedAt =
       Number.isFinite(completedAt) && fullDurationMs !== undefined ? completedAt - fullDurationMs : undefined
+
     const label = record.modelName ?? record.modelId ?? record.providerName ?? record.providerId ?? record.modality
+
     if (startedAt !== undefined && completedAt > startedAt) {
       modelIntervals.push({
         id: record.id,
@@ -120,10 +137,13 @@ function buildRuntimeViewModel(
 
   const measuredOutputTokens = stats.providerPerformance?.measuredOutputTokens
   const generationDuration = stats.providerPerformance?.generationDurationMs
+
   const firstTokenRecord = records.find(
     (record) => record.recordKind === 'invocation' && record.timeFirstTokenMs !== null
   )
+
   const timeFirstTokenMs = firstTokenRecord?.timeFirstTokenMs ?? undefined
+
   const modelTokensPerSecond =
     measuredOutputTokens !== undefined &&
     measuredOutputTokens > 0 &&
@@ -131,13 +151,17 @@ function buildRuntimeViewModel(
     generationDuration > 0
       ? measuredOutputTokens / (generationDuration / 1000)
       : undefined
+
   const totalDurationMs =
     runtime.completedAt !== undefined ? Math.max(0, runtime.completedAt - runtime.startedAt) : undefined
+
   const outputTokens = getMessageTokenUsage(stats).outputTokens
+
   const endToEndTokensPerSecond =
     totalDurationMs !== undefined && totalDurationMs > 0 && outputTokens !== undefined && outputTokens > 0
       ? outputTokens / (totalDurationMs / 1000)
       : undefined
+
   const measuredIntervals = [...modelIntervals, ...runtimeIntervals]
 
   const timing: Pick<
@@ -148,7 +172,9 @@ function buildRuntimeViewModel(
     completedAt: rangeEnd,
     totalDurationMs
   }
+
   if (timeFirstTokenMs !== undefined) timing.timeFirstTokenMs = timeFirstTokenMs
+
   return {
     ...timing,
     modelTokensPerSecond,
@@ -159,6 +185,7 @@ function buildRuntimeViewModel(
 
 function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel {
   const completion = stats.timeCompletionMs
+
   if (completion === undefined || completion <= 0) return { intervals: [] }
 
   const firstToken = Math.min(Math.max(stats.timeFirstTokenMs ?? 0, 0), completion)
@@ -166,13 +193,17 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
   const waiting = Math.max(0, firstToken - Math.min(reasoning, firstToken))
   const outputTokens = stats.outputTokens
   const generationDuration = completion - firstToken
+
   const modelTokensPerSecond =
     outputTokens !== undefined && outputTokens > 0 && generationDuration > 0
       ? outputTokens / (generationDuration / 1000)
       : undefined
+
   const endToEndTokensPerSecond =
     outputTokens !== undefined && outputTokens > 0 ? outputTokens / (completion / 1000) : undefined
+
   const intervals: MessagePerformanceInterval[] = []
+
   if (waiting > 0) {
     intervals.push({
       id: 'legacy-waiting-first-token',
@@ -182,6 +213,7 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
       completedAt: waiting
     })
   }
+
   if (reasoning > 0) {
     intervals.push({
       id: 'legacy-reasoning-time',
@@ -191,7 +223,9 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
       completedAt: Math.min(completion, waiting + reasoning)
     })
   }
+
   const textStartedAt = Math.min(completion, waiting + reasoning)
+
   if (completion > textStartedAt) {
     intervals.push({
       id: 'legacy-text-generation',
@@ -210,7 +244,9 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
     completedAt: completion,
     totalDurationMs: completion
   }
+
   if (stats.timeFirstTokenMs !== undefined) timing.timeFirstTokenMs = firstToken
+
   return {
     ...timing,
     modelTokensPerSecond,
@@ -231,9 +267,11 @@ export function getMessageModelTokensPerSecond(stats: MessageStats): number | un
   if (stats.runtimeTiming) {
     const outputTokens = stats.providerPerformance?.measuredOutputTokens
     const durationMs = stats.providerPerformance?.generationDurationMs
+
     return outputTokens !== undefined && outputTokens > 0 && durationMs !== undefined && durationMs > 0
       ? outputTokens / (durationMs / 1000)
       : undefined
   }
+
   return buildLegacyViewModel(stats).modelTokensPerSecond
 }

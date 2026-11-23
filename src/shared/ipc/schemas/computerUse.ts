@@ -7,7 +7,9 @@ export const computerUseAppSchema = z.object({
   name: z.string().min(1),
   identity: z.string().min(1).max(512).optional()
 })
+
 export type ComputerUseApp = z.infer<typeof computerUseAppSchema>
+
 export const computerUseAppIconSchema = z.discriminatedUnion('status', [
   z.object({
     status: z.literal('available'),
@@ -17,12 +19,15 @@ export const computerUseAppIconSchema = z.discriminatedUnion('status', [
 ])
 
 export const computerUseApprovalScopeSchema = z.enum(['always', 'session', 'reject'])
+
 export type ComputerUseApprovalScope = z.infer<typeof computerUseApprovalScopeSchema>
+
 const computerUseApprovalRequestSchema = z.object({
   approvalId: z.uuid(),
   topicId: z.string(),
   app: computerUseAppSchema
 })
+
 export type ComputerUseApprovalRequest = z.infer<typeof computerUseApprovalRequestSchema>
 
 const permissionStatusSchema = z.object({
@@ -46,7 +51,9 @@ const computerUseControlSchema = z.object({
 })
 
 export type ComputerUseControl = z.infer<typeof computerUseControlSchema>
+
 export type ControlStatus = ComputerUseControl['status']
+
 export type ComputerUseEventSchemas = {
   'computer_use.controls_changed': ComputerUseControl[]
   'computer_use.approvals_changed': undefined

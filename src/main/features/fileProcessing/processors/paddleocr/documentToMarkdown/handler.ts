@@ -29,6 +29,7 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
       async startRemote(startSignal) {
         const client = await createPaddleClient(apiHost, apiKey)
         const job = await client.submitDocumentParsing({ filePath: file.path, model }, { signal: startSignal })
+
         return {
           providerTaskId: job.jobId,
           status: 'pending',
@@ -46,6 +47,7 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         if (!persisted.apiHost) {
           throw new Error('paddleocr rehydrate: missing apiHost in persisted remote state')
         }
+
         return {
           providerTaskId: persisted.providerTaskId,
           remoteContext: {
@@ -62,6 +64,7 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 function prepareContext(_file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
   signal?.throwIfAborted()
   const capability = getRequiredCapability(config, 'document_to_markdown', 'paddleocr')
+
   return {
     apiHost: getRequiredApiHost(capability),
     apiKey: getRequiredApiKey(config, 'paddleocr'),
@@ -72,7 +75,9 @@ function prepareContext(_file: FileInfo, config: FileProcessorMerged, signal?: A
 /** Maps a JobStatus to a 0–99 progress percentage. */
 function mapProgress(status: JobStatus): number {
   const p = status.progress
+
   if (!p?.totalPages) return 0
+
   return Math.min(99, Math.round((p.extractedPages / p.totalPages) * 100))
 }
 
@@ -91,6 +96,7 @@ export async function buildPollResult(
 
   if (status.state === 'done') {
     const result = await client.waitDocumentParsingResult(providerTaskId, { signal })
+
     const markdownContent = result.pages
       .map((p) => p.markdownText)
       .join('\n\n')

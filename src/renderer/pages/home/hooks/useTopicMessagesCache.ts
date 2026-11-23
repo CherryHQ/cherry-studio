@@ -43,6 +43,7 @@ function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): Bran
 function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
   const metadata = message.metadata ?? {}
   const createdAt = metadata.createdAt ?? new Date().toISOString()
+
   return {
     message: {
       id: message.id,
@@ -74,6 +75,7 @@ export interface UseTopicMessagesCacheParams {
 export function getTopicBranchCachePaths(topicId: string) {
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
+
   return [messagesCachePath, treeCachePath]
 }
 
@@ -92,6 +94,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
       await mutate(
         (pages) => {
           if (!pages) return pages
+
           return pages.map((page) => ({ ...page, items: transform(page.items) }))
         },
         { revalidate: false }
@@ -106,14 +109,18 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
         (pages) => {
           if (!pages) return pages
           let mutated = false
+
           const next = pages.map((page) => {
             const idx = page.items.findIndex((item) => item.message.id === messageId)
+
             if (idx === -1) return page
             mutated = true
             const items = page.items.slice()
             items[idx] = { ...items[idx], message: { ...items[idx].message, ...patch } }
+
             return { ...page, items }
           })
+
           return mutated ? next : pages
         },
         { revalidate: false }
@@ -130,6 +137,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const seedReservedMessages = useCallback(
     async (messages: CherryUIMessage[], options: { preserveActiveNode?: boolean } = {}) => {
       const reservedItems = messages.map((message) => reservedUIMessageToBranchMessage(topicId, message))
+
       if (reservedItems.length === 0) return
 
       await mutate(
@@ -137,36 +145,48 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
           const currentPages = pages?.length
             ? pages
             : [{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null, rootId: null }]
+
           const reservedById = new Map(reservedItems.map((item) => [item.message.id, item.message]))
           const consumedIds = new Set<string>()
           let replaced = false
+
           const nextPages = currentPages.map((page) => ({
             ...page,
             items: page.items.map((item) => {
               const replacement = reservedById.get(item.message.id)
               let siblingsChanged = false
+
               const siblingsGroup = item.siblingsGroup?.map((sibling) => {
                 const siblingReplacement = reservedById.get(sibling.id)
+
                 if (!siblingReplacement) return sibling
                 consumedIds.add(sibling.id)
                 replaced = true
                 siblingsChanged = true
+
                 return siblingReplacement
               })
+
               if (replacement) {
                 consumedIds.add(item.message.id)
                 replaced = true
               }
+
               if (!replacement && !siblingsChanged) return item
+
               const updated = {
                 ...item,
                 message: replacement ?? item.message
               }
+
               if (siblingsGroup) updated.siblingsGroup = siblingsGroup
+
               return updated
             })
           }))
+
           const newItems = reservedItems.filter((item) => !consumedIds.has(item.message.id))
+
           if (!replaced && newItems.length === 0) return pages
 
           const firstPage = nextPages[0]
@@ -179,6 +199,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
                 ? (newItems.at(-1)?.message.id ?? firstPage.activeNodeId)
                 : firstPage.activeNodeId
           }
+
           return nextPages
         },
         { revalidate: false }
@@ -193,21 +214,27 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: branchCachePaths
   })
+
   const { trigger: deleteMessageGroupTrigger } = useMutation('DELETE', '/messages/:id/reply-group', {
     refresh: branchCachePaths
   })
+
   const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
     refresh: branchCachePaths
   })
+
   const { trigger: createSiblingTrigger } = useMutation('POST', '/messages/:id/siblings', {
     refresh: branchCachePaths
   })
+
   const { trigger: createMessageTrigger } = useMutation('POST', '/topics/:topicId/messages', {
     refresh: branchCachePaths
   })
+
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: branchCachePaths
   })
+
   return {
     branchWithoutIds,
     seedOptimisticBranch,

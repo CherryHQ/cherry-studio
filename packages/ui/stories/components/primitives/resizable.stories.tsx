@@ -18,6 +18,7 @@ const meta: Meta<typeof ResizablePanelGroup> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const Horizontal: Story = {

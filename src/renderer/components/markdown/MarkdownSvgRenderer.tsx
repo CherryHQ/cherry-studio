@@ -32,6 +32,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
   }, [])
 
   const finalProps = { ...restProps }
+
   if (isMeasured) {
     delete finalProps.width
     delete finalProps.height
@@ -45,6 +46,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
   )
 
   const svg = <svg key={sourceKey} ref={svgRef} {...finalProps} />
+
   if (isKatexGeneratedSvg(node)) return svg
 
   return (

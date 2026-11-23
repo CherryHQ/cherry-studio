@@ -4,6 +4,7 @@ import { VertexaiLight } from './light'
 
 const Vertexai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <VertexaiLight {...props} className={className} />
+
   return <VertexaiLight {...props} className={className} />
 }
 

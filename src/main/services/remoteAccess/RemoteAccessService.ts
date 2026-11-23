@@ -23,6 +23,7 @@ import { RemotePairing } from './RemotePairing'
 import { RemoteTokens } from './RemoteTokens'
 
 const logger = loggerService.withContext('RemoteAccessService')
+
 const transportLog: ChannelOptions['logger'] = {
   forComponent: () =>
     Object.assign(() => {}, {
@@ -76,6 +77,7 @@ export class RemoteAccessService extends BaseService {
       this.pairing.clear()
       this.tokens.clear()
       this.hub.dispose()
+
       for (const socket of this.connections.keys()) socket.close(1001, 'Service stopping')
       this.advertisementRefresh = this.sweepTimer = undefined
     })
@@ -91,13 +93,16 @@ export class RemoteAccessService extends BaseService {
     const revision = ++this.endpointRevision
     this.endpoint = endpoint
     this.advertisement.stop()
+
     if (!endpoint) {
       this.advertisementRefresh?.dispose()
       this.advertisementRefresh = undefined
       this.stopSweepWhenIdle()
       application.get('CacheService').setShared('feature.remote_access.discovery_status', 'inactive')
+
       return
     }
+
     this.advertisementRefresh ??= this.registerInterval(this.refreshAdvertisement, 5000)
     this.ensureSweep()
     application.get('CacheService').setShared('feature.remote_access.discovery_status', 'starting')
@@ -119,15 +124,18 @@ export class RemoteAccessService extends BaseService {
   async getConnectionEndpoints() {
     const desktopIdentity = deviceIdentityId(await this.getIdentity())
     const { endpoints } = await application.get('ApiGatewayService').getRemoteEndpoint()
+
     return { desktopIdentity, endpoints }
   }
 
   async createInvitation() {
     const identity = await this.getIdentity()
+
     if (this.endpoint && !this.endpoint.identity) {
       this.endpoint.identity = deviceIdentityId(identity)
       this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
     }
+
     return { ...this.pairing.create(), desktopIdentity: deviceIdentityId(identity), protocolVersions: [1] }
   }
 
@@ -142,22 +150,30 @@ export class RemoteAccessService extends BaseService {
   /** Called by the gateway's ws route once the upgrade completed; refuses beyond the connection budget. */
   accept(socket: RemoteSocket, address: string): void {
     const preferences = application.get('PreferenceService')
+
     if (!preferences.get('feature.api_gateway.enabled') || preferences.get('feature.api_gateway.host') !== '0.0.0.0') {
       socket.close(1008, 'Remote access is disabled')
+
       return
     }
+
     const sameAddress = [...this.connections.values()].filter((value) => value.address === address).length
+
     if (this.connections.size >= 32 || sameAddress >= 4) {
       socket.close(1013, 'Too many remote connections')
+
       return
     }
+
     socket.binaryType = 'arraybuffer'
+
     const entry = {
       address,
       openedAt: Date.now(),
       abort: new AbortController(),
       remote: undefined as RemoteConnection | undefined
     }
+
     this.connections.set(socket, entry)
     this.ensureSweep()
     socket.addEventListener('close', () => {
@@ -181,6 +197,7 @@ export class RemoteAccessService extends BaseService {
   closeIngress(): void {
     this.updateDirectEndpoint(undefined)
     this.pairing.clear()
+
     for (const socket of this.connections.keys()) socket.close(1001, 'Gateway stopping')
   }
 
@@ -191,21 +208,25 @@ export class RemoteAccessService extends BaseService {
   private sweep(): void {
     this.tokens.sweep()
     this.hub.sweep()
+
     for (const [socket, entry] of this.connections) {
       try {
         entry.remote?.sweep()
+
         if (!entry.remote?.isAuthenticated() && Date.now() - entry.openedAt > remoteLimits.invitationMs)
           throw new Error('Pairing timeout')
       } catch {
         socket.close(1008, 'Remote session expired')
       }
     }
+
     this.stopSweepWhenIdle()
   }
 
   // Outlives ingress until journals drain and presented selections clear, so device revocation still reaches them.
   private stopSweepWhenIdle(): void {
     if (this.endpoint || this.connections.size > 0 || !this.hub.isIdle()) return
+
     if (application.get('AttachmentPresenceService').owners().length > 0) return
     this.sweepTimer?.dispose()
     this.sweepTimer = undefined
@@ -217,17 +238,20 @@ export class RemoteAccessService extends BaseService {
       this.identity = undefined
       throw error
     })
+
     return this.identity
   }
 
   private async run(socket: RemoteSocket, entry: { abort: AbortController; remote?: RemoteConnection }): Promise<void> {
     const stream = new RemoteSocketStream(socket, transportLog.forComponent('remote'), 'inbound')
+
     const channel = await acceptSecureChannel(stream, {
       identity: await this.getIdentity(),
       logger: transportLog,
       protocolVersions: [1],
       signal: AbortSignal.any([entry.abort.signal, AbortSignal.timeout(10_000)])
     })
+
     const remote = new RemoteConnection(
       channel,
       this.pairing,
@@ -236,23 +260,29 @@ export class RemoteAccessService extends BaseService {
       this.hub,
       () => this.getConnectionEndpoints()
     )
+
     entry.remote = remote
     let windowStart = Date.now()
     let count = 0
     let uploadCount = 0
+
     while (!entry.abort.signal.aborted) {
       const input = await channel.read(entry.abort.signal)
+
       if (isUploadChunk(input)) {
         void remote.receiveUpload(input).catch(() => socket.close(1011, 'Remote upload failed'))
         continue
       }
+
       if (Date.now() - windowStart >= 1000) {
         windowStart = Date.now()
         count = 0
         uploadCount = 0
       }
+
       const upload =
         input !== null && typeof input === 'object' && 'method' in input && input.method === 'agent.content.read'
+
       if (upload ? ++uploadCount > 512 : ++count > 256) {
         // Awaiting keeps a flood of refusals from queueing ahead of the socket; excess must not end the session.
         const refusal = remote.rpc.refuse(input, {
@@ -260,9 +290,11 @@ export class RemoteAccessService extends BaseService {
           message: 'Request rate exceeded',
           retryAfterMs: Math.max(1, windowStart + 1000 - Date.now())
         })
+
         if (refusal) await remote.send(refusal).catch(() => socket.close(1011, 'Remote request failed'))
         continue
       }
+
       void remote.rpc
         .receive(input, undefined)
         .then(async (response) => {

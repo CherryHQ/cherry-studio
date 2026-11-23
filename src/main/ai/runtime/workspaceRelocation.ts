@@ -32,13 +32,17 @@ export interface RuntimeWorkspaceRelocation {
 export function createRelocationHistoryReader(root: string) {
   const historySchema = z.array(z.record(z.string(), z.unknown()))
   const entriesByFile = new Map<string, z.infer<typeof historySchema>>()
+
   return async (file: string) => {
     const cached = entriesByFile.get(file)
+
     if (cached) return cached
     await digestRelocationArtifact(root, file)
     const parsed: unknown[] = []
+
     for (const line of (await readFile(file, 'utf8')).split('\n')) {
       if (!line.trim()) continue
+
       try {
         parsed.push(JSON.parse(line))
       } catch (error) {
@@ -46,8 +50,10 @@ export function createRelocationHistoryReader(root: string) {
         if (!(error instanceof SyntaxError)) throw error
       }
     }
+
     const entries = historySchema.parse(parsed)
     entriesByFile.set(file, entries)
+
     return entries
   }
 }

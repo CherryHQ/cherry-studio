@@ -43,26 +43,33 @@ const AppShellContent = () => {
     const handleWindowDragOver = (event: DragEvent): void => {
       if (!event.defaultPrevented && event.dataTransfer?.types.includes('Files')) event.preventDefault()
     }
+
     const handleWindowDrop = (event: DragEvent): void => {
       const transfer = event.dataTransfer
+
       if (event.defaultPrevented || !transfer || transfer.files.length !== 1) return
+
       if (
         Array.from(transfer.items ?? []).some((item) => item.kind === 'file' && item.webkitGetAsEntry?.()?.isDirectory)
       )
         return
       const path = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(transfer.files[0]))
+
       if (!path.success || !isMarkdownFilePreview(path.data)) return
       event.preventDefault()
       openFilePreviewTab(path.data)
     }
+
     window.addEventListener('dragover', handleWindowDragOver)
     window.addEventListener('drop', handleWindowDrop)
+
     return () => {
       window.removeEventListener('dragover', handleWindowDragOver)
       window.removeEventListener('drop', handleWindowDrop)
     }
   }, [openFilePreviewTab])
   const tabsApi = useTabs()
+
   const {
     tabs,
     activeTabId,
@@ -76,32 +83,41 @@ const AppShellContent = () => {
     detachTab,
     openTab
   } = tabsApi
+
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
   const canCycleTabs = tabs.length > 1 && !!activeTab
   const canCloseTab = !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
+
   if (activeTab && !isSettingsTabActive) {
     previousWorkspaceTabIdRef.current = activeTab.id
   } else if (isSettingsTabActive && !previousWorkspaceTabIdRef.current) {
     previousWorkspaceTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
       if (isSettingsPath(tab.url)) return latest
+
       return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
     }, undefined)?.id
   }
+
   const tabBarTabs = useMemo(
     () => (isSettingsTabActive && activeTab ? [activeTab] : tabs),
     [activeTab, isSettingsTabActive, tabs]
   )
+
   const isFullscreen = useNativeFullscreen()
   const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
+
   const handleCloseTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
+
       if (isSettingsPath(tab?.url)) {
         closeTabs([id], previousWorkspaceTabIdRef.current)
+
         return
       }
+
       closeTab(id)
     },
     [closeTab, closeTabs, tabs]
@@ -125,6 +141,7 @@ const AppShellContent = () => {
     (direction: 'next' | 'prev') => {
       if (tabs.length <= 1) return
       const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
+
       if (currentIndex === -1) return
 
       const offset = direction === 'next' ? 1 : -1
@@ -136,27 +153,34 @@ const AppShellContent = () => {
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
+
     if (isMac && tabs.length === 1) {
       void ipcApi.request('window.close')
+
       return
     }
+
     handleCloseTab(activeTabId)
   }, [activeTabId, handleCloseTab, tabs.length])
 
   const commandRuntime = useCommandRuntime()
   const tabCommandHints = useNumberShortcutHints(TAB_NUMBER_COMMANDS)
+
   const orderedTabs = useMemo(
     () => [...tabs.filter((tab) => tab.isPinned), ...tabs.filter((tab) => !tab.isPinned)],
     [tabs]
   )
+
   const tabShortcutHints = new Map(
     orderedTabs
       .slice(0, TAB_NUMBER_COMMANDS.length)
       .map((tab, index) => [tab.id, tabCommandHints.get(TAB_NUMBER_COMMANDS[index])])
   )
+
   useEffect(() => {
     const disposers = TAB_NUMBER_COMMANDS.map((command, index) => {
       const tab = orderedTabs[index]
+
       return commandRuntime.registerHandler(
         command,
         () => {
@@ -165,6 +189,7 @@ const AppShellContent = () => {
         { enabled: !!tab, allowInKeyboardLayer: true }
       )
     })
+
     return () => disposers.forEach((dispose) => dispose())
   }, [commandRuntime, setActiveTab, orderedTabs])
 
@@ -187,6 +212,7 @@ const AppShellContent = () => {
   useEffect(() => {
     if (!activeTabAllowsCompactWidth) return
     void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
+
     return () => {
       void ipcApi.request('window.main.reset_minimum_size')
     }
@@ -196,6 +222,7 @@ const AppShellContent = () => {
     if (!tab) return
 
     const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
+
     if (!entry) return
 
     recordGlobalSearchRecentEntry(entry)
@@ -209,6 +236,7 @@ const AppShellContent = () => {
   const handleUrlChange = (tabId: string, url: string) => {
     const isPageTitled = isPageTitledRoute(url)
     const tab = tabs.find((candidate) => candidate.id === tabId)
+
     const patch = isPageTitled
       ? { url, lastAccessTime: Date.now() }
       : {
@@ -218,6 +246,7 @@ const AppShellContent = () => {
           lastAccessTime: Date.now(),
           metadata: undefined
         }
+
     updateTab(tabId, patch)
 
     if (tab) {

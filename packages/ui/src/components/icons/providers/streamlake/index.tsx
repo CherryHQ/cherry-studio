@@ -4,6 +4,7 @@ import { StreamlakeLight } from './light'
 
 const Streamlake = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <StreamlakeLight {...props} className={className} />
+
   return <StreamlakeLight {...props} className={className} />
 }
 

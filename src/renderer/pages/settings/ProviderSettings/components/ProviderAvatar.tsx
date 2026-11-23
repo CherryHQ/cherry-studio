@@ -21,6 +21,7 @@ export function ProviderAvatar({ provider, size, className, style, displayContex
   // preset brand key (`icon:<id>` on `logo`) or a main-resolved uploaded-logo
   // URL (`logoSrc`). The primitive dispatches on both.
   const customLogo = systemIconRef ? undefined : (provider.logo ?? provider.logoSrc)
+
   if (systemIconRef) {
     return (
       <ProviderAvatarPrimitive

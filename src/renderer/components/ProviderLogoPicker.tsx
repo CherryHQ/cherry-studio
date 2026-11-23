@@ -34,6 +34,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
         // The grid keeps its initials skeleton; just record the failed chunk.
         logger.warn('Failed to load provider icon catalog:', error as Error)
       })
+
     return () => {
       cancelled = true
     }
@@ -49,6 +50,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
     if (!searchText) return providers
 
     const searchLower = searchText.toLowerCase()
+
     return providers.filter((p) => p.name.toLowerCase().includes(searchLower))
   }, [searchText, t, iconCatalog])
 

@@ -21,6 +21,7 @@ export function AgentDetailsCustomize({
   const { t } = useTranslation()
   const titleId = useId()
   const nameOf = (id: string | number) => items.find((item) => item.id === id)?.label ?? String(id)
+
   const accessibility = {
     screenReaderInstructions: { draggable: t('agent.right_pane.details.drag_instructions') },
     announcements: {

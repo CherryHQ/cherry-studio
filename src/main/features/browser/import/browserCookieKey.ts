@@ -10,6 +10,7 @@ import type { BrowserImportSource } from '@shared/ipc/schemas/browserImport'
 import { CookieImportError } from './CookieImportError'
 
 type ChromiumBrowser = Exclude<BrowserImportSource['browser'], 'firefox'>
+
 const storageNames = {
   chrome: { mac: 'Chrome', linux: 'Chrome', application: 'chrome' },
   edge: { mac: 'Microsoft Edge', linux: 'Chromium', application: 'chromium' },
@@ -23,8 +24,10 @@ const storageNames = {
 
 async function readSecret(command: string, args: string[], signal: AbortSignal, input?: string): Promise<Buffer> {
   signal.throwIfAborted()
+
   return new Promise((resolve, reject) => {
     let settle = () => reject(new CookieImportError('key_unavailable'))
+
     const child = execFile(
       command,
       args,
@@ -36,19 +39,23 @@ async function readSecret(command: string, args: string[], signal: AbortSignal, 
           settle = () => reject(reason)
         } else if (error) {
           stdout.fill(0)
+
           const denied =
             error.code === 'EACCES' ||
             (command === 'security' && [36, 51, 128].includes(Number(error.code))) ||
             (command === 'kwallet-query' && error.code === 2) ||
             /org\.freedesktop\.(DBus\.Error\.AccessDenied|Secret\.Error\.Dismissed)/.test(stderr.toString())
+
           const failure = new CookieImportError(
             error.code === 'ENOENT' ? 'key_store_unavailable' : denied ? 'access_denied' : 'key_unavailable'
           )
+
           settle = () => reject(failure)
         } else settle = () => resolve(stdout)
         stderr.fill(0)
       }
     )
+
     child.once('close', () => settle())
     // Child-process errors can include stdout/stderr; never propagate those secret-bearing errors.
     child.stdin?.on('error', () => undefined)
@@ -58,13 +65,17 @@ async function readSecret(command: string, args: string[], signal: AbortSignal, 
 
 function trimLineEnding(secret: Buffer): Buffer {
   let end = secret.length
+
   if (secret[end - 1] === 10) end--
+
   if (secret[end - 1] === 13) end--
+
   return secret.subarray(0, end)
 }
 
 export async function readBrowserCookiePassword(browser: ChromiumBrowser, signal: AbortSignal): Promise<Buffer> {
   const names = storageNames[browser]
+
   if (platform() === 'darwin') {
     const password = trimLineEnding(
       await readSecret(
@@ -73,14 +84,18 @@ export async function readBrowserCookiePassword(browser: ChromiumBrowser, signal
         signal
       )
     )
+
     if (!password.length) throw new CookieImportError('key_unavailable')
+
     return password
   }
 
   if (!('application' in names)) throw new CookieImportError('key_store_unavailable')
   const secretService = () => readSecret('secret-tool', ['lookup', 'application', names.application], signal)
+
   const kwallet = async () => {
     const version = process.env.KDE_SESSION_VERSION === '6' ? '6' : '5'
+
     const wallet = await readSecret(
       'dbus-send',
       [
@@ -92,8 +107,11 @@ export async function readBrowserCookiePassword(browser: ChromiumBrowser, signal
       ],
       signal
     )
+
     const walletName = wallet.toString('utf8').trim()
+
     if (!walletName) throw new CookieImportError('key_unavailable')
+
     return trimLineEnding(
       await readSecret(
         'kwallet-query',
@@ -102,20 +120,25 @@ export async function readBrowserCookiePassword(browser: ChromiumBrowser, signal
       )
     )
   }
+
   const kde = process.env.XDG_CURRENT_DESKTOP?.split(':').includes('KDE') || !!process.env.KDE_FULL_SESSION
   const readers = kde ? [kwallet, secretService] : [secretService, kwallet]
   let failure = new CookieImportError('key_unavailable')
+
   for (const read of readers) {
     try {
       const password = await read()
+
       if (password.length) return password
       failure = new CookieImportError('key_unavailable')
     } catch (error) {
       signal.throwIfAborted()
+
       if (!(error instanceof CookieImportError) || error.reason === 'access_denied') throw error
       failure = error
     }
   }
+
   throw failure
 }
 
@@ -130,12 +153,14 @@ try {
   [Array]::Clear($plain, 0, $plain.Length)
 } catch { exit 1 }
 `
+
   const output = await readSecret(
     'powershell.exe',
     ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
     signal,
     encrypted.toString('base64')
   )
+
   try {
     return Buffer.from(output.toString('ascii'), 'base64')
   } finally {
@@ -145,6 +170,7 @@ try {
 
 export async function readWindowsCookieKey(browser: ChromiumBrowser, signal: AbortSignal): Promise<Buffer> {
   let encrypted: Buffer
+
   try {
     const state = z.object({ os_crypt: z.object({ encrypted_key: z.string().min(1) }) }).parse(
       JSON.parse(
@@ -154,16 +180,21 @@ export async function readWindowsCookieKey(browser: ChromiumBrowser, signal: Abo
         })
       )
     )
+
     encrypted = Buffer.from(state.os_crypt.encrypted_key, 'base64')
+
     if (encrypted.subarray(0, 5).toString('ascii') !== 'DPAPI') throw new CookieImportError('key_unavailable')
   } catch {
     signal.throwIfAborted()
     throw new CookieImportError('key_unavailable')
   }
+
   const key = await unprotectWindowsData(encrypted.subarray(5), signal)
+
   if (key.length !== 32) {
     key.fill(0)
     throw new CookieImportError('key_unavailable')
   }
+
   return key
 }

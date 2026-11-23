@@ -22,18 +22,22 @@ function getDataPart<T>(part: CherryMessagePart): Partial<T> | undefined {
   if ('data' in part && part.data && typeof part.data === 'object') {
     return part.data as Partial<T>
   }
+
   return undefined
 }
 
 function formatCodePart(data: Partial<CodePartData> | undefined): string {
   const content = data?.content ?? ''
+
   if (!content.trim()) return ''
   const language = data?.language ?? ''
+
   return `\`\`\`${language}\n${content}\n\`\`\``
 }
 
 function formatErrorPart(data: Partial<ErrorPartData> | undefined): string {
   if (!data) return ''
+
   return [data.name, data.code, data.message].filter(Boolean).join('\n')
 }
 
@@ -99,22 +103,27 @@ export const getCitationContent = (message: ExportableMessage): string => {
   // `formatCitationsFromBlock` produced. Non-web reference categories are
   // dropped just like the v1 path did.
   const lines: string[] = []
+
   for (const part of getParts(message)) {
     if (part.type !== 'text') continue
+
     const refs = (readCherryMeta(part)?.references ?? []) as Array<{
       category?: string
       number?: number
       title?: string
       url?: string
     }>
+
     for (const ref of refs) {
       if (ref.category !== 'citation') continue
+
       if (!ref.url) continue
       const number = ref.number ?? lines.length + 1
       const title = ref.title || ref.url.slice(0, 1999)
       lines.push(`[${number}] [${title}](${ref.url.slice(0, 1999)})`)
     }
   }
+
   return lines.join('\n\n')
 }
 
@@ -122,6 +131,7 @@ const formatCitationLines = (citations: Citation[]): string =>
   citations
     .map((citation) => {
       const title = citation.title || citation.url || ''
+
       // Knowledge-base citations have no URL — list the document title on its own
       // rather than emitting an empty link.
       return citation.url
@@ -151,10 +161,13 @@ export const getToolCitationExport = (message: ExportableMessage, content: strin
   const rendersLegacyCitations = getParts(message).some((part) => {
     if (part.type !== 'text') return false
     const references = readCherryMeta(part)?.references as ContentReference[] | undefined
+
     return !!references?.length && convertReferencesToCitations(references).length > 0
   })
+
   if (rendersLegacyCitations) return { content, citation: '' }
   const priorParts = 'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
   const { content: exported, cited } = toExportableCitations(content, getParts(message), priorParts)
+
   return { content: exported, citation: formatCitationLines(cited) }
 }

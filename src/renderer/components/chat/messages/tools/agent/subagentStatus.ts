@@ -10,8 +10,10 @@ export function getSubagentTaskStatus(
   if (!toolCallId) return undefined
   const events = parts.filter((part) => part.type === 'data-agent-task-event')
   const taskId = events.find((part) => part.data.toolUseId === toolCallId)?.data.taskId
+
   if (!taskId) return undefined
   const latest = events.findLast((part) => part.data.taskId === taskId && part.data.status)?.data.status
+
   switch (latest) {
     case 'pending':
     case 'in_progress':

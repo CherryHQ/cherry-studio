@@ -58,7 +58,9 @@ export function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: Re
 
   useEffect(() => {
     if (!revealRequest?.clearFilters) return
+
     if (!actions.canOpen(RESOURCE_PANE_TAB)) return
+
     if (handledRequestIdRef.current === revealRequest.requestId) return
     handledRequestIdRef.current = revealRequest.requestId
     actions.tryOpen(RESOURCE_PANE_TAB)

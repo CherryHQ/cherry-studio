@@ -14,9 +14,11 @@ export interface PptxSelectionAnchorResult {
  */
 export function slideToPptxAnchor(element: Element): PptxSelectionAnchorResult | null {
   const slideContainer = element.closest(`[${SLIDE_INDEX_ATTRIBUTE}]`)
+
   if (!(slideContainer instanceof HTMLElement)) return null
 
   const slideIndex = Number(slideContainer.dataset.slideIndex)
+
   if (!Number.isInteger(slideIndex) || slideIndex < 0) return null
 
   return { anchor: { format: 'pptx', slide: slideIndex + 1 } }
@@ -46,18 +48,22 @@ function indexLines(entries: TextIndexEntry[]): string[] {
   const lines: string[] = []
   let openRowKey: string | null = null
   let previousCellIndex = -1
+
   for (const entry of entries) {
     const rowKey = entry.textKind === 'table-cell' ? `${entry.nodeId} ${entry.rowIndex}` : null
     const cellIndex = entry.cellIndex ?? 0
+
     if (rowKey !== null && rowKey === openRowKey) {
       const gap = cellIndex - previousCellIndex - 1
       lines[lines.length - 1] += ' | '.repeat(gap + 1) + entry.text
     } else {
       lines.push(' | '.repeat(rowKey !== null ? cellIndex : 0) + entry.text)
     }
+
     previousCellIndex = rowKey !== null ? cellIndex : -1
     openRowKey = rowKey
   }
+
   return lines
 }
 
@@ -85,6 +91,7 @@ export function slideExcerpt(
   onWarning?: (message: string, detail?: unknown) => void
 ): string {
   const slideData = presentation.slides[slide - 1]
+
   if (!slideData) return ''
 
   try {
@@ -92,6 +99,7 @@ export function slideExcerpt(
 
     let groupEntries: TextIndexEntry[] | null = null
     const lines: string[] = []
+
     for (const [index, node] of slideData.nodes.entries()) {
       switch (node.nodeType) {
         case 'shape':
@@ -107,12 +115,14 @@ export function slideExcerpt(
             { ...presentation, slides: [slideData] },
             { includeShapes: true, includeTables: true, includeGroups: true }
           ))
+
           const prefix = `slides/0/nodes/${nodeKey(node, index)}/`
           lines.push(...indexLines(entries.filter((entry) => entry.nodePath.startsWith(prefix))))
           break
         }
       }
     }
+
     return lines.join('\n')
   } catch (error) {
     // Both calls parse lazy slide XML with no guard of their own, so one malformed slide can throw out
@@ -121,6 +131,7 @@ export function slideExcerpt(
       slide,
       error: error instanceof Error ? error.message : String(error)
     })
+
     return ''
   }
 }

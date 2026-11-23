@@ -106,6 +106,7 @@ const FeatureMenus = ({
     </ScrollArea>
   )
 }
+
 FeatureMenus.displayName = 'FeatureMenus'
 
 export default FeatureMenus

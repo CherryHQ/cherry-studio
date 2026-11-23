@@ -65,7 +65,9 @@ export class ClaudeFeed {
     state?: ClaudeControlState['snapshot']
   ): void {
     if (this.ended) return
+
     if (state) this.controlState = state
+
     // oxlint-disable-next-line no-restricted-globals -- Own the legacy map only when bindings change; ordinary deltas omit it.
     if (legacy) this.legacy = structuredClone(legacy)
     const replaces: Record<string, string> = {}
@@ -76,10 +78,13 @@ export class ClaudeFeed {
           ? { ...value, isApiErrorMessage: true as const }
           : value
       )
+
     for (const event of events) {
       this.state.publish(event)
+
       if (event.type === 'message.upsert') {
         if (native.some((entry) => entry.source === 'live')) this.live.add(event.message.id)
+
         for (const ref of event.replaces ?? []) {
           this.replaces.set(ref.id, event.message.id)
           replaces[ref.id] = event.message.id
@@ -87,9 +92,12 @@ export class ClaudeFeed {
         }
       } else if (event.type === 'message.remove') this.live.delete(event.ref.id)
     }
+
     for (const value of native) {
       const message = value.message
+
       if (message.type === 'stream_event') continue
+
       if (
         'task_id' in message &&
         message.task_id &&
@@ -98,19 +106,23 @@ export class ClaudeFeed {
         message.run_id !== this.taskRuns.get(message.task_id)
       ) {
         this.taskRuns.set(message.task_id, message.run_id)
+
         for (const [key, previous] of this.native) {
           if ('task_id' in previous.message && previous.message.task_id === message.task_id) this.native.delete(key)
         }
       }
+
       const key =
         message.type === 'system' && 'subtype' in message
           ? message.subtype === 'permission_denied'
             ? `${message.subtype}:${message.tool_use_id}`
             : `${message.subtype}:${'task_id' in message ? message.task_id : ''}`
           : message.uuid
+
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
         this.native.set(key, cloneHistoryData(value))
     }
+
     const batch: ClaudeObservation = {
       events,
       controls,
@@ -124,7 +136,9 @@ export class ClaudeFeed {
       legacy: legacy ? this.legacy : undefined,
       retracted: [...this.pendingRetractions]
     }
+
     this.pendingRetractions.clear()
+
     for (const send of this.observers) send(batch)
   }
 
@@ -143,27 +157,34 @@ export class ClaudeFeed {
     let sent = 1
     let delivered = 0
     const historical = new Set(this.snapshot.messages.map((message) => message.id))
+
     const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation => ({
       ...cloneHistoryData(batch),
       live: baseline ? [] : batch.live?.filter((id) => !historical.has(id))
     })
+
     type Delivery = { batch: ClaudeObservation; through: number; recovery?: ClaudeObservation }
+
     let pending: Delivery[] = [{ batch: capture(this.baseline(), true), through: sent }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
+
     const settle = () => {
       for (const barrier of barriers) {
         if (delivered < barrier.through && !stopped) continue
         barriers.delete(barrier)
+
         if (delivered >= barrier.through) barrier.resolve()
         else barrier.reject(new Error('Observation stopped before delivery drained'))
       }
     }
+
     const stop = () => {
       stopped = true
       pending = []
       this.observers.delete(send)
       settle()
     }
+
     const drain = () => {
       if (draining || stopped) return
       draining = true
@@ -175,6 +196,7 @@ export class ClaudeFeed {
             await sink(batch)
             delivered = Math.max(delivered, through)
             settle()
+
             if (batch.events.some((event) => event.type === 'closed')) stop()
           }
         } catch (error) {
@@ -185,16 +207,20 @@ export class ClaudeFeed {
         }
       })
     }
+
     const send = (batch: ClaudeObservation) => {
       if (stopped || lost) return
+
       for (const [previous, replacement] of Object.entries(batch.replaces ?? {}))
         if (historical.has(previous)) historical.add(replacement)
       const recover = () => capture({ ...this.baseline(), controls: batch.controls, invocations: batch.invocations })
       const critical = Boolean(batch.controls?.length || batch.invocations?.length)
       pending.push({ batch: capture(batch), through: ++sent, ...(critical && { recovery: recover() }) })
+
       if (pending.length > 100) {
         const closed = batch.events.filter((event) => event.type === 'closed')
         const retained = pending.filter((item) => item.recovery).map((item) => ({ ...item, batch: item.recovery! }))
+
         if (retained.length > 1000) {
           lost = true
           pending = [
@@ -212,8 +238,10 @@ export class ClaudeFeed {
           ]
           this.report(new Error('Claude observer exceeded recoverable control backlog'))
           drain()
+
           return
         }
+
         pending = [
           ...(started ? [] : [pending[0]]),
           { batch: { events: [{ type: 'gap', reason: 'overflow' }], native: [], retracted: [] }, through: delivered },
@@ -224,10 +252,13 @@ export class ClaudeFeed {
           ...(closed.length ? [{ batch: { events: closed, native: [], retracted: [] }, through: sent }] : [])
         ]
       }
+
       drain()
     }
+
     this.observers.add(send)
     drain()
+
     return {
       drain: () =>
         new Promise<void>((resolve, reject) => {

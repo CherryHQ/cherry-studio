@@ -25,5 +25,6 @@ export function install(harness: HarnessPorts, host: HostPorts): Installation {
   harness.jobs.register('idle-driver', idleDriver(host))
   harness.jobs.register('subagent-report', subagentReport(host))
   harness.lifecycle.register(lifecycleHandlers(host))
+
   return { entries: entries(host) }
 }

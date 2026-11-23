@@ -6,6 +6,7 @@ import targets from './legacyBridgeTargets.json'
 
 export const LEGACY_PREREQUISITE_VERSION = '1.9.12'
 export const LEGACY_UPGRADE_VERSION = '2.2.2'
+
 export type LegacyBridgeVersion = typeof LEGACY_PREREQUISITE_VERSION | typeof LEGACY_UPGRADE_VERSION
 
 export type LegacyLinuxPackageType = 'AppImage' | 'deb' | 'rpm'
@@ -39,6 +40,7 @@ export function findLegacyBridgeTarget(
       ? prerequisiteTarget
       : undefined
   }
+
   const target = targets.find(
     (target) =>
       target.edition === edition &&
@@ -47,17 +49,21 @@ export function findLegacyBridgeTarget(
       (platform !== 'linux' || target.url.endsWith(`.${linuxPackageType}`)) &&
       (platform !== 'win32' || target.url.endsWith(portable ? '-portable.exe' : '-setup.exe'))
   )
+
   return target && { ...target, version }
 }
 
 export function getLegacyBridgeVersion(history: string, platform: string): LegacyBridgeVersion | undefined {
   const os = { darwin: 'mac', win32: 'win', linux: 'linux' }[platform]
+
   if (!os) return undefined
   let lastTimestamp = -Infinity
   let lastLegacyVersion: string | undefined
+
   for (const line of history.trim().split('\n')) {
     const [version, recordedOs, environment, packaged, mode, timestamp, extra] = line.trim().split('|')
     const time = Date.parse(timestamp)
+
     if (
       extra !== undefined ||
       !semver.valid(version) ||
@@ -71,12 +77,15 @@ export function getLegacyBridgeVersion(history: string, platform: string): Legac
     )
       return undefined
     lastTimestamp = time
+
     if (semver.major(version) === 1) lastLegacyVersion = version
   }
+
   if (lastLegacyVersion) {
     return semver.gte(lastLegacyVersion, LEGACY_PREREQUISITE_VERSION)
       ? LEGACY_UPGRADE_VERSION
       : LEGACY_PREREQUISITE_VERSION
   }
+
   return undefined
 }

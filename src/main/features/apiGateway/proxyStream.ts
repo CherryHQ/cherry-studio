@@ -16,6 +16,7 @@ import { buildStreamErrorFrame, internalGatewayError } from './errors'
 import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
 
 export type { MessageConfig } from './gatewayRequest'
+
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
@@ -55,13 +56,16 @@ function streamInterruptedError(): Error & { status: number } {
     status: number
     cause?: string
   }
+
   error.status = 504
   error.cause = 'UPSTREAM_IDLE_TIMEOUT'
+
   return error
 }
 
 export async function processMessage(config: MessageConfig): Promise<Response> {
   const request = await resolveGatewayRequest(config)
+
   const {
     inputFormat,
     outputFormat,
@@ -80,6 +84,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     logContext,
     asClientError
   } = request
+
   logger.info('Converting gateway protocol request', {
     ...logContext,
     mode: 'sdk',
@@ -88,9 +93,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     outputFormat
   })
   const { onError, onComplete, signal } = config
+
   const internal = config.requestHeaders
     ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
     : false
+
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -128,6 +135,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const instructionsInMessages = ['open-responses', 'xai-responses'].includes(
     resolveAiSdkProviderId(provider, endpoint.endpointType)
   )
+
   const responsesInstructions =
     inputFormat === 'openai-responses' &&
     !instructionsInMessages &&
@@ -136,9 +144,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     typeof effectiveParams.instructions === 'string'
       ? effectiveParams.instructions
       : undefined
+
   const convertedMessages = converter.toUIMessages(
     responsesInstructions !== undefined ? { ...effectiveParams, instructions: undefined } : effectiveParams
   )
+
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
   // across turns; targets that reject them get a downgrade 400 or a fold.
   const positionedMessages = positionInlineSystemMessages(
@@ -146,9 +156,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     endpoint.endpointType,
     config.requestHeaders
   )
+
   const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(positionedMessages)
     : positionedMessages
+
   const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
@@ -161,10 +173,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       streamOptions.maxOutputTokens,
       reasoning.success
     ) ?? {}
+
   if (responsesInstructions !== undefined) {
     const key = resolveEndpointProviderOptionsKey(provider, endpoint)
     extractedProviderOptions[key] = { ...extractedProviderOptions[key], instructions: responsesInstructions }
   }
+
   const providerOptions = agentSessionId
     ? applyAgentPromptCacheKey(provider, model, extractedProviderOptions, agentSessionId)
     : extractedProviderOptions
@@ -173,24 +187,30 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const callOverrides: CallOverrides = {
     ...streamOptions
   }
+
   if (tools) callOverrides.tools = tools
+
   if (Object.keys(providerOptions).length > 0) callOverrides.providerOptions = providerOptions
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
   const adapterOptions: NonNullable<Parameters<typeof StreamAdapterFactory.createAdapter>[1]> = {
     model: `${provider.id}:${modelId}`
   }
+
   if (converter.toClientToolName) adapterOptions.toClientToolName = converter.toClientToolName.bind(converter)
   const adapter = StreamAdapterFactory.createAdapter(outputFormat, adapterOptions)
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
+
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
     : undefined
 
   const streamId = `gateway-${uuidv4()}`
+
   if (messages !== convertedMessages) {
     logger.info('Appended assistant-tail continuation for internal agent request', { ...logContext, streamId })
   }
+
   const aiStreamManager = application.get('AiStreamManager')
 
   if (isStreaming) {
@@ -201,10 +221,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     let resolveStartup!: () => void
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Terminal Promise barriers forward arbitrary adapter/upstream rejection values without changing their identity.
     let rejectStartup!: (error: unknown) => void
+
     const startup = new Promise<void>((resolve, reject) => {
       resolveStartup = resolve
       rejectStartup = reject
     })
+
     const bufferedFrames: Uint8Array[] = []
     let abortStream: (() => void) | undefined
 
@@ -215,10 +237,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         const commit = () => {
           if (startupState !== 'pending') return
           startupState = 'committed'
+
           for (const frame of bufferedFrames) controller.enqueue(frame)
           bufferedFrames.length = 0
           resolveStartup()
         }
+
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Terminal Promise barriers forward arbitrary adapter/upstream rejection values without changing their identity.
         const fail = (error: unknown) => {
           if (startupState !== 'pending') return
@@ -226,31 +250,37 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           bufferedFrames.length = 0
           rejectStartup(error)
         }
+
         const abandon = () => {
           if (startupState !== 'pending') return
           startupState = 'abandoned'
           bufferedFrames.length = 0
           resolveStartup()
         }
+
         const safeClose = () => {
           if (closed) return
           closed = true
           signal?.removeEventListener('abort', onAbort)
+
           try {
             controller.close()
           } catch {
             // already closed
           }
         }
+
         const complete = () => {
           commit()
           safeClose()
           logger.info('Message completed', { ...logContext, streaming: true })
           onComplete?.()
         }
+
         const write = (data: string) => {
           if (closed) return
           const frame = encoder.encode(data)
+
           if (startupState === 'pending') bufferedFrames.push(frame)
           else if (startupState === 'committed') controller.enqueue(frame)
         }
@@ -260,6 +290,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           aiStreamManager.abort(streamId, 'gateway client disconnected')
           safeClose()
         }
+
         abortStream = onAbort
 
         if (signal) {
@@ -268,12 +299,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         }
 
         let callbackError: SerializedError | undefined
+
         const sseListener = new SseListener(write, complete, () => !closed, {
           id: `gateway:${streamId}`,
           // Commit before transforming a semantic chunk: adapter output for `start`
           // is protocol scaffolding, not proof that the provider has started.
           formatChunk: (chunk) => {
             if (isStartupCommitChunk(chunk)) commit()
+
             return adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event))
           },
           formatDone: () =>
@@ -286,22 +319,27 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
               ...logContext,
               streamId
             })
+
             return buildStreamErrorFrame(outputFormat, streamInterruptedError())
           },
           formatError: (error) => {
             onError?.(callbackError ?? error)
+
             return buildStreamErrorFrame(outputFormat, error)
           }
         })
+
         const listener: StreamListener = {
           id: sseListener.id,
           onChunk: (chunk) => {
             if (closed) return
+
             try {
               sseListener.onChunk(chunk)
             } catch (error) {
               if (startupState === 'pending') fail(error)
               else write(buildStreamErrorFrame(outputFormat, error))
+
               try {
                 onError?.(error)
               } finally {
@@ -315,19 +353,24 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             if (startupState === 'pending') {
               fail(streamInterruptedError())
               complete()
+
               return
             }
+
             return sseListener.onPaused(result)
           },
           onError: (result, originalError) => {
             logger.warn('Gateway stream failed', { ...logContext, streamId, error: result.error })
             const upstream = internal ? internalGatewayError(originalError, result.error) : result.error
+
             if (startupState !== 'pending') {
               callbackError = result.error
+
               return sseListener.onError({ ...result, error: upstream })
             }
 
             fail(upstream)
+
             try {
               onError?.(result.error)
             } finally {
@@ -338,6 +381,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         }
 
         if (closed) return
+
         try {
           const prompt: Omit<Parameters<typeof aiStreamManager.streamPrompt>[0], 'idleTimeoutMs' | 'maxRetries'> = {
             ...turnOptions,
@@ -349,7 +393,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller'
           }
+
           if (usageContext) prompt.usageContext = usageContext
+
           if (agentSessionId) prompt.tokenUsageSource = 'agent'
           aiStreamManager.streamPrompt({
             ...prompt,
@@ -359,6 +405,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           })
         } catch (error) {
           fail(error)
+
           try {
             onError?.(error)
           } finally {
@@ -379,7 +426,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         'X-Accel-Buffering': 'no'
       }
     })
+
     await startup
+
     return response
   }
 
@@ -388,6 +437,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   let resolveDone!: () => void
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Terminal Promise barriers forward arbitrary adapter/upstream rejection values without changing their identity.
   let rejectDone!: (error: unknown) => void
+
   const done = new Promise<void>((resolve, reject) => {
     resolveDone = resolve
     rejectDone = reject
@@ -396,11 +446,13 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   let aborted = false
   let adapterFailed = false
   let callbackError: SerializedError | undefined
+
   const onAbort = () => {
     aborted = true
     aiStreamManager.abort(streamId, 'gateway client disconnected')
     resolveDone()
   }
+
   if (signal) {
     if (signal.aborted) onAbort()
     else signal.addEventListener('abort', onAbort, { once: true })
@@ -410,6 +462,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     id: `gateway:${streamId}`,
     onChunk: (chunk) => {
       if (adapterFailed) return
+
       try {
         adapter.transformChunk(chunk)
       } catch (error) {
@@ -426,8 +479,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       // not returned as a successful 200.
       if (aborted) {
         resolveDone()
+
         return
       }
+
       logger.warn('Gateway non-streaming request paused before completion (idle timeout)', {
         ...logContext,
         streamId
@@ -453,7 +508,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         callOverrides,
         contextOwner: 'caller'
       }
+
       if (usageContext) prompt.usageContext = usageContext
+
       if (agentSessionId) prompt.tokenUsageSource = 'agent'
       aiStreamManager.streamPrompt({
         ...prompt,

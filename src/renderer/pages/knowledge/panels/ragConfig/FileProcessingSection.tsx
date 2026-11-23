@@ -103,6 +103,7 @@ const FileProcessingSection = ({
 
     if (value === null || !requiresLocalOcrModel(value)) {
       onFileProcessorChange(value)
+
       return
     }
 
@@ -112,6 +113,7 @@ const FileProcessingSection = ({
 
     if (status === 'ready') {
       onFileProcessorChange(value)
+
       return
     }
 
@@ -122,6 +124,7 @@ const FileProcessingSection = ({
       id: DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr,
       description: t('settings.dependencies.localModels.ocr.subtitle')
     })
+
     if (!downloaded) {
       return
     }

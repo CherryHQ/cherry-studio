@@ -38,6 +38,7 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
     if (document.size > XLSX_PREVIEW_MAX_SIZE_BYTES) {
       failDocument?.(new PreviewError('too_large', 'Workbook exceeds the preview size limit'))
       setState({ status: 'oversize', sizeBytes: document.size })
+
       return
     }
 
@@ -45,8 +46,10 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
 
     void (async () => {
       let bytes: ArrayBuffer
+
       try {
         const raw = await readPreviewDocument(document, XLSX_PREVIEW_MAX_SIZE_BYTES, controller.signal)
+
         if (!isCurrent()) return
         bytes = raw.slice().buffer
       } catch (error) {
@@ -54,10 +57,12 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
         const normalized = error instanceof Error ? error : new Error(String(error))
         failDocument?.(normalized)
         setState({ status: 'error', message: normalized.message })
+
         return
       }
 
       let worker: XlsxWorker
+
       try {
         worker = createXlsxWorker(baseUrl, createWorker)
       } catch (error) {
@@ -65,48 +70,62 @@ export function useXlsxWorkbook(document: PreviewDocument, fileName: string): Xl
         const normalized = error instanceof Error ? error : new Error(String(error))
         failDocument?.(normalized)
         setState({ status: 'error', message: normalized.message })
+
         return
       }
+
       // A newer request superseded this one while the worker was spawning; terminate the orphan instead of leaking it.
       if (!isCurrent()) {
         worker.terminate()
+
         return
       }
+
       workerRef.current = worker
 
       worker.onmessage = (event: MessageEvent<XlsxParseResponse>) => {
         if (cancelled || event.data.id !== requestIdRef.current) return
         // The response is this worker's only job — free the isolate now instead of holding it until cleanup.
         worker.terminate()
+
         if (workerRef.current === worker) workerRef.current = null
+
         if (!isCurrent()) return
+
         if (event.data.ok) {
           for (const warning of event.data.model.warnings) {
             if (loggedWarningsRef.current.has(warning)) continue
             loggedWarningsRef.current.add(warning)
             logger.warn(warning)
           }
+
           setState({ status: 'ready', model: event.data.model })
         } else {
           failDocument?.(new Error(event.data.message))
           setState({ status: 'error', message: event.data.message })
         }
       }
+
       worker.onerror = (event: ErrorEvent) => {
         if (cancelled || requestId !== requestIdRef.current) return
         worker.terminate()
+
         if (workerRef.current === worker) workerRef.current = null
+
         if (!isCurrent()) return
         failDocument?.(event.error instanceof Error ? event.error : new Error(event.message))
         setState({ status: 'error', message: event.message })
       }
 
       const request: XlsxParseRequest = { id: requestId, fileName, data: bytes }
+
       try {
         worker.postMessage(request, [bytes])
       } catch (error) {
         worker.terminate()
+
         if (workerRef.current === worker) workerRef.current = null
+
         if (!isCurrent()) return
         const normalized = error instanceof Error ? error : new Error(String(error))
         failDocument?.(normalized)
@@ -132,6 +151,8 @@ function createXlsxWorker(
   createWorker: PreviewResources['createWorker']
 ): XlsxWorker {
   if (createWorker) return createWorker('xlsx')
+
   if (baseUrl) return new Worker(new URL('xlsx.worker.js', new URL(baseUrl, document.baseURI)), { type: 'module' })
+
   return new Worker(new URL('./worker/xlsxParser.worker.ts', import.meta.url), { type: 'module' })
 }

@@ -23,9 +23,13 @@ export const STORAGE_LOW_THRESHOLD_BYTES = 1 * GB
  */
 export function intervalForFree(freeBytes: number): number {
   if (freeBytes >= 20 * GB) return 60 * MINUTE
+
   if (freeBytes >= 10 * GB) return 30 * MINUTE
+
   if (freeBytes >= 5 * GB) return 15 * MINUTE
+
   if (freeBytes >= 1 * GB) return 10 * MINUTE
+
   return 5 * MINUTE
 }
 
@@ -58,6 +62,7 @@ export class StorageMonitorService extends BaseService {
   public async refreshHealth(): Promise<StorageHealth> {
     const stats = await statfs(application.getPath('app.userdata'))
     this.applyHealth(stats.bsize * stats.bavail, stats.bsize * stats.blocks)
+
     return this.health
   }
 
@@ -93,9 +98,11 @@ export class StorageMonitorService extends BaseService {
    */
   private scheduleNext(): void {
     const nextMs = intervalForFree(this.health.freeBytes)
+
     if (this.intervalDisposable && nextMs === this.currentIntervalMs) {
       return
     }
+
     this.intervalDisposable?.dispose()
     this.currentIntervalMs = nextMs
     this.intervalDisposable = this.registerInterval(() => this.check(), nextMs)

@@ -13,6 +13,7 @@ import { imageFilePreviewPlugin } from './imageFilePreviewPlugin'
 import { ImageFilePreviewToolbar } from './ImageFilePreviewToolbar'
 
 const IMAGE_PREVIEW_MAX_SIZE_BYTES = 64 * 1024 * 1024
+
 const IMAGE_MEDIA_TYPE_BY_EXTENSION: ReadonlyMap<string, string> = new Map([
   ['svg', 'image/svg+xml'],
   ['jpg', 'image/jpeg'],
@@ -28,18 +29,22 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
   const transformControls = useImagePreviewTransform()
   const [loadedDocument, setLoadedDocument] = useState(document)
   const [pendingTransform, setPendingTransform] = useState(transformControls.transform)
+
   if (loadedDocument !== document) {
     setLoadedDocument(document)
     setStatus('loading')
   }
+
   // Keep the last decoded view; loading geometry can temporarily clamp live offsets.
   useLayoutEffect(() => {
     if (status === 'ready') setPendingTransform(transformControls.transform)
   }, [status, transformControls.transform])
+
   const releaseImageUrl = useCallback(() => {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
     objectUrlRef.current = null
   }, [])
+
   const item = useMemo(
     () => ({
       id: `${sourceId}:${document.revision}`,
@@ -59,10 +64,12 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
         if (controller.signal.aborted || isCurrentDocument?.() === false) return
         const extension = fileName.split('.').at(-1)?.toLowerCase()
         const normalizedMediaType = mediaType?.split(';', 1)[0].trim().toLowerCase()
+
         const mime =
           normalizedMediaType && imageFilePreviewPlugin.mediaTypes.includes(normalizedMediaType)
             ? normalizedMediaType
             : (IMAGE_MEDIA_TYPE_BY_EXTENSION.get(extension ?? '') ?? `image/${extension}`)
+
         objectUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: mime }))
         setUrl(objectUrlRef.current)
       })
@@ -72,6 +79,7 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
         failDocument?.(error)
         setStatus(error instanceof PreviewError && error.code === 'too_large' ? 'too_large' : 'error')
       })
+
     return () => {
       controller.abort()
       releaseImageUrl()

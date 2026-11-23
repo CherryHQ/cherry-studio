@@ -4,6 +4,7 @@ import { CodegeexLight } from './light'
 
 const Codegeex = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <CodegeexLight {...props} className={className} />
+
   return <CodegeexLight {...props} className={className} />
 }
 

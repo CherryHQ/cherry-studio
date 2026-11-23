@@ -47,12 +47,15 @@ function createSkillMarkerRule(
       const prefix = match[1] ?? ''
       const marker = match[2]
       const index = match.index ?? 0
+
       if (!marker) return null
 
       const token = resolveSkillMarker(marker)
+
       if (!token) return null
 
       const markerStart = index + prefix.length
+
       return { from: markerStart, to: markerStart + marker.length + 2, token }
     }
   }
@@ -68,12 +71,15 @@ function createKnowledgeBaseMarkerRule(
       const prefix = match[1] ?? ''
       const marker = match[2]?.trim()
       const index = match.index ?? 0
+
       if (!marker) return null
 
       const token = resolveKnowledgeBaseMarker(marker)
+
       if (!token) return null
 
       const markerStart = index + prefix.length
+
       return { from: markerStart, to: markerStart + marker.length + 2, token }
     }
   }
@@ -93,16 +99,19 @@ function resolvePrivateClipboardToken(
 ): { token: ComposerDraftToken; file?: ComposerAttachment } | null {
   if (token.kind === 'skill') {
     const resolvedToken = options.resolveSkillMarker?.(getPrivateTokenMarker(token, 'skill:'))
+
     return resolvedToken ? { token: resolvedToken } : null
   }
 
   if (token.kind === 'knowledge') {
     const resolvedToken = options.resolveKnowledgeBaseMarker?.(getPrivateTokenMarker(token, 'knowledge:'))
+
     return resolvedToken ? { token: resolvedToken } : null
   }
 
   if (token.kind === 'file') {
     const file = createComposerAttachmentFromComposerClipboardToken(token)
+
     if (!file) return null
 
     return {
@@ -143,12 +152,14 @@ export function getComposerClipboardPasteOverride(
     }
 
     const resolved = resolvePrivateClipboardToken(segment.token, options)
+
     if (!resolved) {
       for (const node of createComposerPlainTextContent(segment.fallbackText)) content.push(node)
       continue
     }
 
     content.push(createComposerTokenContent(resolved.token))
+
     if (resolved.file) files.push(resolved.file)
   }
 
@@ -181,9 +192,11 @@ function createPlainTextPasteMarkerRules(options: ComposerPlainTextPasteOptions)
 function createComposerLinkPasteContent(text: string): JSONContent[] | null {
   const url = text.trim()
   const token = createComposerLinkToken(url)
+
   if (!token) return null
 
   const start = text.indexOf(url)
+
   return [
     ...createComposerPlainTextContent(text.slice(0, start)),
     createComposerTokenContent(token),
@@ -193,6 +206,7 @@ function createComposerLinkPasteContent(text: string): JSONContent[] | null {
 
 function findPastedFencedCodeLines(text: string, state?: EditorState): ReadonlySet<number> {
   const insertedLines = text.split(/\r\n?|\n/)
+
   if (!state || state.selection instanceof AllSelection) return findFencedCodeLines(insertedLines)
 
   const { $from, $to } = state.selection
@@ -201,6 +215,7 @@ function findPastedFencedCodeLines(text: string, state?: EditorState): ReadonlyS
   insertedLines[0] = lines[$from.index(0)].slice(0, $from.parentOffset) + insertedLines[0]
   insertedLines[insertedLines.length - 1] += lines[$to.index(0)].slice($to.parentOffset)
   lines.splice($from.index(0), $to.index(0) - $from.index(0) + 1, ...insertedLines)
+
   return new Set([...findFencedCodeLines(lines)].map((line) => line - $from.index(0)))
 }
 
@@ -213,11 +228,13 @@ export function getComposerPlainTextPasteOverride(text: string, options: Compose
 
   const fencedLines = options.literalFencedCode ? findPastedFencedCodeLines(text, options.insertionState) : undefined
   const linkContent = fencedLines?.has(0) ? null : createComposerLinkPasteContent(text)
+
   if (linkContent) return linkContent
 
   const markedTextContent = createComposerTokenMarkerInlineContent(text, createPlainTextPasteMarkerRules(options), {
     fencedLines
   })
+
   if (markedTextContent.hasToken) return markedTextContent.content
 
   return createComposerPlainTextPasteContent(text)

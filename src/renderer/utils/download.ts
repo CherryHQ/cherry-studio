@@ -10,11 +10,13 @@ export const download = (url: string, filename?: string) => {
   //   (注: data:text/html 等有安全风险的类型不在此处理；
   //    data:image/svg+xml 之前因 CSP connect-src 不含 data: 导致 fetch 失败，故加入直接下载)
   const SUPPORTED_PREFIXES = ['file://', 'blob:', 'data:image/png', 'data:image/jpeg', 'data:image/svg+xml']
+
   if (SUPPORTED_PREFIXES.some((prefix) => url.startsWith(prefix))) {
     const link = document.createElement('a')
     link.href = url
 
     let resolvedFilename = filename
+
     if (!resolvedFilename) {
       if (url.startsWith('file://')) {
         const pathname = new URL(url).pathname
@@ -28,11 +30,13 @@ export const download = (url: string, filename?: string) => {
         resolvedFilename = `${Date.now()}_download${extension}`
       } else resolvedFilename = 'download'
     }
+
     link.download = resolvedFilename
 
     document.body.appendChild(link)
     link.click()
     link.remove()
+
     return
   }
 
@@ -43,17 +47,20 @@ export const download = (url: string, filename?: string) => {
       if (!response.ok) {
         throw new Error(`Download failed: HTTP ${response.status} for ${url}`)
       }
+
       let finalFilename = filename || 'download'
 
       if (!filename) {
         // 尝试从Content-Disposition头获取文件名
         const contentDisposition = response.headers.get('Content-Disposition')
+
         if (contentDisposition) {
           // A quoted filename may hold escaped quotes (\"), so capture up to the
           // first *unescaped* delimiter and unescape afterwards.
           const quotedName = contentDisposition.match(/filename="((?:[^"\\]|\\.)*)"/i)
           const bareName = contentDisposition.match(/filename=([^";\r\n]+)/i)
           const parsedName = quotedName ? quotedName[1] : bareName?.[1]
+
           if (parsedName) {
             finalFilename = parsedName.replace(/\\(.)/g, '$1')
           }
@@ -62,11 +69,13 @@ export const download = (url: string, filename?: string) => {
         // 如果URL中有文件名，使用URL中的文件名
         // Use the pathname: splitting the raw URL keeps a query string in the name.
         let urlFilename: string | undefined
+
         try {
           urlFilename = decodeURIComponent(new URL(url, window.location.href).pathname.split('/').pop() ?? '')
         } catch {
           urlFilename = url.split('/').pop()?.split('?')[0]
         }
+
         if (urlFilename && urlFilename.includes('.')) {
           finalFilename = urlFilename
         }

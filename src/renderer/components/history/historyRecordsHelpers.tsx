@@ -20,6 +20,7 @@ type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 
 export function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: ReadonlyMap<string, Assistant>) {
   if (!topic.assistantId) return UNLINKED_ASSISTANT_SOURCE_ID
+
   if (assistantById && !assistantById.has(topic.assistantId)) return UNLINKED_ASSISTANT_SOURCE_ID
 
   return topic.assistantId
@@ -30,6 +31,7 @@ export function getSessionAgentSourceId(
   agentById?: ReadonlyMap<string, AgentEntity>
 ) {
   if (!session.agentId) return UNKNOWN_AGENT_SOURCE_ID
+
   if (agentById && !agentById.has(session.agentId)) return UNKNOWN_AGENT_SOURCE_ID
 
   return session.agentId
@@ -37,6 +39,7 @@ export function getSessionAgentSourceId(
 
 export function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHistorySessionStatus {
   if (streamStatus?.isPending === true) return 'running'
+
   if (streamStatus?.status === 'error') return 'failed'
 
   return 'completed'
@@ -50,6 +53,7 @@ export function findAdjacentHistoryRecordAfterBulkDelete<T>(
 ): T | undefined {
   const deletedIdSet = new Set(deletedIds)
   const activeIndex = items.findIndex((item) => getId(item) === activeId)
+
   if (activeIndex < 0) return undefined
 
   for (let index = activeIndex + 1; index < items.length; index += 1) {
@@ -178,6 +182,7 @@ export function buildAgentSources(
 
 function getAssistantSourceRank(sourceId: string, assistantRankById: ReadonlyMap<string, number>) {
   const assistantRank = assistantRankById.get(sourceId)
+
   if (assistantRank !== undefined) return assistantRank
 
   return Number.MAX_SAFE_INTEGER
@@ -185,6 +190,7 @@ function getAssistantSourceRank(sourceId: string, assistantRankById: ReadonlyMap
 
 function getAgentSourceRank(sourceId: string, agentRankById: ReadonlyMap<string, number>) {
   const agentRank = agentRankById.get(sourceId)
+
   if (agentRank !== undefined) return agentRank
 
   return Number.MAX_SAFE_INTEGER

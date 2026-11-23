@@ -40,6 +40,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     if (!app.isPackaged) {
       throw new IpcError('USER_DATA_RELOCATION_UNAVAILABLE', 'userData relocation is available only in packaged builds')
     }
+
     requestUserDataRelocation(path, copy)
   },
   'app.cache_cleanup.inspect': async ({ groups }) => cacheCleanupService.inspect(groups),
@@ -47,6 +48,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.relaunch': async () => application.relaunch(),
   'app.adjust_zoom': async ({ delta, reset = false }) => {
     handleZoomFactor(BrowserWindow.getAllWindows(), delta, reset)
+
     return application.get('PreferenceService').get('app.zoom_factor')
   },
   'app.data_reset.request': async () => requestDataReset(),

@@ -23,7 +23,9 @@ import {
 import { metadataSchema, type Upload } from './internal/IntakeStore'
 
 const logger = loggerService.withContext('FileIntakeService')
+
 export type FileIntakeOwner = { ownerId: string; quotaKey: string }
+
 export type FileIntakeEntry = {
   entryId: string
   filename: string
@@ -31,6 +33,7 @@ export type FileIntakeEntry = {
   sha256: string
   byteLength: number
 }
+
 export class FileIntakeError extends Error {
   constructor(
     readonly code: 'CONFLICT' | 'IDEMPOTENCY_CONFLICT' | 'NOT_FOUND' | 'RESOURCE_EXHAUSTED' | 'UNAVAILABLE',
@@ -39,6 +42,7 @@ export class FileIntakeError extends Error {
     super(message)
   }
 }
+
 /** Durable staging is independent of sockets; command receipts own message deduplication. */
 @Injectable('FileIntakeService')
 @ServicePhase(Phase.WhenReady)
@@ -49,6 +53,7 @@ export class FileIntakeService extends BaseService {
   protected async onInit(): Promise<void> {
     this.registerDisposable(this.changes)
     await this.load()
+
     for (const upload of this.uploads.values()) if (upload.state === 'verifying') this.verify(upload)
     this.registerDisposable(() => {
       this.sweepTimer = undefined
@@ -96,6 +101,7 @@ export class FileIntakeService extends BaseService {
   }
   async cancelOwner(owner: FileIntakeOwner): Promise<void> {
     await this.load()
+
     for (const upload of this.uploads.values())
       if (upload.ownerId === owner.ownerId) await this.cancel(owner, upload.uploadId)
   }
@@ -113,6 +119,7 @@ export class FileIntakeService extends BaseService {
   }
   async owners(): Promise<FileIntakeOwner[]> {
     await this.load()
+
     return [
       ...new Map([...this.uploads.values()].map(({ ownerId, quotaKey }) => [ownerId, { ownerId, quotaKey }])).values()
     ]
@@ -120,14 +127,18 @@ export class FileIntakeService extends BaseService {
   private load(): Promise<void> {
     return (this.loading ??= (async () => {
       await this.store.load()
+
       for (const upload of this.uploads.values()) {
         if (upload.state === 'cancelled' || upload.state === 'ready') continue
+
         try {
           const size = (await stat(this.file(upload))).size
+
           if (size < upload.offset) await this.save({ ...upload, state: 'failed', failureCode: 'VERIFICATION_FAILED' })
           else if (size > upload.offset) await truncate(this.file(upload), upload.offset)
         } catch (error) {
           logger.warn('Intake source unavailable', { uploadId: upload.uploadId, error })
+
           if (!upload.entryId) await this.save({ ...upload, state: 'failed', failureCode: 'VERIFICATION_FAILED' })
         }
       }
@@ -137,24 +148,30 @@ export class FileIntakeService extends BaseService {
     const result = (this.queues.get(key) ?? Promise.resolve()).then(async () => {
       if (hasPendingRestore()) throw new FileIntakeError('UNAVAILABLE', 'File intake paused during restore')
       await this.load()
+
       return work()
     })
+
     const settled = result.catch(() => undefined)
     this.queues.set(key, settled)
     void settled.then(() => {
       if (this.queues.get(key) === settled) this.queues.delete(key)
     })
+
     return result
   }
   private find(owner: FileIntakeOwner, id: string): Upload {
     this.check()
     const upload = this.uploads.get(this.key(owner, id))
+
     if (!upload || upload.state === 'cancelled' || upload.expiresAt <= Date.now())
       throw new FileIntakeError('NOT_FOUND', 'Upload expired or not found')
+
     return upload
   }
   private snapshot(upload: Upload): FileIntakeSnapshot {
     if (upload.state === 'cancelled') throw new FileIntakeError('NOT_FOUND', 'Upload cancelled')
+
     const snapshot: FileIntakeSnapshot = {
       uploadId: upload.uploadId,
       state: upload.state,
@@ -163,8 +180,11 @@ export class FileIntakeService extends BaseService {
       expiresAt: new Date(upload.expiresAt).toISOString(),
       checksumAlgorithm: upload.checksumAlgorithm
     }
+
     if (upload.state === 'ready') snapshot.sha256 = upload.sha256
+
     if (upload.state === 'failed') snapshot.failureCode = upload.failureCode
+
     return snapshot
   }
   private touch(upload: Upload): number {
@@ -172,12 +192,15 @@ export class FileIntakeService extends BaseService {
   }
   prepare(owner: FileIntakeOwner, input: FileIntakeMetadata): Promise<FileIntakeSnapshot> {
     metadataSchema.parse(input)
+
     return this.serial('prepare', () =>
       this.serial(this.key(owner, input.uploadId), async () => {
         this.check()
         const previous = this.uploads.get(this.key(owner, input.uploadId))
+
         if (previous) {
           this.find(owner, input.uploadId)
+
           if (
             previous.filename !== input.filename ||
             previous.mediaType !== input.mediaType ||
@@ -185,15 +208,20 @@ export class FileIntakeService extends BaseService {
             previous.checksumAlgorithm !== input.checksumAlgorithm
           )
             throw new FileIntakeError('IDEMPOTENCY_CONFLICT', 'Upload metadata changed')
+
           return this.snapshot(previous)
         }
+
         const active = [...this.uploads.values()].filter((upload) => upload.state !== 'cancelled')
         const total = active.reduce((size, upload) => size + upload.byteLength, input.byteLength)
+
         const device = active
           .filter((upload) => upload.quotaKey === owner.quotaKey)
           .reduce((size, upload) => size + upload.byteLength, input.byteLength)
+
         if (total > fileIntakeLimits.stagingBytes || device > fileIntakeLimits.ownerBytes || this.uploads.size >= 256)
           throw new FileIntakeError('RESOURCE_EXHAUSTED', 'Upload staging capacity reached')
+
         const upload: Upload = {
           ...input,
           ...owner,
@@ -203,6 +231,7 @@ export class FileIntakeService extends BaseService {
           createdAt: Date.now(),
           expiresAt: Date.now() + fileIntakeLimits.retentionMs
         }
+
         await mkdir(path.dirname(this.file(upload)), { recursive: true })
         const handle = await open(this.file(upload), 'wx', 0o600)
         await handle.sync()
@@ -211,6 +240,7 @@ export class FileIntakeService extends BaseService {
         await this.save(upload)
         await this.syncDirectory(this.root())
         this.check()
+
         return this.snapshot(upload)
       })
     )
@@ -218,27 +248,34 @@ export class FileIntakeService extends BaseService {
   get(owner: FileIntakeOwner, id: string): Promise<FileIntakeSnapshot> {
     return this.serial(this.key(owner, id), async () => {
       const upload = this.find(owner, id)
+
       if (upload.state === 'verifying') this.verify(upload)
+
       return this.snapshot(upload)
     })
   }
   resume(owner: FileIntakeOwner, input: FileIntakeResume): Promise<FileIntakeSnapshot> {
     return this.serial(this.key(owner, input.uploadId), async () => {
       const upload = this.find(owner, input.uploadId)
+
       if (upload.resumeId === input.resumeId) return this.snapshot(upload)
+
       if (String(upload.epoch) !== input.expectedWriterEpoch)
         throw new FileIntakeError('CONFLICT', 'Upload writer changed')
       const resumed = { ...upload, epoch: upload.epoch + 1, resumeId: input.resumeId }
       await this.save(resumed)
+
       return this.snapshot(resumed)
     })
   }
   write(owner: FileIntakeOwner, input: FileIntakeWrite): Promise<FileIntakeSnapshot> {
     return this.serial(this.key(owner, input.uploadId), async () => {
       const upload = this.find(owner, input.uploadId)
+
       if (String(upload.epoch) !== input.writerEpoch) throw new FileIntakeError('CONFLICT', 'Upload writer changed')
       const offset = Number(input.offset)
       const bytes = Buffer.from(input.bytes)
+
       if (
         !bytes.length ||
         bytes.length > fileIntakeLimits.chunkBytes ||
@@ -249,27 +286,35 @@ export class FileIntakeService extends BaseService {
       )
         throw new FileIntakeError('CONFLICT', 'Invalid upload chunk or offset')
       const handle = await open(this.file(upload), 'r+')
+
       try {
         if (offset < upload.offset) {
           if (offset + bytes.length > upload.offset) throw new FileIntakeError('CONFLICT', 'Overlapping upload chunk')
           const stored = Buffer.alloc(bytes.length)
           const { bytesRead } = await handle.read(stored, 0, stored.length, offset)
+
           if (bytesRead !== bytes.length || !stored.equals(bytes))
             throw new FileIntakeError('IDEMPOTENCY_CONFLICT', 'Upload chunk changed')
+
           return this.snapshot(upload)
         }
+
         if (upload.state !== 'receiving') throw new FileIntakeError('CONFLICT', 'Upload is not receiving')
         await handle.truncate(upload.offset)
         let written = 0
+
         while (written < bytes.length) {
           const result = await handle.write(bytes, written, bytes.length - written, offset + written)
+
           if (!result.bytesWritten) throw new Error('Upload write made no progress')
           written += result.bytesWritten
         }
+
         await handle.sync()
         const next = { ...upload, offset: offset + bytes.length, expiresAt: this.touch(upload) }
         await this.save(next)
         this.check()
+
         return this.snapshot(next)
       } finally {
         await handle.close()
@@ -282,16 +327,21 @@ export class FileIntakeService extends BaseService {
   ): Promise<FileIntakeSnapshot> {
     return this.serial(this.key(owner, input.uploadId), async () => {
       const upload = this.find(owner, input.uploadId)
+
       if (String(upload.epoch) !== input.writerEpoch) throw new FileIntakeError('CONFLICT', 'Upload writer changed')
+
       if (upload.offset !== upload.byteLength) throw new FileIntakeError('CONFLICT', 'Upload is incomplete')
+
       if (input.expectedSha256 !== undefined && upload.expectedSha256 && upload.expectedSha256 !== input.expectedSha256)
         throw new FileIntakeError('IDEMPOTENCY_CONFLICT', 'Upload checksum changed')
+
       if (
         upload.checksumAlgorithm === 'sha256'
           ? !input.expectedSha256 || !/^[a-f0-9]{64}$/.test(input.expectedSha256)
           : input.expectedSha256 !== undefined
       )
         throw new FileIntakeError('CONFLICT', 'Upload checksum does not match the prepared mode')
+
       if (upload.state === 'receiving')
         await this.save({
           ...upload,
@@ -300,26 +350,32 @@ export class FileIntakeService extends BaseService {
           expiresAt: this.touch(upload)
         })
       const current = this.find(owner, input.uploadId)
+
       if (current.state === 'verifying') this.verify(current)
+
       return this.snapshot(current)
     })
   }
   private verify(upload: Upload): void {
     const key = this.key(upload, upload.uploadId)
+
     if (this.verifying.has(key) || this.stopped) return
     const startedAt = Date.now()
+
     const work = this.verificationSlots
       .runExclusive(async () => {
         if (this.stopped || this.uploads.get(key)?.state !== 'verifying') return
         const hash = createHash('sha256')
         let byteLength = 0
         let digest: string
+
         try {
           for await (const bytes of createReadStream(this.file(upload))) {
             if (this.stopped) return
             hash.update(bytes)
             byteLength += bytes.length
           }
+
           digest = hash.digest('hex')
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || !upload.entryId || !upload.sha256) throw error
@@ -327,24 +383,32 @@ export class FileIntakeService extends BaseService {
           digest = upload.sha256
           byteLength = upload.byteLength
         }
+
         await this.serial(key, async () => {
           const current = this.uploads.get(key)
+
           if (current?.state !== 'verifying') return
           this.check()
+
           if (current.expiresAt <= Date.now()) return
+
           if (
             byteLength !== current.byteLength ||
             (current.checksumAlgorithm === 'sha256' && digest !== current.expectedSha256)
           ) {
             await this.save({ ...current, state: 'failed', failureCode: 'CHECKSUM_MISMATCH' })
+
             return
           }
+
           const publication = {
             ...current,
             sha256: digest,
             entryId: current.entryId ?? FileEntryIdSchema.parse(uuidv7())
           }
+
           await this.save(publication)
+
           const entry = await application.get('FileManager').publishIntake({
             entryId: publication.entryId,
             filename: current.filename,
@@ -352,6 +416,7 @@ export class FileIntakeService extends BaseService {
             sha256: digest,
             path: AbsoluteFilePathSchema.parse(this.file(current))
           })
+
           if (this.stopped) return
           await this.save({ ...current, sha256: digest, entryId: entry.id, state: 'ready' })
           logger.info('Upload verified and published', {
@@ -366,23 +431,28 @@ export class FileIntakeService extends BaseService {
         logger.warn('Upload verification failed', { key, error })
         await this.serial(key, async () => {
           const current = this.uploads.get(key)
+
           if (current?.state === 'verifying')
             await this.save({ ...current, state: 'failed', failureCode: 'VERIFICATION_FAILED' })
         }).catch((failure) => logger.warn('Upload failure persistence deferred', { key, failure }))
       })
       .finally(() => this.verifying.delete(key))
+
     this.verifying.set(key, work)
   }
   cancel(owner: FileIntakeOwner, id: string) {
     return this.serial(this.key(owner, id), async () => {
       this.check()
       const upload = this.uploads.get(this.key(owner, id))
+
       if (upload) {
         await this.save({ ...upload, state: 'cancelled' })
+
         if (!this.pins.has(this.key(owner, id))) {
           await rm(path.dirname(this.file(upload)), { recursive: true, force: true })
         }
       }
+
       return { cancelled: true as const }
     })
   }
@@ -395,6 +465,7 @@ export class FileIntakeService extends BaseService {
     const work = this.importFiles(owner, refs, run)
     this.work.add(work)
     void work.finally(() => this.work.delete(work)).catch(() => undefined)
+
     return work
   }
   private async importFiles<T>(
@@ -403,18 +474,22 @@ export class FileIntakeService extends BaseService {
     run: (entries: FileIntakeEntry[]) => Promise<T>
   ): Promise<T> {
     const pinned: Upload[] = []
+
     try {
       for (const ref of refs)
         await this.serial(this.key(owner, ref.uploadId), async () => {
           const upload = this.find(owner, ref.uploadId)
+
           if (upload.state !== 'ready') throw new FileIntakeError('CONFLICT', 'Attachment is not ready')
           const key = this.key(upload, upload.uploadId)
           this.pins.set(key, (this.pins.get(key) ?? 0) + 1)
           pinned.push(upload)
         })
       const entries: FileIntakeEntry[] = []
+
       for (const upload of pinned) {
         const manager = application.get('FileManager')
+
         if (!upload.entryId || !upload.sha256) throw new FileIntakeError('CONFLICT', 'Attachment is not published')
         const entry = await manager.getById(upload.entryId)
         entries.push({
@@ -425,12 +500,15 @@ export class FileIntakeService extends BaseService {
           byteLength: upload.byteLength
         })
       }
+
       this.check()
+
       return await run(entries)
     } finally {
       for (const upload of pinned) {
         const key = this.key(upload, upload.uploadId)
         const remaining = (this.pins.get(key) ?? 1) - 1
+
         if (remaining) this.pins.set(key, remaining)
         else {
           this.pins.delete(key)
@@ -446,7 +524,9 @@ export class FileIntakeService extends BaseService {
         for (const [key] of this.uploads)
           await this.serial(key, async () => {
             const upload = this.uploads.get(key)
+
             if (!upload || this.pins.has(key) || this.verifying.has(key)) return
+
             if (upload.expiresAt <= Date.now()) {
               await rm(this.directory(upload), { recursive: true, force: true })
               this.uploads.delete(key)
@@ -457,6 +537,7 @@ export class FileIntakeService extends BaseService {
       .catch((error) => logger.warn('Upload cleanup failed', error))
       .finally(() => {
         this.sweeping = false
+
         if (this.uploads.size > 0) return
         this.sweepTimer?.dispose()
         this.sweepTimer = undefined
@@ -464,6 +545,7 @@ export class FileIntakeService extends BaseService {
   }
   async drain(): Promise<void> {
     this.stopped = true
+
     while (this.queues.size || this.verifying.size || this.work.size)
       await Promise.allSettled([...this.queues.values(), ...this.verifying.values(), ...this.work])
   }

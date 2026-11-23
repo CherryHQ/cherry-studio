@@ -26,9 +26,12 @@ export function shouldHandleClipboardFiles(
 ): boolean {
   const text = clipboardData?.getData('text/plain') || clipboardData?.getData('text') || ''
   const hasRichText = Boolean(text && clipboardData?.getData('text/html'))
+
   return Array.from(clipboardData?.files ?? []).some((file) => {
     const filePath = window.api.file.getPathForFile(file)
+
     if (!isSupportedExtension(getFileExtension(filePath || file.name), supportExts)) return false
+
     return Boolean(filePath) || !file.type.startsWith('image/') || !hasRichText
   })
 }
@@ -43,15 +46,20 @@ async function readPathBackedClipboardEntry(
     'file.get_metadata',
     createFilePathHandle(AbsoluteFilePathSchema.parse(filePath))
   )
+
   if (!metadata) return null
+
   if (metadata.kind === 'directory') return { kind: 'directory', path: filePath }
+
   if (!(await isSupportedFile(filePath, extensionSet))) return null
   const selectedFile = await window.api.file.get(filePath)
+
   return selectedFile ? { kind: 'file', attachment: toComposerAttachment(selectedFile) } : null
 }
 
 // Track last focused component
 type ComponentType = 'inputbar' | 'messageEditor' | 'TranslatePage' | null
+
 let lastFocusedComponent: ComponentType = 'inputbar' // Default to inputbar
 
 // 处理函数类型
@@ -81,6 +89,7 @@ export const handlePaste = async (
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
     const extensionSet = new Set(supportExts)
     const clipboardText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
+
     if (clipboardText && !shouldHandleClipboardFiles(event.clipboardData, supportExts)) {
       // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
       if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {
@@ -92,33 +101,42 @@ export const handlePaste = async (
         const tempFilePath = await window.api.file.createTempFile('pasted_text.txt')
         await window.api.file.write(tempFilePath, clipboardText)
         const selectedFile = await window.api.file.get(tempFilePath)
+
         if (selectedFile) {
           const pastedTextFile: PastedTextFileMetadata = {
             ...selectedFile,
             origin_name: t?.('chat.input.pasted_text_file_name') ?? selectedFile.origin_name,
             composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
           }
+
           setFiles((prevFiles) => [...prevFiles, toComposerAttachment(pastedTextFile)])
+
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         } else if (t) {
           toast.info(t('chat.input.file_not_supported'))
         }
+
         return true
       }
+
       // 短文本走默认粘贴行为，直接返回
       return false
     }
+
     // 2. 文件/图片粘贴（无文本时，或有本会话愿意接收的文件时）
     if (clipboardFiles.length > 0) {
       event.preventDefault()
+
       try {
         const clipboardEntries = clipboardFiles.map((file) => ({
           file,
           filePath: window.api.file.getPathForFile(file)
         }))
+
         const pathBackedEntries = clipboardEntries.filter((entry): entry is { file: File; filePath: string } =>
           Boolean(entry.filePath)
         )
+
         const hasPathlessClipboardFile = clipboardEntries.some(
           (entry) => !entry.filePath && isSupportedExtension(getFileExtension(entry.file.name), supportExts)
         )
@@ -127,6 +145,7 @@ export const handlePaste = async (
           const results = await Promise.allSettled(
             pathBackedEntries.map(({ filePath }) => readPathBackedClipboardEntry(filePath, extensionSet))
           )
+
           const attachments: ComposerAttachment[] = []
           let hasFileError = false
 
@@ -146,13 +165,16 @@ export const handlePaste = async (
           if (attachments.length > 0) {
             setFiles((prevFiles) => [...prevFiles, ...attachments])
           }
+
           if (hasFileError && t) {
             toast.error(t('chat.input.file_error'))
           }
+
           return true
         }
 
         let hasFileError = false
+
         for (const { file, filePath } of clipboardEntries) {
           try {
             if (!filePath) {
@@ -162,6 +184,7 @@ export const handlePaste = async (
                 const uint8Array = new Uint8Array(arrayBuffer)
                 await window.api.file.write(tempFilePath, uint8Array)
                 const selectedFile = await window.api.file.get(tempFilePath)
+
                 if (selectedFile) {
                   setFiles((prevFiles) => [
                     ...prevFiles,
@@ -178,10 +201,12 @@ export const handlePaste = async (
                   toast.info(t('chat.input.file_not_supported'))
                 }
               }
+
               continue
             }
 
             const result = await readPathBackedClipboardEntry(filePath, extensionSet)
+
             if (result?.kind === 'directory') {
               if (onFolderPathPasted) {
                 onFolderPathPasted(result.path)
@@ -198,21 +223,26 @@ export const handlePaste = async (
             logger.error('onPaste:', error as Error)
           }
         }
+
         if (hasFileError && t) {
           toast.error(t('chat.input.file_error'))
         }
       } catch (error) {
         logger.error('onPaste:', error as Error)
+
         if (t) {
           toast.error(t('chat.input.file_error'))
         }
       }
+
       return true
     }
+
     // 其他情况默认粘贴
     return false
   } catch (error) {
     logger.error('handlePaste error:', error as Error)
+
     return false
   }
 }
@@ -284,6 +314,7 @@ export const unregisterHandler = (component: ComponentType, handler?: PasteHandl
 const handleGlobalPaste = async (event: ClipboardEvent): Promise<boolean> => {
   // 如果当前有活动元素且是输入区域，不执行全局处理
   const activeElement = document.activeElement
+
   if (
     activeElement &&
     (activeElement.tagName === 'INPUT' ||
@@ -296,6 +327,7 @@ const handleGlobalPaste = async (event: ClipboardEvent): Promise<boolean> => {
   // 根据最后聚焦的组件调用相应处理程序
   if (lastFocusedComponent && handlers[lastFocusedComponent]) {
     const handler = handlers[lastFocusedComponent]
+
     if (handler) {
       return await handler(event)
     }
@@ -304,6 +336,7 @@ const handleGlobalPaste = async (event: ClipboardEvent): Promise<boolean> => {
   // 如果没有匹配的处理程序，默认使用inputbar处理
   if (handlers.inputbar) {
     const handler = handlers.inputbar
+
     if (handler) {
       return await handler(event)
     }

@@ -20,6 +20,7 @@ export const RefreshProvider = RefreshContext.Provider
 /** Get the refresh callback from context. Returns no-op if not provided. */
 export function useRefresh(): () => void {
   const refresh = use(RefreshContext)
+
   return refresh ?? (() => {})
 }
 
@@ -34,7 +35,9 @@ export function useRefresh(): () => void {
 export const PartsContext = createContext<Record<string, CherryMessagePart[]> | null>(null)
 
 type PartsMap = Record<string, CherryMessagePart[]> | null
+
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+
 interface MessagePartsScopeValue {
   messageId: string
   parts: CherryMessagePart[]
@@ -67,6 +70,7 @@ export function MessagePartsScopeProvider({
   children: ReactNode
 }) {
   const value = useMemo(() => ({ messageId, parts }), [messageId, parts])
+
   return (
     <MessageIdContext value={messageId}>
       <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
@@ -86,6 +90,7 @@ export function usePartsMap() {
 export function useScopedPartsMap(): PartsMap {
   const scope = use(MessagePartsScopeContext)
   const scopedMap = useMemo(() => (scope ? { [scope.messageId]: scope.parts } : null), [scope])
+
   return scopedMap ?? use(PartsContext)
 }
 
@@ -106,10 +111,13 @@ export function useMessagePartsScopeId(): string | undefined {
 /** Parse a block/part ID into messageId and part index. */
 export function parseBlockId(blockId: string): { messageId: string; index: number } | null {
   const lastBlockDash = blockId.lastIndexOf('-block-')
+
   if (lastBlockDash === -1) return null
   const messageId = blockId.slice(0, lastBlockDash)
   const index = parseInt(blockId.slice(lastBlockDash + 7), 10)
+
   if (isNaN(index)) return null
+
   return { messageId, index }
 }
 
@@ -119,11 +127,13 @@ export function parseBlockId(blockId: string): { messageId: string; index: numbe
  */
 export function useMessageParts(messageId: string): CherryMessagePart[] {
   const scope = use(MessagePartsScopeContext)
+
   if (scope?.messageId === messageId) return scope.parts
 
   // React's `use` API may be called conditionally. Scoped message consumers
   // therefore avoid subscribing to the complete map.
   const partsMap = use(PartsContext)
+
   return partsMap?.[messageId] ?? EMPTY_MESSAGE_PARTS
 }
 
@@ -138,19 +148,25 @@ export function resolvePartFromParts(
 ): { part: CherryMessagePart; messageId: string; index: number } | null {
   // Try block format first (existing parseBlockId handles ${msgId}-block-${i})
   let parsed = parseBlockId(partId)
+
   // Also try part format: ${msgId}-part-${i}
   if (!parsed) {
     const lastPartDash = partId.lastIndexOf('-part-')
+
     if (lastPartDash !== -1) {
       const messageId = partId.slice(0, lastPartDash)
       const index = parseInt(partId.slice(lastPartDash + 6), 10)
+
       if (!isNaN(index)) {
         parsed = { messageId, index }
       }
     }
   }
+
   if (!parsed) return null
   const parts = partsMap[parsed.messageId]
+
   if (!parts || parsed.index >= parts.length) return null
+
   return { part: parts[parsed.index], messageId: parsed.messageId, index: parsed.index }
 }

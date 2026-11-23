@@ -8,6 +8,7 @@ import { isEmbeddingModel as sharedIsEmbeddingModel, isRerankModel as sharedIsRe
  */
 export function isEmbeddingModel(model: Model): boolean {
   if (!model) return false
+
   return sharedIsEmbeddingModel(model)
 }
 
@@ -16,5 +17,6 @@ export function isEmbeddingModel(model: Model): boolean {
  */
 export function isRerankModel(model: Model): boolean {
   if (!model) return false
+
   return sharedIsRerankModel(model)
 }

@@ -9,6 +9,7 @@ import {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic painting draft dimensions are unvalidated until this reader normalizes numeric strings and rejects non-finite values.
 function finiteNumber(value: unknown): number | null {
   const numeric = normalizeImageParamNumber(value)
+
   return typeof numeric === 'number' && Number.isFinite(numeric) ? numeric : null
 }
 
@@ -20,12 +21,14 @@ export function optionalFiniteNumber(value: unknown): number | null {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Painting draft values are dynamic registry fields; this reader validates the key and value with parseImageParamValue before exposing a number.
 export function finiteParamNumberOr(key: string, value: unknown, fallback: number): number {
   const parsed = parseImageParamValue(key, value)
+
   return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : fallback
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Painting draft values are dynamic registry fields; this reader validates the key and value with parseImageParamValue before exposing a number.
 export function optionalParamNumber(key: string, value: unknown): number | null {
   const parsed = parseImageParamValue(key, value)
+
   return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : null
 }
 
@@ -51,6 +54,8 @@ export function booleanOr(value: unknown, fallback: boolean): boolean {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This formatter receives raw painting draft values and displays only strings or finite numbers, dropping unsupported object values.
 export function controlValue(value: unknown): string {
   if (typeof value === 'string') return value
+
   if (typeof value === 'number' && Number.isFinite(value)) return `${value}`
+
   return ''
 }

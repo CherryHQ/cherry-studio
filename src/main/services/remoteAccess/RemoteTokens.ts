@@ -25,17 +25,22 @@ export class RemoteTokens {
   issue(deviceId: string, peerIdentity: string, authorization: RemoteAuthorization) {
     this.sweep()
     const existing = [...this.tokens].filter(([, value]) => value.deviceId === deviceId)
+
     for (const [hash] of existing.slice(0, Math.max(0, existing.length - 1))) this.tokens.delete(hash)
+
     if (this.tokens.size >= 128) throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Too many active device tokens')
     const accessToken = randomBytes(32).toString('base64url')
     const expiresAt = Date.now() + remoteLimits.tokenMs
     this.tokens.set(this.hash(accessToken), { deviceId, peerIdentity, authorization, expiresAt })
+
     return { accessToken, authorization, expiresAt: new Date(expiresAt).toISOString() }
   }
 
   validate(accessToken: string, deviceId: string, peerIdentity: string, authorization: RemoteAuthorization): void {
     const token = this.tokens.get(this.hash(accessToken))
+
     if (!token || token.expiresAt <= Date.now()) throw new RemoteRpcError('TOKEN_EXPIRED', 'Device token expired')
+
     if (
       token.deviceId !== deviceId ||
       token.peerIdentity !== peerIdentity ||

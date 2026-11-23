@@ -16,6 +16,7 @@ export const WORKFLOW_FILE_EXTENSION = '.json'
 export function isListableWorkflow(providerId: string, workflow: string): boolean {
   try {
     createUniqueModelId(providerId, workflow)
+
     return true
   } catch {
     return false
@@ -30,6 +31,7 @@ export function isListableWorkflow(providerId: string, workflow: string): boolea
 export function partitionListableWorkflows(providerId: string, workflows: string[]) {
   const listed: string[] = []
   const skipped: string[] = []
+
   for (const workflow of workflows) {
     if (isListableWorkflow(providerId, workflow)) {
       listed.push(workflow)
@@ -37,8 +39,10 @@ export function partitionListableWorkflows(providerId: string, workflows: string
       skipped.push(workflow)
     }
   }
+
   if (skipped.length > 0) {
     logger.warn('Skipped ComfyUI workflows whose names contain a reserved route character', { providerId, skipped })
   }
+
   return { listed, skipped }
 }

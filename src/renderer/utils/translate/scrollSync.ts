@@ -36,6 +36,7 @@ export const createInputScrollHandler = (
   return () => {
     const sourceEl = sourceRef.current
     const targetEl = targetRef.current
+
     if (!isScrollSyncEnabled || !sourceEl || !targetEl || isProgrammaticScrollRef.current) return
     handleScrollSync(sourceEl, targetEl, isProgrammaticScrollRef)
   }
@@ -53,6 +54,7 @@ export const createOutputScrollHandler = (
   return () => {
     const sourceEl = sourceRef.current
     const targetEl = targetRef.current
+
     if (!isScrollSyncEnabled || !sourceEl || !targetEl || isProgrammaticScrollRef.current) return
     handleScrollSync(sourceEl, targetEl, isProgrammaticScrollRef)
   }

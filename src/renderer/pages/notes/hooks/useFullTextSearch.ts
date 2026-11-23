@@ -34,6 +34,7 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
   const [isSearching, setIsSearching] = useState(false)
   const [results, setResults] = useState<SearchResult[]>([])
   const [error, setError] = useState<Error | null>(null)
+
   const [stats, setStats] = useState({
     total: 0,
     fileNameMatches: 0,
@@ -60,10 +61,12 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
+
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current)
       debounceTimerRef.current = null
     }
+
     setIsSearching(false)
   }, [])
 
@@ -85,6 +88,7 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
       if (!keyword) {
         setResults([])
         setStats({ total: 0, fileNameMatches: 0, contentMatches: 0, bothMatches: 0 })
+
         return
       }
 

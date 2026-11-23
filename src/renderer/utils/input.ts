@@ -23,18 +23,22 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
       try {
         // 使用新的webUtils.getPathForFile API获取文件路径
         const filePath = window.api.file.getPathForFile(file)
+
         if (filePath) {
           return window.api.file.get(filePath)
         }
+
         return null
       } catch (error) {
         logger.error('getFilesFromDropEvent - getPathForFile error:', error as Error)
+
         return null
       }
     })
 
     const results = await Promise.allSettled(filePromises)
     const list: FileMetadata[] = []
+
     for (const result of results) {
       if (result.status === 'fulfilled' && result.value !== null) {
         list.push(result.value)
@@ -42,12 +46,15 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
         logger.error('getFilesFromDropEvent:', result.reason)
       }
     }
+
     return list
   } else {
     return new Promise((resolve) => {
       let existCodefilesFormat = false
+
       for (const item of e.dataTransfer.items) {
         const { type } = item
+
         if (type === 'codefiles') {
           item.getAsString(async (filePathListString) => {
             const filePathList: string[] = JSON.parse(filePathListString)
@@ -107,8 +114,11 @@ const normalizeComposerShortcut = (stored: unknown): ComposerShortcut | null => 
   if (typeof stored === 'string') {
     return LEGACY_COMPOSER_SHORTCUTS.get(stored) ?? null
   }
+
   if (!isShortcutBinding(stored) || !stored.length) return null
+
   if (isMac) return stored
+
   // Off macOS the two tokens are the same physical key; keep one spelling so they compare equal.
   return stored.map((token) => (token === 'Ctrl' ? 'CommandOrControl' : token))
 }
@@ -123,8 +133,11 @@ const resolveComposerShortcut = (
 ): ComposerShortcut => {
   const takenIds = taken.map(composerShortcutId)
   const shortcut = normalizeComposerShortcut(stored)
+
   if (shortcut && !takenIds.includes(composerShortcutId(shortcut))) return shortcut
+
   if (!takenIds.includes(composerShortcutId(preferred))) return preferred
+
   return COMPOSER_SHORTCUTS.find((candidate) => !takenIds.includes(composerShortcutId(candidate))) ?? preferred
 }
 

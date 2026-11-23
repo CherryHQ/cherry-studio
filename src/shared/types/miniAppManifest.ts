@@ -106,14 +106,17 @@ export const PermissionDeclarationSchema = z
 /** Wildcards → leaves. `sibling` and `none` methods are never included: they are not grantable. */
 export function expandPermissions(declared: readonly string[]): MiniAppPermission[] {
   const out = new Set<MiniAppPermission>()
+
   for (const entry of declared) {
     if (entry.endsWith('.*')) {
       const ns = entry.slice(0, -2)
+
       for (const p of MINI_APP_PERMISSIONS) if (p.startsWith(`${ns}.`)) out.add(p)
     } else {
       out.add(entry as MiniAppPermission)
     }
   }
+
   return [...out].sort()
 }
 
@@ -128,6 +131,7 @@ export function expandPermissions(declared: readonly string[]): MiniAppPermissio
 export const MINI_APP_MAX_PACKAGE_BYTES = 50 * 1024 * 1024
 export const MINI_APP_MAX_EXTRACTED_BYTES = 100 * 1024 * 1024
 export const MINI_APP_MAX_MANIFEST_BYTES = 256 * 1024
+
 /** Icon ENTRY cap: the total cap admits one 100 MB entry, and the icon is read whole. */
 export const MINI_APP_MAX_ICON_BYTES = 5 * 1024 * 1024
 
@@ -217,6 +221,7 @@ const PackageRelativePathSchema = z
  */
 function localizedText(max: number) {
   const value = z.string().min(1).max(max)
+
   return z.union([
     value,
     z
@@ -232,6 +237,7 @@ function localizedText(max: number) {
 }
 
 export const LocalizedNameSchema = localizedText(64)
+
 /**
  * 200 characters: two or three sentences. Long enough to say what the app does and
  * why it wants what it declares; short enough that the consent card can render it
@@ -239,6 +245,7 @@ export const LocalizedNameSchema = localizedText(64)
  * beginning "this app also…".
  */
 export const LocalizedDescriptionSchema = localizedText(200)
+
 /**
  * 500 characters — a handful of bullet points, not a blog post.
  *
@@ -266,6 +273,7 @@ export type LocalizedText = z.infer<typeof LocalizedNameSchema>
 export function resolveLocalizedText(text: LocalizedText, locale: string): string {
   if (typeof text === 'string') return text
   const table = text as Record<string, string | undefined>
+
   return table[locale] ?? table[locale.split('-')[0]] ?? table.en ?? table.zh!
 }
 
@@ -352,6 +360,7 @@ export const MiniAppManifestSchema = z
     const required = new Set(expandPermissions(m.permissions))
     const optional = expandPermissions(m.optionalPermissions)
     const both = optional.filter((p) => required.has(p))
+
     if (both.length > 0) {
       ctx.addIssue({
         code: 'custom',
@@ -370,6 +379,7 @@ export const MiniAppManifestSchema = z
      * nothing about it.
      */
     const canReachNetwork = [...required, ...optional].some((p) => p.startsWith('network.'))
+
     if (m.network.length > 0 && !canReachNetwork) {
       ctx.addIssue({
         code: 'custom',
@@ -377,6 +387,7 @@ export const MiniAppManifestSchema = z
         message: 'declares hosts but no `network.*` permission to reach them'
       })
     }
+
     if (m.network.length === 0 && canReachNetwork) {
       ctx.addIssue({
         code: 'custom',
@@ -427,6 +438,7 @@ export const MiniAppDistributionManifestSchema = MiniAppManifestSchema.safeExten
       message: '`update.urlCn` and `package.urlCn` must be declared together'
     })
   }
+
   if (m.package.iconUrl !== undefined && m.icon === undefined) {
     ctx.addIssue({
       code: 'custom',
@@ -464,5 +476,6 @@ export function declaredGrants(manifest: MiniAppManifest): DeclaredGrants {
 /** Everything declared, either way — answers "is this declared at all" and nothing finer. */
 export function declaredGrantKeys(manifest: MiniAppManifest): string[] {
   const { required, optional } = declaredGrants(manifest)
+
   return [...required, ...optional].sort()
 }

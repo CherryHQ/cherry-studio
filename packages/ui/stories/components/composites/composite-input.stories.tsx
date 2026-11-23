@@ -45,6 +45,7 @@ const meta: Meta<typeof CompositeInput> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Basic Variants
@@ -440,12 +441,14 @@ export const SelectVariantInteractive: Story = {
       cny: 7.24,
       aud: 1.52
     }
+
     const [amount, setAmount] = useState('')
     const [currency] = useState<keyof typeof rates>('usd')
     const [converted, setConverted] = useState<{ value: number; currency: string } | null>(null)
 
     const handleConvert = () => {
       const numAmount = parseFloat(amount)
+
       if (!isNaN(numAmount) && numAmount > 0) {
         const convertedValue = numAmount * rates[currency]
         setConverted({ value: convertedValue, currency })
@@ -781,15 +784,21 @@ export const EmailVariantInteractive: Story = {
     const validateDomain = (value: string) => {
       if (!value) {
         setError('Domain is required')
+
         return false
       }
+
       // Simple domain validation
       const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$/
+
       if (!domainRegex.test(value)) {
         setError('Please enter a valid domain (e.g., example.com)')
+
         return false
       }
+
       setError('')
+
       return true
     }
 
@@ -812,6 +821,7 @@ export const EmailVariantInteractive: Story = {
             value={domain}
             onChange={(e) => {
               setDomain(e.target.value)
+
               if (error) validateDomain(e.target.value)
             }}
             onBlur={() => validateDomain(domain)}
@@ -844,25 +854,33 @@ export const ValidationForm: Story = {
       password: '',
       confirmPassword: ''
     })
+
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [touched, setTouched] = useState<Record<string, boolean>>({})
 
     const validateEmail = (email: string) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
       if (!email) return 'Email is required'
+
       if (!emailRegex.test(email)) return 'Please enter a valid email address'
+
       return ''
     }
 
     const validatePassword = (password: string) => {
       if (!password) return 'Password is required'
+
       if (password.length < 8) return 'Password must be at least 8 characters'
+
       return ''
     }
 
     const validateConfirmPassword = (confirmPassword: string, password: string) => {
       if (!confirmPassword) return 'Please confirm your password'
+
       if (confirmPassword !== password) return 'Passwords do not match'
+
       return ''
     }
 
@@ -870,19 +888,24 @@ export const ValidationForm: Story = {
       setTouched({ ...touched, [field]: true })
 
       const newErrors = { ...errors }
+
       if (field === 'email') {
         const error = validateEmail(formData.email)
+
         if (error) newErrors.email = error
         else delete newErrors.email
       } else if (field === 'password') {
         const error = validatePassword(formData.password)
+
         if (error) newErrors.password = error
         else delete newErrors.password
       } else if (field === 'confirmPassword') {
         const error = validateConfirmPassword(formData.confirmPassword, formData.password)
+
         if (error) newErrors.confirmPassword = error
         else delete newErrors.confirmPassword
       }
+
       setErrors(newErrors)
     }
 
@@ -895,7 +918,9 @@ export const ValidationForm: Story = {
       const confirmError = validateConfirmPassword(formData.confirmPassword, formData.password)
 
       if (emailError) newErrors.email = emailError
+
       if (passwordError) newErrors.password = passwordError
+
       if (confirmError) newErrors.confirmPassword = confirmError
 
       setErrors(newErrors)
@@ -1059,8 +1084,11 @@ export const PasswordReset: Story = {
 
     const getPasswordStrength = (pwd: string) => {
       if (pwd.length === 0) return { label: '', color: '' }
+
       if (pwd.length < 6) return { label: 'Weak', color: 'text-red-600' }
+
       if (pwd.length < 10) return { label: 'Medium', color: 'text-yellow-600' }
+
       return { label: 'Strong', color: 'text-green-600' }
     }
 
@@ -1154,10 +1182,13 @@ export const SignupForm: Story = {
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault()
+
       if (formData.password !== formData.confirmPassword) {
         alert('Passwords do not match!')
+
         return
       }
+
       alert(`Account created for: ${formData.email}`)
     }
 
@@ -1314,6 +1345,7 @@ export const ContactForm: Story = {
       email: '',
       subject: ''
     })
+
     const [submitted, setSubmitted] = useState(false)
 
     const handleSubmit = (e: React.FormEvent) => {

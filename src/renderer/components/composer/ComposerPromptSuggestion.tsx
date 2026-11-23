@@ -12,7 +12,9 @@ export function ComposerPromptSuggestion({
   compact?: boolean
 }) {
   const { t } = useTranslation()
+
   if (!text) return null
+
   return (
     <div
       className="pointer-events-none absolute inset-x-0 top-0 flex min-w-0 items-center gap-2 text-muted-foreground"

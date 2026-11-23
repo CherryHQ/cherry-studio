@@ -15,5 +15,6 @@ export const sortKeys = (value) =>
 export const stampAndSerialize = (body) => {
   const sorted = sortKeys(body)
   const version = createHash('sha256').update(JSON.stringify(sorted)).digest('hex').slice(0, 16)
+
   return JSON.stringify(sortKeys({ ...sorted, version }), null, 2) + '\n'
 }

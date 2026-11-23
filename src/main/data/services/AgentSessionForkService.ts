@@ -59,10 +59,12 @@ export class AgentSessionForkService {
   readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
     if (!messageIds.length) return []
     const parent = alias(agentSessionMessageTable, 'parent')
+
     const anchor = (data: AnySQLiteColumn) =>
       sql<Serializable>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith(
         (value: string): Serializable => SerializableSchema.parse(JSON.parse(value))
       )
+
     return application
       .get('DbService')
       .getDb()
@@ -88,10 +90,13 @@ export class AgentSessionForkService {
       .innerJoin(agentTable, eq(agentTable.id, agentSessionTable.agentId))
       .where(eq(agentSessionTable.id, sourceSessionId))
       .get()
+
     if (!source || source.session.deletedAt || source.agent.deletedAt)
       throw new AgentSessionForkSourceError('source_missing')
     const messages = agentSessionMessageService.readForkPrefixTx(tx, sourceSessionId, messageId, excludedIds)
+
     if (!messages) throw new AgentSessionForkSourceError('source_missing')
+
     return { ...source, messages, contexts: this.readBindingsTx(tx, sourceSessionId, messageId) }
   }
 
@@ -130,6 +135,7 @@ export class AgentSessionForkService {
   ): void {
     const { source } = input
     const current = this.readTx(tx, source.session.id, input.messageId, input.excludedIds)
+
     // Appending after the boundary is allowed. Changes to the chosen prefix, Agent, cwd or model are not.
     if (
       current.agent.type !== source.agent.type ||
@@ -141,6 +147,7 @@ export class AgentSessionForkService {
       JSON.stringify(current.contexts) !== JSON.stringify(source.contexts)
     )
       throw new AgentSessionForkSourceError('source_changed')
+
     // Allocate the suffix in the publishing transaction so concurrent forks cannot claim the same name.
     const names = new Set(
       tx
@@ -150,18 +157,23 @@ export class AgentSessionForkService {
         .all()
         .map((row) => row.name)
     )
+
     const suffixPattern = /^(.*?)(\s*)\((\d+)\)$/s
     const suffix = current.session.name.match(suffixPattern)
     const baseName = suffix ? suffix[1] : current.session.name
     const separator = suffix ? suffix[2] : ' '
     let number = 1n
+
     for (const name of names) {
       const existing = name.match(suffixPattern)
+
       if (existing?.[1] === baseName) {
         const next = BigInt(existing[3]) + 1n
+
         if (next > number) number = next
       }
     }
+
     agentSessionService.createTx(
       tx,
       input.targetSessionId,
@@ -177,8 +189,10 @@ export class AgentSessionForkService {
       input.createdAt
     )
     agentSessionMessageService.insertForkMessagesTx(tx, input.targetSessionId, input.messages)
+
     for (const binding of input.contexts) {
       const anchor = binding.anchorMessageId ?? ensureAgentSessionRootTx(tx, input.targetSessionId)
+
       const context = agentSessionContextService.reserveBranchTx(tx, {
         id: binding.id,
         sessionId: input.targetSessionId,
@@ -186,6 +200,7 @@ export class AgentSessionForkService {
         nativeThreadId: binding.nativeThreadId,
         anchorMessageId: anchor
       })
+
       agentSessionContextService.confirmBranchTx(tx, context.id, input.targetSessionId, anchor, binding.nativeThreadId)
     }
   }

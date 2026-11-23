@@ -175,6 +175,7 @@ type AiUsageRecordListServiceQuery = Omit<AiUsageRecordListQuery, 'sortBy' | 'so
   Partial<Pick<AiUsageRecordListQuery, 'sortBy' | 'sortOrder'>>
 
 type AiUsageRecordListSortBy = NonNullable<AiUsageRecordListServiceQuery['sortBy']>
+
 type AiUsageRecordListSortOrder = NonNullable<AiUsageRecordListServiceQuery['sortOrder']>
 
 interface AiUsageRecordMetricCursor {
@@ -197,6 +198,7 @@ function getTokensPerSecond(row: AiUsageRecordRow): number | null {
     row.timeFirstTokenMs !== null && row.timeFirstTokenMs < row.timeCompletionMs
       ? row.timeCompletionMs - row.timeFirstTokenMs
       : row.timeCompletionMs
+
   return row.outputTokens / (generationMs / 1000)
 }
 
@@ -224,9 +226,11 @@ function decodeMetricCursor(raw: string | undefined): AiUsageRecordMetricCursor 
 
   try {
     const parsed: unknown = JSON.parse(decodeURIComponent(raw))
+
     if (!Array.isArray(parsed) || parsed.length !== 3) throw new Error('invalid tuple')
 
     const [value, createdAt, id] = parsed
+
     if (
       (value !== null && (typeof value !== 'number' || !Number.isFinite(value))) ||
       typeof createdAt !== 'number' ||
@@ -243,6 +247,7 @@ function decodeMetricCursor(raw: string | undefined): AiUsageRecordMetricCursor 
       cursor: raw,
       context: 'ai-usage-record'
     })
+
     return null
   }
 }
@@ -262,6 +267,7 @@ function metricCursorWhere(
   }
 
   const afterMetric = sortOrder === 'asc' ? gt(sortExpression, cursor.value) : lt(sortExpression, cursor.value)
+
   return or(
     isNull(sortExpression),
     and(isNotNull(sortExpression), or(afterMetric, and(eq(sortExpression, cursor.value), afterTie)))
@@ -371,6 +377,7 @@ function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): AiUsag
           sourceIcon: row.sourceIcon
         }
       : { providerId: row.providerId, providerName: row.providerName }
+
   if (groupBy === 'apiKey') {
     identity.apiKeyId = row.apiKeyId
     identity.apiKeyLabel = row.apiKeyLabel
@@ -378,7 +385,9 @@ function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): AiUsag
     identity.apiKeyAttribution = row.apiKeyAttribution as AiUsageRecordAttribution
     identity.authMethod = row.authMethod as AiUsageRecordEntry['authMethod']
   }
+
   if (groupBy === 'model') identity.modelId = row.modelId
+
   return identity
 }
 
@@ -491,6 +500,7 @@ function subtractMetrics(
 ): AiUsageRecordStatsMetrics {
   const sum = (read: (bucket: AiUsageRecordStatsMetrics) => number) =>
     buckets.reduce((value, bucket) => value + read(bucket), 0)
+
   return {
     costCurrency: total.costCurrency,
     totalCost: Math.max(0, total.totalCost - sum((bucket) => bucket.totalCost)),
@@ -525,18 +535,24 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
   const sortOrder = query.sortOrder ?? 'desc'
 
   const filterConditions: SQL[] = []
+
   if (query.from !== undefined) filterConditions.push(gte(aiUsageRecordTable.createdAt, query.from))
+
   if (query.to !== undefined) filterConditions.push(lte(aiUsageRecordTable.createdAt, query.to))
+
   if (query.messageKind !== undefined && query.messageId !== undefined) {
     filterConditions.push(
       eq(aiUsageRecordTable.messageKind, query.messageKind),
       eq(aiUsageRecordTable.messageId, query.messageId)
     )
   }
+
   if (sortBy === 'cost' && query.costCurrency) {
     filterConditions.push(eq(aiUsageRecordTable.costCurrency, query.costCurrency))
   }
+
   const filterWhere = filterConditions.length > 0 ? and(...filterConditions) : undefined
+
   const tokensPerSecond = sql<number>`CASE
     WHEN ${aiUsageRecordTable.outputTokens} IS NULL
       OR ${aiUsageRecordTable.outputTokens} <= 0
@@ -552,7 +568,9 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
       END) / 1000.0
     )
   END`
+
   const totalTokens = totalTokensValue()
+
   const sortExpression =
     sortBy === 'totalTokens'
       ? totalTokens
@@ -563,23 +581,31 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
           : sortBy === 'tokensPerSecond'
             ? tokensPerSecond
             : aiUsageRecordTable.createdAt
+
   const orderExpression = sortOrder === 'asc' ? asc(sortExpression) : desc(sortExpression)
   const sortsByCreatedAt = sortBy === 'createdAt'
+
   const createdAtOrdering = keysetOrdering(aiUsageRecordTable.createdAt, aiUsageRecordTable.id, {
     major: sortOrder,
     tie: 'asc'
   })
+
   const orderTerms: SQL[] = sortsByCreatedAt
     ? createdAtOrdering.orderBy
     : [sql`${sortExpression} IS NULL`, orderExpression, desc(aiUsageRecordTable.createdAt), asc(aiUsageRecordTable.id)]
+
   const conditions = [...filterConditions]
+
   if (sortsByCreatedAt) {
     const cursor = decodeListCursor(query.cursor, asNumericKey, 'ai-usage-record')
+
     if (cursor) conditions.push(createdAtOrdering.where(cursor))
   } else {
     const cursor = decodeMetricCursor(query.cursor)
+
     if (cursor) conditions.push(metricCursorWhere(sortExpression, sortOrder, cursor))
   }
+
   const where = conditions.length > 0 ? and(...conditions) : undefined
 
   const rows = db
@@ -589,12 +615,14 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
     .orderBy(...orderTerms)
     .limit(limit + 1)
     .all()
+
   const count =
     db
       .select({ count: sql<number>`count(*)` })
       .from(aiUsageRecordTable)
       .where(filterWhere)
       .get()?.count ?? 0
+
   const pageRows = rows.slice(0, limit)
   const tail = pageRows.at(-1)
 
@@ -629,12 +657,14 @@ function getAiUsageRecordStats(query: AiUsageRecordStatsQuery): AiUsageRecordSta
     .orderBy(desc(aggregateOrder(query.metric, query.currency)))
     .limit(query.limit)
     .all()
+
   const [totalRow] = db.select(metricsSelect(query.currency)).from(aiUsageRecordTable).where(where).all()
 
   const buckets: AiUsageRecordStatsBucket[] = rows.map((row) => ({
     ...toStatsGroupIdentity(row, query.groupBy),
     ...toMetrics(row, query.currency)
   }))
+
   const totals = toMetrics(totalRow, query.currency)
 
   return {
@@ -719,6 +749,7 @@ function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiUsageRec
   const baseConditions = rangeConditions(query)
   const where = and(...baseConditions)
   const dayBucket = sql<string>`date(${aiUsageRecordTable.createdAt} / 1000, 'unixepoch', 'localtime')`
+
   const timelineMetrics = {
     totalCost: scopedCostSum(query.currency),
     totalTokens: totalTokensSum(),
@@ -744,6 +775,7 @@ function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiUsageRec
     .groupBy(dayBucket)
     .orderBy(asc(dayBucket))
     .all()
+
   const dailyCostRows = db
     .select({
       date: dayBucket,
@@ -759,13 +791,16 @@ function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiUsageRec
   const dailyCosts = dailyCostRows.flatMap((row) =>
     row.currency === null ? [] : [{ date: row.date, currency: row.currency, total: row.total }]
   )
+
   const costTotals = Array.from(
     dailyCosts.reduce((totals, item) => {
       totals.set(item.currency, (totals.get(item.currency) ?? 0) + item.total)
+
       return totals
     }, new Map<Currency, number>()),
     ([currency, total]) => ({ currency, total })
   ).sort((a, b) => a.currency.localeCompare(b.currency))
+
   const ungrouped = dailyTotals.map(
     (row): AiUsageRecordTimelineBucket => ({
       date: row.date,
@@ -785,7 +820,9 @@ function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiUsageRec
     from: query.from,
     to: query.to
   })
+
   const identityWhere = topGroupCondition(query.groupBy, top.buckets)
+
   if (!identityWhere) {
     return { buckets: [], costTotals, dailyCosts }
   }
@@ -809,7 +846,9 @@ function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiUsageRec
       ...toTimelineMetrics(row, query.currency)
     })
   )
+
   const selectedByDate = new Map<string, AiUsageRecordTimelineBucket[]>()
+
   for (const bucket of selected) {
     const dateBuckets = selectedByDate.get(bucket.date) ?? []
     dateBuckets.push(bucket)
@@ -818,9 +857,12 @@ function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiUsageRec
 
   const other = ungrouped.flatMap((total): AiUsageRecordTimelineBucket[] => {
     const dateBuckets = selectedByDate.get(total.date) ?? []
+
     const sum = (read: (bucket: AiUsageRecordTimelineBucket) => number) =>
       dateBuckets.reduce((value, bucket) => value + read(bucket), 0)
+
     const recordCount = Math.max(0, total.recordCount - sum((bucket) => bucket.recordCount))
+
     if (recordCount === 0) return []
 
     return [
@@ -845,6 +887,7 @@ function getAiUsageRecordTimeline(query: AiUsageRecordTimelineQuery): AiUsageRec
 }
 
 type MessageOwnedStats = Omit<MessageStats, keyof MessageUsageProjection>
+
 type PersistedMessageStats = MessageStats & {
   cost?: unknown
   costCurrency?: unknown
@@ -882,7 +925,9 @@ function mergeRuntimeSpan(existing: MessageRuntimeSpan, incoming: MessageRuntime
     ...incoming,
     startedAt: Math.min(existing.startedAt, incoming.startedAt)
   }
+
   if (completedAt !== undefined) merged.completedAt = completedAt
+
   return merged
 }
 
@@ -891,9 +936,11 @@ function mergeMessageRuntimeTiming(
   incoming: MessageRuntimeTiming | undefined
 ): MessageRuntimeTiming | undefined {
   if (!existing) return incoming
+
   if (!incoming) return existing
 
   const spans = new Map(existing.spans.map((span) => [span.id, span]))
+
   for (const span of incoming.spans) {
     const previous = spans.get(span.id)
     spans.set(span.id, previous ? mergeRuntimeSpan(previous, span) : span)
@@ -907,7 +954,9 @@ function mergeMessageRuntimeTiming(
   const timing: Omit<MessageRuntimeTiming, 'spans'> = {
     startedAt: Math.min(existing.startedAt, incoming.startedAt)
   }
+
   if (completedAt !== undefined) timing.completedAt = completedAt
+
   return {
     ...timing,
     spans: [...spans.values()].sort(
@@ -930,6 +979,7 @@ export function mergeMessageRuntimeStats(
     delete merged.timeCompletionMs
     delete merged.timeThinkingMs
   }
+
   if (incoming?.contextTokens !== undefined) {
     merged.contextTokens = incoming.contextTokens
   }
@@ -945,13 +995,17 @@ export function mergeMessageUsageProjection(
   const messageOwned: PersistedMessageStats = { ...persisted }
 
   for (const key of MESSAGE_USAGE_PROJECTION_KEYS) delete messageOwned[key]
+
   for (const key of LEGACY_RECORD_OWNED_KEYS) delete messageOwned[key]
 
   let normalizedMessageOwned: MessageOwnedStats = messageOwned
+
   if (messageOwned.runtimeTiming) {
     normalizedMessageOwned = { runtimeTiming: messageOwned.runtimeTiming }
+
     if (messageOwned.contextTokens !== undefined) normalizedMessageOwned.contextTokens = messageOwned.contextTokens
   }
+
   return { ...normalizedMessageOwned, ...projection }
 }
 
@@ -961,12 +1015,15 @@ function sumOptional(
 ): number | undefined {
   let sawValue = false
   let total = 0
+
   for (const row of rows) {
     const value = read(row)
+
     if (value === null) continue
     sawValue = true
     total += value
   }
+
   return sawValue ? total : undefined
 }
 
@@ -979,22 +1036,27 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
 
   const inputTokens = sumOptional(rows, (row) => row.inputTokens)
   const outputTokens = sumOptional(rows, (row) => row.outputTokens)
+
   const totalTokens = sumOptional(
     rows,
     (row) =>
       row.totalTokens ??
       (row.inputTokens !== null || row.outputTokens !== null ? (row.inputTokens ?? 0) + (row.outputTokens ?? 0) : null)
   )
+
   const noCacheTokens = sumOptional(rows, (row) => row.noCacheTokens)
   const cacheReadTokens = sumOptional(rows, (row) => row.cacheReadTokens)
   const cacheWriteTokens = sumOptional(rows, (row) => row.cacheWriteTokens)
   const reasoningTokens = sumOptional(rows, (row) => row.reasoningTokens)
+
   const textTokens = sumOptional(rows, (row) =>
     row.outputTokens !== null ? Math.max(0, row.outputTokens - (row.reasoningTokens ?? 0)) : null
   )
+
   let measuredOutputTokens = 0
   let generationDurationMs = 0
   let measuredInvocationCount = 0
+
   const costs = new Map<
     string,
     {
@@ -1011,6 +1073,7 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
         row.timeFirstTokenMs !== null && row.timeFirstTokenMs < row.timeCompletionMs
           ? row.timeCompletionMs - row.timeFirstTokenMs
           : row.timeCompletionMs
+
       if (duration > 0) {
         measuredOutputTokens += row.outputTokens
         generationDurationMs += duration
@@ -1019,35 +1082,49 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
     }
 
     if (row.cost === null || row.costCurrency === null || row.costSource === null) continue
+
     const bucket = costs.get(row.costCurrency) ?? {
       currency: row.costCurrency,
       amount: 0,
       providerReportedRequestCount: 0,
       computedRequestCount: 0
     }
+
     bucket.amount += row.cost
+
     if (row.costSource === 'provider') bucket.providerReportedRequestCount += row.requestCount
     else bucket.computedRequestCount += row.requestCount
     costs.set(row.costCurrency, bucket)
   }
 
   const projection: MessageUsageProjection = {}
+
   if (inputTokens !== undefined) projection.inputTokens = inputTokens
+
   if (outputTokens !== undefined) projection.outputTokens = outputTokens
+
   if (totalTokens !== undefined) projection.totalTokens = totalTokens
+
   if (noCacheTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined) {
     const details: NonNullable<MessageUsageProjection['inputTokenDetails']> = {}
+
     if (noCacheTokens !== undefined) details.noCacheTokens = noCacheTokens
+
     if (cacheReadTokens !== undefined) details.cacheReadTokens = cacheReadTokens
+
     if (cacheWriteTokens !== undefined) details.cacheWriteTokens = cacheWriteTokens
     projection.inputTokenDetails = details
   }
+
   if (textTokens !== undefined || reasoningTokens !== undefined) {
     const details: NonNullable<MessageUsageProjection['outputTokenDetails']> = {}
+
     if (textTokens !== undefined) details.textTokens = textTokens
+
     if (reasoningTokens !== undefined) details.reasoningTokens = reasoningTokens
     projection.outputTokenDetails = details
   }
+
   projection.requestCount = rows.reduce((sum, row) => sum + row.requestCount, 0)
   projection.estimatedRequestCount = rows.reduce(
     (sum, row) => sum + (row.recordKind === 'legacy-aggregate' ? row.requestCount : 0),
@@ -1055,7 +1132,9 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
   )
   projection.unpricedRequestCount = rows.reduce((sum, row) => sum + (row.cost === null ? row.requestCount : 0), 0)
   projection.costs = [...costs.values()].sort((left, right) => left.currency.localeCompare(right.currency))
+
   if (measuredInvocationCount > 0) projection.providerPerformance = { measuredOutputTokens, generationDurationMs }
+
   return projection
 }
 
@@ -1064,16 +1143,20 @@ function rebuildMessageUsageProjectionTx(
   ref: MessageRef
 ): { changed: boolean; target: MessageReadModelTarget } | null {
   const projection = getMessageUsageProjectionTx(db, ref)
+
   if (ref.kind === 'chat') {
     const row = db
       .select({ stats: messageTable.stats, topicId: messageTable.topicId })
       .from(messageTable)
       .where(eq(messageTable.id, ref.id))
       .get()
+
     if (!row) return null
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
     const changed = !isDeepStrictEqual(row.stats, nextStats)
+
     if (changed) db.update(messageTable).set({ stats: nextStats }).where(eq(messageTable.id, ref.id)).run()
+
     return { changed, target: { ...ref, containerId: row.topicId } }
   } else {
     const row = db
@@ -1081,12 +1164,15 @@ function rebuildMessageUsageProjectionTx(
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, ref.id))
       .get()
+
     if (!row) return null
     const nextStats = mergeMessageUsageProjection(row.stats, projection)
     const changed = !isDeepStrictEqual(row.stats, nextStats)
+
     if (changed) {
       db.update(agentSessionMessageTable).set({ stats: nextStats }).where(eq(agentSessionMessageTable.id, ref.id)).run()
     }
+
     return { changed, target: { ...ref, containerId: row.sessionId } }
   }
 }
@@ -1101,16 +1187,21 @@ const AI_USAGE_RECORD_READ_MODEL_CHANGES = [
 
 function optionalCount(value: number | undefined, field: string): number | null {
   if (value === undefined) return null
+
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${field} must be a nonnegative safe integer`)
   }
+
   return value
 }
 
 function requiredCount(value: number, field: string): number {
   const validated = optionalCount(value, field)
+
   if (validated === null) throw new Error(`${field} is required`)
+
   if (validated === 0) throw new Error(`${field} must be positive`)
+
   return validated
 }
 
@@ -1118,6 +1209,7 @@ function requiredTimestamp(value: number, field: string): number {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${field} must be a nonnegative safe integer`)
   }
+
   return value
 }
 
@@ -1125,14 +1217,17 @@ function requiredAmount(value: number, field: string): number {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${field} must be a nonnegative finite number`)
   }
+
   return value
 }
 
 function validatedBreakdown(breakdown: AiUsageCostBreakdown | undefined, field: string): AiUsageCostBreakdown | null {
   if (!breakdown) return null
+
   for (const [bucket, value] of Object.entries(breakdown)) {
     requiredAmount(value, `${field}.${bucket}`)
   }
+
   return { ...breakdown }
 }
 
@@ -1145,12 +1240,16 @@ function computedCost(
   if (input.modality === 'image') {
     if (!pricing.perImage || pricing.perImage.unit !== 'image' || input.imageCount === undefined) return undefined
     const amount = input.imageCount * pricing.perImage.price
+
     return { amount, breakdown: { image: amount } }
   }
+
   if (input.modality === 'rerank') return undefined
 
   const usage = input.usage
+
   if (!usage) return undefined
+
   const computed = computeLanguageCost(
     {
       inputTokens: usage.inputTokens,
@@ -1163,6 +1262,7 @@ function computedCost(
     },
     pricing
   )
+
   return computed ? { amount: computed.cost, breakdown: computed.breakdown } : undefined
 }
 
@@ -1172,13 +1272,16 @@ function completeProviderBreakdown(
 ): AiUsageCostBreakdown | null {
   if (!breakdown) return null
   const values = Object.values(breakdown)
+
   if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) return null
   const sum = values.reduce((total, value) => total + value, 0)
+
   return Math.abs(sum - amount) <= Math.max(1e-9, Math.abs(amount) * 1e-9) ? { ...breakdown } : null
 }
 
 function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow {
   const { context, usage, metrics } = input
+
   const providerCost =
     context.trustProviderReportedCost &&
     input.providerCost &&
@@ -1186,6 +1289,7 @@ function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow
     input.providerCost.amount >= 0
       ? input.providerCost
       : undefined
+
   const localCost = providerCost ? undefined : computedCost(input, context.pricingSnapshot)
   const cost = providerCost?.amount ?? localCost?.amount
   const credential = context.credentialReceipt
@@ -1289,18 +1393,22 @@ function legacyToRow(input: LegacyAggregateInput): InsertAiUsageRecordRow {
 function comparableRow(row: InsertAiUsageRecordRow): Omit<InsertAiUsageRecordRow, 'id'> {
   const comparable = { ...row }
   delete comparable.id
+
   return comparable
 }
 
 function insertRowsTx(db: DbOrTx, rows: readonly InsertAiUsageRecordRow[], warnOnConflict: boolean) {
   let inserted = 0
   const affectedMessages = new Map<string, MessageRef>()
+
   for (const row of rows) {
     if (row.messageKind && row.messageId) {
       const ref = { kind: row.messageKind, id: row.messageId }
       affectedMessages.set(`${ref.kind}:${ref.id}`, ref)
     }
+
     const result = db.insert(aiUsageRecordTable).values(row).onConflictDoNothing().run()
+
     if (result.changes === 0) {
       if (warnOnConflict) {
         const existing = db
@@ -1308,19 +1416,24 @@ function insertRowsTx(db: DbOrTx, rows: readonly InsertAiUsageRecordRow[], warnO
           .from(aiUsageRecordTable)
           .where(eq(aiUsageRecordTable.requestId, row.requestId))
           .get()
+
         if (existing && !isDeepStrictEqual(comparableRow(existing), comparableRow(row))) {
           logger.warn('duplicate requestId has a different immutable payload', { requestId: row.requestId })
         }
       }
+
       continue
     }
+
     inserted += 1
   }
 
   const affectedReadModels = [...affectedMessages.values()].flatMap((ref) => {
     const rebuilt = rebuildMessageUsageProjectionTx(db, ref)
+
     return rebuilt ? [rebuilt.target] : []
   })
+
   return { inserted, affectedMessages: affectedReadModels }
 }
 
@@ -1329,12 +1442,14 @@ function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataA
   const agentIds = refs.flatMap((ref) => (ref.kind === 'agent-session' ? [ref.id] : []))
   const chatIdsByTopic = new Map<string, string[]>()
   const agentIdsBySession = new Map<string, string[]>()
+
   for (const ref of refs) {
     const idsByContainer = ref.kind === 'chat' ? chatIdsByTopic : agentIdsBySession
     const ids = idsByContainer.get(ref.containerId) ?? []
     ids.push(ref.id)
     idsByContainer.set(ref.containerId, ids)
   }
+
   return [
     ...[...chatIdsByTopic].map(
       ([topicId, entityIds]) =>
@@ -1369,18 +1484,24 @@ export class AiUsageRecordService {
     try {
       const result = application.get('DbService').withWriteTx((tx) => {
         const row = tx.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, requestId)).get()
+
         if (!row) return
+
         if (row.messageId) {
           if (row.messageKind !== 'agent-session' || row.messageId !== messageId)
             throw new Error('Provider invocation already belongs to another message')
+
           return
         }
+
         tx.update(aiUsageRecordTable)
           .set({ messageKind: 'agent-session', messageId })
           .where(eq(aiUsageRecordTable.id, row.id))
           .run()
+
         return { target: rebuildMessageUsageProjectionTx(tx, { kind: 'agent-session', id: messageId })?.target }
       })
+
       if (!result) return
       notifyDataApiDataChange([
         ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
@@ -1397,10 +1518,12 @@ export class AiUsageRecordService {
 
   recordInvocations(inputs: readonly RecordAiInvocationInput[]): void {
     if (inputs.length === 0) return
+
     try {
       const result = application
         .get('DbService')
         .withWriteTx((tx) => insertRowsTx(tx, inputs.map(invocationToRow), true))
+
       if (result.inserted === 0) return
       notifyDataApiDataChange([
         ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
@@ -1419,6 +1542,7 @@ export class AiUsageRecordService {
   refreshMessageProjection(ref: MessageRef): void {
     try {
       const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
+
       if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
@@ -1445,6 +1569,7 @@ export class AiUsageRecordService {
       .from(aiUsageRecordTable)
       .where(and(...rangeConditions(range)))
       .all()
+
     return row.totalTokens
   }
 

@@ -27,9 +27,12 @@ function withRawCacheUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
   const toCount = (value: JSONValue | undefined) => (typeof value === 'number' ? value : undefined)
   // SAFETY: SDK raw usage is JSON; the plain-object check excludes arrays and scalars.
   const details = isPlainObject(raw.prompt_tokens_details) ? (raw.prompt_tokens_details as JSONObject) : undefined
+
   const rawRead =
     toCount(raw.cache_read_input_tokens) ?? toCount(details?.cached_tokens) ?? toCount(details?.cache_read_tokens)
+
   const rawWrite = toCount(raw.cache_creation_input_tokens) ?? toCount(details?.cache_creation_tokens)
+
   if (rawRead === undefined && rawWrite === undefined) return usage
 
   const inputTokens = isFlatV3Usage(usage) ? normalizeFlatV3Usage(usage).inputTokens : usage.inputTokens
@@ -44,13 +47,16 @@ function withRawCacheUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
     // and keep the reported noCache.
     return { ...usage, inputTokens: { ...inputTokens, cacheRead, cacheWrite } }
   }
+
   if ((cacheRead ?? 0) + (cacheWrite ?? 0) > total) {
     // The raw buckets contradict the prompt total; trusting them would overstate usage.
     // Drop the raw augmentation and keep the provider-reported split.
     return usage
   }
+
   // Cache buckets displace uncached input so local estimates do not price them twice.
   const noCache = Math.max(0, total - (cacheRead ?? 0) - (cacheWrite ?? 0))
+
   return { ...usage, inputTokens: { ...inputTokens, noCache, cacheRead, cacheWrite } }
 }
 
@@ -59,22 +65,27 @@ const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
   wrapGenerate: async ({ doGenerate }) => {
     const result = await doGenerate()
     const usage = isFlatV3Usage(result.usage) ? normalizeFlatV3Usage(result.usage) : result.usage
+
     return { ...result, usage: withRawCacheUsage(usage) }
   },
   wrapStream: async ({ doStream }) => {
     const { stream, ...rest } = await doStream()
+
     const normalized = stream.pipeThrough(
       new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
         transform(chunk, controller) {
           if (chunk.type === 'finish') {
             const usage = isFlatV3Usage(chunk.usage) ? normalizeFlatV3Usage(chunk.usage) : chunk.usage
             controller.enqueue({ ...chunk, usage: withRawCacheUsage(usage) })
+
             return
           }
+
           controller.enqueue(chunk)
         }
       })
     )
+
     return { stream: normalized, ...rest }
   }
 }
@@ -93,6 +104,7 @@ function gatewayAnthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
       const gateway = isPlainObject(providerOptions?.gateway) ? providerOptions.gateway : {}
       // Gateway auto caching replaces the user's per-request caching selection.
       const cacheOptions: JSONObject = { ...gateway, caching: 'auto' }
+
       // The language-model route has no Anthropic Messages lifetime hint.
       if (ttl === '1h' && !gateway.cache_ttl) cacheOptions.cache_ttl = ttl
 

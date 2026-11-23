@@ -18,6 +18,7 @@ interface Schema<T> {
 export class RemoteRpcError extends JSONRPCErrorException {
   constructor(reason: RemoteFailure['reason'], message: string, details?: RemoteFailure['details']) {
     const failure: RemoteFailure = { reason, message }
+
     if (details) failure.details = details
     super(message, 1000, failure)
     // json-rpc-2.0 resets the prototype to its base exception, losing subclass identity.
@@ -46,7 +47,9 @@ export class RemoteRpcServer<Context> {
   ): void {
     this.server.addMethod(name, async (params: JsonRpcRequest['params'], context) => {
       const input = schema.params.safeParse(params ?? {})
+
       if (!input.success) throw new JSONRPCErrorException('Invalid params', -32602)
+
       return schema.result.parse(await handler(input.data, context))
     })
   }
@@ -54,11 +57,14 @@ export class RemoteRpcServer<Context> {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Incoming control records are untrusted RPC payloads; each batch entry is validated independently before dispatch.
   async receive(input: unknown, context: Context): Promise<JSONRPCResponse | JSONRPCResponse[] | null> {
     if (!Array.isArray(input)) return this.receiveOne(input, context)
+
     if (!input.length || input.length > remoteLimits.batchEntries)
       return createJSONRPCErrorResponse(null, -32600, 'Invalid batch')
+
     const responses = (await Promise.all(input.map((value) => this.receiveOne(value, context)))).filter(
       (value) => value !== null
     )
+
     return responses.length ? responses : null
   }
 
@@ -72,13 +78,18 @@ export class RemoteRpcServer<Context> {
     const refuseOne = (value: unknown): JSONRPCResponse | null => {
       if (jsonRpcNotificationSchema.safeParse(value).success) return null
       const parsed = jsonRpcRequestSchema.safeParse(value)
+
       if (!parsed.success) return createJSONRPCErrorResponse(null, -32600, 'Invalid request')
+
       return createJSONRPCErrorResponse(parsed.data.id, 1000, failure.message, failure)
     }
+
     if (!Array.isArray(input)) return refuseOne(input)
+
     if (!input.length || input.length > remoteLimits.batchEntries)
       return createJSONRPCErrorResponse(null, -32600, 'Invalid batch')
     const responses = input.map(refuseOne).filter((value) => value !== null)
+
     return responses.length ? responses : null
   }
 
@@ -86,16 +97,20 @@ export class RemoteRpcServer<Context> {
   private async receiveOne(input: unknown, context: Context): Promise<JSONRPCResponse | null> {
     if (jsonRpcNotificationSchema.safeParse(input).success) return null
     const parsed = jsonRpcRequestSchema.safeParse(input)
+
     if (!parsed.success) return createJSONRPCErrorResponse(null, -32600, 'Invalid request')
     const request = parsed.data
     const key = `${typeof request.id}:${String(request.id)}`
+
     if (this.active.has(key)) return createJSONRPCErrorResponse(request.id, -32600, 'Duplicate active request ID')
+
     if (this.active.size >= remoteLimits.inFlightRequests)
       return createJSONRPCErrorResponse(request.id, 1000, 'Request limit exceeded', {
         reason: 'RESOURCE_EXHAUSTED',
         message: 'Request limit exceeded'
       })
     this.active.add(key)
+
     try {
       return await this.server.receive(request, context)
     } finally {

@@ -6,6 +6,7 @@ export function resolveUniqueModelId(
   modelSnapshot: Pick<ModelSnapshot, 'id' | 'provider'> | null | undefined
 ): UniqueModelId | undefined {
   if (isUniqueModelId(modelId)) return modelId
+
   if (!modelSnapshot) return undefined
 
   return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)

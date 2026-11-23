@@ -6,7 +6,9 @@ import { DangbeiLight } from './light'
 
 const Dangbei = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DangbeiLight {...props} className={className} />
+
   if (variant === 'dark') return <DangbeiDark {...props} className={className} />
+
   return (
     <>
       <DangbeiLight className={cn('dark:hidden', className)} {...props} />

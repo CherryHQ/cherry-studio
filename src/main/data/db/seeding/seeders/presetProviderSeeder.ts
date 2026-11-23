@@ -62,6 +62,7 @@ export class PresetProviderSeeder implements ISeeder {
     if (!this._loader) {
       this._loader = new RegistryLoader(resolveRegistryPaths())
     }
+
     return this._loader
   }
 
@@ -71,6 +72,7 @@ export class PresetProviderSeeder implements ISeeder {
 
   run(db: DbType): void {
     let rawProviders: ProtoProviderConfig[]
+
     try {
       rawProviders = this.getLoader().loadProviders()
     } catch (error) {
@@ -95,6 +97,7 @@ export class PresetProviderSeeder implements ISeeder {
           .orderBy(desc(userProviderTable.orderKey))
           .limit(1)
           .all()
+
         const repairedKeys = generateOrderKeySequenceBetween(
           lastValidProvider?.orderKey ?? null,
           null,

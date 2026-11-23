@@ -33,6 +33,7 @@ export const exa: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG['exa'],
   async execute(context) {
     const { call } = context
+
     if (call.capability === 'searchKeywords') {
       const payload = await requestJson(
         context,
@@ -44,6 +45,7 @@ export const exa: WebSearchProviderModule = {
         },
         ExaSearchResponseSchema
       )
+
       return payload.results.slice(0, call.config.maxResults).map((item) => ({
         title: item.title?.trim() || '',
         content: item.text?.trim() || '',
@@ -51,6 +53,7 @@ export const exa: WebSearchProviderModule = {
         sourceInput: call.input
       }))
     }
+
     const payload = await requestJson(
       context,
       {
@@ -61,9 +64,12 @@ export const exa: WebSearchProviderModule = {
       },
       ExaContentsResponseSchema
     )
+
     const page = payload.results[0]
     const content = page?.text?.trim()
+
     if (!content) throw invalidResponse(context, 'empty_content', 'Exa Contents returned empty content')
+
     return [
       {
         title: page.title?.trim() || call.input,

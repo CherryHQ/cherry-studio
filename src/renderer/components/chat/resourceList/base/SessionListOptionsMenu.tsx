@@ -6,6 +6,7 @@ import type { AgentSessionDisplayMode } from '@shared/data/preference/preference
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
 
 const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir', 'agent']
+
 export const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   agent: 'agent.session.display.agent',
   time: 'agent.session.display.time',

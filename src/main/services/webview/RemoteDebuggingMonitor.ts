@@ -50,12 +50,14 @@ export class RemoteDebuggingMonitor {
   private updateTarget(targetId: string, attached: boolean) {
     const previous = this.isAttached(targetId)
     this.targets.set(targetId, attached)
+
     if (previous !== attached) this.onChange(targetId, attached)
   }
 
   private clearTargets() {
     const attachedTargets = [...this.targets].filter(([, attached]) => attached)
     this.targets.clear()
+
     for (const [targetId] of attachedTargets) this.onChange(targetId, false)
   }
 
@@ -71,8 +73,10 @@ export class RemoteDebuggingMonitor {
   private async connect(generation: number) {
     const request = new AbortController()
     this.request = request
+
     try {
       const port = await this.getPort()
+
       // Fetch rejects some valid CDP ports (for example 6000) before making a request.
       const response = await new Promise<IncomingMessage>((resolve, reject) => {
         get(`http://127.0.0.1:${port}/json/version`, {
@@ -82,9 +86,12 @@ export class RemoteDebuggingMonitor {
           .on('response', resolve)
           .on('error', reject)
       })
+
       const version = (await json(response)) as { webSocketDebuggerUrl: string }
+
       if (this.stopped || generation !== this.generation) return
       const address = new URL(version.webSocketDebuggerUrl)
+
       if (
         address.protocol !== 'ws:' ||
         address.hostname !== '127.0.0.1' ||
@@ -93,6 +100,7 @@ export class RemoteDebuggingMonitor {
       ) {
         throw new Error('Unexpected remote debugging endpoint')
       }
+
       const socket = new WebSocket(address, { handshakeTimeout: 1000 })
       this.socket = socket
       socket.on('open', () => {
@@ -101,6 +109,7 @@ export class RemoteDebuggingMonitor {
       })
       socket.on('message', (data) => {
         if (this.socket !== socket) return
+
         try {
           const message = JSON.parse(data.toString()) as {
             id?: number
@@ -108,12 +117,16 @@ export class RemoteDebuggingMonitor {
             method?: string
             params?: { targetInfo?: Protocol.Target.TargetInfo; targetId?: string }
           }
+
           if (message.id === 1 && message.error) {
             socket.close()
+
             return
           }
+
           if (message.method === 'Target.targetCreated' || message.method === 'Target.targetInfoChanged') {
             const info = message.params?.targetInfo
+
             if (info && typeof info.targetId === 'string' && typeof info.attached === 'boolean') {
               this.updateTarget(info.targetId, info.attached)
             }

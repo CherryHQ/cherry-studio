@@ -16,6 +16,7 @@ import {
 
 let seq = 0
 const streams = new Map<string, (chunk: string) => void>()
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Main pushes event-specific IPC payloads; this registry forwards them unchanged to guest handlers without claiming a shared domain shape.
 const listeners = new Map<string, Set<(payload: unknown) => void | Promise<void>>>()
 
@@ -52,9 +53,11 @@ const assertPayloadSize = (value: unknown, cap: number, what: string): string =>
   // or any plain object has `length === undefined`, so `undefined > cap` is `false` and a
   // raw length check waves through the very allocation this exists to keep out of main.
   const text = String(value ?? '')
+
   // `guestRefusal`, not a bare Error: an author writing `catch (e) { e.name }` must see the
   // same seven names whether the refusal came from here or from main.
   if (text.length > cap) throw guestRefusal(`Mini app ${what} exceeds the ${cap} character limit`)
+
   return text
 }
 
@@ -62,8 +65,10 @@ const assertPayloadSize = (value: unknown, cap: number, what: string): string =>
 // from here is the one param that reaches the main process unchecked.
 const gateKey = (key: string) => assertPayloadSize(key, MINI_APP_GUEST_LIMITS.storageKeyChars, 'storage key')
 const gateName = (name: string) => assertPayloadSize(name, MINI_APP_GUEST_LIMITS.fileNameChars, 'file name')
+
 const gateCallId = (id?: string) =>
   id === undefined ? undefined : assertPayloadSize(id, MINI_APP_GUEST_LIMITS.callIdChars, 'callId')
+
 /*
  * Every gate RETURNS the object that crosses the bridge, rebuilt from the fields it
  * measured. Forwarding the guest's own object would structured-clone whatever else it
@@ -72,13 +77,16 @@ const gateCallId = (id?: string) =>
  */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw guest fields can be arbitrary values; convert once while preserving undefined for main's required-field validation.
 const str = (value: unknown) => (value === undefined ? undefined : String(value))
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest chat arguments are untrusted; rebuild only bounded fields here and leave role/model/content validity to the main capability parser.
 const gateChat = (params: unknown) => {
   const raw = (params ?? {}) as { messages?: unknown; reasoning?: unknown; model?: unknown }
   const messages = Array.isArray(raw.messages) ? raw.messages : undefined
+
   if (messages && messages.length > MINI_APP_GUEST_LIMITS.chatMessages) {
     throw guestRefusal(`Mini app chat exceeds the ${MINI_APP_GUEST_LIMITS.chatMessages} message limit`)
   }
+
   return {
     messages: messages?.map((m) => {
       const { role, content } = (m ?? {}) as { role?: unknown; content?: unknown }
@@ -89,6 +97,7 @@ const gateChat = (params: unknown) => {
       // travels as `undefined`, which main's required `z.string()` refuses as before.
       const text = str(content)
       assertPayloadSize(text ?? '', MINI_APP_GUEST_LIMITS.chatContentChars, 'chat content')
+
       return { role: str(role)?.slice(0, 16), content: text }
     }),
     reasoning: str(raw.reasoning)?.slice(0, 16),
@@ -110,18 +119,24 @@ const gateFetch = (raw: { url?: unknown; method?: unknown; headers?: unknown; bo
   assertPayloadSize(url ?? '', MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Guest JavaScript can supply native or stateful header values; coerce each once and bound the forwarded string before IPC.
   const headers = (params.headers ?? {}) as Record<string, unknown>
+
   if (Object.keys(headers).length > MINI_APP_GUEST_LIMITS.fetchHeaderCount) {
     throw guestRefusal(`Mini app request exceeds the ${MINI_APP_GUEST_LIMITS.fetchHeaderCount} header limit`)
   }
+
   const bounded: Record<string, string> = {}
+
   for (const [name, value] of Object.entries(headers)) {
     assertPayloadSize(name, MINI_APP_GUEST_LIMITS.fetchHeaderNameChars, 'header name')
     const text = String(value ?? '')
     assertPayloadSize(text, MINI_APP_GUEST_LIMITS.fetchHeaderValueChars, 'header value')
     bounded[name] = text
   }
+
   const body = str(params.body)
+
   if (body !== undefined) assertPayloadSize(body, MINI_APP_GUEST_LIMITS.fetchBodyChars, 'request body')
+
   return { url, method: str(params.method)?.slice(0, 16), headers: bounded, body }
 }
 
@@ -159,6 +174,7 @@ const call = async (method: string, params?: unknown) =>
 const callStreaming = async (method: string, params: unknown, onChunk: (chunk: string) => void, callId?: string) => {
   const requestId = `r${++seq}`
   streams.set(requestId, onChunk)
+
   try {
     return unwrap(await ipcRenderer.invoke(MINI_APP_BRIDGE_CHANNEL, { method, params, requestId, callId }))
   } finally {
@@ -188,6 +204,7 @@ contextBridge.exposeInMainWorld('cherry', {
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- contextBridge exposes this directly to guest JavaScript; gateChat must bound and rebuild arbitrary arguments before main validates them.
     chat: async (params: unknown, opts?: { onChunk?: (c: string) => void; callId?: string } | null) => {
       const { onChunk, callId } = opts ?? {}
+
       return callStreaming('ai.chat', gateChat(params), onChunk ?? (() => {}), gateCallId(callId))
     },
     cancel: async (callId: string) => call('ai.cancel', { callId: gateCallId(callId) }),
@@ -196,6 +213,7 @@ contextBridge.exposeInMainWorld('cherry', {
       // `undefined` ALONE, so `cherry.ai.getCapabilities(null)` reaches the property read and
       // rejects with a native TypeError — outside the seven names `cherry.d.ts` promises.
       const { model } = params ?? {}
+
       return call('ai.getCapabilities', model === undefined ? undefined : { model: str(model)?.slice(0, 16) })
     }
   },
@@ -203,6 +221,7 @@ contextBridge.exposeInMainWorld('cherry', {
     get: async (key: string) => call('storage.get', { key: gateKey(key) }),
     set: async (key: string, value: string) => {
       const gated = assertPayloadSize(value, MINI_APP_GUEST_LIMITS.storageValueChars, 'storage value')
+
       return call('storage.set', { key: gateKey(key), value: gated })
     },
     delete: async (key: string) => call('storage.delete', { key: gateKey(key) }),
@@ -212,6 +231,7 @@ contextBridge.exposeInMainWorld('cherry', {
   file: {
     save: async (name: string, data: string) => {
       const gated = assertPayloadSize(data, MINI_APP_GUEST_LIMITS.fileDataChars, 'file payload')
+
       return call('file.save', { name: gateName(name), data: gated })
     },
     load: async (name: string) => call('file.load', { name: gateName(name) }),
@@ -221,7 +241,9 @@ contextBridge.exposeInMainWorld('cherry', {
     export: async (name: string, opts?: { suggestedName?: string } | null) => {
       const { suggestedName } = opts ?? {}
       const params = { name: gateName(name) }
+
       if (suggestedName !== undefined) Object.assign(params, { suggestedName: gateName(suggestedName) })
+
       return call('file.export', params)
     }
   },
@@ -240,6 +262,7 @@ contextBridge.exposeInMainWorld('cherry', {
       // Coerced once and measured on the forwarded string — see `gateChat`.
       const text = str((params ?? {}).text)
       assertPayloadSize(text ?? '', MINI_APP_GUEST_LIMITS.clipboardTextChars, 'clipboard text')
+
       return call('clipboard.write', { text })
     }
   },
@@ -248,6 +271,7 @@ contextBridge.exposeInMainWorld('cherry', {
     // again as the authority. One public behaviour per field, not one per layer.
     show: async (params?: { title?: unknown; body?: unknown } | null) => {
       const { title, body } = params ?? {}
+
       return call('notification.show', {
         title: clip(String(title ?? ''), MINI_APP_GUEST_LIMITS.notificationTitleChars),
         body: clip(String(body ?? ''), MINI_APP_GUEST_LIMITS.notificationBodyChars)
@@ -261,6 +285,7 @@ contextBridge.exposeInMainWorld('cherry', {
     const set = listeners.get(event) ?? new Set()
     set.add(handler)
     listeners.set(event, set)
+
     return () => set.delete(handler)
   }
 })

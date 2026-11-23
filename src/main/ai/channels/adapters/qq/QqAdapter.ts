@@ -40,9 +40,12 @@ const QQ_PASSIVE_REPLY_TTL: ReadonlyMap<string, number> = new Map([
   ['channel', 5 * 60 * 1000],
   ['dm', 5 * 60 * 1000]
 ])
+
 const QQ_PASSIVE_REPLY_TTL_DEFAULT = 5 * 60 * 1000
+
 /** QQ accepts at most 5 passive replies per inbound msg_id; the 6th is rejected. */
 const QQ_MAX_PASSIVE_REPLIES = 5
+
 /** Cap on tracked inbound ids; evict oldest beyond this so the map can't grow unbounded. */
 const QQ_MAX_PASSIVE_ENTRIES = 1000
 
@@ -74,6 +77,7 @@ const qqAttachmentSchema = z.object({
   size: z.number().optional(),
   url: z.string()
 })
+
 type QqAttachment = z.infer<typeof qqAttachmentSchema>
 
 /** Passive-reply state for one inbound message, keyed by `chatId:msgId`. */
@@ -89,22 +93,28 @@ const qqMessageSchema = z.object({
   content: z.string(),
   attachments: z.array(qqAttachmentSchema).optional()
 })
+
 const qqUserSchema = z.object({ username: z.string().optional() })
+
 const qqC2cMessageSchema = qqMessageSchema.extend({
   author: qqUserSchema.extend({ user_openid: z.string() })
 })
+
 const qqGroupMessageSchema = qqMessageSchema.extend({
   group_openid: z.string(),
   author: z.union([qqUserSchema.extend({ member_openid: z.string() }), qqUserSchema.extend({ id: z.string() })])
 })
+
 const qqGuildMessageSchema = qqMessageSchema.extend({
   channel_id: z.string(),
   author: qqUserSchema.extend({ id: z.string() })
 })
+
 const qqDirectMessageSchema = qqMessageSchema.extend({
   guild_id: z.string(),
   author: qqUserSchema.extend({ id: z.string() })
 })
+
 const qqReadySchema = z.object({ session_id: z.string(), user: z.object({ username: z.string() }) })
 
 type QqMessage = z.infer<typeof qqMessageSchema>
@@ -195,6 +205,7 @@ class QqAdapter extends ChannelAdapter {
     }
 
     const data = (await response.json()) as { access_token?: string; expires_in?: number }
+
     if (!data.access_token || !data.expires_in) {
       const errorText = JSON.stringify(data)
       throw new Error(`Invalid token response from QQ API: ${errorText}`)
@@ -214,6 +225,7 @@ class QqAdapter extends ChannelAdapter {
     signal?: AbortSignal
   ): Promise<Response> {
     const token = await this.getAccessToken(signal)
+
     const request: NonNullable<Parameters<typeof net.fetch>[1]> = {
       method: options?.method ?? 'GET',
       headers: {
@@ -222,6 +234,7 @@ class QqAdapter extends ChannelAdapter {
         'X-Union-Appid': this.appId
       }
     }
+
     if (options?.body) request.body = JSON.stringify(options.body)
     request.signal = signal
     const response = await net.fetch(endpoint, request)
@@ -237,6 +250,7 @@ class QqAdapter extends ChannelAdapter {
   private async getGatewayUrl(signal?: AbortSignal): Promise<string> {
     const response = await this.apiRequest(`${QQ_API_BASE}/gateway`, undefined, signal)
     const data = (await response.json()) as { url: string }
+
     return data.url
   }
 
@@ -248,6 +262,7 @@ class QqAdapter extends ChannelAdapter {
       this.cleanup()
 
       const gatewayUrl = await this.getGatewayUrl(signal)
+
       if (signal?.aborted || this.shouldStop) return
       this.log.info('Connecting to QQ gateway', { url: gatewayUrl })
 
@@ -294,10 +309,12 @@ class QqAdapter extends ChannelAdapter {
 
   private async handleWsMessage(data: Buffer): Promise<void> {
     let payload: { op: number; d?: unknown; s?: number; t?: string }
+
     try {
       payload = JSON.parse(data.toString())
     } catch {
       this.log.warn('Invalid JSON from QQ WebSocket')
+
       return
     }
 
@@ -313,6 +330,7 @@ class QqAdapter extends ChannelAdapter {
         if (payload.t) {
           await this.handleDispatch(payload.t, payload.d)
         }
+
         break
       case OP_HEARTBEAT_ACK:
         // Heartbeat acknowledged
@@ -401,6 +419,7 @@ class QqAdapter extends ChannelAdapter {
         })
         break
       }
+
       case 'RESUMED':
         this.connectedAt = Date.now()
         this.markConnected()
@@ -427,13 +446,16 @@ class QqAdapter extends ChannelAdapter {
 
   private async handleC2CMessage(msg: z.infer<typeof qqC2cMessageSchema>): Promise<void> {
     const chatId = `c2c:${msg.author.user_openid}`
+
     if (!this.isAllowed(chatId, msg.author.user_openid)) return
     await this.processMessage(msg, chatId, msg.author.user_openid, msg.author.username ?? '')
   }
 
   private async handleGroupMessage(msg: z.infer<typeof qqGroupMessageSchema>): Promise<void> {
     const chatId = `group:${msg.group_openid}`
+
     if (!this.isAllowed(chatId, msg.group_openid)) return
+
     // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message.
     // Must run before any await — processMessage downloads attachments, so an interleaved twin
     // event would otherwise observe "not seen" while the first copy is still in flight.
@@ -445,6 +467,7 @@ class QqAdapter extends ChannelAdapter {
   /** Group full-message handler (GROUP_MESSAGE_CREATE — all group messages when full mode is on). */
   private async handleGroupFullMessage(msg: z.infer<typeof qqGroupMessageSchema>): Promise<void> {
     const chatId = `group:${msg.group_openid}`
+
     if (!this.isAllowed(chatId, msg.group_openid)) return
 
     // mention_only mode: ignore non-@ messages (they already arrive via GROUP_AT_MESSAGE_CREATE)
@@ -460,6 +483,7 @@ class QqAdapter extends ChannelAdapter {
   private markIfNew(msgId: string): boolean {
     if (this.wasSeen(msgId)) return false
     this.markSeen(msgId)
+
     return true
   }
 
@@ -485,8 +509,10 @@ class QqAdapter extends ChannelAdapter {
    */
   private markSeen(msgId: string): void {
     this.seenMsgIds.set(msgId, Date.now())
+
     while (this.seenMsgIds.size > this.DEDUP_MAX_ENTRIES) {
       const oldest = this.seenMsgIds.keys().next().value
+
       if (oldest === undefined) break
       this.seenMsgIds.delete(oldest)
     }
@@ -495,22 +521,28 @@ class QqAdapter extends ChannelAdapter {
   /** Check whether a msg id was already processed (dedup). Cleans stale entries inline. */
   private wasSeen(msgId: string): boolean {
     const ts = this.seenMsgIds.get(msgId)
+
     if (ts === undefined) return false
+
     if (Date.now() - ts > this.DEDUP_TTL_MS) {
       this.seenMsgIds.delete(msgId)
+
       return false
     }
+
     return true
   }
 
   private async handleGuildMessage(msg: z.infer<typeof qqGuildMessageSchema>): Promise<void> {
     const chatId = `channel:${msg.channel_id}`
+
     if (!this.isAllowed(chatId, msg.channel_id)) return
     await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
   }
 
   private async handleDirectMessage(msg: z.infer<typeof qqDirectMessageSchema>): Promise<void> {
     const chatId = `dm:${msg.guild_id}`
+
     if (!this.isAllowed(chatId, msg.guild_id)) return
     await this.processMessage(msg, chatId, msg.author.id, msg.author.username ?? '')
   }
@@ -527,13 +559,17 @@ class QqAdapter extends ChannelAdapter {
     if (isSlashCommand(text)) {
       if (text.startsWith('/whoami')) {
         await this.sendWhoami(chatId, msg.id)
+
         return
       }
+
       this.emitCommand(chatId, userId, userName, text, msg.id)
+
       return
     }
 
     const { images, files } = await this.downloadAttachments(msg.attachments)
+
     if (!text && !images && !files) return
 
     this.emit('message', {
@@ -550,8 +586,10 @@ class QqAdapter extends ChannelAdapter {
   /** Record an inbound message id for passive replies, evicting the oldest entries past the cap. */
   private recordInbound(chatId: string, msgId: string): void {
     this.passiveReplies.set(`${chatId}:${msgId}`, { chatId, receivedAt: Date.now(), seq: 0 })
+
     while (this.passiveReplies.size > QQ_MAX_PASSIVE_ENTRIES) {
       const oldest = this.passiveReplies.keys().next().value
+
       if (oldest === undefined) break
       this.passiveReplies.delete(oldest)
     }
@@ -573,6 +611,7 @@ class QqAdapter extends ChannelAdapter {
     await Promise.all(
       attachments.flatMap((att) => {
         if (att.size && att.size > MAX_FILE_SIZE_BYTES) return []
+
         return [
           (async () => {
             try {
@@ -580,19 +619,24 @@ class QqAdapter extends ChannelAdapter {
               // SSRF guard: reject local/private/credentialed/non-http(s) targets from the
               // inbound payload before we fetch with the bot token (and before the retry).
               const safeUrl = sanitizeRemoteUrl(url)
+
               const response = await net.fetch(safeUrl, {
                 headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId }
               })
+
               if (!response.ok) {
                 // Retry without auth header (some CDN URLs are public)
                 const retry = await net.fetch(safeUrl)
+
                 if (!retry.ok) return
                 const buffer = Buffer.from(await retry.arrayBuffer())
+
                 // `att.size` is attacker-supplied metadata; cap on the real downloaded bytes.
                 if (buffer.length > MAX_FILE_SIZE_BYTES) return
                 await this.pushAttachment(att, buffer, images, files)
               } else {
                 const buffer = Buffer.from(await response.arrayBuffer())
+
                 if (buffer.length > MAX_FILE_SIZE_BYTES) return
                 await this.pushAttachment(att, buffer, images, files)
               }
@@ -605,8 +649,11 @@ class QqAdapter extends ChannelAdapter {
     )
 
     const downloaded: Pick<ChannelMessageEvent, 'images' | 'files'> = {}
+
     if (images.length > 0) downloaded.images = images
+
     if (files.length > 0) downloaded.files = files
+
     return downloaded
   }
 
@@ -618,6 +665,7 @@ class QqAdapter extends ChannelAdapter {
   ): Promise<void> {
     // `att.content_type` is attacker-supplied metadata; route on the sniffed bytes instead.
     const sniffedType = (await fileTypeFromBuffer(buffer))?.mime
+
     if (sniffedType?.startsWith('image/')) {
       images.push({ data: buffer.toString('base64'), media_type: sniffedType })
     } else {
@@ -639,6 +687,7 @@ class QqAdapter extends ChannelAdapter {
 
   private isAllowed(chatId: string, rawId?: string): boolean {
     if (this.allowedChatIds.length === 0) return true
+
     return this.allowedChatIds.includes(chatId) || (rawId !== undefined && this.allowedChatIds.includes(rawId))
   }
 
@@ -649,6 +698,7 @@ class QqAdapter extends ChannelAdapter {
 
   private async sendWhoami(chatId: string, messageId: string): Promise<void> {
     const [type] = chatId.split(':')
+
     const typeLabel =
       type === 'c2c' ? 'Private' : type === 'group' ? 'Group' : type === 'channel' ? 'Guild Channel' : 'Direct Message'
 
@@ -695,6 +745,7 @@ class QqAdapter extends ChannelAdapter {
     const [type, id] = chatId.split(':')
 
     let endpoint: string
+
     const body: QqMessageBody = {
       markdown: { content: text },
       msg_type: 2
@@ -718,8 +769,10 @@ class QqAdapter extends ChannelAdapter {
     }
 
     const seq = replyToMsgId ? this.nextPassiveSeq(chatId, type, replyToMsgId) : undefined
+
     if (seq !== undefined) {
       body.msg_id = replyToMsgId
+
       // v2 group/C2C dedupe repeat replies sharing one msg_id; a unique seq keeps every chunk.
       if (type === 'group' || type === 'c2c') {
         body.msg_seq = seq
@@ -737,22 +790,29 @@ class QqAdapter extends ChannelAdapter {
   private nextPassiveSeq(chatId: string, type: string, msgId: string): number | undefined {
     const key = `${chatId}:${msgId}`
     const entry = this.passiveReplies.get(key)
+
     if (!entry) return undefined
     const ttl = QQ_PASSIVE_REPLY_TTL.get(type) ?? QQ_PASSIVE_REPLY_TTL_DEFAULT
+
     if (Date.now() - entry.receivedAt > ttl) {
       this.passiveReplies.delete(key)
       // The inbound msg_id has expired, so this reply degrades to an active push, which QQ
       // delivers to a group only if the owner enabled "机器人主动在群聊内发言". Surface it so a
       // silently-undelivered group reply is traceable.
       this.log.warn('QQ passive-reply window lapsed; falling back to active push', { chatId, ttl })
+
       return undefined
     }
+
     if (entry.seq >= QQ_MAX_PASSIVE_REPLIES) {
       this.passiveReplies.delete(key)
       this.log.warn('QQ passive-reply limit (5 per msg_id) reached; falling back to active push', { chatId })
+
       return undefined
     }
+
     entry.seq += 1
+
     return entry.seq
   }
 
@@ -768,16 +828,20 @@ class QqAdapter extends ChannelAdapter {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
+
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)
       this.heartbeatInterval = null
     }
+
     if (this.ws) {
       if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
         this.ws.close()
       }
+
       this.ws = null
     }
+
     this.tokenCache = null
   }
 
@@ -786,8 +850,10 @@ class QqAdapter extends ChannelAdapter {
 
     // Detect rapid disconnects: if the connection lasted less than the threshold, it's unstable
     const connectionDuration = this.connectedAt > 0 ? Date.now() - this.connectedAt : 0
+
     if (this.connectedAt > 0 && connectionDuration < this.stableConnectionThreshold) {
       this.rapidDisconnects++
+
       // After repeated rapid disconnects, the session is likely stale — force fresh IDENTIFY
       if (this.rapidDisconnects >= this.maxRapidDisconnects && this.sessionId) {
         this.log.warn('Too many rapid disconnects after resume, invalidating session', {
@@ -806,6 +872,7 @@ class QqAdapter extends ChannelAdapter {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.markDisconnected('Max reconnect attempts reached')
       this.log.error('Max reconnect attempts reached, giving up')
+
       return
     }
 
@@ -820,6 +887,7 @@ class QqAdapter extends ChannelAdapter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
+
       if (!this.shouldStop) {
         this.startGateway().catch((err) => {
           this.log.error('Reconnect failed', {

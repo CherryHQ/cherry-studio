@@ -60,6 +60,7 @@ export const ScrollOwnershipProvider = ({
     () => ({ notifyWheelIntent, requestReadingControl, scrollByWheel, scrollContainerRef, scrollToElement }),
     [notifyWheelIntent, requestReadingControl, scrollByWheel, scrollContainerRef, scrollToElement]
   )
+
   return (
     <ScrollOwnershipContext value={value}>
       <ScrollViewportOwnershipProvider scrollContainerRef={scrollContainerRef}>
@@ -72,9 +73,11 @@ export const ScrollOwnershipProvider = ({
 /** Whether an element establishes a real vertical scrolling coordinate space. */
 export function isVerticalScrollContainer(element: Element | null, isRoot = false): boolean {
   if (!element || element.scrollHeight <= element.clientHeight + VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX) return false
+
   if (isRoot) return true
 
   const view = element.ownerDocument.defaultView
+
   return view ? VERTICAL_SCROLLABLE_OVERFLOW_PATTERN.test(view.getComputedStyle(element).overflowY) : false
 }
 
@@ -83,11 +86,15 @@ export function canConsumeVerticalWheel(element: Element | null, deltaY: number,
   if (!isVerticalScrollContainer(element, isRoot) || !element) return false
 
   const view = element.ownerDocument.defaultView
+
   if (!view) return false
 
   const overscrollBehaviorY = view.getComputedStyle(element).overscrollBehaviorY
+
   if (overscrollBehaviorY === 'contain' || overscrollBehaviorY === 'none') return true
+
   if (deltaY < 0) return element.scrollTop > 0
+
   return (
     deltaY > 0 &&
     element.scrollTop + element.clientHeight < element.scrollHeight - VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
@@ -102,6 +109,7 @@ export function findNearestVerticalScrollContainer(
   for (let node = element; node && node !== boundary; node = node.parentElement) {
     if (isVerticalScrollContainer(node)) return node
   }
+
   return null
 }
 
@@ -114,15 +122,18 @@ export function findVerticalWheelConsumer(
   for (let node = element; node && node !== boundary; node = node.parentElement) {
     if (canConsumeVerticalWheel(node, deltaY)) return node
   }
+
   return null
 }
 
 /** Outermost nested vertical scroller whose border box is stable in the owning viewport. */
 export function findOutermostVerticalScrollContainer(element: HTMLElement, boundary: HTMLElement): HTMLElement | null {
   let outermost: HTMLElement | null = null
+
   for (let node = element.parentElement; node && node !== boundary; node = node.parentElement) {
     if (isVerticalScrollContainer(node)) outermost = node
   }
+
   return outermost
 }
 
@@ -141,14 +152,17 @@ export interface ScrollRuntimeBoundary {
 export function useScrollRuntimeBoundary(): ScrollRuntimeBoundary {
   const ownership = use(ScrollOwnershipContext)
   const getScrollContainer = useCallback(() => ownership?.scrollContainerRef.current ?? null, [ownership])
+
   const notifyWheelIntent = useCallback(
     (deltaY: number) => {
       if (!ownership?.notifyWheelIntent) return false
       ownership.notifyWheelIntent(deltaY)
+
       return true
     },
     [ownership]
   )
+
   const scrollByWheel = useCallback((deltaY: number) => ownership?.scrollByWheel?.(deltaY) ?? false, [ownership])
 
   return useMemo(
@@ -163,10 +177,12 @@ export const useIsScrollRuntimeManaged = useIsScrollViewportOwned
 /** Ask the owning runtime to preserve a disclosure as the reading anchor. */
 export function useRequestScrollReadingControl(anchorRef: RefObject<HTMLElement | null>): () => void {
   const ownership = use(ScrollOwnershipContext)
+
   return useCallback(() => {
     if (!ownership) return
     const anchor = anchorRef.current
     const scrollContainer = ownership.scrollContainerRef.current
+
     if (!anchor || !scrollContainer?.contains(anchor)) return
     ownership.requestReadingControl(anchor)
   }, [anchorRef, ownership])
@@ -175,12 +191,15 @@ export function useRequestScrollReadingControl(anchorRef: RefObject<HTMLElement 
 /** Route outer-list navigation through its runtime; leave nested scrollers local. */
 export function useScrollRuntimeNavigation(): (element: HTMLElement, align?: 'start' | 'center') => boolean {
   const ownership = use(ScrollOwnershipContext)
+
   return useCallback(
     (element, align) => {
       if (!ownership) return false
       const scrollContainer = ownership.scrollContainerRef.current
+
       if (!scrollContainer?.contains(element) || findScrollParent(element) !== scrollContainer) return false
       ownership.scrollToElement(element, align)
+
       return true
     },
     [ownership]

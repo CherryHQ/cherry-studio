@@ -43,6 +43,7 @@ export function DraftAgentAvatarPicker({
     setPending(false)
     setOpen(false)
     setView('menu')
+
     return () => {
       session.active = false
       onPendingChange(false)
@@ -52,21 +53,27 @@ export function DraftAgentAvatarPicker({
   useEffect(() => {
     if (!image) {
       setPreview(undefined)
+
       return
     }
+
     const url = URL.createObjectURL(new Blob([image], { type: 'image/webp' }))
     setPreview(url)
+
     return () => URL.revokeObjectURL(url)
   }, [image])
 
   const chooseImage = async (file: File) => {
     const session = sessionRef.current
+
     if (!session.active || session.pending || disabled) return
     session.pending = true
     setPending(true)
     onPendingChange(true)
+
     try {
       const data = await prepareAvatarImage(file, () => session.active)
+
       if (!data) return
       onChange(emoji, data)
       setOpen(false)
@@ -74,6 +81,7 @@ export function DraftAgentAvatarPicker({
       if (session.active) toast.error((error as Error).message)
     } finally {
       session.pending = false
+
       if (session.active) {
         setPending(false)
         onPendingChange(false)
@@ -92,6 +100,7 @@ export function DraftAgentAvatarPicker({
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
+
         if (!next) setView('menu')
       }}>
       <PopoverTrigger asChild>
@@ -120,6 +129,7 @@ export function DraftAgentAvatarPicker({
         onChange={(event) => {
           const file = event.target.files?.[0]
           event.target.value = ''
+
           if (file) void chooseImage(file)
         }}
       />

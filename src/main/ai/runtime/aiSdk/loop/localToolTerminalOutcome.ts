@@ -25,6 +25,7 @@ function isTerminalFailureOutput(output: unknown): output is TerminalFailureOutp
 
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This boundary accepts arbitrary tool results; the selected field checks establish the failure shape before provenance is checked.
   const candidate = output as Record<string, unknown>
+
   return candidate.terminal === true && candidate.retryable === false && typeof candidate.error === 'string'
 }
 
@@ -32,6 +33,7 @@ function isTerminalFailureOutput(output: unknown): output is TerminalFailureOutp
 export function markTrustedLocalToolTerminalFailure<T>(output: T): T {
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Native lookup results can be successes or failures; validate the failure shape before adding identity-based provenance.
   if (isTerminalFailureOutput(output)) trustedTerminalFailures.add(output)
+
   return output
 }
 

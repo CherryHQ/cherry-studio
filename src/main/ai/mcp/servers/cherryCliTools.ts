@@ -68,7 +68,9 @@ export function registerCliTools(server: McpServer): void {
 
       if (existing?.recipe === definition.tool) {
         const request: Parameters<typeof binaryManager.installByName>[0] = { name: definition.name }
+
         if (definition.requestedVersion) request.targetVersion = definition.requestedVersion
+
         if (CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[definition.name]) {
           await application.get('CodeCliService').installCli(request)
         } else {
@@ -79,12 +81,14 @@ export function registerCliTools(server: McpServer): void {
           name: definition.name,
           tool: definition.tool
         }
+
         if (definition.requestedVersion) request.requestedVersion = definition.requestedVersion
         await binaryManager.addCustomTool(request)
       }
 
       const installed = (await binaryManager.getToolInventory(signal)).find((entry) => entry.name === definition.name)
       const result = modelOutputToMcpResult({ type: 'json', value: { tool: installed } })
+
       return installed?.status === 'ready' ? result : { ...result, isError: true }
     }
   )

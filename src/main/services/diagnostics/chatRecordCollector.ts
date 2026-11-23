@@ -80,6 +80,7 @@ function serializeRecord(
   entity: Topic | AgentSessionEntity | Message | AgentSessionMessageEntity
 ): HydratedChatRecord {
   const data = Buffer.from(`${JSON.stringify(entity)}\n`, 'utf8')
+
   return { ...reference, bytes: data.length, data }
 }
 
@@ -93,6 +94,7 @@ async function* collectNormalChatRecords(
 ): AsyncGenerator<ChatRecordCandidate> {
   let cursor: string | undefined
   const topics = new Map<string, ChatRecordReference>()
+
   try {
     do {
       const page = messageService.listLiveCreatedInRangeMetadataPage({
@@ -100,10 +102,13 @@ async function* collectNormalChatRecords(
         cursor,
         limit: CHAT_RECORD_PAGE_SIZE
       })
+
       for (const message of page.items) {
         let topicReference = topics.get(message.topicId)
+
         if (!topicReference) {
           let topic
+
           try {
             topic = topicService.getById(message.topicId)
           } catch (error) {
@@ -115,6 +120,7 @@ async function* collectNormalChatRecords(
             })
             continue
           }
+
           topicReference = contextRecord('chats/topics.jsonl', `topic:${message.topicId}`, topic)
           topics.set(message.topicId, topicReference)
         }
@@ -130,7 +136,9 @@ async function* collectNormalChatRecords(
           source: 'normal-chat'
         }
       }
+
       cursor = page.nextCursor
+
       if (cursor) await yieldToEventLoop()
     } while (cursor)
   } catch (error) {
@@ -144,6 +152,7 @@ async function* collectAgentChatRecords(
 ): AsyncGenerator<ChatRecordCandidate> {
   let cursor: string | undefined
   const sessions = new Map<string, ChatRecordReference>()
+
   try {
     do {
       const page = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
@@ -151,10 +160,13 @@ async function* collectAgentChatRecords(
         cursor,
         limit: CHAT_RECORD_PAGE_SIZE
       })
+
       for (const message of page.items) {
         let sessionReference = sessions.get(message.sessionId)
+
         if (!sessionReference) {
           let session
+
           try {
             session = agentSessionService.getById(message.sessionId)
           } catch (error) {
@@ -166,6 +178,7 @@ async function* collectAgentChatRecords(
             })
             continue
           }
+
           sessionReference = contextRecord('chats/agent-sessions.jsonl', `agent-session:${message.sessionId}`, session)
           sessions.set(message.sessionId, sessionReference)
         }
@@ -185,7 +198,9 @@ async function* collectAgentChatRecords(
           source: 'agent-session'
         }
       }
+
       cursor = page.nextCursor
+
       if (cursor) await yieldToEventLoop()
     } while (cursor)
   } catch (error) {
@@ -203,6 +218,7 @@ async function* mergeNewestFirst(
 ): AsyncGenerator<ChatRecordCandidate> {
   let normalResult = await normal.next()
   let agentResult = await agent.next()
+
   while (!normalResult.done || !agentResult.done) {
     if (agentResult.done || (!normalResult.done && newestFirst(normalResult.value, agentResult.value) <= 0)) {
       yield normalResult.value
@@ -229,10 +245,12 @@ function warnUnreadableChatSource(
 
 export function collectChatRecords(range: DiagnosticTimeRange): ChatRecordCollection {
   const warnings = new Set<DiagnosticWarning>()
+
   const candidates = mergeNewestFirst(
     collectNormalChatRecords(range, warnings),
     collectAgentChatRecords(range, warnings)
   )
+
   return { candidates, warnings }
 }
 
@@ -244,6 +262,7 @@ export function addChatRecordStats(
   stats.bytes += candidate.messageRecord.bytes
   stats.messageCount += 1
   stats.recordCount += 1
+
   if (contextRecordKeys.has(candidate.contextRecord.key)) return
   contextRecordKeys.add(candidate.contextRecord.key)
   stats.bytes += candidate.contextRecord.bytes
@@ -253,7 +272,9 @@ export function addChatRecordStats(
 export async function scanChatRecordStats(candidates: AsyncIterable<ChatRecordCandidate>): Promise<ChatRecordStats> {
   const contextRecordKeys = new Set<string>()
   const stats: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
+
   for await (const candidate of candidates) addChatRecordStats(stats, contextRecordKeys, candidate)
+
   return stats
 }
 
@@ -283,12 +304,14 @@ export async function stageChatRecords(
 ): Promise<StagedChatRecords> {
   const sortedCandidates = [...selectedCandidates].sort(newestFirst)
   await mkdir(path.join(tempRoot, 'chats'), { recursive: true })
+
   const destinations = new Map(
     CHAT_ARCHIVE_NAMES.map((archiveName) => [
       archiveName,
       AbsoluteFilePathSchema.parse(path.join(tempRoot, archiveName))
     ])
   )
+
   const writers = new Map<
     ChatArchiveName,
     {
@@ -297,6 +320,7 @@ export async function stageChatRecords(
       writer: ReturnType<typeof createAtomicWriteStream>
     }
   >()
+
   const included: ChatRecordStats = { bytes: 0, messageCount: 0, recordCount: 0 }
   const observedRecordKeys = new Set<string>()
   const stagedContextKeys = new Set<string>()
@@ -308,11 +332,13 @@ export async function stageChatRecords(
     if (observedRecordKeys.has(record.key)) return
     observedRecordKeys.add(record.key)
     observedByteDelta += record.bytes - reference.bytes
+
     if (record.bytes !== reference.bytes) warnings.add('source_changed')
   }
 
   const writeRecord = async (record: HydratedChatRecord): Promise<void> => {
     let state = writers.get(record.archiveName)
+
     if (!state) {
       const writer = createAtomicWriteStream(destinations.get(record.archiveName)!)
       const completion = finished(writer)
@@ -320,7 +346,9 @@ export async function stageChatRecords(
       state = { bytes: 0, completion, writer }
       writers.set(record.archiveName, state)
     }
+
     state.bytes += record.bytes
+
     if (!state.writer.write(record.data)) await once(state.writer, 'drain')
   }
 
@@ -328,6 +356,7 @@ export async function stageChatRecords(
     for (const candidate of sortedCandidates) {
       const includeContext = !stagedContextKeys.has(candidate.contextRecord.key)
       let messageRecord: HydratedChatRecord
+
       try {
         messageRecord = hydrateMessageRecord(candidate)
       } catch (error) {
@@ -342,12 +371,14 @@ export async function stageChatRecords(
       }
 
       observeRecord(messageRecord, candidate.messageRecord)
+
       if (messageRecord.bytes > remainingBytes) {
         warnings.add('size_limit_reached')
         continue
       }
 
       const records = [messageRecord]
+
       if (includeContext) {
         try {
           const contextRecord = hydrateContextRecord(candidate)
@@ -366,6 +397,7 @@ export async function stageChatRecords(
       }
 
       const candidateBytes = records.reduce((bytes, record) => bytes + record.bytes, 0)
+
       if (candidateBytes > remainingBytes) {
         warnings.add('size_limit_reached')
         continue
@@ -376,6 +408,7 @@ export async function stageChatRecords(
       included.bytes += candidateBytes
       included.messageCount += 1
       included.recordCount += records.length
+
       if (includeContext) stagedContextKeys.add(candidate.contextRecord.key)
     }
 
@@ -391,6 +424,7 @@ export async function stageChatRecords(
 
   const sources = CHAT_ARCHIVE_NAMES.flatMap((archiveName): StagedSource[] => {
     const state = writers.get(archiveName)
+
     return state
       ? [
           {
@@ -403,5 +437,6 @@ export async function stageChatRecords(
         ]
       : []
   })
+
   return { included, observedByteDelta, sources, warnings }
 }

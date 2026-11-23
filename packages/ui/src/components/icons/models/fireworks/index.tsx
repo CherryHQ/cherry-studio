@@ -4,6 +4,7 @@ import { FireworksLight } from './light'
 
 const Fireworks = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <FireworksLight {...props} className={className} />
+
   return <FireworksLight {...props} className={className} />
 }
 

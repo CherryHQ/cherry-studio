@@ -16,15 +16,18 @@ import {
 
 function useMiniAppDescriptors(appIds: string[]) {
   const { data: apps } = useQuery('/mini-apps')
+
   const descriptors = useSharedCacheSelector(
     appIds.map((id) => `mini_app.transient_descriptor.${id}` as const),
     (values) => values
   )
+
   const byId = useMemo(
     () =>
       new Map(
         appIds.map((id, index) => {
           const descriptor = descriptors[index]
+
           return [
             id,
             apps?.find((app) => app.appId === id) ?? (descriptor ? toTransientMiniApp(descriptor) : undefined)
@@ -33,6 +36,7 @@ function useMiniAppDescriptors(appIds: string[]) {
       ),
     [appIds, apps, descriptors]
   )
+
   return { apps, byId }
 }
 
@@ -43,12 +47,14 @@ function useMiniAppLayout() {
   const currentMiniAppId = miniAppIdFromTabUrl(tabs?.activeTab?.url) ?? ''
   const splitOpen = !!currentMiniAppId && !!split && split.appId !== currentMiniAppId
   const splitMiniAppId = splitOpen ? (split.appId ?? '') : ''
+
   const appIds = useMemo(
     () => [
       ...new Set([
         ...resources.map((resource) => miniAppIdFromResourceKey(resource.key)),
         ...(tabs?.tabs.flatMap((tab) => {
           const id = miniAppIdFromTabUrl(tab.url)
+
           return id ? [id] : []
         }) ?? []),
         ...(splitMiniAppId ? [splitMiniAppId] : [])
@@ -56,6 +62,7 @@ function useMiniAppLayout() {
     ],
     [tabs?.tabs, splitMiniAppId, resources]
   )
+
   return {
     split,
     setSplit,
@@ -71,13 +78,17 @@ export function useMiniAppRuntime() {
   const layout = useMiniAppLayout()
   const { resources } = layout
   const { byId } = useMiniAppDescriptors(layout.appIds)
+
   const guests = useMemo(() => {
     const appsByKey = new Map([...byId].map(([appId, app]) => [miniAppResourceKey(appId), app]))
+
     return resources.flatMap((resource) => {
       const app = appsByKey.get(resource.key)
+
       return app ? [{ resource, app }] : []
     })
   }, [resources, byId])
+
   return {
     guests,
     openedKeepAliveMiniApps: useMemo(() => guests.map(({ app }) => app), [guests]),
@@ -90,6 +101,7 @@ export function useMiniAppRuntime() {
 
 export function useMiniAppWebview(appId: string) {
   const read = useCallback(() => webviewRuntimeService.get(miniAppResourceKey(appId)), [appId])
+
   return useSyncExternalStore(webviewRuntimeService.subscribe, read)
 }
 
@@ -109,28 +121,37 @@ export function useMiniAppRuntimeBinding(): void {
         .filter((tab) => !tabs.some((current) => current.id === tab.id))
         .map((tab) => miniAppIdFromTabUrl(tab.url))
     )
+
     if (previousSplitAppId.current && previousSplitAppId.current !== split?.appId) {
       closed.add(previousSplitAppId.current)
     }
+
     previousTabs.current = tabs
     previousSplitAppId.current = split?.appId
+
     const removed = new Set(
       previousCatalog.current
         ?.filter((previous) => apps !== undefined && !apps.some((app) => app.appId === previous.appId))
         .map((app) => app.appId)
     )
+
     if (apps !== undefined) previousCatalog.current = apps
     const removedTabs = tabs.filter((tab) => removed.has(miniAppIdFromTabUrl(tab.url) ?? ''))
+
     if (removedTabs.length) closeTabs(removedTabs.map((tab) => tab.id))
+
     if (split?.appId && removed.has(split.appId)) setSplit(null)
+
     const requests = appIds
       .filter((appId) => !removed.has(appId))
       .flatMap((appId) => {
         const owners = tabs.filter((tab) => miniAppIdFromTabUrl(tab.url) === appId)
+
         if (closed.has(appId) && owners.length === 0 && appId !== splitMiniAppId) return []
         const app = byId.get(appId)
         const existing = resources.find((resource) => resource.key === miniAppResourceKey(appId))
         const visible = appId === splitMiniAppId || owners.some((tab) => tab.id === activeTabId)
+
         return [
           {
             key: miniAppResourceKey(appId),
@@ -147,6 +168,7 @@ export function useMiniAppRuntimeBinding(): void {
           }
         ]
       })
+
     webviewRuntimeService.sync(requests, capacity ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS)
   }, [tabs, activeTabId, split, setSplit, splitMiniAppId, appIds, apps, byId, capacity, closeTabs, resources])
 

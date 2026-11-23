@@ -17,11 +17,13 @@ import type { ErrorLogScan, LogRecord, ScanLevel } from './types'
  */
 export const MAX_SCAN_RECORDS = 20_000
 const MAX_DETAIL_CHARS = 8 * 1024
+
 /** Comfortably above the longest stack seen in the reference corpus (2.8K), so anchors survive. */
 const MAX_TEXT_CHARS = 4 * 1024
 
 const SCAN_LEVELS: readonly ScanLevel[] = ['error', 'warn']
 const KNOWN_KEYS = new Set(['timestamp', 'level', 'message', 'module', 'process', 'window', 'stack'])
+
 // The request we sent and the full response object: never diagnostic, and serializing them puts
 // conversation text and `x-ratelimit-*` headers in front of the anchors. `responseBody` stays.
 const PAYLOAD_KEYS = new Set(['requestBodyValues', 'response'])
@@ -34,6 +36,7 @@ const PAYLOAD_KEYS = new Set(['requestBodyValues', 'response'])
  */
 function serializeDetail(rest: [string, JSONValue | undefined][]): { text: string; truncated: boolean } | undefined {
   const fields: string[] = []
+
   for (const [key, value] of rest) {
     try {
       fields.push(`${JSON.stringify(key)}:${JSON.stringify(value) ?? 'null'}`)
@@ -41,10 +44,12 @@ function serializeDetail(rest: [string, JSONValue | undefined][]): { text: strin
       continue
     }
   }
+
   if (fields.length === 0) return undefined
 
   fields.sort((left, right) => left.length - right.length)
   const text = `{${fields.join(',')}}`
+
   return { text: text.slice(0, MAX_DETAIL_CHARS), truncated: text.length > MAX_DETAIL_CHARS }
 }
 
@@ -55,11 +60,14 @@ function serializeDetail(rest: [string, JSONValue | undefined][]): { text: strin
  */
 export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | undefined {
   const trimmed = text.trim()
+
   if (!trimmed) return undefined
 
   let value: JSONObject
+
   try {
     const parsed: JSONValue = JSON.parse(trimmed)
+
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
     value = parsed
   } catch {
@@ -68,13 +76,16 @@ export function parseErrorLogLine(text: string): Omit<LogRecord, 'source'> | und
 
   if (typeof value.timestamp !== 'string' || typeof value.message !== 'string') return undefined
   const timestampMs = parseLogTimestampString(value.timestamp)
+
   if (timestampMs === undefined) return undefined
   const level = SCAN_LEVELS.find((level) => level === value.level)
+
   if (!level) return undefined
 
   const rest = Object.entries<JSONValue | undefined>(value).filter(
     ([key]) => !KNOWN_KEYS.has(key) && !PAYLOAD_KEYS.has(key)
   )
+
   const detail = serializeDetail(rest)
 
   return {
@@ -99,6 +110,7 @@ function isInRange(timestampMs: number, range: DiagnosticTimeRange): boolean {
 /** `app-error.2026-08-20.log.2` splits into its date-ordered base and its numeric shard index. */
 function shardKey(fileName: string): readonly [string, number] {
   const match = /^(.*\.log)\.(\d+)$/.exec(fileName)
+
   return match ? [match[1], Number(match[2])] : [fileName, 0]
 }
 
@@ -124,8 +136,10 @@ export async function collectErrorLogRecords(
   const keep = (record: LogRecord): void => {
     if (ring.length < MAX_SCAN_RECORDS) {
       ring.push(record)
+
       return
     }
+
     ring[oldest] = record
     oldest = (oldest + 1) % MAX_SCAN_RECORDS
     truncated = true
@@ -150,34 +164,44 @@ export async function collectErrorLogRecords(
     .sort((a, b) => {
       const [baseA, shardA] = shardKey(a)
       const [baseB, shardB] = shardKey(b)
+
       return baseA === baseB ? shardA - shardB : baseA < baseB ? -1 : 1
     })
 
   for (const fileName of fileNames) {
     signal?.throwIfAborted()
     let snapshot
+
     try {
       snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(path.join(logsDir, fileName)))
     } catch {
       skippedFileCount += 1
       continue
     }
+
     try {
       let lineNumber = 0
+
       for await (const line of readRawLines(snapshot, snapshot.size, signal)) {
         lineNumber += 1
+
         if (line.tooLarge || !line.data) {
           unparsedLineCount += 1
           continue
         }
+
         const text = line.data.toString('utf8')
+
         if (!text.trim()) continue
         const record = parseErrorLogLine(text)
+
         if (!record) {
           unparsedLineCount += 1
           continue
         }
+
         if (!isInRange(record.timestampMs, range)) continue
+
         if (record.truncated) truncated = true
         keep({ ...record, source: { file: fileName, line: lineNumber } })
       }
@@ -191,5 +215,6 @@ export async function collectErrorLogRecords(
 
   const records = truncated ? [...ring.slice(oldest), ...ring.slice(0, oldest)] : ring
   signal?.throwIfAborted()
+
   return { records, unparsedLineCount, skippedFileCount, truncated }
 }

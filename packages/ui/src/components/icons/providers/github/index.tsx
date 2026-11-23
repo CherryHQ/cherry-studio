@@ -6,7 +6,9 @@ import { GithubLight } from './light'
 
 const Github = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GithubLight {...props} className={className} />
+
   if (variant === 'dark') return <GithubDark {...props} className={className} />
+
   return (
     <>
       <GithubLight className={cn('dark:hidden', className)} {...props} />

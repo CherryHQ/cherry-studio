@@ -33,7 +33,9 @@ const CATALOG_FIELDS = ['id', 'serverId', 'serverName', 'type'] as const
 export function stripCatalogFields<T extends object>(entry: T): Omit<T, (typeof CATALOG_FIELDS)[number]> {
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening -- Removing catalog bookkeeping does not validate extension/schema values; preserve the remaining native fields, including symbol keys.
   const result: Record<string, unknown> = { ...(entry as Record<string, unknown>) }
+
   for (const field of CATALOG_FIELDS) delete result[field]
+
   return result as Omit<T, (typeof CATALOG_FIELDS)[number]>
 }
 
@@ -42,6 +44,7 @@ function toSdkTool(tool: McpTool): Tool {
   // schema; advertising it to a v1 client would trigger its incompatible validator.
   const sdkTool: Tool = stripCatalogFields(tool)
   delete sdkTool.outputSchema
+
   return sdkTool
 }
 
@@ -49,9 +52,13 @@ function toSdkTool(tool: McpTool): Tool {
 // block must collapse to the SDK's text-or-blob union, keyed on whichever is present.
 function toSdkResourceContents(content: McpResource): ReadResourceResult['contents'][number] {
   const base: Pick<ReadResourceResult['contents'][number], 'uri' | 'mimeType'> = { uri: content.uri }
+
   if (content.mimeType) base.mimeType = content.mimeType
+
   if (typeof content.text === 'string') return { ...base, text: content.text }
+
   if (typeof content.blob === 'string') return { ...base, blob: content.blob }
+
   // Neither text nor blob isn't representable in the protocol; surface as empty text.
   return { ...base, text: '' }
 }
@@ -83,6 +90,7 @@ export function createMcpBridgeServer(
   { listChanged = true, interactionContext }: McpBridgeOptions = {}
 ): Server {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
+
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
   }
@@ -113,10 +121,12 @@ export function createMcpBridgeServer(
   let toolsCacheSubscription: { dispose: () => void } | undefined
   let catalogSubscription: { dispose: () => void } | undefined
   let resourceSubscription: { dispose: () => void } | undefined
+
   const observations = new Map<
     string,
     { abort: AbortController; ready: Promise<void>; lease?: McpResourceObservation }
   >()
+
   server.oninitialized = () => {
     // Nothing to relay through on a transport that declared no `listChanged`; subscribing
     // anyway would only build notifications the client never asked for and cannot receive.
@@ -146,6 +156,7 @@ export function createMcpBridgeServer(
       })
     })
   }
+
   server.onclose = () => {
     toolsCacheSubscription?.dispose()
     toolsCacheSubscription = undefined
@@ -153,52 +164,66 @@ export function createMcpBridgeServer(
     catalogSubscription = undefined
     resourceSubscription?.dispose()
     resourceSubscription = undefined
+
     for (const entry of observations.values()) {
       entry.abort.abort()
       void entry.lease?.close()
     }
+
     observations.clear()
   }
 
   if (listChanged) {
     server.setRequestHandler('resources/subscribe', async ({ params }, ctx) => {
       const existing = observations.get(params.uri)
+
       if (existing) {
         await existing.ready
+
         return {}
       }
+
       if (observations.size >= 128) throw new Error('MCP bridge subscription limit reached')
+
       const entry: NonNullable<ReturnType<typeof observations.get>> = {
         abort: new AbortController(),
         ready: Promise.resolve()
       }
+
       observations.set(params.uri, entry)
       entry.ready = (async () => {
         const signal = AbortSignal.any([ctx.mcpReq.signal, entry.abort.signal, AbortSignal.timeout(10_000)])
         const { promise: ack, resolve: acknowledge, reject } = Promise.withResolvers<void>()
         const cancel = () => reject(new Error('MCP bridge subscription cancelled'))
         signal.addEventListener('abort', cancel, { once: true })
+
         const opening = application
           .get('McpRuntimeService')
           .observeResource(serverConfig.id, params.uri, (state) => {
             if (state === 'subscribed') acknowledge()
+
             if (state === 'unsupported' || state === 'closed')
               reject(new Error('MCP resource subscription unavailable'))
+
             if (state === 'closed') {
               entry.abort.abort()
+
               if (observations.get(params.uri) === entry) observations.delete(params.uri)
               void entry.lease?.close()
             }
           })
           .then(async (lease) => {
             entry.lease = lease
+
             if (signal.aborted) await lease.close()
           })
+
         try {
           if (signal.aborted) cancel()
           await Promise.all([opening, ack])
         } catch (error) {
           entry.abort.abort()
+
           if (observations.get(params.uri) === entry) observations.delete(params.uri)
           await entry.lease?.close()
           throw error
@@ -207,6 +232,7 @@ export function createMcpBridgeServer(
         }
       })()
       await entry.ready
+
       return {}
     })
     server.setRequestHandler('resources/unsubscribe', async ({ params }) => {
@@ -214,12 +240,14 @@ export function createMcpBridgeServer(
       observations.delete(params.uri)
       entry?.abort.abort()
       await entry?.lease?.close()
+
       return {}
     })
   }
 
   const logged = async <T>(operation: string, fields: Record<string, string>, run: () => Promise<T>): Promise<T> => {
     logger.debug(`MCP bridge: ${operation}`, { mcpId, ...fields })
+
     try {
       return await run()
     } catch (error) {
@@ -240,6 +268,7 @@ export function createMcpBridgeServer(
     // progress notifications to the token it supplied, so without one there is nothing
     // to address them to.
     const progressToken = request.params._meta?.progressToken
+
     const onProgress =
       progressToken === undefined
         ? undefined
@@ -251,6 +280,7 @@ export function createMcpBridgeServer(
 
     try {
       logger.debug('MCP bridge: calling tool', { mcpId, tool: request.params.name })
+
       const result = await application.get('McpRuntimeService').callTool({
         serverId: serverConfig.id,
         name: request.params.name,
@@ -259,6 +289,7 @@ export function createMcpBridgeServer(
         signal,
         interactionContext
       })
+
       return mcpLegacyResult(result)
     } catch (error) {
       if (isMcpCancellation(error, signal)) {
@@ -274,6 +305,7 @@ export function createMcpBridgeServer(
           err: chatErrorContext(error)
         })
       }
+
       throw error
     }
   })
@@ -294,10 +326,12 @@ export function createMcpBridgeServer(
 
   server.setRequestHandler('resources/read', (request, ctx) => {
     const { uri } = request.params
+
     return logged('reading resource', { uri }, async () => {
       const { contents } = await application
         .get('McpRuntimeService')
         .getResource({ serverId: serverConfig.id, uri, signal: ctx.mcpReq.signal, interactionContext })
+
       return { contents: contents.map(toSdkResourceContents) }
     })
   })
@@ -310,6 +344,7 @@ export function createMcpBridgeServer(
 
   server.setRequestHandler('prompts/get', (request, ctx) => {
     const { name, arguments: args } = request.params
+
     return logged('getting prompt', { prompt: name }, () =>
       application.get('McpRuntimeService').getPrompt({
         serverId: serverConfig.id,
@@ -322,5 +357,6 @@ export function createMcpBridgeServer(
   })
 
   logger.info(`Created SDK MCP bridge for "${serverConfig.name}"`)
+
   return server
 }

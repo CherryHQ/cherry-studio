@@ -10,10 +10,12 @@ export async function createAgentAndRefresh<TResult>(
   refreshAgents: () => Promise<TResult>
 ): Promise<AgentEntity> {
   const agent = await ipcApi.request('ai.agent.create', input)
+
   try {
     await refreshAgents()
   } catch (error) {
     logger.warn('Failed to refresh agents cache after IPC creation', { agentId: agent.id, error })
   }
+
   return agent
 }

@@ -93,6 +93,7 @@ export async function getBatchResult(
   context: PreparedMineruQueryContext
 ): Promise<MineruExtractResultsData> {
   const endpoint = `${context.apiHost}/api/v4/extract-results/batch/${providerTaskId}`
+
   const response = await net.fetch(endpoint, {
     method: 'GET',
     headers: {

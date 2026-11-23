@@ -6,7 +6,9 @@ import { NousresearchLight } from './light'
 
 const Nousresearch = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <NousresearchLight {...props} className={className} />
+
   if (variant === 'dark') return <NousresearchDark {...props} className={className} />
+
   return (
     <>
       <NousresearchLight className={cn('dark:hidden', className)} {...props} />

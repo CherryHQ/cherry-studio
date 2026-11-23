@@ -60,6 +60,7 @@ const toolInvokeInputSchema = jsonSchema<ToolInvokeInput>(
   {
     validate: (value) => {
       const result = toolInvokeInputZod.safeParse(value)
+
       return result.success ? { success: true, value: result.data } : { success: false, error: result.error }
     }
   }
@@ -83,6 +84,7 @@ export function createToolInvokeTool(
   // (defaults / coercions applied) — native dispatch keeps execute's and toModelOutput's input
   // identical, and the inner formatter (e.g. kb_list) keys its output off those params.
   const parsedParamsByCallId = new Map<string, unknown>()
+
   return tool({
     description:
       'Call a single tool discovered via `tool_search` by name, passing arguments under `params`. ' +
@@ -93,10 +95,13 @@ export function createToolInvokeTool(
     execute: async ({ name, params }, options) => {
       if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
       const entry = registry.getByName(name)
+
       if (!entry) throw new Error(`Tool not found: ${name}`)
+
       if (typeof entry.tool.execute !== 'function') {
         throw new Error(`Tool ${name} has no execute handler`)
       }
+
       // Enforce the approval gate at the registry execution boundary. The SDK's native
       // `needsApproval` check only fires for tools it dispatches itself; a tool reached through
       // this meta-tool would otherwise bypass it. Approval-gated tools are kept inline (see
@@ -139,12 +144,15 @@ export function createToolInvokeTool(
     toModelOutput: ({ toolCallId, input, output }) => {
       const entry = allowedNames.has(input.name) ? registry.getByName(input.name) : undefined
       const innerToModelOutput = entry?.tool.toModelOutput
+
       if (innerToModelOutput) {
         // Feed the inner formatter the parsed params `execute` ran on, not the raw `input.params`,
         // so its view matches native dispatch. Falls back to raw input if no parse was recorded.
         const innerInput = parsedParamsByCallId.get(toolCallId) ?? input.params ?? {}
+
         return innerToModelOutput({ toolCallId: `${toolCallId}::${input.name}`, input: innerInput, output })
       }
+
       return { type: 'json', value: output }
     }
   })
@@ -158,9 +166,11 @@ export function createToolInvokeTool(
 // oxlint-disable-next-line anti-slop/no-unknown-returns -- The selected tool's validator may transform its input; execute and formatting must receive that exact value.
 async function validateParams(entry: ToolEntry, params: NonNullable<ToolInvokeInput['params']>): Promise<unknown> {
   const validate = asSchema(entry.tool.inputSchema as Parameters<typeof asSchema>[0]).validate
+
   if (!validate) return params
 
   const result = await validate(params)
+
   if (result.success) return result.value
 
   const stub = await buildToolStub(entry)

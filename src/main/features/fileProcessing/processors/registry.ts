@@ -14,6 +14,7 @@ function lazyHandler<Feature extends FileProcessorFeature>(
     mode,
     async prepare(file, config, signal, context) {
       const handler = await (handlerPromise ??= load())
+
       return handler.prepare(file, config, signal, context)
     }
   }

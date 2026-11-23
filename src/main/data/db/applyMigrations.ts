@@ -30,6 +30,7 @@ export function applyMigrations(db: DbType, migrationsFolder: string): void {
   // it actually applies.
   const enforced = isForeignKeysEnforced(db)
   db.run(sql.raw('PRAGMA foreign_keys = OFF'))
+
   try {
     migrate(db, { migrationsFolder })
   } finally {
@@ -42,6 +43,7 @@ export function applyMigrations(db: DbType, migrationsFolder: string): void {
   // would be unrecoverable for the user — but it must never pass unremarked.
   if (enforced) {
     const violations = db.all(sql.raw('PRAGMA foreign_key_check'))
+
     if (violations.length > 0) {
       logger.error('Migration left dangling foreign key references', { violations })
     }
@@ -54,5 +56,6 @@ export function applyMigrations(db: DbType, migrationsFolder: string): void {
 
 function isForeignKeysEnforced(db: DbType): boolean {
   const rows = db.all(sql.raw('PRAGMA foreign_keys')) as Array<{ foreign_keys?: number }>
+
   return Number(rows[0]?.foreign_keys ?? 0) === 1
 }

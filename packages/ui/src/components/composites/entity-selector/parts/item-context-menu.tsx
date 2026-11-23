@@ -33,15 +33,19 @@ export function ItemContextMenu({
 
   useLayoutEffect(() => {
     const el = ref.current
+
     if (!el) return
     const rect = el.getBoundingClientRect()
     let { x, y } = position
+
     if (x + rect.width + viewportMargin > window.innerWidth) {
       x = Math.max(viewportMargin, window.innerWidth - rect.width - viewportMargin)
     }
+
     if (y + rect.height + viewportMargin > window.innerHeight) {
       y = Math.max(viewportMargin, window.innerHeight - rect.height - viewportMargin)
     }
+
     if (x !== position.x || y !== position.y) setAdjusted({ x, y })
   }, [position, viewportMargin])
 
@@ -49,14 +53,17 @@ export function ItemContextMenu({
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
+
     const onScroll = () => onClose()
     window.addEventListener('mousedown', onDown, true)
     window.addEventListener('contextmenu', onDown, true)
     window.addEventListener('keydown', onKey)
     window.addEventListener('scroll', onScroll, true)
+
     return () => {
       window.removeEventListener('mousedown', onDown, true)
       window.removeEventListener('contextmenu', onDown, true)
@@ -84,10 +91,13 @@ export function ItemContextMenu({
 
 export function useItemContextMenu() {
   const [position, setPosition] = useState<{ x: number; y: number; itemId: string } | null>(null)
+
   const open = useCallback((e: ReactMouseEvent, itemId: string) => {
     e.preventDefault()
     setPosition({ x: e.clientX, y: e.clientY, itemId })
   }, [])
+
   const close = useCallback(() => setPosition(null), [])
+
   return { position, open, close }
 }

@@ -72,6 +72,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
     if (committedRef.current) return
     committedRef.current = true
     const text = safeValueRef.current.trim()
+
     if (text) {
       onConfirmRef.current(text)
     } else {
@@ -85,6 +86,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
    */
   useEffect(() => {
     if (!isMac) return
+
     return () => {
       if (!steppedDownRef.current) return
       void ipcApi.request('screenshot.text_editing', { editing: false })
@@ -98,6 +100,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
       textareaRef.current?.focus()
       focusedRef.current = true
     })
+
     return () => cancelAnimationFrame(id)
   }, [])
 
@@ -105,6 +108,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
   // compositionend / blur, which React's delegated dispatch and microtask checkpoints may reorder.
   useEffect(() => {
     const el = textareaRef.current
+
     if (!el) return
 
     let windowPointerDownHandler: ((e: PointerEvent) => void) | null = null
@@ -145,6 +149,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
       // Chromium fires a non-composing input right after compositionend carrying the
       // raw composition text. Letting it through here bypasses every other defence.
       if (pendingAcceptRef.current) return
+
       if (!(e as InputEvent).isComposing && !isComposingRef.current) {
         safeValueRef.current = el.value
       }
@@ -157,6 +162,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
         steppedDownRef.current = true
         void ipcApi.request('screenshot.text_editing', { editing: true })
       }
+
       // A new composition proves focus never left, so the previous result is good.
       // Without this, two IME words typed within the accept delay lose the first.
       acceptPending()
@@ -176,6 +182,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
         if (e.target === el) return
         rejectPending()
       }
+
       window.addEventListener('pointerdown', windowPointerDownHandler, true)
 
       // `compositionend` also fires when the element is LOSING focus and the input method flushes;
@@ -183,6 +190,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
       acceptTimerRef.current = setTimeout(() => {
         acceptTimerRef.current = null
         removeWindowPointerDown()
+
         if (pendingAcceptRef.current && document.activeElement === el) {
           safeValueRef.current = el.value
           pendingAcceptRef.current = false
@@ -195,6 +203,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
       // Typing anything non-composing proves the user is still here, so trust the
       // pending result immediately instead of waiting out the timer and losing it.
       acceptPending()
+
       if (e.key === 'Escape') {
         e.preventDefault()
         onCancelRef.current()
@@ -226,6 +235,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
 
   useEffect(() => {
     flushRef.current = doCommit
+
     return () => {
       flushRef.current = null
     }

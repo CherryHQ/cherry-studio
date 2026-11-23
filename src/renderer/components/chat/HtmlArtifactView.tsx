@@ -55,10 +55,12 @@ const MIN_ZOOM = 50
 const MAX_ZOOM = 200
 const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
+
 // The sweep can miss roughly one short line box; memory may bridge at most that gap.
 // A larger gap or a sweep that moved since overflow means real content changed.
 const MAX_MEMORY_GAP_PX = 8
 const MAX_STREAMING_PREVIEW_HEIGHT = 350
+
 /** Preview rebuild cadence floor/ceiling. Each rebuild re-parses the whole document in the
  *  iframe (O(html size)), so the interval scales with size to bound per-second work. */
 const STREAMING_PREVIEW_REFRESH_MS = 250
@@ -86,14 +88,18 @@ interface HtmlArtifactViewProps {
 
 function isWheelConsumedByEmbeddedDocument(event: WheelEvent): boolean {
   const targetNode = event.target as Node | null
+
   const element =
     targetNode?.nodeType === Node.ELEMENT_NODE ? (targetNode as Element) : (targetNode?.parentElement ?? null)
+
   const frameDocument = element?.ownerDocument
+
   if (!frameDocument) return false
 
   if (findVerticalWheelConsumer(element, event.deltaY, frameDocument.documentElement)) return true
 
   const root = frameDocument.scrollingElement ?? frameDocument.documentElement
+
   return canConsumeVerticalWheel(root, event.deltaY, true)
 }
 
@@ -108,6 +114,7 @@ function getIframeContentHeight(iframe: HTMLIFrameElement, memory: PreviewConten
     const body = frameDocument?.body
     const documentElement = frameDocument?.documentElement
     const frameWindow = iframe.contentWindow
+
     if (!frameDocument || !body || !documentElement || !frameWindow) return { height: null, memory: null }
 
     const documentScrollHeight = Math.max(
@@ -117,9 +124,12 @@ function getIframeContentHeight(iframe: HTMLIFrameElement, memory: PreviewConten
     )
 
     const bodyStyle = frameWindow.getComputedStyle(body)
+
     const bodyEndSpacing =
       (Number.parseFloat(bodyStyle.paddingBottom) || 0) + (Number.parseFloat(bodyStyle.borderBottomWidth) || 0)
+
     const bodyMarginBottom = Number.parseFloat(bodyStyle.marginBottom) || 0
+
     // Scrollable: scrollHeight is authoritative (scrollbar-bounded); the sweep
     // exists only for collapsed bottom margins in non-scrolling documents.
     if (documentScrollHeight > iframe.clientHeight + 1) {
@@ -131,6 +141,7 @@ function getIframeContentHeight(iframe: HTMLIFrameElement, memory: PreviewConten
 
     for (const element of body.querySelectorAll('*')) {
       const bounds = element.getBoundingClientRect()
+
       if (bounds.width === 0 && bounds.height === 0) continue
 
       const elementMarginBottom = Number.parseFloat(frameWindow.getComputedStyle(element).marginBottom) || 0
@@ -144,8 +155,10 @@ function getIframeContentHeight(iframe: HTMLIFrameElement, memory: PreviewConten
     // range too (jsdom omits Range#getBoundingClientRect, hence the guard).
     const contentRange = frameDocument.createRange()
     contentRange.selectNodeContents(body)
+
     if (typeof contentRange.getBoundingClientRect === 'function') {
       const contentRangeRect = contentRange.getBoundingClientRect()
+
       if (contentRangeRect.height > 0 || contentRangeRect.bottom > 0) {
         renderedContentBottom = Math.max(
           renderedContentBottom,
@@ -155,16 +168,21 @@ function getIframeContentHeight(iframe: HTMLIFrameElement, memory: PreviewConten
     }
 
     const sweep = Math.ceil(renderedContentBottom)
+
     if (memory === null) {
       return { height: sweep > 0 ? sweep : documentScrollHeight || null, memory: null }
     }
+
     const gap = memory.extent - sweep
     const pendingOk = memory.sweep === null && gap >= 0 && gap <= MAX_MEMORY_GAP_PX
+
     const recordedOk =
       memory.sweep !== null && gap >= 0 && gap <= MAX_MEMORY_GAP_PX && Math.abs(sweep - memory.sweep) <= 1
+
     if (pendingOk || recordedOk) {
       return { height: memory.extent, memory: { extent: memory.extent, sweep } }
     }
+
     return { height: sweep > 0 ? sweep : documentScrollHeight || null, memory: null }
   } catch {
     return { height: null, memory: null }
@@ -176,16 +194,20 @@ function useDelayedScrollActivation<T extends HTMLElement>(viewportRef: RefObjec
 
   useEffect(() => {
     const viewport = viewportRef.current
+
     if (!viewport) return
 
     let activationTimer: ReturnType<typeof setTimeout> | undefined
+
     const lockScroll = () => {
       if (activationTimer !== undefined) {
         clearTimeout(activationTimer)
         activationTimer = undefined
       }
+
       isScrollActiveRef.current = false
     }
+
     const scheduleScrollActivation = () => {
       lockScroll()
       activationTimer = setTimeout(() => {
@@ -196,11 +218,13 @@ function useDelayedScrollActivation<T extends HTMLElement>(viewportRef: RefObjec
 
     viewport.addEventListener('mouseenter', scheduleScrollActivation)
     viewport.addEventListener('mouseleave', lockScroll)
+
     if (viewport.matches(':hover')) scheduleScrollActivation()
 
     return () => {
       viewport.removeEventListener('mouseenter', scheduleScrollActivation)
       viewport.removeEventListener('mouseleave', lockScroll)
+
       if (activationTimer !== undefined) clearTimeout(activationTimer)
     }
   }, [viewportRef])
@@ -229,16 +253,19 @@ function useStreamingPacedHtml(html: string, isStreaming: boolean): string {
     // cadence that stretches as the document grows.
     setPacedHtml(latestHtmlRef.current)
     let timer: number
+
     const schedule = () => {
       const interval = Math.min(
         STREAMING_PREVIEW_MAX_REFRESH_MS,
         Math.max(STREAMING_PREVIEW_REFRESH_MS, latestHtmlRef.current.length / STREAMING_PREVIEW_CHARS_PER_MS)
       )
+
       timer = window.setTimeout(() => {
         setPacedHtml((current) => (current === latestHtmlRef.current ? current : latestHtmlRef.current))
         schedule()
       }, interval)
     }
+
     schedule()
 
     return () => window.clearTimeout(timer)
@@ -273,6 +300,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     contentMemoryRef.current = null
     const viewport = viewportRef.current
     const iframe = iframeRef.current
+
     if (!viewport || !iframe) return
 
     let isDisposed = false
@@ -283,12 +311,14 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     const syncHeight = () => {
       const { height, memory } = getIframeContentHeight(iframe, contentMemoryRef.current)
       contentMemoryRef.current = memory
+
       if (height === null) return
 
       const nextHeight = Math.min(
         getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
         Math.max(1, Math.ceil(height * zoomScale))
       )
+
       if (nextHeight === lastReportedHeightRef.current) return
       lastReportedHeightRef.current = nextHeight
       onHeightChange(nextHeight)
@@ -296,9 +326,11 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
 
     const forwardWheelIntent = (event: Event) => {
       const wheelEvent = event as WheelEvent
+
       if (!isScrollActiveRef.current) {
         wheelEvent.preventDefault()
         routeWheelScroll(viewport, scrollRuntime, wheelEvent.deltaY)
+
         return
       }
 
@@ -314,6 +346,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
 
       const frameDocument = iframe.contentDocument
       const body = frameDocument?.body
+
       if (!frameDocument || !body) return
       observedDocument = frameDocument
 
@@ -348,10 +381,12 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
     window.addEventListener('resize', syncHeight)
 
     let layoutResizeObserver: ResizeObserver | undefined
+
     if (typeof ResizeObserver !== 'undefined') {
       layoutResizeObserver = new ResizeObserver(syncHeight)
       layoutResizeObserver.observe(viewport)
       const scroller = scrollRuntime.getScrollContainer()
+
       if (scroller?.contains(viewport)) layoutResizeObserver.observe(scroller)
     }
 
@@ -438,6 +473,7 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
 export function HtmlArtifactPopupOutlet() {
   const popupContext = useHtmlArtifactPopupContext()
   const popupSession = popupContext.popupSession
+
   if (!popupSession) return null
 
   // Opening the full-screen popup is the explicit viewing action, so it never renders a
@@ -473,6 +509,7 @@ export function HtmlArtifactPopupOutlet() {
           if (approvesInlineInteractive) {
             popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)
           }
+
           popupContext.closePopup()
         }}
       />
@@ -498,36 +535,46 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
   const [copied, setCopiedTemporarily] = useTemporaryValue(false)
   const hasContent = html.trim().length > 0
   const previewHtml = useStreamingPacedHtml(html, isStreaming)
+
   const requiresUserConsent = useMemo(
     () => kind === 'document' && htmlArtifactPreviewRequiresInteractive(html),
     [html, kind]
   )
+
   const approvedInteractiveHtml = popupContext.approvedInteractiveHtmlById[artifactId]
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
   const isPopupOpen = !isStreaming && popupContext.popupSession?.artifactId === artifactId
   const showCode = !isStreaming && viewMode === 'code'
   const completedSurfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
+
   const surfaceHeight = isStreaming
     ? Math.min(MAX_STREAMING_PREVIEW_HEIGHT, completedSurfaceHeight)
     : completedSurfaceHeight
+
   const toggleLabel = t(showCode ? 'html_artifacts.preview' : 'html_artifacts.code')
+
   const handleToggle = () => {
     setViewMode((current) => (current === 'preview' ? 'code' : 'preview'))
   }
+
   const handleZoomOut = () => {
     setZoom((current) => Math.max(MIN_ZOOM, current - ZOOM_STEP))
   }
+
   const handleZoomIn = () => {
     setZoom((current) => Math.min(MAX_ZOOM, current + ZOOM_STEP))
   }
+
   const handleResetZoom = () => {
     setZoom(DEFAULT_ZOOM)
   }
+
   const handleApproveInteractivePreview = () => {
     popupContext.approveInteractiveHtml(artifactId, html)
     setViewMode('preview')
   }
+
   const handleOpenPopup = () => {
     popupContext.openPopup({
       artifactId,
@@ -539,6 +586,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
       zoom
     })
   }
+
   const handleOpenExternal = async () => {
     try {
       const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
@@ -549,10 +597,12 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
       toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
     }
   }
+
   const handleDownload = async () => {
     try {
       const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
       const savedPath = await window.api.file.save(fileName, html)
+
       if (!savedPath) return
 
       toast.success(t('message.download.success'))

@@ -30,7 +30,9 @@ const ApiKeyItemSchema = z
   .union([z.string(), z.object({ key: z.string() }), z.object({ token: z.string() })])
   .transform((item): string => {
     if (typeof item === 'string') return item
+
     if ('key' in item) return item.key
+
     return item.token
   })
 

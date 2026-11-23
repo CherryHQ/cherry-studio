@@ -94,6 +94,7 @@ const anthropicAlwaysOnWire = {
 
 const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfile => {
   const suffix = summaryTarget ? [summary(summaryTarget)] : []
+
   return {
     off: mode([literal('reasoningEffort', 'none'), ...suffix]),
     auto: mode([effort('reasoningEffort'), ...suffix], { effortMap: { auto: 'medium' } }),
@@ -110,6 +111,7 @@ const REASONING_SUMMARY_OPERATIONS = [
 function stripReasoningSummary(mode: ReasoningWireMode | undefined): ReasoningWireMode | undefined {
   if (!mode) return undefined
   const operations = mode.operations.filter((operation) => operation.target !== 'reasoningSummary')
+
   return operations.length > 0 ? ({ ...mode, operations } as ReasoningWireMode) : undefined
 }
 
@@ -118,8 +120,10 @@ export function configureOpenAIResponsesSummary(profile: ReasoningWireProfile, e
   if (profile.disabled) return profile
 
   const configured: ReasoningWireProfile = { ...profile }
+
   for (const key of ['default', 'auto', 'effort'] as const) {
     const mode = stripReasoningSummary(configured[key])
+
     if (enabled) {
       configured[key] = {
         ...mode,
@@ -131,6 +135,7 @@ export function configureOpenAIResponsesSummary(profile: ReasoningWireProfile, e
       delete configured[key]
     }
   }
+
   return configured
 }
 
@@ -189,7 +194,10 @@ export function selectFormatWire(
   dialect: ReasoningWireDialect | undefined
 ): ReasoningWireProfile {
   if (dialect === 'budget' && profile.budgetWire) return profile.budgetWire
+
   if (dialect === 'adaptive-always' && profile.alwaysOnWire) return profile.alwaysOnWire
+
   if (dialect === 'adaptive-between-tools' && profile.betweenToolsWire) return profile.betweenToolsWire
+
   return profile.wire
 }

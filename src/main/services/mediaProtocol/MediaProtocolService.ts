@@ -64,11 +64,14 @@ export class MediaProtocolService extends BaseService {
   store(kind: MediaKind, data: Buffer, mimeType: string, access?: MediaEntry['access']): string {
     const id = randomUUID()
     let kindStore = this.stores.get(kind)
+
     if (!kindStore) {
       kindStore = new Map()
       this.stores.set(kind, kindStore)
     }
+
     kindStore.set(id, { data, mimeType, access })
+
     return id
   }
 
@@ -86,6 +89,7 @@ export class MediaProtocolService extends BaseService {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } })
     }
+
     const url = new URL(request.url)
     const kind = url.hostname
 
@@ -95,11 +99,13 @@ export class MediaProtocolService extends BaseService {
 
     // pathname is "/{id}" — strip the leading slash
     const id = url.pathname.slice(1)
+
     if (!id) {
       return new Response('Missing media id', { status: 400 })
     }
 
     const entry = this.stores.get(kind as MediaKind)?.get(id)
+
     if (!entry) {
       return new Response('Not found', { status: 404 })
     }
@@ -109,13 +115,17 @@ export class MediaProtocolService extends BaseService {
       'Content-Length': String(entry.data.length),
       'Cache-Control': 'no-store'
     })
+
     let data = entry.data
     let status = 200
+
     if (kind === 'audio') {
       headers.set('Accept-Ranges', 'bytes')
       const range = request.headers.get('Range')
+
       if (range && request.method === 'GET') {
         const ranges = parseRange(data.length, range, { combine: true })
+
         if (ranges === -1) {
           return new Response(null, {
             status: 416,
@@ -125,6 +135,7 @@ export class MediaProtocolService extends BaseService {
             }
           })
         }
+
         if (Array.isArray(ranges) && ranges.type === 'bytes' && ranges.length === 1) {
           const { start, end } = ranges[0]
           headers.set('Content-Range', `bytes ${start}-${end}/${data.length}`)
@@ -134,6 +145,7 @@ export class MediaProtocolService extends BaseService {
         }
       }
     }
+
     return new Response(request.method === 'HEAD' ? null : new Uint8Array(data), { status, headers })
   }
 }

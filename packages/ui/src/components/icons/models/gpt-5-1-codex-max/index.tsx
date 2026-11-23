@@ -4,6 +4,7 @@ import { Gpt51CodexMaxLight } from './light'
 
 const Gpt51CodexMax = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt51CodexMaxLight {...props} className={className} />
+
   return <Gpt51CodexMaxLight {...props} className={className} />
 }
 

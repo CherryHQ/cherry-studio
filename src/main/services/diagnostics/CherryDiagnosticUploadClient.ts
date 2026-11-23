@@ -61,20 +61,26 @@ function hasSameIdentity(first: ReadableFileSnapshot, second: ReadableFileSnapsh
 async function hashSnapshot(snapshot: ReadableFileSnapshot): Promise<string> {
   const hash = createHash('sha256')
   let bytesRead = 0
+
   for await (const chunk of snapshot.createReadStream()) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     bytesRead += buffer.byteLength
+
     if (bytesRead > snapshot.size) throw new Error('Diagnostic archive changed while hashing')
     hash.update(buffer)
   }
+
   if (bytesRead !== snapshot.size) throw new Error('Diagnostic archive changed while hashing')
+
   return hash.digest('hex')
 }
 
 async function matchesOpenedSnapshot(filePath: AbsoluteFilePath, expected: ReadableFileSnapshot): Promise<boolean> {
   let current: ReadableFileSnapshot | undefined
+
   try {
     current = await openReadableFileSnapshot(filePath)
+
     return hasSameIdentity(expected, current)
   } catch {
     return false
@@ -89,9 +95,11 @@ async function cancelBody(response: Response): Promise<void> {
 
 async function readResponseBody(response: Response): Promise<Buffer> {
   const contentLengthHeader = response.headers.get('content-length')
+
   if (contentLengthHeader !== null) {
     const normalized = contentLengthHeader.trim()
     const contentLength = Number(normalized)
+
     if (!/^\d+$/.test(normalized) || !Number.isSafeInteger(contentLength) || contentLength > MAX_RESPONSE_BYTES) {
       await cancelBody(response)
       throw new Error('Invalid diagnostic upload response length')
@@ -99,23 +107,29 @@ async function readResponseBody(response: Response): Promise<Buffer> {
   }
 
   const reader = response.body?.getReader()
+
   if (!reader) return Buffer.alloc(0)
   const chunks: Buffer[] = []
   let totalBytes = 0
+
   try {
     while (true) {
       const { done, value } = await reader.read()
+
       if (done) break
       totalBytes += value.byteLength
+
       if (totalBytes > MAX_RESPONSE_BYTES) {
         await reader.cancel().catch(() => undefined)
         throw new Error('Diagnostic upload response is too large')
       }
+
       chunks.push(Buffer.from(value))
     }
   } finally {
     reader.releaseLock()
   }
+
   return Buffer.concat(chunks, totalBytes)
 }
 
@@ -136,16 +150,21 @@ function isRecord(value: unknown): value is {
 function uploadedResult(body: Buffer, fileSha256: string): CherryDiagnosticUploadResult {
   try {
     const value: unknown = JSON.parse(readResponseText(body))
+
     if (!isRecord(value) || typeof value.id !== 'string' || value.id.trim().length === 0) {
       return { fileSha256, status: 'submission_unknown' }
     }
+
     const parsedStatus = DiagnosticProcessingStatusSchema.safeParse(value.status)
     const parsedCreatedAt = typeof value.created_at === 'string' ? Date.parse(value.created_at) : Number.NaN
+
     const uploaded: Omit<Extract<CherryDiagnosticUploadResult, { status: 'uploaded' }>, 'status'> = {
       reportId: value.id,
       processingStatus: parsedStatus.success ? parsedStatus.data : null
     }
+
     if (Number.isFinite(parsedCreatedAt)) uploaded.submittedAt = parsedCreatedAt
+
     return { ...uploaded, status: 'uploaded' }
   } catch {
     return { fileSha256, status: 'submission_unknown' }
@@ -156,6 +175,7 @@ function rejectedResult(response: Response, fileSha256: string, body?: Buffer): 
   if (response.status === 400 && body) {
     try {
       const value: unknown = JSON.parse(readResponseText(body))
+
       if (isRecord(value) && value.code === 'invalid_diagnostic_archive') {
         return rejected('invalid_archive', fileSha256)
       }
@@ -163,10 +183,15 @@ function rejectedResult(response: Response, fileSha256: string, body?: Buffer): 
       return rejected('submission_rejected', fileSha256)
     }
   }
+
   if (response.status === 401 || response.status === 409) return rejected('authentication_failed', fileSha256)
+
   if (response.status === 413) return rejected('archive_too_large', fileSha256)
+
   if (response.status === 429) return rejected('rate_limited', fileSha256)
+
   if (response.status === 502) return rejected('service_unavailable', fileSha256)
+
   return rejected('submission_rejected', fileSha256)
 }
 
@@ -174,6 +199,7 @@ export class CherryDiagnosticUploadClient {
   async fetchStatus(reportId: string): Promise<DiagnosticProcessingStatus> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS)
+
     try {
       const response = await net.fetch(`${diagnosticReportUrl(reportId)}/status`, {
         headers: { Accept: 'application/json' },
@@ -181,11 +207,14 @@ export class CherryDiagnosticUploadClient {
         redirect: 'manual',
         signal: controller.signal
       })
+
       if (!response.ok) {
         await cancelBody(response)
         throw new Error(`Diagnostic status request failed with HTTP ${response.status}`)
       }
+
       const value: unknown = JSON.parse(readResponseText(await readResponseBody(response)))
+
       if (
         !isRecord(value) ||
         value.id !== reportId ||
@@ -194,6 +223,7 @@ export class CherryDiagnosticUploadClient {
       ) {
         throw new Error('Invalid diagnostic status response')
       }
+
       return DiagnosticProcessingStatusSchema.parse(value.status)
     } finally {
       clearTimeout(timeout)
@@ -204,27 +234,33 @@ export class CherryDiagnosticUploadClient {
     if (!isZipPath(input.fileName)) return rejected('invalid_archive')
 
     let snapshot: ReadableFileSnapshot | undefined
+
     try {
       try {
         snapshot = await openReadableFileSnapshot(input.filePath)
       } catch {
         return rejected('invalid_archive')
       }
+
       if (snapshot.size <= 0) return rejected('invalid_archive')
+
       if (snapshot.size > MAX_ARCHIVE_BYTES) return rejected('archive_too_large')
 
       let fileSha256: string
+
       try {
         fileSha256 = await hashSnapshot(snapshot)
       } catch {
         return rejected('invalid_archive')
       }
+
       if (input.expectedFileSha256 !== undefined && fileSha256 !== input.expectedFileSha256) {
         return rejected('invalid_archive')
       }
 
       const description = normalizeDiagnosticDescription(input.description)
       let signatureHeaders
+
       try {
         signatureHeaders = generateDiagnosticUploadHeaders({ description, fileSha256, fileSize: snapshot.size })
       } catch {
@@ -232,11 +268,13 @@ export class CherryDiagnosticUploadClient {
       }
 
       let file: Blob
+
       try {
         file = await openAsBlob(input.filePath, { type: 'application/zip' })
       } catch {
         return rejected('invalid_archive')
       }
+
       if (!(await matchesOpenedSnapshot(input.filePath, snapshot))) return rejected('invalid_archive')
 
       const form = new FormData()
@@ -245,8 +283,10 @@ export class CherryDiagnosticUploadClient {
 
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
       try {
         let response: Response
+
         try {
           response = await net.fetch(DIAGNOSTIC_REPORT_BASE_URL, {
             body: form,
@@ -261,11 +301,13 @@ export class CherryDiagnosticUploadClient {
 
         if (!response.ok && response.status !== 400) {
           await cancelBody(response)
+
           return rejectedResult(response, fileSha256)
         }
 
         try {
           const body = await readResponseBody(response)
+
           return response.ok ? uploadedResult(body, fileSha256) : rejectedResult(response, fileSha256, body)
         } catch {
           return response.ok

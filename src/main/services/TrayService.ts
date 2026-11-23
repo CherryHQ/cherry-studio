@@ -22,11 +22,13 @@ const logger = loggerService.withContext('TrayService')
 /** Stable notification-area identity for Explorer (see #21294, #21484). */
 function getWindowsTrayGuid(): string {
   const executablePath = win32.resolve(getNormalizedExecutablePath()).toLowerCase()
+
   return uuidv5(`${getApplicationId()}:${executablePath}`, uuidv5.URL)
 }
 
 function shouldUseWindowsTrayGuid(): boolean {
   if (!isPortable) return true
+
   // Unsigned portable nightlies extract to a new path each launch; Explorer rejects a
   // stable GUID that does not match the running unsigned executable path.
   return isRunningWindowsExecutableSigned()
@@ -105,6 +107,7 @@ export class TrayService extends BaseService implements Activatable {
       this.tray.destroy()
       this.tray = null
     }
+
     this.contextMenu = null
   }
 
@@ -138,13 +141,16 @@ export class TrayService extends BaseService implements Activatable {
     ].filter(Boolean) as MenuItemConstructorOptions[]
 
     this.contextMenu = Menu.buildFromTemplate(template)
+
     if (isLinux) this.tray?.setContextMenu(this.contextMenu)
   }
 
   private computerUseMenu(): MenuItemConstructorOptions[] {
     const service = application.get('ComputerUseService')
     const controls = service.getControls()
+
     if (!controls.length) return []
+
     const statusLabels = {
       opening: t('tray.computer_use.opening'),
       active: t('tray.computer_use.active'),
@@ -152,6 +158,7 @@ export class TrayService extends BaseService implements Activatable {
       stopped: t('tray.computer_use.stopped'),
       unconfirmed: t('tray.computer_use.unconfirmed')
     }
+
     return [
       {
         label: t('tray.computer_use.title'),
@@ -192,6 +199,7 @@ export class TrayService extends BaseService implements Activatable {
     const needed =
       application.get('PreferenceService').get('app.tray.enabled') ||
       application.get('ComputerUseService').getControls().length > 0
+
     if (needed) {
       await this.activate()
       this.updateContextMenu()

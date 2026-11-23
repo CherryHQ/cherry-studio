@@ -27,12 +27,14 @@ export interface CommandPolicyInput {
   dialect: CommandDialect
   builtinRole?: string
 }
+
 export interface CommandPolicyHit {
   ruleId: string
   reasonCode: CommandPolicyRule['reasonCode']
   evidence: string
   range?: CommandRange
 }
+
 export interface CommandPolicyDecision {
   effect: 'allow' | 'ask' | 'deny'
   revision: string
@@ -43,6 +45,7 @@ export interface CommandPolicyDecision {
 const logger = loggerService.withContext('CommandPolicy')
 const defaultSnapshot = commandPolicySchema.safeParse(bundledPolicy)
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash'])
+
 const INTERPRETERS = new Set([
   ...SHELLS,
   'node',
@@ -80,8 +83,10 @@ const ruleReasons = {
 
 export function matchesCommandSelector(selector: CommandSelector, command: CommandSemantics): boolean {
   if (!selector.executables.includes(command.executable)) return false
+
   if (selector.subcommands?.some((part, index) => command.subcommands[index] !== part)) return false
   const has = (option: string) => command.options.has(canonicalOption(command, option))
+
   return (
     (!selector.options?.allOf || selector.options.allOf.every(has)) &&
     (!selector.options?.anyOf || selector.options.anyOf.some(has)) &&
@@ -98,21 +103,28 @@ function appendSource(
 ): CommandSemantics[] {
   const source = analysis.sources.length
   const entry: CommandAnalysis['sources'][number] = { text, dialect }
+
   if (origin) entry.origin = origin
   analysis.sources.push(entry)
+
   if (depth > MAX_COMMAND_NESTING || source >= 64) {
     analysis.diagnostics.push({ reason: 'nesting-limit', range: origin ?? { start: 0, end: text.length, source } })
+
     return []
   }
+
   const parsed = parseCommandSyntax(text, dialect, source)
   analysis.redirections.push(...parsed.redirections)
   analysis.heredocs.push(...parsed.heredocs)
   analysis.diagnostics.push(...parsed.diagnostics)
   const commands: CommandSemantics[] = []
+
   const visit = (node: ExecutableCommand) => {
     const command = interpretCommand(node)
+
     if (!command) {
       const [name, ...args] = node.words.map(({ value }) => value)
+
       const inspection =
         (['command', 'builtin'].includes(name ?? '') && ['-v', '-V'].includes(args[0] ?? '')) ||
         (name === 'env' &&
@@ -122,11 +134,16 @@ function appendSource(
               (/^[A-Za-z_][A-Za-z0-9_]*=/.test(value) || ['-i', '--ignore-environment', '-0', '--null'].includes(value))
           )) ||
         (args.length === 0 && ['command', 'builtin'].includes(name ?? ''))
+
       if (!inspection) analysis.diagnostics.push({ reason: 'unresolved-wrapper', range: node.range })
+
       return
     }
+
     commands.push(command)
+
     if (command.incomplete) analysis.diagnostics.push({ reason: 'incomplete-command', range: node.range })
+
     if (command.inline?.code !== undefined && ['bash', 'powershell'].includes(command.inline.language))
       commands.push(
         ...appendSource(
@@ -137,18 +154,22 @@ function appendSource(
           command.inline.word.range
         )
       )
+
     // `find -exec` runs an argv of its own; give it a separate pipeline so it is not read as stdin.
     for (const [index, words] of executedCommandWords(command).entries())
       visit({ ...node, pipeline: `${node.pipeline}:exec:${index}`, words })
   }
+
   for (const node of parsed.commands) {
     node.id = analysis.commands.length
     analysis.commands.push(node)
     visit(node)
   }
+
   for (const heredoc of parsed.heredocs) {
     const resolved = findHeredocConsumer(parsed, heredoc)
     const consumer = resolved && commands.find(({ node }) => node === resolved.node)
+
     if (
       !consumer ||
       !INTERPRETERS.has(consumer.executable) ||
@@ -160,12 +181,15 @@ function appendSource(
       code: heredoc.body,
       word: { raw: heredoc.body, value: heredoc.body, quoted: heredoc.quoted, range: heredoc.range }
     }
+
     if (consumer.inline.language === 'bash' || consumer.inline.language === 'powershell')
       commands.push(...appendSource(analysis, heredoc.body, consumer.inline.language, depth + 1, heredoc.range))
   }
+
   for (const command of commands.filter(({ executable }) => SHELLS.has(executable))) {
     if (command.inline) continue
     const redirect = parsed.redirections.find(({ pipeline }) => pipeline === command.node.pipeline)
+
     if (redirect?.operator === '<<<' && redirect.target?.value !== undefined) {
       command.inline = { language: 'bash', code: redirect.target.value, word: redirect.target }
       commands.push(...appendSource(analysis, redirect.target.value, 'bash', depth + 1, redirect.range))
@@ -176,6 +200,7 @@ function appendSource(
       analysis.diagnostics.push({ reason: 'unresolved-interpreter-input', range: command.node.range })
     }
   }
+
   return commands
 }
 
@@ -187,9 +212,11 @@ function matchesDetector(
 ): boolean {
   const executable = command.executable
   const args = command.args.map(({ value, raw }) => value ?? raw)
+
   switch (name) {
     case 'find-deletion': {
       if (!['find', 'fd'].includes(executable)) return false
+
       const valueOptions = new Set([
         '-name',
         '-iname',
@@ -204,20 +231,25 @@ function matchesDetector(
         '-maxdepth',
         '-mindepth'
       ])
+
       for (let index = 0; index < args.length; index++) {
         if (valueOptions.has(args[index])) {
           index++
           continue
         }
+
         if (args[index] === '-delete') return true
+
         if (
           ['-exec', '-execdir', '-x', '--exec'].includes(args[index]) &&
           ['rm', 'unlink', 'shred'].includes(args[index + 1])
         )
           return true
       }
+
       return false
     }
+
     case 'disk-operation':
       return ['dd', 'mkfs', 'diskutil', 'fdisk', 'parted'].includes(executable) || executable.startsWith('mkfs.')
     case 'git-refspec-rewrite':
@@ -238,23 +270,29 @@ function matchesDetector(
       )
     case 'service-mutation': {
       if (!['launchctl', 'systemctl', 'crontab', 'service'].includes(executable)) return false
+
       const operation =
         executable === 'service'
           ? args.filter((arg) => !arg.startsWith('-'))[1]
           : (command.subcommands[0] ?? args.find((arg) => !arg.startsWith('-')))
+
       return !operation || !/^(?:status|list[\w-]*|show|is-[\w-]+|cat|print)$/.test(operation)
         ? !command.options.has('-l') && !command.options.has('--status-all')
         : false
     }
+
     case 'container-removal': {
       if (!['docker', 'podman'].includes(executable)) return false
       const [group, operation] = command.subcommands
+
       if (['rm', 'rmi', 'prune'].includes(group)) return true
+
       return (
         ['system', 'container', 'image', 'volume', 'network', 'builder'].includes(group) &&
         ['rm', 'prune'].includes(operation)
       )
     }
+
     case 'home-path': {
       const words = [
         ...command.node.words,
@@ -262,12 +300,14 @@ function matchesDetector(
           .filter(({ pipeline }) => pipeline === command.node.pipeline)
           .flatMap(({ target }) => (target ? [target] : []))
       ]
+
       return words.some(
         ({ raw, quoted, value }) =>
           (!quoted && raw.startsWith('~/')) ||
           (value === undefined && !raw.startsWith("'") && /\$(?:HOME|\{HOME\})\//.test(raw))
       )
     }
+
     case 'privilege-escalation':
       return command.elevated
     case 'download-to-shell':
@@ -281,19 +321,23 @@ function matchesDetector(
       return command.inline !== undefined
     case 'git-executable-configuration': {
       if (executable !== 'git') return false
+
       if (command.gitGlobalOptions.has('--exec-path') || command.gitGlobalOptions.has('--config-env')) return true
+
       if (
         [...command.node.words, ...(command.node.assignments ?? [])].some(({ raw }) =>
           /^(?:GIT_SSH_COMMAND|GIT_CONFIG(?:_[A-Z_]+)?)=/.test(raw)
         )
       )
         return true
+
       return command.gitConfigurations.some((config) =>
         /^(?:alias\.[^=]+=!|core\.(?:sshcommand|hookspath|pager|editor)=|diff\.external=|credential\.helper=|filter\.[^.]+\.(?:clean|smudge|process)=|pager\.)/i.test(
           config
         )
       )
     }
+
     default:
       return false
   }
@@ -306,6 +350,7 @@ function applies(rule: CommandPolicyRule, role: string | undefined): boolean {
 /** An unknown option before the subcommand matters only when a rule could select a word after it. */
 function hidesSelectedSubcommand(command: CommandSemantics, rules: readonly CommandPolicyRule[]): boolean {
   if (!command.uncertainSubcommand) return false
+
   const selected = new Set(
     rules.flatMap(({ selector }) =>
       selector.kind === 'command' && selector.subcommands && selector.executables.includes(command.executable)
@@ -313,6 +358,7 @@ function hidesSelectedSubcommand(command: CommandSemantics, rules: readonly Comm
         : []
     )
   )
+
   return command.args.some(({ value }) => value !== undefined && selected.has(value))
 }
 
@@ -323,31 +369,41 @@ export async function evaluateCommandPolicy(
   document: unknown = bundledPolicy
 ): Promise<CommandPolicyDecision> {
   const snapshot = document === bundledPolicy ? defaultSnapshot : commandPolicySchema.safeParse(document)
+
   if (!snapshot.success) {
     logger.error('Invalid command policy snapshot', { issues: snapshot.error.issues })
+
     return { effect: 'deny', revision: 'invalid', hits: [], reason: t('command_approval.configuration_error') }
   }
+
   const { revision, rules, auto } = snapshot.data
+
   try {
     await initializeCommandParser()
   } catch (error) {
     logger.error('Command parser assets could not be loaded', error as Error)
+
     return { effect: 'deny', revision, hits: [], reason: t('command_approval.configuration_error') }
   }
+
   try {
     const analysis: CommandAnalysis = { sources: [], commands: [], redirections: [], heredocs: [], diagnostics: [] }
     const commands = appendSource(analysis, input.command, input.dialect, 0)
+
     for (const command of commands)
       if (hidesSelectedSubcommand(command, rules))
         analysis.diagnostics.push({ reason: 'incomplete-command', range: command.node.range })
     const hits: (CommandPolicyHit & { effect: 'ask' | 'deny' })[] = []
+
     for (const rule of rules) {
       if (!applies(rule, input.builtinRole)) continue
+
       if (rule.selector.kind === 'detector' && rule.selector.name === 'builtin-destructive-command') {
         // Every nested source is analyzed as written; the legacy detector resolves its own nesting.
         for (const [source, entry] of analysis.sources.entries()) {
           const script =
             entry.dialect === 'powershell' ? `powershell -Command '${entry.text.replace(/'/g, "'\\''")}'` : entry.text
+
           if (detectBuiltinDestructiveCommand(script)) {
             hits.push({
               effect: rule.effect,
@@ -359,13 +415,16 @@ export async function evaluateCommandPolicy(
             break
           }
         }
+
         continue
       }
+
       const command = commands.find((candidate) =>
         rule.selector.kind === 'command'
           ? matchesCommandSelector(rule.selector, candidate)
           : matchesDetector(rule.selector.name, candidate, commands, analysis)
       )
+
       if (!command && rule.selector.kind === 'detector' && rule.selector.name === 'home-path') {
         const redirect = analysis.redirections.find(
           ({ target }) =>
@@ -373,6 +432,7 @@ export async function evaluateCommandPolicy(
             ((!target.quoted && target.raw.startsWith('~/')) ||
               (target.value === undefined && !target.raw.startsWith("'") && /\$(?:HOME|\{HOME\})\//.test(target.raw)))
         )
+
         if (redirect)
           hits.push({
             effect: rule.effect,
@@ -382,6 +442,7 @@ export async function evaluateCommandPolicy(
             range: redirect.range
           })
       }
+
       if (command)
         hits.push({
           effect: rule.effect,
@@ -391,6 +452,7 @@ export async function evaluateCommandPolicy(
           range: command.node.range
         })
     }
+
     const effect = hits.some((hit) => hit.effect === 'deny')
       ? 'deny'
       : hits.length
@@ -398,21 +460,26 @@ export async function evaluateCommandPolicy(
         : analysis.diagnostics.length
           ? auto.incompleteAnalysisDecision
           : auto.defaultDecision
+
     const relevant = hits.filter((hit) => hit.effect === effect)
+
     const decision: CommandPolicyDecision = {
       effect,
       revision,
       hits: relevant.map(({ ruleId, reasonCode, evidence, range }) => ({ ruleId, reasonCode, evidence, range }))
     }
+
     if (effect !== 'allow') {
       decision.reason = relevant.length
         ? relevant.map(({ reasonCode }) => ruleReasons[reasonCode]()).join('; ')
         : t('command_approval.incomplete')
     }
+
     return decision
   } catch (error) {
     // A failure on one input is unsupported analysis, not a broken policy.
     logger.error('Command policy could not analyze an invocation', error as Error)
+
     return { effect: 'ask', revision, hits: [], reason: t('command_approval.incomplete') }
   }
 }

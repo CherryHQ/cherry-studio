@@ -12,6 +12,7 @@ class AssistantAvatarService {
     return this.mutex.runExclusive(async () => {
       const dbService = application.get('DbService')
       assistantDataService.assertActiveTx(dbService.getDb(), assistantId)
+
       if (avatar.kind === 'image') {
         await withCreatedImageEntry(avatar.data, 'delete_when_unreferenced', (fileId) => {
           dbService.withWriteTx((tx) => assistantDataService.setAvatarSlotTx(tx, assistantId, fileId))
@@ -25,6 +26,7 @@ class AssistantAvatarService {
           }
         })
       }
+
       assistantDataService.notifyReadModelChange([assistantId], 'projection')
     })
   }

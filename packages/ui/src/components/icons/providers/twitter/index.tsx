@@ -6,7 +6,9 @@ import { TwitterLight } from './light'
 
 const Twitter = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TwitterLight {...props} className={className} />
+
   if (variant === 'dark') return <TwitterDark {...props} className={className} />
+
   return (
     <>
       <TwitterLight className={cn('dark:hidden', className)} {...props} />

@@ -45,4 +45,5 @@ export const ProtocolMcpInstallRequestSchema = z.object({
 })
 
 export type ProtocolMcpServerInstall = z.infer<typeof ProtocolMcpServerInstallSchema>
+
 export type ProtocolMcpInstallRequest = z.infer<typeof ProtocolMcpInstallRequestSchema>

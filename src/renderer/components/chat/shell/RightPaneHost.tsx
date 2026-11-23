@@ -82,11 +82,14 @@ function useElevatedComposerInset(paneRef: RefObject<HTMLDivElement | null>, act
   useLayoutEffect(() => {
     if (!active) {
       setInset(null)
+
       return
     }
+
     const pane = paneRef.current
     const region = pane?.offsetParent
     const shellRoot = pane?.closest('[data-chat-app-shell-root]')
+
     if (!pane || !shellRoot || !(region instanceof HTMLElement)) return
 
     let observer: ResizeObserver | null = null
@@ -105,28 +108,36 @@ function useElevatedComposerInset(paneRef: RefObject<HTMLDivElement | null>, act
       // Switching sessions remounts the composer while a maximized pane survives, so resolve the
       // surface every pass: a detached node measures as a zero rect and would inflate the inset.
       const surface = shellRoot.querySelector<HTMLElement>('[data-composer-dock-surface]')
+
       if (surface) {
         arrivalObserver?.disconnect()
         arrivalObserver = null
       } else {
         watchForArrival()
       }
+
       if (observer && surface !== observedSurface) {
         if (observedSurface) observer.unobserve(observedSurface)
+
         if (surface) observer.observe(surface)
         observedSurface = surface
       }
+
       const covered = surface ? region.getBoundingClientRect().bottom - surface.getBoundingClientRect().top : 0
       const next = covered > 0 ? Math.round(covered) + COMPOSER_CLEARANCE_GAP_PX : null
       setInset((current) => (current === next ? current : next))
     }
+
     update()
+
     if (typeof ResizeObserver === 'undefined') return () => arrivalObserver?.disconnect()
 
     observer = new ResizeObserver(update)
     observer.observe(region)
     observedSurface = shellRoot.querySelector<HTMLElement>('[data-composer-dock-surface]')
+
     if (observedSurface) observer.observe(observedSurface)
+
     return () => {
       observer?.disconnect()
       arrivalObserver?.disconnect()
@@ -142,17 +153,21 @@ function useMainRegionWidth(paneRef: RefObject<HTMLDivElement | null>): number |
 
   useLayoutEffect(() => {
     const pane = paneRef.current
+
     if (!pane || typeof ResizeObserver === 'undefined') return
     const region = pane.offsetParent
+
     if (!(region instanceof HTMLElement)) return
 
     const update = () => {
       const next = region.getBoundingClientRect().width
       setWidth(next > 0 ? next : null)
     }
+
     update()
     const observer = new ResizeObserver(update)
     observer.observe(region)
+
     return () => observer.disconnect()
   }, [paneRef])
 
@@ -212,12 +227,14 @@ function useRightPaneResize({
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = null
     }
+
     rafScheduledRef.current = false
   }, [])
 
   const handleMouseMove = useCallback(
     (moveEvent: MouseEvent, stop: () => void) => {
       const geometricWidth = paneRightRef.current - moveEvent.clientX
+
       // Close once the handle overshoots the minimum-width line, regardless of
       // where the drag started — a delta-based threshold made narrow windows
       // (pane already at its minimum) require dragging across most of the pane.
@@ -225,8 +242,10 @@ function useRightPaneResize({
         pendingWidthRef.current = null
         pendingDragCloseRef.current = true
         stop()
+
         return
       }
+
       pendingWidthRef.current = clampRightPaneWidth(geometricWidth, minWidth, maxWidth)
 
       if (rafScheduledRef.current) return
@@ -246,13 +265,17 @@ function useRightPaneResize({
   const commitWidth = useCallback(
     (requested: number) => {
       const cap = spaceCapRef?.current ?? null
+
       if (cap === null) {
         setStoredWidth(clampRightPaneWidth(requested, minWidth, maxWidth))
+
         return
       }
+
       const currentStored = clampRightPaneWidth(storedWidth ?? defaultWidth, minWidth, maxWidth)
       const currentEffective = clampRightPaneWidth(Math.min(currentStored, cap), minWidth, maxWidth)
       const nextEffective = clampRightPaneWidth(Math.min(requested, cap), minWidth, maxWidth)
+
       if (nextEffective !== currentEffective) setStoredWidth(nextEffective)
     },
     [defaultWidth, maxWidth, minWidth, setStoredWidth, spaceCapRef, storedWidth]
@@ -260,10 +283,12 @@ function useRightPaneResize({
 
   const handleResizeEnd = useCallback(() => {
     cancelPendingRaf()
+
     if (pendingWidthRef.current !== null) {
       commitWidth(pendingWidthRef.current)
       pendingWidthRef.current = null
     }
+
     setLiveWidth(null)
   }, [cancelPendingRaf, commitWidth])
 
@@ -401,6 +426,7 @@ export function PersistentRightPaneHost({
   const animationControls = useAnimationControls()
   const resolvedDefaultWidth = defaultWidth ?? (typeof width === 'number' ? width : ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH)
   const spaceCapRef = useRef<number | null>(null)
+
   const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useRightPaneResize({
     cacheKey,
     defaultWidth: resolvedDefaultWidth,
@@ -409,6 +435,7 @@ export function PersistentRightPaneHost({
     spaceCapRef,
     onDragClose
   })
+
   const mainRegionWidth = useMainRegionWidth(paneRef)
   useLayoutEffect(() => {
     spaceCapRef.current = mainRegionWidth === null ? null : getPaneSpaceCap(mainRegionWidth, minWidth)
@@ -417,32 +444,40 @@ export function PersistentRightPaneHost({
   // One expression drives both the pane and its spacer; diverging them would let the
   // pane paint wider than the reserved space and overlap the center.
   const dockedWidthExpression = buildDockedPaneWidthExpression(resolvedWidth, minWidth)
+
   const effectiveWidth =
     mainRegionWidth === null || typeof resolvedWidth !== 'number'
       ? paneWidth
       : Math.round(resolveDockedPaneWidth(mainRegionWidth, resolvedWidth, minWidth))
+
   const splitterMinWidth =
     mainRegionWidth === null ? minWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, minWidth, minWidth))
+
   const splitterMaxWidth =
     mainRegionWidth === null
       ? (maxWidth ?? paneWidth)
       : Math.round(resolveDockedPaneWidth(mainRegionWidth, maxWidth ?? mainRegionWidth, minWidth))
+
   const hasChildren = children !== null && children !== undefined
   const targetMode: RightPaneLayoutMode = !open || !hasChildren ? 'closed' : maximized ? 'maximized' : 'docked'
+
   const [visualState, setVisualStateState] = useState<PersistentRightPaneVisualState>(() =>
     getInitialPersistentRightPaneState(targetMode)
   )
+
   const visualStateRef = useRef(visualState)
   const { phase, reservesDockedSpace } = visualState
   const previousTargetModeRef = useRef(targetMode)
   const transitionTokenRef = useRef(0)
   const scheduledAnimationFrameRef = useRef<number | null>(null)
   const effectsConnectedRef = useRef(false)
+
   const [initialAnimationState] = useState(() => ({
     clipPath: targetMode === 'closed' ? RIGHT_PANE_CLIP_COLLAPSED : RIGHT_PANE_CLIP_REVEALED,
     opacity: targetMode === 'closed' ? 0 : 1,
     width: targetMode === 'maximized' ? RIGHT_PANE_WIDTH_FULL : dockedWidthExpression
   }))
+
   const onLayoutAnimationCompleteRef = useRef(onLayoutAnimationComplete)
 
   const setVisualState = useCallback((nextState: PersistentRightPaneVisualState) => {
@@ -452,10 +487,12 @@ export function PersistentRightPaneHost({
 
   const invalidateActiveTransition = useCallback(() => {
     transitionTokenRef.current += 1
+
     if (scheduledAnimationFrameRef.current !== null) {
       cancelAnimationFrame(scheduledAnimationFrameRef.current)
       scheduledAnimationFrameRef.current = null
     }
+
     animationControls.stop()
   }, [animationControls])
 
@@ -466,6 +503,7 @@ export function PersistentRightPaneHost({
   const reconcileAfterEffectsReconnect = useEffectEvent(() => {
     const plan = planPersistentRightPaneReconnect(visualStateRef.current.phase, targetMode, dockedWidthExpression)
     previousTargetModeRef.current = targetMode
+
     if (!plan.completedMode) return
 
     setVisualState(plan.settledState)
@@ -496,6 +534,7 @@ export function PersistentRightPaneHost({
       dockedWidth: dockedWidthExpression,
       reduceMotion: Boolean(reduceMotion)
     })
+
     if (!plan) return
 
     const complete = () => {
@@ -503,6 +542,7 @@ export function PersistentRightPaneHost({
       setVisualState(plan.settledState)
       onLayoutAnimationCompleteRef.current?.(plan.completedMode)
     }
+
     const start = (
       definition: Parameters<typeof animationControls.start>[0],
       onComplete: () => void,
@@ -510,6 +550,7 @@ export function PersistentRightPaneHost({
     ) => {
       const run = () => {
         scheduledAnimationFrameRef.current = null
+
         if (transitionTokenRef.current !== token) return
         void animationControls.start(definition).then(onComplete)
       }
@@ -523,6 +564,7 @@ export function PersistentRightPaneHost({
 
     if (targetMode === 'closed') {
       const activeElement = typeof document === 'undefined' ? null : document.activeElement
+
       if (
         activeElement &&
         typeof HTMLElement !== 'undefined' &&
@@ -550,6 +592,7 @@ export function PersistentRightPaneHost({
   // external visual state whenever Activity reconnects effects.
   useLayoutEffect(() => {
     const plan = planPersistentRightPaneReconnect(phase, targetMode, dockedWidthExpression)
+
     if (plan.completedMode) return
 
     animationControls.set(plan.motionState)

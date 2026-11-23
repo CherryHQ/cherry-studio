@@ -124,11 +124,13 @@ export function VoicePlaybackBar({
 export function VoicePlaybackHost(): React.ReactElement | null {
   const { t } = useTranslation()
   const state = useSyncExternalStore(voiceService.subscribe, voiceService.getSnapshot, voiceService.getSnapshot)
+
   const playback = useSyncExternalStore(
     speechPlaybackService.subscribe,
     speechPlaybackService.getSnapshot,
     speechPlaybackService.getSnapshot
   )
+
   const sessionId = state.phase === 'idle' || state.source !== 'playback' ? undefined : state.sessionId
   const retryAvailable = state.phase !== 'idle' && Boolean(state.playback?.availableCommands.includes('retry'))
   const currentStateRef = useRef<FailureVersion>({ sessionId, revision: state.revision })
@@ -154,6 +156,7 @@ export function VoicePlaybackHost(): React.ReactElement | null {
         .catch(() => {
           if (!current) return
           const delay = INITIALIZATION_RETRY_DELAYS_MS[attempt]
+
           if (delay === undefined) {
             if (
               currentStateRef.current.sessionId === trigger.sessionId &&
@@ -161,20 +164,25 @@ export function VoicePlaybackHost(): React.ReactElement | null {
             ) {
               setInitializationFailure(trigger)
             }
+
             return
           }
+
           retryTimer = setTimeout(() => initialize(attempt + 1), delay)
         })
     }
 
     initialize(0)
+
     return () => {
       current = false
+
       if (retryTimer !== undefined) clearTimeout(retryTimer)
     }
   }, [])
 
   if (!sessionId || state.phase === 'idle' || state.source !== 'playback') return null
+
   if (
     state.phase === 'failed' &&
     dismissedFailure?.sessionId === sessionId &&
@@ -197,6 +205,7 @@ export function VoicePlaybackHost(): React.ReactElement | null {
         controlGenerationRef.current === generation
       ) {
         setControlFailure({ sessionId: operationSessionId, revision: operationRevision, generation })
+
         if (notifyFailure) toast.error(t('settings.voice.status.operation_failed'))
       }
     })
@@ -204,6 +213,7 @@ export function VoicePlaybackHost(): React.ReactElement | null {
 
   const initializationFailed =
     initializationFailure?.sessionId === sessionId && initializationFailure.revision === state.revision
+
   const controlFailed = controlFailure?.sessionId === sessionId && controlFailure.revision === state.revision
 
   return (

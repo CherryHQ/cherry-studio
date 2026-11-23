@@ -27,4 +27,5 @@ export const paintingTable = sqliteTable(
 )
 
 export type PaintingRow = typeof paintingTable.$inferSelect
+
 export type InsertPaintingRow = typeof paintingTable.$inferInsert

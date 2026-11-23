@@ -32,6 +32,7 @@ export interface Disposable {
  */
 export function toDisposable(fn: () => void): Disposable {
   let disposed = false
+
   return {
     dispose() {
       if (disposed) return
@@ -69,6 +70,7 @@ export class Emitter<T> implements Disposable {
     }
 
     this.listeners.add(listener)
+
     return {
       dispose: () => {
         this.listeners.delete(listener)

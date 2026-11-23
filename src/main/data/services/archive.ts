@@ -22,6 +22,7 @@ export function listArchives(query: {
   const db = application.get('DbService').getDb()
   const cursor = decodeListCursor(query.cursor, asNumericKey, 'archives')
   const ordering = keysetOrdering(sql`"deletedAt"`, sql`"id"`, { major: 'desc', tie: 'asc' })
+
   const rows = db.all<ArchiveRow>(sql`
     SELECT * FROM (
       SELECT 'topics:' || id AS id, id AS entityId, 'topics' AS domain, name, deleted_at AS deletedAt
@@ -45,10 +46,12 @@ export function listArchives(query: {
     ${query.domain ? sql`AND "domain" = ${query.domain}` : sql``}
     ORDER BY ${sql.join(ordering.orderBy, sql`, `)} LIMIT ${query.limit + 1}
   `)
+
   const page = rows.slice(0, query.limit)
   const parentNames = fetchParentNames(page)
   const items: ArchiveEntry[] = page.map((row) => ({ ...row, parentName: parentNames.get(row.id) ?? null }))
   const last = items.at(-1)
+
   return {
     items,
     nextCursor: rows.length > query.limit && last ? encodeCursor(last.deletedAt, last.id) : undefined
@@ -69,6 +72,7 @@ function fetchParentNames(rows: ArchiveRow[]): Map<string, string | null> {
       .leftJoin(agentTable, eq(agentTable.id, agentSessionTable.agentId))
       .where(inArray(agentSessionTable.id, sessionIds))
       .all()
+
     for (const row of sessionRows) {
       parentNames.set(`sessions:${row.id}`, row.parentName)
     }
@@ -81,6 +85,7 @@ function fetchParentNames(rows: ArchiveRow[]): Map<string, string | null> {
       .leftJoin(assistantTable, eq(assistantTable.id, topicTable.assistantId))
       .where(inArray(topicTable.id, topicIds))
       .all()
+
     for (const row of topicRows) {
       parentNames.set(`topics:${row.id}`, row.parentName)
     }

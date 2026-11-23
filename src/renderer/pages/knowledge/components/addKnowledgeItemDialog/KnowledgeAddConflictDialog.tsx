@@ -58,6 +58,7 @@ const KnowledgeAddConflictDialog = ({
         <ul className="flex max-h-60 flex-col gap-1 overflow-y-auto">
           {conflicts.map((conflict, index) => {
             const Icon = CONFLICT_TYPE_ICON[conflict.type]
+
             return (
               <li
                 key={`${conflict.type}-${conflict.title}-${index}`}

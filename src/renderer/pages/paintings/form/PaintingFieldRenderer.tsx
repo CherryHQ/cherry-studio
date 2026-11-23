@@ -23,6 +23,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
   const fieldKey = item.key
 
   const disabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
+
   const currentValue = isOptionsConfigItem(item)
     ? resolveOptionValue(item, painting[fieldKey], painting, t)
     : (painting[fieldKey] ?? item.initialValue)
@@ -30,6 +31,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
   switch (item.type) {
     case 'select': {
       const RegisteredField = fieldRegistry.select
+
       return (
         <RegisteredField
           item={item}
@@ -46,6 +48,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
 
     case 'sizeChips': {
       const RegisteredField = fieldRegistry.sizeChips
+
       return (
         <RegisteredField
           item={item}
@@ -62,6 +65,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
 
     case 'customSize': {
       const RegisteredField = fieldRegistry.customSize
+
       return (
         <RegisteredField
           item={item}
@@ -88,6 +92,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
           {options.map((option) => {
             const optionValue = String(option.value)
             const inputId = `${fieldKey}-${optionValue}`
+
             return (
               <label key={optionValue} htmlFor={inputId} className="flex cursor-pointer items-center gap-2 text-sm">
                 <RadioGroupItem id={inputId} value={optionValue} />
@@ -102,6 +107,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     case 'slider': {
       const numericValue = finiteParamNumberOr(item.key, currentValue, item.initialValue)
       const { min, max } = item
+
       // Degenerate single-value range (e.g. numImages 1..1): the slider has
       // nowhere to move and Radix renders its thumb flush to the rail edge,
       // which the parent's `overflow-hidden` clips. Skip the slider and show
@@ -109,6 +115,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
       if (min === max) {
         return <Input className="w-20" type="number" value={numericValue} readOnly disabled />
       }
+
       return (
         <div className="flex items-center gap-3">
           <Slider
@@ -141,6 +148,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
 
     case 'input': {
       const value = stringOr(currentValue, item.initialValue)
+
       return (
         <div className="flex items-center gap-2">
           <Input
@@ -160,6 +168,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
 
     case 'textarea': {
       const value = stringOr(currentValue, item.initialValue)
+
       return (
         <Textarea.Input value={value} rows={4} onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })} />
       )
@@ -167,6 +176,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
 
     case 'switch': {
       const checked = booleanOr(currentValue, item.initialValue)
+
       return (
         <div className="flex items-center">
           <Switch checked={checked} onCheckedChange={(nextChecked) => onChange({ [fieldKey]: nextChecked })} />

@@ -52,6 +52,7 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
     resolver: zodResolver(buildMcpSchema(t)) as any,
     defaultValues: MCP_FORM_DEFAULT_VALUES
   })
+
   const registryState = useMcpRegistryState(form)
   const { reset: resetRegistryState } = registryState
 
@@ -73,19 +74,23 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
 
   const handleSubmit = async () => {
     if (submitting) return
+
     if (!(await form.trigger())) return
 
     const values = form.getValues()
     const name = values.name.trim()
+
     if (existingServers.some((server) => server.name === name)) {
       form.setError('name', {
         type: 'manual',
         message: t('settings.mcp.addServer.importFrom.nameExists', { name })
       })
+
       return
     }
 
     setSubmitting(true)
+
     try {
       await onCreate({ ...toMcpServerFields(values), name, isActive: false, installSource: 'manual' })
       onOpenChange(false)

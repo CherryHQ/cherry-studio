@@ -36,12 +36,15 @@ export async function pipeStreamLoop(
   let streamErrorText: string | undefined
   let threw: { error: unknown } | undefined
   let accumulationError: { error: unknown } | undefined
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK accumulation and snapshot callbacks may fail with any thrown value, including undefined; preserve the first failure separately from broadcast.
   const onAccumulationError = (error: unknown) => {
     accumulationError ??= { error }
   }
+
   const boundary = new TransformStream<UIMessageChunk, UIMessageChunk>()
   const [forBroadcast, forAccum] = boundary.readable.tee()
+
   const accumulator = runAccumulator(
     forAccum,
     options.accumulatorSeed,
@@ -54,6 +57,7 @@ export async function pipeStreamLoop(
 
   const stop = new AbortController()
   const forwardingSignal = AbortSignal.any([signal, stop.signal])
+
   // Prevent an upstream error/abort from discarding chunks already queued for either consumer.
   const forwarding = stream
     .pipeTo(boundary.writable, {
@@ -71,20 +75,26 @@ export async function pipeStreamLoop(
     })
 
   const broadcastReader = forBroadcast.getReader()
+
   const onAbort = () => {
     void broadcastReader.cancel(signal.reason).catch(() => {})
   }
+
   if (signal.aborted) onAbort()
   else signal.addEventListener('abort', onAbort, { once: true })
 
   let broadcastCompletedAt: number
+
   try {
     while (true) {
       const { done, value } = await broadcastReader.read()
+
       if (done) break
+
       if (value.type === 'error') streamErrorText ??= value.errorText
       options.onChunk(value)
     }
+
     broadcastCompletedAt = performance.now()
   } catch (error) {
     threw ??= { error }
@@ -98,6 +108,7 @@ export async function pipeStreamLoop(
 
   await forwarding
   await accumulator
+
   return { finalMessage, streamErrorText, threw, accumulationError, broadcastCompletedAt }
 }
 
@@ -116,12 +127,17 @@ async function runAccumulator(
       }
     })
   )
+
   let reader: ReadableStreamDefaultReader<CherryUIMessage> | undefined
+
   try {
     reader = readUIMessageStream<CherryUIMessage>({ stream: input, message: seed, onError }).getReader()
+
     while (true) {
       const { done, value } = await reader.read()
+
       if (done) return
+
       try {
         onSnapshot(value)
       } catch (error) {

@@ -24,21 +24,25 @@ function validatePatchModes({ cwd, mergeSha, patchBase }) {
   })
     .split('\0')
     .filter(Boolean)
+
   const regularModes = new Set(['100644', '100755'])
 
   for (let index = 0; index < entries.length; index += 2) {
     const header = entries[index]
     const filePath = entries[index + 1]
     const match = /^:(\d{6}) (\d{6}) [0-9a-f]+ [0-9a-f]+ [A-Z]$/.exec(header)
+
     if (!match || !filePath) throw new Error('Cannot parse backport patch file modes')
 
     const [, baseMode, targetMode] = match
+
     if (
       (baseMode !== '000000' && !regularModes.has(baseMode)) ||
       (targetMode !== '000000' && !regularModes.has(targetMode))
     ) {
       throw new Error(`Cannot backport a symbolic link or gitlink: ${filePath}`)
     }
+
     if (
       (baseMode !== '000000' && targetMode !== '000000' && baseMode !== targetMode) ||
       (baseMode === '000000' && targetMode !== '100644')
@@ -56,20 +60,25 @@ function validateBackportChanges(cwd) {
   })
     .split('\0')
     .filter(Boolean)
+
   const regularModes = new Set(['100644', '100755'])
 
   for (const filePath of changedPaths) {
     const baseMode = gitMode(cwd, ['ls-tree', 'HEAD', '--', filePath])
     const indexMode = gitMode(cwd, ['ls-files', '--stage', '--', filePath])
+
     if ((baseMode && !regularModes.has(baseMode)) || (indexMode && !regularModes.has(indexMode))) {
       throw new Error(`Cannot backport a symbolic link or gitlink: ${filePath}`)
     }
+
     if ((baseMode && indexMode && baseMode !== indexMode) || (!baseMode && indexMode !== '100644')) {
       throw new Error(`Cannot backport a file mode change: ${filePath}`)
     }
+
     if (!indexMode) continue
 
     const stats = fs.lstatSync(path.join(cwd, filePath))
+
     if (!stats.isFile() || stats.isSymbolicLink()) {
       throw new Error(`Cannot backport a non-regular file: ${filePath}`)
     }
@@ -82,16 +91,20 @@ function resolvePatchBase({ cwd, mergeSha, prCommitCount, prNumber, getAssociate
   }
 
   const parents = run('git', ['show', '-s', '--format=%P', mergeSha], cwd).split(/\s+/).filter(Boolean)
+
   if (parents.length === 0 || parents.length > 2) {
     throw new Error(`Unsupported merged commit parent count for ${mergeSha}: ${parents.length}`)
   }
 
   let patchBase = parents[0]
+
   if (parents.length === 1 && prCommitCount > 1) {
     let currentSha = mergeSha
     let foundRebaseCommit = false
+
     for (let index = 1; index < prCommitCount; index += 1) {
       const parentSha = run('git', ['rev-parse', `${currentSha}^1`], cwd)
+
       if (!getAssociatedPullRequests(parentSha).includes(prNumber)) {
         if (!foundRebaseCommit) break
         throw new Error(
@@ -110,10 +123,12 @@ function resolvePatchBase({ cwd, mergeSha, prCommitCount, prNumber, getAssociate
 
 function applyBackportPatch({ cwd, mergeSha, patchBase, patchFile }) {
   validatePatchModes({ cwd, mergeSha, patchBase })
+
   const patch = execFileSync('git', ['diff', '--binary', '--full-index', patchBase, mergeSha, '--'], {
     cwd,
     maxBuffer: MAX_BUFFER
   })
+
   fs.writeFileSync(patchFile, patch)
 
   if (patch.length === 0 || succeeds('git', ['apply', '--reverse', '--check', patchFile], cwd)) {
@@ -125,7 +140,9 @@ function applyBackportPatch({ cwd, mergeSha, patchBase, patchFile }) {
     encoding: 'utf8',
     maxBuffer: MAX_BUFFER
   })
+
   const unmergedPaths = run('git', ['diff', '--name-only', '--diff-filter=U'], cwd)
+
   if (application.status !== 0 || unmergedPaths) {
     const diagnostics = [
       application.error?.message,
@@ -136,6 +153,7 @@ function applyBackportPatch({ cwd, mergeSha, patchBase, patchFile }) {
       .filter(Boolean)
       .join('\n')
       .slice(-8000)
+
     execFileSync('git', ['reset', '--hard', 'HEAD'], { cwd, stdio: 'ignore' })
     throw new Error(
       `The merged hotfix result conflicts with the active release branch.${diagnostics ? `\n${diagnostics}` : ''}`
@@ -162,6 +180,7 @@ function prepareBackport({ cwd, mergeSha, prCommitCount, prNumber, patchFile, ge
   }
 
   const patchBase = resolvePatchBase({ cwd, mergeSha, prCommitCount, prNumber, getAssociatedPullRequests })
+
   return { patchBase, ...applyBackportPatch({ cwd, mergeSha, patchBase, patchFile }) }
 }
 
@@ -171,6 +190,7 @@ function appendOutput(outputFile, key, value) {
 
 function main() {
   const { GITHUB_OUTPUT, MERGE_SHA, PR_COMMIT_COUNT, PR_NUMBER, REPO, RUNNER_TEMP } = process.env
+
   if (!GITHUB_OUTPUT || !MERGE_SHA || !PR_COMMIT_COUNT || !PR_NUMBER || !REPO || !RUNNER_TEMP) {
     throw new Error('Missing required backport workflow environment')
   }
@@ -187,6 +207,7 @@ function main() {
         ['api', '--paginate', '--slurp', `repos/${REPO}/commits/${commitSha}/pulls?per_page=100`],
         process.cwd()
       )
+
       return JSON.parse(response)
         .flat()
         .map((pullRequest) => pullRequest.number)
@@ -204,6 +225,7 @@ if (require.main === module) {
     if (process.env.RUNNER_TEMP) {
       fs.writeFileSync(`${process.env.RUNNER_TEMP}/backport-failure-message`, error.message)
     }
+
     console.error(error.message)
     process.exitCode = 1
   }

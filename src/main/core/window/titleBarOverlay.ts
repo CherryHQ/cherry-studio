@@ -26,6 +26,7 @@ export function syncTitleBarOverlayWithTheme(window: BrowserWindow): void {
   const apply = () => {
     if (!window.isDestroyed()) window.setTitleBarOverlay(getThemeColors())
   }
+
   apply()
   nativeTheme.on('updated', apply)
   window.once('closed', () => nativeTheme.removeListener('updated', apply))

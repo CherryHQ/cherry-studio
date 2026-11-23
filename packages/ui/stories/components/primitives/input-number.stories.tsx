@@ -18,12 +18,14 @@ const meta: Meta<typeof InputNumber> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 /** The shape most call sites want: the field owns the text being typed, and only the settled value is written. */
 export const Integer: Story = {
   render: function IntegerExample() {
     const [value, setValue] = useState<number | null>(10)
+
     return (
       <div className="flex items-center gap-3">
         <InputNumber className="w-40" min={1} max={99} step={1} value={value} onBlur={setValue} />
@@ -37,6 +39,7 @@ export const Integer: Story = {
 export const Decimal: Story = {
   render: function DecimalExample() {
     const [value, setValue] = useState<number | null>(1.5)
+
     return (
       <div className="flex items-center gap-3">
         <InputNumber className="w-40" min={0} step={0.1} value={value} onBlur={setValue} />
@@ -54,6 +57,7 @@ export const Decimal: Story = {
 export const Signed: Story = {
   render: function SignedExample() {
     const [value, setValue] = useState<number | null>(-0.5)
+
     return (
       <div className="flex items-center gap-3">
         <InputNumber className="w-40" step={0.1} value={value} onValueChange={setValue} onBlur={setValue} />
@@ -66,6 +70,7 @@ export const Signed: Story = {
 export const InGroup: Story = {
   render: function InGroupExample() {
     const [value, setValue] = useState<number | null>(30)
+
     return (
       <InputGroup className="w-40">
         <InputGroupInputNumber min={0} step={5} value={value} onBlur={setValue} />

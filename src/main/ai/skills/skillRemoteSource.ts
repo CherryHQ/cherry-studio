@@ -35,8 +35,10 @@ const logger = loggerService.withContext('SkillRemoteSource')
 
 // API base URLs for the 3 search sources
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
+
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
 const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
+
 // chromium/chromium lists ~2.4 MiB of refs; the cap only stops output that a hostile repository can
 // grow without end.
 const MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
@@ -67,6 +69,7 @@ type GithubRefResolution =
 
 function resolveGithubRef(refs: readonly GithubRef[], refAndPath: readonly string[]): GithubRefResolution {
   const refsByName = new Map<string, GithubRef[]>()
+
   for (const ref of refs) {
     refsByName.set(ref.name, [...(refsByName.get(ref.name) ?? []), ref])
   }
@@ -74,7 +77,9 @@ function resolveGithubRef(refs: readonly GithubRef[], refAndPath: readonly strin
   for (let length = refAndPath.length; length >= 1; length--) {
     const name = refAndPath.slice(0, length).join('/')
     const matches = refsByName.get(name)
+
     if (!matches?.length) continue
+
     if (matches.length > 1) return { kind: 'ambiguous', name }
 
     return {
@@ -86,6 +91,7 @@ function resolveGithubRef(refs: readonly GithubRef[], refAndPath: readonly strin
           : { kind: 'directory', path: refAndPath.slice(length).join('/') }
     }
   }
+
   return { kind: 'no-match' }
 }
 
@@ -116,6 +122,7 @@ const FETCHERS: ReadonlyMap<string, Fetcher> = new Map([
  */
 export async function fetchRemoteSkill(source: string, identifier: string): Promise<FetchedSkill> {
   const fetcher = FETCHERS.get(source)
+
   if (!fetcher) {
     throw new Error(`Unknown install source: ${source}`)
   }
@@ -126,6 +133,7 @@ export async function fetchRemoteSkill(source: string, identifier: string): Prom
 
   try {
     const fetched = await fetcher(identifier, openTempDir)
+
     return { tempDir, ...fetched }
   } catch (error) {
     if (tempDir) await safeRemoveDirectory(tempDir)
@@ -144,6 +152,7 @@ async function fetchFromClaudePlugins(
 
   const invalidRepositoryPart = (part: string) =>
     !part || part === '.' || part === '..' || !/^[a-zA-Z0-9_.-]+$/.test(part)
+
   const invalidDirectoryPart = (part: string) =>
     !part || part !== part.trim() || part === '.' || part === '..' || part.includes('\\') || part.includes('\0')
 
@@ -160,11 +169,13 @@ async function fetchFromClaudePlugins(
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
   const commit = await fetchGithubCommit(getGithubTransportUrl(repoUrl), 'HEAD', tempDir)
+
   const { contentDir, skillDir: targetDir } = await materializeGithubTarget(
     commit,
     { kind: 'directory', path: directoryPath },
     SKILL_DESCRIPTOR_FILE_NAMES
   )
+
   const skillDir = await validateRepositorySkillDirectory(contentDir, targetDir)
   await assertSkillDirectoryWithinLimits(skillDir)
 
@@ -190,6 +201,7 @@ async function fetchFromClaudePlugins(
  */
 async function resolveGithubSkillTarget(identifier: string) {
   const location = parseGithubSkillUrl(identifier)
+
   if (!location) {
     throw new Error(`Invalid GitHub skill URL: ${identifier}`)
   }
@@ -200,6 +212,7 @@ async function resolveGithubSkillTarget(identifier: string) {
   const { ref, namespace, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, refNamespace)
 
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
+
   const sourceUrl = namespace
     ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
     : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
@@ -232,6 +245,7 @@ async function fetchFromSkillsSh(
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const parts = identifier.split('/')
+
   if (
     parts.length !== 3 ||
     !parts.every((part) => /^[a-zA-Z0-9_.-]+$/.test(part)) ||
@@ -239,6 +253,7 @@ async function fetchFromSkillsSh(
   ) {
     throw new Error(`Invalid skills.sh identifier: ${identifier}`)
   }
+
   logger.info('Installing from skills.sh', { identifier })
 
   const [owner, repo, skillName] = parts
@@ -250,13 +265,16 @@ async function fetchFromSkillsSh(
   await checkoutSparse(commit, descriptorDir, SKILL_DESCRIPTOR_FILE_NAMES)
   const matchedDir = await resolveSkillDirectory(descriptorDir, skillName, null)
   const matchedPath = path.relative(await fs.promises.realpath(descriptorDir), matchedDir)
+
   const { contentDir, skillDir: targetDir } = await materializeGithubTarget(
     commit,
     matchedPath ? { kind: 'directory', path: matchedPath.split(path.sep).join('/') } : { kind: 'root' },
     SKILL_DESCRIPTOR_FILE_NAMES
   )
+
   const skillDir = await validateRepositorySkillDirectory(contentDir, targetDir)
   await assertSkillDirectoryWithinLimits(skillDir)
+
   return {
     skillDir,
     sourceUrl: `https://skills.sh/${identifier}`
@@ -265,18 +283,23 @@ async function fetchFromSkillsSh(
 
 function getGithubTransportUrl(repoUrl: string): string {
   const value = application.get('PreferenceService').get(BINARY_INSTALL_PREFERENCE_KEY).githubMirror.trim()
+
   if (!value) return repoUrl
 
   let mirror: URL
+
   try {
     mirror = new URL(value)
+
     if (mirror.protocol !== 'http:' && mirror.protocol !== 'https:') throw new Error()
   } catch {
     throw new Error('GitHub mirror must be a valid HTTP(S) URL')
   }
+
   if (mirror.username || mirror.password) {
     throw new Error('GitHub mirror must not contain embedded credentials')
   }
+
   return `${mirror.toString().replace(/\/+$/, '')}/${repoUrl}`
 }
 
@@ -286,12 +309,14 @@ async function fetchFromClawhub(
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   const [ownerHandle, slug, ...extraParts] = identifier.split('/')
   const invalidPart = (part: string | undefined) => !part || !/^[a-zA-Z0-9_.-]+$/.test(part)
+
   if (extraParts.length > 0 || invalidPart(ownerHandle) || invalidPart(slug)) {
     throw new Error(`Invalid clawhub identifier: ${identifier}`)
   }
 
   const detailUrl = new URL(`https://clawhub.ai/api/v1/skills/${encodeURIComponent(slug)}`)
   detailUrl.searchParams.set('ownerHandle', ownerHandle)
+
   const detailResp = await net.fetch(detailUrl.toString(), {
     headers: { 'User-Agent': 'CherryStudio' }
   })
@@ -299,23 +324,30 @@ async function fetchFromClawhub(
   if (!detailResp.ok) {
     throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
   }
+
   if (!detailResp.body) throw new Error('clawhub detail returned an empty body')
 
   const detailChunks: Uint8Array[] = []
   let detailBytes = 0
+
   for await (const chunk of detailResp.body) {
     detailBytes += chunk.byteLength
+
     if (detailBytes > MAX_CLAWHUB_DETAIL_BYTES) {
       throw new Error(`clawhub detail exceeds the ${MAX_CLAWHUB_DETAIL_BYTES}-byte limit`)
     }
+
     detailChunks.push(chunk)
   }
+
   const detailResult = ClawhubSkillDetailSchema.safeParse(
     JSON.parse(new TextDecoder().decode(Buffer.concat(detailChunks)))
   )
+
   if (!detailResult.success) {
     throw new Error('clawhub detail returned invalid metadata')
   }
+
   if (
     detailResult.data.skill.slug !== slug ||
     detailResult.data.owner?.handle.toLowerCase() !== ownerHandle.toLowerCase()
@@ -326,6 +358,7 @@ async function fetchFromClawhub(
   const downloadUrl = new URL('https://clawhub.ai/api/v1/download')
   downloadUrl.searchParams.set('slug', slug)
   downloadUrl.searchParams.set('ownerHandle', ownerHandle)
+
   const downloadResp = await net.fetch(downloadUrl.toString(), {
     headers: { 'User-Agent': 'CherryStudio' }
   })
@@ -335,23 +368,29 @@ async function fetchFromClawhub(
   }
 
   const advertisedSize = Number(downloadResp.headers.get('content-length') ?? NaN)
+
   if (Number.isFinite(advertisedSize) && advertisedSize > MAX_SKILL_SIZE) {
     await downloadResp.body?.cancel()
     throw new Error(`clawhub archive advertises ${advertisedSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
   }
+
   if (!downloadResp.body) throw new Error('clawhub archive returned an empty body')
 
   const tempDir = await openTempDir()
   const zipPath = path.join(tempDir, 'skill.zip')
   // Content-Length is server-controlled; the running count is what enforces the cap.
   const handle = await fs.promises.open(zipPath, 'w')
+
   try {
     let received = 0
+
     for await (const chunk of downloadResp.body) {
       received += chunk.byteLength
+
       if (received > MAX_SKILL_SIZE) {
         throw new Error(`clawhub archive exceeds the ${MAX_SKILL_SIZE}-byte limit`)
       }
+
       for (let offset = 0; offset < chunk.byteLength;) {
         offset += (await handle.write(chunk, offset)).bytesWritten
       }
@@ -359,18 +398,22 @@ async function fetchFromClawhub(
   } finally {
     await handle.close()
   }
+
   const extractDir = path.join(tempDir, sanitizeFolderName(slug))
   await fs.promises.mkdir(extractDir, { recursive: true })
   await extractZip(zipPath, extractDir)
   // ClawHub serves one published skill bundle whose descriptor is at the archive root. Nested
   // SKILL.md files are supporting content, not alternative install candidates.
   const skillMdPath = await findSkillMdPath(extractDir)
+
   if (!skillMdPath) {
     throw new Error(`No SKILL.md found at the clawhub archive root: ${identifier}`)
   }
+
   const skillDir = await validateRepositorySkillDirectory(extractDir, extractDir, skillMdPath)
   await assertSkillDirectoryWithinLimits(skillDir)
   const metadata = await parseSkillMetadata(skillDir, slug, 'skills', { calculateSize: false })
+
   if ((metadata.slug ?? metadata.name).toLowerCase() !== slug.toLowerCase()) {
     throw new Error(`clawhub archive did not match the requested skill: ${identifier}`)
   }
@@ -389,6 +432,7 @@ async function resolveGithubCommit(
   refNamespace: 'heads' | 'tags' | null
 ): Promise<{ ref: string; namespace: 'heads' | 'tags' | null; oid: string; target: GithubSkillTarget }> {
   const gitCommand = await resolveGitCommand()
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Git failures remain unchanged unless the owned output-limit error requires actionable repository context.
   const output = await runGit(gitCommand, ['ls-remote', '--heads', '--tags', '--', repoUrl]).catch((error: unknown) => {
     if (!(error instanceof CommandOutputLimitError)) throw error
@@ -396,16 +440,20 @@ async function resolveGithubCommit(
       cause: error
     })
   })
+
   const refs = output.split('\n').flatMap((line) => {
     const [oid, fullName] = line.split('\t').map((part) => part.trim())
     // `^{}` marks a tag's dereferenced commit; the tag itself is already listed.
     const match = fullName?.match(/^refs\/(heads|tags)\/(.+?)(?:\^\{\})?$/)
+
     if (!oid || !match || fullName.endsWith('^{}')) return []
+
     return [{ oid, namespace: match[1] as 'heads' | 'tags', name: match[2] }]
   })
 
   const matchingRefs = refNamespace ? refs.filter((ref) => ref.namespace === refNamespace) : refs
   const resolution = resolveGithubRef(matchingRefs, refAndPath)
+
   switch (resolution.kind) {
     case 'resolved':
       return {
@@ -418,11 +466,14 @@ async function resolveGithubCommit(
       throw new Error(`${repoUrl} has both a branch and a tag named "${resolution.name}"; the URL cannot say which.`)
     case 'no-match': {
       const [head, ...rest] = refAndPath
+
       if (refNamespace === null && /^[0-9a-f]{40}$/i.test(head)) {
         const target: GithubSkillTarget =
           rest.length === 0 ? { kind: 'root' } : { kind: 'directory', path: rest.join('/') }
+
         return { ref: head, namespace: null, oid: head.toLowerCase(), target }
       }
+
       throw new Error(`No branch or tag in ${repoUrl} matches "${refAndPath.join('/')}"`)
     }
   }
@@ -439,6 +490,7 @@ async function fetchGithubCommit(repoUrl: string, revision: string, tempDir: str
 
   await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
   await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, revision])
+
   return { gitDir, tempDir, git }
 }
 
@@ -455,6 +507,7 @@ async function materializeGithubTarget(
   // The check and the checkout read one tree object: a sparse pattern and a pathspec naming the
   // same path fold case and Unicode differently on macOS and Windows, and select different trees.
   const treeOid = target.kind === 'root' ? 'FETCH_HEAD^{tree}' : await resolveGithubTargetTree(commit, target.path)
+
   if (!treeOid) throw missingDescriptorError(target, descriptorFileNames)
   // Sizes are left to the on-disk check after checkout: `ls-tree -l` fetches every blob one
   // round trip at a time, long enough for a 60-file skill to hit the git timeout.
@@ -467,6 +520,7 @@ async function materializeGithubTarget(
   await fs.promises.rm(path.join(commit.gitDir, 'index'), { force: true })
   // A user's global `core.sparseCheckout` would otherwise apply the descriptor-only patterns left behind.
   await commit.git([`--work-tree=${skillDir}`, '-c', 'core.sparseCheckout=false', 'read-tree', '-mu', treeOid])
+
   return { contentDir, skillDir }
 }
 
@@ -477,8 +531,10 @@ async function resolveGithubTargetTree(commit: FetchedGithubCommit, targetPath: 
   )
     .split('\0')
     .filter(Boolean)
+
   if (records.length !== 1) return null
   const [, type, oid] = records[0].slice(0, records[0].indexOf('\t')).split(' ')
+
   return type === 'tree' ? oid : null
 }
 
@@ -507,6 +563,7 @@ function missingDescriptorError(
 ): Error {
   const descriptor = descriptorFileNames.join(' or ')
   const location = target.kind === 'root' ? descriptor : `${target.path}/${descriptor}`
+
   return new Error(`No ${descriptor} found at the selected GitHub location: ${location}`)
 }
 
@@ -518,9 +575,12 @@ function assertGithubTargetTree(
   const entryPaths = tree.split('\0').flatMap((record) => {
     if (!record) return []
     const tab = record.indexOf('\t')
+
     if (tab === -1) return []
     const [, type] = record.slice(0, tab).trim().split(/\s+/)
+
     if (type !== 'blob') return []
+
     return [record.slice(tab + 1)]
   })
 
@@ -529,6 +589,7 @@ function assertGithubTargetTree(
   if (!entryPaths.some((entryPath) => descriptorFileNames.includes(entryPath as SkillDescriptorFileName))) {
     throw missingDescriptorError(target, descriptorFileNames)
   }
+
   if (entryPaths.length > MAX_SKILL_FILES) {
     throw new Error(`Skill holds ${entryPaths.length} files, over the ${MAX_SKILL_FILES}-file limit`)
   }
@@ -540,6 +601,7 @@ function assertGithubTargetTree(
  */
 async function runGit(gitCommand: string, args: string[]): Promise<string> {
   const env = await getShellEnv()
+
   return executeCommand(gitCommand, args, {
     capture: true,
     maxOutputBytes: MAX_GIT_OUTPUT_BYTES,
@@ -562,6 +624,7 @@ async function resolveGitCommand(): Promise<string> {
     logger.warn('git lookup failed, falling back to bare git', {
       error: err instanceof Error ? err.message : String(err)
     })
+
     return 'git'
   }
 }
@@ -574,6 +637,7 @@ async function reportInstall(owner: string, repo: string, skillName: string): Pr
 export async function readGithubSkillCatalog(url: string) {
   const parsed = new URL(url)
   const [owner, repo, marker, ...tail] = parsed.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+
   if (
     !owner ||
     !repo ||
@@ -581,22 +645,28 @@ export async function readGithubSkillCatalog(url: string) {
   ) {
     throw new Error('Invalid GitHub repository URL')
   }
+
   const repoUrl = 'https://github.com/' + owner + '/' + repo
   const transport = getGithubTransportUrl(repoUrl)
   let resolved: Awaited<ReturnType<typeof resolveGithubCommit>>
+
   if (!marker) {
     const refs = await runGit(await resolveGitCommand(), ['ls-remote', '--symref', '--', transport, 'HEAD'])
     const branch = refs.match(/^ref: refs\/heads\/(.+)\s+HEAD$/m)?.[1]
     const oid = refs.match(/^([a-f0-9]{40})\s+HEAD$/m)?.[1]
+
     if (!branch || !oid) throw new Error('GitHub repository has no default branch')
     resolved = { ref: branch, namespace: 'heads', oid, target: { kind: 'root' } }
   } else {
     if (marker !== 'tree' || !tail.length) throw new Error('Expected a GitHub repository or tree URL')
     const location = parseGithubSkillUrl(repoUrl + '/blob/' + tail.map(encodeURIComponent).join('/') + '/SKILL.md')
+
     if (!location) throw new Error('Invalid GitHub repository path')
     resolved = await resolveGithubCommit(transport, location.refAndPath, location.refNamespace)
   }
+
   const tempDir = await createTempDir('subscription-github')
+
   try {
     const commit = await fetchGithubCommit(transport, resolved.oid, tempDir)
     const descriptors = path.join(tempDir, 'descriptors')
@@ -604,21 +674,27 @@ export async function readGithubSkillCatalog(url: string) {
     await assertSkillDirectoryWithinLimits(descriptors)
     const root = resolved.target.kind === 'root' ? descriptors : path.join(descriptors, resolved.target.path)
     const candidates = await findAllSkillDirectories(root, descriptors)
+
     const items: Array<{
       metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
       sourceUrl: string
       content: string
     }> = []
+
     let skipped = 0
+
     for (const candidate of candidates) {
       try {
         const skillDir = await validateRepositorySkillDirectory(descriptors, candidate.folderPath)
         const file = await findSkillMdPath(skillDir)
+
         if (!file || (await fs.promises.stat(file)).size > 1024 * 1024) throw new Error('Invalid skill descriptor')
         const metadata = await parseSkillMetadata(skillDir, candidate.sourcePath, 'general', { calculateSize: false })
+
         const sourcePath = [resolved.ref, candidate.sourcePath.split(path.sep).join('/'), path.basename(file)]
           .filter(Boolean)
           .join('/')
+
         const sourceUrl = resolved.namespace
           ? 'https://raw.githubusercontent.com/' +
             owner +
@@ -629,12 +705,14 @@ export async function readGithubSkillCatalog(url: string) {
             '/' +
             encodeGithubPath(sourcePath)
           : repoUrl + '/blob/' + encodeGithubPath(sourcePath)
+
         items.push({ metadata, sourceUrl, content: await fs.promises.readFile(file, 'utf8') })
       } catch (error) {
         skipped++
         logger.warn('Skipping invalid subscribed skill descriptor', { path: candidate.sourcePath, error })
       }
     }
+
     return { name: owner + '/' + repo, items, skipped }
   } finally {
     await safeRemoveDirectory(tempDir)

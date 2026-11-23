@@ -20,8 +20,11 @@
  *    updates are not transitions and will surface the nearest fallback (see components/GlobalSearch/GlobalSearchPopup for the shape).
  */
 export { createPopup } from './createPopup'
+
 export { POPUP_EXIT_MS, popupService } from './PopupService'
+
 export { popup } from './presets'
+
 export type {
   ComponentPopupEntry,
   ConfirmPopupEntry,

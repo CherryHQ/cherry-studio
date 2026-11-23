@@ -4,6 +4,7 @@ import { QueritLight } from './light'
 
 const Querit = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <QueritLight {...props} className={className} />
+
   return <QueritLight {...props} className={className} />
 }
 

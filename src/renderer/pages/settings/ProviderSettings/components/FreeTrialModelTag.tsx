@@ -23,6 +23,7 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
   const rawId = modelId.includes('::') ? modelId.slice(modelId.indexOf('::') + 2) : modelId
   const cherryInModels = ['Qwen/Qwen3-8B', 'Qwen/Qwen3-Next-80B-A3B-Instruct']
   const linkedProviderId = cherryInModels.includes(rawId) ? 'cherryin' : ''
+
   if (!linkedProviderId) return null
 
   const onSelectProvider = () => {

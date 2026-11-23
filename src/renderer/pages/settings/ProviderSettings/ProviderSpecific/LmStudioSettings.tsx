@@ -19,12 +19,15 @@ const LmStudioSettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
 
   const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
+
   // `onBlur` fires once per edit with the normalized value, so the field needs no
   // local draft. It is handed back the promise, so it holds the committed value
   // until the provider query catches up; a failed save falls back to the saved one.
   const handleCommit = async (value: number | null) => {
     const next = Math.floor(value ?? 0)
+
     if (next === keepAliveTime) return
+
     try {
       await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: next } })
     } catch (error) {

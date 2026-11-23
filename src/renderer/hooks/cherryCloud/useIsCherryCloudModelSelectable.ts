@@ -9,6 +9,7 @@ export function useIsCherryCloudModelSelectable({
   enabled = true
 }: { includeAgentOnlyModels?: boolean; enabled?: boolean } = {}): (model: Model) => boolean {
   const { isModelHidden, isModelUnavailable } = useCherryCloudModelAvailability(enabled)
+
   return useCallback(
     (model: Model) => !isModelHidden(model, includeAgentOnlyModels) && !isModelUnavailable(model),
     [includeAgentOnlyModels, isModelHidden, isModelUnavailable]

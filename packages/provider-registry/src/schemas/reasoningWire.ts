@@ -41,6 +41,7 @@ export const REASONING_WIRE_TARGETS = [
 ] as const
 
 export const ReasoningWireTargetSchema = z.enum(REASONING_WIRE_TARGETS)
+
 export type ReasoningWireTarget = z.infer<typeof ReasoningWireTargetSchema>
 
 const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
@@ -51,12 +52,14 @@ export const ReasoningWireValueSchema = z.discriminatedUnion('source', [
   z.object({ source: z.literal('budget') }),
   z.object({ source: z.literal('assistant-summary') })
 ])
+
 export type ReasoningWireValue = z.infer<typeof ReasoningWireValueSchema>
 
 export const ReasoningWireOperationSchema = z.object({
   target: ReasoningWireTargetSchema,
   value: ReasoningWireValueSchema
 })
+
 export type ReasoningWireOperation = z.infer<typeof ReasoningWireOperationSchema>
 
 const NonBudgetReasoningWireValueSchema = z.discriminatedUnion('source', [
@@ -99,6 +102,7 @@ export const ReasoningWireModeSchema = z.union([
     budget: ReasoningBudgetPolicySchema
   })
 ])
+
 export type ReasoningWireMode = z.infer<typeof ReasoningWireModeSchema>
 
 export const ReasoningWireProfileSchema = z
@@ -122,4 +126,5 @@ export const ReasoningFormatWireProfileSchema = z.object({
   alwaysOnWire: ReasoningWireProfileSchema.optional(),
   betweenToolsWire: ReasoningWireProfileSchema.optional()
 })
+
 export type ReasoningFormatWireProfile = z.infer<typeof ReasoningFormatWireProfileSchema>

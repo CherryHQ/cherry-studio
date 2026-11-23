@@ -84,11 +84,13 @@ export class StreamAdapterFactory {
    */
   static createAdapter(format: OutputFormat, options: StreamAdapterOptions): GatewayStreamAdapter {
     const entry = this.registry.get(format)
+
     if (!entry) {
       throw new Error(
         `Unsupported output format: ${format}. Supported formats: ${this.getSupportedFormats().join(', ')}`
       )
     }
+
     return new entry.adapterClass(options)
   }
 
@@ -101,11 +103,13 @@ export class StreamAdapterFactory {
    */
   static getFormatter(format: OutputFormat): ISseFormatter {
     const entry = this.registry.get(format)
+
     if (!entry) {
       throw new Error(
         `Unsupported output format: ${format}. Supported formats: ${this.getSupportedFormats().join(', ')}`
       )
     }
+
     return new entry.formatterClass()
   }
 

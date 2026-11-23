@@ -54,12 +54,14 @@ const MCP_SERVER_MUTABLE_FIELDS = {
  * - All other fields are optional
  */
 export const CreateMcpServerSchema = McpServerSchema.pick(MCP_SERVER_MUTABLE_FIELDS).partial().required({ name: true })
+
 export type CreateMcpServerDto = z.infer<typeof CreateMcpServerSchema>
 
 /**
  * DTO for updating an existing MCP server. All fields optional, chain-derived from Create.
  */
 export const UpdateMcpServerSchema = CreateMcpServerSchema.partial()
+
 export type UpdateMcpServerDto = z.infer<typeof UpdateMcpServerSchema>
 
 /**
@@ -73,6 +75,7 @@ export const ListMcpServersQuerySchema = z.object({
   /** Filter by server type */
   type: McpServerTypeSchema.optional()
 })
+
 export type ListMcpServersQuery = z.infer<typeof ListMcpServersQuerySchema>
 
 /**
@@ -81,6 +84,7 @@ export type ListMcpServersQuery = z.infer<typeof ListMcpServersQuerySchema>
 export const ReorderMcpServersSchema = z.object({
   orderedIds: z.array(z.string().min(1))
 })
+
 export type ReorderMcpServersBody = z.infer<typeof ReorderMcpServersSchema>
 
 // ============================================================================

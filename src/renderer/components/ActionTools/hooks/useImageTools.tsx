@@ -35,6 +35,7 @@ export const useImageTools = (
 
     // 优先尝试从 Shadow DOM 中查找
     const shadowRoot = containerRef.current.shadowRoot
+
     if (shadowRoot) {
       return shadowRoot.querySelector<SVGElement>(imgSelector)
     }
@@ -46,24 +47,29 @@ export const useImageTools = (
   // 获取原始图像元素（移除所有变换）
   const getCleanImgElement = useCallback((): SVGElement | null => {
     const imgElement = getImgElement()
+
     if (!imgElement) return null
 
     const clonedElement = imgElement.cloneNode(true) as SVGElement
     clonedElement.style.transform = ''
     clonedElement.style.transformOrigin = ''
+
     return clonedElement
   }, [getImgElement])
 
   // 查询当前位置
   const getCurrentPosition = useCallback(() => {
     const imgElement = getImgElement()
+
     if (!imgElement) return transformRef.current
 
     const transform = imgElement.style.transform
+
     if (!transform || transform === 'none') return transformRef.current
 
     // 使用CSS矩阵解析
     const matrix = new DOMMatrix(transform)
+
     return { x: matrix.m41, y: matrix.m42 }
   }, [getImgElement])
 
@@ -200,6 +206,7 @@ export const useImageTools = (
     }
 
     container.addEventListener('wheel', handleWheel, { passive: false })
+
     return () => container.removeEventListener('wheel', handleWheel)
   }, [containerRef, zoom, enableWheelZoom])
 
@@ -211,15 +218,18 @@ export const useImageTools = (
   const copy = useCallback(async () => {
     try {
       const imgElement = getCleanImgElement()
+
       if (!imgElement) return false
 
       const blob = await svgToPngBlob(imgElement)
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       toast.success(t('message.copy.success'))
+
       return true
     } catch (error) {
       logger.error('Copy failed:', error as Error)
       toast.error(t('message.copy.failed'))
+
       return false
     }
   }, [getCleanImgElement, t])
@@ -233,6 +243,7 @@ export const useImageTools = (
     async (format: 'svg' | 'png') => {
       try {
         const imgElement = getCleanImgElement()
+
         if (!imgElement) return
 
         const timestamp = Date.now()
@@ -264,6 +275,7 @@ export const useImageTools = (
   const dialog = useCallback(async () => {
     try {
       const imgElement = getCleanImgElement()
+
       if (!imgElement) return
 
       await ImagePreviewService.show(imgElement, { format: 'svg' })

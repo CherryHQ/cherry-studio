@@ -43,7 +43,9 @@ export interface Ledger {
 }
 
 export type StartResult = 'started' | 'queued' | 'busy'
+
 export type RetractResult = 'withdrawn' | 'already-started' | 'settled' | 'not-found'
+
 /**
  * H2. Give the agent a turn, take back one that has not started, stop the current one or only the one a stop names.
  *
@@ -82,6 +84,7 @@ export interface Turns {
 
 /** The run that consumed the message, or the active/prospective run when cancellation withdrew it. */
 export type MessageResult = { readonly run: number; readonly status: 'started' | 'queued' | 'withdrawn' }
+
 /**
  * H3. Message a child, wait for its answer, stop it.
  *
@@ -126,6 +129,7 @@ export interface Helpers {
 }
 
 export type JobHandler = (ports: BoundPorts, job: JobSpec) => Promise<void>
+
 /**
  * H4. Finish what a call started after it returns, across restarts.
  *
@@ -206,7 +210,9 @@ export interface ToolCall {
   readonly args: JsonValue
   readonly signal: AbortSignal
 }
+
 export type ToolOutcome = ToolResultFact
+
 export interface ToolDefinition {
   readonly name: string
   /** [plan choice] Not in the design's draft; every harness hands it to the model. */
@@ -223,6 +229,7 @@ export interface ToolDefinition {
   readonly modelOnly: true
   run(call: ToolCall, ports: BoundPorts): Promise<ToolOutcome>
 }
+
 /**
  * H8. Put the package's tools on the harness.
  *
@@ -236,8 +243,10 @@ export interface Tools {
 }
 
 export type GateVerdict = { readonly block?: string; readonly args?: JsonValue }
+
 /** For handlers that run where the harness cannot commit, such as Durable's tool gate. */
 export type GatePorts = Pick<HarnessPorts, 'memory' | 'clock'>
+
 export interface GateHandlers {
   /**
    * Block the call (the reason becomes its error result) or rewrite its arguments. `call.signal` aborts when the call's
@@ -250,6 +259,7 @@ export interface GateHandlers {
    */
   after(call: GateCall, result: ToolResultFact, ports: GatePorts): Promise<ToolResultFact | undefined>
 }
+
 /**
  * H9. Before a call runs, ask the rules whether to allow it or change its arguments; after it ran, whether to replace
  * its result.
@@ -275,6 +285,7 @@ export interface ToolGate {
 export interface ContextFilterHandler {
   omit(thread: ThreadId, facts: ConversationFacts): readonly ItemId[]
 }
+
 /**
  * H10. Leave unadmitted round entries out of the next model request.
  *
@@ -289,6 +300,7 @@ export interface ContextFilter {
 }
 
 export type RequestAllowance = { readonly ok: true } | { readonly ok: false; readonly text: string }
+
 export interface RequestMeterHandler {
   /**
    * `requestsInRun` counts the requests this run already made, compaction requests included. `lineage` is `'child'`
@@ -296,6 +308,7 @@ export interface RequestMeterHandler {
    */
   allow(thread: ThreadId, requestsInRun: number, lineage: 'root' | 'child'): RequestAllowance
 }
+
 /**
  * H11. Refuse a child's next model request once its run reached the cap.
  *
@@ -320,6 +333,7 @@ export interface LifecycleHandlers {
   onCompacted(thread: ThreadId, ports: BoundPorts): Promise<void>
   onClose(thread: ThreadId, ports: BoundPorts): Promise<void>
 }
+
 /**
  * H12. Let the package settle a conversation when it opens, before and after it is compacted, and when it closes.
  *
@@ -366,8 +380,10 @@ export interface HarnessPorts {
   readonly requestMeter: RequestMeter
   readonly lifecycle: Lifecycle
 }
+
 /** Outbound ports bound to one tool call, job run or lifecycle callback; they reject once it returns. */
 export type BoundPorts = Pick<HarnessPorts, 'ledger' | 'turns' | 'helpers' | 'waits' | 'memory' | 'clock'>
+
 /** Every harness port method as `port.method`; the contract must cover each one (guardrail 5). */
 export type PortMethod = {
   [P in keyof HarnessPorts]: `${P}.${Extract<keyof HarnessPorts[P], string>}`

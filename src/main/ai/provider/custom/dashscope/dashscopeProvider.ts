@@ -38,6 +38,7 @@ export interface DashScopeProvider extends ProviderV3 {
 
 const getDashScopeRerankBaseURL = (baseURL: string) => {
   const normalized = withoutTrailingSlash(baseURL) ?? baseURL
+
   return normalized.endsWith(DASHSCOPE_CHAT_BASE_PATH)
     ? `${normalized.slice(0, -DASHSCOPE_CHAT_BASE_PATH.length)}${DASHSCOPE_RERANK_BASE_PATH}`
     : normalized
@@ -70,6 +71,7 @@ export function buildDashScopeTransport(settings: DashScopeProviderSettings): Im
  */
 export function createDashScopeProvider(settings: DashScopeProviderSettings = {}): DashScopeProvider {
   const { baseURL, fetch: customFetch } = settings
+
   if (!baseURL) {
     throw new Error(
       'DashScope provider requires a non-empty `baseURL`. An empty value would resolve fetch paths against the renderer process origin (app://, file://) and surface as opaque "Failed to fetch" errors.'
@@ -88,6 +90,7 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
 
   // DashScope chat uses /compatible-mode/v1; rerank uses /compatible-api/v1 on the same user-configured host.
   const rerankBaseURL = getDashScopeRerankBaseURL(baseURL)
+
   const rerankUrl = ({ path }: { path: string; modelId: string }) =>
     `${rerankBaseURL}${path === '/rerank' ? '/reranks' : path}`
 

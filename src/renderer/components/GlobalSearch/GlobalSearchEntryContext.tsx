@@ -4,6 +4,7 @@ import { useGlobalSearchSessionContext, useGlobalSearchTopicContext } from '@ren
 
 function EntryContext({ name, workspaceName, path }: { name?: string; workspaceName?: string; path?: string }) {
   const label = [name, workspaceName].filter(Boolean).join(' | ')
+
   if (!label) return null
 
   return (
@@ -17,6 +18,7 @@ function EntryContext({ name, workspaceName, path }: { name?: string; workspaceN
 
 export const GlobalSearchTopicContext = memo(function GlobalSearchTopicContext({ topicId }: { topicId: string }) {
   const context = useGlobalSearchTopicContext(topicId)
+
   return <EntryContext {...context} />
 })
 
@@ -26,5 +28,6 @@ export const GlobalSearchSessionContext = memo(function GlobalSearchSessionConte
   sessionId: string
 }) {
   const context = useGlobalSearchSessionContext(sessionId)
+
   return <EntryContext {...context} />
 })

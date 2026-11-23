@@ -41,8 +41,10 @@ export class RemoteSocketStream extends AbstractMessageStream {
   private readonly receive = (event: { data: unknown }) => {
     if (!(event.data instanceof ArrayBuffer) || event.data.byteLength > remoteLimits.recordBytes) {
       this.abort(new Error('Invalid remote socket frame'))
+
       return
     }
+
     this.onData(new Uint8Array(event.data))
   }
 
@@ -62,11 +64,15 @@ export class RemoteSocketStream extends AbstractMessageStream {
 
   sendData(data: Parameters<AbstractMessageStream['sendData']>[0]) {
     if (this.socket.readyState !== 1) throw new Error('Remote socket unavailable')
+
     if (this.socket.bufferedAmount + data.byteLength > uploadTransferLimits.queuedBytes) {
       this.watchDrain()
+
       return { sentBytes: 0, canSendMore: false }
     }
+
     this.socket.send(data.subarray())
+
     return { sentBytes: data.byteLength, canSendMore: true }
   }
 

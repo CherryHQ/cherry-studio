@@ -6,7 +6,9 @@ import { N8nLight } from './light'
 
 const N8n = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <N8nLight {...props} className={className} />
+
   if (variant === 'dark') return <N8nDark {...props} className={className} />
+
   return (
     <>
       <N8nLight className={cn('dark:hidden', className)} {...props} />

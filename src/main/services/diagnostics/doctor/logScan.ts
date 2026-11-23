@@ -6,6 +6,7 @@ import type { DoctorContextBase } from './types'
 export function recentLogScan(ctx: DoctorContextBase) {
   return ctx.share('doctor:seven-day-logs', async (signal) => {
     const toMs = Date.now()
+
     const scan = await collectErrorLogRecords(
       application.getPath('app.logs'),
       {
@@ -14,6 +15,7 @@ export function recentLogScan(ctx: DoctorContextBase) {
       },
       signal
     )
+
     return { ...scan, toMs, complete: !scan.truncated && scan.skippedFileCount === 0 && scan.unparsedLineCount === 0 }
   })
 }

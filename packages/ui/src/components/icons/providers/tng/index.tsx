@@ -4,6 +4,7 @@ import { TngLight } from './light'
 
 const Tng = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TngLight {...props} className={className} />
+
   return <TngLight {...props} className={className} />
 }
 

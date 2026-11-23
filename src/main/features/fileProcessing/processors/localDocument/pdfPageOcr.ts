@@ -36,6 +36,7 @@ export async function ocrPdfPagesToMarkdown(
   const workDir = AbsoluteFilePathSchema.parse(
     path.join(application.getPath('feature.file_processing.temp'), `local-document-${randomUUID()}`)
   )
+
   await ensureDir(workDir)
 
   try {
@@ -48,6 +49,7 @@ export async function ocrPdfPagesToMarkdown(
         executionContext.signal.throwIfAborted()
 
         const pageText = await recognizePage(parser, pageNumber, workDir, executionContext.signal)
+
         if (pageText.length > 0) {
           pages.push(pageText)
         }
@@ -76,6 +78,7 @@ async function recognizePage(
     imageBuffer: true,
     imageDataUrl: false
   })
+
   const rendered = screenshot.pages[0]?.data
 
   if (!rendered) {
@@ -89,6 +92,7 @@ async function recognizePage(
 
   try {
     const { text } = await application.get('OcrInferenceService').recognize({ kind: 'path', imagePath }, signal)
+
     return text.trim()
   } finally {
     await remove(imagePath)

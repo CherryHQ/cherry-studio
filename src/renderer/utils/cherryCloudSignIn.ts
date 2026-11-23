@@ -9,7 +9,9 @@ export function getCherryCloudSignInErrorMessage(error: unknown, t: TFunction): 
   if (error instanceof IpcError) {
     if (error.code === cherryCloudErrorCodes.UPGRADE_REQUIRED)
       return t('settings.provider.cherry_cloud.upgrade_required')
+
     if (error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE) return t('error.http.503')
   }
+
   return t('settings.provider.cherry_cloud.sign_in_failed')
 }

@@ -35,14 +35,18 @@ export function useMiniAppPackageDrop(settle: SettlePreview): MiniAppPackageDrop
   const previewPackage = useCallback(
     (files: File[]) => {
       const file = files[0]
+
       if (!file) {
         toast.error(t('miniApp.install.drop_invalid'))
+
         return
       }
 
       const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file))
+
       if (!filePath.success) {
         toast.error(t('miniApp.install.drop_invalid'))
+
         return
       }
 

@@ -4,6 +4,7 @@ import { OmlxLight } from './light'
 
 const Omlx = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <OmlxLight {...props} className={className} />
+
   return <OmlxLight {...props} className={className} />
 }
 

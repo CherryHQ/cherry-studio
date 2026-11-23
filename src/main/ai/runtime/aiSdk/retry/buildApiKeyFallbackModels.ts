@@ -26,13 +26,16 @@ export interface BuildApiKeyFallbackModelsArgs {
 /** Lazily builds the same provider/model with each remaining enabled key. */
 export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): FallbackResolver[] {
   if (args.request.apiKeyOverride !== undefined || !('id' in args.primaryCredentialReceipt)) return []
+
   const keys = resolveApiKeyFallbacks(
     providerService.getApiKeys(args.provider.id, { enabled: true }),
     args.primaryCredentialReceipt
   )
+
   return keys.map((key) => async () => {
     // eslint-disable-next-line prefer-const -- The callback registered during parameter construction must see undefined until the usage plugin exists.
     let repairUsagePlugins: AiPlugin[] | undefined
+
     const built = await buildAgentParams({
       request: { ...args.request, apiKeyOverride: key.key },
       signal: args.signal,
@@ -43,14 +46,17 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
       getRepairUsagePlugins: () => repairUsagePlugins ?? [],
       compactionSink: args.request.compactionSink
     })
+
     const usagePlugin = args.createUsagePlugin(built.credentialReceipt)
     repairUsagePlugins = [usagePlugin]
+
     const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
       built.sdkConfig.providerId,
       built.sdkConfig.providerSettings,
       built.sdkConfig.modelId,
       [...built.plugins, usagePlugin]
     )
+
     return { model: resolved, repairToolCall: built.options.repairToolCall }
   })
 }

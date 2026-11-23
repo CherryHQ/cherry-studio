@@ -39,8 +39,10 @@ export function useAgentPromptSuggestion({
   const attempted = useRef<string>(undefined)
   const [dismissedTurn, setDismissedTurn] = useState<string>()
   const [result, setResult] = useState<{ turnKey: string; owner: symbol; text: string }>()
+
   const context = useMemo(() => {
     if (busy) return ''
+
     return JSON.stringify(
       messages.slice(-4).map((message) => ({
         role: message.role,
@@ -52,6 +54,7 @@ export function useAgentPromptSuggestion({
       }))
     )
   }, [busy, messages])
+
   const eligible =
     enabled &&
     !busy &&
@@ -76,6 +79,7 @@ export function useAgentPromptSuggestion({
     if (!eligible || !modelId || !replyId || attempted.current === turnKey) return
     let cancelled = false
     let requestId: string | undefined
+
     const timer = setTimeout(() => {
       attempted.current = turnKey
       requestId = crypto.randomUUID()
@@ -83,7 +87,9 @@ export function useAgentPromptSuggestion({
         .request('ai.agent.session.predict_prompt', { sessionId, replyId, modelId, requestId })
         .then((prediction) => {
           if (prediction.supported || cancelled) return prediction
+
           if (observedBusyOwner.current !== owner) return { text: '' }
+
           return ipcApi
             .request('ai.text.generate', {
               requestId,
@@ -98,15 +104,18 @@ export function useAgentPromptSuggestion({
         })
         .then(({ text }) => {
           const suggestion = promptSuggestionForDisplay(text)
+
           if (!cancelled && suggestion) {
             setResult({ turnKey, owner, text: suggestion })
           }
         })
         .catch(() => undefined)
     }, 0)
+
     return () => {
       cancelled = true
       clearTimeout(timer)
+
       if (requestId) {
         void ipcApi.request('ai.agent.session.abort_prediction', { sessionId, requestId }).catch(() => undefined)
         void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
@@ -115,5 +124,6 @@ export function useAgentPromptSuggestion({
   }, [context, eligible, replyId, modelId, reasoningEffort, sessionId, turnKey, owner])
 
   const dismiss = useCallback(() => setDismissedTurn(turnKey), [turnKey])
+
   return { text: eligible && result?.turnKey === turnKey && result.owner === owner ? result.text : '', dismiss }
 }

@@ -91,8 +91,10 @@ const CONTENT_TYPES: ReadonlyMap<string, string> = new Map([
  * limit as the quotas — a permission is not a rate.
  */
 const MAX_CONCURRENT_READS = 8
+
 /** An unbounded wait queue is the same denial of service one indirection later. */
 const MAX_QUEUED_READS = 64
+
 // Per app: shared across apps, a guest that spent the budget kept every other guest
 // from loading so much as its index.html.
 const readers = new Map<string, { active: number; queue: Array<() => void> }>()
@@ -100,26 +102,33 @@ const readers = new Map<string, { active: number; queue: Array<() => void> }>()
 function acquireReadSlot(appId: string): Promise<() => void> {
   const state = readers.get(appId) ?? { active: 0, queue: [] }
   readers.set(appId, state)
+
   // Idempotent: `finalize` may be reached from more than one path, and a release
   // that ran twice would hand out a slot that was never taken.
   const makeRelease = () => {
     let released = false
+
     return () => {
       if (released) return
       released = true
       state.active -= 1
       const next = state.queue.shift()
+
       if (next) next()
       else if (state.active === 0) readers.delete(appId)
     }
   }
+
   if (state.active < MAX_CONCURRENT_READS) {
     state.active += 1
+
     return Promise.resolve(makeRelease())
   }
+
   if (state.queue.length >= MAX_QUEUED_READS) {
     return Promise.reject(new Error('Too many concurrent mini app reads'))
   }
+
   return new Promise((resolve) =>
     state.queue.push(() => {
       state.active += 1
@@ -130,6 +139,7 @@ function acquireReadSlot(appId: string): Promise<() => void> {
 
 function reservedAsset(assetsDir: string, rest: string): { body: Buffer; type: string } | undefined {
   if (rest !== 'theme.css') return undefined
+
   return {
     body: fs.readFileSync(path.join(assetsDir, 'miniAppTheme.css')),
     type: 'text/css; charset=utf-8'
@@ -157,11 +167,13 @@ export function createMiniAppProtocolHandler(
 ): (request: Request) => Promise<Response> {
   return async (request) => {
     const { host, pathname } = new URL(request.url)
+
     if (host !== ownAppId) return notFound()
     // `decodeURIComponent` THROWS on a malformed escape (`fetch('%')` reaches here as `/%`),
     // and a throw out of this handler surfaces to the guest as `TypeError: Failed to fetch`
     // with no headers — the one thing sandbox.md promises never happens for a bad path.
     let rel: string
+
     try {
       rel = decodeURIComponent(pathname).replace(/^\/+/, '')
     } catch {
@@ -172,7 +184,9 @@ export function createMiniAppProtocolHandler(
     // smuggles in a `__cherry/` directory can never have it served.
     if (rel === MINI_APP_RESERVED_DIR || rel.startsWith(`${MINI_APP_RESERVED_DIR}/`)) {
       const asset = reservedAsset(assetsDir, rel.slice(MINI_APP_RESERVED_DIR.length + 1))
+
       if (!asset) return notFound()
+
       return new Response(asset.body as Uint8Array<ArrayBuffer>, {
         headers: {
           ...BASE_HEADERS,
@@ -183,10 +197,12 @@ export function createMiniAppProtocolHandler(
     }
 
     const installPath = resolveInstallPath(host)
+
     if (!installPath) return notFound()
 
     let root: string
     let real: string
+
     try {
       root = await fs.promises.realpath(installPath)
       real = await fs.promises.realpath(path.join(root, rel || 'index.html'))
@@ -198,18 +214,21 @@ export function createMiniAppProtocolHandler(
     // a symlink inside the package resolves cleanly under the naive comparison.
     if (real !== root && !real.startsWith(root + path.sep)) {
       logger.warn('Blocked mini app path escaping its package root', { appId: host, requested: rel })
+
       return forbidden()
     }
 
     // Same reason as the decode above: the file can vanish between `realpath` and here, and
     // an ENOENT thrown out of the handler is a `TypeError` at the guest instead of a 404.
     const stat = await fs.promises.stat(real).catch(() => null)
+
     if (!stat?.isFile()) return notFound()
 
     // Streamed, never `readFile`: the guest controls fetch frequency and concurrency,
     // so buffering lets it hold N copies of a 100 MB file in MAIN process memory.
     const release = await acquireReadSlot(host)
     let handle: fs.promises.FileHandle
+
     try {
       handle = await fs.promises.open(real, 'r')
     } catch (error) {
@@ -221,6 +240,7 @@ export function createMiniAppProtocolHandler(
     // ONE finalizer reachable from every exit — normal end, stream error, cancel.
     // `flush` covers only the first: a cancelled fetch never calls it (Node 24).
     let finalized = false
+
     const finalize = () => {
       if (finalized) return
       finalized = true
@@ -234,6 +254,7 @@ export function createMiniAppProtocolHandler(
         cancel: finalize
       })
     )
+
     // SAFETY: Node and global web streams share the implementation; DOM typings require a value key
     // on completed reads, which Node supplies.
     return new Response(body as typeof body & ReadableStream<Uint8Array>, {

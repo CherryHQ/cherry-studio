@@ -58,7 +58,9 @@ function rowToPainting(row: PaintingRow, files: PaintingFiles, fileDataFingerpri
     prompt: row.prompt,
     files
   }
+
   if (fileDataFingerprint) painting.fileDataFingerprint = fileDataFingerprint
+
   return {
     ...painting,
     orderKey: row.orderKey,
@@ -70,6 +72,7 @@ function rowToPainting(row: PaintingRow, files: PaintingFiles, fileDataFingerpri
 
 function normalizeModelId(providerId: string, modelId: string | null | undefined): string | null {
   if (!modelId) return null
+
   return isUniqueModelId(modelId) ? modelId : createUniqueModelId(providerId, modelId)
 }
 
@@ -81,6 +84,7 @@ function normalizeModelId(providerId: string, modelId: string | null | undefined
 function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, PaintingFileSnapshot> {
   if (paintingIds.length === 0) return new Map()
   const db = application.get('DbService').getDb()
+
   const refs = db
     .select({
       sourceId: paintingFileRefTable.sourceId,
@@ -104,12 +108,15 @@ function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, Pain
     .all()
 
   const grouped = new Map<string, { files: PaintingFiles; dependencies: unknown[] }>()
+
   for (const ref of refs) {
     let bucket = grouped.get(ref.sourceId)
+
     if (!bucket) {
       bucket = { files: { output: [], input: [] }, dependencies: [] }
       grouped.set(ref.sourceId, bucket)
     }
+
     if (ref.role === 'output') bucket.files.output.push(ref.fileEntryId)
     else if (ref.role === 'input') bucket.files.input.push(ref.fileEntryId)
     // Include only data consumed by painting hydration. In particular, omit
@@ -127,6 +134,7 @@ function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, Pain
       ref.entryDeletedAt
     ])
   }
+
   return new Map(
     [...grouped].map(([paintingId, snapshot]) => [
       paintingId,
@@ -176,17 +184,20 @@ class PaintingService {
       .orderBy(...ordering.orderBy)
       .limit(limit + 1)
       .all()
+
     const countResult = db
       .select({ count: sql<number>`count(*)` })
       .from(paintingTable)
       .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
       .all()
+
     const pageRows = rows.slice(0, limit)
     const filesByPainting = loadFilesForPaintings(pageRows.map((r) => r.id))
 
     return {
       items: pageRows.map((row) => {
         const snapshot = filesByPainting.get(row.id)
+
         return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
       }),
       total: countResult[0]?.count ?? 0,
@@ -199,6 +210,7 @@ class PaintingService {
 
   getById(id: string): Painting {
     const db = application.get('DbService').getDb()
+
     const [row] = db
       .select()
       .from(paintingTable)
@@ -212,6 +224,7 @@ class PaintingService {
 
     const filesByPainting = loadFilesForPaintings([row.id])
     const snapshot = filesByPainting.get(row.id)
+
     return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
   }
 
@@ -238,9 +251,11 @@ class PaintingService {
 
           const now = Date.now()
           const refRows = buildPaintingRefRowsFiltered(tx, insertedRow.id, dto.files, now)
+
           if (refRows.length > 0) {
             tx.insert(paintingFileRefTable).values(refRows).onConflictDoNothing().run()
           }
+
           return insertedRow
         }),
       defaultHandlersFor('Painting', dto.id ?? '')
@@ -264,6 +279,7 @@ class PaintingService {
   update(id: string, dto: UpdatePaintingDto): Painting {
     const dbService = application.get('DbService')
     const db = dbService.getDb()
+
     // Trashed paintings are not updatable — restore first.
     const [existing] = db
       .select()
@@ -271,13 +287,17 @@ class PaintingService {
       .where(and(eq(paintingTable.id, id), isNull(paintingTable.deletedAt)))
       .limit(1)
       .all()
+
     if (!existing) {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
 
     const updates: Partial<InsertPaintingRow> = {}
+
     if (dto.providerId !== undefined) updates.providerId = dto.providerId
+
     if (dto.modelId !== undefined) updates.modelId = dto.modelId
+
     if (dto.prompt !== undefined) updates.prompt = dto.prompt
 
     if (dto.modelId !== undefined) {
@@ -291,6 +311,7 @@ class PaintingService {
     if (Object.keys(updates).length === 0 && !filesDirty) {
       const filesByPainting = loadFilesForPaintings([existing.id])
       const snapshot = filesByPainting.get(existing.id)
+
       return rowToPainting(existing, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
     }
 
@@ -298,11 +319,14 @@ class PaintingService {
       () =>
         dbService.withWriteTx((tx) => {
           let target = existing
+
           if (Object.keys(updates).length > 0) {
             const [updated] = tx.update(paintingTable).set(updates).where(eq(paintingTable.id, id)).returning().all()
+
             if (!updated) {
               throw DataApiErrorFactory.notFound('Painting', id)
             }
+
             target = updated
           }
 
@@ -314,21 +338,25 @@ class PaintingService {
             // (fileEntryId, sourceId, role) constraint.
             tx.delete(paintingFileRefTable).where(eq(paintingFileRefTable.sourceId, id)).run()
             const refRows = buildPaintingRefRowsFiltered(tx, id, dto.files, Date.now())
+
             if (refRows.length > 0) {
               tx.insert(paintingFileRefTable).values(refRows).onConflictDoNothing().run()
             }
           }
+
           return target
         }),
       defaultHandlersFor('Painting', id)
     )
 
     logger.info('Updated painting', { id, changes: Object.keys(dto) })
+
     // On a files write, echo the requested `dto.files` for the same reason as
     // `create` (transition-era ids aren't in `file_entry` yet, so the persisted
     // refs would under-report). Otherwise hydrate from the stored refs.
     if (filesDirty) return rowToPainting(row, dto.files!)
     const snapshot = loadFilesForPaintings([row.id]).get(row.id)
+
     return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
   }
 
@@ -356,11 +384,14 @@ class PaintingService {
             .run(),
         defaultHandlersFor('Painting', id)
       )
+
       if (result.changes === 0) {
         throw DataApiErrorFactory.notFound('Painting', id)
       }
+
       this.notifyReadModelChange([id], 'membership')
       logger.info('Permanently deleted painting', { id })
+
       return
     }
 
@@ -369,9 +400,11 @@ class PaintingService {
       .set({ deletedAt: Date.now() })
       .where(and(eq(paintingTable.id, id), isNull(paintingTable.deletedAt)))
       .run()
+
     if (result.changes === 0) {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
+
     this.notifyReadModelChange([id], 'membership')
     logger.info('Moved painting to Recycle Bin', { id })
   }
@@ -383,6 +416,7 @@ class PaintingService {
    */
   restore(id: string): Painting {
     const db = application.get('DbService').getDb()
+
     const [row] = db
       .update(paintingTable)
       .set({ deletedAt: null })
@@ -397,6 +431,7 @@ class PaintingService {
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored painting', { id })
     const snapshot = loadFilesForPaintings([row.id]).get(row.id)
+
     return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
   }
 
@@ -418,10 +453,12 @@ class PaintingService {
       .all()
 
     const ids = rows.map((row) => row.id)
+
     if (ids.length === 0) return ids
 
     tx.delete(paintingTable).where(inArray(paintingTable.id, ids)).run()
     logger.info('Purged expired paintings', { count: ids.length })
+
     return ids
   }
 
@@ -435,6 +472,7 @@ class PaintingService {
         .where(and(eq(paintingTable.id, id), isNull(paintingTable.deletedAt)))
         .limit(1)
         .all()
+
       if (!target) {
         throw DataApiErrorFactory.notFound('Painting', id)
       }
@@ -462,6 +500,7 @@ class PaintingService {
           .where(and(eq(paintingTable.id, move.id), isNull(paintingTable.deletedAt)))
           .limit(1)
           .all()
+
         if (!target) {
           throw DataApiErrorFactory.notFound('Painting', move.id)
         }
@@ -501,8 +540,11 @@ function buildPaintingRefRowsFiltered(
 ): Array<typeof paintingFileRefTable.$inferInsert> {
   if (!files) return []
   const requested = new Set<string>()
+
   for (const id of files.output) requested.add(id)
+
   for (const id of files.input) requested.add(id)
+
   if (requested.size === 0) return []
 
   const existing = tx
@@ -510,15 +552,18 @@ function buildPaintingRefRowsFiltered(
     .from(fileEntryTable)
     .where(inArray(fileEntryTable.id, [...requested]))
     .all()
+
   const existingIds = new Set(existing.map((r) => r.id))
 
   const rows: Array<typeof paintingFileRefTable.$inferInsert> = []
   let dropped = 0
+
   for (const fileId of files.output) {
     if (!existingIds.has(fileId)) {
       dropped += 1
       continue
     }
+
     rows.push({
       fileEntryId: fileId,
       sourceId: paintingId,
@@ -527,11 +572,13 @@ function buildPaintingRefRowsFiltered(
       updatedAt: now
     })
   }
+
   for (const fileId of files.input) {
     if (!existingIds.has(fileId)) {
       dropped += 1
       continue
     }
+
     rows.push({
       fileEntryId: fileId,
       sourceId: paintingId,
@@ -540,6 +587,7 @@ function buildPaintingRefRowsFiltered(
       updatedAt: now
     })
   }
+
   if (dropped > 0) {
     logger.warn('Dropped painting file refs without matching file_entry', {
       paintingId,
@@ -547,6 +595,7 @@ function buildPaintingRefRowsFiltered(
       total: requested.size
     })
   }
+
   return rows
 }
 

@@ -15,6 +15,7 @@ export const anyFileExt = '*'
  */
 export function getFileDirectory(filePath: string): string {
   const parts = filePath.split('/')
+
   return parts.slice(0, -1).join('/')
 }
 
@@ -25,10 +26,13 @@ export function getFileDirectory(filePath: string): string {
  */
 export function getFileExtension(filePath: string): string {
   const parts = filePath.split('.')
+
   if (parts.length > 1) {
     const extension = parts.slice(-1)[0].toLowerCase()
+
     return '.' + extension
   }
+
   return '.'
 }
 
@@ -43,21 +47,26 @@ export function removeFileExtension(filePath: string): string {
   const separatorIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   const baseName = separatorIndex === -1 ? filePath : filePath.slice(separatorIndex + 1)
   const dotIndex = baseName.lastIndexOf('.')
+
   if (dotIndex <= 0) return filePath
+
   return filePath.slice(0, filePath.length - (baseName.length - dotIndex))
 }
 
 export function formatFileSize(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '—'
+
   if (bytes < 1024) return `${bytes} B`
 
   const units = ['KB', 'MB', 'GB', 'TB'] as const
   let value = bytes / 1024
   let unitIndex = 0
+
   while (value >= 1024 && unitIndex < units.length - 1) {
     value /= 1024
     unitIndex += 1
   }
+
   return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
@@ -105,6 +114,7 @@ export async function isSupportedFile(filePath: string, supportExts: Set<string>
     }
 
     const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(AbsoluteFilePathSchema.parse(filePath)))
+
     if (meta?.kind === 'file' && meta.type === 'text') {
       return true
     }
@@ -117,23 +127,27 @@ export async function isSupportedFile(filePath: string, supportExts: Set<string>
 
 export async function isTextFile(filePath: string): Promise<boolean> {
   const set = new Set(textExts)
+
   return isSupportedFile(filePath, set)
 }
 
 export async function filterSupportedFiles(files: FileMetadata[], supportExts: string[]): Promise<FileMetadata[]> {
   const extensionSet = new Set(supportExts)
+
   const validationResults = await Promise.all(
     files.map(async (file) => ({
       file,
       isValid: await isSupportedFile(file.path, extensionSet)
     }))
   )
+
   return validationResults.filter((result) => result.isValid).map((result) => result.file)
 }
 
 export const mime2type = (mimeStr: string): FileType => {
   const mimeType = mimeStr.toLowerCase()
   const ext = mime.getExtension(mimeType)
+
   if (ext) {
     if (textExts.includes(ext)) {
       return FILE_TYPE.TEXT
@@ -147,6 +161,7 @@ export const mime2type = (mimeStr: string): FileType => {
       return FILE_TYPE.VIDEO
     }
   }
+
   return FILE_TYPE.OTHER
 }
 
@@ -154,5 +169,6 @@ export function parseFileTypes(str: string): FileType | null {
   if (Object.values(FILE_TYPE).some((type) => type === str)) {
     return str as FileType
   }
+
   return null
 }

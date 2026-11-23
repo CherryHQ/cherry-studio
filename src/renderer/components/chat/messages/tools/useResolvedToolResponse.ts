@@ -16,34 +16,46 @@ import { normalizeToolErrorResponse, type ToolResponseLike } from './toolRespons
 export function useResolvedToolResponse(toolResponse: ToolResponseLike): ToolResponseLike {
   const scopeMessageId = useMessagePartsScopeId()
   const topicId = useOptionalMessageListTopicId()
+
   const deferredOutput = useMemo((): DeferredToolOutput | undefined => {
     const response = toolResponse.response
+
     if (isDeferredToolOutput(response)) return response
+
     // Cold-loaded parts can carry a persisted envelope instead of a deferred reference.
     if (isPersistedToolOutput(response) && topicId && scopeMessageId && toolResponse.toolCallId) {
       const ref = response.$persistedToolOutput
+
       const deferred: DeferredToolOutput = {
         $deferredToolResult: { topicId, messageId: scopeMessageId, toolCallId: toolResponse.toolCallId },
         excerpt: envelopeDisplayExcerpt(ref)
       }
+
       if (ref.shape === 'entities') deferred.skeleton = ref.skeleton
+
       return deferred
     }
+
     return undefined
   }, [scopeMessageId, toolResponse, topicId])
+
   const { output, error, isLoading } = useToolResult(deferredOutput?.$deferredToolResult)
 
   return useMemo(() => {
     if (!deferredOutput) return toolResponse
+
     if (isLoading) {
       // A persisted excerpt is real content — show it immediately instead of a
       // spinner; the resolved full value replaces it when the fetch lands.
       if (deferredOutput.excerpt) {
         const { head, tail } = deferredOutput.excerpt
+
         return { ...toolResponse, response: [head, '…', tail].filter(Boolean).join('\n') }
       }
+
       return { ...toolResponse, status: 'invoking' as const, response: undefined }
     }
+
     if (error) {
       return {
         ...toolResponse,
@@ -51,7 +63,9 @@ export function useResolvedToolResponse(toolResponse: ToolResponseLike): ToolRes
         response: normalizeToolErrorResponse(error instanceof Error ? error.message : String(error))
       }
     }
+
     const { response } = extractOutputMetadata(output)
+
     return { ...toolResponse, response }
   }, [deferredOutput, error, isLoading, output, toolResponse])
 }

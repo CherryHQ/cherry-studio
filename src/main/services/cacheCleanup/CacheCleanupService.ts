@@ -29,9 +29,11 @@ async function inspectGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroup
             : group === 'logs'
               ? await inspectLogs()
               : await inspectLegacyV1()
+
     return { group, size }
   } catch (error) {
     logger.error('Unexpected cache cleanup inspection failure', { group, error })
+
     return {
       group,
       size: toSizeSnapshot({ bytes: 0, issues: [issue(group, 'inspection_failed')] }, 'exact')
@@ -48,21 +50,28 @@ async function inspectCacheCleanup(groups: CacheCleanupGroup[]): Promise<CacheCl
 async function runGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupResult> {
   try {
     if (group === 'normal_cache') return await clearNormalCache()
+
     if (group === 'site_data') return await clearSiteData()
+
     if (group === 'orphaned_data') return await clearOrphanedData()
+
     if (group === 'logs') return await clearLogs()
+
     return await clearLegacyV1()
   } catch (error) {
     logger.error('Unexpected cache cleanup group failure', { group, error })
+
     return resultFromSteps(group, [{ state: 'failed' }])
   }
 }
 
 async function runCacheCleanupNow(groups: CacheCleanupGroup[]): Promise<CacheCleanupRunResult> {
   const results: CacheCleanupGroupResult[] = []
+
   for (const group of groups) {
     results.push(await runGroup(group))
   }
+
   return { results }
 }
 
@@ -75,6 +84,7 @@ class CacheCleanupService {
 
   public run(groups: CacheCleanupGroup[]): Promise<CacheCleanupRunResult> {
     const requestedGroups = [...groups]
+
     return this.cleanupMutex.runExclusive(() => runCacheCleanupNow(requestedGroups))
   }
 

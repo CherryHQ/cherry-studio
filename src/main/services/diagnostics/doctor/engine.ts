@@ -49,24 +49,31 @@ export class DoctorEngineError extends Error {}
 function layer<Id extends string, Outcome>(checks: readonly EngineCheck<Id, Outcome>[]): EngineCheck<Id, Outcome>[][] {
   const byId = new Map(checks.map((check) => [check.id, check]))
   const remaining = new Map(checks.map((check) => [check.id, check.requires.filter((dep) => byId.has(dep))]))
+
   for (const check of checks) {
     for (const dep of check.requires) {
       if (!byId.has(dep)) throw new DoctorEngineError(`Check "${check.id}" requires unknown check "${dep}"`)
     }
   }
+
   const layers: EngineCheck<Id, Outcome>[][] = []
+
   while (remaining.size > 0) {
     const ready = [...remaining].flatMap(([id, deps]) => (deps.length === 0 ? [id] : []))
+
     if (ready.length === 0)
       throw new DoctorEngineError(`Cycle in check prerequisites: ${[...remaining.keys()].join(', ')}`)
     layers.push(ready.map((id) => byId.get(id)!))
+
     for (const id of ready) remaining.delete(id)
+
     for (const [id, deps] of remaining)
       remaining.set(
         id,
         deps.filter((dep) => !ready.includes(dep))
       )
   }
+
   return layers
 }
 
@@ -79,14 +86,17 @@ async function probe<Outcome>(
   const timeout = AbortSignal.timeout(check.timeoutMs)
   const signal = runSignal ? AbortSignal.any([runSignal, timeout]) : timeout
   const deadlineController = new AbortController()
+
   // The sleep rejects on cancel and resolves on timeout, so a probe that ignores its signal still settles.
   const deadline = sleep(check.timeoutMs, undefined, {
     signal: runSignal ? AbortSignal.any([runSignal, deadlineController.signal]) : deadlineController.signal
   }).then(() => {
     throw new Error(`Timed out after ${check.timeoutMs}ms`)
   })
+
   try {
     const outcome = await Promise.race([new Promise<Outcome>((resolve) => resolve(check.run(signal))), deadline])
+
     return { ...outcome, durationMs: now() - started }
   } catch (error) {
     // Whatever the probe threw while aborted, the cause the caller needs is the abort reason.
@@ -97,6 +107,7 @@ async function probe<Outcome>(
         : error instanceof Error
           ? error.message
           : String(error)
+
     return { status: 'error', message, durationMs: now() - started }
   } finally {
     deadlineController.abort()
@@ -107,9 +118,11 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
   options: EngineOptions<Id, Outcome>
 ): Promise<EngineResult<Id, Outcome>[]> {
   const now = options.now ?? (() => performance.now())
+
   const lanes = new Map(
     Object.entries(options.laneLimits ?? {}).map(([name, concurrency]) => [name, new PQueue({ concurrency })])
   )
+
   const results = new Map<Id, EngineResult<Id, Outcome>>(options.initialResults?.map((result) => [result.id, result]))
 
   const settle = (result: EngineResult<Id, Outcome>) => {
@@ -121,22 +134,31 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
     await Promise.all(
       checks.map(async (check) => {
         if (results.has(check.id)) return
+
         if (check.requires.some((id) => !results.has(id))) return
         const blocker = check.requires.find((dep) => BLOCKING_STATUSES.has(results.get(dep)?.status ?? ''))
+
         if (blocker !== undefined) {
           settle({ id: check.id, status: 'skip', skippedBy: blocker, durationMs: 0 })
+
           return
         }
+
         if (options.signal?.aborted) {
           settle({ id: check.id, status: 'error', message: CANCELED_MESSAGE, durationMs: 0 })
+
           return
         }
+
         if (options.admit) {
           try {
             const admission = await options.admit(check.id)
+
             if (admission.status === 'defer') return
+
             if (admission.status === 'settled') {
               settle({ id: check.id, ...admission.outcome, durationMs: 0 })
+
               return
             }
           } catch (error) {
@@ -146,24 +168,31 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
               message: error instanceof Error ? error.message : String(error),
               durationMs: 0
             })
+
             return
           }
         }
+
         const lane = lanes.get(check.lane)
+
         const run = () => {
           if (options.signal?.aborted)
             return Promise.resolve({ status: 'error' as const, message: CANCELED_MESSAGE, durationMs: 0 })
           options.onStart?.(check.id)
+
           return probe(check, options.signal, now)
         }
+
         settle({ id: check.id, ...(lane ? await lane.add(run, { throwOnTimeout: true }) : await run()) })
       })
     )
   }
+
   // Preserve the caller's order so the report reads like the catalog; `results` is keyed by id,
   // so a repeated id must not yield a repeated entry.
   return [...new Set(options.checks.map((check) => check.id))].flatMap((id) => {
     const result = results.get(id)
+
     return result ? [result] : []
   })
 }

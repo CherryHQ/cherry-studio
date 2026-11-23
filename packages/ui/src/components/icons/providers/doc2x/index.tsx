@@ -4,6 +4,7 @@ import { Doc2xLight } from './light'
 
 const Doc2x = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Doc2xLight {...props} className={className} />
+
   return <Doc2xLight {...props} className={className} />
 }
 

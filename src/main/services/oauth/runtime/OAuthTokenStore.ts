@@ -6,6 +6,7 @@ import type { OAuthTokenStore, OAuthTokenStoreData } from './types'
 export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
   async get(providerId: string): Promise<OAuthTokenStoreData | null> {
     const authConfig = providerService.getAuthConfig(providerId)
+
     if (authConfig?.type !== 'oauth') return null
 
     return {
@@ -24,6 +25,7 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
   ): Promise<void> {
     const current = providerService.getAuthConfig(providerId)
     const currentOAuth = current?.type === 'oauth' ? current : null
+
     // Refresh path: commit only if the stored session is the same one we
     // refreshed from — still OAuth and still holding that refresh token. This
     // rejects both a logout (→ api-key, no match) and a re-login (a different
@@ -37,13 +39,18 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     ) {
       return
     }
+
     const authConfig: OAuthAuthConfig = {
       type: 'oauth',
       clientId: clientId || currentOAuth?.clientId || ''
     }
+
     if (data.accessToken) authConfig.accessToken = data.accessToken
+
     if (data.refreshToken) authConfig.refreshToken = data.refreshToken
+
     if (data.expiresAt) authConfig.expiresAt = data.expiresAt
+
     if (data.accountId) authConfig.accountId = data.accountId
 
     providerService.update(providerId, { authConfig })
@@ -58,13 +65,16 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     // survive. Same synchronous read-then-write atomicity as `set`.
     if (options?.expectedRefreshToken !== undefined) {
       const current = providerService.getAuthConfig(providerId)
+
       if (current?.type !== 'oauth' || current.refreshToken !== options.expectedRefreshToken) return
     }
+
     // Reset auth back to api-key mode (drops the OAuth tokens). Only flip
     // `isEnabled` when the caller owns the provider's enablement — see the
     // interface doc: disabling a provider that also holds a manual API key would
     // silently kill that key too.
     const updates: Parameters<typeof providerService.update>[1] = { authConfig: { type: 'api-key' } }
+
     if (options?.disableProvider) updates.isEnabled = false
     providerService.update(providerId, updates)
   }

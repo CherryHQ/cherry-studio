@@ -31,6 +31,7 @@ const meta: Meta<typeof Command> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
@@ -81,7 +82,9 @@ export const InDialog: Story = {
           setOpen((v) => !v)
         }
       }
+
       document.addEventListener('keydown', handler)
+
       return () => document.removeEventListener('keydown', handler)
     }, [])
 

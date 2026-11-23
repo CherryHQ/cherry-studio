@@ -12,6 +12,7 @@ type Props = {
 
 export const ToolsCallingTag = ({ size = 12, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
+
   return (
     <CustomTag
       size={size}

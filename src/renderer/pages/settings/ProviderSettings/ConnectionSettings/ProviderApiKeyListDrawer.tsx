@@ -77,12 +77,15 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
 
       savingRef.current = true
       setSaving(true)
+
       try {
         await mutation()
+
         return true
       } catch (error) {
         logger.error('Failed to persist provider API keys', { providerId, error })
         toast.error(t('settings.provider.api_key.save_failed'))
+
         return false
       } finally {
         savingRef.current = false
@@ -95,14 +98,18 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
   const validateDraft = useCallback(
     (nextDraft: DraftState) => {
       const key = normalizeApiKeyValue(nextDraft.key)
+
       if (!key) {
         toast.warning(t('settings.provider.api.key.error.empty'))
+
         return null
       }
 
       const isDuplicate = apiKeys.some((item) => item.id !== nextDraft.id && item.key.trim() === key)
+
       if (isDuplicate) {
         toast.warning(t('settings.provider.api.key.error.duplicate'))
+
         return null
       }
 
@@ -134,14 +141,17 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
     }
 
     const key = validateDraft(draft)
+
     if (!key) {
       return
     }
 
     const label = draft.label.trim()
+
     const saved = await persist(() =>
       draft.isNew ? addApiKey(key, label || undefined) : updateApiKey(draft.id, { key, label })
     )
+
     if (saved) {
       cancelEdit()
     }
@@ -258,6 +268,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
               event.preventDefault()
               void onSave()
             }
+
             if (event.key === 'Escape') {
               event.preventDefault()
               onCancel()
@@ -303,6 +314,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
   const { t } = useTranslation()
   const maskedKey = maskApiKey(entry.key)
   const [copied, copy] = useCopyToClipboard()
+
   const handleCopy = useCallback(() => {
     void copy(entry.key)
   }, [copy, entry.key])

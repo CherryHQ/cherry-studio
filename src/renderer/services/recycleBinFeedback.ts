@@ -78,6 +78,7 @@ async function restoreOrConfirmActive<TRestore, TActive>(
     await restore(id)
   } catch (error) {
     if (!isNotFound(error)) throw error
+
     try {
       await getActive(id)
     } catch {
@@ -92,11 +93,14 @@ async function restoreItems<TRestore, TActive>(
   const outcomes = await Promise.allSettled(
     input.ids.map((id) => restoreOrConfirmActive(id, input.restore, input.getActive, input.isNotFound))
   )
+
   return outcomes.reduce<BatchUndoResult>(
     (result, outcome, index) => {
       const id = input.ids[index]
+
       if (outcome.status === 'fulfilled') result.restored.push(id)
       else result.failed.push({ id, error: getErrorMessage(outcome.reason) })
+
       return result
     },
     { restored: [], failed: [] }
@@ -116,6 +120,7 @@ export async function restoreRecycleBinItems<TRestore, TActive, TRefresh>(
 ): Promise<BatchUndoResult> {
   const result = await restoreItems(input)
   await refreshAfterRestore(input.refresh)
+
   return result
 }
 
@@ -124,6 +129,7 @@ export async function restoreRecycleBinItem<TRestore, TActive, TRefresh>(
 ) {
   const result = await restoreRecycleBinItems({ ...input, ids: [input.id] })
   const failure = result.failed[0]
+
   if (failure) throw new Error(failure.error)
 }
 
@@ -138,6 +144,7 @@ export async function restoreRecycleBinUndoGroup<
   input: RestoreRecycleBinUndoGroupInput<TPrimaryRestore, TPrimaryActive, TRelatedRestore, TRelatedActive, TRefresh>
 ): Promise<void> {
   let relatedResult: BatchUndoResult = { restored: [], failed: [] }
+
   try {
     await restoreOrConfirmActive(
       input.primary.id,
@@ -151,6 +158,7 @@ export async function restoreRecycleBinUndoGroup<
   }
 
   const failure = relatedResult.failed[0]
+
   if (failure) throw new Error(failure.error)
 }
 

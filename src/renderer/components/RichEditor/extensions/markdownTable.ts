@@ -21,6 +21,7 @@ export const MarkdownTable = Table.extend({
       header?: Array<{ tokens?: MarkdownToken[] }>
       rows?: Array<Array<{ tokens?: MarkdownToken[] }>>
     }
+
     const cell = (type: 'tableHeader' | 'tableCell', tokens?: MarkdownToken[]) =>
       helpers.createNode(type, {}, [helpers.createNode('paragraph', {}, helpers.parseInline(tokens || []))])
 
@@ -29,6 +30,7 @@ export const MarkdownTable = Table.extend({
       {},
       (tableToken.header || []).map((c) => cell('tableHeader', c.tokens))
     )
+
     const bodyRows = (tableToken.rows || []).map((row) =>
       helpers.createNode(
         'tableRow',
@@ -36,11 +38,13 @@ export const MarkdownTable = Table.extend({
         row.map((c) => cell('tableCell', c.tokens))
       )
     )
+
     return helpers.createNode('table', {}, [headerRow, ...bodyRows])
   },
 
   renderMarkdown(node, helpers) {
     const rows = (node.content || []).filter((n) => n.type === 'tableRow')
+
     if (rows.length === 0) return ''
 
     const renderRow = (row: JSONContent) =>
@@ -63,10 +67,13 @@ export const MarkdownTable = Table.extend({
     // a header on reload, so for headerless tables synthesize an empty header and keep every row as
     // a body row.
     const firstRowIsHeader = (rows[0].content || []).some((cell) => cell.type === 'tableHeader')
+
     if (firstRowIsHeader) {
       return `${[renderRow(rows[0]), separator, ...rows.slice(1).map(renderRow)].join('\n')}\n\n`
     }
+
     const emptyHeader = `| ${Array.from({ length: columns }, () => '').join(' | ')} |`
+
     return `${[emptyHeader, separator, ...rows.map(renderRow)].join('\n')}\n\n`
   }
 })

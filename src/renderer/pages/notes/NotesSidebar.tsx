@@ -44,10 +44,12 @@ const collectExpandedIds = (nodes: NotesTreeNode[], result: Set<string>): Set<st
     if (node.type === 'folder' && node.expanded) {
       result.add(node.id)
     }
+
     if (node.children?.length) {
       collectExpandedIds(node.children, result)
     }
   }
+
   return result
 }
 
@@ -69,10 +71,12 @@ const collectStarredFiles = (nodes: NotesTreeNode[], result: NotesTreeNode[] = [
     if (node.type === 'file' && node.isStarred) {
       result.push(node)
     }
+
     if (node.children?.length) {
       collectStarredFiles(node.children, result)
     }
   }
+
   return result
 }
 
@@ -156,8 +160,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   useEffect(() => {
     if (!isShowSearch) {
       reset()
+
       return
     }
+
     if (hasSearchKeyword) {
       search(notesTreeRef.current, trimmedSearchKeyword)
     } else {
@@ -191,13 +197,17 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const fileTreeNodes = useMemo<FileTreeNode[]>(() => {
     if (isShowSearch) {
       if (!hasSearchKeyword) return []
+
       return searchResults.map((r) => toFileTreeNode(r, true))
     }
+
     if (isShowStarred) {
       return collectStarredFiles(notesTree).map((n) => toFileTreeNode(n, true))
     }
+
     return notesTree.map((n) => toFileTreeNode(n, false))
   }, [isShowSearch, hasSearchKeyword, searchResults, isShowStarred, notesTree])
+
   // Search stays quiet until a keyword has been searched; the other views always explain an empty tree.
   const emptyTreeText = isShowSearch
     ? hasSearchKeyword && !isSearching
@@ -207,6 +217,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const expandedIds = useMemo<ReadonlySet<string>>(() => {
     if (isShowSearch || isShowStarred) return new Set<string>()
+
     return collectExpandedIds(notesTree, new Set<string>())
   }, [isShowSearch, isShowStarred, notesTree])
 
@@ -223,10 +234,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     (id: string | null) => {
       if (!id) return
       const node = findNode(notesTreeRef.current, id)
+
       if (!node) return
+
       if (node.type === 'folder') {
         pendingFolderToggleRef.current = id
       }
+
       onSelectNode(node)
     },
     [onSelectNode]
@@ -236,11 +250,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     (nextExpanded: ReadonlySet<string>) => {
       const skip = pendingFolderToggleRef.current
       pendingFolderToggleRef.current = null
+
       for (const id of nextExpanded) {
         if (id !== skip && !expandedIds.has(id)) {
           onToggleExpanded(id)
         }
       }
+
       for (const id of expandedIds) {
         if (id !== skip && !nextExpanded.has(id)) {
           onToggleExpanded(id)
@@ -270,8 +286,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     (node: FileTreeNode) => {
       if (!isShowSearch) return null
       const result = searchResults.find((r) => r.id === node.id)
+
       if (!result || !result.matchType || result.matchType === 'filename') return null
       const label = result.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')
+
       return (
         <span
           className={
@@ -289,7 +307,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const toggleMatchesExpanded = useCallback((nodeId: string) => {
     setExpandedMatchIds((prev) => {
       const next = new Set(prev)
+
       if (!next.delete(nodeId)) next.add(nodeId)
+
       return next
     })
   }, [])
@@ -298,9 +318,11 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     (node: FileTreeNode) => {
       if (!isShowSearch) return null
       const matches = searchResults.find((r) => r.id === node.id)?.matches
+
       if (!matches?.length) return null
       const isExpanded = expandedMatchIds.has(node.id)
       const visibleMatches = isExpanded ? matches : matches.slice(0, COLLAPSED_MATCH_COUNT)
+
       return (
         <div className="mb-1 ml-6 flex flex-col border-border border-l pl-1">
           {visibleMatches.map((match, index) => (
@@ -335,7 +357,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const getTreeNodeMenuItems = useCallback(
     (node: FileTreeNode): readonly CommandContextMenuExtraItem[] => {
       const treeNode = findNode(notesTreeRef.current, node.id)
+
       if (!treeNode) return []
+
       return getMenuItems(treeNode)
     },
     [getMenuItems]

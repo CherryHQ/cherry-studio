@@ -40,5 +40,6 @@ export function reorderVisibleSubset<T>({
   }
 
   nextItems.splice(targetIndex, 0, movedItem)
+
   return nextItems
 }

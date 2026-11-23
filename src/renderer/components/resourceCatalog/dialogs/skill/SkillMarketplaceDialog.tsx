@@ -37,6 +37,7 @@ const SOURCE_LABELS: Record<SkillSearchSource, string> = {
   'clawhub.ai': 'clawhub.ai',
   github: 'GitHub'
 }
+
 const SEARCH_SOURCES = Object.keys(SOURCE_LABELS) as SkillSearchSource[]
 const DEFAULT_SEARCH_SOURCE: SkillSearchSource = 'skills.sh'
 const SEARCH_DEBOUNCE_MS = 300
@@ -84,15 +85,19 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
 
   const sourceCounts = useMemo(() => {
     const counts = new Map<SkillSearchSource, number>()
+
     for (const result of githubResult ? [...results, githubResult] : results) {
       counts.set(result.sourceRegistry, (counts.get(result.sourceRegistry) ?? 0) + 1)
     }
+
     return counts
   }, [githubResult, results])
+
   const githubUrlInvalid = isGithubSource && submittedUrl.trim().length > 0 && !githubResult
 
   const visibleResults = useMemo(() => {
     if (isGithubSource) return githubResult ? [githubResult] : []
+
     return results.filter((result) => result.sourceRegistry === activeSource)
   }, [activeSource, githubResult, isGithubSource, results])
 
@@ -102,11 +107,13 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
       setSubmittedUrl('')
       clearPendingSearch()
       clear()
+
       if (value.trim()) {
         setSearchDebouncing(true)
         searchDebounceRef.current = setTimeout(() => {
           searchDebounceRef.current = null
           setSearchDebouncing(false)
+
           if (isGithubSource) setSubmittedUrl(value)
           else void search(value)
         }, SEARCH_DEBOUNCE_MS)
@@ -121,6 +128,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
     (value: string) => {
       const nextSource = value as SkillSearchSource
       setActiveSource(nextSource)
+
       // The registries share one search, so switching among them only refilters. GitHub takes a URL
       // instead of keywords, so whatever was typed no longer applies in either direction.
       if ((nextSource === 'github') === isGithubSource) return
@@ -144,11 +152,14 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
       }
 
       pendingInstallSourcesRef.current.add(result.installSource)
+
       try {
         const { skill, error: installError } = await install(result.installSource)
+
         if (!skill) {
           const message = t('settings.skills.installFailed', { name: result.name })
           toast.error(installError ? `${message}: ${installError}` : message)
+
           return
         }
 
@@ -192,6 +203,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
               <SelectContent>
                 {SEARCH_SOURCES.map((source) => {
                   const count = sourceCounts.get(source) ?? 0
+
                   return (
                     <SelectItem key={source} value={source}>
                       {SOURCE_LABELS[source]}
@@ -275,9 +287,11 @@ function SkillSearchBody({
   onInstall: (result: SkillSearchResult) => void
 }) {
   const { t } = useTranslation()
+
   const getResultKey = useCallback(
     (index: number) => {
       const result = results[index]
+
       return result ? result.installSource : index
     },
     [results]

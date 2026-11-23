@@ -114,6 +114,7 @@ export class ClaudeCodeOtlpAdapter {
         attributesFromKeyValues((resourceSpan as { resource?: { attributes?: OtlpKeyValue[] } }).resource?.attributes),
         'resource.'
       )
+
       const scopeSpans = arrayFrom((resourceSpan as { scopeSpans?: unknown }).scopeSpans)
 
       for (const scopeSpan of scopeSpans) {
@@ -121,10 +122,12 @@ export class ClaudeCodeOtlpAdapter {
           attributesFromKeyValues((scopeSpan as { scope?: { attributes?: OtlpKeyValue[] } }).scope?.attributes),
           'scope.'
         )
+
         const spans = arrayFrom((scopeSpan as { spans?: unknown }).spans) as OtlpSpan[]
 
         for (const span of spans) {
           const entity = convertSpan(span, { ...resourceAttributes, ...scopeAttributes }, resolveTraceContext)
+
           if (entity) result.push(entity)
         }
       }
@@ -143,6 +146,7 @@ export class ClaudeCodeOtlpAdapter {
         attributesFromKeyValues((resourceLog as { resource?: { attributes?: OtlpKeyValue[] } }).resource?.attributes),
         'resource.'
       )
+
       const scopeLogs = arrayFrom((resourceLog as { scopeLogs?: unknown }).scopeLogs)
 
       for (const scopeLog of scopeLogs) {
@@ -150,10 +154,12 @@ export class ClaudeCodeOtlpAdapter {
           attributesFromKeyValues((scopeLog as { scope?: { attributes?: OtlpKeyValue[] } }).scope?.attributes),
           'scope.'
         )
+
         const logRecords = arrayFrom((scopeLog as { logRecords?: unknown }).logRecords) as OtlpLogRecord[]
 
         for (const record of logRecords) {
           const event = convertLogRecord(record, { ...resourceAttributes, ...scopeAttributes })
+
           if (event) result.push(event)
         }
       }
@@ -178,6 +184,7 @@ function convertSpan(
     ...inheritedAttributes,
     ...attributesFromKeyValues(span.attributes)
   }
+
   const context = resolveTraceContext(traceId)
   const modelName = resolveModelName(attributes, context)
   const usage = resolveUsage(attributes)
@@ -194,16 +201,19 @@ function convertSpan(
     status: normalizeStatus(span.status?.code),
     kind: normalizeKind(span.kind)
   }
+
   const contentAttributes: Attributes = {
     ...attributes,
     ...resolveContentAttributes(span.name, attributes, events)
   }
+
   if (context) {
     contentAttributes['trace.topicId'] = context.topicId
     contentAttributes['trace.modelName'] = modelName ?? context.modelName ?? ''
     contentAttributes['cs.agent_session_id'] = context.sessionId
     contentAttributes['cs.agent_turn_id'] = context.turnId
   }
+
   const entity: SpanEntity = {
     ...identity,
     attributes: contentAttributes,
@@ -213,7 +223,9 @@ function convertSpan(
     topicId: context?.topicId,
     modelName
   }
+
   if (usage) entity.usage = usage
+
   return entity
 }
 
@@ -237,9 +249,12 @@ function convertLogRecord(record: OtlpLogRecord, inheritedAttributes: Attributes
     ...toOtelAttributes(inheritedAttributes),
     ...otelAttributesFromKeyValues(record.attributes)
   }
+
   if (record.severityText) attributes['log.severity_text'] = record.severityText
+
   if (record.severityNumber !== undefined) attributes['log.severity_number'] = record.severityNumber
   const body = anyValueToOtelAttributeValue(record.body)
+
   if (body !== undefined) attributes['log.body'] = body
   const eventName = typeof attributes['event.name'] === 'string' ? attributes['event.name'] : undefined
 
@@ -258,6 +273,7 @@ function convertLogRecord(record: OtlpLogRecord, inheritedAttributes: Attributes
 
 function convertLink(link: NonNullable<OtlpSpan['links']>[number]): Link | undefined {
   if (!link.traceId || !link.spanId || !isTraceId(link.traceId) || !isSpanId(link.spanId)) return undefined
+
   return {
     context: {
       traceId: link.traceId.toLowerCase(),
@@ -270,47 +286,63 @@ function convertLink(link: NonNullable<OtlpSpan['links']>[number]): Link | undef
 
 function attributesFromKeyValues(items: OtlpKeyValue[] | undefined): Attributes {
   const attrs: Attributes = {}
+
   for (const item of items ?? []) {
     if (!item.key) continue
     const value = anyValueToAttributeValue(item.value)
+
     if (value !== undefined) attrs[item.key] = value
   }
+
   return attrs
 }
 
 function prefixAttributes(attributes: Attributes, prefix: string): Attributes {
   const prefixed: Attributes = {}
+
   for (const [key, value] of Object.entries(attributes)) {
     prefixed[`${prefix}${key}`] = value
   }
+
   return prefixed
 }
 
 function otelAttributesFromKeyValues(items: OtlpKeyValue[] | undefined): OTelAttributes {
   const attrs: OTelAttributes = {}
+
   for (const item of items ?? []) {
     if (!item.key) continue
     const value = anyValueToOtelAttributeValue(item.value)
+
     if (value !== undefined) attrs[item.key] = value
   }
+
   return attrs
 }
 
 function toOtelAttributes(attributes: Attributes): OTelAttributes {
   const attrs: OTelAttributes = {}
+
   for (const [key, value] of Object.entries(attributes)) {
     const otelValue = attributeValueToOtelAttributeValue(value)
+
     if (otelValue !== undefined) attrs[key] = otelValue
   }
+
   return attrs
 }
 
 function anyValueToAttributeValue(value: OtlpAnyValue | undefined): AttributeValue | undefined {
   if (!value) return undefined
+
   if (value.stringValue !== undefined) return value.stringValue
+
   if (value.boolValue !== undefined) return value.boolValue
+
   if (value.intValue !== undefined) return Number(value.intValue)
+
   if (value.doubleValue !== undefined) return Number(value.doubleValue)
+
   if (value.bytesValue !== undefined) return value.bytesValue
 
   if (value.arrayValue) {
@@ -319,13 +351,16 @@ function anyValueToAttributeValue(value: OtlpAnyValue | undefined): AttributeVal
 
   if (value.kvlistValue) {
     const result: Record<string, string | number | boolean> = {}
+
     for (const item of value.kvlistValue.values ?? []) {
       if (!item.key) continue
       const nested = anyValueToAttributeValue(item.value)
+
       if (typeof nested === 'string' || typeof nested === 'number' || typeof nested === 'boolean') {
         result[item.key] = nested
       }
     }
+
     return result
   }
 
@@ -338,14 +373,21 @@ function anyValueToOtelAttributeValue(value: OtlpAnyValue | undefined): OTelAttr
 
 function attributeValueToOtelAttributeValue(value: AttributeValue | undefined): OTelAttributeValue | undefined {
   if (value === undefined) return undefined
+
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+
   if (Array.isArray(value)) {
     const items = value.filter((item) => item !== undefined && item !== null)
+
     if (items.every((item): item is string => typeof item === 'string')) return items
+
     if (items.every((item): item is number => typeof item === 'number')) return items
+
     if (items.every((item): item is boolean => typeof item === 'boolean')) return items
+
     return JSON.stringify(items)
   }
+
   return JSON.stringify(value)
 }
 
@@ -363,11 +405,14 @@ function resolveUsage(attributes: Attributes): TokenUsage | undefined {
     getNumber(attributes, 'input_tokens') ??
     getNumber(attributes, 'gen_ai.usage.input_tokens') ??
     getNumber(attributes, 'usage.input_tokens')
+
   const completionTokens =
     getNumber(attributes, 'output_tokens') ??
     getNumber(attributes, 'gen_ai.usage.output_tokens') ??
     getNumber(attributes, 'usage.output_tokens')
+
   const cacheReadTokens = getNumber(attributes, 'cache_read_tokens') ?? getNumber(attributes, 'cache_read_input_tokens')
+
   const cacheCreationTokens =
     getNumber(attributes, 'cache_creation_tokens') ?? getNumber(attributes, 'cache_creation_input_tokens')
 
@@ -383,7 +428,9 @@ function resolveUsage(attributes: Attributes): TokenUsage | undefined {
   const prompt = promptTokens ?? 0
   const completion = completionTokens ?? 0
   const promptDetails: Record<string, number> = {}
+
   if (cacheReadTokens !== undefined) promptDetails.cache_read_tokens = cacheReadTokens
+
   if (cacheCreationTokens !== undefined) promptDetails.cache_creation_tokens = cacheCreationTokens
 
   const usage: TokenUsage = {
@@ -391,7 +438,9 @@ function resolveUsage(attributes: Attributes): TokenUsage | undefined {
     completion_tokens: completion,
     total_tokens: prompt + completion
   }
+
   if (Object.keys(promptDetails).length > 0) usage.prompt_tokens_details = promptDetails
+
   return usage
 }
 
@@ -404,11 +453,13 @@ function resolveContentAttributes(
 
   if (attributes.inputs === undefined) {
     const inputs = resolveSpanInputs(spanName, attributes, events)
+
     if (inputs !== undefined) resolved.inputs = inputs
   }
 
   if (attributes.outputs === undefined) {
     const outputs = resolveSpanOutputs(spanName, attributes, events)
+
     if (outputs !== undefined) resolved.outputs = outputs
   }
 
@@ -482,6 +533,7 @@ function resolveSpanOutputs(
 
 function getAttribute(attributes: Attributes, key: string): AttributeValue | undefined {
   const value = attributes[key]
+
   return value === undefined || value === null ? undefined : value
 }
 
@@ -492,20 +544,26 @@ function getEventAttribute(
 ): OTelAttributeValue | undefined {
   for (const event of events ?? []) {
     if (!eventNames.includes(event.name)) continue
+
     for (const key of attributeKeys) {
       const value = event.attributes?.[key]
+
       if (value !== undefined) return value
     }
   }
+
   return undefined
 }
 
 function pickAttributes(attributes: Attributes, keys: string[]): Record<string, AttributeValue> | undefined {
   const picked: Record<string, AttributeValue> = {}
+
   for (const key of keys) {
     const value = getAttribute(attributes, key)
+
     if (value !== undefined) picked[key] = value
   }
+
   return Object.keys(picked).length > 0 ? picked : undefined
 }
 
@@ -513,37 +571,47 @@ function normalizeContentValue(
   value: AttributeValue | OTelAttributeValue | Attributes | null | undefined
 ): AttributeValue | undefined {
   if (value === undefined || value === null) return undefined
+
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+
   return JSON.stringify(value)
 }
 
 function getString(attributes: Attributes, key: string): string | undefined {
   const value = attributes[key]
+
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 function getNumber(attributes: Attributes, key: string): number | undefined {
   const value = attributes[key]
+
   if (typeof value === 'number' && Number.isFinite(value)) return value
+
   if (typeof value === 'string') {
     const parsed = Number(value)
+
     return Number.isFinite(parsed) ? parsed : undefined
   }
+
   return undefined
 }
 
 function normalizeKind(kind: string | number | undefined): string {
   const key = kind === undefined ? 'SPAN_KIND_INTERNAL' : String(kind)
+
   return KIND_BY_VALUE.get(key) ?? key.replace(/^SPAN_KIND_/, '')
 }
 
 function normalizeStatus(status: string | number | undefined): string {
   const key = status === undefined ? 'STATUS_CODE_UNSET' : String(status)
+
   return STATUS_BY_VALUE.get(key) ?? 'UNSET'
 }
 
 function unixNanoToMillis(value: string | number | undefined): number {
   if (value === undefined) return Date.now()
+
   try {
     return Number(BigInt(String(value)) / 1_000_000n)
   } catch {
@@ -554,13 +622,17 @@ function unixNanoToMillis(value: string | number | undefined): number {
 function unixNanoToHrTime(value: string | number | undefined): [number, number] {
   if (value === undefined) {
     const now = Date.now()
+
     return [Math.floor(now / 1000), (now % 1000) * 1_000_000]
   }
+
   try {
     const nanos = BigInt(String(value))
+
     return [Number(nanos / 1_000_000_000n), Number(nanos % 1_000_000_000n)]
   } catch {
     const now = Date.now()
+
     return [Math.floor(now / 1000), (now % 1000) * 1_000_000]
   }
 }

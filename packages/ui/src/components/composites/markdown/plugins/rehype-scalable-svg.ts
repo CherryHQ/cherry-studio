@@ -5,17 +5,22 @@ const isNumeric = (value: string | undefined): boolean => {
   if (typeof value === 'string' && value.trim() !== '') {
     return /^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())
   }
+
   return false
 }
 
 const isNegativeNumeric = (value: string): boolean => /^-\d/.test(value.trim())
+
 const isSafeCssLength = (value: string): boolean =>
   /^(?:\d+\.?\d*|\.\d+)(?:px|pt|em|rem|%|vw|vh|cm|mm|in)?$/i.test(value.trim())
+
 const isSafeSvgDimension = (value: string): boolean => isNumeric(value) || isSafeCssLength(value)
 
 const toCssMaxWidth = (width: string): string | null => {
   if (isNegativeNumeric(width)) return null
+
   if (isNumeric(width)) return `${width}px`
+
   return isSafeCssLength(width) ? width : null
 }
 
@@ -47,12 +52,14 @@ function rehypeScalableSvg() {
         const height = (properties.height as string)?.trim()
 
         if (width && !isSafeSvgDimension(width)) delete properties.width
+
         if (height && !isSafeSvgDimension(height)) delete properties.height
 
         // 1. Universally set max-width from the width attribute if it exists.
         // This is safe for both simple and complex cases.
         if (width) {
           const cssMaxWidth = toCssMaxWidth(width)
+
           if (cssMaxWidth) {
             const existingStyle = properties.style ? String(properties.style).trim().replace(/;$/, '') : ''
             const maxWidth = `max-width: ${cssMaxWidth}`

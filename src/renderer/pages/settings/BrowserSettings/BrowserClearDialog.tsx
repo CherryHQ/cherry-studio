@@ -25,6 +25,7 @@ const categories = [
 export function BrowserClearDialog({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
+
   return (
     <DialogContent
       closeLabel={t('common.close')}
@@ -55,17 +56,22 @@ function BrowserClearContent({
   const clear = async () => {
     setBusy(true)
     setError(false)
+
     try {
       let rememberedPagesCleared = false
+
       for (const { kind } of categories) {
         if (!selected[kind]) continue
         await ipcApi.request('browser.data.clear', { kind })
+
         if (!rememberedPagesCleared && (kind === 'history' || kind === 'site_data')) {
           cacheService.setPersist('ui.browser.last_urls', {})
           rememberedPagesCleared = true
         }
+
         setSelected((current) => ({ ...current, [kind]: false }))
       }
+
       onDone()
     } catch {
       setError(true)
@@ -73,6 +79,7 @@ function BrowserClearContent({
       setBusy(false)
     }
   }
+
   return (
     <>
       <DialogHeader className="text-start">

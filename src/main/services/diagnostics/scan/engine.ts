@@ -24,18 +24,24 @@ function moduleMatches(recordModule: string, allowed: readonly string[]): boolea
 
 function matches(rule: ScanRule, record: LogRecord, text: string): boolean {
   if (rule.levels && !rule.levels.includes(record.level)) return false
+
   // records without module predate the logger fix — degrade to anchors instead of going blind
   if (rule.modules && record.module !== undefined && !moduleMatches(record.module, rule.modules)) return false
+
   if (!rule.anchors.every((anchor) => anchor.test(text))) return false
+
   if (rule.exclude?.some((pattern) => pattern.test(text))) return false
+
   return true
 }
 
 function toEvidence(record: LogRecord): FindingEvidence {
   const stackFirstLine = record.stack?.split('\n', 1)[0]
+
   const excerpt = [record.message.slice(0, EXCERPT_MESSAGE_CHARS), stackFirstLine?.slice(0, EXCERPT_STACK_CHARS)]
     .filter(Boolean)
     .join(' | ')
+
   return {
     timestampMs: record.timestampMs,
     excerpt,
@@ -62,9 +68,11 @@ export function diagnose(records: Iterable<LogRecord>, options?: DiagnoseOptions
 
   for (const record of records) {
     const text = haystack(record)
+
     for (const rule of rules) {
       if (!matches(rule, record, text)) continue
       let accumulator = accumulators.get(rule.id)
+
       if (!accumulator) {
         accumulator = {
           rule,
@@ -75,9 +83,11 @@ export function diagnose(records: Iterable<LogRecord>, options?: DiagnoseOptions
         }
         accumulators.set(rule.id, accumulator)
       }
+
       accumulator.count += 1
       accumulator.firstSeenMs = Math.min(accumulator.firstSeenMs, record.timestampMs)
       accumulator.lastSeenMs = Math.max(accumulator.lastSeenMs, record.timestampMs)
+
       if (accumulator.evidence.length < DEFAULT_MAX_EVIDENCE) accumulator.evidence.push(toEvidence(record))
     }
   }

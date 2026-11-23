@@ -49,22 +49,26 @@ export interface AttachmentBudgetInput {
  */
 export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Promise<AttachmentBudget | null> {
   const window = resolveContextWindow(input.model.contextWindow)
+
   if (window === null) return null
 
   const dialect = resolveModelTokenDialect(input.provider, input.model)
   const tokenizer = await getTextTokenizer(dialect)
 
   let spent: number
+
   try {
     const priced = await toModelMessages(input.messages, input.mediaCapabilities, input.tools)
     spent = estimateModelMessagesSync(priced, { dialect, tokenizer })
   } catch {
     return null
   }
+
   spent += tokenizer.count(input.system ?? '')
   spent += await countToolSetTokens(input.tools, tokenizer)
 
   const usable = Math.floor(resolveInputRoom(window, input.maxOutputTokens) * ATTACHMENT_INPUT_SAFETY_RATIO)
+
   return { tokens: Math.max(0, usable - spent) }
 }
 
@@ -74,11 +78,14 @@ export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Pro
  */
 async function countToolSetTokens(tools: ToolSet | undefined, tokenizer: TextTokenizer): Promise<number> {
   if (!tools) return 0
+
   const perTool = await Promise.all(
     Object.entries(tools).map(async ([name, tool]) => {
       const schema = await serializeToolSchema((tool as { inputSchema?: unknown }).inputSchema)
+
       return countToolTokens({ name, description: (tool as { description?: string }).description, schema }, tokenizer)
     })
   )
+
   return perTool.reduce((sum, tokens) => sum + tokens, 0)
 }

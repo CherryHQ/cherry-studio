@@ -14,6 +14,7 @@ const TOOL_CALLS_CLOSE = '</｜｜DSML｜｜tool_calls>'
 const SWALLOW_BUFFER_LIMIT = 64 * 1024
 
 const INVOKE_RE = /<｜｜DSML｜｜invoke\s+name="([^"]+)">([\s\S]*?)<\/｜｜DSML｜｜invoke>/g
+
 const PARAM_RE =
   /<｜｜DSML｜｜parameter\s+name="([^"]+)"(?:\s+string="(true|false)")?>([\s\S]*?)<\/｜｜DSML｜｜parameter>/g
 
@@ -26,6 +27,7 @@ function parseInvokeBlocks(dsmlContent: string): ParsedDsmlCall[] {
   const calls: ParsedDsmlCall[] = []
   INVOKE_RE.lastIndex = 0
   let invokeMatch: RegExpExecArray | null
+
   while ((invokeMatch = INVOKE_RE.exec(dsmlContent)) !== null) {
     const toolName = invokeMatch[1]
     const inner = invokeMatch[2]
@@ -33,10 +35,12 @@ function parseInvokeBlocks(dsmlContent: string): ParsedDsmlCall[] {
 
     PARAM_RE.lastIndex = 0
     let paramMatch: RegExpExecArray | null
+
     while ((paramMatch = PARAM_RE.exec(inner)) !== null) {
       const paramName = paramMatch[1]
       const isString = paramMatch[2] !== 'false'
       const rawValue = paramMatch[3]
+
       if (isString) {
         argEntries.push([paramName, rawValue])
       } else {
@@ -47,8 +51,10 @@ function parseInvokeBlocks(dsmlContent: string): ParsedDsmlCall[] {
         }
       }
     }
+
     calls.push({ toolName, args: Object.fromEntries(argEntries) })
   }
+
   return calls
 }
 
@@ -56,11 +62,13 @@ function parseInvokeBlocks(dsmlContent: string): ParsedDsmlCall[] {
 // Used to keep partial DSML opening tag in buffer across chunk boundaries.
 function findPartialPrefix(buffer: string, target: string): number {
   const maxLen = Math.min(buffer.length, target.length - 1)
+
   for (let len = maxLen; len > 0; len--) {
     if (target.startsWith(buffer.slice(buffer.length - len))) {
       return buffer.length - len
     }
   }
+
   return -1
 }
 
@@ -92,21 +100,27 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
         textId: string
       ) => {
         const startIdx = textBuffer.indexOf(TOOL_CALLS_OPEN)
+
         if (startIdx === -1) {
           const partialIdx = findPartialPrefix(textBuffer, TOOL_CALLS_OPEN)
+
           if (partialIdx >= 0) {
             const safe = textBuffer.slice(0, partialIdx)
+
             if (safe) controller.enqueue({ type: 'text-delta', id: textId, delta: safe })
             textBuffer = textBuffer.slice(partialIdx)
           } else {
             if (textBuffer) controller.enqueue({ type: 'text-delta', id: textId, delta: textBuffer })
             textBuffer = ''
           }
+
           return
         }
+
         if (startIdx > 0) {
           controller.enqueue({ type: 'text-delta', id: textId, delta: textBuffer.slice(0, startIdx) })
         }
+
         dsmlBuffer = textBuffer.slice(startIdx + TOOL_CALLS_OPEN.length)
         textBuffer = ''
         inDsml = true
@@ -115,6 +129,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
 
       drainDsmlBuffer = (controller: TransformStreamDefaultController<LanguageModelV3StreamPart>, textId: string) => {
         const closeIdx = dsmlBuffer.indexOf(TOOL_CALLS_CLOSE)
+
         if (closeIdx === -1) {
           if (dsmlBuffer.length > SWALLOW_BUFFER_LIMIT) {
             logger.warn('DSML buffer exceeded limit without close tag, falling back to text')
@@ -126,6 +141,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
             dsmlBuffer = ''
             inDsml = false
           }
+
           return
         }
 
@@ -154,6 +170,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               input: inputJson
             })
           }
+
           extractedToolCalls = true
           logger.info(`Parsed ${calls.length} DSML tool call(s)`, {
             tools: calls.map((c) => c.toolName)
@@ -163,6 +180,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
         dsmlBuffer = ''
         inDsml = false
         textBuffer = remainder
+
         if (textBuffer) enqueueRemainderText(controller, textId)
       }
 
@@ -176,11 +194,13 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               if (chunk.type === 'text-start') {
                 activeTextId = chunk.id
                 controller.enqueue(chunk)
+
                 return
               }
 
               if (chunk.type === 'text-end') {
                 const textId = chunk.id
+
                 if (inDsml) {
                   logger.warn('text-end with unclosed DSML block, flushing as text')
                   controller.enqueue({
@@ -194,8 +214,10 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
                   controller.enqueue({ type: 'text-delta', id: textId, delta: textBuffer })
                   textBuffer = ''
                 }
+
                 controller.enqueue(chunk)
                 activeTextId = null
+
                 return
               }
 
@@ -208,20 +230,24 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
                 } else {
                   controller.enqueue(chunk)
                 }
+
                 return
               }
 
               if (chunk.type !== 'text-delta') {
                 controller.enqueue(chunk)
+
                 return
               }
 
               const textId = chunk.id
+
               if (!activeTextId) activeTextId = textId
 
               if (inDsml) {
                 dsmlBuffer += chunk.delta
                 drainDsmlBuffer(controller, textId)
+
                 return
               }
 
@@ -230,6 +256,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
             },
             flush(controller: TransformStreamDefaultController<LanguageModelV3StreamPart>) {
               const textId = activeTextId ?? 'dsml-fallback'
+
               if (inDsml) {
                 logger.warn('Stream flushed with unclosed DSML block')
                 controller.enqueue({
@@ -240,6 +267,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               } else if (textBuffer) {
                 controller.enqueue({ type: 'text-delta', id: textId, delta: textBuffer })
               }
+
               textBuffer = ''
               dsmlBuffer = ''
               inDsml = false
@@ -260,6 +288,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
           newContent.push(part)
           continue
         }
+
         const text = part.text
         const partsForText: typeof newContent = []
         let textAccum = ''
@@ -268,11 +297,14 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
 
         while (cursor < text.length) {
           const startIdx = text.indexOf(TOOL_CALLS_OPEN, cursor)
+
           if (startIdx === -1) {
             textAccum += text.slice(cursor)
             break
           }
+
           const closeIdx = text.indexOf(TOOL_CALLS_CLOSE, startIdx + TOOL_CALLS_OPEN.length)
+
           if (closeIdx === -1) {
             textAccum += text.slice(cursor)
             break
@@ -290,10 +322,12 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
           }
 
           textAccum += text.slice(cursor, startIdx)
+
           if (textAccum) {
             partsForText.push({ ...part, text: textAccum })
             textAccum = ''
           }
+
           for (const call of calls) {
             partsForText.push({
               type: 'tool-call',
@@ -302,6 +336,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               input: JSON.stringify(call.args)
             })
           }
+
           foundCallInPart = true
           cursor = blockEnd
         }
@@ -312,6 +347,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
         }
 
         newContent.push(...partsForText)
+
         if (textAccum) newContent.push({ ...part, text: textAccum })
         extracted = true
       }
@@ -319,6 +355,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
       if (!extracted) return result
 
       logger.info('Parsed DSML tool calls in non-streaming response')
+
       return {
         ...result,
         content: newContent,

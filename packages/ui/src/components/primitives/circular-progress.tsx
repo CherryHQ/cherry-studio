@@ -81,4 +81,5 @@ const CircularProgress = ({
 }
 
 export default CircularProgress
+
 export type { CircularProgressProps }

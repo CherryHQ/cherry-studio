@@ -32,9 +32,13 @@ const SCREEN_CAPTURE_SETTINGS_URL = 'x-apple.systempreferences:com.apple.prefere
 export function getScreenCapturePermissionStatus(): ScreenCapturePermissionStatus {
   if (!isMac) return 'authorized'
   const status = systemPreferences.getMediaAccessStatus('screen')
+
   if (status === 'granted') return 'authorized'
+
   if (status === 'not-determined') return 'not-determined'
+
   if (status === 'restricted') return 'restricted'
+
   return 'denied'
 }
 

@@ -24,10 +24,13 @@ import { ProviderModelListSchema } from './schemas/provider-models'
 // registry updater) can validate a downloaded payload in memory before writing
 // it to disk — the same schemas this loader validates with on read.
 export { ModelListSchema } from './schemas/model'
+
 export { ProviderListSchema } from './schemas/provider'
+
 export { ProviderModelListSchema } from './schemas/provider-models'
 
 export type { CatalogManifest, RegistryFileName, RemoteRegistryFileName } from './catalog'
+
 export {
   CatalogManifestSchema,
   REGISTRY_FILES,
@@ -42,13 +45,16 @@ export function isCatalogManifestCompatible(manifest: CatalogManifest, appVersio
   const app = semver.coerce(appVersion)?.version
   const minimum = semver.coerce(manifest.minAppVersion)?.version
   const source = semver.coerce(manifest.sourceAppVersion)?.version
+
   if (!app || !minimum || !source) return false
+
   return semver.gte(app, minimum) && semver.lte(app, source)
 }
 
 function readAndParse<T>(jsonPath: string, schema: z.ZodType<T>): T {
   try {
     const data = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+
     return schema.parse(data)
   } catch (error) {
     throw new Error(`Failed to load registry file: ${jsonPath}`, { cause: error })
@@ -57,16 +63,19 @@ function readAndParse<T>(jsonPath: string, schema: z.ZodType<T>): T {
 
 export function readModelRegistry(jsonPath: string): ModelList {
   const registry = readAndParse(jsonPath, ModelListSchema)
+
   return { version: registry.version, models: registry.models }
 }
 
 export function readProviderRegistry(jsonPath: string): ProviderList {
   const registry = readAndParse(jsonPath, ProviderListSchema)
+
   return { version: registry.version, providers: registry.providers }
 }
 
 export function readProviderModelRegistry(jsonPath: string): ProviderModelList {
   const registry = readAndParse(jsonPath, ProviderModelListSchema)
+
   return { version: registry.version, overrides: registry.overrides }
 }
 
@@ -115,70 +124,83 @@ export class RegistryLoader {
   /** Load and cache models.json. Returns models array. */
   loadModels(): ModelConfig[] {
     this.touch()
+
     if (this.models) return this.models
     const data = readModelRegistry(this.paths.models)
     this.models = data.models ?? []
     this.modelsVersion = data.version
     this.modelIndex = new ModelIndex(this.models)
+
     return this.models
   }
 
   /** Load and cache providers.json. Returns providers array. */
   loadProviders(): ProviderConfig[] {
     this.touch()
+
     if (this.providers) return this.providers
     const data = readProviderRegistry(this.paths.providers)
     this.providers = data.providers ?? []
     this.providersVersion = data.version
+
     return this.providers
   }
 
   /** Load and cache provider-models.json. Returns overrides array. */
   loadProviderModels(): ProviderModelOverride[] {
     this.touch()
+
     if (this.providerModels) return this.providerModels
     const data = readProviderModelRegistry(this.paths.providerModels)
     this.providerModels = data.overrides ?? []
     this.providerModelsVersion = data.version
     this.overrideIndex = new ProviderModelIndex(this.providerModels)
+
     return this.providerModels
   }
 
   /** Get the models.json version string. */
   getModelsVersion(): string {
     this.loadModels()
+
     return this.modelsVersion!
   }
 
   /** Get the providers.json version string. */
   getProvidersVersion(): string {
     this.loadProviders()
+
     return this.providersVersion!
   }
 
   /** Get the provider-models.json version string. */
   getProviderModelsVersion(): string {
     this.loadProviderModels()
+
     return this.providerModelsVersion!
   }
 
   findProvider(providerId: string): ProviderConfig | null {
     const providers = this.loadProviders()
+
     return providers.find((p) => p.id === providerId) ?? null
   }
 
   findModel(modelId: string): ModelConfig | null {
     this.loadModels()
+
     return this.modelIndex!.findModel(modelId)
   }
 
   findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
     this.loadProviderModels()
+
     return this.overrideIndex!.findOverride(providerId, modelId)
   }
 
   getOverridesForProvider(providerId: string): ProviderModelOverride[] {
     this.loadProviderModels()
+
     return this.overrideIndex!.getOverridesForProvider(providerId)
   }
 
@@ -192,6 +214,7 @@ export class RegistryLoader {
     this.providerModelsVersion = null
     this.modelIndex = null
     this.overrideIndex = null
+
     if (this.idleTimer) {
       clearTimeout(this.idleTimer)
       this.idleTimer = null

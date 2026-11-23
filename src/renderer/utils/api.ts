@@ -20,6 +20,7 @@ export function formatOllamaApiHost(host: string): string {
     ?.replace(/\/v1$/, '')
     ?.replace(/\/api$/, '')
     ?.replace(/\/chat$/, '')
+
   return formatApiHost(normalizedHost + '/api', false)
 }
 
@@ -33,16 +34,20 @@ export function formatOllamaApiHost(host: string): string {
 export function formatVertexApiHost(input: { apiHost?: string; project: string; location: string }): string {
   const { apiHost, project, location } = input
   const trimmedHost = withoutTrailingSlash(trim(apiHost ?? ''))
+
   if (!trimmedHost || isBareVertexApiHost(trimmedHost)) {
     const host =
       location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
+
     return `${formatApiHost(host)}/projects/${project}/locations/${location}`
   }
+
   return formatApiHost(trimmedHost)
 }
 
 // 目前对话界面只支持这些端点
 export const SUPPORTED_IMAGE_ENDPOINT_LIST = ['images/generations', 'images/edits', 'predict'] as const
+
 export const SUPPORTED_ENDPOINT_LIST = [
   'chat/completions',
   'responses',
@@ -75,19 +80,25 @@ export const SUPPORTED_ENDPOINT_LIST = [
  */
 export function routeToEndpoint(apiHost: string) {
   const trimmedHost = trim(apiHost)
+
   // 前面已经确保apiHost合法
   if (!trimmedHost.endsWith('#')) {
     return { baseURL: trimmedHost, endpoint: '' }
   }
+
   // 去掉结尾的 #
   const host = trimmedHost.slice(0, -1)
   const endpointMatch = SUPPORTED_ENDPOINT_LIST.find((endpoint) => host.endsWith(endpoint))
+
   if (!endpointMatch) {
     const baseURL = withoutTrailingSlash(host)
+
     return { baseURL, endpoint: '' }
   }
+
   const baseSegment = host.slice(0, host.length - endpointMatch.length)
   const baseURL = withoutTrailingSlash(baseSegment).replace(/:$/, '') // 去掉结尾可能存在的冒号(gemini的特殊情况)
+
   return { baseURL, endpoint: endpointMatch }
 }
 
@@ -102,12 +113,15 @@ export function validateApiHost(apiHost: string): boolean {
   if (!apiHost || !trim(apiHost)) {
     return true
   }
+
   try {
     const url = new URL(trim(apiHost))
+
     // 验证协议是否为 http 或 https
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
       return false
     }
+
     return true
   } catch {
     return false

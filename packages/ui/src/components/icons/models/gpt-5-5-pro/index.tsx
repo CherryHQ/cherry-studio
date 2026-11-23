@@ -4,6 +4,7 @@ import { Gpt55ProLight } from './light'
 
 const Gpt55Pro = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <Gpt55ProLight {...props} className={className} />
+
   return <Gpt55ProLight {...props} className={className} />
 }
 

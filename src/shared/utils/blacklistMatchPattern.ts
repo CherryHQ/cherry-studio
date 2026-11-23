@@ -36,12 +36,15 @@ export type ParsedMatchPattern =
 
 export function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
   const execResult = matchPatternRegExp.exec(pattern)
+
   if (!execResult) {
     return null
   }
+
   const groups = execResult.groups as
     | { allURLs: string }
     | { allURLs?: never; scheme: string; host: string; path: string }
+
   return groups.allURLs != null
     ? { allURLs: true }
     : {
@@ -58,6 +61,7 @@ const matchPatternRegExp = (() => {
   const label = String.raw`(?:[0-9A-Za-z](?:[0-9A-Za-z-]*[0-9A-Za-z])?)`
   const host = String.raw`(?<host>(?:\*|${label})(?:\.${label})*)`
   const path = String.raw`(?<path>/(?:\*|[0-9A-Za-z._~:/?[\]@!$&'()+,;=-]|%[0-9A-Fa-f]{2})*)`
+
   return new RegExp(String.raw`^(?:${allURLs}|${scheme}://${host}${path})$`)
 })()
 
@@ -87,46 +91,63 @@ export class MatchPatternMap<T> {
     const { protocol, hostname: host, pathname, search } = new URL(url)
     const scheme = protocol.slice(0, -1)
     const path = `${pathname}${search}`
+
     if (!MatchPatternMap.supportedSchemes.includes(scheme)) {
       return []
     }
+
     const values: T[] = [...this.allURLs]
     let node = this.hostMap
+
     for (const label of host.split('.').reverse()) {
       collectBucket(node[1], scheme, path, values)
+
       if (!node[2]?.[label]) {
         return values
       }
+
       node = node[2][label]
     }
+
     collectBucket(node[1], scheme, path, values)
     collectBucket(node[0], scheme, path, values)
+
     return values
   }
 
   set(pattern: string, value: T) {
     const parseResult = parseMatchPattern(pattern)
+
     if (!parseResult) {
       throw new Error(`Invalid match pattern: ${pattern}`)
     }
+
     if (parseResult.allURLs) {
       this.allURLs.push(value)
+
       return
     }
+
     const { scheme, host, path } = parseResult
+
     if (scheme !== '*' && !MatchPatternMap.supportedSchemes.includes(scheme)) {
       throw new Error(`Unsupported scheme: ${scheme}`)
     }
+
     const labels = host.split('.').reverse()
     const anySubdomain = labels[labels.length - 1] === '*'
+
     if (anySubdomain) {
       labels.pop()
     }
+
     let node = this.hostMap
+
     for (const label of labels) {
       node[2] ||= {}
       node = node[2][label] ||= [[], []]
     }
+
     node[anySubdomain ? 1 : 0].push(
       path === '/*' ? (scheme === '*' ? [value] : [value, scheme]) : [value, scheme, path]
     )
@@ -153,21 +174,29 @@ function testPath(pathPattern: string, path: string): boolean {
   if (pathPattern === '/*') {
     return true
   }
+
   const [first, ...rest] = pathPattern.split('*')
+
   if (rest.length === 0) {
     return path === first
   }
+
   if (!path.startsWith(first)) {
     return false
   }
+
   let pos = first.length
+
   for (const part of rest.slice(0, -1)) {
     const partPos = path.indexOf(part, pos)
+
     if (partPos === -1) {
       return false
     }
+
     pos = partPos + part.length
   }
+
   return path.slice(pos).endsWith(rest[rest.length - 1])
 }
 
@@ -194,6 +223,7 @@ export function mapRegexToPatterns(patterns: string[]): string[] {
     } else if (pattern.includes('://')) {
       // Handle URLs with protocol (e.g., https://baidu.com)
       const matches = pattern.match(domainMatcher)
+
       if (matches) {
         matches.forEach((match) => {
           patternSet.add(match.replace(/http(s)?:\/\//g, '').toLowerCase())

@@ -22,6 +22,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 export { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
+
 export type { UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 
 export const FileEditSessionContext = createContext<FileEditSessionManager | null>(null)
@@ -60,13 +61,16 @@ export function useFileEditSession(
   { autoSave = true }: { autoSave?: boolean } = {}
 ): FileEditSession {
   const manager = use(FileEditSessionContext)
+
   if (!manager) throw new Error('File editing requires a window session provider')
   const entryId = handle?.kind === 'entry' ? handle.entryId : undefined
   const path = handle?.kind === 'path' ? handle.path : undefined
+
   const stableHandle = useMemo<FileHandle | undefined>(
     () => (entryId ? { kind: 'entry', entryId } : path ? { kind: 'path', path } : undefined),
     [entryId, path]
   )
+
   const key = stableHandle ? keyOf(stableHandle) : undefined
   const request = useMemo(() => ({ key, manager, ownerId }), [key, manager, ownerId])
   const [acquired, setAcquired] = useState<{ request: typeof request; lease?: SessionLease; error?: Error }>()
@@ -86,14 +90,17 @@ export function useFileEditSession(
       (error: unknown) => {
         if (cancelled) return
         let normalized: Error
+
         try {
           normalized = error instanceof Error ? error : new Error(String(error))
         } catch {
           normalized = new Error(getErrorMessage(error))
         }
+
         setAcquired({ request, error: normalized })
       }
     )
+
     return () => {
       cancelled = true
       lease?.release()
@@ -106,16 +113,21 @@ export function useFileEditSession(
   const activatedLease = useRef<SessionLease | undefined>(undefined)
   useEffect(() => {
     if (!lease) return
+
     const refresh = () => {
       void lease.invalidate()
     }
+
     const visible = () => {
       if (document.visibilityState === 'visible') refresh()
     }
+
     window.addEventListener('focus', refresh)
     document.addEventListener('visibilitychange', visible)
+
     if (activatedLease.current === lease) refresh()
     activatedLease.current = lease
+
     return () => {
       window.removeEventListener('focus', refresh)
       document.removeEventListener('visibilitychange', visible)
@@ -126,18 +138,22 @@ export function useFileEditSession(
   }, [lease, autoSave])
   const epoch = snapshot?.documentEpoch
   const bindingEpoch = snapshot?.bindingEpoch
+
   const setDraft = useCallback(
     (text: string) => {
       lease?.acceptEdit(text, epoch, bindingEpoch)
     },
     [lease, epoch, bindingEpoch]
   )
+
   const invoke = useCallback(
     (command: 'flush' | 'discard' | 'reload' | 'keepLocal') => {
       if (!lease) {
         if (acquisitionError && (command === 'flush' || command === 'discard')) return Promise.resolve()
+
         return Promise.reject(new Error('File session is not ready'))
       }
+
       return lease[command]()
     },
     [lease, acquisitionError]
@@ -159,12 +175,14 @@ export function useFileEditSession(
 
   return useMemo(() => {
     const error = snapshot?.readError ?? acquisitionError
+
     const unsupportedReason =
       error instanceof UnsupportedFileTextError
         ? error.reason
         : error instanceof IpcError && error.code === fileErrorCodes.EDIT_UNSUPPORTED
           ? 'size'
           : undefined
+
     return {
       status: !handle ? 'idle' : unsupportedReason ? 'unsupported' : error ? 'error' : snapshot ? 'ready' : 'loading',
       sessionId: snapshot?.sessionId,

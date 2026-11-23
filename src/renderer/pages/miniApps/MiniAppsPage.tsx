@@ -39,6 +39,7 @@ const MiniAppsPage: FC = () => {
   const [install, setInstall] = useState<{ builtinAppId: string } | null>(null)
   const installPanel = useExitPresence(install)
   const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
+
   const {
     allApps,
     miniApps,
@@ -52,6 +53,7 @@ const MiniAppsPage: FC = () => {
     hideMiniApp,
     removeCustomMiniApp
   } = useMiniApps()
+
   const { shortcuts, setPinned } = useSidebarShortcuts()
   const { openTab } = useTabs()
   const openTabRef = useRef(openTab)
@@ -60,6 +62,7 @@ const MiniAppsPage: FC = () => {
   miniAppsRef.current = miniApps
   const pinnedIds = useMemo(() => new Set(pinned.map((app) => app.appId)), [pinned])
   const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
+
   const sidebarFavoriteIds = useMemo(
     () =>
       new Set(
@@ -71,6 +74,7 @@ const MiniAppsPage: FC = () => {
       ),
     [shortcuts]
   )
+
   const toggleMiniApp = useCallback(
     (appId: string) => {
       const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
@@ -83,22 +87,28 @@ const MiniAppsPage: FC = () => {
     },
     [t, setPinned, sidebarFavoriteIds]
   )
+
   const openMiniApp = useCallback((appId: string, displayName: string, icon?: string) => {
     openTabRef.current(`/app/mini-app/${appId}`, {
       title: displayName,
       icon
     })
   }, [])
+
   const editCustomApp = useCallback((appId: string) => {
     const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+
     if (app) setEditingApp(app)
   }, [])
+
   const visibility = useMiniAppVisibility()
   const droppedInstall = useMiniAppInstallPreview(() => undefined)
   const droppedPreview = useExitPresence(droppedInstall.preview)
   const packageDropzone = useMiniAppPackageDrop(droppedInstall.settle)
+
   const hasOpenDialog =
     settingsOpen || newAppOpen || editingApp !== null || install !== null || droppedInstall.preview !== null
+
   const pageDropDisabled = hasOpenDialog || droppedInstall.busy
   // EVERY row, not `miniApps`: a disabled official app is still installed.
   const builtinApps = useBuiltinMiniApps(allApps, i18n.language)
@@ -111,6 +121,7 @@ const MiniAppsPage: FC = () => {
           app.url.includes(search.toLowerCase())
       )
     : miniApps
+
   const filteredBuiltins = search
     ? builtinApps.filter((entry) => entry.name.toLowerCase().includes(search.toLowerCase()))
     : builtinApps

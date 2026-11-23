@@ -90,12 +90,14 @@ export interface FileTokenPresentation {
 const fileTokenVariantByExtension = new Map<string, FileTokenVariant>(
   Object.entries(fileTokenVisualPresetByVariant).flatMap(([variant, preset]) => {
     const displayExtensions = 'displayExtensions' in preset ? preset.displayExtensions : undefined
+
     return (displayExtensions ?? []).map((extension) => [extension, variant as FileTokenVariant])
   })
 )
 
 function getNormalizedFileExtension(file: ComposerAttachment | undefined, fallbackLabel: string) {
   const extension = file?.ext || fallbackLabel.match(/\.[^.]+$/)?.[0] || ''
+
   return extension.replace(/^\./, '').toLowerCase()
 }
 
@@ -116,29 +118,37 @@ function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: 
     // inside one guard; a narrower try around only `new URL` would crash render.
     try {
       const url = new URL(previewUrl)
+
       if (url.protocol !== 'file:') return previewUrl
       const parsedPath = AbsoluteFilePathSchema.safeParse(fileUrlToPath(url))
+
       if (!parsedPath.success) {
         if (!warnedPreviewKeys.has(previewUrl)) {
           warnedPreviewKeys.add(previewUrl)
           logger.warn('getFilePreviewUrl: non-absolute path in file: previewUrl', { previewUrl })
         }
+
         return undefined
       }
+
       return toSafeFileUrl(parsedPath.data, extension || null)
     } catch {
       return undefined
     }
   }
+
   if (!file.path) return undefined
   const parsedPath = AbsoluteFilePathSchema.safeParse(file.path)
+
   if (!parsedPath.success) {
     if (!warnedPreviewKeys.has(file.path)) {
       warnedPreviewKeys.add(file.path)
       logger.warn('getFilePreviewUrl: non-absolute/invalid attachment path', { path: file.path })
     }
+
     return undefined
   }
+
   return toSafeFileUrl(parsedPath.data, extension || null)
 }
 
@@ -147,8 +157,11 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
   const extensionVariant = fileTokenVariantByExtension.get(extension)
 
   if (file?.type === FILE_TYPE.IMAGE) return 'image'
+
   if (extensionVariant) return extensionVariant
+
   if (file?.type === FILE_TYPE.DOCUMENT) return 'document'
+
   if (file?.type === FILE_TYPE.TEXT) return 'text'
 
   return 'fallback'
@@ -160,6 +173,7 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
  */
 function getFileTokenIcon(file: ComposerAttachment | undefined, fallbackLabel: string, className: string) {
   const iconName = getFileIconName(file?.origin_name || file?.name || fallbackLabel || file?.path || '')
+
   return (
     <Icon
       icon={`${MATERIAL_ICON_PREFIX}${iconName}`}

@@ -54,6 +54,7 @@ type OAuthFetchOptions<TContext extends OAuthRuntimeProviderContext = OAuthRunti
  * are retriable, so they must NOT clear the session and log the user out.
  */
 const TRANSIENT_4XX = new Set([408, 425, 429])
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Refresh can fail outside OAuth HTTP; only verified terminal OAuth 4xx errors revoke the stored session.
 function isTerminalRefreshError(error: unknown): boolean {
   return (
@@ -90,19 +91,23 @@ export class OAuthRuntimeService extends BaseService {
     if (this.teardownPromise) return this.teardownPromise
 
     this.stopping = true
+
     const activePromises = [...this.activeSignIns.values()].map(({ operation, promise }) => {
       if (this.isSignInCancellable(operation.phase)) operation.controller.abort()
+
       return promise
     })
 
     for (const transport of this.transports.values()) {
       transport.close()
     }
+
     this.transports.clear()
 
     this.teardownPromise = Promise.allSettled(activePromises).then(() => {
       this.refreshPromises.clear()
     })
+
     return this.teardownPromise
   }
 
@@ -112,18 +117,22 @@ export class OAuthRuntimeService extends BaseService {
 
   private getDefinition(providerId: string): OAuthRuntimeProviderDefinition {
     const definition = this.definitions[providerId as keyof typeof this.definitions]
+
     if (!definition) {
       throw new OAuthServiceError(`No OAuth provider registered for provider: ${providerId}`)
     }
+
     return definition
   }
 
   private getLoopbackTransport(definition: OAuthRuntimeProviderDefinition): LoopbackCallbackTransport {
     let transport = this.transports.get(definition.providerId)
+
     if (!transport) {
       transport = new LoopbackCallbackTransport(definition.transport)
       this.transports.set(definition.providerId, transport)
     }
+
     return transport
   }
 
@@ -138,11 +147,13 @@ export class OAuthRuntimeService extends BaseService {
   ): Promise<void> {
     const current = await this.tokenStore.get(definition.providerId)
     const accountId = definition.extractAccountId?.(tokenData.access_token) ?? current?.accountId
+
     const credentials: Parameters<typeof this.tokenStore.set>[1] = {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token ?? current?.refreshToken,
       expiresAt: tokenData.expires_in ? Date.now() + tokenData.expires_in * 1000 : undefined
     }
+
     if (accountId) credentials.accountId = accountId
     await this.tokenStore.set(definition.providerId, credentials, definition.clientId, options)
   }
@@ -154,26 +165,32 @@ export class OAuthRuntimeService extends BaseService {
   ): Promise<OAuthAccount> => {
     const context = operation.context ?? {}
     const signal = AbortSignal.any([operation.controller.signal, AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)])
+
     try {
       const client = await definition.createClient({ ...context, signal })
+
       if (operation.controller.signal.aborted) {
         throw new OAuthSignInCancelledError(definition.providerId)
       }
+
       const { authUrl, state, codeVerifier } = client.createAuthorizationRequest()
 
       operation.phase = 'callback'
       const codePromise = transport.waitForAuthorizationCode(state, signal)
       void codePromise.catch(() => undefined)
       await transport.ready
+
       if (signal.aborted) throw new OAuthSignInCancelledError(definition.providerId)
       await Promise.race([shell.openExternal(authUrl), codePromise.then(() => undefined)])
       const code = await codePromise
 
       operation.phase = 'exchange'
       const tokenData = await client.exchangeCode(code, codeVerifier)
+
       if (this.stopping) {
         throw new OAuthServiceError(`${definition.providerId} sign-in stopped before tokens were persisted`)
       }
+
       // Persist the freshly minted tokens before any side effect: the auth code
       // is now spent, so a failing post-persist hook must not discard a valid
       // token and force a full re-auth.
@@ -182,12 +199,14 @@ export class OAuthRuntimeService extends BaseService {
       const result = await definition.afterPersistTokens?.(tokenData, context)
       providerService.update(definition.providerId, { isEnabled: true })
       this.logger.info(`${definition.providerId} sign-in succeeded`)
+
       return { ...(await this.getAccount(definition.providerId)), ...result }
     } catch (error) {
       if (this.isSignInCancellable(operation.phase) && operation.controller.signal.aborted) {
         this.logger.info(`${definition.providerId} sign-in cancelled`)
         throw new OAuthSignInCancelledError(definition.providerId)
       }
+
       this.logger.error(`${definition.providerId} sign-in failed`, describeOAuthError(error))
       throw error instanceof OAuthServiceError
         ? error
@@ -216,25 +235,31 @@ export class OAuthRuntimeService extends BaseService {
     if (!initiatorWindowId) {
       return Promise.reject(new OAuthServiceError('OAuth flow initiator is not a managed window'))
     }
+
     if (this.stopping) {
       return Promise.reject(new OAuthServiceError('OAuth runtime is stopping'))
     }
 
     const existing = this.activeSignIns.get(providerId)
+
     if (existing) {
       if (existing.operation.initiatorWindowId !== initiatorWindowId) {
         return Promise.reject(new OAuthServiceError('A sign-in from another window is already in progress'))
       }
+
       if (this.getDefinition(providerId).matchesSignInContext?.(existing.operation.context ?? {}, context) === false) {
         return Promise.reject(new OAuthServiceError('A sign-in for another server is already in progress'))
       }
+
       existing.operation.requestIdsByWindow.get(initiatorWindowId)?.add(requestId)
+
       return existing.promise
     }
 
     try {
       const definition = this.getDefinition(providerId)
       const transport = this.getLoopbackTransport(definition)
+
       // Reserve synchronously before the first await — a check-then-await guard
       // lets a double-click start a second flow that kills the first.
       if (!transport.tryAcquire()) {
@@ -248,16 +273,20 @@ export class OAuthRuntimeService extends BaseService {
         requestIdsByWindow: new Map([[initiatorWindowId, new Set([requestId])]]),
         context
       }
+
       const activeSignIn: ActiveSignIn = {
         operation,
         promise: this.runSignIn(definition, transport, operation).finally(() => {
           operation.controller.abort()
+
           if (this.activeSignIns.get(providerId) !== activeSignIn) return
           this.activeSignIns.delete(providerId)
           transport.close()
         })
       }
+
       this.activeSignIns.set(providerId, activeSignIn)
+
       return activeSignIn.promise
     } catch (error) {
       return Promise.reject(error)
@@ -272,11 +301,13 @@ export class OAuthRuntimeService extends BaseService {
     if (!senderId) throw new OAuthServiceError('OAuth flow observer is not a managed window')
     this.getDefinition(providerId)
     const activeSignIn = this.activeSignIns.get(providerId)
+
     if (!activeSignIn) return { status: 'not-found' }
     const requestIds = activeSignIn.operation.requestIdsByWindow.get(senderId) ?? new Set<string>()
     requestIds.add(requestId)
     activeSignIn.operation.requestIdsByWindow.set(senderId, requestIds)
     const { accountId } = await activeSignIn.promise
+
     return { status: 'completed', account: { accountId } }
   }
 
@@ -284,6 +315,7 @@ export class OAuthRuntimeService extends BaseService {
     if (!senderId) throw new OAuthServiceError('OAuth flow caller is not a managed window')
     this.getDefinition(providerId)
     const activeSignIn = this.activeSignIns.get(providerId)
+
     if (
       !activeSignIn ||
       !activeSignIn.operation.requestIdsByWindow.get(senderId)?.has(requestId) ||
@@ -293,6 +325,7 @@ export class OAuthRuntimeService extends BaseService {
     }
 
     activeSignIn.operation.controller.abort()
+
     try {
       await activeSignIn.promise
     } catch (error) {
@@ -303,18 +336,22 @@ export class OAuthRuntimeService extends BaseService {
   public getAccount = async (providerId: string): Promise<OAuthAccount> => {
     this.getDefinition(providerId)
     const config = await this.tokenStore.get(providerId)
+
     return { accountId: config?.accountId ?? null }
   }
 
   public hasToken = async (providerId: string): Promise<boolean> => {
     const definition = this.getDefinition(providerId)
     const config = await this.tokenStore.get(providerId)
+
     if (!config?.accessToken) return false
 
     if (this.isExpired(config.expiresAt) && !config.refreshToken) {
       await this.clearSession(definition)
+
       return false
     }
+
     return true
   }
 
@@ -338,6 +375,7 @@ export class OAuthRuntimeService extends BaseService {
   ): Promise<OAuthTokenCredentials | null> {
     const definition = this.getDefinition(providerId)
     const config = await this.tokenStore.get(providerId)
+
     if (!config?.accessToken) return null
 
     if (!context.forceRefresh && !this.isExpired(config.expiresAt)) {
@@ -346,10 +384,12 @@ export class OAuthRuntimeService extends BaseService {
 
     if (!config.refreshToken) {
       await this.clearSession(definition)
+
       return null
     }
 
     const result = await this.refreshAccessToken(definition, config.refreshToken, context)
+
     // Only clear on a terminal failure (refresh token rejected). A transient
     // failure keeps the stored token so the next request retries instead of
     // logging the user out over a flaky network or a 5xx.
@@ -357,8 +397,10 @@ export class OAuthRuntimeService extends BaseService {
       // Pass the refresh token we started from so a re-login that replaced the
       // session mid-refresh is not cleared by this stale terminal result.
       await this.clearSession(definition, config.refreshToken)
+
       return null
     }
+
     if (result.status !== 'ok') {
       // Retriable: the session is intact. Signal a retry rather than returning
       // null, which authenticatedFetch would otherwise report as "not signed
@@ -373,7 +415,9 @@ export class OAuthRuntimeService extends BaseService {
     // request (that would silently switch accounts). Fail closed; the caller
     // retries against the current session.
     const refreshed = await this.tokenStore.get(providerId)
+
     if (refreshed?.accessToken !== result.accessToken) return null
+
     return { accessToken: result.accessToken, accountId: refreshed?.accountId ?? null }
   }
 
@@ -409,14 +453,17 @@ export class OAuthRuntimeService extends BaseService {
     this.getDefinition(providerId)
     const { context, notSignedInMessage, onUnauthorized } = options
     const creds = await this.getValidAccessToken(providerId, context)
+
     if (!creds?.accessToken) {
       throw new OAuthServiceError(notSignedInMessage ?? `Not signed in to ${providerId}`)
     }
 
     const first = buildRequest(creds)
     let response = await doFetch(first.input, first.init)
+
     if (response.status === 401) {
       let refreshed: OAuthTokenCredentials | null
+
       try {
         refreshed = await this.getValidAccessToken(providerId, { ...context, forceRefresh: true })
       } catch (error) {
@@ -426,6 +473,7 @@ export class OAuthRuntimeService extends BaseService {
         void response.body?.cancel?.()
         throw error
       }
+
       if (refreshed?.accessToken) {
         // Drain the discarded 401 body before retrying so the underlying (undici)
         // connection is released instead of leaking one per forced refresh.
@@ -438,6 +486,7 @@ export class OAuthRuntimeService extends BaseService {
     if (response.status === 401) {
       await onUnauthorized?.(response)
     }
+
     return response
   }
 
@@ -445,7 +494,9 @@ export class OAuthRuntimeService extends BaseService {
     const options: NonNullable<Parameters<typeof this.tokenStore.clear>[1]> = {
       disableProvider: definition.clearDisablesProvider
     }
+
     if (expectedRefreshToken !== undefined) options.expectedRefreshToken = expectedRefreshToken
+
     return this.tokenStore.clear(definition.providerId, options)
   }
 
@@ -460,12 +511,14 @@ export class OAuthRuntimeService extends BaseService {
     // superseded session's in-flight refresh, which would clear the new session.
     const key = `${definition.providerId}:${refreshToken}`
     let refreshPromise = this.refreshPromises.get(key)
+
     if (!refreshPromise) {
       refreshPromise = this.doRefresh(definition, refreshToken, context).finally(() => {
         this.refreshPromises.delete(key)
       })
       this.refreshPromises.set(key, refreshPromise)
     }
+
     return refreshPromise
   }
 
@@ -478,9 +531,11 @@ export class OAuthRuntimeService extends BaseService {
       const client = await definition.createClient(context)
       const tokenData = await client.refresh(refreshToken)
       await this.persistTokens(definition, tokenData, { expectedRefreshToken: refreshToken })
+
       return { status: 'ok', accessToken: tokenData.access_token }
     } catch (error) {
       this.logger.error(`Failed to refresh ${definition.providerId} token`, describeOAuthError(error))
+
       return { status: isTerminalRefreshError(error) ? 'terminal' : 'retriable' }
     }
   }

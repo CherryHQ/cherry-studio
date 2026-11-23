@@ -43,6 +43,7 @@ interface CreateKnowledgeBaseDialogProps {
 // The embedding model is optional: omitting it creates a BM25-only base that can be
 // upgraded later in RAG settings. Picking one here also submits its probed dimensions.
 type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
+
 type CreateKnowledgeBaseFormValues = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'> & {
   embeddingModelId: string | null
 }
@@ -109,9 +110,11 @@ const CreateKnowledgeBaseDialogRoot = ({
   const { t } = useTranslation()
   const groupIds = useMemo(() => new Set(groups.map((group) => group.id)), [groups])
   const normalizedInitialGroupId = initialGroupId && groupIds.has(initialGroupId) ? initialGroupId : undefined
+
   const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() =>
     createInitialInput(normalizedInitialGroupId)
   )
+
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
@@ -164,6 +167,7 @@ const CreateKnowledgeBaseDialogRoot = ({
         createInput.dimensions = await fetchDimensions(values.embeddingModelId)
       } catch (error) {
         setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+
         return
       }
 
@@ -176,6 +180,7 @@ const CreateKnowledgeBaseDialogRoot = ({
       createdBase = await createBase(createInput)
     } catch (error) {
       setSubmitError(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_create')))
+
       return
     }
 

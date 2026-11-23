@@ -64,5 +64,6 @@ export function inferReasoningOwnedBy(rawModelId: string): string | undefined {
   const lower = rawModelId.toLowerCase()
   const base = lower.slice(lower.lastIndexOf('/') + 1)
   const vendor = matchVendor(base)
+
   return vendor ? VENDOR_TO_CREATOR[vendor] : undefined
 }

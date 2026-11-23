@@ -40,10 +40,12 @@ export function PromptTargetPopover<TResult>({
   const { bindTarget, unbindTarget } = usePromptTargetMutations(prompt.id)
   const boundTargetKeys = useMemo(() => new Set(bindings.map((binding) => getBindingTargetKey(binding))), [bindings])
   const selectedTargetKeys = useMemo(() => Array.from(boundTargetKeys), [boundTargetKeys])
+
   const availableTargets = useMemo(
     () => (isMutating ? targets.map((target) => ({ ...target, disabled: true })) : targets),
     [isMutating, targets]
   )
+
   const error = bindingsError ?? targetsError
 
   const handleToggle = async (target: PromptTargetOption) => {
@@ -53,6 +55,7 @@ export function PromptTargetPopover<TResult>({
     const isBound = boundTargetKeys.has(targetKey)
     isMutatingRef.current = true
     setIsMutating(true)
+
     try {
       if (isBound) await unbindTarget(target.target)
       else await bindTarget(target.target)
@@ -73,9 +76,11 @@ export function PromptTargetPopover<TResult>({
     if (!Array.isArray(value)) return
 
     const nextTargetKeys = new Set(value)
+
     const changedTarget = targets.find(
       (target) => nextTargetKeys.has(target.value) !== boundTargetKeys.has(target.value)
     )
+
     if (changedTarget) void handleToggle(changedTarget)
   }
 
@@ -110,6 +115,7 @@ export function PromptTargetPopover<TResult>({
         if (isLoadingBindings || isLoadingTargets) return <Skeleton className="h-4 w-14 rounded-full" />
 
         const firstBoundTarget = options.find((target) => boundTargetKeys.has(target.value))
+
         if (!firstBoundTarget) {
           return bindings.length > 0
             ? t('settings.prompts.binding.targetCount', { count: bindings.length })

@@ -21,8 +21,10 @@ export const mistralImageToTextHandler: FileProcessingCapabilityHandler<'image_t
           ...context,
           signal: executionContext.signal
         }
+
         const document = await prepareDocumentPayload(executionContextWithSignal)
         const response = await executeExtraction(executionContextWithSignal, document)
+
         return buildTextExtractionResult(response)
       }
     }

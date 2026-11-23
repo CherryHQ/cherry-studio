@@ -32,9 +32,11 @@ export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobH
     defaultTimeoutMs: 30 * 60_000,
     async execute(ctx): Promise<ContentHashBackfillSummary> {
       const total = deps.fileEntryService.countInternalMissingContentHash()
+
       if (total === 0) {
         const summary = { total: 0, hashed: 0, skippedOrphan: 0, failedIo: 0 }
         ctx.reportProgress(100, { stage: 'done', ...summary })
+
         return summary
       }
 
@@ -47,6 +49,7 @@ export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobH
       for (;;) {
         throwIfAborted(ctx.signal)
         const batch = deps.fileEntryService.findInternalMissingContentHash(cursor, BATCH_SIZE)
+
         if (batch.length === 0) break
 
         for (const entry of batch) {
@@ -54,11 +57,13 @@ export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobH
 
           await deps.contentWriteLock.runExclusive(entry.id, async () => {
             let metadata: { contentHash: ContentHash; size: number }
+
             try {
               metadata = await hashWithSize(resolvePhysicalPath(entry), ctx.signal)
             } catch (error) {
               if (ctx.signal.aborted) throwIfAborted(ctx.signal)
               const code = (error as NodeJS.ErrnoException).code
+
               if (code === 'ENOENT' || code === 'ENOTDIR') {
                 ctx.logger.warn('contentHash backfill: skipped orphan entry (blob missing)', { id: entry.id, code })
                 skippedOrphan++
@@ -70,10 +75,12 @@ export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobH
                 })
                 failedIo++
               }
+
               return
             }
 
             throwIfAborted(ctx.signal)
+
             if (deps.fileEntryService.repairInternalContentMetadataIfUnknown(entry.id, metadata)) {
               hashed++
             } else if (deps.fileEntryService.findById(entry.id) === null) {
@@ -96,11 +103,13 @@ export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobH
 
       const summary = { total, hashed, skippedOrphan, failedIo }
       ctx.reportProgress(100, { stage: 'done', ...summary })
+
       if (failedIo > 0) {
         ctx.logger.warn('contentHash backfill complete with IO failures', summary)
       } else {
         ctx.logger.info('contentHash backfill complete', summary)
       }
+
       return summary
     }
   }

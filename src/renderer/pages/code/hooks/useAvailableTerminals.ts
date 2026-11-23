@@ -24,8 +24,10 @@ export function useAvailableTerminals(): TerminalConfig[] {
       })
       .catch((error) => {
         logger.error('Failed to load available terminals:', error as Error)
+
         if (!cancelled) setTerminals([])
       })
+
     return () => {
       cancelled = true
     }

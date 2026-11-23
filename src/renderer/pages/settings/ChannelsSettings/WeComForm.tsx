@@ -15,12 +15,14 @@ export function WeComForm({
 }) {
   const { t } = useTranslation()
   const id = useId()
+
   const fields = [
     { key: 'bot_id', label: t('agent.channels.wecom.botId') },
     { key: 'secret', label: t('agent.channels.wecom.secret'), secret: true },
     { key: 'allowed_chat_ids', label: t('agent.channels.wecom.chatIds'), list: true },
     { key: 'allowed_user_ids', label: t('agent.channels.wecom.userIds'), list: true }
   ]
+
   return (
     <div className="flex flex-col gap-3">
       <ChannelQrRegistration key={channel.id} channel={channel} />
@@ -30,6 +32,7 @@ export function WeComForm({
           const value = field.list
             ? ((channel.config[field.key] as string[]) ?? []).join(', ')
             : ((channel.config[field.key] as string) ?? '')
+
           return (
             <div key={field.key}>
               <Label htmlFor={`${id}-${field.key}`} className="mb-1 block text-xs">
@@ -44,6 +47,7 @@ export function WeComForm({
                 className="h-8 text-sm"
                 onBlur={(event) => {
                   if (event.target.value === value) return
+
                   const next = field.list
                     ? [
                         ...new Set(
@@ -56,6 +60,7 @@ export function WeComForm({
                     : field.secret
                       ? event.target.value
                       : event.target.value.trim()
+
                   onConfigChange({ configPatch: { [field.key]: next } })
                 }}
               />

@@ -26,6 +26,7 @@ export interface UseTreeDragAndDropReturn {
 }
 
 const NOOP = () => {}
+
 const DISABLED_HANDLE: TreeDragHandleProps = {
   draggable: false,
   onDragStart: NOOP,
@@ -60,6 +61,7 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
       e.dataTransfer.setData('text/plain', nodeId)
 
       const el = e.currentTarget as HTMLElement
+
       if (el?.parentElement) {
         const rect = el.getBoundingClientRect()
         const ghost = el.cloneNode(true) as HTMLElement
@@ -94,6 +96,7 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
       const allowInside = canHaveChildren ? canHaveChildren(nodeId) : true
 
       let next: DragPosition
+
       if (mouseY < thresholdTop) next = 'before'
       else if (mouseY > thresholdBottom) next = 'after'
       else next = allowInside ? 'inside' : 'after'
@@ -116,9 +119,11 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
       const sourceId = draggedIdRef.current
       const fallbackPosition: DragPosition = canHaveChildren?.(nodeId) === false ? 'after' : 'inside'
       const finalPosition = positionRef.current ?? fallbackPosition
+
       if (sourceId && sourceId !== nodeId && onMove) {
         onMove(sourceId, nodeId, finalPosition)
       }
+
       clear()
     },
     [canHaveChildren, onMove, clear]
@@ -135,6 +140,7 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
       if (!enabled) return DISABLED_HANDLE
 
       const cached = handleCache.get(nodeId)
+
       if (cached) return cached
 
       const handleProps = {
@@ -145,7 +151,9 @@ export function useTreeDragAndDrop(options: UseTreeDragAndDropOptions): UseTreeD
         onDrop: handleDrop(nodeId),
         onDragEnd: handleDragEnd
       }
+
       handleCache.set(nodeId, handleProps)
+
       return handleProps
     }
   }, [enabled, handleDragStart, handleDragOver, handleDragLeave, handleDrop, handleDragEnd])

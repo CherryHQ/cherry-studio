@@ -35,9 +35,11 @@ function getWheelDeltaY(event: WheelEvent, el: HTMLElement) {
   if (event.deltaMode === 1) {
     return event.deltaY * 16
   }
+
   if (event.deltaMode === 2) {
     return event.deltaY * el.clientHeight
   }
+
   return event.deltaY
 }
 
@@ -46,14 +48,18 @@ function useModalPopoverWheel(ref: RefObject<HTMLDivElement | null>) {
   // 会吞掉 portal'd 内容上的 wheel 事件。手动处理 wheel，绕过外层拦截。
   useEffect(() => {
     const el = ref.current
+
     if (!el) return
+
     const handleWheel = (e: WheelEvent) => {
       if (el.scrollHeight <= el.clientHeight) return
       e.preventDefault()
       e.stopPropagation()
       el.scrollTop += getWheelDeltaY(e, el)
     }
+
     el.addEventListener('wheel', handleWheel, { passive: false })
+
     return () => el.removeEventListener('wheel', handleWheel)
   }, [ref])
 }
@@ -92,6 +98,7 @@ function VirtualRows<T extends { id: string }>({
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   useModalPopoverWheel(scrollerRef)
+
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollerRef.current,
@@ -104,6 +111,7 @@ function VirtualRows<T extends { id: string }>({
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((vItem) => {
           const item = items[vItem.index]
+
           return (
             <div
               key={item.id}
@@ -140,6 +148,7 @@ export function SelectDropdown<T extends { id: string }>({
 
   const renderRow = (item: T) => {
     const isSelected = selectedId === item.id
+
     if (onRemove) {
       return (
         <div
@@ -166,6 +175,7 @@ export function SelectDropdown<T extends { id: string }>({
         </div>
       )
     }
+
     return (
       <button
         type="button"

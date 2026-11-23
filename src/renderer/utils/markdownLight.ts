@@ -10,8 +10,10 @@ export const findCitationInChildren = (children: any): string => {
 
   for (const child of Array.isArray(children) ? children : [children]) {
     if (typeof child === 'object' && child?.props?.['data-citation']) return child.props['data-citation']
+
     if (typeof child === 'object' && child?.props?.children) {
       const found = findCitationInChildren(child.props.children)
+
       if (found) return found
     }
   }
@@ -45,6 +47,7 @@ export function getCodeBlockId(start?: Point): string | null {
 export function isHtmlCode(code: string | null): boolean {
   if (!code?.trim()) return false
   const html = code.trim().toLowerCase()
+
   if (
     ['<!doctype html>', '<html', '</html>', '<head', '</head>', '<body', '</body>'].some((marker) =>
       html.includes(marker)
@@ -52,6 +55,7 @@ export function isHtmlCode(code: string | null): boolean {
   ) {
     return true
   }
+
   if (
     [
       '<div',
@@ -75,6 +79,7 @@ export function isHtmlCode(code: string | null): boolean {
   ) {
     return true
   }
+
   return /<([a-z0-9]+)([^>]*?)>(.*?)<\/\1>|<([a-z0-9]+)([^>]*?)\/>/.test(html)
 }
 

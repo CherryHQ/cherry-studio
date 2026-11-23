@@ -10,6 +10,7 @@ const config: StorybookConfig = {
   viteFinal: async (config) => {
     const { mergeConfig } = await import('vite')
     const tailwindPlugin = (await import('@tailwindcss/vite')).default
+
     return mergeConfig(config, {
       plugins: [tailwindPlugin()],
       resolve: {

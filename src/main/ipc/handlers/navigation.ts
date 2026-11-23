@@ -15,8 +15,10 @@ export const navigationHandlers: IpcHandlersFor<typeof navigationRequestSchemas>
   'navigation.open_route_in_main': async ({ path }) => {
     if (!isAllowedRoute(path)) {
       logger.warn('Blocked navigation to disallowed route', { path })
+
       return
     }
+
     openRouteInMainWindow(path)
   },
   // The main renderer's mount effects have flushed: every useIpcOn listener is

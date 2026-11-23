@@ -22,6 +22,7 @@ const RecallTestPanel = lazy(() => import('../panels/recallTest/RecallTestPanel'
 
 const KnowledgePageDetailSection = () => {
   const { t } = useTranslation()
+
   const {
     selectedBase,
     selectedBaseId,
@@ -48,10 +49,12 @@ const KnowledgePageDetailSection = () => {
     baseId: selectedBaseId,
     sort: null
   }))
+
   const itemSort = sortState.baseId === selectedBaseId ? sortState.sort : null
   useEffect(() => {
     setSortState((previous) => (previous.baseId === selectedBaseId ? previous : { baseId: selectedBaseId, sort: null }))
   }, [selectedBaseId])
+
   const changeItemSort = useCallback(
     (sortBy: KnowledgeItemSortBy) => {
       setSortState((previous) => ({
@@ -75,6 +78,7 @@ const KnowledgePageDetailSection = () => {
   const drillIntoDirectory = useCallback((item: KnowledgeItemOf<'directory'>) => {
     setDirectoryStack((prev) => [...prev, item])
   }, [])
+
   const navigateUp = useCallback(() => {
     setDirectoryStack((prev) => prev.slice(0, -1))
   }, [])
@@ -87,6 +91,7 @@ const KnowledgePageDetailSection = () => {
     isLoadingMore: isLoadingMoreItems,
     loadMore: loadMoreItems
   } = useKnowledgeItems(selectedBaseId, currentDirectory?.id ?? null, itemSort)
+
   const { deleteItem, deleteItems } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem, reindexItems } = useReindexKnowledgeItem(selectedBaseId)
 

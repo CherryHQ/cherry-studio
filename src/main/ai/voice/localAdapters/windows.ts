@@ -30,7 +30,9 @@ function supportsWindows(): boolean {
 
 export async function listWindowsAsrLocales(signal?: AbortSignal) {
   checkAbort(signal)
+
   if (!supportsWindows()) return { supported: [], installed: [] }
+
   try {
     return (await nativeClient().request({ operation: 'list_asr_locales' }, { signal })).result
   } catch (error) {
@@ -43,16 +45,21 @@ export async function getWindowsAsrStatus(
   signal?: AbortSignal
 ): Promise<LocalVoiceStatus> {
   checkAbort(signal)
+
   if (!supportsWindows()) return { status: 'unsupported', reason: 'unsupported' }
+
   try {
     await nativeClient().request(
       { operation: 'probe_asr', locale: options.language ?? DEFAULT_WINDOWS_ASR_LOCALE },
       { signal }
     )
+
     return { status: 'ready' }
   } catch (error) {
     const normalized = normalizeFailure(error, signal)
+
     if (normalized.reason === 'aborted') throw normalized
+
     return { status: normalized.reason === 'unsupported' ? 'unsupported' : 'failed', reason: normalized.reason }
   }
 }
@@ -67,22 +74,29 @@ export function createWindowsTranscriptionModel(options: TranscriptionOptions): 
       const audio = input.audio
       const isWebm = ['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType)
       const wavMetadata = input.mediaType === 'audio/wav' ? inspectCanonicalWav(audio) : undefined
+
       if (!isWebm && !wavMetadata) throw new VoiceRuntimeError('invalid_audio')
       const status = await getWindowsAsrStatus(options, input.abortSignal)
+
       if (status.status !== 'ready') throw new VoiceRuntimeError(status.reason ?? 'operation_failed')
+
       return withScratch(
         async (directory) => {
           const decoded = wavMetadata
             ? { wav: audio, durationSeconds: wavMetadata.durationSeconds }
             : await decodeVoiceRecording(audio, input.abortSignal)
+
           checkAbort(input.abortSignal)
           const inputPath = join(directory, 'input.wav')
           await writeFile(inputPath, decoded.wav, { mode: 0o600 })
+
           const { result } = await nativeClient().request(
             { operation: 'transcribe', locale: options.language ?? DEFAULT_WINDOWS_ASR_LOCALE, inputPath },
             { signal: input.abortSignal }
           )
+
           checkAbort(input.abortSignal)
+
           return {
             text: result.text,
             segments: [],
@@ -101,7 +115,9 @@ export function createWindowsTranscriptionModel(options: TranscriptionOptions): 
 
 async function getDefaultWindowsVoice(language: string | undefined, signal?: AbortSignal) {
   checkAbort(signal)
+
   if (!supportsWindows()) return null
+
   try {
     return (await nativeClient().request({ operation: 'resolve_voice', locale: language }, { signal })).result.voice
   } catch (error) {
@@ -111,7 +127,9 @@ async function getDefaultWindowsVoice(language: string | undefined, signal?: Abo
 
 export async function listWindowsVoices(signal?: AbortSignal) {
   checkAbort(signal)
+
   if (!supportsWindows()) return []
+
   try {
     return (await nativeClient().request({ operation: 'capabilities', locale: 'en-US' }, { signal })).result.voices
   } catch (error) {
@@ -124,18 +142,24 @@ export async function getWindowsVoiceStatus(
   signal?: AbortSignal
 ): Promise<LocalVoiceStatus> {
   checkAbort(signal)
+
   if (!supportsWindows()) return { status: 'unsupported', reason: 'unsupported' }
+
   try {
     const voices = await listWindowsVoices(signal)
+
     const matchingVoice = voices.some(
       (voice) =>
         (!options.voice || voice.id === options.voice) &&
         (!options.language || voice.locale.replaceAll('_', '-').toLowerCase() === options.language.toLowerCase())
     )
+
     return matchingVoice ? { status: 'ready' } : { status: 'not_installed', reason: 'voice_unavailable' }
   } catch (error) {
     const normalized = normalizeFailure(error, signal)
+
     if (normalized.reason === 'aborted') throw normalized
+
     return { status: 'failed', reason: normalized.reason }
   }
 }
@@ -147,6 +171,7 @@ export function createWindowsSpeechModel(options: SpeechOptions): SpeechModelV3 
     modelId: WINDOWS_TTS_MODEL_ID,
     async doGenerate(input) {
       const speed = options.speed ?? DEFAULT_SPEECH_SPEED
+
       if (
         !Number.isFinite(speed) ||
         speed < MIN_SPEECH_SPEED ||
@@ -155,7 +180,9 @@ export function createWindowsSpeechModel(options: SpeechOptions): SpeechModelV3 
       )
         throw new VoiceRuntimeError('invalid_request')
       const status = await getWindowsVoiceStatus(options, input.abortSignal)
+
       if (status.status !== 'ready') throw new VoiceRuntimeError(status.reason ?? 'operation_failed')
+
       return withScratch(
         async (directory) => {
           const outputPath = join(directory, 'output.wav')
@@ -166,6 +193,7 @@ export function createWindowsSpeechModel(options: SpeechOptions): SpeechModelV3 
           checkAbort(input.abortSignal)
           const audio = new Uint8Array(await readFile(outputPath))
           checkAbort(input.abortSignal)
+
           return { audio, warnings: [], response: { timestamp: new Date(), modelId: WINDOWS_TTS_MODEL_ID } }
         },
         input.abortSignal,
@@ -177,6 +205,7 @@ export function createWindowsSpeechModel(options: SpeechOptions): SpeechModelV3 
 
 function windowsSupport(environment: VoiceEnvironment) {
   if (environment.platform !== 'win32') return VoiceModelSupport.UnsupportedPlatform
+
   return environment.arch === 'x64' ? VoiceModelSupport.Supported : VoiceModelSupport.UnsupportedArchitecture
 }
 

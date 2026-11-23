@@ -29,14 +29,17 @@ const appMenuShortcutCommands = new Set(appMenuCommands)
 const getShortcutAccelerator = (command: CommandId): string | undefined => {
   const commandDefinition = findCommandDefinition(command)
   const rule = findKeybindingRule(command)
+
   if (!commandDefinition || !rule) return undefined
 
   const context = { platform: process.platform }
+
   if (!evaluateContextExpr(commandDefinition.enablement, context)) {
     return undefined
   }
 
   const rawPref = application.get('PreferenceService').get(rule.preferenceKey) as PreferenceShortcutType | undefined
+
   return resolveCommandKeybinding({
     command,
     preference: rawPref,
@@ -55,6 +58,7 @@ export class AppMenuService extends BaseService {
 
     for (const command of appMenuCommands) {
       const rule = findKeybindingRule(command)
+
       if (rule) {
         this.registerDisposable(
           preferenceService.subscribeChange(rule.preferenceKey, () => this.setupApplicationMenu())
@@ -63,11 +67,13 @@ export class AppMenuService extends BaseService {
     }
 
     const closeRule = findKeybindingRule('app.window.close')
+
     if (closeRule) {
       this.registerDisposable(
         preferenceService.subscribeChange(closeRule.preferenceKey, () => this.setupApplicationMenu())
       )
     }
+
     const onWindowFocus = (_event: Electron.Event, window: BrowserWindow) => this.setupApplicationMenu(window)
     app.on('browser-window-focus', onWindowFocus)
     this.registerDisposable(() => app.off('browser-window-focus', onWindowFocus))
@@ -79,24 +85,30 @@ export class AppMenuService extends BaseService {
     const websiteUrl = getAppLanguage().startsWith('zh') ? 'https://cherryai.com.cn' : 'https://cherryai.com'
     // WindowManager keys its registry by managed UUID, not Electron's numeric window ID.
     const windowManager = application.get('WindowManager')
+
     const focusedType = focusedWindow
       ? windowManager.getWindowType(windowManager.getWindowId(focusedWindow) ?? '')
       : undefined
+
     const closeAccelerator =
       focusedWindow && focusedType !== WindowType.Main && focusedType !== WindowType.SubWindow
         ? 'CommandOrControl+W'
         : getShortcutAccelerator('app.window.close')
+
     const commandItems = this.resolveAppMenuCommandItems({
       'app.settings.open': t('settings.title'),
       'app.zoom.reset': t('appMenu.resetZoom'),
       'app.zoom.in': t('appMenu.zoomIn'),
       'app.zoom.out': t('appMenu.zoomOut')
     })
+
     const getCommandItem = (command: CommandId): NativeCommandMenuItem => {
       const item = commandItems.get(command)
+
       if (!item) {
         throw new Error(`Missing app menu command contribution: ${command}`)
       }
+
       return item
     }
 
@@ -236,6 +248,7 @@ export class AppMenuService extends BaseService {
         application.get('CommandService').execute(command, context.browserWindow as BrowserWindow | undefined)
       }
     })
+
     const menu = Menu.buildFromTemplate(template)
     Menu.setApplicationMenu(menu)
   }
@@ -257,11 +270,13 @@ export class AppMenuService extends BaseService {
     })
 
     const commandItems = new Map<CommandId, NativeCommandMenuItem>()
+
     for (const item of model.items) {
       if (item.type === 'command') {
         commandItems.set(item.command, item)
       }
     }
+
     return commandItems
   }
 }

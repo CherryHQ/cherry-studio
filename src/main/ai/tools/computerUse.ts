@@ -3,6 +3,7 @@ import * as z from 'zod'
 const id = z.string().min(1)
 const target = { appSessionId: id, snapshotId: id }
 const point = z.object({ x: z.number().min(0), y: z.number().min(0) }).strict()
+
 const ACTION_NOTE =
   'Input goes to the target application without moving the real pointer. Completed means execution finished, not that the task succeeded; inspect the returned observation and never automatically replay.'
 
@@ -19,7 +20,9 @@ const clickInput = z
   .refine((input) => (input.elementId === undefined) === (input.x !== undefined && input.y !== undefined), {
     message: 'Provide either elementId or both x and y'
   })
+
 const secondaryActionInput = z.object({ ...target, elementId: id, actionId: id }).strict()
+
 const scrollInput = z
   .object({
     ...target,
@@ -28,6 +31,7 @@ const scrollInput = z
     pages: z.number().positive()
   })
   .strict()
+
 const dragInput = z.object({ ...target, from: point, to: point }).strict()
 const typeTextInput = z.object({ ...target, text: z.string().min(1) }).strict()
 const pressKeyInput = z.object({ ...target, key: id }).strict()

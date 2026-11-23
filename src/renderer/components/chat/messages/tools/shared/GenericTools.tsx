@@ -100,6 +100,7 @@ export function getEffectiveStatus(status: McpToolResponseStatus | undefined, is
   if (status === 'pending') {
     return isWaiting ? 'waiting' : 'invoking'
   }
+
   return status ?? 'pending'
 }
 
@@ -152,6 +153,7 @@ export function ToolStatusIndicator({
   }
 
   const info = getStatusInfo()
+
   if (!info) return null
 
   const indicator = (

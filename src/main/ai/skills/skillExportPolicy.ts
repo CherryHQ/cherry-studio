@@ -10,5 +10,6 @@ const CHERRY_RUNTIME_ONLY = new Set<string>(CHERRY_RUNTIME_ONLY_BUILTIN_SKILLS)
 /** Only trusted builtins with an exact case-insensitive folder name are withheld from external export. */
 export function isSkillExternallyExportable(skill: Pick<InstalledSkill, 'source' | 'folderName'>): boolean {
   if (skill.source !== 'builtin') return true
+
   return !CHERRY_RUNTIME_ONLY.has(normalizeFolderKey(skill.folderName))
 }

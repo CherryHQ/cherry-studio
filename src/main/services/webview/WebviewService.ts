@@ -17,8 +17,10 @@ import { HiddenGuestFreezer } from './HiddenGuestFreezer'
 import { RemoteDebuggingMonitor } from './RemoteDebuggingMonitor'
 
 const logger = loggerService.withContext('WebviewService')
+
 /** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
 const WEBVIEW_PARTITION = 'persist:webview'
+
 /** Sessions whose guests run the annotation preload: mini-app sites plus the agent browser panes. */
 const ANNOTATION_PARTITIONS = [
   WEBVIEW_PARTITION,
@@ -61,12 +63,15 @@ function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: bo
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
       }
+
       return { action: 'deny' }
     } else {
       if (url.startsWith('http:') || url.startsWith('https:')) {
         return { action: 'allow' }
       }
+
       logger.warn(`Blocked in-app popup for untrusted URL scheme: ${url}`)
+
       return { action: 'deny' }
     }
   })
@@ -93,8 +98,10 @@ export class WebviewService extends BaseService {
     this.debuggingMonitor?.stop()
     this.hiddenGuests.dispose()
     const annotationSessions = [...this.annotationSessions.values()]
+
     for (const annotationSession of annotationSessions) annotationSession.dispose()
     await Promise.all(annotationSessions.map((annotationSession) => annotationSession.waitForIdle()))
+
     for (const cleanup of this.preloadBindings.values()) cleanup()
     this.preloadBindings.clear()
     this.annotationSessions.clear()
@@ -102,26 +109,35 @@ export class WebviewService extends BaseService {
 
   private initDebuggingMonitor() {
     if (!app.commandLine.hasSwitch('remote-debugging-port')) return
+
     const monitor = new RemoteDebuggingMonitor(
       async () => {
         const configuredPort = Number(app.commandLine.getSwitchValue('remote-debugging-port'))
+
         if (Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort < 65535) return configuredPort
+
         const activePort = Number(
           (await fs.readFile(application.getPath('app.userdata', 'DevToolsActivePort'), 'utf8')).split(/\r?\n/)[0]
         )
+
         if (!Number.isInteger(activePort) || activePort < 1 || activePort > 65535) {
           throw new Error('Remote debugging port is not available')
         }
+
         return activePort
       },
       (targetId, attached) => {
         const revision = ++this.debuggingRevision
         const previousOwner = this.debuggingTargets.get(targetId)
         const guest = webContents.fromDevToolsTargetId(targetId)
+
         const owner =
           previousOwner ?? (guest && !guest.isDestroyed() && guest.getType() === 'webview' ? guest.id : undefined)
+
         if (!attached) this.debuggingTargets.delete(targetId)
+
         if (owner === undefined) return
+
         if (attached) this.debuggingTargets.set(targetId, owner)
         application.get('IpcApiService').broadcast('webview.debugging.changed', {
           webviewId: owner,
@@ -130,9 +146,11 @@ export class WebviewService extends BaseService {
         })
       }
     )
+
     this.debuggingMonitor = monitor
     this.registerDisposable(() => {
       monitor.stop()
+
       if (this.debuggingMonitor === monitor) this.debuggingMonitor = undefined
     })
     monitor.start()
@@ -140,6 +158,7 @@ export class WebviewService extends BaseService {
 
   getDebuggingState(webviewId: number, senderId: WindowId | null) {
     const guest = this.requireOwnedGuest(webviewId, senderId)
+
     return {
       attached: this.isGuestDebugging(guest.id),
       revision: this.debuggingRevision
@@ -149,15 +168,19 @@ export class WebviewService extends BaseService {
   private isGuestDebugging(webviewId: number): boolean {
     for (const targetId of this.debuggingMonitor?.getAttachedTargetIds() ?? []) {
       let owner = this.debuggingTargets.get(targetId)
+
       if (owner === undefined) {
         const guest = webContents.fromDevToolsTargetId(targetId)
+
         if (guest && !guest.isDestroyed() && guest.getType() === 'webview') {
           owner = guest.id
           this.debuggingTargets.set(targetId, owner)
         }
       }
+
       if (owner === webviewId) return true
     }
+
     return false
   }
 
@@ -175,11 +198,13 @@ export class WebviewService extends BaseService {
       const language = getAppLanguage()
       // Only sign-in needs the native identity; application APIs must match the page UA.
       const isGoogleSignIn = new URL(details.url).hostname === 'accounts.google.com'
+
       const headers = {
         ...details.requestHeaders,
         'User-Agent': isGoogleSignIn ? originUA : newUA,
         'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
       }
+
       cb({ requestHeaders: headers })
     })
     this.registerDisposable(() => wvSession.webRequest.onBeforeSendHeaders(null))
@@ -196,6 +221,7 @@ export class WebviewService extends BaseService {
       this.attachWebviewPreload(contents)
       this.initializeWebview(contents)
     }
+
     app.on('web-contents-created', handler)
     this.registerDisposable(() => app.removeListener('web-contents-created', handler))
   }
@@ -204,8 +230,10 @@ export class WebviewService extends BaseService {
     if (this.preloadBindings.has(contents)) return
 
     const preloadPath = application.getPath('feature.webview.preload_file')
+
     if (!existsSync(preloadPath)) {
       logger.error(`Webview preload is missing, annotations and host shortcuts will not work: ${preloadPath}`)
+
       return
     }
 
@@ -226,19 +254,23 @@ export class WebviewService extends BaseService {
 
     contents.on('will-attach-webview', handler)
     let cleaned = false
+
     const cleanup = () => {
       if (cleaned) return
       cleaned = true
       contents.removeListener('will-attach-webview', handler)
       contents.removeListener('destroyed', cleanup)
+
       if (this.preloadBindings.get(contents) === cleanup) this.preloadBindings.delete(contents)
     }
+
     contents.once('destroyed', cleanup)
     this.preloadBindings.set(contents, cleanup)
   }
 
   private initializeWebview(contents: Electron.WebContents, announceIfLoaded = false) {
     if (contents.isDestroyed()) return
+
     // Apply before the webview-only guard so popup windows on these sessions are covered too.
     if (
       contents.session === session.fromPartition(WEBVIEW_PARTITION) ||
@@ -246,10 +278,13 @@ export class WebviewService extends BaseService {
     ) {
       contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
     }
+
     if (contents.getType?.() !== 'webview' || !isAnnotationCapableSession(contents.session)) {
       return
     }
+
     const existing = this.annotationSessions.get(contents.id)
+
     if (existing?.isFor(contents)) return
     existing?.dispose()
 
@@ -258,12 +293,15 @@ export class WebviewService extends BaseService {
         this.annotationSessions.delete(contents.id)
       }
     })
+
     this.annotationSessions.set(contents.id, annotationSession)
+
     if (announceIfLoaded && !contents.isLoadingMainFrame()) annotationSession.announce()
   }
 
   private findOwnedGuest(webviewId: number, senderId: WindowId | null): Electron.WebContents | null {
     const guest = webContents.fromId(webviewId)
+
     if (!guest || guest.isDestroyed()) return null
 
     const hostWindow = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
@@ -277,31 +315,39 @@ export class WebviewService extends BaseService {
 
   private requireOwnedGuest(webviewId: number, senderId: WindowId | null) {
     const guest = this.findOwnedGuest(webviewId, senderId)
+
     if (!guest) throw new Error('The caller does not own this webview')
+
     return guest
   }
 
   private findOwnedSiteWebview(webviewId: number, senderId: WindowId | null): Electron.WebContents | null {
     const guest = this.findOwnedGuest(webviewId, senderId)
+
     if (!guest) return null
+
     if (guest.session !== session.fromPartition(WEBVIEW_PARTITION)) {
       throw new Error('The caller does not own this webview')
     }
+
     return guest
   }
 
   /** Annotation routes accept agent browser guests too; link policy stays site-only. */
   private requireOwnedAnnotationWebview(webviewId: number, senderId: WindowId | null) {
     const guest = this.findOwnedGuest(webviewId, senderId)
+
     if (!guest || !isAnnotationCapableSession(guest.session)) {
       throw new Error('The caller does not own this webview')
     }
+
     return guest
   }
 
   async exportAnnotations(input: ExportAnnotationsInput, senderId: WindowId | null): Promise<string> {
     const guest = this.requireOwnedAnnotationWebview(input.webviewId, senderId)
     const annotationSession = this.annotationSessions.get(input.webviewId)
+
     if (!annotationSession?.isFor(guest)) throw new Error('Annotation document session is stale')
 
     return annotationSession.run(input.documentSessionId, async (signal) => {
@@ -311,9 +357,11 @@ export class WebviewService extends BaseService {
         annotations: input.annotations,
         signal
       })
+
       if (this.requireOwnedAnnotationWebview(input.webviewId, senderId) !== guest) {
         throw new Error('The caller does not own this webview')
       }
+
       return markdown
     })
   }
@@ -324,11 +372,13 @@ export class WebviewService extends BaseService {
 
   setGuestVisible(webviewId: number, visible: boolean, senderId: WindowId | null): void {
     const guest = this.findOwnedGuest(webviewId, senderId)
+
     if (guest) this.hiddenGuests.setVisible(guest, visible)
   }
 
   setOpenLinkExternal(webviewId: number, isExternal: boolean, senderId: WindowId | null): void {
     const webview = this.findOwnedSiteWebview(webviewId, senderId)
+
     if (webview) configureOpenLinkExternal(webview, isExternal)
   }
 

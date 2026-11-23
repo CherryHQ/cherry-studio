@@ -51,6 +51,7 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
         status: config.getStatus(item.status)
       }
     }
+
     case 'note': {
       const config = dataSourceTypeDisplayConfig.note
 
@@ -62,6 +63,7 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
         status: config.getStatus(item.status)
       }
     }
+
     case 'directory': {
       const config = dataSourceTypeDisplayConfig.directory
 
@@ -73,6 +75,7 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
         status: config.getStatus(item.status)
       }
     }
+
     case 'url': {
       const config = dataSourceTypeDisplayConfig.url
 

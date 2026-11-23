@@ -41,6 +41,7 @@ async function bestEffortCleanup(id: FileEntryId, physical: AbsoluteFilePath, co
     await fsRemove(physical)
   } catch (cleanupErr) {
     const code = (cleanupErr as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+
     if (code !== 'ENOENT') {
       logger.warn(`${context}: cleanup unlink failed; physical blob may remain on disk`, {
         id,
@@ -59,35 +60,44 @@ interface NormalisedSource {
 function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
   if (params.source === 'bytes') {
     const data = params.data
+
     return {
       name: params.name,
       ext: params.ext,
       prepare: (target) => prepareAtomicWrite(target, data)
     }
   }
+
   if (params.source === 'base64') {
     const parsed = parseDataUrl(params.data)
+
     if (!parsed?.isBase64 || !parsed.mediaType || parsed.data.length === 0) {
       throw new Error('createInternal(base64): data URI is not in the expected `data:<mime>;base64,<payload>` form')
     }
+
     const ext = mime.getExtension(parsed.mediaType)
     const bytes = Buffer.from(parsed.data, 'base64')
+
     return {
       name: params.name ?? `Pasted ${new Date().toISOString().slice(0, 10)}`,
       ext: ext ?? null,
       prepare: (target) => prepareAtomicWrite(target, new Uint8Array(bytes))
     }
   }
+
   if (params.source === 'path') {
     const src = params.path
+
     return {
       name: basenameWithoutExt(src),
       ext: extWithoutDot(src),
       prepare: (target) => prepareAtomicCopy(src, target)
     }
   }
+
   // url
   const url = params.url
+
   return {
     name: urlTail(url),
     ext: extWithoutDot(new URL(url).pathname),
@@ -98,18 +108,22 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
 function basenameWithoutExt(p: string): string {
   const base = basenameForExtProjection(p)
   const dot = base.lastIndexOf('.')
+
   return dot > 0 ? base.slice(0, dot) : base
 }
 
 function extWithoutDot(p: string): string | null {
   const base = basenameForExtProjection(p)
   const dot = base.lastIndexOf('.')
+
   if (dot <= 0) return null
+
   return base.slice(dot + 1).toLowerCase()
 }
 
 function basenameForExtProjection(p: string): string {
   const base = p.split(/[\\/]/).pop() ?? p
+
   return base.replace(/[\s.]+$/, '')
 }
 
@@ -127,6 +141,7 @@ function upgradeCleanupPolicyIfNeeded(
   if (existing.cleanupPolicy === 'delete_when_unreferenced' && requestedPolicy === 'manual') {
     return deps.fileEntryService.update(existing.id, { cleanupPolicy: 'manual' })
   }
+
   return existing
 }
 
@@ -135,6 +150,7 @@ function urlTail(url: string): string {
     const u = new URL(url)
     const last = basenameForExtProjection(u.pathname)
     const dot = last.lastIndexOf('.')
+
     return dot > 0 ? last.slice(0, dot) : last || u.hostname
   } catch {
     return url
@@ -152,6 +168,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const filename = `${id}${source.ext ? `.${source.ext}` : ''}`
   const physical = AbsoluteFilePathSchema.parse(application.getPath('feature.files.data', filename))
   const prepared = await source.prepare(physical)
+
   try {
     await prepared.commit()
   } catch (err) {
@@ -159,6 +176,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
     await bestEffortCleanup(id, physical, 'createInternal:metadata-failed')
     throw err
   }
+
   try {
     return deps.fileEntryService.create({
       id,
@@ -190,6 +208,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
 export async function ensureExternal(deps: FileManagerDeps, params: EnsureExternalEntryParams): Promise<FileEntry> {
   const canonical = canonicalizeFilePath(params.externalPath)
   const existing = deps.fileEntryService.findByExternalPath(canonical)
+
   if (existing) return upgradeCleanupPolicyIfNeeded(deps, existing, params.cleanupPolicy)
   await fsStat(canonical)
   // Case-insensitive peer lookup is index-backed via the
@@ -213,8 +232,10 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // diagnosable stack, so wrapping in try/catch here only hides the real
   // error one stack frame earlier.
   const peers = deps.fileEntryService.findCaseInsensitivePeers(canonical)
+
   if (peers.length > 0) {
     const reusable = await resolveCaseCollisionPeer(canonical, peers)
+
     if (reusable) {
       // Re-read before trusting the peer: the `await` above (fs.realpath) yielded
       // the event loop, and a concurrent cleanup pass can reclaim exactly this
@@ -226,14 +247,17 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
       // them (the cleanup pass shares this event loop). Losing the race is not an
       // error — fall through and insert, which is what the caller asked for.
       const stillPresent = deps.fileEntryService.findById(reusable.id)
+
       if (stillPresent) {
         logger.info('ensureExternal: reusing case-collision peer (fs.realpath confirmed same FS entry)', {
           newPath: canonical,
           peerId: stillPresent.id,
           peerPath: (stillPresent as { externalPath: string }).externalPath
         })
+
         return upgradeCleanupPolicyIfNeeded(deps, stillPresent, params.cleanupPolicy)
       }
+
       // Reclaimed mid-flight. `fe_external_path_lower_unique_idx` is UNIQUE on
       // `lower(externalPath)`, so `peers` holds at most this one row — its
       // removal also released the constraint that forced this branch, and the
@@ -258,6 +282,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
       )
     }
   }
+
   // `name` and `ext` are pure projections of `externalPath` — derived here,
   // not accepted from callers. Doc-stated invariant: "external `name` is a
   // pure projection of `externalPath`" (file-manager-architecture §1.5 +
@@ -266,6 +291,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // must `rename` after `ensureExternalEntry` returns.
   const name = defaultNameFromPath(canonical)
   const ext = extWithoutDot(canonical)
+
   const inserted = deps.fileEntryService.create({
     origin: 'external',
     name,
@@ -273,12 +299,14 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
     cleanupPolicy: params.cleanupPolicy,
     externalPath: canonical
   })
+
   // Reverse-index hook: subsequent watcher / opportunistic ops events for
   // `canonical` should reach this entry id. The fs.stat above succeeded —
   // record a fresh 'present' observation so any imminent UI query
   // short-circuits the cold-stat path.
   deps.danglingCache.addEntry(inserted.id, canonical)
   deps.danglingCache.onFsEvent(canonical, 'present', 'ops')
+
   return inserted
 }
 
@@ -313,16 +341,21 @@ async function resolveCaseCollisionPeer(newCanonical: AbsoluteFilePath, peers: F
   // so the caller sees the real FS errno rather than a confusing "no peer
   // matched" rejection later.
   const newReal = await realpath(newCanonical)
+
   for (const peer of peers) {
     if (peer.origin !== 'external') continue
+
     try {
       const peerReal = await realpath(peer.externalPath)
+
       if (peerReal === newReal) return peer
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code
+
       if (code === 'ENOENT' || code === 'ENOTDIR') continue
       throw err
     }
   }
+
   return null
 }

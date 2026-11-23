@@ -26,9 +26,11 @@ export async function copy(deps: FileManagerDeps, params: CopyEntryParams): Prom
   const src = deps.fileEntryService.getById(params.id)
   const physical = resolvePhysicalPath(src)
   const dst = await createInternal(deps, { source: 'path', path: physical, cleanupPolicy: src.cleanupPolicy })
+
   if (params.newName === undefined || params.newName === dst.name) {
     return dst
   }
+
   // Rename step. `createInternal` already committed the new entry + its
   // physical blob; a rename failure here (e.g. SafeNameSchema rejecting an
   // unsafe newName) would leak the half-created entry. Roll back the create
@@ -47,6 +49,7 @@ export async function copy(deps: FileManagerDeps, params: CopyEntryParams): Prom
         cleanupErr
       })
     }
+
     throw renameErr
   }
 }

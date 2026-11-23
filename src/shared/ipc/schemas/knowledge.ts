@@ -33,6 +33,7 @@ import { defineRoute } from '../define'
  */
 
 const baseIdSchema = z.string().trim().min(1)
+
 // delete_items and reindex_items share the same input shape.
 const itemIdsInputSchema = z.strictObject({
   baseId: baseIdSchema,

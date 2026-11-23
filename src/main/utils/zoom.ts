@@ -10,6 +10,7 @@ export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: bo
       win.webContents.setZoomFactor(1)
     })
     void preferenceService.set('app.zoom_factor', 1)
+
     return
   }
 
@@ -19,6 +20,7 @@ export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: bo
 
   const currentZoom = preferenceService.get('app.zoom_factor')
   const newZoom = Number((currentZoom + delta).toFixed(1))
+
   if (newZoom >= 0.5 && newZoom <= 2.0) {
     wins.forEach((win) => {
       win.webContents.setZoomFactor(newZoom)

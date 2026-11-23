@@ -20,6 +20,7 @@ import { ReasoningSummarySchema, ServiceTierSelectionSchema, UniqueModelIdSchema
 
 /** MCP server interaction mode */
 export const McpModeSchema = z.enum(['disabled', 'auto', 'manual'])
+
 export type McpMode = z.infer<typeof McpModeSchema>
 
 /**
@@ -99,6 +100,7 @@ export const AssistantSettingsSchema = z.object({
    *  and the resolver's `??` chain treats null/undefined alike. */
   contextSettings: ContextSettingsOverrideSchema.nullable().optional()
 })
+
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
 /** Pre-computed default settings object — avoids runtime parse() on every row conversion */
@@ -176,4 +178,5 @@ export const AssistantSchema = z.strictObject({
    */
   modelName: z.string().nullable()
 })
+
 export type Assistant = z.infer<typeof AssistantSchema>

@@ -29,10 +29,13 @@ export function isTaskRunSessionUnavailable(error: unknown, sessionId: string): 
 
 async function readTaskRunSession(task: ScheduledTaskEntity, runId: string, signal?: AbortSignal) {
   const job = await dataApiService.get(`/jobs/${runId}`)
+
   if (job.type !== 'agent.task' || job.scheduleId !== task.id) {
     throw DataApiErrorFactory.notFound('Task run', runId)
   }
+
   const output = job.output as { sessionId?: unknown; result?: unknown } | null
+
   const selectedRun: SelectedTaskRun = {
     id: job.id,
     startedAt: job.startedAt ?? job.scheduledAt,
@@ -41,32 +44,41 @@ async function readTaskRunSession(task: ScheduledTaskEntity, runId: string, sign
     result: typeof output?.result === 'string' ? output.result : job.output != null ? JSON.stringify(job.output) : null,
     error: job.error?.message ?? null
   }
+
   const facts = { selectedRun, runId: job.id, startedAt: selectedRun.startedAt }
   const sessionId = job.metadata.sessionId ?? output?.sessionId
   signal?.throwIfAborted()
+
   if (typeof sessionId !== 'string' || !sessionId.trim()) return { ...facts, session: null }
+
   try {
     const session = await dataApiService.get(`/agent-sessions/${sessionId}`)
     signal?.throwIfAborted()
+
     return { ...facts, session }
   } catch (error) {
     signal?.throwIfAborted()
+
     if (!isTaskRunSessionUnavailable(error, sessionId)) throw error
+
     return { ...facts, session: null }
   }
 }
 
 export async function readTaskConversationPage(task: ScheduledTaskEntity, page: number, signal?: AbortSignal) {
   signal?.throwIfAborted()
+
   const history = await dataApiService.get(`/agents/${task.agentId}/tasks/${task.id}/logs`, {
     query: { page, limit: 50 }
   })
+
   signal?.throwIfAborted()
   const ids = [...new Set(history.items.map((log) => log.sessionId).filter((id): id is string => !!id?.trim()))]
   const sessions = ids.length ? await dataApiService.get('/agent-sessions', { query: { ids, limit: 50 } }) : null
   signal?.throwIfAborted()
   const available = new Map(sessions?.items.map((session) => [session.id, session]))
   const run = history.items.find((log) => log.sessionId && available.has(log.sessionId))
+
   return {
     selectedRun: run
       ? {
@@ -93,6 +105,7 @@ export async function resolveTaskConversation(
 ): Promise<TaskConversationResult> {
   signal?.throwIfAborted()
   let selected: (Pick<TaskConversationResult, 'session'> & Partial<TaskConversationResult>) | undefined
+
   if (runId) {
     selected = await readTaskRunSession(task, runId, signal)
   } else if (task.reuseSession && task.reuseSessionId) {
@@ -102,12 +115,17 @@ export async function resolveTaskConversation(
       if (!isDataApiNotFoundError(error)) throw error
     }
   }
+
   const first = await readTaskConversationPage(task, 1, signal)
+
   if (selected) {
     if (!runId && selected.session?.id === first.session?.id) return { ...first, ...selected }
+
     return { ...first, ...selected, selectedRun: selected.selectedRun ?? null }
   }
+
   if (first.session || first.total <= 50) return first
   const second = await readTaskConversationPage(task, 2, signal)
+
   return { ...second, logs: [...first.logs, ...second.logs] }
 }

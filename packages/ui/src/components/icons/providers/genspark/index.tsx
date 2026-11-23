@@ -6,7 +6,9 @@ import { GensparkLight } from './light'
 
 const Genspark = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GensparkLight {...props} className={className} />
+
   if (variant === 'dark') return <GensparkDark {...props} className={className} />
+
   return (
     <>
       <GensparkLight className={cn('dark:hidden', className)} {...props} />

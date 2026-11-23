@@ -32,6 +32,7 @@ function formatAnchorLabel(anchor: DocumentAnchor, t: TranslateLabel): string {
 /** A fence longer than any backtick run in `text`, so quoted code cannot close it. */
 function fenceFor(text: string): string {
   const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length))
+
   return '`'.repeat(Math.max(3, longest + 1))
 }
 
@@ -39,6 +40,7 @@ function createLineCommentToken(reference: LineCommentReference): ComposerDraftT
   const { path, startLine, endLine, excerpt, comment } = reference
   const lines = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`
   const fence = fenceFor(excerpt)
+
   return {
     id: `line-comment:${path}:${Date.now()}`,
     kind: 'reference',
@@ -57,6 +59,7 @@ function createLineCommentToken(reference: LineCommentReference): ComposerDraftT
  */
 export function createSelectionReferenceToken(reference: ComposerFileReference, t: TranslateLabel): ComposerDraftToken {
   if (!('anchor' in reference)) return createLineCommentToken(reference)
+
   return {
     id: `selection-ref:${reference.path}:${Date.now()}`,
     kind: 'reference',

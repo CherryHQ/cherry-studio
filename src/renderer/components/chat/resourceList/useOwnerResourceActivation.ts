@@ -26,11 +26,16 @@ export function useOwnerResourceActivation<TOwner, TResource>({
   const activateOwnerResource = useCallback(
     async (owner: TOwner) => {
       const requestGeneration = ++requestGenerationRef.current
+
       try {
         let resource = await loadResourceForOwner(owner)
+
         if (requestGeneration !== requestGenerationRef.current) return
+
         if (!resource) resource = await createResourceForOwner(owner)
+
         if (requestGeneration !== requestGenerationRef.current) return
+
         if (resource) onActivateResource(resource)
       } catch (error) {
         if (requestGeneration === requestGenerationRef.current) onError(error)

@@ -9,4 +9,5 @@ export type NotesSortType =
   | 'sort_created_asc' // 创建时间（从旧到新）
 
 export type NoteRenameResult = { ok: true; name: string } | { ok: false; reason: 'exists' | 'failed' }
+
 export type RenameNote = (nodeId: string, newName: string) => Promise<NoteRenameResult>

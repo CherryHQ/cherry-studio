@@ -30,6 +30,7 @@ export async function refineLocalEmbeddingChunks(
 async function getLocalEmbeddingTokenCounter(signal?: AbortSignal): Promise<CountTokens> {
   return async (text: string) => {
     const [count] = await application.get('EmbeddingInferenceService').countTokens([text], signal)
+
     return count
   }
 }

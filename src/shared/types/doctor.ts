@@ -52,6 +52,7 @@ export interface DoctorSubject {
   readonly agentId?: string
   readonly mcpServerIds?: readonly string[]
 }
+
 export type DoctorSubjectKey = keyof DoctorSubject
 
 /**
@@ -110,6 +111,7 @@ export const DOCTOR_CHECK_IDS = [
   'runtime-claude-login',
   'logs-recent-findings'
 ] as const
+
 export type DoctorCheckId = (typeof DOCTOR_CHECK_IDS)[number]
 
 /** The domain a check id is prefixed with — enforced on the catalog at compile time. */
@@ -383,7 +385,9 @@ export const DOCTOR_CHECK_CATALOG = {
 } as const satisfies { readonly [Id in DoctorCheckId]: DoctorCheckMeta<Id> }
 
 export type DoctorCheckCatalog = typeof DOCTOR_CHECK_CATALOG
+
 export type DoctorFixId<Id extends DoctorCheckId> = DoctorCheckCatalog[Id]['fixes'][number]['id']
+
 export type DoctorFixTarget<Id extends DoctorCheckId, Fix extends DoctorFixId<Id>> =
   Extract<DoctorCheckCatalog[Id]['fixes'][number], { id: Fix }> extends { targeted: true }
     ? { readonly target: string }
@@ -392,7 +396,9 @@ export type DoctorFixTarget<Id extends DoctorCheckId, Fix extends DoctorFixId<Id
 type DoctorFixAction<Id extends DoctorCheckId> = {
   [Fix in DoctorFixId<Id>]: { readonly kind: 'fix'; readonly fixId: Fix } & DoctorFixTarget<Id, Fix>
 }[DoctorFixId<Id>]
+
 export type DoctorDetailVariant<Id extends DoctorCheckId> = DoctorCheckCatalog[Id]['details'][number]
+
 export type DoctorFixableCheckId = {
   [Id in DoctorCheckId]: [DoctorFixId<Id>] extends [never] ? never : Id
 }[DoctorCheckId]

@@ -125,4 +125,5 @@ function Alert({
 Alert.displayName = 'Alert'
 
 export { Alert, alertVariants }
+
 export type { AlertProps }

@@ -40,6 +40,7 @@ export abstract class BrowserPageController {
   public async execute(code: string, timeout = 5000, privateMode = false, tabId?: string, signal?: AbortSignal) {
     const { session, signal: targetSignal } = await this.getSession(privateMode, tabId)
     signal = targetSignal ? AbortSignal.any(signal ? [signal, targetSignal] : [targetSignal]) : signal
+
     return session.run(
       async () => {
         const result = await session.send(
@@ -52,8 +53,10 @@ export abstract class BrowserPageController {
           },
           { deadline: Date.now() + timeout, signal }
         )
+
         if (result.exceptionDetails)
           throw new Error(result.exceptionDetails.exception?.description ?? 'Script evaluation failed')
+
         return result.result?.value ?? result.result?.description ?? null
       },
       { deadline: Date.now() + timeout, signal }
@@ -73,6 +76,7 @@ export abstract class BrowserPageController {
     const { tabId } = await this.open(url, timeout, privateMode, newTab, showWindow, signal)
 
     let expression: string
+
     const root = selector
       ? `(document.querySelector(${JSON.stringify(selector)}) || document.body)`
       : format === 'json' || format === 'txt'
@@ -88,6 +92,7 @@ export abstract class BrowserPageController {
     const rawContent = String((await this.execute(expression, timeout, privateMode, tabId, signal)) ?? '')
 
     let content: string | object
+
     if (format === 'markdown') {
       content = (await this.getTurndownService()).turndown(rawContent)
     } else if (format === 'json') {
@@ -118,6 +123,7 @@ export abstract class BrowserPageController {
     signal = targetSignal ? AbortSignal.any(signal ? [signal, targetSignal] : [targetSignal]) : signal
 
     const commands = { deadline: Date.now() + 30_000, signal }
+
     return session.run(() => captureScreenshot(session, options, commands), { signal })
   }
 }

@@ -8,6 +8,7 @@ import { matchesPreset } from '@shared/utils/provider'
 import type { RequestFeature } from '../feature'
 
 const CLIENT_IDENTIFIER = 'x-anthropic-billing-header: cc_entrypoint=cli;'
+
 const webFetchInputSchema = z.union([
   z.object({ url: z.string() }),
   z.object({ urls: z.array(z.string()).min(1), goal: z.string().optional() })
@@ -21,12 +22,14 @@ export function createQwenAnthropicWebToolsMiddleware(): LanguageModelMiddleware
       const hasWebTool = params.tools?.some(
         (tool) => tool.type === 'provider' && /^anthropic\.web_(search|fetch)_\d+$/.test(tool.id)
       )
+
       if (
         !hasWebTool ||
         params.prompt.some((message) => message.role === 'system' && message.content.includes(CLIENT_IDENTIFIER))
       ) {
         return params
       }
+
       return { ...params, prompt: [{ role: 'system', content: CLIENT_IDENTIFIER }, ...params.prompt] }
     }
   }

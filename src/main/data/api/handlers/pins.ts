@@ -19,11 +19,13 @@ export const pinHandlers: HandlersFor<PinSchemas> = {
   '/pins': {
     GET: async ({ query }) => {
       const parsed = ListPinsQuerySchema.parse(query)
+
       return pinService.listByEntityType(parsed.entityType)
     },
 
     POST: async ({ body }) => {
       const parsed = CreatePinSchema.parse(body)
+
       return pinService.pin(parsed)
     }
   },
@@ -31,12 +33,14 @@ export const pinHandlers: HandlersFor<PinSchemas> = {
   '/pins/:id': {
     GET: async ({ params }) => {
       const id = PinIdSchema.parse(params.id)
+
       return pinService.getById(id)
     },
 
     DELETE: async ({ params }) => {
       const id = PinIdSchema.parse(params.id)
       pinService.unpin(id)
+
       return undefined
     }
   },
@@ -46,6 +50,7 @@ export const pinHandlers: HandlersFor<PinSchemas> = {
       const id = PinIdSchema.parse(params.id)
       const anchor = OrderRequestSchema.parse(body)
       pinService.reorder(id, anchor)
+
       return undefined
     }
   },
@@ -54,6 +59,7 @@ export const pinHandlers: HandlersFor<PinSchemas> = {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       pinService.reorderBatch(parsed.moves)
+
       return undefined
     }
   }

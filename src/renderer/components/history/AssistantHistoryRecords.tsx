@@ -76,6 +76,7 @@ const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses
 function isHistoryTopicPermanentDeleteBusy(topicId: string): boolean {
   const entry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
   const flags = classifyTurn(entry?.status)
+
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors.length ?? 0) > 0
 }
 
@@ -86,23 +87,30 @@ function survivingHistoryNeighbor<T extends { id: string }>(
   neighborBeforeDelete: T | undefined
 ): T | undefined {
   const remaining = refreshed.filter((item) => item.id !== deletedId)
+
   if (neighborBeforeDelete) {
     const stillThere = remaining.find((item) => item.id === neighborBeforeDelete.id)
+
     if (stillThere) return stillThere
   }
+
   if (remaining.length === 0) return undefined
 
   const remainingIds = new Set(remaining.map((item) => item.id))
   const fallback = orderedBeforeDelete.find((item) => item.id !== deletedId && remainingIds.has(item.id))
+
   return fallback ? remaining.find((item) => item.id === fallback.id) : remaining[0]
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Permanent history deletion may fail with arbitrary values; recognized trash errors select localized stale/busy guidance.
 function historyPermanentDeleteFailureMessage(err: unknown, translate: (key: string) => string): string {
   if (isTrashTargetNotFoundError(err)) return translate('recycle_bin.delete.stale')
+
   if (isTrashTopicBusyError(err)) return translate('recycle_bin.delete.busy')
   const detail = err instanceof Error ? readErrorMessage(err) : ''
+
   if (detail) return detail
+
   return translate('chat.topics.manage.delete.error')
 }
 
@@ -117,6 +125,7 @@ function AssistantHistoryRowState({
 }) {
   const { isRenaming } = useTopicRenameState(topicId)
   useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
+
   return children({ isRenaming })
 }
 
@@ -149,6 +158,7 @@ const AssistantHistoryRecords = ({
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const { notesPath } = useNotesSettings()
+
   const {
     updateTopic: patchTopic,
     deleteTopic: deleteTopicById,
@@ -156,6 +166,7 @@ const AssistantHistoryRecords = ({
     restoreTopic,
     batchUpdateTopics
   } = useTopicMutations()
+
   const exportMenuOptions = useConversationExportMenuOptions()
   const { pinnedIds: topicPinnedIds, togglePin: toggleTopicPin } = usePins('topic')
   const { items: optimisticTopics, rename: renameTopicOptimistically } = useOptimisticResourceName(rawTopics)
@@ -167,24 +178,30 @@ const AssistantHistoryRecords = ({
   const permanentDeleteLockRef = useRef(false)
   activeRecordIdRef.current = activeRecordId
   const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
+
   const topics = useMemo<HistoryTopicItem[]>(
     () =>
       optimisticTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
     [isTopicPinned, optimisticTopics]
   )
+
   topicsRef.current = topics
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
+
   const assistantRankById = useMemo(
     () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
     [assistants]
   )
+
   const unlinkedAssistantLabel = t('history.records.filter.unlinkedAssistant')
 
   const timeSortedTopics = useMemo(
     () => sortTopicsForDisplayGroups(topics, { mode: 'time', now: groupNow }),
     [groupNow, topics]
   )
+
   timeSortedTopicsRef.current = timeSortedTopics
+
   const assistantSortedTopics = useMemo(
     () => sortTopicsForDisplayGroups(topics, { assistantRankById, mode: 'assistant', now: groupNow }),
     [assistantRankById, groupNow, topics]
@@ -194,6 +211,7 @@ const AssistantHistoryRecords = ({
     () => new Map(optimisticTopics.map((topic) => [topic.id, topic])),
     [optimisticTopics]
   )
+
   // The shared mapped list carries `pinned: false`; copy only rows with an optimistic name or pin override.
   const rendererTopicById = useMemo(
     () =>
@@ -201,6 +219,7 @@ const AssistantHistoryRecords = ({
         rendererTopics.map((topic) => {
           const optimisticName = optimisticTopicById.get(topic.id)?.name
           const pinned = isTopicPinned(topic.id)
+
           return [
             topic.id,
             optimisticName !== topic.name || pinned ? { ...topic, name: optimisticName ?? topic.name, pinned } : topic
@@ -209,6 +228,7 @@ const AssistantHistoryRecords = ({
       ),
     [isTopicPinned, optimisticTopicById, rendererTopics]
   )
+
   const getRendererTopic = useCallback(
     (topic: ApiTopic): RendererTopic =>
       rendererTopicById.get(topic.id) ?? { ...mapApiTopicToRendererTopic(topic), pinned: isTopicPinned(topic.id) },
@@ -219,6 +239,7 @@ const AssistantHistoryRecords = ({
     () => buildAssistantSources(topics, assistantById, assistantRankById, unlinkedAssistantLabel, t),
     [assistantById, assistantRankById, t, topics, unlinkedAssistantLabel]
   )
+
   const additionalAssistantSourceItems = useMemo(
     () =>
       assistantSources
@@ -231,6 +252,7 @@ const AssistantHistoryRecords = ({
         })),
     [assistantById, assistantSources]
   )
+
   const bulkMoveTargets = useMemo<HistoryBulkMoveTarget[]>(
     () =>
       assistants.map((assistant) => ({
@@ -244,6 +266,7 @@ const AssistantHistoryRecords = ({
   const handleTopicSelect = useCallback(
     (topic: ApiTopic) => {
       const title = topic.name || t('chat.default.topic.name')
+
       if (conversationNav.openConversationTab(topic.id, title, { forceNew: true })) return
 
       onRecordSelect?.(getRendererTopic(topic))
@@ -262,9 +285,11 @@ const AssistantHistoryRecords = ({
     async (topic: Pick<RendererTopic, 'id'>) => {
       try {
         await toggleTopicPin(topic.id)
+
         return true
       } catch (err) {
         logger.error('Failed to toggle topic pin from history records', { topicId: topic.id, err })
+
         return false
       }
     },
@@ -279,9 +304,11 @@ const AssistantHistoryRecords = ({
         await deleteTopicById(topic.id)
       } catch (err) {
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
+
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
         else toast.error(err instanceof Error ? err.message : t('recycle_bin.move_failed'))
+
         return
       }
 
@@ -292,6 +319,7 @@ const AssistantHistoryRecords = ({
           topic.id,
           (candidate) => candidate.id
         )
+
         onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
 
@@ -313,6 +341,7 @@ const AssistantHistoryRecords = ({
     async (topic: RendererTopic) => {
       if (permanentDeleteLockRef.current) return
       permanentDeleteLockRef.current = true
+
       try {
         await permanentDeletePopup.show({
           kind: 'conversation',
@@ -320,9 +349,11 @@ const AssistantHistoryRecords = ({
           name: topic.name.trim() || t('chat.default.topic.name'),
           action: async () => {
             const liveTopic = topicsRef.current.find((candidate) => candidate.id === topic.id)
+
             if (liveTopic?.pinned) {
               throw new Error(t('recycle_bin.delete.pinned'))
             }
+
             if (isHistoryTopicPermanentDeleteBusy(topic.id)) {
               throw new Error(t('recycle_bin.delete.busy'))
             }
@@ -330,8 +361,10 @@ const AssistantHistoryRecords = ({
             const orderedBeforeDelete = timeSortedTopicsRef.current
             const neighborBeforeDelete = pickNeighbourAfterRemoval(orderedBeforeDelete, topic.id)
             onLocalPermanentDeletePendingChange?.(topic.id)
+
             try {
               let outcome
+
               try {
                 outcome = await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
               } catch (err) {
@@ -361,6 +394,7 @@ const AssistantHistoryRecords = ({
                 topic.id,
                 neighborBeforeDelete
               )
+
               onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
             } finally {
               onLocalPermanentDeletePendingChange?.(null)
@@ -389,15 +423,18 @@ const AssistantHistoryRecords = ({
               refresh: refetch
             })
         })
+
         return { succeeded: deletedIds, failed: [] }
       } catch (error) {
         logger.error('Failed to bulk delete topics from history records', { ids, error })
         await refetch().catch((refreshError) => {
           logger.warn('Failed to refresh topics after bulk delete', refreshError as Error, { ids })
         })
+
         if (isTrashTargetNotFoundError(error)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
         else toast.error(t('recycle_bin.move_failed'))
+
         return { succeeded: [], failed: ids.map((id) => ({ id, error: getErrorMessage(error) })) }
       }
     },
@@ -413,10 +450,12 @@ const AssistantHistoryRecords = ({
 
         if (failedResults.length === 0) {
           toast.success(t('history.records.bulkMoveTopics.success', { count: ids.length }))
+
           return movedIds
         }
 
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, failedResults })
+
         if (movedIds.length > 0) {
           toast.warning(
             t('history.records.bulkMoveTopics.partialSuccess', {
@@ -425,17 +464,20 @@ const AssistantHistoryRecords = ({
               total: ids.length
             })
           )
+
           return movedIds
         }
 
         const firstReason = failedResults[0]?.reason
         const message = firstReason instanceof Error ? firstReason.message : t('history.records.bulkMoveTopics.error')
         toast.error(message)
+
         return movedIds
       } catch (err) {
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
         const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error')
         toast.error(message)
+
         return undefined
       }
     },
@@ -447,12 +489,15 @@ const AssistantHistoryRecords = ({
   const handleAutoRename = useCallback(
     async (topic: RendererTopic) => {
       const messages = await getTopicMessages(topic.id)
+
       if (messages.length < 2) return
 
       startTopicRenaming(topic.id)
       let didPersistRename = false
+
       try {
         const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
+
         if (summaryText) {
           try {
             await updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
@@ -480,11 +525,13 @@ const AssistantHistoryRecords = ({
     async (topicId: string, name: string) => {
       const topic = topics.find((candidate) => candidate.id === topicId)
       const trimmedName = name.trim()
+
       if (!topic || !trimmedName || trimmedName === topic.name) return
 
       try {
         await renameTopicOptimistically(topic, trimmedName, async () => {
           await updateTopic({ id: topic.id, name: trimmedName, isNameManuallyEdited: true })
+
           return true
         })
         toast.success(t('common.saved'))
@@ -535,19 +582,23 @@ const AssistantHistoryRecords = ({
       topics.length
     ]
   )
+
   const topicMenuPreset = useTopicMenuPreset<ApiTopic>({ getActionContext: getTopicActionContext })
 
   const getId = useCallback((topic: HistoryTopicItem) => topic.id, [])
   const getSourceId = useCallback((topic: HistoryTopicItem) => getTopicSourceId(topic, assistantById), [assistantById])
+
   const matchesSearch = useCallback(
     (topic: HistoryTopicItem, keywords: string) =>
       matchesSearchText(topic.name || t('chat.default.topic.name'), keywords),
     [t]
   )
+
   const onActiveRecordChange = useCallback(
     (topic: HistoryTopicItem | null) => onActiveTopicChange?.(topic ? getRendererTopic(topic) : null),
     [getRendererTopic, onActiveTopicChange]
   )
+
   const rowDescriptor = useMemo(
     () => ({
       getName: (topic: HistoryTopicItem) => topic.name || t('chat.default.topic.name'),
@@ -556,6 +607,7 @@ const AssistantHistoryRecords = ({
         (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
       renderAvatar: (topic: HistoryTopicItem) => {
         const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
+
         return (
           renderAssistantEntityIcon(
             assistantIconType,
@@ -581,6 +633,7 @@ const AssistantHistoryRecords = ({
       ) => {
         const contextOverride = { isRenaming, onStartRename: () => openRename(topic.id, topic.name ?? '') }
         const actions = topicMenuPreset.getActions(topic, contextOverride)
+
         return {
           actions,
           onAction: (action: ResolvedAction) => topicMenuPreset.onAction(topic, action, contextOverride)
@@ -622,6 +675,7 @@ const AssistantHistoryRecords = ({
     renderSourceFilter: (selectedId, onSelect) => {
       const source = selectedId ? assistantSources.find((candidate) => candidate.id === selectedId) : undefined
       const assistant = selectedId ? assistantById.get(selectedId) : undefined
+
       return (
         <HistorySourceFilterField
           label={

@@ -24,22 +24,30 @@ type GroupedEntry = [string, MessageListItem[]]
 
 function arraysShallowEqual<T>(a: readonly T[], b: readonly T[]): boolean {
   if (a === b) return true
+
   if (a.length !== b.length) return false
+
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false
   }
+
   return true
 }
 
 function entriesShallowEqual(a: readonly GroupedEntry[], b: readonly GroupedEntry[]): boolean {
   if (a === b) return true
+
   if (a.length !== b.length) return false
+
   for (let i = 0; i < a.length; i++) {
     const [ak, av] = a[i]
     const [bk, bv] = b[i]
+
     if (ak !== bk) return false
+
     if (av !== bv) return false
   }
+
   return true
 }
 
@@ -81,6 +89,8 @@ export function stableGroupedMessages(
   if (entriesShallowEqual(cache.prevEntries, nextEntries)) {
     return cache.prevEntries
   }
+
   cache.prevEntries = nextEntries
+
   return nextEntries
 }

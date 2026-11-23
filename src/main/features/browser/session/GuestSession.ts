@@ -82,6 +82,7 @@ export class GuestSession implements Disposable {
     this.electronDebugger.on('message', this.onMessage)
     this.electronDebugger.on('detach', this.onDetach)
     guest.once('destroyed', this.onDestroyed)
+
     if (ownership === 'managed') this.electronSession.on('will-download', this.onDownload)
   }
 
@@ -91,20 +92,26 @@ export class GuestSession implements Disposable {
 
   async observe(options: CommandOptions = {}): Promise<Disposable> {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+
     if (!this.observing) {
       this.clearBrowserRefs()
       this.electronSession.on('will-download', this.onDownload)
     }
+
     this.observers++
     let released = false
+
     const dispose = () => {
       if (released) return
       released = true
       this.observers--
+
       if (!this.observing) this.stopObserving()
     }
+
     try {
       await this.send('Network.enable', undefined, options)
+
       return { dispose }
     } catch (error) {
       dispose()
@@ -114,6 +121,7 @@ export class GuestSession implements Disposable {
 
   private stopObserving(): void {
     this.electronSession.removeListener('will-download', this.onDownload)
+
     for (const cleanup of this.downloadItems.values()) cleanup()
     this.downloadItems.clear()
     this.downloadUpdates.clear()
@@ -179,6 +187,7 @@ export class GuestSession implements Disposable {
 
   private handleEvent(event: CdpEvent) {
     const { method, params } = event
+
     if (method === 'Page.frameNavigated' && !params.frame.parentId) {
       this.currentMainFrameId = params.frame.id
       this.currentDocumentId = params.frame.loaderId
@@ -192,6 +201,7 @@ export class GuestSession implements Disposable {
     } else if (method === 'Page.javascriptDialogOpening') {
       this.pendingDialog = { type: params.type, message: params.message }
       this.rejectPending(new BrowserSessionError('dialog_open', this.pendingDialog))
+
       if (this.ownership === 'managed') {
         if (this.dialogTimer) clearTimeout(this.dialogTimer)
         this.dialogTimer = setTimeout(() => {
@@ -205,6 +215,7 @@ export class GuestSession implements Disposable {
         this.dialogTimer.unref()
       }
     } else if (method === 'Page.javascriptDialogClosed') this.clearDialog()
+
     if (this.observing) this.inspection.record(event)
     this.webTools.record(event)
     this.events.fire(event)
@@ -224,16 +235,19 @@ export class GuestSession implements Disposable {
 
   wait<T>(operation: Promise<T>, options: CommandOptions): Promise<T> {
     const deadline = options.deadline ?? Date.now() + 5_000
+
     return new Promise<T>((resolve, reject) => {
       const cleanup = () => {
         if (timer) clearTimeout(timer)
         options.signal?.removeEventListener('abort', abort)
         this.pending.delete(fail)
       }
+
       const fail = (error: Error) => {
         cleanup()
         reject(error)
       }
+
       const abort = () => fail(options.signal!.reason)
       this.pending.add(fail)
       const timer = setTimeout(() => fail(new BrowserSessionError('timeout')), Math.max(0, deadline - Date.now()))
@@ -242,16 +256,19 @@ export class GuestSession implements Disposable {
         cleanup()
         resolve(value)
       }, fail)
+
       if (options.signal?.aborted) abort()
     })
   }
 
   private async ensureAttached(options: CommandOptions = {}): Promise<void> {
     this.attachWaiters++
+
     try {
       await this.wait(this.attach(), options)
     } finally {
       this.attachWaiters--
+
       if (!this.attachWaiters && this.attaching) {
         this.attachingAbort?.abort(new BrowserSessionError('debugger_unavailable'))
         await this.attaching.catch(() => undefined)
@@ -262,18 +279,24 @@ export class GuestSession implements Disposable {
   private async attach(): Promise<void> {
     if (this.disposed || this.guest.isDestroyed() || this.guest.isDevToolsOpened())
       throw new BrowserSessionError('debugger_unavailable')
+
     if (this.attaching) return this.attaching
+
     if (this.isAvailable()) return
+
     if (this.electronDebugger.isAttached()) throw new BrowserSessionError('debugger_unavailable')
+
     try {
       this.electronDebugger.attach('1.3')
       this.attached = true
     } catch {
       throw new BrowserSessionError('debugger_unavailable')
     }
+
     const epoch = this.epoch
     this.attachingAbort = new AbortController()
     const options = { signal: this.attachingAbort.signal, deadline: Date.now() + 5_000 }
+
     const init = async () => {
       for (const method of [
         'Page.enable',
@@ -282,18 +305,24 @@ export class GuestSession implements Disposable {
         ...(this.observing ? (['Network.enable'] as const) : [])
       ] as const) {
         options.signal.throwIfAborted()
+
         if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
         await this.wait(this.dispatch(method, undefined), options)
       }
+
       options.signal.throwIfAborted()
       const result = await this.wait(this.dispatch('Page.getFrameTree', undefined), options)
+
       if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
+
       if (this.epoch === epoch) {
         this.currentMainFrameId = result.frameTree.frame.id
         this.currentDocumentId = result.frameTree.frame.loaderId ?? this.mainFrameId
       }
     }
+
     this.attaching = init()
+
     try {
       await this.attaching
     } catch (error) {
@@ -319,27 +348,37 @@ export class GuestSession implements Disposable {
   ): Promise<ProtocolMapping.Commands[M]['returnType']> {
     if (!cdpAllowList.has(method)) throw new BrowserSessionError('not_allowed')
     options.signal?.throwIfAborted()
+
     if (options.deadline !== undefined && options.deadline <= Date.now()) throw new BrowserSessionError('timeout')
+
     if (this.pendingDialog && method !== 'Page.handleJavaScriptDialog')
       throw new BrowserSessionError('dialog_open', this.pendingDialog)
     this.lastActive = Date.now()
     this.operations++
     let capturing = false
+
     try {
       await this.ensureAttached(options)
       options.signal?.throwIfAborted()
+
       if (options.deadline !== undefined && options.deadline <= Date.now()) throw new BrowserSessionError('timeout')
+
       if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
+
       if (this.pendingDialog && method !== 'Page.handleJavaScriptDialog')
         throw new BrowserSessionError('dialog_open', this.pendingDialog)
+
       if (method === 'Page.captureScreenshot' && this.guest.getType() === 'webview') {
         // Keep Chromium producing frames until the CDP copy completes, even for an occluded guest.
         if (this.captures === 0) this.guest.beginFrameSubscription(true, () => undefined)
         this.captures++
         capturing = true
       }
+
       const result = await this.wait(this.dispatch(method, params), options)
+
       if (method === 'Page.handleJavaScriptDialog') this.clearDialog()
+
       return result
     } finally {
       if (capturing && --this.captures === 0 && !this.guest.isDestroyed()) this.guest.endFrameSubscription()
@@ -354,6 +393,7 @@ export class GuestSession implements Disposable {
     this.operations++
     const acquisition = this.actionMutex.acquire()
     let release: (() => void) | undefined
+
     try {
       try {
         release =
@@ -365,9 +405,12 @@ export class GuestSession implements Disposable {
         )
         throw error
       }
+
       if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
       options.signal?.throwIfAborted()
+
       if (options.deadline !== undefined && options.deadline <= Date.now()) throw new BrowserSessionError('timeout')
+
       return await operation()
     } finally {
       release?.()
@@ -378,10 +421,13 @@ export class GuestSession implements Disposable {
 
   async pause(ms: number, options: CommandOptions = {}): Promise<void> {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+
     if (this.pendingDialog) throw new BrowserSessionError('dialog_open', this.pendingDialog)
     const controller = new AbortController()
+
     try {
       await this.wait(delay(ms, undefined, { signal: controller.signal }), options)
+
       if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     } finally {
       controller.abort()
@@ -395,27 +441,36 @@ export class GuestSession implements Disposable {
     this.dismissedDialog = undefined
     // oxlint-disable-next-line anti-slop/no-known-value-widening -- Each optional event is attached only when captured; an empty drain must remain an empty object.
     const events: { downloads?: typeof downloads; dismissedDialog?: BrowserDialog } = {}
+
     if (downloads.length) events.downloads = downloads
+
     if (dismissedDialog) events.dismissedDialog = dismissedDialog
+
     return events
   }
 
   private readonly onDownload = (_event: Electron.Event, item: DownloadItem, guest: Electron.WebContents) => {
     if (guest !== this.guest) return
+
     const record = (state: string) => {
       this.downloadUpdates.set(item, { filename: item.getFilename(), state })
+
       if (this.downloadUpdates.size > 200) this.downloadUpdates.delete(this.downloadUpdates.keys().next().value!)
     }
+
     const updated = (_event: Electron.Event, state: string) => record(state)
+
     const done = (_event: Electron.Event, state: string) => {
       record(state)
       cleanup()
       this.downloadItems.delete(item)
     }
+
     const cleanup = () => {
       item.removeListener('updated', updated)
       item.removeListener('done', done)
     }
+
     this.downloadItems.set(item, cleanup)
     item.on('updated', updated)
     item.once('done', done)
@@ -424,27 +479,36 @@ export class GuestSession implements Disposable {
 
   resolveRef(ref: BrowserRef): number {
     const id = this.refs.get(ref)
+
     if (id === undefined) throw new BrowserSessionError('stale_ref')
+
     return id
   }
 
   private rememberRefTargets(nodes: CdpAccessibilityNode[]) {
     const candidates = new Map<string, { node: CdpAccessibilityNode; role: string; name: string; count: number }>()
+
     for (const node of nodes) {
       const role = node.role?.value
       const name = node.name?.value
+
       if (node.frameId && node.frameId !== this.mainFrameId) continue
       const ref = node.backendDOMNodeId === undefined ? undefined : this.nodeRefs.get(node.backendDOMNodeId)
+
       if (ref) this.refTargets.delete(ref)
+
       if (typeof role !== 'string' || !role || typeof name !== 'string' || !name || name.length > 2000) continue
       const key = JSON.stringify([role, name])
       const group = candidates.get(key)
+
       if (group) group.count++
       else candidates.set(key, { node, role, name, count: 1 })
     }
+
     for (const { node, role, name, count } of candidates.values()) {
       if (count !== 1 || node.ignored) continue
       const ref = node.backendDOMNodeId === undefined ? undefined : this.nodeRefs.get(node.backendDOMNodeId)
+
       if (ref) this.refTargets.set(ref, { role, name })
     }
   }
@@ -454,13 +518,17 @@ export class GuestSession implements Disposable {
     if (this.ownership === 'managed') await this.send('Emulation.setFocusEmulationEnabled', { enabled: true }, options)
     const epoch = this.epoch
     const { root } = await this.send('DOM.getDocument', { depth: 0 }, options)
+
     if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
+
     const { nodes } = await this.send(
       'Accessibility.queryAXTree',
       { backendNodeId: root.backendNodeId, role: query.role, accessibleName: query.name },
       options
     )
+
     if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
+
     return nodes.filter((node) => !node.frameId || node.frameId === this.mainFrameId)
   }
 
@@ -468,27 +536,35 @@ export class GuestSession implements Disposable {
     if (!query.role && !query.name) throw new BrowserSessionError('not_allowed')
     const nodes = await this.queryElements(query, options)
     const candidates = nodes.filter((node) => !node.ignored && node.backendDOMNodeId !== undefined)
+
     const matches = candidates.slice(0, 100).map((node) => ({
       ref: this.allocateRef(node.backendDOMNodeId!),
       role: String(node.role?.value ?? '').slice(0, 200),
       name: String(node.name?.value ?? '').slice(0, 200)
     }))
+
     this.rememberRefTargets(nodes)
+
     return { matches, truncated: candidates.length > matches.length }
   }
 
   async recoverRef(ref: BrowserRef, options: CommandOptions = {}): Promise<number> {
     const previous = this.resolveRef(ref)
     const target = this.refTargets.get(ref)
+
     if (!target) throw new BrowserSessionError('stale_ref')
     const nodes = await this.queryElements(target, options)
+
     if (this.resolveRef(ref) !== previous) throw new BrowserSessionError('stale_ref')
+
     if (nodes.length !== 1 || nodes[0].ignored) throw new BrowserSessionError('stale_ref')
     const id = nodes[0].backendDOMNodeId
+
     if (id === undefined || id === previous || this.nodeRefs.has(id)) throw new BrowserSessionError('stale_ref')
     this.nodeRefs.delete(previous)
     this.nodeRefs.set(id, ref)
     this.refs.set(ref, id)
+
     return id
   }
 
@@ -498,12 +574,16 @@ export class GuestSession implements Disposable {
   async enableRuntime(options: CommandOptions = {}): Promise<boolean> {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     const inFlight = this.runtimeEnableInFlight
+
     if (inFlight) {
       await inFlight
+
       return false
     }
+
     if (this.runtimeRecording) return false
     this.runtimeRecording = true
+
     const attempt = this.send('Runtime.enable', undefined, options).then(
       () => undefined,
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime.enable can reject with any transport failure; release only this attempt's recording claim and rethrow its original value.
@@ -513,9 +593,12 @@ export class GuestSession implements Disposable {
         throw error
       }
     )
+
     this.runtimeEnableInFlight = attempt
+
     try {
       await attempt
+
       return true
     } finally {
       if (this.runtimeEnableInFlight === attempt) this.runtimeEnableInFlight = undefined
@@ -524,27 +607,32 @@ export class GuestSession implements Disposable {
 
   consoleMessages(level: ConsoleLevel = 'all', clear = false) {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+
     return this.inspection.consoleMessages(level, clear)
   }
 
   async readConsoleMessages(level: ConsoleLevel = 'all', clear = false, options: CommandOptions = {}) {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     const recordingStarted = await this.enableRuntime(options)
+
     return { ...this.inspection.consoleMessages(level, clear), recordingStarted }
   }
 
   networkRequests(clear = false) {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+
     return this.inspection.networkRequests(clear)
   }
 
   private allocateRef = (id: number): BrowserRef => {
     let ref = this.nodeRefs.get(id)
+
     if (!ref) {
       ref = `e${this.nextRef++}`
       this.nodeRefs.set(id, ref)
       this.refs.set(ref, id)
     }
+
     return ref
   }
 
@@ -554,18 +642,22 @@ export class GuestSession implements Disposable {
   ): Promise<{ text: string; snapshot: BrowserSnapshot }> {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     const opts = snapshotOptionsSchema.parse(options)
+
     const capture = async () => {
       this.operations++
+
       try {
         await this.ensureAttached(commandOptions)
         const epoch = this.epoch
         const scope = opts.scope ? this.resolveRef(opts.scope) : undefined
         const raw = await captureSnapshot(this, commandOptions)
+
         if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
         const tree = buildSnapshotTree(raw, this.allocateRef, scope)
         const url = this.guest.getURL()
         const title = this.guest.getTitle()
         this.rememberRefTargets(raw.ax)
+
         const snapshot: BrowserSnapshot = {
           ...tree,
           documentId: this.documentId,
@@ -573,16 +665,20 @@ export class GuestSession implements Disposable {
           title: title === url ? sanitizeSnapshotUrl(title) : title,
           truncated: false
         }
+
         const maxChars = opts.maxChars ?? 40_000
         const revision = serializeSnapshot(snapshot, maxChars)
         const text = opts.full || opts.scope ? revision.text : diffSnapshot(this.revision, revision, maxChars)
+
         if (!opts.scope) this.revision = revision
+
         return { text, snapshot }
       } finally {
         this.operations--
         this.lastActive = Date.now()
       }
     }
+
     return this.snapshotMutex.runExclusive(capture)
   }
 
@@ -592,16 +688,21 @@ export class GuestSession implements Disposable {
     options: CommandOptions = {}
   ) {
     options.signal?.throwIfAborted()
+
     if (options.deadline !== undefined && options.deadline <= Date.now()) return createAccessibilityContext('timeout')
+
     if (budget.remaining <= 0) return createAccessibilityContext('budget_exceeded')
     this.operations++
+
     try {
       await this.ensureAttached(options)
       await this.enableRuntime(options)
       const epoch = this.epoch
       const contextEpoch = this.annotationContextEpoch
+
       if (this.annotationContextId === undefined) {
         const destroyedContexts = new Set<number>()
+
         const onContextDestroyed = (
           _event: Electron.Event,
           method: string,
@@ -611,7 +712,9 @@ export class GuestSession implements Disposable {
           if (!sessionId && method === 'Runtime.executionContextDestroyed')
             destroyedContexts.add(params.executionContextId)
         }
+
         this.electronDebugger.on('message', onContextDestroyed)
+
         try {
           const world = await this.send(
             'Page.createIsolatedWorld',
@@ -622,6 +725,7 @@ export class GuestSession implements Disposable {
             },
             options
           )
+
           if (
             epoch !== this.epoch ||
             contextEpoch !== this.annotationContextEpoch ||
@@ -633,6 +737,7 @@ export class GuestSession implements Disposable {
           this.electronDebugger.removeListener('message', onContextDestroyed)
         }
       }
+
       const result = await describeElement(
         this,
         this.annotationContextId,
@@ -641,8 +746,10 @@ export class GuestSession implements Disposable {
         options.deadline ?? Date.now() + 5_000,
         options.signal
       )
+
       if (epoch !== this.epoch || contextEpoch !== this.annotationContextEpoch)
         throw new BrowserSessionError('stale_ref')
+
       return result
     } finally {
       this.operations--
@@ -655,21 +762,26 @@ export class GuestSession implements Disposable {
     onAcknowledged: (invocationId: string) => void | Promise<void>
   ) {
     if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
+
     if (this.pendingDialog) throw new BrowserSessionError('dialog_open', this.pendingDialog)
     let timer: ReturnType<typeof setTimeout>
+
     const acknowledgement = Promise.race([
       this.dispatch('WebMCP.invokeTool', params).then(({ invocationId }) => onAcknowledged(invocationId)),
       new Promise<void>((_, reject) => {
         timer = setTimeout(() => reject(new BrowserSessionError('timeout')), 5000)
       })
     ])
+
     const cleanup = acknowledgement
       .catch(() => undefined)
       .finally(() => {
         clearTimeout(timer)
         this.webToolCleanup.delete(cleanup)
       })
+
     this.webToolCleanup.add(cleanup)
+
     return acknowledgement
   }
 
@@ -682,6 +794,7 @@ export class GuestSession implements Disposable {
     )
       return Promise.resolve()
     let timer: ReturnType<typeof setTimeout>
+
     const cancellation = Promise.race([
       this.dispatch('WebMCP.cancelInvocation', { invocationId }),
       new Promise<void>((resolve) => {
@@ -696,12 +809,15 @@ export class GuestSession implements Disposable {
         clearTimeout(timer)
         this.webToolCleanup.delete(cancellation)
       })
+
     this.webToolCleanup.add(cancellation)
+
     return cancellation
   }
 
   async settleWebTools(): Promise<void> {
     while (this.webToolCleanup.size) await Promise.all(this.webToolCleanup)
+
     if (this.disposed) {
       this.detach()
       this.electronDebugger.removeListener('detach', this.onDetach)
@@ -716,6 +832,7 @@ export class GuestSession implements Disposable {
         logger.debug('Failed to detach browser debugger', { error })
       }
     }
+
     this.attached = false
     this.runtimeRecording = false
     this.runtimeEnableInFlight = undefined

@@ -65,7 +65,9 @@ export function renderTool<T extends AgentToolsType>(
   hasError?: boolean
 ): ToolDisclosureItem {
   const renderer = toolRenderers[toolName]
+
   if (!renderer) return { key: toolName, label: null }
+
   return renderer({ input, output, hasError })
 }
 

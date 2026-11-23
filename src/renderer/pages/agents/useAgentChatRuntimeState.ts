@@ -74,12 +74,15 @@ export interface AgentTurnInput {
 
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
   const parts = input.options?.body?.userMessageParts
+
   return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
 }
 
 function getToolNameFromPart(part: AskUserQuestionApprovalPart): string {
   if (part.toolName?.trim()) return part.toolName
+
   if (part.type?.startsWith('tool-')) return part.type.replace(/^tool-/, '')
+
   return ''
 }
 
@@ -95,6 +98,7 @@ function isAskUserQuestionApprovalResponse(input: MessageToolApprovalInput): boo
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Approval recovery reads input and output from stored or streaming tool parts; the AskUserQuestion schema validates answer strings before recovery.
 function getAskUserQuestionAnswers(value: unknown): Record<string, string> | undefined {
   const answers = parseAskUserQuestionToolInput(value)?.answers
+
   return answers && Object.keys(answers).length > 0 ? answers : undefined
 }
 
@@ -105,12 +109,14 @@ function getAskUserQuestionAnswers(value: unknown): Record<string, string> | und
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Recovery may run after the originating runtime is gone; parse tool questions, answers and annotations before constructing fallback user text.
 export function formatAskUserQuestionAnswerMessage(value: unknown): string | undefined {
   const parsed = parseAskUserQuestionToolInput(value)
+
   if (!parsed?.answers) return undefined
 
   const lines = parsed.questions.flatMap((question) => {
     const answer = parsed.answers?.[question.question]?.trim()
     const notes = parsed.annotations?.[question.question]?.notes
     const body = [answer, typeof notes === 'string' ? notes.trim() : ''].filter(Boolean).join('\n')
+
     return body ? [`${question.question}\n${body}`] : []
   })
 
@@ -122,6 +128,7 @@ function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
     typeof part.output === 'object' && part.output !== null && 'content' in part.output
       ? part.output.content
       : undefined
+
   return !!(
     getAskUserQuestionAnswers(part.input) ??
     getAskUserQuestionAnswers(part.output) ??
@@ -137,11 +144,15 @@ function findAskUserQuestionPartByCallId(
     for (const part of parts) {
       if (!isToolUIPart(part)) continue
       const toolPart = part as AskUserQuestionApprovalPart
+
       if (toolPart.toolCallId !== toolCallId) continue
+
       if (!isAskUserQuestionToolName(getToolNameFromPart(toolPart))) continue
+
       return toolPart
     }
   }
+
   return undefined
 }
 
@@ -213,24 +224,30 @@ export function useAgentChatRuntimeState({
   )
   const currentSessionRef = useRef(sessionId)
   currentSessionRef.current = sessionId
+
   const reportEditError = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Edit and fork catch paths pass arbitrary IPC failures; check known codes/reason literals before choosing guidance and safely formatting diagnostics.
     (error: unknown, messageId: string) => {
       const forkReason = agentSessionForkFailureReason(error)
+
       const reason =
         error instanceof IpcError && error.data && typeof error.data === 'object' && 'reason' in error.data
           ? error.data.reason
           : undefined
+
       const editReason =
         error instanceof IpcError && error.code === aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED
           ? agentSessionEditFailureReasons.find((candidate) => candidate === reason)
           : undefined
+
       const originalError = formatErrorMessage(error)
+
       const description = editReason
         ? t(`agent.edit_resend.error.${editReason}`)
         : forkReason
           ? agentSessionForkReasonLabel(t, forkReason)
           : originalError
+
       const details = [
         description,
         error instanceof IpcError ? `code: ${error.code}` : undefined,
@@ -241,6 +258,7 @@ export function useAgentChatRuntimeState({
       ]
         .filter(Boolean)
         .join('\n')
+
       const notification: ToastConfig = {
         title: t('agent.edit_resend.label'),
         description,
@@ -258,11 +276,14 @@ export function useAgentChatRuntimeState({
           }
         }
       }
+
       toast.error(notification)
     },
     [sessionId, t]
   )
+
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
+
   const {
     messages: uiMessages,
     historyActions,
@@ -281,6 +302,7 @@ export function useAgentChatRuntimeState({
     enabled: sessionMessagesEnabled,
     fetchOnMount: sessionHistoryFetchOnMount
   })
+
   const latestUiMessagesRef = useRef(uiMessages)
   latestUiMessagesRef.current = uiMessages
 
@@ -290,6 +312,7 @@ export function useAgentChatRuntimeState({
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
   const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -297,7 +320,9 @@ export function useAgentChatRuntimeState({
     }),
     [refresh, seedReservedMessages]
   )
+
   const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
+
   const buildStreamRequest = useCallback(
     (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => {
       const request: AiStreamOpenRequest = {
@@ -307,11 +332,14 @@ export function useAgentChatRuntimeState({
         reasoningEffort: input.options?.body?.reasoningEffort,
         serviceTier: input.options?.body?.serviceTier
       }
+
       if (input.options?.body?.fastMode === true) request.fastMode = true
+
       return request
     },
     []
   )
+
   const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
     historyAdapter,
@@ -324,6 +352,7 @@ export function useAgentChatRuntimeState({
         : errorToastsRef.current?.report(error, modelId),
     openStream: async (request, input) => {
       if (!input.editTarget || request.trigger !== 'submit-message') return ipcApi.request('ai.stream.open', request)
+
       const ack = await ipcApi.request('ai.agent.session.edit_resend', {
         sessionId,
         target: { messageId: input.editTarget.messageId, version: input.editTarget.version },
@@ -332,20 +361,24 @@ export function useAgentChatRuntimeState({
         serviceTier: request.serviceTier,
         fastMode: request.fastMode
       })
+
       if (ack.mode !== 'blocked' && currentSessionRef.current === sessionId) {
         resetOverlay()
         setMessages([])
         await replaceMessageTail(input.editTarget.messageId, ack.reservedMessages ?? [])
       }
+
       return ack
     }
   })
+
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
       return send({ text: message?.text ?? '', options })
     },
     [send]
   )
+
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
@@ -358,10 +391,12 @@ export function useAgentChatRuntimeState({
   const handleExecutionFinish = useCallback(
     (_executionId: string, event: ExecutionFinishEvent) => {
       const projectedMessage = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
+
       const turnOrigin =
         cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
         projectedMessage?.metadata?.turnOrigin ??
         event.message.metadata?.turnOrigin
+
       void autoReadService.consume({
         enabled: autoReadEnabled,
         message: event.message,
@@ -373,6 +408,7 @@ export function useAgentChatRuntimeState({
     },
     [autoReadEnabled, sessionId]
   )
+
   const {
     overlay,
     liveAssistants,
@@ -380,10 +416,12 @@ export function useAgentChatRuntimeState({
   } = useExecutionOverlay(sessionTopicId, activeExecutions, {
     onUpdate: (_executionId, event) => {
       const projected = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
+
       const turnOrigin =
         cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
         projected?.metadata?.turnOrigin ??
         event.message.metadata?.turnOrigin
+
       autoReadService.update({ ...event, enabled: autoReadEnabled, scope: sessionTopicId, eligible: !turnOrigin })
     },
     onLeave: () => autoReadService.cancelScope(sessionTopicId),
@@ -392,12 +430,14 @@ export function useAgentChatRuntimeState({
       handleExecutionFinish(executionId, event)
     }
   })
+
   const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
     messages: optimisticMessages ?? uiMessages,
     overlay,
     executions: activeExecutions,
     liveAssistants
   })
+
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] =
     useState<AskUserQuestionOptimisticInputs>({})
 
@@ -418,15 +458,20 @@ export function useAgentChatRuntimeState({
     setOptimisticAskUserQuestionInputsByToolCallId((current) => {
       let next = current
       let changed = false
+
       for (const toolCallId of Object.keys(current)) {
         const sourcePart = findAskUserQuestionPartByCallId(partsByMessageId, toolCallId)
+
         if (!sourcePart || !hasAskUserQuestionAnswers(sourcePart)) continue
+
         if (!changed) {
           next = { ...current }
           changed = true
         }
+
         delete next[toolCallId]
       }
+
       return changed ? next : current
     })
   }, [partsByMessageId])
@@ -436,6 +481,7 @@ export function useAgentChatRuntimeState({
       if (!(toolCallId in current)) return current
       const next = { ...current }
       delete next[toolCallId]
+
       return next
     })
   }, [])
@@ -454,9 +500,11 @@ export function useAgentChatRuntimeState({
     async (input: MessageToolApprovalInput) => {
       const { match, approved, reason, updatedInput } = input
       const approvalId = match.approvalId
+
       const optimisticInput = isAskUserQuestionApprovalResponse(input)
         ? parseAskUserQuestionToolInput(input.updatedInput)
         : undefined
+
       const optimisticToolCallId = optimisticInput ? match.toolCallId : undefined
 
       if (optimisticToolCallId && optimisticInput) {
@@ -467,6 +515,7 @@ export function useAgentChatRuntimeState({
       }
 
       let result: AiToolApprovalRespondResponse
+
       try {
         result = await ipcApi.request('ai.tool.respond_approval', {
           approvalId,
@@ -483,10 +532,13 @@ export function useAgentChatRuntimeState({
 
       if (!result.ok) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
+
         if (result.reason !== 'undelivered') throw new Error('Tool approval response was not accepted')
+
         const answerText = isAskUserQuestionApprovalResponse(input)
           ? formatAskUserQuestionAnswerMessage(input.updatedInput)
           : undefined
+
         if (answerText) {
           try {
             if (!(await sendMessage({ text: answerText }))) throw new Error('Answer message was not accepted')
@@ -495,13 +547,17 @@ export function useAgentChatRuntimeState({
             throw error
           }
         }
+
         await refresh()
+
         return
       }
+
       await refresh()
     },
     [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
   )
+
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     topicId: sessionTopicId,
     partsByMessageId,
@@ -511,19 +567,24 @@ export function useAgentChatRuntimeState({
     agentName,
     permissionRequestComponent
   })
+
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
   const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
+
   const cancelEditing = useCallback(() => {
     if (!editRequestRef.current) setEditDraft(undefined)
   }, [])
+
   const startEditing = useCallback(
     async (messageId: string) => {
       if (editBusy || editRequestRef.current) return
       editRequestRef.current = true
       setEditPending(true)
+
       try {
         const draft = await ipcApi.request('ai.agent.session.edit_target', { sessionId, messageId })
+
         if (currentSessionRef.current === sessionId) setEditDraft({ ...draft, sessionId })
       } catch (error) {
         if (currentSessionRef.current === sessionId) reportEditError(error, messageId)
@@ -534,6 +595,7 @@ export function useAgentChatRuntimeState({
     },
     [editBusy, reportEditError, sessionId]
   )
+
   const resendEditedMessage = useCallback<AgentChatRuntimeState['sendMessage']>(
     async (message, options) => {
       if (!editing || editBusy || editRequestRef.current) return false
@@ -541,6 +603,7 @@ export function useAgentChatRuntimeState({
       setEditPending(true)
       const input = { text: message?.text ?? '', options, editTarget: editing }
       const activation = editActivationRef.current
+
       try {
         const confirmed = await popup.confirm({
           title: t('agent.edit_resend.save'),
@@ -549,20 +612,26 @@ export function useAgentChatRuntimeState({
           cancelText: t('common.cancel'),
           okButtonProps: { danger: true }
         })
+
         if (!confirmed || editActivationRef.current !== activation || currentSessionRef.current !== sessionId)
           return false
         const index = uiMessages.findIndex((item) => item.id === editing.messageId)
+
         if (index >= 0) {
           setResendingHistory({
             sessionId,
             messages: [...uiMessages.slice(0, index), { ...uiMessages[index], parts: getAgentTurnParts(input) }]
           })
         }
+
         const sent = await send(input)
+
         if (sent && currentSessionRef.current === sessionId) setEditDraft(undefined)
+
         return sent
       } catch (error) {
         if (currentSessionRef.current === sessionId) reportEditError(error, editing.messageId)
+
         return false
       } finally {
         setResendingHistory(undefined)
@@ -584,6 +653,7 @@ export function useAgentChatRuntimeState({
     trimContext: canCompact
       ? async () => {
           if (isPending || editBusy) return false
+
           return (
             errorToastsRef.current?.waitForFinish(() => send({ text: '/compact' }, { throwOnError: true }), modelId) ??
             false
@@ -591,6 +661,7 @@ export function useAgentChatRuntimeState({
         }
       : undefined
   })
+
   errorToastsRef.current = errorToasts
 
   return {

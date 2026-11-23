@@ -21,6 +21,7 @@ const START_ERROR_KEYS: Record<HermesDashboardStartFailureReason, string> = {
 
 function withDetail(title: string, detail: string | undefined): string {
   const trimmed = detail?.trim()
+
   return trimmed ? `${title}: ${trimmed.slice(0, ERROR_DETAIL_LIMIT)}` : title
 }
 
@@ -53,6 +54,7 @@ export function useHermesDashboardController(
   useEffect(() => {
     const previous = previousStatus.current
     previousStatus.current = snapshot.status
+
     if (
       (previous === 'running' && (snapshot.status === 'stopped' || snapshot.status === 'error')) ||
       (previous === 'starting' && snapshot.status === 'error')
@@ -78,16 +80,21 @@ export function useHermesDashboardController(
   const onLaunch = useCallback(async () => {
     const epoch = ++operationEpoch.current
     setPendingOperation('launch')
+
     try {
       const result = await ipcApi.request('hermes_dashboard.start')
+
       if (epoch !== operationEpoch.current) return
+
       if (!result.success) {
         previousStatus.current = 'error'
         onConfigMayHaveChanged?.()
         logger.error('Failed to launch Hermes Dashboard', new Error(result.message), { reason: result.reason })
         toast.error(withDetail(t(START_ERROR_KEYS[result.reason]), result.message))
+
         return
       }
+
       openDashboard(result.url)
     } catch (error) {
       logger.error('Failed to launch Hermes Dashboard', error as Error)
@@ -100,20 +107,27 @@ export function useHermesDashboardController(
   const onStop = useCallback(async () => {
     const epoch = ++operationEpoch.current
     setPendingOperation('stop')
+
     try {
       const result = await ipcApi.request('hermes_dashboard.stop')
+
       if (epoch !== operationEpoch.current) return false
+
       if (!result.success) {
         logger.error('Failed to stop Hermes Dashboard', new Error(result.message))
         toast.error(withDetail(t('code.hermes_dashboard.error.stop_failed'), result.message))
+
         return false
       }
+
       previousStatus.current = 'stopped'
       onConfigMayHaveChanged?.()
+
       return true
     } catch (error) {
       logger.error('Failed to stop Hermes Dashboard', error as Error)
       toast.error(t('code.hermes_dashboard.error.stop_failed'))
+
       return false
     } finally {
       if (epoch === operationEpoch.current) setPendingOperation(null)
@@ -123,8 +137,10 @@ export function useHermesDashboardController(
   const onOpenDashboard = useCallback(async () => {
     if (snapshot.status === 'running' && snapshot.url) {
       openDashboard(snapshot.url)
+
       return
     }
+
     logger.error('Failed to open Hermes Dashboard', new Error('Hermes Dashboard is not running'))
     toast.error(t('code.hermes_dashboard.error.open_failed'))
   }, [openDashboard, snapshot.status, snapshot.url, t])

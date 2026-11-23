@@ -13,5 +13,6 @@ export async function defaultChatModel(
   ctx: DoctorContextBase
 ): Promise<{ providerId: string; modelId: string } | null> {
   const parsed = UniqueModelIdSchema.safeParse(await defaultChatModelId(ctx))
+
   return parsed.success ? parseUniqueModelId(parsed.data) : null
 }

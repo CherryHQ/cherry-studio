@@ -42,6 +42,7 @@ type ModelListSyncContentProps = ModelListSyncManageContentProps | ModelListSync
 
 export default function ModelListSyncContent(props: ModelListSyncContentProps) {
   const { t } = useTranslation()
+
   const {
     provider,
     view,
@@ -52,6 +53,7 @@ export default function ModelListSyncContent(props: ModelListSyncContentProps) {
     hideEmptyFilters = false,
     flattenSingleGroup = false
   } = props
+
   const interactionDisabled = disabled || isLoading || isApplying
   const searchDisabled = disabled || isLoading || (props.mode === 'select' && isApplying)
 

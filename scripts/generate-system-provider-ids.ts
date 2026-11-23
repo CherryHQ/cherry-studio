@@ -33,6 +33,7 @@ export function extractSystemProviderIds(providersJson: string): string[] {
   const registrySet = new Set(registryIds)
 
   const staleExcludes = CLI_ONLY_PROVIDER_IDS.filter((id) => !registrySet.has(id))
+
   if (staleExcludes.length > 0) {
     throw new Error(
       `CLI_ONLY_PROVIDER_IDS lists ids absent from the registry: ${staleExcludes.join(', ')}. ` +
@@ -41,6 +42,7 @@ export function extractSystemProviderIds(providersJson: string): string[] {
   }
 
   const excluded = new Set(CLI_ONLY_PROVIDER_IDS)
+
   return registryIds.filter((id) => !excluded.has(id)).sort((a, b) => a.localeCompare(b))
 }
 

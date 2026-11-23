@@ -15,6 +15,7 @@ export function useProviderEnable(providerId: string) {
 
       if (enabled) {
         await enableProvider()
+
         return
       }
 

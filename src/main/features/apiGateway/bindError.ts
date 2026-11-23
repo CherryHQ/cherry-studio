@@ -20,10 +20,12 @@ export function mapGatewayBindError(
 
   const address = 'address' in error && typeof error.address === 'string' ? error.address : endpoint.host
   const port = 'port' in error && typeof error.port === 'number' ? error.port : endpoint.port
+
   const message =
     listener === 'public'
       ? t('api_gateway.errors.public_bind_permission_denied', { address, port })
       : t('api_gateway.errors.internal_bind_permission_denied', { address, port })
+
   return new Error(message, { cause: error })
 }
 /* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-known-value-widening */

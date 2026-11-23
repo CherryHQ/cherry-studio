@@ -19,12 +19,15 @@ type PaintingFileUrlSource = Pick<FileMetadata, 'path' | 'ext'>
 export function getPaintingFileUrl(file: PaintingFileUrlSource): FileUrlString | undefined {
   if (!file.path) return undefined
   const parsedPath = AbsoluteFilePathSchema.safeParse(file.path)
+
   if (!parsedPath.success) {
     if (!warnedPaintingPaths.has(file.path)) {
       warnedPaintingPaths.add(file.path)
       logger.warn('getPaintingFileUrl: non-canonical/invalid painting path', { path: file.path })
     }
+
     return undefined
   }
+
   return toSafeFileUrl(parsedPath.data, file.ext || null)
 }

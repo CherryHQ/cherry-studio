@@ -29,6 +29,7 @@ const McpServerSummarySchema = z.object({
   /** Absolute URL to point an MCP client at. */
   url: z.string()
 })
+
 const ListMcpServersResponseSchema = z.object({ servers: z.array(McpServerSummarySchema) })
 
 /**
@@ -73,6 +74,7 @@ const JSON_RPC_REQUEST_DOC = {
   },
   example: { jsonrpc: '2.0', id: 1, method: 'tools/list' }
 } as const
+
 /** The SSE framing a session request answers with; each `data:` line is a JSON-RPC message. */
 const SSE_RESPONSE_DOC = {
   type: 'string',
@@ -80,6 +82,7 @@ const SSE_RESPONSE_DOC = {
     'Server-sent event stream. Each event carries one JSON-RPC message in `data:` — zero or more notifications, then the response.',
   example: 'event: message\ndata: {"jsonrpc":"2.0","id":1,"result":{}}\n\n'
 } as const
+
 const JSON_RPC_RESPONSE_DOC = {
   type: 'object',
   properties: {
@@ -97,7 +100,9 @@ const JSON_RPC_RESPONSE_DOC = {
 /** Resolve by id or name (v1 accepted both), 404 via the global `onError` when absent. */
 function resolveServer(idOrName: string): McpServer {
   const server = mcpServerService.findByIdOrName(idOrName)
+
   if (!server) throw DataApiErrorFactory.notFound('McpServer', idOrName)
+
   return server
 }
 
@@ -140,6 +145,7 @@ export function createMcpRoutes(sessions: McpSessionStore) {
         ({ request }) => {
           const origin = new URL(request.url).origin
           const { items } = mcpServerService.list({ isActive: true })
+
           return {
             servers: items.map((server) => ({
               id: server.id,
@@ -167,6 +173,7 @@ export function createMcpRoutes(sessions: McpSessionStore) {
           const server = resolveServer(params.server_id)
           // Never rejects — a dead server degrades to an empty tool list rather than a 5xx.
           await application.get('McpCatalogService').warmToolsCache(server.id)
+
           return {
             id: server.id,
             name: server.name,
@@ -262,18 +269,23 @@ export function createMcpRoutes(sessions: McpSessionStore) {
  */
 function forbiddenOrigin(request: Request): Response | undefined {
   const origin = request.headers.get('origin')
+
   if (!origin) return undefined
 
   let hostname: string
+
   try {
     hostname = new URL(origin).hostname
   } catch {
     hostname = ''
   }
+
   const isLoopback = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]'
+
   if (isLoopback) return undefined
 
   logger.warn('Rejected MCP request from a non-local origin', { origin })
+
   return new Response(JSON.stringify(jsonRpcEnvelope(MCP_TRANSPORT_ERROR, 'Forbidden: invalid Origin')), {
     status: 403,
     headers: { 'Content-Type': 'application/json' }
@@ -310,8 +322,10 @@ function isInitialize(body: unknown): boolean {
  */
 function lookupSession(sessions: McpSessionStore, request: Request, serverId: string) {
   const sessionId = request.headers.get('mcp-session-id')
+
   if (!sessionId) return undefined
   const session = sessions.get(sessionId)
+
   return session?.serverId === serverId ? session : null
 }
 
@@ -327,6 +341,7 @@ function needsWarmTools(body: unknown): boolean {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
   const wants = (message: unknown): boolean =>
     typeof message === 'object' && message !== null && (message as { method?: unknown }).method === 'tools/list'
+
   return Array.isArray(body) ? body.some(wants) : wants(body)
 }
 
@@ -338,6 +353,7 @@ async function handleProxyPost(
   body?: unknown
 ): Promise<Response> {
   const server = resolveServer(serverIdOrName)
+
   if (needsWarmTools(body)) {
     await application.get('McpCatalogService').warmToolsCache(server.id)
   }
@@ -345,7 +361,9 @@ async function handleProxyPost(
   if (!(await isLegacyRequest(request, body))) return sessions.handleModern(server, request, body)
 
   const session = lookupSession(sessions, request, server.id)
+
   if (session === null) return sessionNotFound()
+
   // Elysia has already consumed the body stream, so every path below hands the parsed
   // value over rather than letting the transport re-read `request.json()`.
   if (session) return session.transport.handleRequest(request, { parsedBody: body })
@@ -358,11 +376,13 @@ async function handleProxyPost(
       // than a fault in the request.
       if (error instanceof SessionLimitReachedError || error instanceof StoreClosedError) {
         logger.warn('Refused MCP session', { serverId: server.id, error })
+
         return new Response(
           JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: error.message }, id: null }),
           { status: 503, headers: { 'Content-Type': 'application/json' } }
         )
       }
+
       throw error
     }
   }
@@ -377,10 +397,14 @@ async function handleProxySessionOnly(
   request: Request
 ): Promise<Response> {
   const server = resolveServer(serverIdOrName)
+
   if (!(await isLegacyRequest(request))) return sessions.handleModern(server, request)
   const session = lookupSession(sessions, request, server.id)
+
   if (session === null) return sessionNotFound()
+
   if (!session) return methodNotAllowed()
+
   return primeEventStream(await session.transport.handleRequest(request))
 }
 
@@ -407,6 +431,7 @@ function primeEventStream(response: Response): Response {
 
 async function primeAndPipe(writable: WritableStream<Uint8Array>, source: ReadableStream<Uint8Array>): Promise<void> {
   const writer = writable.getWriter()
+
   try {
     await writer.write(new TextEncoder().encode(': open\n\n'))
   } catch (error) {
@@ -419,6 +444,7 @@ async function primeAndPipe(writable: WritableStream<Uint8Array>, source: Readab
   } finally {
     writer.releaseLock()
   }
+
   // Past this point cancellation is `pipeTo`'s job: a destination error cancels the source,
   // since `preventCancel` defaults to false.
   await source.pipeTo(writable)
@@ -434,6 +460,7 @@ async function handleOneShot(server: McpServer, request: Request, body?: unknown
     sessionIdGenerator: undefined,
     enableJsonResponse: true
   })
+
   // No stream to push on, so the bridge must not advertise `tools.listChanged`; see
   // `McpBridgeOptions`. Clients re-list instead of waiting for a notification.
   const bridge = createMcpBridgeServer(server.id, server, { listChanged: false })

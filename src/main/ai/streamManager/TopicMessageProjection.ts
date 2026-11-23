@@ -23,10 +23,12 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
 
   begin(executions: readonly ActiveExecution[], replace: boolean): void {
     this.flush()
+
     if (replace) {
       this.executions.clear()
       this.messages.clear()
     }
+
     for (const execution of executions) {
       this.executions.set(execution.executionId, {
         executionId: execution.executionId,
@@ -36,11 +38,13 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
       })
       this.messages.delete(execution.executionId)
     }
+
     this.publish(true)
   }
 
   accumulate(modelId: UniqueModelId, attemptId: number, message: CherryUIMessage): void {
     const execution = this.executions.get(modelId)
+
     if (!execution || execution.attemptId !== attemptId || execution.status !== 'active') return
     this.setMessage(execution, message)
     this.publish()
@@ -66,8 +70,10 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
   ): void {
     for (const execution of this.executions.values()) {
       if (result.modelId && result.modelId !== execution.executionId) continue
+
       if (result.attemptId !== undefined && result.attemptId !== execution.attemptId) continue
       let message = result.finalMessage ?? this.messages.get(execution.executionId)
+
       if (result.status === 'error' && !message?.parts.some((part) => part.type === 'data-error')) {
         message = {
           id: message?.id ?? execution.anchorMessageId ?? crypto.randomUUID(),
@@ -85,6 +91,7 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
           ]
         }
       }
+
       if (message)
         this.setMessage(execution, {
           ...message,
@@ -96,6 +103,7 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
         status
       })
     }
+
     this.publish(true)
   }
 

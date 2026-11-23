@@ -4,6 +4,7 @@ import { DolaLight } from './light'
 
 const Dola = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <DolaLight {...props} className={className} />
+
   return <DolaLight {...props} className={className} />
 }
 

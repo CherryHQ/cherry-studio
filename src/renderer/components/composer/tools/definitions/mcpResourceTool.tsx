@@ -34,6 +34,7 @@ const TEXT_LIKE_MIME_PATTERN = /^text\/|json|xml|yaml|markdown|csv|sql|html|java
 /** A missing mimeType is treated as text: MCP servers routinely omit it for text resources. */
 export function isTextLikeMcpResource(mimeType?: string): boolean {
   if (!mimeType) return true
+
   return TEXT_LIKE_MIME_PATTERN.test(mimeType)
 }
 
@@ -52,8 +53,10 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
 
   useEffect(() => {
     isMountedRef.current = true
+
     return () => {
       isMountedRef.current = false
+
       if (requestIdRef.current)
         void ipcApi
           .request('mcp.request.cancel', { requestId: requestIdRef.current })
@@ -69,22 +72,29 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
    */
   const resourceReader = useMemo<'runtime' | 'mcp_resource_read' | null>(() => {
     if (scope === TopicType.Session) return 'runtime'
+
     return isSupportedToolUse(model) ? 'mcp_resource_read' : null
   }, [model, scope])
 
   const { agent } = useAgent(dataRequested && scope === TopicType.Session ? (session?.agentId ?? null) : null)
+
   const boundServerIds = useMemo<readonly string[] | 'all' | null>(() => {
     if (scope === TopicType.Session) return agent?.mcps ?? []
     const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
+
     if (mode === 'disabled') return null
+
     return mode === 'auto' ? 'all' : (assistant?.mcpServerIds ?? [])
   }, [agent?.mcps, assistant, scope])
+
   const { servers } = useScopedMcpServers(boundServerIds, { enabled: dataRequested })
 
   useEffect(() => {
     if (!dataRequested) return
+
     if (servers.length === 0) {
       setResources([])
+
       return
     }
 
@@ -94,11 +104,13 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
       const results = await Promise.allSettled(
         servers.map((server) => ipcApi.request('mcp.server.list_resources', { serverId: server.id }))
       )
+
       if (cancelled) return
       setResources(
         results.flatMap((result, index) => {
           if (result.status === 'fulfilled') return result.value ?? []
           logger.warn('Failed to list MCP resources', { serverId: servers[index].id, error: result.reason })
+
           return []
         })
       )
@@ -114,11 +126,14 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
     (resource: McpResource, options?: QuickPanelCallBackOptions) => {
       const inputAdapter = options?.inputAdapter
       const token = mcpResourceToComposerToken(resource, { reader: resourceReader ?? 'runtime' })
+
       if (inputAdapter?.insertToken) {
         inputAdapter.insertToken(token)
         inputAdapter.focus()
+
         return
       }
+
       // Composers without a token-capable adapter (plain textarea) still get the sentence.
       actions.onTextChange?.((prev) => `${prev}${token.promptText ?? ''}`)
     },
@@ -128,11 +143,14 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
   const insertText = useCallback(
     (text: string, options?: QuickPanelCallBackOptions) => {
       const inputAdapter = options?.inputAdapter
+
       if (inputAdapter) {
         inputAdapter.insertText(text)
         inputAdapter.focus()
+
         return
       }
+
       actions.onTextChange?.((prev) => `${prev}${text}`)
     },
     [actions]
@@ -141,23 +159,29 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
   const handleSelect = useCallback(
     async (resource: McpResource, options?: QuickPanelCallBackOptions) => {
       const generation = ++selectionGenerationRef.current
+
       if (requestIdRef.current)
         void ipcApi
           .request('mcp.request.cancel', { requestId: requestIdRef.current })
           .catch((error) => logger.debug('MCP resource cancellation failed', { error }))
       const requestId = crypto.randomUUID()
       requestIdRef.current = requestId
+
       try {
         // A declared binary type cannot be inlined. Insert the deferred read immediately instead of
         // downloading the blob once for classification and again when the runtime reads it.
         if (!isTextLikeMcpResource(resource.mimeType)) {
           if (!resourceReader) {
             toast.error(t('chat.input.mcp_resources.reader_unavailable'))
+
             return
           }
+
           insertReferenceToken(resource, options)
+
           return
         }
+
         // Capped main-side: only the inline budget crosses IPC, plus the metadata needed to decide
         // between inlining and attaching a reference.
         const preview = await ipcApi.request('mcp.server.read_resource_preview', {
@@ -167,19 +191,24 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
           uri: resource.uri,
           maxChars: MCP_RESOURCE_INLINE_MAX_CHARS
         })
+
         // The composer this pick targeted may be gone (topic switch, unmount) by now.
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
 
         if (preview.text && preview.totalChars <= MCP_RESOURCE_INLINE_MAX_CHARS) {
           insertText(preview.text, options)
+
           return
         }
+
         // Everything else has to be read later, by a tool — which only exists when the runtime
         // exposes one. Saying so beats attaching a reference nothing in this scope can follow.
         if (!resourceReader) {
           toast.error(t('chat.input.mcp_resources.reader_unavailable'))
+
           return
         }
+
         insertReferenceToken(resource, options)
       } catch (error) {
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
@@ -224,6 +253,7 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
 
     return resources.map((resource) => {
       const isBinary = !isTextLikeMcpResource(resource.mimeType)
+
       return {
         id: `mcp-resource:${resource.serverId}:${resource.uri}`,
         label: resource.name || resource.uri,

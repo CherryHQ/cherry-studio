@@ -47,4 +47,5 @@ export function createWebFetchToolEntry() {
 }
 
 export type WebFetchToolInput = InferToolInput<typeof webFetchTool>
+
 export type WebFetchToolOutput = InferToolOutput<typeof webFetchTool>

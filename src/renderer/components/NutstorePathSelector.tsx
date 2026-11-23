@@ -78,6 +78,7 @@ function FileList(props: FileListProps) {
         }
       }
     }
+
     void fetchFiles()
   }, [props.path, props.fs, t])
 
@@ -157,6 +158,7 @@ interface FooterProps {
 
 export function NustorePathSelectorFooter(props: FooterProps) {
   const { t } = useTranslation()
+
   return (
     <RowFlex className="mt-3 justify-between bg-transparent p-0">
       <RowFlex className="items-center gap-2">

@@ -6,7 +6,9 @@ import { V0Light } from './light'
 
 const V0 = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <V0Light {...props} className={className} />
+
   if (variant === 'dark') return <V0Dark {...props} className={className} />
+
   return (
     <>
       <V0Light className={cn('dark:hidden', className)} {...props} />

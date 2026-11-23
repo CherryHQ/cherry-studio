@@ -9,6 +9,7 @@ const targets = [
 function getReleaseTargets(platform) {
   if (!['all', 'windows', 'mac', 'linux'].includes(platform))
     throw new Error(`Unsupported release platform: ${platform}`)
+
   return targets.filter((target) => platform === 'all' || target.platform === platform)
 }
 

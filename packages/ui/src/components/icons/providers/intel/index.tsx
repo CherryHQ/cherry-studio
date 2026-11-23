@@ -4,6 +4,7 @@ import { IntelLight } from './light'
 
 const Intel = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <IntelLight {...props} className={className} />
+
   return <IntelLight {...props} className={className} />
 }
 

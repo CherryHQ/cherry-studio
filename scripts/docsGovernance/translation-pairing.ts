@@ -46,8 +46,11 @@ export const normalizeRepoPath = (value: string): string => value.replaceAll('\\
 
 export const pairAnchor = (argument: string): string => {
   const value = normalizeRepoPath(argument)
+
   if (value.endsWith('.zh.md')) return `${value.slice(0, -'.zh.md'.length)}.md`
+
   if (value.endsWith('.i18n.yaml')) return `${value.slice(0, -'.i18n.yaml'.length)}.md`
+
   return value.endsWith('.md') ? value : `${value}.md`
 }
 
@@ -61,6 +64,7 @@ export const corpusPairAnchors = (roots: readonly string[], discoveredFiles: rea
 
 export const pairPaths = (source: string): PairPaths => {
   if (!source.endsWith('.md') || source.endsWith('.zh.md')) throw new Error(`invalid English Markdown path: ${source}`)
+
   return {
     source,
     zh: source.replace(/\.md$/, '.zh.md'),
@@ -72,19 +76,24 @@ export const blobHash = (content: Buffer): string => {
   const hash = createHash('sha1')
   hash.update(`blob ${content.byteLength}\0`)
   hash.update(content)
+
   return hash.digest('hex')
 }
 
 export const parseRecord = (content: string, paths: PairPaths): PairRecord | undefined => {
   const values = new Map<string, string>()
+
   for (const line of content.split('\n')) {
     if (!line || line.startsWith('#')) continue
     const match = META_LINE.exec(line)
+
     if (!match?.[1] || !match[2] || values.has(match[1])) return undefined
     values.set(match[1], match[2])
   }
+
   const sourceHash = values.get(basename(paths.source))
   const zhHash = values.get(basename(paths.zh))
+
   return values.size === 2 && sourceHash && zhHash ? { sourceHash, zhHash } : undefined
 }
 
@@ -100,6 +109,7 @@ export const renderRecord = (paths: PairPaths, record: PairRecord): string =>
 
 const validRepoPath = (value: string): boolean => {
   const segments = value.split('/')
+
   return (
     value.length > 0 &&
     !value.startsWith('/') &&
@@ -111,11 +121,14 @@ const validRepoPath = (value: string): boolean => {
 
 export const parseManifest = (content: string): PairingManifest => {
   const parsed: unknown = JSON.parse(content)
+
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
     throw new Error('manifest must be an object')
   const record: { roots?: unknown; excluded?: unknown } = parsed
   const unknown = Object.keys(record).filter((key) => key !== 'roots' && key !== 'excluded')
+
   if (unknown.length) throw new Error(`unsupported manifest field(s): ${unknown.join(', ')}`)
+
   if (
     !Array.isArray(record.roots) ||
     record.roots.length === 0 ||
@@ -123,13 +136,17 @@ export const parseManifest = (content: string): PairingManifest => {
   ) {
     throw new Error('manifest roots must be a non-empty string array')
   }
+
   if (!Array.isArray(record.excluded) || !record.excluded.every((item) => typeof item === 'string')) {
     throw new Error('manifest excluded must be a string array')
   }
+
   const roots = record.roots.map(normalizeRepoPath)
   const excluded = record.excluded.map(normalizeRepoPath)
+
   if (![...roots, ...excluded].every(validRepoPath))
     throw new Error('manifest paths must be normalized repo-relative paths')
+
   return { roots: [...new Set(roots)].sort(), excluded: [...new Set(excluded)].sort() }
 }
 
@@ -145,21 +162,31 @@ export const parsePairingArgs = (args: string[]): PairingRequest => {
   const flags = args.filter((arg) => arg.startsWith('--'))
   const anchors = [...new Set(args.flatMap((arg) => (!arg.startsWith('--') ? [pairAnchor(arg)] : [])))].sort()
   const invalidAnchors = anchors.filter((anchor) => !validRepoPath(anchor))
+
   if (invalidAnchors.length)
     throw new Error(`pair paths must be normalized repo-relative paths: ${invalidAnchors.join(', ')}`)
   const unknown = flags.filter((flag) => !['--list', '--write', '--all', '--cached'].includes(flag))
+
   if (unknown.length) throw new Error(`unknown flag(s): ${unknown.join(', ')}`)
   const list = flags.includes('--list')
   const write = flags.includes('--write')
   const all = flags.includes('--all')
   const cached = flags.includes('--cached')
+
   if (list && (write || all || cached || anchors.length)) throw new Error('--list takes no other flags or paths')
+
   if (all && !write) throw new Error('--all only applies to --write')
+
   if (cached && write) throw new Error('--cached is read-only')
+
   if (write && anchors.length === 0 && !all) throw new Error('--write requires confirmed pair paths or --all')
+
   if (write && anchors.length > 0 && all) throw new Error('--write takes paths or --all, not both')
+
   if (list) return { input: 'worktree', mode: 'list', scope: 'corpus', anchors: [] }
+
   if (write) return { input: 'worktree', mode: 'write', scope: all ? 'corpus' : 'pairs', anchors }
+
   return {
     input: cached ? 'index' : 'worktree',
     mode: 'check',
@@ -178,8 +205,10 @@ const structureSignature = (content: string, ignoredLink: string): StructureSign
   visit(tree, 'code', (node) => {
     const start = node.position?.start.offset
     const end = node.position?.end.offset
+
     if (start === undefined || end === undefined) return
     const raw = content.slice(start, end)
+
     if (/^ {0,3}(?:`{3,}|~{3,})/u.test(raw)) signature.code.push(raw)
   })
   visit(tree, 'table', (node) =>
@@ -196,15 +225,21 @@ const structureSignature = (content: string, ignoredLink: string): StructureSign
   })
   visit(tree, (node) => {
     let target: string | undefined
+
     if (node.type === 'link') target = node.url
     else if (node.type === 'linkReference') target = definitions.get(node.identifier)
+
     if (!target) return
+
     if (!ignoredSwitcher && target === ignoredLink) {
       ignoredSwitcher = true
+
       return
     }
+
     signature.links.push(target)
   })
+
   return signature
 }
 
@@ -212,10 +247,12 @@ const isChineseMarkdownTarget = (target: string): boolean => target.split(/[?#]/
 
 const firstDifference = (label: string, left: readonly unknown[], right: readonly unknown[]): string | undefined => {
   const length = Math.max(left.length, right.length)
+
   for (let index = 0; index < length; index += 1) {
     if (left[index] !== right[index])
       return `${label} #${index + 1} differs: ${JSON.stringify(left[index])} vs ${JSON.stringify(right[index])}`
   }
+
   return undefined
 }
 
@@ -229,7 +266,9 @@ const checkFrontmatter = (source: string, zh: string): string[] => {
   const zhData = matter(zh).data as Record<string, unknown>
   const errors: string[] = []
   const keys = [...new Set([...Object.keys(sourceData), ...Object.keys(zhData)])].sort()
+
   if (!deepEqual(Object.keys(sourceData).sort(), Object.keys(zhData).sort())) errors.push('frontmatter keys differ')
+
   for (const key of keys) {
     if (key === 'description') {
       for (const [side, value] of [
@@ -243,6 +282,7 @@ const checkFrontmatter = (source: string, zh: string): string[] => {
       errors.push(`frontmatter ${JSON.stringify(key)} must match exactly`)
     }
   }
+
   return errors
 }
 
@@ -252,8 +292,11 @@ const switcherError = (file: string, content: string, counterpart: string, chine
   const expected = chinese ? `[English](${basename(counterpart)}) | 中文` : `English | [中文](${basename(counterpart)})`
   const agentNote = /^\.agents\/notes\/(?:proposed|implemented|rejected)\//u.test(file)
   const position = agentNote ? 4 : 2
+
   if (!/^# \S/u.test(lines[0] ?? '')) return 'missing H1 heading'
+
   if (lines[position] !== expected) return `line ${position + 1} must be ${JSON.stringify(expected)}`
+
   return undefined
 }
 
@@ -263,11 +306,14 @@ export const validatePairContent = (paths: PairPaths, source: Buffer, zh: Buffer
   const errors = checkFrontmatter(sourceText, zhText)
   const sourceSwitcher = switcherError(paths.source, sourceText, paths.zh, false)
   const zhSwitcher = switcherError(paths.zh, zhText, paths.source, true)
+
   if (sourceSwitcher) errors.push(`${paths.source}: ${sourceSwitcher}`)
+
   if (zhSwitcher) errors.push(`${paths.zh}: ${zhSwitcher}`)
 
   const sourceStructure = structureSignature(matter(sourceText).content, basename(paths.zh))
   const zhStructure = structureSignature(matter(zhText).content, basename(paths.source))
+
   for (const [file, links] of [
     [paths.source, sourceStructure.links],
     [paths.zh, zhStructure.links]
@@ -276,6 +322,7 @@ export const validatePairContent = (paths: PairPaths, source: Buffer, zh: Buffer
       errors.push(`${file}: non-switcher link must target the English .md path, not ${JSON.stringify(target)}`)
     }
   }
+
   for (const [label, left, right] of [
     ['heading depth', sourceStructure.headings, zhStructure.headings],
     ['code block', sourceStructure.code, zhStructure.code],
@@ -284,7 +331,9 @@ export const validatePairContent = (paths: PairPaths, source: Buffer, zh: Buffer
     ['link target', sourceStructure.links, zhStructure.links]
   ] as const) {
     const difference = firstDifference(label, left, right)
+
     if (difference) errors.push(`${paths.source} ↔ ${paths.zh}: ${difference}`)
   }
+
   return errors
 }

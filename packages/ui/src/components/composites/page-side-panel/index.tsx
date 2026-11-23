@@ -64,6 +64,7 @@ function PageSidePanel({
   const closedByPointerDownRef = useRef(false)
   const scopedContainer = usePortalContainer()
   const portalContainer = scopedContainer ?? (typeof document === 'undefined' ? null : document.body)
+
   const isScopedPortal =
     typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
 
@@ -152,8 +153,10 @@ function PageSidePanel({
                         closedByPointerDownRef.current = false
                         event.preventDefault()
                         event.stopPropagation()
+
                         return
                       }
+
                       handleClose(event)
                     }}
                     aria-label={closeLabel}

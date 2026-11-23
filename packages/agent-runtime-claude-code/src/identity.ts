@@ -6,6 +6,7 @@ export function isCommandLifecycle(value: unknown): value is ClaudeCommandLifecy
   if (!value || typeof value !== 'object') return false
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Native lifecycle field names come from their owner; values remain unvalidated until the checks below.
   const event: { [K in keyof ClaudeCommandLifecycle]?: unknown } = value
+
   return (
     event.type === 'command_lifecycle' &&
     typeof event.command_uuid === 'string' &&
@@ -25,6 +26,7 @@ export function isUuid(value: string): value is `${string}-${string}-${string}-$
 /** Construct a thread only from an established native session/agent identity. */
 export function claudeThread(backendId: BackendId, sessionId: string, agentId?: string): Thread {
   if (!isUuid(sessionId) || (agentId !== undefined && !agentId)) throw new TypeError('Invalid Claude identity')
+
   return Object.freeze({
     backendId,
     id: runtimeId<'thread'>(agentId === undefined ? sessionId : `${sessionId}/${encodeURIComponent(agentId)}`)
@@ -33,9 +35,12 @@ export function claudeThread(backendId: BackendId, sessionId: string, agentId?: 
 
 export function nativeIdentity(thread: Thread) {
   const [sessionId, encoded, extra] = thread.id.split('/')
+
   if (!isUuid(sessionId) || extra !== undefined || encoded === '') throw new TypeError('Invalid Claude thread')
   const agentId = encoded === undefined ? undefined : decodeURIComponent(encoded)
+
   if (agentId !== undefined && encodeURIComponent(agentId) !== encoded) throw new TypeError('Invalid child identity')
+
   return { sessionId, agentId }
 }
 

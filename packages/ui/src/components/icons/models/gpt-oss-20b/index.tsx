@@ -4,6 +4,7 @@ import { GptOss20bLight } from './light'
 
 const GptOss20b = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptOss20bLight {...props} className={className} />
+
   return <GptOss20bLight {...props} className={className} />
 }
 

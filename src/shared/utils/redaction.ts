@@ -17,6 +17,7 @@ export const SENSITIVE_KEY_EXACT = ['openai-organization', 'openai-project']
 
 export function isSensitiveKey(key: string): boolean {
   const upper = key.toUpperCase()
+
   return SENSITIVE_KEY_STEMS.some((stem) => upper.includes(stem)) || SENSITIVE_KEY_EXACT.includes(key.toLowerCase())
 }
 
@@ -41,15 +42,21 @@ export function redactDeep(value: unknown): Serializable {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw array items and object properties inherit the diagnostic input boundary; classify each value before serializing it.
   const redact = (val: unknown, seen: WeakSet<object>): Serializable => {
     if (val == null) return null
+
     if (typeof val === 'string') {
       return val.length > MAX_STRING ? `${val.slice(0, MAX_STRING)}…<${val.length - MAX_STRING} more>` : val
     }
+
     if (typeof val === 'boolean') return val
+
     if (typeof val === 'number') return Number.isFinite(val) ? val : null
+
     if (typeof val !== 'object') return REDACTED
+
     if (seen.has(val)) return '[Circular]'
     seen.add(val)
     let result: Serializable
+
     if (Array.isArray(val)) {
       result = val.map((v) => redact(v, seen))
     } else {
@@ -57,11 +64,14 @@ export function redactDeep(value: unknown): Serializable {
         Object.entries(val).map(([key, item]) => [key, isSensitiveKey(key) ? REDACTED : redact(item, seen)])
       )
     }
+
     // Only ancestors are circular. Removing the node on the way out keeps a
     // shared (DAG) reference redacted on every occurrence instead of misreported.
     seen.delete(val)
+
     return result
   }
+
   return redact(value, new WeakSet())
 }
 
@@ -77,13 +87,18 @@ export function redactServerKey(serverKey: string): string {
     typeof value === 'object' && value !== null
       ? Object.fromEntries(Object.keys(value).map((key) => [key, REDACTED]))
       : value
+
   try {
     const parsed = SerializableSchema.parse(JSON.parse(serverKey))
+
     if (parsed === null || typeof parsed !== 'object') return '<unparseable-serverKey>'
+
     if (!Array.isArray(parsed)) {
       if ('env' in parsed) parsed.env = redactAllValues(parsed.env)
+
       if ('headers' in parsed) parsed.headers = redactAllValues(parsed.headers)
     }
+
     return JSON.stringify(parsed)
   } catch {
     return '<unparseable-serverKey>'
@@ -98,12 +113,15 @@ const SCHEME_URL_RE = /^[a-z][a-z\d+.-]*:\/\//i
  */
 export function redactUrlToOrigin(value: string): string {
   const trimmed = value.trim()
+
   if (!trimmed) return 'configured'
 
   if (SCHEME_URL_RE.test(trimmed)) {
     try {
       const url = new URL(trimmed)
+
       if (!url.host) return 'configured'
+
       return `${url.protocol}//${url.host}`
     } catch {
       return 'configured'
@@ -117,6 +135,7 @@ export function redactUrlToOrigin(value: string): string {
 
   try {
     const url = new URL(`http://${host}`)
+
     return url.host || 'configured'
   } catch {
     return 'configured'
@@ -132,13 +151,17 @@ export function redactUrlToOrigin(value: string): string {
 export function redactUrlParams(rawUrl: string, extraKeys: readonly string[] = []): string {
   try {
     const url = new URL(rawUrl)
+
     if (url.username) url.username = REDACTED
+
     if (url.password) url.password = REDACTED
+
     for (const key of [...url.searchParams.keys()]) {
       if (isSensitiveKey(key) || extraKeys.includes(key.toLowerCase())) {
         url.searchParams.set(key, REDACTED)
       }
     }
+
     return url.toString()
   } catch {
     return rawUrl
@@ -163,10 +186,12 @@ const URL_USERINFO_PATTERN = /((?:\b[a-z][a-z\d+.-]*:)?\/\/)[^\s/\\?#]+@/gi
 export function redactSecretText(text: string, extraKeys: readonly string[] = []): string {
   // Escape each extra key — raw insertion of regex metacharacters would silently break the alternation.
   const escaped = extraKeys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+
   const withExtras =
     escaped.length === 0
       ? SECRET_KEY_VALUE_PATTERN
       : new RegExp(SECRET_KEY_VALUE_PATTERN.source.replace('|apikey', `|apikey|${escaped.join('|')}`), 'gi')
+
   return text
     .replace(URL_USERINFO_PATTERN, `$1${REDACTED}@`)
     .replace(BEARER_SCHEME_PATTERN, `$1 ${REDACTED}`)
@@ -203,5 +228,6 @@ export function redactSecretTokens(text: string, replacement: string = REDACTED)
 /** Redact an exact runtime-known secret literal wherever it occurs. */
 export function redactLiteral(text: string, secret: string | undefined): string {
   if (!secret) return text
+
   return text.split(secret).join(REDACTED)
 }

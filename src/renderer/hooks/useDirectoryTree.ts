@@ -39,6 +39,7 @@ export function useDirectoryTree(
 ): UseDirectoryTreeResult {
   const inputs = useRef({ rootPath, options, onMutation })
   inputs.current = { rootPath, options, onMutation }
+
   const session = useMemo(
     () =>
       rootPath
@@ -48,12 +49,14 @@ export function useDirectoryTree(
         : undefined,
     [rootPath]
   )
+
   const previous = useRef(session)
   useLayoutEffect(() => {
     if (previous.current !== session) previous.current?.dispose()
     previous.current = session
   }, [session])
   const state = useSyncExternalStore(session?.subscribe ?? emptySubscribe, session?.getSnapshot ?? emptySnapshot)
+
   return { ...state, getNode: session?.getNode ?? emptyNode }
 }
 
@@ -87,6 +90,7 @@ function indexTree(root: TreeDirRoot): Map<string, TreeNode> {
   root.walk((n) => {
     map.set(n.path, n)
   })
+
   return map
 }
 
@@ -94,53 +98,73 @@ function applyMutation(state: MirrorState, event: TreeMutationEvent): boolean {
   if (event.type === 'added') {
     if (state.nodes.has(event.path)) return false
     const parent = state.nodes.get(event.parentPath)
+
     if (!parent || !(parent instanceof TreeDir)) return false
+
     const node =
       event.kind === 'directory'
         ? new TreeDir({ path: event.path, stats: event.stats })
         : new TreeFile({ path: event.path, stats: event.stats })
+
     parent.attachChild(node)
     state.nodes.set(event.path, node)
+
     return true
   }
+
   if (event.type === 'removed') {
     const node = state.nodes.get(event.path)
+
     if (!node) return false
+
     if (node instanceof TreeDir) {
       const drop: string[] = []
       node.walk((n) => {
         if (n !== node) drop.push(n.path)
       })
+
       for (const p of drop) state.nodes.delete(p)
     }
+
     state.nodes.delete(event.path)
     node.remove()
+
     return true
   }
+
   if (event.type === 'renamed') {
     // Renames preserve node identity; reindex descendants after their paths cascade.
     const node = state.nodes.get(event.oldPath)
+
     if (!node) return false
     const oldPaths: string[] = [node.path]
+
     if (node instanceof TreeDir) {
       node.walk((n) => {
         if (n !== node) oldPaths.push(n.path)
       })
     }
+
     node.path = event.newPath
+
     for (const p of oldPaths) state.nodes.delete(p)
     state.nodes.set(node.path, node)
+
     if (node instanceof TreeDir) {
       node.walk((n) => {
         if (n !== node) state.nodes.set(n.path, n)
       })
     }
+
     return true
   }
+
   // updated
   const node = state.nodes.get(event.path)
+
   if (!node) return false
   node.stats = event.stats
+
   return true
 }
 
@@ -168,8 +192,10 @@ class DirectoryTreeSession {
     this.idleTimer = undefined
     this.listeners.add(listener)
     this.release ??= this.start()
+
     return () => {
       this.listeners.delete(listener)
+
       if (this.listeners.size === 0) this.idleTimer = setTimeout(() => this.dispose(), IDLE_RELEASE_MS)
     }
   }
@@ -184,6 +210,7 @@ class DirectoryTreeSession {
 
   private update(patch: Partial<DirectoryTreeState>): void {
     this.state = { ...this.state, ...patch }
+
     for (const listener of this.listeners) listener()
   }
 
@@ -206,10 +233,12 @@ class DirectoryTreeSession {
     const releaseTree = (): void => {
       unsubscribeMutations?.()
       unsubscribeMutations = null
+
       if (createdTreeId) {
         disposeTree(createdTreeId)
         createdTreeId = null
       }
+
       this.mirror = null
     }
 
@@ -220,8 +249,10 @@ class DirectoryTreeSession {
             rootPath: AbsoluteFilePathSchema.parse(rootPath),
             options: this.options
           })
+
           if (cancelled) {
             disposeTree(result.treeId)
+
             return
           }
 
@@ -234,22 +265,29 @@ class DirectoryTreeSession {
           unsubscribeMutations = ipcApi.on('file.tree.mutation', (payload) => {
             if (payload.treeId !== result.treeId) return
             const mirror = this.mirror
+
             if (!mirror) return
+
             if (payload.revision <= mirror.revision) return
             const expectedRevision = mirror.revision + 1
+
             if (payload.revision !== expectedRevision) {
               const revisionError = new Error(
                 `Directory tree ${result.treeId} mutation gap: expected ${expectedRevision}, received ${payload.revision}`
               )
+
               logger.error(`Directory tree mutation stream became stale for ${rootPath}`, revisionError)
               released = true
               releaseTree()
               this.update({ root: null, treeId: null, error: revisionError, isLoading: false })
+
               return
             }
+
             const changed = applyMutation(mirror, payload.event)
             mirror.revision = payload.revision
             this.onMutation(payload.event)
+
             if (changed) this.update({ version: this.state.version + 1 })
           })
 
@@ -257,10 +295,12 @@ class DirectoryTreeSession {
             treeId: result.treeId,
             revision: result.revision
           })
+
           if (cancelled || released) return
 
           if (activated) {
             this.update({ root: snapshotRoot, treeId: result.treeId, isLoading: false })
+
             return
           }
 
@@ -270,15 +310,19 @@ class DirectoryTreeSession {
           })
           releaseTree()
         }
+
         throw new Error(`Directory tree for ${rootPath} was refused activation ${MAX_ACTIVATION_ATTEMPTS} times`)
       } catch (err) {
         if (cancelled) return
         releaseTree()
         const normalized = err instanceof Error ? err : new Error(String(err))
+
         if (normalized instanceof IpcError && normalized.code === fileErrorCodes.DIRECTORY_TREE_STOPPED) {
           this.update({ isLoading: false })
+
           return
         }
+
         logger.error(`Failed to create directory tree for ${rootPath}`, normalized)
         this.update({ error: normalized, isLoading: false })
       }

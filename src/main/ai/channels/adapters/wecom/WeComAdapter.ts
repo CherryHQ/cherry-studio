@@ -41,6 +41,7 @@ import { FlushController } from '../../FlushController'
 // Conservative limits until the deployed bot's stream/markdown limits are verified.
 const TEXT_BYTES = 2048
 const STREAM_WINDOW_MS = 170_000
+
 // Ordinary-file upload bounds: https://developer.work.weixin.qq.com/document/path/101463
 const MIN_UPLOAD_FILE_BYTES = 5
 const FILE_BYTES = 20 * 1024 * 1024
@@ -67,8 +68,10 @@ function textChunks(text: string): string[] {
   const chunks: string[] = []
   let chunk = ''
   let bytes = 0
+
   for (const character of text) {
     const size = Buffer.byteLength(character)
+
     if (bytes + size > TEXT_BYTES - 64) {
       const newline = chunk.lastIndexOf('\n')
       const boundary = newline >= 0 ? newline + 1 : chunk.length
@@ -76,18 +79,25 @@ function textChunks(text: string): string[] {
       chunk = chunk.slice(boundary)
       bytes = Buffer.byteLength(chunk)
     }
+
     chunk += character
     bytes += size
   }
+
   if (chunk) chunks.push(chunk)
   let fence: string | null = null
+
   return chunks.map((part, index) => {
     const prefix = fence ? `${fence}\n` : ''
+
     for (const line of part.split('\n')) {
       const marker = /^ {0,3}(```|~~~)/.exec(line)?.[1]
+
       if (marker) fence = fence === marker ? null : (fence ?? marker)
     }
+
     const suffix = fence ? `\n${fence}` : ''
+
     return `[${index + 1}/${chunks.length}]\n${prefix}${part}${suffix}`
   })
 }
@@ -129,17 +139,20 @@ export class WeComAdapter extends ChannelAdapter {
     this.lifetime = new AbortController()
     setMaxListeners(256, this, this.lifetime.signal)
     this.alive = true
+
     const client = new WSClient({
       botId: this.cfg.bot_id,
       secret: this.cfg.secret,
       // SDK diagnostics can contain callback bodies and attachment decryption keys.
       logger: { debug() {}, info() {}, warn() {}, error() {} }
     })
+
     this.client = client
     client.on('authenticated', () => {
       if (!this.alive || this.client !== client) return
       this.markConnected()
       this.log.info('WeCom authenticated')
+
       for (const context of this.responses.values()) {
         if (!context.started || context.finished || context.active) continue
         const resumed = Date.now() < context.expiresAt ? this.flush(context, false) : this.transfer(context)
@@ -151,6 +164,7 @@ export class WeComAdapter extends ChannelAdapter {
     })
     client.on('error', (error) => {
       if (!this.alive) return
+
       if (error instanceof WSAuthFailureError || error instanceof WSReconnectExhaustedError) {
         this.retire(t('common.wecom_connection_failed'))
       } else {
@@ -162,6 +176,7 @@ export class WeComAdapter extends ChannelAdapter {
       void this.receive(frame).catch(() => this.log.warn('WeCom inbound message failed'))
     })
     const connected = this.waitConnected(30_000, signal)
+
     try {
       client.connect()
       await connected
@@ -192,11 +207,13 @@ export class WeComAdapter extends ChannelAdapter {
   private async waitConnected(timeoutMs = 5 * 60_000, signal?: AbortSignal, bytes = 0): Promise<void> {
     if (!this.alive || this.waiting >= 100 || this.waitingBytes + bytes > MESSAGE_BYTES)
       throw new Error(t('common.wecom_connection_failed'))
+
     if (this.connected) return
     const abort = signal ? AbortSignal.any([signal, this.lifetime.signal]) : this.lifetime.signal
     abort.throwIfAborted()
     this.waiting++
     this.waitingBytes += bytes
+
     try {
       await new Promise<void>((resolve, reject) => {
         const cleanup = () => {
@@ -204,16 +221,19 @@ export class WeComAdapter extends ChannelAdapter {
           this.off('statusChange', changed)
           abort.removeEventListener('abort', failed)
         }
+
         const failed = () => {
           cleanup()
           reject(new Error(t('common.wecom_connection_failed')))
         }
+
         const changed = () => {
           if (this.connected) {
             cleanup()
             resolve()
           }
         }
+
         const timer = setTimeout(failed, timeoutMs)
         timer.unref()
         abort.addEventListener('abort', failed, { once: true })
@@ -227,8 +247,10 @@ export class WeComAdapter extends ChannelAdapter {
 
   private allowed(chatId: string, userId?: string): boolean {
     if (!/^(dm|group):\S+$/.test(chatId)) return false
+
     if (this.cfg.allowed_chat_ids.length && !this.cfg.allowed_chat_ids.includes(chatId)) return false
     const recipient = userId ?? (chatId.startsWith('dm:') ? chatId.slice(3) : undefined)
+
     return !recipient || !this.cfg.allowed_user_ids.length || this.cfg.allowed_user_ids.includes(recipient)
   }
 
@@ -238,6 +260,7 @@ export class WeComAdapter extends ChannelAdapter {
 
   private async receive(frame: WsFrame<BaseMessage>): Promise<void> {
     const body = frame.body as IncomingMessage | undefined
+
     if (
       !this.alive ||
       !body ||
@@ -247,14 +270,17 @@ export class WeComAdapter extends ChannelAdapter {
       body.aibotid !== this.cfg.bot_id
     )
       return
+
     const chatId =
       body.chattype === 'single'
         ? `dm:${body.from.userid}`
         : body.chattype === 'group' && body.chatid
           ? `group:${body.chatid}`
           : ''
+
     if (!this.allowed(chatId, body.from.userid) || this.seen.has(body.msgid)) return
     this.seen.set(body.msgid, true)
+
     if (this.responses.size >= 1000) {
       this.log.warn('WeCom response capacity reached')
       await this.sendToChat(chatId, () =>
@@ -265,9 +291,12 @@ export class WeComAdapter extends ChannelAdapter {
           true
         )
       )
+
       return
     }
+
     const opts = { replyToMessageId: body.msgid }
+
     const context: ResponseContext = {
       chatId,
       reqId: frame.headers.req_id,
@@ -279,8 +308,10 @@ export class WeComAdapter extends ChannelAdapter {
       active: false,
       finished: false
     }
+
     context.flusher = new FlushController(async () => {
       if (context.finished || context.active || !this.connected) return
+
       try {
         if (Date.now() >= context.expiresAt) await this.transfer(context)
         else await this.flush(context, false)
@@ -296,12 +327,14 @@ export class WeComAdapter extends ChannelAdapter {
     const byteBudget = { remaining: MESSAGE_BYTES + 20 * 32 }
     const controller = new AbortController()
     const signal = AbortSignal.any([this.lifetime.signal, controller.signal])
+
     const download = async (
       media: ImageContent | FileContent | VideoContent,
       kind: MessageType.Image | MessageType.File | MessageType.Video,
       index = 0
     ) => {
       if (this.downloads.size >= 32) throw new Error('Attachment queue full')
+
       const result = await this.downloads.add(
         () =>
           fetchRemoteBytes(media.url, {
@@ -312,12 +345,16 @@ export class WeComAdapter extends ChannelAdapter {
           }),
         { signal, throwOnTimeout: true }
       )
+
       signal.throwIfAborted()
       const bytes = media.aeskey ? decryptFile(result.body, media.aeskey) : result.body
       total += bytes.length
+
       if (bytes.length > FILE_BYTES || total > MESSAGE_BYTES) throw new Error('Attachment limit exceeded')
       const type = await fileTypeFromBuffer(bytes)
+
       if (kind === MessageType.Video && !type?.mime.startsWith('video/')) throw new Error('Invalid video')
+
       if (kind === MessageType.Image) {
         if (!type?.mime.startsWith('image/')) throw new Error('Invalid image')
         images[index] = { data: bytes.toString('base64'), media_type: type.mime }
@@ -332,6 +369,7 @@ export class WeComAdapter extends ChannelAdapter {
         })
       }
     }
+
     try {
       switch (body.msgtype) {
         case MessageType.Text:
@@ -340,8 +378,10 @@ export class WeComAdapter extends ChannelAdapter {
         case MessageType.Voice:
           if (typeof body.voice?.content !== 'string' || !body.voice.content.trim()) {
             await this.sendMessage(chatId, t('common.channel_voice_transcription_missing'), opts)
+
             return
           }
+
           text = body.voice.content
           break
         case MessageType.Image:
@@ -366,16 +406,22 @@ export class WeComAdapter extends ChannelAdapter {
           )
           break
         }
+
         default:
           await this.sendMessage(chatId, t('common.wecom_unsupported_message'), opts)
+
           return
       }
     } catch {
       controller.abort()
+
       if (!this.lifetime.signal.aborted) await this.sendMessage(chatId, t('common.wecom_attachment_failed'), opts)
+
       return
     }
+
     if (signal.aborted) return
+
     const identity = {
       chatId,
       conversationId: chatId,
@@ -383,7 +429,9 @@ export class WeComAdapter extends ChannelAdapter {
       userName: body.from.userid,
       messageId: body.msgid
     }
+
     const command = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text.trim())
+
     if (command && body.msgtype !== MessageType.Voice && !images.length && !files.length) {
       if (command[1] === 'whoami') {
         await this.sendMessage(chatId, t('common.wecom_identity', { chatId, userId: body.from.userid }), opts)
@@ -401,17 +449,21 @@ export class WeComAdapter extends ChannelAdapter {
     const signal = this.lifetime.signal
     signal.throwIfAborted()
     let delivery = this.deliveries.get(chatId)
+
     if (!delivery) {
       for (const [id, entry] of this.deliveries) {
         if (!entry.queue.size && !entry.queue.pending && (entry.sent.at(-1) ?? 0) <= Date.now() - 3_600_000) {
           this.deliveries.delete(id)
         }
       }
+
       if (this.deliveries.size >= 1000) throw new Error('Delivery capacity reached')
       delivery = { queue: new PQueue({ concurrency: 1 }), sent: [] }
       this.deliveries.set(chatId, delivery)
     }
+
     if (intermediate && (delivery.queue.size || delivery.queue.pending)) return
+
     if (delivery.queue.size >= 100) throw new Error('Delivery queue full')
     const state = delivery
     await state.queue.add(
@@ -421,15 +473,19 @@ export class WeComAdapter extends ChannelAdapter {
           const now = Date.now()
           state.sent = state.sent.filter((time) => time > now - 3_600_000)
           const minute = state.sent.filter((time) => time > now - 60_000)
+
           // Intermediate updates leave two slots for notifications and terminal replies.
           if (intermediate && (minute.length >= 28 || state.sent.length >= 998)) return
+
           const wait = Math.max(
             minute.length >= 30 ? minute[minute.length - 30] + 60_000 - now : 0,
             state.sent.length >= 1000 ? state.sent[state.sent.length - 1000] + 3_600_000 - now : 0
           )
+
           if (!wait) break
           await delay(wait, { signal })
         }
+
         await this.waitConnected(undefined, signal)
         signal.throwIfAborted()
         state.sent.push(Date.now())
@@ -456,6 +512,7 @@ export class WeComAdapter extends ChannelAdapter {
       },
       !finish
     )
+
     return sent
   }
 
@@ -465,6 +522,7 @@ export class WeComAdapter extends ChannelAdapter {
     context.flusher?.complete()
     context.flusher?.cancelPendingFlush()
     clearTimeout(context.timer)
+
     if (context.started && this.connected) {
       context.text = t('common.wecom_continued')
       await this.flush(context, true)
@@ -477,11 +535,15 @@ export class WeComAdapter extends ChannelAdapter {
 
   async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {
     const context = this.responses.get(this.key(chatId, opts))
+
     if (!context || context.started || context.finished || !this.allowed(chatId)) return
+
     if (Date.now() >= context.expiresAt) {
       context.active = true
+
       return
     }
+
     this.responses.set(this.key(chatId, opts), context, { ttl: 0, noDisposeOnSet: true })
     context.started = true
     context.text = t('common.wecom_processing')
@@ -494,11 +556,15 @@ export class WeComAdapter extends ChannelAdapter {
 
   async onTextUpdate(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void> {
     const context = this.responses.get(this.key(chatId, opts))
+
     if (!context || context.finished || context.active || !this.allowed(chatId)) return
+
     if (Buffer.byteLength(fullText) > TEXT_BYTES || Date.now() >= context.expiresAt) {
       await this.transfer(context)
+
       return
     }
+
     context.text = fullText
     context.started = true
     context.lastFlush = Date.now()
@@ -514,7 +580,9 @@ export class WeComAdapter extends ChannelAdapter {
     if (!opts?.replyToMessageId) return false
     const key = this.key(chatId, opts)
     const context = this.responses.get(key)
+
     if (context?.finished) return true
+
     if (context) {
       context.finished = true
       clearTimeout(context.timer)
@@ -522,23 +590,29 @@ export class WeComAdapter extends ChannelAdapter {
       context.flusher?.cancelPendingFlush()
       await context.flusher?.waitForFlush()
     }
+
     const text =
       outcome?.status === 'paused'
         ? `${finalText}\n\n${t('common.channel_stopped')}`.trim()
         : finalText || t('common.wecom_empty_response')
+
     try {
       if (!this.allowed(chatId)) return true
       await this.waitConnected(undefined, undefined, Buffer.byteLength(text))
+
       if (context && !context.active && Date.now() < context.expiresAt && Buffer.byteLength(text) <= TEXT_BYTES) {
         context.text = text
+
         if (!(await this.flush(context, true))) await this.sendActive(chatId, text)
       } else {
         if (context && context.started && !context.active && Date.now() < context.expiresAt) {
           context.text = t('common.wecom_continued')
           await this.flush(context, true)
         }
+
         await this.sendActive(chatId, text)
       }
+
       return true
     } catch {
       throw new Error(t('common.wecom_delivery_failed'))
@@ -555,8 +629,10 @@ export class WeComAdapter extends ChannelAdapter {
   ): Promise<boolean> {
     if (options?.suppressDelivery) {
       this.responses.delete(this.key(chatId, opts))
+
       return true
     }
+
     const context = this.responses.get(this.key(chatId, opts))
     const partial = context && context.lastFlush && !context.active ? context.text : ''
     await this.sendMessage(
@@ -564,14 +640,17 @@ export class WeComAdapter extends ChannelAdapter {
       [partial, t('common.channel_message_processing_error')].filter(Boolean).join('\n\n'),
       opts
     )
+
     return true
   }
 
   async sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
     if (opts?.replyToMessageId) {
       await this.onStreamComplete(chatId, text, opts)
+
       return
     }
+
     try {
       await this.sendActive(chatId, text)
     } catch {
@@ -582,6 +661,7 @@ export class WeComAdapter extends ChannelAdapter {
   private async sendActive(chatId: string, text: string): Promise<void> {
     if (!this.allowed(chatId)) return
     await this.waitConnected(undefined, undefined, Buffer.byteLength(text))
+
     for (const chunk of textChunks(text)) {
       this.lifetime.signal.throwIfAborted()
       await this.sendToChat(chatId, () =>
@@ -595,11 +675,14 @@ export class WeComAdapter extends ChannelAdapter {
 
   async sendFile(chatId: string, file: FileAttachment): Promise<void> {
     if (!this.allowed(chatId)) return
+
     if (file.size > FILE_BYTES || file.data.length > Math.ceil(FILE_BYTES / 3) * 4)
       throw new Error(t('common.wecom_attachment_failed'))
     const buffer = Buffer.from(file.data, 'base64')
+
     if (buffer.length < MIN_UPLOAD_FILE_BYTES || buffer.length > FILE_BYTES)
       throw new Error(t('common.wecom_attachment_failed'))
+
     try {
       await this.waitConnected()
       const client = this.client!

@@ -6,7 +6,9 @@ import { SunoLight } from './light'
 
 const Suno = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SunoLight {...props} className={className} />
+
   if (variant === 'dark') return <SunoDark {...props} className={className} />
+
   return (
     <>
       <SunoLight className={cn('dark:hidden', className)} {...props} />

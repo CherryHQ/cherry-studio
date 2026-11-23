@@ -16,6 +16,7 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
   'code_cli.write_config': async (input) => {
     try {
       await application.get('CodeCliService').writeConfigFiles(input.cliTool, input.files)
+
       return { success: true as const }
     } catch (error) {
       return { success: false as const, message: error instanceof Error ? error.message : 'Unknown error' }
@@ -26,6 +27,7 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
     // bundleId used internally for LaunchServices resolution; the renderer never consumes it, so keep it
     // off the wire (the router does not re-parse handler output, so extra fields would leak).
     const terminals = await application.get('CodeCliService').getAvailableTerminalsForPlatform()
+
     return terminals.map(({ id, name }) => ({ id, name }))
   }
 }

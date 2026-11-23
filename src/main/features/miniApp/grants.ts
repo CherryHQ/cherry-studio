@@ -55,6 +55,7 @@ export function listGrants(appId: string): string[] {
 export function grantMiniAppPermissionsTx(tx: DbOrTx, appId: string, keys: string[], version: string): void {
   const existing = new Set(listGrantsTx(tx, appId))
   const fresh = keys.filter((k) => !existing.has(k))
+
   if (fresh.length === 0) return
 
   tx.insert(miniAppGrantTable)
@@ -76,6 +77,7 @@ export function grantMiniAppPermissions(appId: string, keys: string[], version: 
  */
 export function replaceGrantsTx(tx: DbOrTx, appId: string, keys: string[], version: string): void {
   tx.delete(miniAppGrantTable).where(eq(miniAppGrantTable.appId, appId)).run()
+
   if (keys.length > 0) {
     tx.insert(miniAppGrantTable)
       .values(keys.map((permission) => ({ appId, permission, grantedVersion: version })))
@@ -111,6 +113,7 @@ export function diffDeclaredSets(previous: MiniAppManifest, next: MiniAppManifes
   const wasRequired = new Set(before.required)
   const declaredBefore = new Set(declaredGrantKeys(previous))
   const declaredAfter = new Set(declaredGrantKeys(next))
+
   return {
     /*
      * Anything now REQUIRED that was not required before — which deliberately includes a
@@ -136,6 +139,7 @@ export function diffDeclaredSets(previous: MiniAppManifest, next: MiniAppManifes
  */
 export function diffDeclaredHosts(previous: MiniAppManifest, next: MiniAppManifest): string[] {
   const before = new Set(previous.network)
+
   return next.network.filter((h) => !before.has(h)).sort()
 }
 
@@ -154,6 +158,7 @@ export function assertGranted(appId: string, key: string): void {
  */
 export function pendingDeclaredAdditions(_appId: string, manifest: MiniAppManifest, consented: string[]): string[] {
   const consentedSet = new Set(consented)
+
   return declaredGrantKeys(manifest).filter((k) => !consentedSet.has(k))
 }
 
@@ -166,12 +171,15 @@ export function pendingDeclaredAdditions(_appId: string, manifest: MiniAppManife
  */
 export function assertMethodAllowed(appId: string, method: MiniAppMethod): void {
   const { gate } = MINI_APP_METHODS[method]
+
   if (gate === 'none') return
+
   if (gate === 'grant') return assertGranted(appId, method)
 
   // `sibling`: introspection, allowed once the app holds anything in the namespace.
   // Refusing it narrows nothing — it only makes the app fail blind.
   const namespace = `${method.split('.')[0]}.`
+
   if (!listGrants(appId).some((g) => g.startsWith(namespace))) {
     throw new PermissionDeniedError(appId, method)
   }

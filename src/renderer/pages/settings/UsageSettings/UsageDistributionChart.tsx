@@ -54,11 +54,13 @@ interface UsageDistributionChartProps {
 function makeUniqueNames(labels: string[]): string[] {
   const counts = new Map<string, number>()
   const occurrences = new Map<string, number>()
+
   for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1)
 
   return labels.map((label) => {
     const occurrence = (occurrences.get(label) ?? 0) + 1
     occurrences.set(label, occurrence)
+
     return counts.get(label) === 1 ? label : `${label} (${occurrence})`
   })
 }
@@ -84,17 +86,20 @@ export function UsageDistributionChart({
 }: UsageDistributionChartProps) {
   const { t, i18n } = useTranslation()
   const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
+
   const periodKeys = useMemo(() => {
     if (rollup === 'total') return ['total']
     const keys: string[] = []
 
     for (const point of getTimelinePoints(timelineBuckets, range, () => 0)) {
       const key = toPeriodKey(point.date, rollup, firstDayOfWeek)
+
       if (keys[keys.length - 1] !== key) keys.push(key)
     }
 
     return keys
   }, [firstDayOfWeek, range, rollup, timelineBuckets])
+
   const chartSeries = useMemo(
     () =>
       rollup === 'total'
@@ -118,6 +123,7 @@ export function UsageDistributionChart({
       topCount
     ]
   )
+
   const formatChartValue = useCallback(
     (value: number) =>
       chartMetric === 'cost'
@@ -125,24 +131,30 @@ export function UsageDistributionChart({
         : formatCompactNumber(value),
     [chartMetric, costCurrency, exploreTotals.costCurrency, rollup]
   )
+
   const formatPeriod = useCallback(
     (periodKey: string) => {
       if (rollup === 'monthly') return monthFormatter.format(parseDateKey(periodKey))
+
       if (rollup === 'weekly') {
         const start = parseDateKey(periodKey)
         const end = parseDateKey(periodKey)
         end.setDate(end.getDate() + 6)
         const clippedStart = new Date(Math.max(start.getTime(), range.from))
         const clippedEnd = new Date(Math.min(end.getTime(), range.to))
+
         return `${dateFormatter.format(clippedStart)} – ${dateFormatter.format(clippedEnd)}`
       }
+
       return dateFormatter.format(parseDateKey(periodKey))
     },
     [dateFormatter, monthFormatter, range.from, range.to, rollup]
   )
+
   const tooltip: Pick<TooltipComponentOption, 'valueFormatter'> = {
     valueFormatter: (value) => formatChartValue(Number(value))
   }
+
   const isEmpty = periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)
 
   const isLoading = rollup === 'total' ? exploreStatsLoading : exploreTimelineLoading
@@ -235,7 +247,9 @@ export function UsageDistributionChart({
         value: item.values[periodIndex] ?? 0
       }))
     }))
+
     let currentIndex = Math.max(0, frames.length - 1)
+
     while (currentIndex > 0 && frames[currentIndex].data.every((item) => item.value <= 0)) {
       currentIndex -= 1
     }

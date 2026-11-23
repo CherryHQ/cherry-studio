@@ -27,6 +27,7 @@ import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults
 import { createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
 dayjs.extend(utc)
+
 dayjs.extend(timezone)
 
 const formatTime = (minutes: number) =>
@@ -46,6 +47,7 @@ export function BillingPreview({
   const model = models.find((item) => item.id === modelId) ?? models[0]
   const effectiveBilling = defaultProvider && model ? getDefaultProviderBilling(defaultProvider, model) : billing
   const [date, setDate] = useState('')
+
   const boundaries = [
     ...new Set([
       0,
@@ -58,10 +60,12 @@ export function BillingPreview({
         : [])
     ])
   ].sort((a, b) => a - b)
+
   const now = dayjs().tz(billing.timeZone)
   const today = now.format('YYYY-MM-DD')
   const currentMinute = now.hour() * 60 + now.minute()
   const day = dayjs.tz(date || today, billing.timeZone).startOf('day')
+
   const ranges = boundaries.slice(0, -1).map((start, index) => {
     const resolved = resolveProviderBilling(
       model?.pricing,
@@ -69,6 +73,7 @@ export function BillingPreview({
       model ? parseUniqueModelId(model.id).modelId : '',
       day.add(start, 'minute').toDate()
     )
+
     return {
       start,
       end: boundaries[index + 1],
@@ -76,19 +81,24 @@ export function BillingPreview({
       snapshot: createAiUsagePricingSnapshot(resolved.pricing)
     }
   })
+
   for (let index = ranges.length - 1; index > 0; index--) {
     if (ranges[index].periodId === ranges[index - 1].periodId) {
       ranges[index - 1].end = ranges[index].end
       ranges.splice(index, 1)
     }
   }
+
   const first = ranges[0]
   const last = ranges.at(-1)!
+
   if (ranges.length > 1 && first.periodId === last.periodId) {
     last.end = first.end
     ranges.shift()
   }
+
   const currency = ranges.find((range) => range.snapshot)?.snapshot?.currency
+
   return (
     <PageSidePanelSection
       role="region"
@@ -133,7 +143,9 @@ export function BillingPreview({
               (end > start
                 ? currentMinute >= start && currentMinute < end
                 : currentMinute >= start || currentMinute < end)
+
             const tiers = [{ ...snapshot, minInputTokens: 0 }, ...(snapshot?.inputTokenTiers ?? [])]
+
             return tiers.map((tier) => {
               const rates = {
                 input: tier.inputPerMillionTokens,
@@ -141,6 +153,7 @@ export function BillingPreview({
                 cacheRead: tier.cacheReadPerMillionTokens ?? tier.inputPerMillionTokens,
                 cacheWrite: tier.cacheWritePerMillionTokens ?? tier.inputPerMillionTokens
               }
+
               return (
                 <TableRow
                   key={`${start}:${tier.minInputTokens}`}

@@ -25,6 +25,7 @@ export const resolveCommandPresentationKeybinding = (
 ): ResolvedCommandKeybinding | undefined => {
   const definition = findCommandDefinition(command)
   const rule = findKeybindingRule(command)
+
   if (
     !rule ||
     !isPlatformSupported(rule, options.platform) ||
@@ -34,7 +35,9 @@ export const resolveCommandPresentationKeybinding = (
   }
 
   const shortcut = resolveCommandShortcutPreference(command, preference, options.platform)
+
   if (!shortcut) return undefined
+
   return {
     command,
     ...shortcut,

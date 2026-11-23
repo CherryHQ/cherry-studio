@@ -54,6 +54,7 @@ export const SelectionWorkspacePicker: FC<SelectionWorkspacePickerProps> = ({ va
   const { data: workspaces, refetch } = useQuery('/agent-workspaces')
   useDataChange('/agent-workspaces', () => void refetch())
   const workspaceId = value.type === AGENT_WORKSPACE_TYPE.USER ? value.workspaceId : null
+
   const label =
     workspaceId === null
       ? t('agent.session.workspace_selector.no_project')

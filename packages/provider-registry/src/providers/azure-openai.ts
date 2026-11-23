@@ -9,6 +9,7 @@ const claudeWebToolModels = [
   'claude-3-5-sonnet',
   'claude-3-7-sonnet'
 ]
+
 const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 
 export default defineProvider({

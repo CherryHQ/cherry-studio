@@ -7,7 +7,9 @@ export function useAgentChildProjection(sessionId: string, toolCallId: string | 
     () => ({ kind: 'child' as const, sessionId, toolCallId: toolCallId ?? '' }),
     [sessionId, toolCallId]
   )
+
   const enabled = active && Boolean(toolCallId)
+
   const state = useSyncExternalStore(
     useCallback(
       (listener) => (enabled ? messageProjectionService.subscribe(target, listener) : () => {}),
@@ -15,5 +17,6 @@ export function useAgentChildProjection(sessionId: string, toolCallId: string | 
     ),
     useCallback(() => messageProjectionService.getSnapshot(target), [target])
   )
+
   return enabled ? { view: state.view?.kind === 'child' ? state.view : null, error: state.error } : undefined
 }

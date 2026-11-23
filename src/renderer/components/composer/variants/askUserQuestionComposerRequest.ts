@@ -29,7 +29,9 @@ type AskUserQuestionToolPart = CherryMessagePart & {
 
 function getToolName(part: AskUserQuestionToolPart): string {
   if (part.toolName?.trim()) return part.toolName
+
   if (part.type.startsWith('tool-')) return part.type.replace(/^tool-/, '')
+
   return ''
 }
 
@@ -44,11 +46,13 @@ export function findLatestPendingAskUserQuestionRequest(
 
       const toolPart = part as AskUserQuestionToolPart
       const approvalId = toolPart.approval?.id
+
       if (!isAskUserQuestionToolName(getToolName(toolPart)) || toolPart.state !== APPROVAL_REQUESTED || !approvalId) {
         continue
       }
 
       const input = parseAskUserQuestionToolInput(toolPart.input)
+
       if (!input?.questions.length) continue
 
       latest = {

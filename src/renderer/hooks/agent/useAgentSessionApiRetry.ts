@@ -12,6 +12,8 @@ const IDLE_API_RETRY_STATE: AgentSessionApiRetryState = { status: 'idle' }
  */
 export function useAgentSessionApiRetry(sessionId: string | undefined): AgentSessionApiRetryState {
   const state = useSharedCacheValue(AGENT_SESSION_API_RETRY_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+
   if (!sessionId) return IDLE_API_RETRY_STATE
+
   return state ?? IDLE_API_RETRY_STATE
 }

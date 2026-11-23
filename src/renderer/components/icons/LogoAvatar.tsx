@@ -23,6 +23,7 @@ const LogoAvatar: FC<Props> = ({ logo, size = 32, shape = 'rounded', className, 
 
   if (typeof logo !== 'string') {
     const Icon = logo as CompoundIcon
+
     return <Icon.Avatar size={size} shape={shape} className={className} />
   }
 

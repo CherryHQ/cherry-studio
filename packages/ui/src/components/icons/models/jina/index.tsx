@@ -6,7 +6,9 @@ import { JinaLight } from './light'
 
 const Jina = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <JinaLight {...props} className={className} />
+
   if (variant === 'dark') return <JinaDark {...props} className={className} />
+
   return (
     <>
       <JinaLight className={cn('dark:hidden', className)} {...props} />

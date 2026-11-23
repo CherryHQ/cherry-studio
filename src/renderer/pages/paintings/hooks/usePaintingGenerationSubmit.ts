@@ -55,6 +55,7 @@ export function usePaintingGenerationSubmit({
     painting,
     ensureCurrentCatalog
   })
+
   const { generate, cancel, generating } = usePaintingGeneration({
     painting,
     onPaintingChange
@@ -73,13 +74,18 @@ export function usePaintingGenerationSubmit({
       submittingRef.current = true
       setSubmitting(true)
       setPreparing(true)
+
       try {
         const guardResult = await validateBeforeGenerate()
+
         if (!guardResult.ok) {
           void presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
+
           return
         }
+
         const { entries, complete } = await materialize()
+
         // An incomplete set must never reach generation — the composer has already
         // dropped the failed chip and told the user; generating anyway would spend
         // the request on a silently smaller input set.

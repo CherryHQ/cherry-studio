@@ -66,16 +66,21 @@ for (const letter of 'abcdefghijklmnopqrstuvwxyz') {
 }
 
 const definitions = new Map<string, KeyDefinition>()
+
 for (const [code, windowsVirtualKeyCode, key = code, shiftKey] of layout) {
   const definition = { key, code, windowsVirtualKeyCode, shiftKey }
   definitions.set(code, definition)
   definitions.set(key, definition)
+
   if (shiftKey) definitions.set(shiftKey, { ...definition, key: shiftKey })
 }
 
 export function resolveKeyDefinition(key: string, shift: boolean): KeyDefinition | undefined {
   const definition = definitions.get(key)
+
   if (definition) return { ...definition, key: shift ? (definition.shiftKey ?? definition.key) : definition.key }
+
   if ([...key].length === 1) return { key, code: '', windowsVirtualKeyCode: 0 }
+
   return undefined
 }

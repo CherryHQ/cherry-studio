@@ -18,6 +18,7 @@ function toProtocolMcpServerInstall(value: unknown, fallbackName?: string): Prot
   if (!candidate.name && fallbackName) {
     candidate.name = fallbackName
   }
+
   if (candidate.baseUrl === undefined && typeof legacyUrl === 'string') {
     candidate.baseUrl = legacyUrl
   }
@@ -41,12 +42,15 @@ function parseMcpServerDtos(value: unknown): ProtocolMcpServerInstall[] {
 
   if (value && typeof value === 'object' && 'mcpServers' in value) {
     const servers = value.mcpServers
+
     if (Array.isArray(servers)) {
       return servers.map((server) => toProtocolMcpServerInstall(server))
     }
+
     if (!servers || typeof servers !== 'object') {
       throw new Error('mcpServers must be an object')
     }
+
     return Object.entries(servers).map(([name, server]) => toProtocolMcpServerInstall(server, name))
   }
 
@@ -56,13 +60,16 @@ function parseMcpServerDtos(value: unknown): ProtocolMcpServerInstall[] {
 export function parseMcpInstallProtocolUrl(url: URL): ProtocolMcpServerInstall[] | null {
   if (url.pathname !== '/install') {
     logger.error(`Unknown MCP protocol URL: ${url}`)
+
     return null
   }
 
   const data = url.searchParams.get('servers')
+
   if (!data) return null
 
   const jsonConfig = JSON.parse(Buffer.from(data, 'base64').toString('utf8'))
   const servers = parseMcpServerDtos(jsonConfig)
+
   return servers.length > 0 ? servers : null
 }

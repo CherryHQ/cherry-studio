@@ -16,6 +16,7 @@ import { hasUnwrappableLine } from '@renderer/utils/softWrap'
 import { cn } from '@renderer/utils/style'
 
 const logger = loggerService.withContext('FileEditor')
+
 const poolOptions = {
   workerFactory: () => new Worker(new URL('../workers/fileEditor.worker.ts', import.meta.url), { type: 'module' }),
   poolSize: 1,
@@ -24,12 +25,15 @@ const poolOptions = {
     logger.error('File highlighting worker failed', event)
   }
 }
+
 const highlighterOptions = { preferredHighlighter: 'highlights', useTokenTransformer: true } as const
 
 // Pierre (patched) tags whitespace-only token spans with data-ws and leading ones with data-indent.
 const INDENT_GUIDE = 'linear-gradient(to right, var(--border) 0 1px, transparent 1px)'
+
 const WHITESPACE_DOT =
   'radial-gradient(circle, color-mix(in oklch, var(--muted-foreground) 55%, transparent) 1px, transparent 1.5px)'
+
 const WHITESPACE_TAB =
   'linear-gradient(to bottom, transparent calc(50% - 0.5px), color-mix(in oklch, var(--muted-foreground) 55%, transparent) calc(50% - 0.5px) calc(50% + 0.5px), transparent calc(50% + 0.5px))'
 
@@ -47,18 +51,22 @@ const COMMENT_BUTTON_CSS =
 function whitespaceCss(indentGuides: boolean, showWhitespace: boolean): string {
   const guideSize = 'calc(var(--diffs-tab-size, 2) * 1ch) 100%'
   const rules: string[] = []
+
   if (indentGuides || showWhitespace) {
     // Spans stay inline with no inline padding, so tab stops and caret geometry are untouched;
     // block padding on an inline box only extends its painted background to the full line height.
     rules.push('[data-ws]{background-repeat:repeat-x;padding-block:calc((var(--diffs-line-height) - 1em) / 2)}')
   }
+
   if (showWhitespace) {
     rules.push(`[data-ws="space"]{background-image:${WHITESPACE_DOT};background-size:1ch 100%}`)
     rules.push(`[data-ws="tab"]{background-image:${WHITESPACE_TAB};background-size:100% 100%}`)
   }
+
   if (indentGuides) {
     const ws = showWhitespace ? { space: [WHITESPACE_DOT, '1ch 100%'], tab: [WHITESPACE_TAB, '100% 100%'] } : null
     rules.push(`[data-indent]{background-image:${INDENT_GUIDE};background-size:${guideSize}}`)
+
     if (ws) {
       for (const [kind, [image, size]] of Object.entries(ws)) {
         rules.push(
@@ -67,6 +75,7 @@ function whitespaceCss(indentGuides: boolean, showWhitespace: boolean): string {
       }
     }
   }
+
   return rules.join('')
 }
 
@@ -75,6 +84,7 @@ function FileEditorTheme({ theme }: { theme: string }) {
   useEffect(() => {
     void pool?.setRenderOptions({ theme }).catch((error) => logger.error('Failed to update file theme', error))
   }, [pool, theme])
+
   return null
 }
 
@@ -146,6 +156,7 @@ export default function FileEditor({
     // Pierre owns the live document; a host draft echo must not replace it.
     const file =
       value === lastEdit.current && input.file.name === fileName ? input.file : { name: fileName, contents: value }
+
     if (file !== input.file) liveContents.current = file.contents
     setInput({ value, file })
   }
@@ -160,9 +171,11 @@ export default function FileEditor({
       },
       (error) => {
         logger.error('Failed to load file editing', error)
+
         if (!cancelled) setLoadFailed(true)
       }
     )
+
     return () => {
       cancelled = true
     }
@@ -172,11 +185,14 @@ export default function FileEditor({
     () => editorModule && ((type, options, key) => new editorModule.Editor(type, options, key)),
     [editorModule]
   )
+
   const openCommentDraft = useCallback((range: SelectedLineRange) => {
     setCommentDraft({ start: Math.min(range.start, range.end), end: Math.max(range.start, range.end) })
   }, [])
+
   // Wrapping a multi-megabyte line (minified bundles, source maps) freezes layout for seconds.
   const canWrap = useMemo(() => !hasUnwrappableLine(value), [value])
+
   const options = useMemo<FileOptions<undefined, undefined>>(
     () => ({
       disableFileHeader: true,
@@ -204,6 +220,7 @@ export default function FileEditor({
       openCommentDraft
     ]
   )
+
   const editorOptions = useMemo<EditorOptions<'file', undefined, undefined>>(
     () => ({
       readOnly: !editable,
@@ -214,29 +231,36 @@ export default function FileEditor({
     }),
     [editable]
   )
+
   const handleChange = useCallback(
     ({ file, lineAnnotations }: { file: FileContents; lineAnnotations?: LineAnnotation<undefined>[] }) => {
       lastEdit.current = file.contents
       liveContents.current = file.contents
       // Pierre remaps annotations through edits; the open draft box follows its line.
       const end = lineAnnotations?.[0]?.lineNumber
+
       if (end !== undefined) {
         setCommentDraft((draft) =>
           draft && draft.end !== end ? { start: Math.max(1, draft.start + end - draft.end), end } : draft
         )
       }
+
       onChange?.(file.contents)
     },
     [onChange]
   )
+
   // An empty list, not undefined: Pierre keeps its previous annotations when the prop is absent.
   const commentAnnotations = useMemo<LineAnnotation<undefined>[]>(
     () => (commentDraft ? [{ lineNumber: commentDraft.end }] : []),
     [commentDraft]
   )
+
   const groupRef = useRef<HTMLDivElement>(null)
+
   const closeCommentDraft = useCallback((reason: 'escape' | 'blur') => {
     setCommentDraft(null)
+
     if (reason !== 'escape') return
     // Escape returns to the file; clicking away keeps the user's new focus target.
     requestAnimationFrame(() =>
@@ -246,6 +270,7 @@ export default function FileEditor({
         ?.focus()
     )
   }, [])
+
   const submitComment = useCallback(
     (comment: string) => {
       if (!commentDraft) return
@@ -256,20 +281,26 @@ export default function FileEditor({
     },
     [commentDraft, onLineComment]
   )
+
   const attachViewport = useCallback(
     (node: HTMLDivElement | null) => {
       if (!node) {
         virtualizer.cleanUp()
+
         return
       }
+
       let root = node.parentElement
+
       if (expanded) {
         while (root && !/(auto|scroll|overlay)/.test(getComputedStyle(root).overflowY)) root = root.parentElement
       }
+
       virtualizer.setup(expanded ? (root ?? document) : node, node)
     },
     [expanded, virtualizer]
   )
+
   const surface = (
     <div
       ref={attachViewport}

@@ -29,6 +29,7 @@ function splitCodeSegments(input: string): Segment[] {
     if (match.index > lastIndex) {
       segments.push({ type: 'text', text: input.slice(lastIndex, match.index) })
     }
+
     segments.push({ type: 'code', text: match[0] })
     lastIndex = match.index + match[0].length
   }
@@ -51,6 +52,7 @@ function convertTextSegment(text: string): string {
   text = text.replace(/\*\*(.+?)\*\*/g, (_, content: string) => {
     const idx = boldSpans.length
     boldSpans.push(content)
+
     return `%%BOLD_${idx}%%`
   })
 
@@ -77,5 +79,6 @@ export function toSlackMarkdown(markdown: string): string {
   if (!markdown) return markdown
 
   const segments = splitCodeSegments(markdown)
+
   return segments.map((s) => (s.type === 'code' ? s.text : convertTextSegment(s.text))).join('')
 }

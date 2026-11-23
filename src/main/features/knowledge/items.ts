@@ -40,9 +40,11 @@ export function toMaterialRelativePath(item: MaterialFieldSource): string {
   if (item.type === 'file') {
     return item.data.indexedRelativePath ?? item.data.relativePath
   }
+
   if (!item.data.relativePath) {
     throw new Error(`Knowledge ${item.type} item ${item.id} has no captured snapshot relativePath for its material`)
   }
+
   return item.data.relativePath
 }
 
@@ -69,13 +71,16 @@ export async function classifyKnowledgeItemRestoreSource(
   if (item.type === 'directory') {
     return toSourceState(await probeKnowledgeSourcePath(item.data.source))
   }
+
   if (item.type === 'file') {
     // A `preparing` file's bytes are not in this base yet; restore copies its original instead.
     if (item.status === 'preparing') {
       return toSourceState(await probeKnowledgeSourcePath(item.data.source))
     }
+
     return toSourceState(await probeKnowledgeFile(baseId, toMaterialRelativePath(item)))
   }
+
   return 'rebuildable'
 }
 
@@ -93,9 +98,11 @@ export async function classifyKnowledgeItemReacquireSource(item: KnowledgeItem):
   if (item.type !== 'file' && item.type !== 'directory') {
     return 'rebuildable'
   }
+
   if (!AbsoluteFilePathSchema.safeParse(item.data.source).success) {
     return 'missing'
   }
+
   return toSourceState(await probeKnowledgeSourcePath(item.data.source))
 }
 

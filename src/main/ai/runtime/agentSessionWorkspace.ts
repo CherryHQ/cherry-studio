@@ -13,6 +13,7 @@ const logger = loggerService.withContext('AgentSessionWorkspace')
 const WORKSPACE_PROBE_TIMEOUT_MS = 5_000
 const RETRYABLE_WORKSPACE_ERROR_CODES = new Set(['EBUSY', 'EIO', 'EMFILE', 'ENFILE', 'ENOSPC', 'ESTALE', 'ETIMEDOUT'])
 const workspacePathProbes = new Map<string, Promise<PathStatus>>()
+
 function assertRelocationReady(cwd: string): void {
   if (agentWorkspaceStorageService.isRelocationBlocked(cwd)) {
     throw new AgentSessionWorkspaceError(`System workspace relocation requires recovery: ${cwd}`)
@@ -36,6 +37,7 @@ export function isAgentSessionWorkspaceError(error: unknown): error is AgentSess
 export async function prepareAgentSessionWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {
   const workspace = session.workspace
   assertRelocationReady(workspace.path)
+
   switch (workspace.type) {
     case AGENT_WORKSPACE_TYPE.SYSTEM:
       // System workspaces are app-owned session directories; user workspaces
@@ -49,6 +51,7 @@ export async function prepareAgentSessionWorkspaceDirectory(session: AgentSessio
       throw new AgentSessionWorkspaceError(`Unsupported workspace type: ${String(exhaustive)}`)
     }
   }
+
   await assertAgentSessionWorkspaceDirectory(session.id, workspace.path)
 }
 
@@ -56,9 +59,11 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
   const root = path.resolve(application.getPath('feature.agents.system_workspaces'))
   const target = path.resolve(cwd)
   const relative = path.relative(root, target)
+
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new AgentSessionWorkspaceError(`System workspace path is outside the managed workspace root: ${cwd}`)
   }
+
   try {
     await ensureAgentStorageDirectory(root, target)
   } catch (error) {
@@ -73,6 +78,7 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
 export async function assertAgentSessionWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
   assertRelocationReady(cwd)
   const status = await getWorkspacePathStatus(cwd)
+
   if (status.ok && status.kind === 'directory') return
   logger.warn(`Agent session ${sessionId} workspace invalid: ${cwd}`)
   throw new AgentSessionWorkspaceError(
@@ -84,13 +90,16 @@ export async function assertAgentSessionWorkspaceDirectory(sessionId: string, cw
 async function getWorkspacePathStatus(cwd: string): Promise<PathStatus> {
   // Node's stat is not abortable; the race bounds scheduler ownership even if the OS call lingers.
   let probe = workspacePathProbes.get(cwd)
+
   if (!probe) {
     probe = getPathStatus(cwd).finally(() => {
       if (workspacePathProbes.get(cwd) === probe) workspacePathProbes.delete(cwd)
     })
     workspacePathProbes.set(cwd, probe)
   }
+
   let timeout: ReturnType<typeof setTimeout> | undefined
+
   const timeoutResult = new Promise<PathStatus>((resolve) => {
     timeout = setTimeout(
       () => resolve({ ok: false, reason: 'inaccessible', code: 'ETIMEDOUT' }),
@@ -98,6 +107,7 @@ async function getWorkspacePathStatus(cwd: string): Promise<PathStatus> {
     )
     timeout.unref?.()
   })
+
   try {
     return await Promise.race([probe, timeoutResult])
   } finally {
@@ -113,6 +123,7 @@ function workspacePathErrorMessage(workspacePath: string, status: PathStatus): s
   if (status.ok) {
     return t('agent.session.workspace_status.not_directory', { path: workspacePath })
   }
+
   return status.reason === 'missing'
     ? t('agent.session.workspace_status.missing', { path: workspacePath })
     : t('agent.session.workspace_status.inaccessible', { path: workspacePath })

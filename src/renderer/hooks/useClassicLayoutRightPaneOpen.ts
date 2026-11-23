@@ -33,6 +33,7 @@ export function useClassicLayoutRightPaneOpen(
   const cacheKeys = RIGHT_PANE_OPEN_OVERRIDE_CACHE_KEYS[surface]
   const [storedOverride, setStoredOverride] = useWindowScopedPersistCache(cacheKeys.persist, cacheKeys.window)
   const paneOpen = enabled && (storedOverride ?? defaultOpen)
+
   const setPaneOpen = useCallback<ClassicLayoutPaneOpenSetter>(
     (open, options) => {
       if (enabled || options?.force) setStoredOverride(open)

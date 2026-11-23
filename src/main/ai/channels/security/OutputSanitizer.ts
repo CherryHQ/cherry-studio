@@ -14,9 +14,11 @@ const REDACTED = '[REDACTED]'
  */
 export function sanitizeChannelOutput(text: string) {
   const result = sanitizeChannelOutputSilently(text)
+
   for (const pattern of result.redactedPatterns) {
     logger.warn('Redacted sensitive content from channel output', { pattern })
   }
+
   return { text: result.text, redacted: result.redactedPatterns.length > 0 }
 }
 
@@ -28,6 +30,7 @@ export function sanitizeChannelOutputSilently(text: string) {
   for (const { name, re } of SECRET_TOKEN_PATTERNS) {
     // Reset lastIndex for global regexes
     re.lastIndex = 0
+
     if (re.test(result)) {
       re.lastIndex = 0
       result = result.replace(re, REDACTED)

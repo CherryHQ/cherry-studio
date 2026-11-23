@@ -51,6 +51,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
     let forkAnchor: RuntimeForkAnchor | undefined
+
     if (status === 'success') {
       try {
         const candidate = this.opts.forkAnchor?.()
@@ -59,20 +60,27 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
       }
     }
+
     const projection = this.opts.projection?.()
     const parts = finalMessage?.parts ?? []
+
     const save = (runtimeAnchor?: RuntimeForkAnchor) => {
       const nativeContext =
         runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'
           ? preparePiBranch(this.opts.sessionId, finalMessage?.id ?? this.opts.assistantMessageId, runtimeResumeToken)
           : undefined
+
       const saveContext: Omit<Parameters<typeof agentSessionMessageService.saveMessage>[0], 'message'> = {
         sessionId: this.opts.sessionId,
         runtimeAnchor
       }
+
       if (runtimeAnchor && nativeContext) saveContext.nativeContextId = nativeContext.id
+
       if (runtimeResumeToken) saveContext.runtimeResumeToken = runtimeResumeToken
+
       if (runtimeStats) saveContext.runtimeStats = runtimeStats
+
       return agentSessionMessageService.saveMessage(
         {
           ...saveContext,
@@ -90,7 +98,9 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         }
       )
     }
+
     let saved
+
     try {
       saved = save(forkAnchor)
     } catch (error) {
@@ -98,7 +108,9 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
       saved = save()
     }
+
     this.opts.onPersisted?.()
+
     return {
       messageId: saved.id,
       messageRevision: String(Date.parse(saved.updatedAt)),

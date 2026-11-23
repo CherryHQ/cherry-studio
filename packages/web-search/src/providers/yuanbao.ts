@@ -25,7 +25,9 @@ export const yuanbao: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.yuanbao,
   async execute(context) {
     const { call } = context
+
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
+
     const excludeDomains = [
       ...new Set(
         (call.config.excludeDomains ?? [])
@@ -33,10 +35,14 @@ export const yuanbao: WebSearchProviderModule = {
           .filter((domain) => YuanbaoDomainSchema.safeParse(domain).success)
       )
     ].slice(0, 5)
+
     // oxlint-disable-next-line anti-slop/no-known-value-widening -- Yuanbao request fields are added conditionally; absent Cnt and Site must stay omitted.
     const body: { Query: string; Cnt?: number; Site?: string } = { Query: call.input }
+
     if (!call.config.useDefaultResultCount) body.Cnt = Math.min(50, Math.ceil(call.config.maxResults / 10) * 10)
+
     if (excludeDomains.length) body.Site = `exclude:${excludeDomains.join('|')}`
+
     const { Response: response } = await requestJson(
       context,
       {
@@ -47,6 +53,7 @@ export const yuanbao: WebSearchProviderModule = {
       },
       YuanbaoResponseSchema
     )
+
     if (response.Error) {
       throw protocolError(
         context,
@@ -56,17 +63,22 @@ export const yuanbao: WebSearchProviderModule = {
         response.RequestId
       )
     }
+
     if (!response.Pages) throw invalidResponse(context, 'schema_mismatch', 'Yuanbao response is missing Pages')
 
     return response.Pages.map((page) => {
       let decoded: unknown
+
       try {
         decoded = JSON.parse(page)
       } catch {
         throw invalidResponse(context, 'invalid_json', 'Yuanbao returned invalid page JSON')
       }
+
       const parsed = YuanbaoPageSchema.safeParse(decoded)
+
       if (!parsed.success) throw invalidResponse(context, 'schema_mismatch', 'Yuanbao page validation failed')
+
       return {
         title: parsed.data.title,
         url: parsed.data.url,

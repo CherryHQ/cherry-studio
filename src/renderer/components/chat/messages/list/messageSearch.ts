@@ -63,10 +63,12 @@ const searchTextCache = new WeakMap<object, CachedSearchText>()
 function getPartSearchText(part: Extract<CherryMessagePart, { type: 'text' }>, renderAsMarkdown: boolean): string {
   const source = part.text ?? ''
   const cached = searchTextCache.get(part)
+
   if (cached?.source === source && cached.renderAsMarkdown === renderAsMarkdown) return cached.text
 
   const text = renderAsMarkdown ? markdownToPlainText(source) : source
   searchTextCache.set(part, { renderAsMarkdown, source, text })
+
   return text
 }
 
@@ -81,10 +83,13 @@ function projectMessageSearchDocuments(
 ): MessageSearchDocument[] {
   return messages.flatMap((message) => {
     if (options.excludedMessageIds?.has(message.id)) return []
+
     if (message.role !== 'assistant' && !(options.includeUser && message.role === 'user')) return []
+
     if (message.role === 'assistant' && message.status === 'pending') return []
 
     const entries = getTopLevelPartEntries(partsByMessageId[message.id] ?? [])
+
     const searchableEntries =
       message.role === 'assistant'
         ? projectCompletedMessageParts(entries, {
@@ -115,10 +120,12 @@ function getMatchCount(
 ): number {
   const criteriaKey = `${searchText}\u0000${options.caseSensitive ? '1' : '0'}${options.wholeWord ? '1' : '0'}`
   const cached = partMatchCache.get(document.sourcePart)
+
   if (cached?.criteriaKey === criteriaKey && cached.text === document.text) return cached.count
 
   const count = findTextMatches(document.text, searchText, options).length
   partMatchCache.set(document.sourcePart, { criteriaKey, text: document.text, count })
+
   return count
 }
 
@@ -129,9 +136,11 @@ export function computeMessageSearchMatches(
   options: MessageSearchOptions
 ): MessageSearchMatch[] {
   const trimmed = searchText.trim()
+
   if (!trimmed) return []
 
   const groupedMessages = groupMessageListItems(messages as MessageListItem[])
+
   return Object.entries(groupedMessages).flatMap(([groupKey, groupMessages]): MessageSearchMatch[] => {
     const documents = projectMessageSearchDocuments(groupMessages, partsByMessageId, options)
 
@@ -140,6 +149,7 @@ export function computeMessageSearchMatches(
     // branch or trying to map hidden text to a DOM range.
     if (isAssistantMultiModelGroup(groupMessages)) {
       const matchedDocument = documents.find((document) => getMatchCount(document, trimmed, options) > 0)
+
       return matchedDocument
         ? [
             {
@@ -154,6 +164,7 @@ export function computeMessageSearchMatches(
 
     return documents.flatMap((document) => {
       const count = getMatchCount(document, trimmed, options)
+
       return Array.from({ length: count }, (_, occurrence) => ({
         type: 'text' as const,
         key: `${document.partId}:${occurrence}`,

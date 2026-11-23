@@ -40,6 +40,7 @@ const NotesSettings: FC = () => {
   const handleSelectWorkDirectory = async () => {
     try {
       setIsSelecting(true)
+
       const result = await window.api.file.selectFolder({
         title: t('notes.settings.data.current_work_directory')
       })
@@ -58,6 +59,7 @@ const NotesSettings: FC = () => {
   const handleApplyPath = async () => {
     if (!tempPath) {
       toast.error(t('notes.settings.data.path_required'))
+
       return
     }
 
@@ -67,6 +69,7 @@ const NotesSettings: FC = () => {
 
       if (!isValidDir) {
         toast.error(t('notes.settings.data.invalid_directory'))
+
         return
       }
 

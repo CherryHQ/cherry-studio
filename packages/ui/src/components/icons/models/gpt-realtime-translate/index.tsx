@@ -4,6 +4,7 @@ import { GptRealtimeTranslateLight } from './light'
 
 const GptRealtimeTranslate = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <GptRealtimeTranslateLight {...props} className={className} />
+
   return <GptRealtimeTranslateLight {...props} className={className} />
 }
 

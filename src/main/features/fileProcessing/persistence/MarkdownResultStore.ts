@@ -36,6 +36,7 @@ class MarkdownResultStore {
     try {
       const data = await this.resolveMarkdownBytes(options)
       await atomicWriteFile(options.path, data)
+
       return options.path
     } catch (error) {
       logger.warn(
@@ -60,6 +61,7 @@ class MarkdownResultStore {
 
       case 'remote-zip-url': {
         const safeDownloadUrl = sanitizeRemoteUrl(options.result.downloadUrl, options.result.configuredApiHost)
+
         const response = await net.fetch(safeDownloadUrl, {
           method: 'GET',
           redirect: 'error',
@@ -71,6 +73,7 @@ class MarkdownResultStore {
         }
 
         const contentType = response.headers.get('content-type')
+
         if (contentType !== 'application/zip') {
           throw new Error(`Markdown result download returned unexpected content-type: ${contentType}`)
         }
@@ -112,11 +115,14 @@ function getMarkdownPersistenceLogContext(options: { jobId: string; result: Mark
 function getSafeMarkdownPersistenceErrorForLog(error: unknown): Error {
   try {
     if (!(error instanceof Error)) return new Error(String(error))
+
     if (typeof error.message === 'string' && error.message.startsWith('Markdown result download failed:')) {
       const safeError = new Error('Markdown result download failed')
       safeError.name = typeof error.name === 'string' ? error.name : 'Error'
+
       return safeError
     }
+
     return error
   } catch {
     return new Error('Markdown result persistence failed')

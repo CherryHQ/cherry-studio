@@ -16,6 +16,7 @@ function aiDetailMessage(detail: SerializedError): string {
   if (detail.message) return detail.message
   const status = typeof detail.statusCode === 'number' ? `HTTP ${detail.statusCode}` : ''
   const body = typeof detail.responseBody === 'string' ? detail.responseBody.slice(0, 300) : ''
+
   return [status, body].filter(Boolean).join(' ') || detail.name || 'Image generation failed'
 }
 
@@ -39,6 +40,7 @@ export async function resolvePaintingFiles(result: GenerationResult): Promise<Fi
         })
       )
     )
+
     files = await Promise.all(entries.map(fileEntryToMetadata))
   } else if ('urls' in result && result.urls.length > 0) {
     files = await downloadImages(result.urls, result.downloadOptions)
@@ -56,15 +58,19 @@ export async function runPainting(
 ): Promise<FileMetadata[]> {
   try {
     const result = await generate()
+
     if (!result) {
       throw createPaintingGenerateError('GENERATE_FAILED')
     }
+
     if (Array.isArray(result)) {
       if (result.length === 0) {
         throw createPaintingGenerateError('GENERATE_FAILED')
       }
+
       return result
     }
+
     return resolvePaintingFiles(result)
   } catch (error: unknown) {
     if (error instanceof Error && error.name !== 'AbortError') {
@@ -74,14 +80,18 @@ export async function runPainting(
       // instead of collapsing to an empty `REMOTE_ERROR`.
       const detail = aiErrorDetail(error)
       logger.error('Image generation failed:', detail ?? error)
+
       if (detail?.statusCode === 401 || detail?.providerErrorCategory === 'auth') {
         throw createPaintingGenerateError('REQ_ERROR_TOKEN')
       }
+
       if (detail) {
         throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail) })
       }
+
       throw normalizePaintingGenerateError(error)
     }
+
     throw error
   }
 }

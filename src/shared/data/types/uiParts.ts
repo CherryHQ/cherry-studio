@@ -366,6 +366,7 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
   for (const [match, schema] of SCHEMA_BY_PART_TYPE) {
     if (match(type)) return schema
   }
+
   return null
 }
 
@@ -400,6 +401,7 @@ export function isBlankUserTurn(input: {
 export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: readonly string[]): CherryMessagePart[] {
   const contentParts = parts.filter((part) => part.type !== KNOWLEDGE_SCOPE_PART_TYPE)
   const uniqueBaseIds = Array.from(new Set(baseIds.filter(Boolean)))
+
   if (uniqueBaseIds.length === 0) return contentParts
 
   return [
@@ -415,11 +417,14 @@ export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: read
 export function getKnowledgeBaseIdsFromParts(parts: readonly CherryMessagePart[]): string[] | undefined {
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     const part = parts[index]
+
     if (part.type !== KNOWLEDGE_SCOPE_PART_TYPE || !('data' in part)) continue
 
     const result = KnowledgeScopePartDataSchema.safeParse(part.data)
+
     if (result.success) return Array.from(new Set(result.data.baseIds))
   }
+
   return undefined
 }
 
@@ -466,11 +471,15 @@ export interface ComposerMessageSnapshot {
  */
 export function readCherryMeta<P extends CherryMessagePart>(part: P): CherryMetaForPartType<P['type']> | undefined {
   const raw = (part as { providerMetadata?: { cherry?: unknown } }).providerMetadata?.cherry
+
   if (!raw || typeof raw !== 'object') return undefined
   const schema = schemaForPartType(part.type)
+
   if (!schema) return undefined
   const result = schema.safeParse(raw)
+
   if (!result.success) return undefined
+
   return result.data as CherryMetaForPartType<P['type']>
 }
 
@@ -486,6 +495,7 @@ export function withCherryMeta<P extends CherryMessagePart>(
   const existingMeta = (part as { providerMetadata?: { cherry?: unknown } }).providerMetadata
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored Cherry metadata is unvalidated; shallow patches must retain opaque extension values.
   const existingCherry = (existingMeta?.cherry ?? {}) as Record<string, unknown>
+
   return {
     ...part,
     providerMetadata: {

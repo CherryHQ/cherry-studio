@@ -76,14 +76,18 @@ export function useOcr(
 
       try {
         const result = await ipcApi.request('screenshot.recognize_text', { mediaId, region })
+
         if (generationRef.current !== generation) return
 
         // Superseded or expired, not failed — flashing an error here would be a lie.
         if (result.status === 'rejected') return
+
         if (result.status === 'unavailable') {
           setState({ status: 'unavailable', lines: [] })
+
           return
         }
+
         setState({ status: 'done', lines: result.lines })
       } catch (error) {
         if (generationRef.current !== generation) return
@@ -102,6 +106,7 @@ export function useOcr(
     if (!bounds || bounds.width < MIN_SIZE || bounds.height < MIN_SIZE) {
       generationRef.current++
       setState(INITIAL_STATE)
+
       return
     }
 
@@ -111,15 +116,18 @@ export function useOcr(
     // in `idle` would read as "this region has no text".
     if (!available) {
       setState({ status: 'unavailable', lines: [] })
+
       return
     }
 
     if (!autoStartRef.current) {
       setState({ status: 'pending', lines: [] })
+
       return
     }
 
     setState({ status: 'recognizing', lines: [] })
+
     const timer = setTimeout(() => {
       if (generationRef.current !== generation) return
       void runOcr(bounds, generation)
@@ -130,6 +138,7 @@ export function useOcr(
 
   const triggerOcr = useCallback(() => {
     const currentBounds = boundsRef.current
+
     if (!currentBounds || currentBounds.width < MIN_SIZE || currentBounds.height < MIN_SIZE) return
     const generation = ++generationRef.current
     setState({ status: 'recognizing', lines: [] })
@@ -138,6 +147,7 @@ export function useOcr(
 
   /** The toolbar's copy action: every recognized line, newline-joined. */
   const lines = state.lines
+
   const copyText = useCallback(() => {
     if (lines.length === 0) return
     void navigator.clipboard.writeText(lines.map((line) => line.text).join('\n'))

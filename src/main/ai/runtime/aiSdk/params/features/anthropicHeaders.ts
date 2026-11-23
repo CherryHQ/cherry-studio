@@ -25,9 +25,11 @@ const createAnthropicHeadersPlugin = ({
     enforce: 'pre',
     transformParams: (params) => {
       const betas = addAnthropicHeaders(model, provider, serverWebSearch)
+
       if (betas.length === 0) return params
 
       const existingHeaders = (params.headers ?? {}) as Record<string, string>
+
       return {
         ...params,
         headers: {

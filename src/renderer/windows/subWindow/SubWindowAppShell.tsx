@@ -34,9 +34,11 @@ export const SubWindowAppShell = () => {
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
   const isFullscreen = useNativeFullscreen()
+
   const handleCloseTab = useCallback(() => {
     void ipcApi.request('window.close')
   }, [])
+
   useCommandHandler('tab.close', handleCloseTab)
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
@@ -64,8 +66,10 @@ export const SubWindowAppShell = () => {
     // Chat / agent tabs are page-titled (topic / session name + emoji), so navigation keeps them.
     if (isPageTitledRoute(url)) {
       updateTab(tabId, { url })
+
       return
     }
+
     updateTab(tabId, {
       url,
       title: getDefaultRouteTitle(url),

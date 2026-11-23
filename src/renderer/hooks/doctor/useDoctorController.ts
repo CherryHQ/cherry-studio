@@ -48,13 +48,16 @@ function fixRequestFor(
   action: Extract<DoctorAction, { kind: 'fix' }>
 ): DoctorFixRequest | undefined {
   if (!DOCTOR_CHECK_CATALOG[checkId].fixes.some((candidate) => candidate.id === action.fixId)) return undefined
+
   const request = {
     scope,
     runId,
     checkId,
     fixId: action.fixId
   }
+
   if (action.target) Object.assign(request, { target: action.target })
+
   return request as DoctorFixRequest
 }
 
@@ -72,35 +75,45 @@ export function useDoctorController({
   const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
   const doctorState = cachedDoctorState ?? IDLE_DOCTOR_STATE
   const { appUpdateState } = useAppUpdateState()
+
   const [session, dispatch] = useReducer(
     doctorSessionReducer,
     { initialPanel, initialDescription },
     createDoctorSession
   )
+
   const [now, setNow] = useState(Date.now)
+
   const [isAutoRunPending, setIsAutoRunPending] = useState(
     initialPanel === 'checks' && (doctorState.status === 'idle' || initialRunTier !== undefined)
   )
+
   const autoRunRequestedRef = useRef(false)
 
   useEffect(() => {
     if (sharedCacheReady) return
+
     return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
   }, [sharedCacheReady])
 
   useEffect(() => {
     if (doctorState.status !== 'completed') return
     const remaining = Date.parse(doctorState.report.expiresAt) - Date.now()
+
     if (remaining <= 0) {
       setNow(Date.now())
+
       return
     }
+
     const timer = window.setTimeout(() => setNow(Date.now()), remaining)
+
     return () => window.clearTimeout(timer)
   }, [doctorState])
 
   const viewModel = useMemo(() => buildDoctorViewModel(doctorState, now), [doctorState, now])
   const confirmation = session.interaction
+
   const evidenceConfirmationVisible =
     confirmation.kind === 'confirm-evidence' &&
     viewModel.status === 'completed' &&
@@ -111,17 +124,20 @@ export function useDoctorController({
         (row.status === 'warn' || row.status === 'fail') &&
         row.result?.evidence?.some((item) => item.dataClass === 'consent_required')
     )
+
   useEffect(() => {
     if (session.interaction.kind === 'confirm-evidence' && !evidenceConfirmationVisible) {
       dispatch({ type: 'cancel-confirmation' })
     }
   }, [evidenceConfirmationVisible, session.interaction])
   const isInteracting = session.interaction.kind !== 'idle'
+
   const isCloseBlocked =
     session.interaction.kind === 'fixing' ||
     session.interaction.kind === 'action' ||
     session.interaction.kind === 'bundle-operation' ||
     session.interaction.kind === 'report-operation'
+
   const canChangePanel = !isCloseBlocked && session.interaction.kind !== 'confirm-evidence'
 
   const run = useCallback(
@@ -131,6 +147,7 @@ export function useDoctorController({
         type: 'start-interaction',
         interaction: { kind: 'run', tier }
       })
+
       try {
         if (mode === 'contextual' && subject.kind !== 'global') {
           await ipcApi.request('diagnostics.doctor.run_contextual', { subject })
@@ -149,21 +166,28 @@ export function useDoctorController({
 
   useEffect(() => {
     if (initialPanel !== 'checks' || !sharedCacheReady || autoRunRequestedRef.current) return
+
     if (doctorState.status === 'running') {
       autoRunRequestedRef.current = true
       setIsAutoRunPending(false)
+
       return
     }
+
     if (initialRunTier) {
       autoRunRequestedRef.current = true
       void run(initialRunTier).finally(() => setIsAutoRunPending(false))
+
       return
     }
+
     if (doctorState.status !== 'idle') {
       autoRunRequestedRef.current = true
       setIsAutoRunPending(false)
+
       return
     }
+
     autoRunRequestedRef.current = true
     void run(subject.kind === 'global' ? 'quick' : 'contextual').finally(() => setIsAutoRunPending(false))
   }, [doctorState.status, initialPanel, initialRunTier, run, sharedCacheReady, subject.kind])
@@ -171,6 +195,7 @@ export function useDoctorController({
   const cancel = useCallback(async () => {
     if (!canCancelDoctorRun(doctorState)) return
     dispatch({ type: 'start-interaction', interaction: { kind: 'cancel' } })
+
     try {
       await ipcApi.request('diagnostics.doctor.cancel', { scope, runId: doctorState.runId })
     } catch (error) {
@@ -185,13 +210,16 @@ export function useDoctorController({
     async (pending: DoctorPendingCheck) => {
       if (!viewModel.runId) return
       dispatch({ type: 'start-interaction', interaction: { kind: 'confirm-check' } })
+
       try {
         const result = await ipcApi.request('diagnostics.doctor.confirm_check', {
           scope,
           runId: viewModel.runId,
           requestId: pending.requestId
         })
+
         if (result.status === 'stale') toast.error(t('settings.doctor.messages.result_changed'))
+
         if (result.status === 'busy') toast.error(t('settings.doctor.messages.run_failed'))
       } catch (error) {
         logger.error('Failed to confirm a diagnostic check', error as Error)
@@ -210,6 +238,7 @@ export function useDoctorController({
       errorMessage: string
     ) => {
       dispatch({ type: 'start-interaction', interaction: { kind: 'action', ...interaction } })
+
       try {
         await operation()
       } catch (error) {
@@ -225,8 +254,10 @@ export function useDoctorController({
   const performFix = useCallback(
     async (request: DoctorFixRequest) => {
       dispatch({ type: 'start-interaction', interaction: { kind: 'fixing', request } })
+
       try {
         const result = await ipcApi.request('diagnostics.doctor.fix', request)
+
         switch (result.status) {
           case 'fixed':
             dispatch({ type: 'mark-check-fixed', checkId: request.checkId, runId: request.runId })
@@ -258,18 +289,24 @@ export function useDoctorController({
     async (checkId: DoctorCheckId, action: DoctorAction, runId?: string) => {
       if (viewModel.isStale) {
         toast.error(t('settings.doctor.messages.stale'))
+
         return
       }
+
       switch (action.kind) {
         case 'fix': {
           if (!runId) return
           const request = fixRequestFor(scope, runId, checkId, action)
+
           if (!request) return
           await performFix(request)
+
           return
         }
+
         case 'navigate':
           onNavigate(action.target)
+
           return
         case 'open_path':
           await performAction(
@@ -277,6 +314,7 @@ export function useDoctorController({
             () => ipcApi.request('system.shell.open_path', action.path),
             'Failed to open a system diagnostics path'
           )
+
           return
         case 'open_external':
           await performAction(
@@ -284,6 +322,7 @@ export function useDoctorController({
             () => openExternalWebsite(action.url),
             'Failed to open a system diagnostics link'
           )
+
           return
         case 'relaunch':
           await performAction(
@@ -291,6 +330,7 @@ export function useDoctorController({
             () => ipcApi.request('app.relaunch'),
             'Failed to relaunch Cherry Studio'
           )
+
           return
         case 'report':
           const reportDescription =
@@ -299,17 +339,22 @@ export function useDoctorController({
               checkId,
               title: t(doctorCheckTitleKey(checkId))
             })
+
           if (onReportProblem) {
             onReportProblem(reportDescription)
+
             return
           }
+
           if (session.descriptionDraft.trim().length === 0) {
             dispatch({
               type: 'set-description',
               description: reportDescription
             })
           }
+
           dispatch({ type: 'set-panel', panel: 'report' })
+
           return
         default:
           return assertNever(action)

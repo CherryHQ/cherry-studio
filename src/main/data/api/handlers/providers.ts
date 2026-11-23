@@ -26,11 +26,13 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
     GET: async ({ query }) => {
       const parsed = ListProvidersQuerySchema.parse(query ?? {})
+
       return providerService.list(parsed)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateProviderSchema.parse(body)
+
       return providerService.create(parsed)
     }
   },
@@ -42,11 +44,13 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateProviderSchema.parse(body)
+
       return providerService.update(params.providerId, parsed)
     },
 
     DELETE: async ({ params }) => {
       providerService.delete(params.providerId)
+
       return undefined
     }
   },
@@ -55,16 +59,19 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     GET: async ({ params, query }) => {
       const parsed = ListProviderApiKeysQuerySchema.parse(query ?? {})
       const keys = providerService.getApiKeys(params.providerId, parsed)
+
       return { keys }
     },
 
     POST: async ({ params, body }) => {
       const parsed = AddProviderApiKeySchema.parse(body)
+
       return providerService.addApiKey(params.providerId, parsed.key, parsed.label)
     },
 
     PUT: async ({ params, body }) => {
       const parsed = ReplaceProviderApiKeysSchema.parse(body)
+
       return providerService.replaceApiKeys(params.providerId, parsed.keys)
     }
   },
@@ -72,6 +79,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/auth-config': {
     GET: async ({ params }) => {
       const authConfig = providerService.getAuthConfig(params.providerId)
+
       // OAuth secrets never need to leave the main process — the renderer uses
       // `oauth.has_token` for the signed-in boolean. Whitelist only the
       // non-secret metadata (deny-by-default, so a future field can't leak a
@@ -79,8 +87,10 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
       // their config for the settings UI that edits them.
       if (authConfig?.type === 'oauth') {
         const { type, clientId, accountId, expiresAt } = authConfig
+
         return { type, clientId, accountId, expiresAt }
       }
+
       return authConfig
     }
   },
@@ -90,6 +100,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
       const parsed = ProviderPresetQuerySchema.parse(query ?? {})
       const provider = providerService.getByProviderId(params.providerId)
       const fields = Array.isArray(parsed.fields) ? parsed.fields : [parsed.fields]
+
       return providerRegistryService.getProviderPreset(provider.id, fields, provider.presetProviderId ?? null)
     }
   },
@@ -97,6 +108,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/api-keys/:keyId': {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateApiKeySchema.parse(body)
+
       return providerService.updateApiKey(params.providerId, params.keyId, parsed)
     },
 
@@ -109,6 +121,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
       providerService.move(params.id, parsed)
+
       return undefined
     }
   },
@@ -117,6 +130,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       providerService.reorder(parsed.moves)
+
       return undefined
     }
   }

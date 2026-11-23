@@ -16,6 +16,7 @@ export function useConversationListShortcuts<T extends ResourceListItemBase>(onO
   const tabRuntime = useTabCommandRuntime()
   // Conversation navigation must survive the composer unmount returning focus to document.body.
   const runtime = useMemo(() => (host ? host.forScope(host.rootScope) : tabRuntime), [host, tabRuntime])
+
   const items = useMemo(() => {
     const groups =
       view.sections.length > 0
@@ -23,8 +24,10 @@ export function useConversationListShortcuts<T extends ResourceListItemBase>(onO
             .filter((section) => view.sections.length === 1 || !section.collapsed)
             .flatMap((section) => section.groups)
         : view.groups
+
     return groups.flatMap((group) => group.items).slice(0, CONVERSATION_COMMANDS.length)
   }, [view])
+
   const stateRef = useRef({ items, onOpen })
   stateRef.current = { items, onOpen }
   const itemCount = items.length
@@ -33,17 +36,20 @@ export function useConversationListShortcuts<T extends ResourceListItemBase>(onO
 
   useEffect(() => {
     if (!enabled) return
+
     const dispose = CONVERSATION_COMMANDS.map((command, index) => {
       return runtime.registerHandler(
         command,
         () => {
           const { items, onOpen } = stateRef.current
           const item = items[index]
+
           if (item) onOpen(item)
         },
         { enabled: () => index < itemCount && (listScope?.isActive() ?? true) }
       )
     })
+
     return () => dispose.forEach((remove) => remove())
   }, [enabled, itemCount, listScope, runtime])
 
@@ -51,8 +57,10 @@ export function useConversationListShortcuts<T extends ResourceListItemBase>(onO
     const hints = new Map<string, string>()
     items.forEach((item, index) => {
       const label = commandHints.get(CONVERSATION_COMMANDS[index])
+
       if (label) hints.set(item.id, label)
     })
+
     return hints
   }, [commandHints, items])
 }

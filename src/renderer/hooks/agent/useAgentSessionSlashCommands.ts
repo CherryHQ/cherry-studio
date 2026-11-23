@@ -25,6 +25,7 @@ export function useAgentSessionSlashCommands(sessionId: string | undefined): Nor
 
   return useMemo(() => {
     if (!sessionId || !cached || cached.length === 0) return undefined
+
     return cached.map((command) => ({
       command: `/${command.name}`,
       description: command.description,

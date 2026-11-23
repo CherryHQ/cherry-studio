@@ -40,10 +40,13 @@ const FIXED_ROW_CONTAINER_STYLE: CSSProperties = { height: RESOURCE_LIST_DEFAULT
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (!ref) return
+
   if (typeof ref === 'function') {
     ref(value)
+
     return
   }
+
   ref.current = value
 }
 
@@ -194,6 +197,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(
         appendGroup(group, showSectionHeaders ? section.section.id : undefined)
       }
     }
+
     return groups
   }
 
@@ -209,7 +213,9 @@ function getResourceListVirtualRowKey<T extends ResourceListItemBase>(
   getItemId: (item: T) => string
 ) {
   if (row.type === 'group-header') return `group-header:${row.group.id}`
+
   if (row.type === 'group-footer') return `group-footer:${row.group.id}`
+
   return `item:${getItemId(row.item.item)}`
 }
 
@@ -219,6 +225,7 @@ function getRevealRowIndex<T extends ResourceListItemBase>(
   getItemId: (item: T) => string
 ) {
   const rows = buildGroupedVirtualRows(groups, true, true)
+
   return rows.findIndex((row) => row.type === 'item' && getItemId(row.item.item) === itemId)
 }
 
@@ -232,6 +239,7 @@ function getVirtualItemIndex<T extends ResourceListItemBase>(
   getItemId: (item: T) => string
 ) {
   if (!itemId) return -1
+
   return items.findIndex((item) => getItemId(item.item) === itemId)
 }
 
@@ -267,19 +275,23 @@ function useResourceListListboxNavigation<T extends ResourceListItemBase>({
   const getCurrentVirtualItemIndex = useCallback(() => {
     const { activeId, selectedId } = store.getListboxSnapshot()
     const activeIndex = getVirtualItemIndex(virtualItems, activeId, getItemId)
+
     if (activeIndex >= 0) return activeIndex
+
     return getVirtualItemIndex(virtualItems, selectedId, getItemId)
   }, [getItemId, store, virtualItems])
 
   const getActiveItemId = useCallback(() => {
     const currentIndex = getCurrentVirtualItemIndex()
     const activeItem = currentIndex >= 0 ? virtualItems[currentIndex] : undefined
+
     return activeItem ? getItemId(activeItem.item) : null
   }, [getCurrentVirtualItemIndex, getItemId, virtualItems])
 
   const syncActiveDescendant = useCallback(() => {
     const activeId = getActiveItemId()
     const scrollElement = listboxRef.current
+
     if (activeId) {
       scrollElement?.setAttribute('aria-activedescendant', getResourceListOptionDomId(activeId))
     } else {
@@ -300,6 +312,7 @@ function useResourceListListboxNavigation<T extends ResourceListItemBase>({
   const scrollItemIntoView = useCallback(
     (itemId: string) => {
       const rowIndex = getVirtualRowIndex(virtualRows, itemId, getItemId)
+
       if (rowIndex >= 0) {
         virtualListRef.current?.scrollToIndex(rowIndex, { align: 'auto' })
       }
@@ -310,6 +323,7 @@ function useResourceListListboxNavigation<T extends ResourceListItemBase>({
   const moveActiveItem = useCallback(
     (nextIndex: number) => {
       const item = virtualItems[clampVirtualItemIndex(nextIndex, virtualItems.length)]
+
       if (!item) return
       const itemId = getItemId(item.item)
       actions.setActiveItem(itemId)
@@ -321,6 +335,7 @@ function useResourceListListboxNavigation<T extends ResourceListItemBase>({
   const handleListboxKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.defaultPrevented || event.target !== event.currentTarget || event.nativeEvent.isComposing) return
+
       if (virtualItems.length === 0) return
       const currentIndex = getCurrentVirtualItemIndex()
 
@@ -328,23 +343,28 @@ function useResourceListListboxNavigation<T extends ResourceListItemBase>({
         case 'ArrowDown':
           event.preventDefault()
           moveActiveItem(currentIndex < 0 ? 0 : currentIndex + 1)
+
           return
         case 'ArrowUp':
           event.preventDefault()
           moveActiveItem(currentIndex < 0 ? virtualItems.length - 1 : currentIndex - 1)
+
           return
         case 'Home':
           event.preventDefault()
           moveActiveItem(0)
+
           return
         case 'End':
           event.preventDefault()
           moveActiveItem(virtualItems.length - 1)
+
           return
         case 'Enter':
         case ' ':
         case 'Spacebar':
           const activeId = getActiveItemId()
+
           if (!activeId) return
           event.preventDefault()
           actions.selectItem(activeId)
@@ -368,9 +388,11 @@ function useRevealRequestScroll<T extends ResourceListItemBase>(
     if (!revealRequest) return
 
     const requestKey = `${revealRequest.requestId}:${revealRequest.itemId}`
+
     if (scrolledRequestRef.current === requestKey) return
 
     const rowIndex = getRevealRowIndex(groups, revealRequest.itemId, getItemId)
+
     if (rowIndex < 0) return
 
     scrolledRequestRef.current = requestKey
@@ -464,6 +486,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
+
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -471,12 +494,15 @@ export function VirtualItems<T extends ResourceListItemBase>({
     virtualListRef,
     virtualRows
   })
+
   const itemContainerStyle =
     estimateItemSize === estimateResourceListDefaultRowSize ? FIXED_ROW_CONTAINER_STYLE : undefined
+
   const estimateVirtualItemSize = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
     [estimateItemSize]
   )
+
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow groupHeaderIconVisible={hasGroupHeaderIcon(meta, virtualItem)}>
@@ -485,6 +511,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
     ),
     [meta, renderContext, renderItem]
   )
+
   const renderGroupFooter = useCallback(
     (footer: ResourceListVirtualFooter) => {
       const className = !getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined
@@ -501,13 +528,16 @@ export function VirtualItems<T extends ResourceListItemBase>({
     },
     [meta]
   )
+
   const getVirtualRowKey = useCallback(
     (index: number) => {
       const row = virtualRows[index]
+
       return row ? getResourceListVirtualRowKey(row, getItemId) : index
     },
     [getItemId, virtualRows]
   )
+
   const setScrollElementRef = useCallback(
     (node: HTMLDivElement | null) => {
       listboxRef.current = node
@@ -515,6 +545,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
     },
     [ref]
   )
+
   useRevealRequestScroll(getItemId, groups, revealRequest, virtualListRef)
 
   return (
@@ -565,6 +596,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
 }: VirtualDraggableItemsProps<T>) {
   const actions = useResourceListActions()
   const meta = useResourceListMeta<T>()
+
   const {
     canDragGroup: canDragGroupMeta,
     canDragItem: canDragItemMeta,
@@ -575,12 +607,14 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     getItemId,
     revealRequest
   } = meta
+
   const view = useResourceListView<T>()
   const renderContext = useResourceListRenderContext<T>()
   const groups = useMemo(() => buildVirtualGroups(view, Boolean(meta.groupEmptyLabel)), [meta.groupEmptyLabel, view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
   const listboxRef = useRef<HTMLDivElement>(null)
+
   const { handleListboxKeyDown } = useResourceListListboxNavigation({
     getItemId,
     groups,
@@ -588,21 +622,27 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     virtualListRef,
     virtualRows
   })
+
   const itemContainerStyle =
     estimateItemSize === estimateResourceListDefaultRowSize ? FIXED_ROW_CONTAINER_STYLE : undefined
+
   const getGroupId = useCallback((group: ResourceListVirtualGroupData) => group.id, [])
+
   const getGroupBoundaryId = useCallback(
     (group: ResourceListVirtualGroupData) => group.__resourceListBoundaryId ?? group.id,
     []
   )
+
   const getVirtualItemId = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => getItemId(virtualItem.item),
     [getItemId]
   )
+
   const estimateVirtualItemSize = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
     [estimateItemSize]
   )
+
   const handleGroupedDragEnd = useCallback(
     (payload: GroupedSortableVirtualListDragPayload<ResourceListVirtualGroupData, ResourceListVirtualItem<T>>) => {
       if (payload.type === 'group') {
@@ -614,6 +654,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
           sourceIndex: payload.sourceIndex,
           targetIndex: payload.targetIndex
         })
+
         return
       }
 
@@ -632,6 +673,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [actions]
   )
+
   const canDragGroup = useCallback(
     (group: ResourceListVirtualGroupData, groupIndex: number) => {
       if (isSectionVirtualGroup(group)) {
@@ -642,6 +684,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [canDragGroupMeta]
   )
+
   const canDragVirtualItem = useCallback(
     (
       virtualItem: ResourceListVirtualItem<T>,
@@ -659,6 +702,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
       }) ?? true,
     [canDragItemMeta]
   )
+
   const canDropGroup = useCallback(
     (payload: {
       activeGroup: ResourceListVirtualGroupData
@@ -671,6 +715,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     }) => {
       const activeIsSection = isSectionVirtualGroup(payload.activeGroup)
       const overIsSection = isSectionVirtualGroup(payload.overGroup)
+
       if (activeIsSection !== overIsSection) return false
 
       return (
@@ -685,6 +730,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [canDropGroupMeta]
   )
+
   const canDropVirtualItem = useCallback(
     (payload: {
       activeId: string | number
@@ -719,6 +765,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [canDropItemMeta]
   )
+
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow groupHeaderIconVisible={hasGroupHeaderIcon(meta, virtualItem)}>
@@ -727,6 +774,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     ),
     [meta, renderContext, renderItem]
   )
+
   const renderGroupFooter = useCallback(
     (footer: ResourceListVirtualFooter) => {
       const className = !getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined
@@ -743,13 +791,16 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [meta]
   )
+
   const getVirtualRowKey = useCallback(
     (index: number) => {
       const row = virtualRows[index]
+
       return row ? getResourceListVirtualRowKey(row, getItemId) : index
     },
     [getItemId, virtualRows]
   )
+
   const setScrollElementRef = useCallback(
     (node: HTMLDivElement | null) => {
       listboxRef.current = node
@@ -757,6 +808,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [ref]
   )
+
   useRevealRequestScroll(getItemId, groups, revealRequest, virtualListRef)
 
   return (

@@ -39,8 +39,10 @@ export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
       // QVeris prefers MCP OAuth sign-in; QVERIS_API_KEY is only an optional fallback credential.
       const resolved = { ...server, type: 'streamableHttp' as const }
       const apiKey = server.env?.QVERIS_API_KEY?.trim()
+
       return apiKey ? { ...resolved, headers: { ...resolved.headers, Authorization: `Bearer ${apiKey}` } } : resolved
     }
+
     default:
       return server
   }
@@ -52,6 +54,7 @@ export async function createBuiltinMcpEndpoint(
   envs: Record<string, string> = {}
 ): Promise<BuiltinMcpEndpoint> {
   logger.debug(`[MCP] Creating builtin MCP endpoint: ${name}`, { args, envNames: Object.keys(envs) })
+
   switch (name) {
     case BuiltinMcpServerNames.memory:
       return (await import('./memory')).createMemoryEndpoint(envs.MEMORY_FILE_PATH)
@@ -59,31 +62,44 @@ export async function createBuiltinMcpEndpoint(
       return (await import('./sequentialthinking')).createSequentialThinkingEndpoint()
     case BuiltinMcpServerNames.braveSearch: {
       const { createBraveSearchServer } = await import('./braveSearch')
+
       return statelessEndpoint(() => createBraveSearchServer(envs.BRAVE_API_KEY))
     }
+
     case BuiltinMcpServerNames.fetch: {
       const { createFetchServer } = await import('./fetch')
+
       return statelessEndpoint(createFetchServer)
     }
+
     case BuiltinMcpServerNames.filesystem: {
       const { createFileSystemServer, resolveFilesystemBaseDir } = await import('./filesystem')
+
       return statelessEndpoint(() => createFileSystemServer(resolveFilesystemBaseDir(args, envs)))
     }
+
     case BuiltinMcpServerNames.difyKnowledge: {
       const { createDifyKnowledgeServer } = await import('./difyKnowledge')
+
       return statelessEndpoint(() => createDifyKnowledgeServer(envs.DIFY_KEY, args))
     }
+
     case BuiltinMcpServerNames.python: {
       const { createPythonServer } = await import('./python')
+
       return statelessEndpoint(createPythonServer)
     }
+
     case BuiltinMcpServerNames.didiMcp: {
       const { createDiDiMcpServer } = await import('./didiMcp')
+
       return statelessEndpoint(() => createDiDiMcpServer(envs.DIDI_API_KEY))
     }
+
     case BuiltinMcpServerNames.browser: {
       return application.get('BrowserSessionService').createMcpEndpoint()
     }
+
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)
   }
@@ -97,6 +113,7 @@ export function getBuiltinAutoInstallEnv(server: McpServer) {
   if (server.installSource !== 'builtin' || server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
     return {}
   }
+
   return {
     MCP_REGISTRY_PATH: application.getPath('feature.mcp.registry_file'),
     MCP_SETTINGS_PATH: application.getPath('feature.mcp.auto_install_settings_file')

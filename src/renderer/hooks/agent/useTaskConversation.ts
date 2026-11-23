@@ -28,6 +28,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
   const latestRequest = useRef(0)
   const taskRef = useRef(task)
   taskRef.current = task
+
   const visible: State =
     state.key === key
       ? state
@@ -39,6 +40,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
               ? { ...state.result, session: null, selectedRun: null, runId: undefined, startedAt: undefined }
               : undefined
         }
+
   const result = visible.result
   const resultRef = useRef(result)
   resultRef.current = result
@@ -49,6 +51,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     // Activity retains the selection while disconnecting effects; only history needs refreshing.
     setState((current) => ({ ...current, loading: false }))
     refreshHistory()
+
     return true
   }
 
@@ -56,9 +59,11 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     const currentTask = taskRef.current
     const abort = new AbortController()
     controller.current = abort
+
     if (resumeConversation.current()) return () => abort.abort()
     const retained = resultRef.current
     setState({ key, taskId: currentTask?.id, result: retained, loading: !!currentTask })
+
     if (currentTask) {
       const request = ++latestRequest.current
       void resolveTaskConversation(currentTask, runId, abort.signal).then(
@@ -72,21 +77,26 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
         }
       )
     }
+
     return () => abort.abort()
   }, [key, runId, revision])
 
   const busy = useRef(false)
+
   const loadMore = useCallback(async () => {
     if (!task || !result || visible.loading || busy.current || (result.nextPage - 1) * 50 >= result.total) return
     busy.current = true
     const signal = controller.current?.signal
     setState((current) => ({ ...current, loading: true, error: undefined }))
+
     try {
       const next = await readTaskConversationPage(task, result.nextPage, signal)
+
       if (signal?.aborted) return
       setState((current) => {
         if (current.key !== key || !current.result) return current
         const result = { ...next }
+
         if (current.result.session || runId) {
           Object.assign(result, {
             selectedRun: current.result.selectedRun,
@@ -95,10 +105,12 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
             startedAt: current.result.startedAt
           })
         }
+
         result.logs = [
           ...current.result.logs,
           ...next.logs.filter((log) => !current.result!.logs.some((existing) => existing.id === log.id))
         ]
+
         return { key, taskId: task.id, loading: false, newerRunId: current.newerRunId, result }
       })
     } catch (error) {
@@ -112,15 +124,18 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     if (!task) return
     const signal = controller.current?.signal
     const request = ++latestRequest.current
+
     const refreshed =
       runId || !result?.session
         ? resolveTaskConversation(task, runId, signal)
         : readTaskConversationPage(task, 1, signal)
+
     void Promise.all([refreshed, runId ? readTaskConversationPage(task, 1, signal) : refreshed])
       .then(([first, firstPage]) => {
         if (signal?.aborted || request !== latestRequest.current) return
         setState((current) => {
           if (current.key !== key) return current
+
           if (!current.result || (!runId && !current.result.session && !current.result.selectedRun))
             return {
               key,
@@ -136,10 +151,12 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
               },
               loading: false
             }
+
           const selectedRun =
             first.selectedRun?.id === current.result.selectedRun?.id
               ? first.selectedRun
               : first.logs.find((log) => log.id === current.result!.selectedRun?.id)
+
           return {
             ...current,
             loading: false,
@@ -188,11 +205,13 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
         }
       })
   }
+
   useDataChange('/agents/:agentId/tasks/:taskId/logs', refreshHistory, {
     routeParams: task ? { taskId: task.id } : undefined
   })
 
   const sessionId = result?.session?.id
+
   const {
     data: session,
     error: sessionError,
@@ -202,6 +221,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     enabled: !!sessionId,
     swrOptions: { keepPreviousData: false }
   })
+
   useDataChange('/agent-sessions/:sessionId', (effects) => {
     if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) void refetch()
   })
@@ -211,10 +231,13 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
   useLayoutEffect(() => {
     if (!tabId) return
     const cacheKey = `scheduled-task.conversation.${tabId}`
+
     if (!task || !verifiedSession) {
       cacheService.deleteCasual(cacheKey)
+
       return
     }
+
     // Tab ownership survives Activity hiding; TabsProvider's navigation owner clears closed tabs.
     cacheService.setCasual(cacheKey, { taskId: task.id, runId, sessionId: verifiedSession.id })
   }, [tabId, task, runId, verifiedSession])

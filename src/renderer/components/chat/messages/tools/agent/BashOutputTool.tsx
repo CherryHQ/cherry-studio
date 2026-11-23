@@ -28,10 +28,12 @@ const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null
     const xmlStr = output.includes('<status>') || hasToolError ? `<root>${output}</root>` : output
     const xmlDoc = parser.parseFromString(xmlStr, 'application/xml')
     const parserError = xmlDoc.querySelector('parsererror')
+
     if (parserError) return null
 
     const getElementText = (tagName: string): string | undefined => {
       const element = xmlDoc.getElementsByTagName(tagName)[0]
+
       return element?.textContent?.trim()
     }
 
@@ -158,6 +160,7 @@ export function BashOutputTool({
       </div>
     )
   )
+
   return {
     key: AgentToolsType.BashOutput,
     label: (

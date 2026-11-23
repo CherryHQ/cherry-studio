@@ -110,9 +110,11 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // auto-rename on collision. detect/replace first resolve same-name conflicts
     // against the existing root items and earlier items in the same batch.
     let itemsToAdd = inputs
+
     if (conflictStrategy !== 'rename') {
       const existingRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
       const resolution = resolveKnowledgeAddConflicts(inputs, existingRoots)
+
       if (conflictStrategy === 'detect') {
         if (resolution.conflicts.length > 0) {
           // Report and add nothing — the UI asks the user how to resolve.
@@ -125,6 +127,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         // index/prepare handlers take this same base lock, so cancelling while
         // holding it would deadlock.
         itemsToAdd = resolution.keptInputs
+
         if (resolution.conflictingExistingRootIds.length > 0) {
           await cancelActiveKnowledgeJobs(base.id, 'knowledge-add-replace', {
             rootItemIds: resolution.conflictingExistingRootIds,
@@ -152,12 +155,15 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         // against the same growing set, so a same-named batch add no longer
         // throws — earlier inputs are visible when deduping later ones.
         const reservedPaths = this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
+
         for (const input of itemsToAdd) {
           const { createInput, copies } = this.planRuntimeAddItemInput(base.fileProcessorId, input, reservedPaths)
+
           if (options.copyInline) {
             for (const copy of copies) {
               await copyFileIntoKnowledgeBaseAt(base.id, copy.from, copy.relativePath)
             }
+
             // A url restore copies its snapshot to raw/{relativePath} under type 'url',
             // so track it for rollback too — otherwise a mid-batch failure orphans the
             // snapshot and a same-titled re-restore later hard-fails on the leftover file
@@ -166,12 +172,15 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
               copiedFileItems.push(createInput)
             }
           }
+
           const pendingCopies = options.copyInline ? [] : copies
+
           // Only files wait in `preparing`; a url only owes a copy when restored with a snapshot,
           // which restore copies inline.
           const createdItem = knowledgeItemService.createActive(base.id, createInput, {
             awaitingCopy: createInput.type === 'file' && pendingCopies.length > 0
           })
+
           acceptedItems.push({ item: createdItem, pendingCopies })
         }
       } catch (error) {
@@ -191,6 +200,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     })
 
     const completedSchedulingItemIds = new Set<string>()
+
     try {
       for (const { item, pendingCopies } of acceptedItems) {
         if (pendingCopies.length > 0) {
@@ -198,6 +208,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         } else {
           await this.scheduleItem(toKnowledgeBaseId(item.baseId), toKnowledgeItemId(item.id))
         }
+
         completedSchedulingItemIds.add(item.id)
       }
     } catch (error) {
@@ -235,17 +246,21 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   private async purgeConflictingExistingItems(base: KnowledgeBase, itemsToAdd: KnowledgeAddItemInput[]): Promise<void> {
     const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
     const { conflictingExistingRootIds } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
+
     if (conflictingExistingRootIds.length === 0) {
       return
     }
+
     const subtreeItems = knowledgeItemService.getSubtreeItems(base.id, conflictingExistingRootIds, {
       includeRoots: true
     })
+
     await purgeKnowledgeSubtreeWithinLock(base, subtreeItems, { baseId: base.id, reason: 'knowledge-add-replace' })
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
     const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+
     if (rootItemIds.length === 0) {
       return
     }
@@ -272,6 +287,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
     assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
     const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+
     if (rootItemIds.length === 0) {
       return
     }
@@ -285,6 +301,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // source check, and it looks for this reindex's jobs under the same lock.
     await this.knowledgeLockManager.runExclusive(baseId, () => {
       this.assertSubtreesSettled(knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true }))
+
       // One job per root: a delete or replace cancels every job touching its subtree, so roots
       // sharing a job would all be interrupted with it.
       for (const rootItemId of toKnowledgeItemIds(rootItemIds)) {
@@ -318,11 +335,14 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       // started an item against the BM25-only configuration.
       const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
       const rootItemIds = rootItems.map((item) => item.id)
+
       if (rootItemIds.length > 0) {
         assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
         this.assertSubtreesSettled(knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true }))
       }
+
       await this.assertNoReindexPending(baseId)
+
       return application.get('DbService').withWriteTx((tx) => ({
         updatedBase: knowledgeBaseService.updateTx(tx, baseId, patch, { allowEmbeddingModelBackfill: true }),
         leafItemIds: knowledgeItemService.activateCompletedLeavesTx(tx, baseId)
@@ -330,6 +350,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     })
 
     await this.scheduleBackfillLeaves(baseId, leafItemIds)
+
     return updatedBase
   }
 
@@ -344,6 +365,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       status: [...ACTIVE_JOB_STATUSES],
       limit: 1
     })
+
     if (reindexJob) {
       throw DataApiErrorFactory.validation(
         { base: [`Knowledge base '${baseId}' has a reindex in progress`] },
@@ -382,16 +404,20 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   ): Promise<void> {
     const base = knowledgeBaseService.getById(baseId)
     const item = knowledgeItemService.getById(itemId)
+
     if (item.baseId !== baseId) {
       throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
     }
+
     if (item.status === 'deleting') {
       return
     }
 
     const plan = planKnowledgeItemSource(base, item, options)
+
     if (plan.kind === 'invalid') {
       knowledgeItemService.updateStatus(itemId, 'failed', { error: plan.reason })
+
       return
     }
 
@@ -402,6 +428,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // bytes, now that nothing reserves the path) so the index reads the refreshed file instead.
     if (options.forceFileReprocess && plan.kind === 'index-documents' && item.type === 'file') {
       const staleRelativePath = item.data.indexedRelativePath
+
       if (staleRelativePath) {
         knowledgeItemService.clearIndexedRelativePath(itemId)
         await deleteKnowledgeItemFilesBestEffort(
@@ -417,6 +444,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
 
     const jobManager = application.get('JobManager')
+
     if (plan.kind === 'prepare-root') {
       jobManager.enqueue(
         'knowledge.prepare-root',
@@ -427,6 +455,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           parentId: parentJobId ?? undefined
         }
       )
+
       return
     }
 
@@ -434,15 +463,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       if (item.type !== 'file') {
         throw new Error(`File processing source plan produced for non-file item: ${item.id}`)
       }
+
       const processorId = FileProcessorIdSchema.parse(base.fileProcessorId)
       const fileProcessing = application.get('FileProcessingService')
       const sourcePath = getKnowledgeBaseFilePath(baseId, item.data.relativePath)
       const processedRelativePath = getProcessedMarkdownRelativePath(item.data.relativePath)
+
       if (item.data.indexedRelativePath !== processedRelativePath) {
         this.assertKnowledgeRelativePathNotReserved(baseId, base.fileProcessorId, item.id, processedRelativePath)
         await assertKnowledgeFileTargetAvailable(baseId, processedRelativePath)
       }
+
       const processedPath = getKnowledgeBaseFilePath(baseId, processedRelativePath)
+
       const { task, done } = await fileProcessing.startTask({
         feature: 'document_to_markdown',
         file: { kind: 'path', path: sourcePath },
@@ -450,6 +483,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         context: { dataId: item.id },
         processorId
       })
+
       this.fileProcessingWaits.add(baseId, itemId, task.id)
       done
         .then(() => {
@@ -464,6 +498,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
             fileProcessingTaskId: task.id
           })
         })
+
       return
     }
 
@@ -527,6 +562,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   recoverInterruptedItems(): void {
     try {
       const failedCount = knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+
       if (failedCount > 0) {
         logger.info('Recovered interrupted knowledge items', { count: failedCount })
       }
@@ -537,10 +573,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
   recoverDeletingItems(): void {
     let deletingRootGroups: Awaited<ReturnType<typeof knowledgeItemService.getDeletingRootGroups>>
+
     try {
       deletingRootGroups = knowledgeItemService.getDeletingRootGroups()
     } catch (error) {
       logger.error('Failed to scan deleting knowledge items for recovery', error as Error)
+
       return
     }
 
@@ -549,9 +587,11 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
 
     const jobManager = application.get('JobManager')
+
     for (const { baseId, rootItemIds } of deletingRootGroups) {
       for (let i = 0; i < rootItemIds.length; i += DELETE_RECOVERY_ROOT_CHUNK_SIZE) {
         const rootItemIdChunk = rootItemIds.slice(i, i + DELETE_RECOVERY_ROOT_CHUNK_SIZE)
+
         try {
           jobManager.enqueue(
             'knowledge.delete-subtree',
@@ -623,10 +663,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   /** Reject while any item of the given subtrees is still running or being deleted. */
   private assertSubtreesSettled(subtreeItems: KnowledgeItem[]): void {
     const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
+
     for (const item of subtreeItems) {
       if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
         continue
       }
+
       blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
     }
 
@@ -676,11 +718,13 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       if (!input.data.snapshotPath) {
         return { createInput: input, copies: [] }
       }
+
       // Restore: copy the captured snapshot markdown into this base under a
       // collision-free name and pin the item to it, so the first index reads the
       // snapshot offline (see ensureSnapshot) instead of re-fetching the page.
       const snapshotName = getKnowledgeSourceRelativePath(input.data.snapshotPath)
       const relativePath = reserveImportedFileRelativePath(snapshotName, false, reservedPaths)
+
       return {
         createInput: {
           groupId: input.groupId,
@@ -697,10 +741,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     assertSupportedKnowledgeFilePath(input.data.path)
     const fileName = getKnowledgeSourceRelativePath(input.data.path)
+
     // A restore that carries a processed artifact reserves the artifact slot too, even if
     // the destination base has no processor configured, so the copied `.md` cannot collide.
     const reserveArtifact =
       needsProcessedArtifactReservation(fileProcessorId, fileName) || Boolean(input.data.indexedPath)
+
     const relativePath = reserveImportedFileRelativePath(fileName, reserveArtifact, reservedPaths)
     const sourceCopy: KnowledgeSourceCopy = { from: input.data.path, relativePath }
 
@@ -708,6 +754,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       // Copy the already-processed artifact next to the source under the reserved name
       // and pin the item to it, so indexing skips the file processor (see needsFileProcessing).
       const indexedRelativePath = getProcessedMarkdownRelativePath(relativePath)
+
       return {
         createInput: {
           groupId: input.groupId,
@@ -734,6 +781,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   private loadReservedKnowledgeFilePaths(baseId: string, fileProcessorId: string | null | undefined): Set<string> {
     // A deleting row's pending cleanup still unlinks its paths, so a new item must not claim them.
     const items = knowledgeItemService.getItemsByBaseId(baseId, { includeDeleting: true })
+
     return collectKnowledgeReservedRelativePaths(items, { fileProcessorId })
   }
 
@@ -746,6 +794,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // A deleting row's pending cleanup still unlinks its paths, so the processed output must not claim them.
     const items = knowledgeItemService.getItemsByBaseId(baseId, { includeDeleting: true })
     const reserved = collectKnowledgeReservedRelativePaths(items, { fileProcessorId, excludeItemId: itemId })
+
     if (reserved.has(relativePath)) {
       throw new Error(`Knowledge file already exists: ${relativePath}`)
     }

@@ -48,10 +48,12 @@ function normalizePemFormat(pemKey: string): string {
       foundBegin = true
       continue
     }
+
     if (line === '-----END PRIVATE KEY-----') {
       foundEnd = true
       break
     }
+
     if (foundBegin && !foundEnd) {
       keyContent += line
     }

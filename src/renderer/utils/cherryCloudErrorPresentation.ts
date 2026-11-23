@@ -12,10 +12,12 @@ export function getCherryCloudErrorPresentation(
   category: ErrorCategory
 ) {
   if (providerId !== CHERRY_CLOUD_PROVIDER_ID) return { quota: false, text: '' }
+
   const text = stripClaudeCodeRejectionPrefix(
     providerErrorText(error) ||
       getSafeProviderErrorMessage({ responseBody: error?.message?.replace(/^\s*\d{3}:\s*/, '') })
   )
+
   return {
     quota: category === 'quota',
     text

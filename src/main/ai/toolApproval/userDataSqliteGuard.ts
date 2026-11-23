@@ -70,6 +70,7 @@ type PathClassification = 'protected' | 'safe' | 'invalid'
 /** Match Pi's file-tool preprocessing before policy or containment checks. */
 export function normalizePiNativePathInput(value: string): string {
   const normalized = value.replace(PI_UNICODE_SPACES, ' ')
+
   return normalized.startsWith('@') ? normalized.slice(1) : normalized
 }
 
@@ -79,11 +80,14 @@ export async function evaluateUserDataSqliteGuard(
   const binding: ToolBinding = TOOL_BINDINGS[input.runtime]
   const pathField = binding.pathFields[input.toolName]
   const shellField = binding.shellFields[input.toolName]
+
   if (!pathField && !shellField) return undefined
 
   const args = isRecord(input.args) ? input.args : undefined
   const rawValue = args?.[pathField ?? shellField]
+
   if (typeof rawValue !== 'string' || !rawValue.trim()) return undefined
+
   if (input.signal?.aborted) return undefined
 
   if (pathField) {
@@ -91,35 +95,44 @@ export async function evaluateUserDataSqliteGuard(
       resolveGuardRoots(input.workspacePath, input.signal),
       canonicalizeExistingDirectory(path.resolve(input.cwd), input.signal)
     ])
+
     if (!roots || !cwd) return deny()
     const structuredPath = binding.normalizeStructuredPath?.(rawValue) ?? rawValue
     const classification = await classifyPath(structuredPath, cwd, roots, input.signal)
+
     return classification === 'safe' ? undefined : deny()
   }
 
   const shellTokens = parseShellTokens(rawValue)
+
   const interpreterSegments = new Set(
     shellTokens
       .filter(({ commandStart, value }) => commandStart && isBundledInterpreter(value))
       .map(({ segment }) => segment)
   )
+
   const candidates = [
     ...shellTokens.flatMap(({ value }) => shellPathCandidates(value)),
     ...shellTokens
       .filter(({ segment }) => interpreterSegments.has(segment))
       .flatMap(({ value }) => extractQuotedLiterals(value))
   ]
+
   const [roots, cwd] = await Promise.all([
     resolveGuardRoots(input.workspacePath, input.signal),
     canonicalizeExistingDirectory(path.resolve(input.cwd), input.signal)
   ])
+
   if (!roots || !cwd) return candidates.some(looksLikeSqliteLiteral) ? deny() : undefined
 
   for (const candidate of candidates) {
     const classification = await classifyPath(candidate, cwd, roots, input.signal)
+
     if (classification === 'protected') return deny()
+
     if (classification === 'invalid' && looksLikeSqliteLiteral(candidate)) return deny()
   }
+
   return undefined
 }
 
@@ -130,17 +143,21 @@ function deny(): UserDataSqliteGuardDecision {
 async function resolveGuardRoots(workspacePath: string, signal?: AbortSignal): Promise<GuardRoots | undefined> {
   const userDataPath = application.getPath('app.userdata')
   const databaseFile = application.getPath('app.database.file')
+
   const [userData, database, workspace] = await Promise.all([
     canonicalizeExistingDirectory(path.resolve(userDataPath), signal),
     canonicalizePath(path.resolve(databaseFile), signal),
     canonicalizeExistingDirectory(path.resolve(workspacePath), signal)
   ])
+
   if (!userData || !database || !workspace) return undefined
 
   const databaseFiles = [database, ...DATABASE_SIDECARS.map((suffix) => `${database}${suffix}`)]
+
   const [databaseIdentity, ...sidecarIdentities] = await Promise.all(
     databaseFiles.map((databasePath) => getFileIdentity(databasePath, signal))
   )
+
   if (!databaseIdentity) return undefined
 
   return {
@@ -159,25 +176,34 @@ async function classifyPath(
   signal?: AbortSignal
 ): Promise<PathClassification> {
   const requestedPath = resolveLiteralPath(rawPath, cwd)
+
   if (!requestedPath) return 'invalid'
   const target = await canonicalizePath(requestedPath, signal)
+
   if (!target) return 'invalid'
 
   if (roots.databaseFiles.some((databaseFile) => pathsEqual(target, databaseFile))) return 'protected'
   const targetIdentity = await getFileIdentity(target, signal)
+
   if (targetIdentity && roots.databaseIdentities.some((identity) => sameFileIdentity(targetIdentity, identity))) {
     return 'protected'
   }
+
   if (!SQLITE_FILE_PATTERN.test(path.basename(target))) return 'safe'
+
   if (!isSameOrInsidePath(target, roots.userData)) return 'safe'
+
   if (roots.workspaceIsUserDataChild && isSameOrInsidePath(target, roots.workspace)) return 'safe'
+
   return 'protected'
 }
 
 function resolveLiteralPath(rawPath: string, cwd: string): string | undefined {
   let value = rawPath
+
   if (/^file:/i.test(value)) {
     const uri = value.replace(/[?#].*$/, '')
+
     try {
       value =
         uri.startsWith('file://') || uri.startsWith('file:/') ? fileURLToPath(uri) : decodeURIComponent(uri.slice(5))
@@ -187,6 +213,7 @@ function resolveLiteralPath(rawPath: string, cwd: string): string | undefined {
   }
 
   const homePath = application.getPath('sys.home')
+
   if (value === '~') value = homePath
   else if (value.startsWith('~/') || value.startsWith('~\\'))
     value = appendWithoutNormalization(homePath, value.slice(2))
@@ -202,25 +229,34 @@ function resolveLiteralPath(rawPath: string, cwd: string): string | undefined {
 
 async function canonicalizePath(targetPath: string, signal?: AbortSignal): Promise<string | undefined> {
   if (signal?.aborted) return undefined
+
   try {
     const resolved = await realpath(targetPath)
+
     return signal?.aborted ? undefined : path.normalize(resolved)
   } catch (error) {
     if (signal?.aborted || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+
     if (await pathExistsOrIsAmbiguous(targetPath)) return undefined
   }
 
   let parent = path.dirname(targetPath)
+
   while (true) {
     if (signal?.aborted) return undefined
+
     try {
       const canonicalParent = await realpath(parent)
+
       if (signal?.aborted) return undefined
+
       return path.normalize(path.resolve(canonicalParent, path.relative(parent, targetPath)))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+
       if (await pathExistsOrIsAmbiguous(parent)) return undefined
       const next = path.dirname(parent)
+
       if (next === parent) return undefined
       parent = next
     }
@@ -229,9 +265,12 @@ async function canonicalizePath(targetPath: string, signal?: AbortSignal): Promi
 
 async function canonicalizeExistingDirectory(targetPath: string, signal?: AbortSignal): Promise<string | undefined> {
   if (signal?.aborted) return undefined
+
   try {
     const [resolved, targetStat] = await Promise.all([realpath(targetPath), stat(targetPath)])
+
     if (signal?.aborted || !targetStat.isDirectory()) return undefined
+
     return path.normalize(resolved)
   } catch {
     return undefined
@@ -240,9 +279,12 @@ async function canonicalizeExistingDirectory(targetPath: string, signal?: AbortS
 
 async function getFileIdentity(targetPath: string, signal?: AbortSignal): Promise<FileIdentity | undefined> {
   if (signal?.aborted) return undefined
+
   try {
     const targetStat = await stat(targetPath, { bigint: true })
+
     if (signal?.aborted) return undefined
+
     return { device: targetStat.dev, inode: targetStat.ino }
   } catch {
     return undefined
@@ -260,6 +302,7 @@ function sameFileIdentity(left: FileIdentity, right: FileIdentity): boolean {
 async function pathExistsOrIsAmbiguous(targetPath: string): Promise<boolean> {
   try {
     await lstat(targetPath)
+
     return true
   } catch (error) {
     return (error as NodeJS.ErrnoException).code !== 'ENOENT'
@@ -268,6 +311,7 @@ async function pathExistsOrIsAmbiguous(targetPath: string): Promise<boolean> {
 
 function appendWithoutNormalization(basePath: string, suffix: string): string {
   if (!suffix) return basePath
+
   return `${basePath}${basePath.endsWith(path.sep) ? '' : path.sep}${suffix}`
 }
 
@@ -280,6 +324,7 @@ export function isSameOrInsidePath(target: string, root: string, platform = proc
   const normalizedTarget = normalizeForComparison(target, platform)
   const normalizedRoot = normalizeForComparison(root, platform)
   const relative = pathApi.relative(normalizedRoot, normalizedTarget)
+
   return (
     relative === '' || (relative !== '..' && !relative.startsWith(`..${pathApi.sep}`) && !pathApi.isAbsolute(relative))
   )
@@ -287,6 +332,7 @@ export function isSameOrInsidePath(target: string, root: string, platform = proc
 
 function normalizeForComparison(value: string, platform: NodeJS.Platform): string {
   const normalized = platform === 'win32' ? path.win32.normalize(value) : path.posix.normalize(value)
+
   return platform === 'darwin' || platform === 'win32' ? normalized.toLowerCase() : normalized
 }
 
@@ -306,18 +352,23 @@ function parseShellTokens(command: string): ShellToken[] {
   let quote: '"' | "'" | undefined
   let commandStart = true
   let segment = 0
+
   const pushCurrent = () => {
     if (current) {
       tokens.push({ value: current, commandStart, segment })
+
       if (!isPosixAssignment(current)) commandStart = false
     }
+
     current = ''
   }
 
   for (let index = 0; index < command.length; index++) {
     const character = command[index]
+
     if (character === '\\' && quote !== "'") {
       const next = command[index + 1]
+
       if (next === '\\' && (!current || current.endsWith('='))) {
         current += '\\\\'
         index++
@@ -334,6 +385,7 @@ function parseShellTokens(command: string): ShellToken[] {
       quote = character
     } else if (/\s|[;&|<>]/.test(character)) {
       pushCurrent()
+
       if (character === '\n' || /[;&|]/.test(character)) {
         commandStart = true
         segment++
@@ -342,7 +394,9 @@ function parseShellTokens(command: string): ShellToken[] {
       current += character
     }
   }
+
   pushCurrent()
+
   return tokens
 }
 
@@ -356,17 +410,22 @@ function isBundledInterpreter(value: string): boolean {
 
 function extractQuotedLiterals(value: string): string[] {
   const literals: string[] = []
+
   for (let index = 0; index < value.length; index++) {
     const quote = value[index]
+
     if (quote !== "'" && quote !== '"' && quote !== '`') continue
 
     let literal = ''
+
     for (index++; index < value.length; index++) {
       const character = value[index]
+
       if (character === quote) {
         if (literal) literals.push(literal)
         break
       }
+
       if (character === '\\' && (value[index + 1] === quote || value[index + 1] === '\\')) {
         literal += value[++index]
       } else {
@@ -374,18 +433,22 @@ function extractQuotedLiterals(value: string): string[] {
       }
     }
   }
+
   return literals
 }
 
 function shellPathCandidates(word: string): string[] {
   const candidates = [word]
   const assignmentIndex = word.indexOf('=')
+
   if (assignmentIndex >= 0) candidates.push(word.slice(assignmentIndex + 1))
+
   return [...new Set(candidates.filter(Boolean))]
 }
 
 function looksLikeSqliteLiteral(value: string): boolean {
   const uriPath = /^file:/i.test(value) ? value.slice(5).replace(/[?#].*$/, '') : value
+
   return SQLITE_FILE_PATTERN.test(path.basename(uriPath))
 }
 

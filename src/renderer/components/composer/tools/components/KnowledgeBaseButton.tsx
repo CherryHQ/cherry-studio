@@ -49,13 +49,17 @@ const useKnowledgeBaseToolController = ({
   const language = i18n.resolvedLanguage ?? i18n.language
   const { isVisible: isQuickPanelVisible, symbol: quickPanelSymbol, updateList: updateQuickPanelList } = useQuickPanel()
   const [dataRequested, setDataRequested] = useState(false)
+
   const panelNeedsData =
     isQuickPanelVisible &&
     (quickPanelSymbol === ComposerPanelSymbol.Root || quickPanelSymbol === ComposerPanelSymbol.KnowledgeBase)
+
   const knowledgeBasesEnabled = dataRequested || panelNeedsData || (selectedBases?.length ?? 0) > 0
+
   const { bases: knowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
     enabled: knowledgeBasesEnabled
   })
+
   const onSelectRef = useRef(onSelect)
   const selectedBasesRef = useRef<KnowledgeBase[]>(selectedBases ?? [])
   const configuredBasesRef = useRef<KnowledgeBase[]>([])
@@ -67,9 +71,12 @@ const useKnowledgeBaseToolController = ({
     const configuredIds = new Set(
       configuredKnowledgeBaseIdsKey ? configuredKnowledgeBaseIdsKey.split(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR) : []
     )
+
     if (configuredIds.size === 0) return knowledgeBases
+
     return knowledgeBases.filter((base) => configuredIds.has(base.id))
   }, [configuredKnowledgeBaseIdsKey, knowledgeBases])
+
   onSelectRef.current = onSelect
   selectedBasesRef.current = selectedBases ?? []
   configuredBasesRef.current = configuredBases
@@ -77,9 +84,11 @@ const useKnowledgeBaseToolController = ({
 
   const isEnabled = (selectedBases?.length ?? 0) > 0
   const isDisabled = disabled || (knowledgeBasesEnabled && !isKnowledgeBasesLoading && configuredBases.length === 0)
+
   const fallbackDisabledReason = disabled
     ? t('chat.input.knowledge_base_disabled_by_files')
     : t('chat.save.knowledge.empty.no_knowledge_base')
+
   const resolvedDisabledReason = isDisabled ? (disabledReason ?? fallbackDisabledReason) : undefined
   const selectedBaseIds = useMemo(() => new Set((selectedBases ?? []).map((base) => base.id)), [selectedBases])
 
@@ -91,6 +100,7 @@ const useKnowledgeBaseToolController = ({
   const closeKnowledgeBasePanelOnNextInput = useCallback(
     ({ context, inputAdapter }: Pick<QuickPanelCallBackOptions, 'context' | 'inputAdapter'>) => {
       disposeCloseOnInputAfterSelection()
+
       if (!inputAdapter?.subscribeInput) return
 
       const initialText = inputAdapter.getText()
@@ -98,10 +108,12 @@ const useKnowledgeBaseToolController = ({
 
       disposeCloseOnInputAfterSelectionRef.current = inputAdapter.subscribeInput((event) => {
         if (event?.isComposing) return
+
         if (event?.cause === 'state-sync') return
 
         const nextText = inputAdapter.getText()
         const nextCursorOffset = inputAdapter.getCursorOffset?.() ?? nextText.length
+
         if (nextText === initialText && nextCursorOffset === initialCursorOffset) return
 
         disposeCloseOnInputAfterSelection()
@@ -113,6 +125,7 @@ const useKnowledgeBaseToolController = ({
 
   const buildKnowledgeBaseItems = useCallback((): QuickPanelListItem[] => {
     void language
+
     return configuredBases.map((base) => ({
       id: `knowledge-base:${base.id}`,
       label: base.name,
@@ -123,14 +136,17 @@ const useKnowledgeBaseToolController = ({
       isSelected: selectedBaseIds.has(base.id),
       action: ({ context, inputAdapter, item }) => {
         const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
+
         if (item.isSelected) {
           nextSelectedIds.add(base.id)
         } else {
           nextSelectedIds.delete(base.id)
         }
+
         const nextSelectedBases = configuredBasesRef.current.filter((candidate) => nextSelectedIds.has(candidate.id))
         selectedBasesRef.current = nextSelectedBases
         onSelectRef.current(nextSelectedBases)
+
         if (context.symbol === ComposerPanelSymbol.KnowledgeBase) {
           closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
         }
@@ -139,6 +155,7 @@ const useKnowledgeBaseToolController = ({
   }, [closeKnowledgeBasePanelOnNextInput, configuredBases, language, selectedBaseIds])
 
   const knowledgeBaseItems = useMemo(() => buildKnowledgeBaseItems(), [buildKnowledgeBaseItems])
+
   const knowledgeBaseRootSearchItems = useMemo(
     () =>
       knowledgeBaseItems.map((item) => ({
@@ -148,8 +165,10 @@ const useKnowledgeBaseToolController = ({
       })),
     [knowledgeBaseItems]
   )
+
   const manageKnowledgeBaseAction = useMemo<ComposerToolFooterAction>(() => {
     const label = t('chat.input.knowledge_base_manage')
+
     return {
       id: 'knowledge-base:manage',
       panelSymbol: ComposerPanelSymbol.KnowledgeBase,
@@ -243,5 +262,6 @@ const useKnowledgeBaseToolController = ({
 
 export const KnowledgeBaseToolRuntime: FC<Props> = (props) => {
   useKnowledgeBaseToolController(props)
+
   return null
 }

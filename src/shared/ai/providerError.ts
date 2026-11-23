@@ -15,10 +15,13 @@ const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[^\s{}[\],:]+\s*:)|\[(?!\s*\d+
 
 const EMPTY_RESPONSE_MESSAGE = 'Invalid response: empty response body. Retry or switch model.'
 const INVALID_JSON_MESSAGE = 'Invalid JSON data. Retry or check the provider endpoint and model.'
+
 const INVALID_STRUCTURE_MESSAGE =
   'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+
 const INTERRUPTED_RESPONSE_MESSAGE = 'Connection interrupted while receiving the response. Retry the turn.'
 const TERMINATED_RESPONSE_MESSAGE = 'Invalid response: response processing terminated. Retry the turn.'
+
 const UNPROCESSABLE_RESPONSE_MESSAGE =
   'Invalid response: the provider response could not be processed. Retry or check the provider endpoint and model.'
 
@@ -53,14 +56,17 @@ type SafeAiSdkErrorDiscriminants = Partial<Record<(typeof SAFE_AI_SDK_STRING_FIE
 function actionableText(value: string): string {
   if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   const text = value.trim()
+
   return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
 }
 
 function containsEncodedContainer(text: string): boolean {
   let candidate = text.trimStart()
+
   while (candidate.startsWith('"') || candidate.startsWith("'") || candidate.startsWith('\\')) {
     candidate = candidate.slice(1).trimStart()
   }
+
   return JSON_CONTAINER_PATTERN.test(candidate) || HTML_DOCUMENT_PATTERN.test(candidate)
 }
 
@@ -68,18 +74,25 @@ function containsEncodedContainer(text: string): boolean {
 function providerPayloadText(value: unknown): string {
   if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   let parsed: Serializable = value
+
   for (let depth = 0; depth < MAX_PROVIDER_ERROR_DECODE_DEPTH && typeof parsed === 'string'; depth += 1) {
     const text = parsed
+
     if (text.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
+
     try {
       parsed = JSON.parse(text)
     } catch {
       if (containsEncodedContainer(text)) return ''
+
       return actionableText(value)
     }
   }
+
   if (typeof parsed === 'string') return ''
+
   if (typeof parsed === 'object' && parsed !== null) return ''
+
   return actionableText(value)
 }
 
@@ -87,21 +100,25 @@ function providerPayloadText(value: unknown): string {
 function payloadText(value: unknown, decodeDepth = 0): string {
   if (typeof value === 'string') {
     if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return ''
+
     try {
       return payloadText(JSON.parse(value), decodeDepth + 1)
     } catch {
       return ''
     }
   }
+
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
 
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; SDK response data may retain arbitrary native fields.
   const payload = value as Record<string, unknown>
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; each message candidate is validated as bounded text before display.
   const error = payload.error && typeof payload.error === 'object' ? (payload.error as Record<string, unknown>) : null
+
   const detail =
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; provider detail fields remain unknown until the scalar readers validate them.
     payload.detail && typeof payload.detail === 'object' ? (payload.detail as Record<string, unknown>) : null
+
   const detailError =
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; message extraction validates the selected field before display.
     detail?.error && typeof detail.error === 'object' ? (detail.error as Record<string, unknown>) : null
@@ -117,23 +134,28 @@ function payloadText(value: unknown, decodeDepth = 0): string {
 function providerErrorCodes(value: unknown, decodeDepth = 0): string {
   if (typeof value === 'string') {
     if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return ''
+
     try {
       return providerErrorCodes(JSON.parse(value), decodeDepth + 1)
     } catch {
       return ''
     }
   }
+
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; SDK response data may retain arbitrary native fields.
   const payload = value as Record<string, unknown>
+
   const detail =
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The nested container is checked; provider detail fields remain unknown until the scalar readers validate them.
     payload.detail && typeof payload.detail === 'object' ? (payload.detail as Record<string, unknown>) : null
+
   return [payload, payload.error, detail, detail?.error]
     .flatMap((entry) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; code and type are accepted only as bounded strings below.
       const record = entry as Record<string, unknown>
+
       return [record.code, record.type].filter(
         (code): code is string => typeof code === 'string' && code.length <= MAX_PROVIDER_ERROR_MESSAGE_LENGTH
       )
@@ -150,12 +172,14 @@ export function stripClaudeCodeRejectionPrefix(text: string): string {
 
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
   const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
+
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native SDK errors and serialized context carry unchecked extension fields; only validated, redacted discriminants may enter diagnostics.
 export function getSafeAiSdkErrorDiscriminants(source: unknown): SafeAiSdkErrorDiscriminants {
   const discriminants: SafeAiSdkErrorDiscriminants = {}
+
   if (source === null || typeof source !== 'object') return discriminants
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Only the object container is checked; native SDK extensions are validated field by field before redaction.
   const record = source as Record<string, unknown>
@@ -165,17 +189,23 @@ export function getSafeAiSdkErrorDiscriminants(source: unknown): SafeAiSdkErrorD
       discriminants[field] = getSafeProviderErrorMessage({ message: record[field] })
     }
   }
+
   for (const field of ['availableProviders', 'availableTools'] as const) {
     const value = record[field]
+
     if (value === null) discriminants[field] = null
+
     if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
       discriminants[field] = value.map((item) => getSafeProviderErrorMessage({ message: item }))
     }
   }
+
   for (const field of ['statusCode', 'maxEmbeddingsPerCall'] as const) {
     const value = record[field]
+
     if (value === null || typeof value === 'number') discriminants[field] = value
   }
+
   if (typeof record.isRetryable === 'boolean') discriminants.isRetryable = record.isRetryable
 
   return discriminants
@@ -184,22 +214,28 @@ export function getSafeAiSdkErrorDiscriminants(source: unknown): SafeAiSdkErrorD
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- APICallError.cause can be any thrown value; SDK instance guards identify the supported response failures.
 function sdkResponseDiagnostic(error: unknown): string | undefined {
   if (EmptyResponseBodyError.isInstance(error)) return EMPTY_RESPONSE_MESSAGE
+
   if (JSONParseError.isInstance(error)) return INVALID_JSON_MESSAGE
+
   if (TypeValidationError.isInstance(error)) return INVALID_STRUCTURE_MESSAGE
+
   return undefined
 }
 
 function isEncodedJsonParseError(value: Serializable, decodeDepth = 0): boolean {
   if (typeof value === 'string') {
     if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return false
+
     try {
       return isEncodedJsonParseError(JSON.parse(value), decodeDepth + 1)
     } catch {
       return false
     }
   }
+
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const record = value
+
   return record.name === 'AI_JSONParseError' && typeof record.text === 'string'
 }
 
@@ -212,10 +248,14 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
     isEncodedJsonParseError(error.responseBody)
   )
     return INVALID_JSON_MESSAGE
+
   if (!(error.statusCode !== undefined && error.statusCode >= 200 && error.statusCode < 300)) return undefined
   const message = error.message.toLowerCase()
+
   if (message !== 'failed to process successful response' && message !== 'invalid json response') return undefined
+
   if (message === 'invalid json response' && error.responseBody === '') return EMPTY_RESPONSE_MESSAGE
+
   if (depth + 1 < MAX_NESTED_PROVIDER_ERROR_DEPTH) {
     if (
       error.cause instanceof Error &&
@@ -230,7 +270,9 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
     )
       return INTERRUPTED_RESPONSE_MESSAGE
     const diagnostic = sdkResponseDiagnostic(error.cause)
+
     if (diagnostic) return diagnostic
+
     if (
       error.cause instanceof TypeError &&
       Object.getPrototypeOf(error.cause) === TypeError.prototype &&
@@ -239,17 +281,21 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
       return TERMINATED_RESPONSE_MESSAGE
     }
   }
+
   return UNPROCESSABLE_RESPONSE_MESSAGE
 }
 
 function serializeNestedAiSdkError(error: AISDKError, depth: number): SerializedError {
   const diagnostic = sdkResponseDiagnostic(error)
+
   const identity: Pick<SerializedError, 'name' | 'message'> & Partial<Pick<SerializedError, 'providerErrorCategory'>> =
     {
       name: getSafeProviderErrorMessage({ message: error.name }),
       message: diagnostic ?? getSafeProviderErrorMessage({ message: error.message })
     }
+
   if (diagnostic) identity.providerErrorCategory = 'parse'
+
   const serialized: SerializedError = {
     ...identity,
     stack: null,
@@ -268,10 +314,12 @@ function serializeNestedAiSdkError(error: AISDKError, depth: number): Serialized
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK retry errors contain arbitrary lastError/errors values; recognize supported errors and discard other values within the recursion limit.
 function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Serializable {
   if (depth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return null
+
   if (APICallError.isInstance(value)) {
     const safeMessage = getSafeProviderErrorMessage(value)
     const diagnostic = apiResponseDiagnostic(value, depth)
     const message = diagnostic ?? safeMessage
+
     const category = classifyErrorCategory({
       text: [
         payloadText(value.responseBody),
@@ -282,6 +330,7 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
       ].join('\n'),
       status: value.statusCode
     })
+
     return {
       name: value.name,
       message,
@@ -302,7 +351,9 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
       data: null
     }
   }
+
   if (AISDKError.isInstance(value)) return serializeNestedAiSdkError(value, depth)
+
   if (value instanceof Error) {
     return {
       name: getSafeProviderErrorMessage({ message: value.name }),
@@ -311,6 +362,7 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
       cause: null
     }
   }
+
   return null
 }
 

@@ -19,6 +19,7 @@ import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AgentSelector')
+
 const ResourceEditDialogHost = lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
     default: module.ResourceEditDialogHost
@@ -67,16 +68,19 @@ export function AgentSelector(props: AgentSelectorProps) {
     sideOffset,
     mountStrategy
   } = props
+
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const selectorOpen = open ?? internalOpen
+
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (open === undefined) {
         setInternalOpen(nextOpen)
       }
+
       onOpenChange?.(nextOpen)
     },
     [onOpenChange, open]
@@ -87,7 +91,9 @@ export function AgentSelector(props: AgentSelectorProps) {
     enabled: selectorOpen,
     query: { limit: AGENTS_MAX_LIMIT }
   })
+
   const { createAgent, isCreatingAgent } = useAgentMutations()
+
   const {
     isLoading: isPinnedLoading,
     isRefreshing: isPinsRefreshing,
@@ -96,6 +102,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     refetch: refetchPins,
     togglePin
   } = usePins('agent', { enabled: selectorOpen })
+
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AgentSelectorItem[] = useMemo(
@@ -115,6 +122,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   const handleTogglePin = useCallback(
     async (id: string) => {
       if (isPinActionDisabled) return
+
       try {
         await togglePin(id)
       } catch (error) {
@@ -146,6 +154,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   const handleCreateDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
       setCreateDialogOpen(nextOpen)
+
       if (!nextOpen) {
         onDialogCloseAutoFocus?.()
       }
@@ -156,6 +165,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
+
       try {
         created = await createAgent(buildCreateAgentCommand(values))
       } catch (error) {
@@ -165,12 +175,14 @@ export function AgentSelector(props: AgentSelectorProps) {
 
       setCreateDialogOpen(false)
       onDialogCloseAutoFocus?.()
+
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh agents after selector create', { error })
         toast.error(t('selector.create_dialog.refresh_failed'))
       }
+
       if (autoSelectOnCreate) {
         if (props.selectionType === 'item') {
           props.onChange({
@@ -183,9 +195,12 @@ export function AgentSelector(props: AgentSelectorProps) {
         } else {
           props.onChange(created.id)
         }
+
         handleSelectorOpenChange(false)
+
         return
       }
+
       handleSelectorOpenChange(true)
     },
     [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]

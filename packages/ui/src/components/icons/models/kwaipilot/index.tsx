@@ -4,6 +4,7 @@ import { KwaipilotLight } from './light'
 
 const Kwaipilot = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <KwaipilotLight {...props} className={className} />
+
   return <KwaipilotLight {...props} className={className} />
 }
 

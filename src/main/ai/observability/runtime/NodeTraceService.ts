@@ -22,6 +22,7 @@ export class NodeTraceService extends BaseService implements Activatable {
   protected async onReady() {
     const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
     logger.info(`Developer mode is ${enabled ? 'enabled' : 'disabled'}, tracing ${enabled ? 'activated' : 'skipped'}`)
+
     if (enabled) {
       await this.activate()
     }
@@ -63,6 +64,7 @@ export class NodeTraceService extends BaseService implements Activatable {
 
     this.nodeTracer = NodeTracer
     const traceStorageService = application.get('TraceStorageService')
+
     const exporter = new FunctionSpanExporter(async (spans) => {
       logger.info(`Spans length: ${spans.length}`)
     })

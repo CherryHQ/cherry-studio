@@ -26,12 +26,16 @@ const TOOL_CALL_LIMIT_MESSAGE =
 
 function trackStopCondition(reason: TrackedStopReason, condition: StopCondition<ToolSet>): StopCondition<ToolSet> {
   const state: TrackedStopState = { reason, step: undefined }
+
   const tracked: StopCondition<ToolSet> = async ({ steps }) => {
     const shouldStop = await condition({ steps })
     state.step = shouldStop ? steps.at(-1) : undefined
+
     return shouldStop
   }
+
   trackedStopConditions.set(tracked, state)
+
   return tracked
 }
 
@@ -51,22 +55,27 @@ function wasStopReasonTriggered(
   steps: Array<StepResult<ToolSet>>
 ): boolean {
   const finalStep = steps.at(-1)
+
   if (!finalStep || !stopWhen) return false
 
   const conditions = Array.isArray(stopWhen) ? stopWhen : [stopWhen]
+
   return conditions.some((condition) => {
     const state = trackedStopConditions.get(condition)
+
     return state?.reason === reason && state.step === finalStep
   })
 }
 
 export function getLastTerminalToolFailure(steps: Array<StepResult<ToolSet>>): TerminalToolFailure | undefined {
   const lastStep = steps.at(-1)
+
   if (!lastStep) return undefined
 
   for (const result of lastStep.toolResults) {
     if (result.providerExecuted) continue
     const failure = getTrustedLocalToolTerminalFailure(result.output)
+
     if (failure) return failure
   }
 
@@ -93,6 +102,7 @@ export function resolveToolLoopTerminalError({
   stopWhen
 }: ToolLoopTerminationInput): ToolLoopTerminalError | undefined {
   const terminalFailure = getLastTerminalToolFailure(steps)
+
   if (terminalFailure) {
     return new ToolLoopTerminalError(terminalFailure.userMessage ?? terminalFailure.error, terminalFailure.i18nKey)
   }

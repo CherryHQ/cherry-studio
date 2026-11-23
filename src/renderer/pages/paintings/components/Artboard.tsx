@@ -36,10 +36,12 @@ const logger = loggerService.withContext('paintings/Artboard')
 
 const DEFAULT_IMAGE_OFFSET = { x: 0, y: 0 }
 const PROMPT_POPOVER_CLOSE_DELAY = 150
+
 /** Pointer travel above this cancels click-to-open preview so drag-pan stays primary. */
 const IMAGE_CLICK_DRAG_THRESHOLD_PX = 4
 
 type ImageOffset = typeof DEFAULT_IMAGE_OFFSET
+
 type PromptPopoverOpenReason = 'keyboard' | 'pointer'
 
 type ImageDragState = {
@@ -95,6 +97,7 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
 
   const openPromptPopoverFromPointer = useCallback(() => {
     cancelPromptPopoverClose()
+
     if (isPromptPopoverOpen) return
     promptPopoverOpenReasonRef.current = 'pointer'
     setPromptPopoverOpen(true)
@@ -105,12 +108,14 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
     promptPopoverCloseTimerRef.current = window.setTimeout(() => {
       promptPopoverCloseTimerRef.current = null
       const focusedElement = document.activeElement
+
       if (
         promptPopoverTriggerRef.current?.contains(focusedElement) ||
         promptPopoverContentRef.current?.contains(focusedElement)
       ) {
         return
       }
+
       setPromptPopoverOpen(false)
     }, PROMPT_POPOVER_CLOSE_DELAY)
   }, [cancelPromptPopoverClose])
@@ -124,9 +129,11 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
           open={isPromptPopoverOpen}
           onOpenChange={(open) => {
             cancelPromptPopoverClose()
+
             if (open && promptPopoverOpenReasonRef.current !== 'keyboard') {
               promptPopoverOpenReasonRef.current = 'pointer'
             }
+
             setPromptPopoverOpen(open)
           }}>
           <PopoverTrigger asChild>
@@ -297,6 +304,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
 
   const onImagePointerMove = useCallback((event: PointerEvent<HTMLImageElement>) => {
     const dragState = imageDragRef.current
+
     if (!dragState || dragState.pointerId !== event.pointerId) {
       return
     }
@@ -304,12 +312,14 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     event.preventDefault()
     const deltaX = event.clientX - dragState.x
     const deltaY = event.clientY - dragState.y
+
     if (
       !imageDragMovedRef.current &&
       Math.hypot(event.clientX - dragState.originX, event.clientY - dragState.originY) >= IMAGE_CLICK_DRAG_THRESHOLD_PX
     ) {
       imageDragMovedRef.current = true
     }
+
     dragState.x = event.clientX
     dragState.y = event.clientY
     setImageOffset((offset) => ({ x: offset.x + deltaX, y: offset.y + deltaY }))
@@ -319,6 +329,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
+
     if (imageDragRef.current?.pointerId === event.pointerId) {
       imageDragRef.current = null
       setIsDraggingImage(false)
@@ -341,6 +352,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   // Measuring explicitly is what lets the prompt bar match the image's real edges.
   const onDisplayedImageLoad = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth, naturalHeight } = event.currentTarget
+
     if (naturalWidth > 0 && naturalHeight > 0) {
       setDisplayedNaturalSize({ width: naturalWidth, height: naturalHeight })
     }
@@ -355,6 +367,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     viewerResizeObserverRef.current?.disconnect()
     viewerResizeObserverRef.current = null
     setViewerElement(el)
+
     if (!el) return
     const measure = () => setViewerContainer({ width: el.clientWidth, height: el.clientHeight })
     measure()
@@ -365,12 +378,15 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
 
   useEffect(() => {
     if (!viewerElement) return
+
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
       event.stopPropagation()
       setImageScale((scale) => nextImageScaleFromWheel(scale, event.deltaY))
     }
+
     viewerElement.addEventListener('wheel', onWheel, { passive: false })
+
     return () => viewerElement.removeEventListener('wheel', onWheel)
   }, [viewerElement])
 
@@ -382,10 +398,13 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   const setPromptBarRef = useCallback((el: HTMLDivElement | null) => {
     promptBarResizeObserverRef.current?.disconnect()
     promptBarResizeObserverRef.current = null
+
     if (!el) {
       setPromptBarHeight(0)
+
       return
     }
+
     const measure = () => setPromptBarHeight(el.clientHeight)
     measure()
     const observer = new ResizeObserver(measure)
@@ -401,15 +420,19 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     if (!displayedNaturalSize || !viewerContainer || viewerContainer.width <= 0) {
       return null
     }
+
     const availableHeight = Math.max(0, viewerContainer.height - promptBarHeight)
+
     if (availableHeight <= 0) {
       return null
     }
+
     const scale = Math.min(
       1,
       viewerContainer.width / displayedNaturalSize.width,
       availableHeight / displayedNaturalSize.height
     )
+
     return { width: displayedNaturalSize.width * scale, height: displayedNaturalSize.height * scale }
   })()
 
@@ -432,6 +455,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     // so a not-loading new painting never inherits the previous one's loading.
     const paintingChanged = paintingIdRef.current !== painting.id
     paintingIdRef.current = painting.id
+
     if (paintingChanged) {
       awaitingRevealRef.current = false
       setRevealState(null)
@@ -443,6 +467,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     if (isLoading) {
       awaitingRevealRef.current = false
       setRevealState(null)
+
       return
     }
 
@@ -454,6 +479,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
           ? null
           : state
       )
+
       return
     }
 
@@ -464,10 +490,13 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
       if (painting.generationStatus === 'canceled' || painting.generationStatus === 'failed') {
         awaitingRevealRef.current = false
         setRevealState(null)
+
         return
       }
+
       awaitingRevealRef.current = true
       setRevealState((state) => (state?.status === 'awaiting' ? state : { status: 'awaiting' }))
+
       return
     }
 
@@ -484,6 +513,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
 
         if (!result) {
           setRevealState(null)
+
           return
         }
 
@@ -496,6 +526,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
       })
       .catch((error) => {
         logger.warn('Failed to prepare painting image reveal', { error })
+
         if (active) {
           setRevealState(null)
         }
@@ -510,9 +541,11 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     if (isLoading || !revealState) {
       return null
     }
+
     if (revealState.status === 'awaiting') {
       return revealState
     }
+
     return currentFile?.id === revealState.fileId && currentImageUrl === revealState.imageUrl ? revealState : null
   })()
 

@@ -62,6 +62,7 @@ const ChatMain: FC<ChatMainProps> = ({
     addGeneratedImageToComposer,
     onStartBranchDraft
   })
+
   return (
     <MessageListProvider value={value}>
       <MessageList enableSearch />

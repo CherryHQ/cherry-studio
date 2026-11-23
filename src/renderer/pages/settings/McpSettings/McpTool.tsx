@@ -46,6 +46,7 @@ const AutoApproveCell = ({
 }) => {
   const { t } = useTranslation()
   const isAutoApproved = useIsToolAutoApproved(tool)
+
   return (
     <Tooltip
       content={
@@ -173,6 +174,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
   const renderToolProperties = (tool: McpTool) => {
     const properties = getToolSchemaProperties(tool)
     const hasInputSchema = Boolean(properties && Object.keys(properties).length > 0)
+
     if (!tool.description && !hasInputSchema) return null
 
     return (
@@ -278,6 +280,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
       renderExpandedRow={(tool) => renderToolProperties(tool)}
       getCanExpand={(tool) => {
         const properties = getToolSchemaProperties(tool)
+
         return Boolean(tool.description) || Boolean(properties && Object.keys(properties).length)
       }}
       tableLayout="fixed"

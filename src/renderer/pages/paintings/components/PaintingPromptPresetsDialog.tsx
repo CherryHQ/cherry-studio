@@ -52,6 +52,7 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
 
   const save = async (value: PromptFormValue) => {
     setSaving(true)
+
     try {
       if (editor?.prompt) await updatePrompt(value)
       else await createPrompt(value)
@@ -71,12 +72,15 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
 
   const remove = async () => {
     setDeleting(true)
+
     try {
       await deletePrompt()
       setDeleteTarget(null)
+
       return true
     } catch (err) {
       toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.deleteFailed')))
+
       return false
     } finally {
       setDeleting(false)

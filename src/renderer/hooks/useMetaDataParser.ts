@@ -48,6 +48,7 @@ export function useMetaDataParser<T extends string>(
 
       const setMetadataValue = (key: string, value: string | undefined) => {
         const trimmed = value?.trim()
+
         if (!trimmed || !properties.includes(key as T) || parsedMetadata[key as T]) return
         const shouldResolveUrl = key === 'image' || key === 'og:image'
         parsedMetadata[key as T] = shouldResolveUrl ? resolveUrl(trimmed) : trimmed
@@ -58,6 +59,7 @@ export function useMetaDataParser<T extends string>(
           if (tagName === 'title') {
             isReadingTitle = true
             titleText = ''
+
             return
           }
 
@@ -65,11 +67,13 @@ export function useMetaDataParser<T extends string>(
             const { name: metaName, property: metaProperty, content } = attributes
             const metaKey = metaName || metaProperty
             setMetadataValue(metaKey, content)
+
             return
           }
 
           if (tagName === 'link') {
             const rel = attributes.rel?.toLowerCase().split(/\s+/) ?? []
+
             if (rel.includes('preload') && attributes.as?.toLowerCase() === 'image') {
               setMetadataValue('image', attributes.href)
             }
@@ -97,6 +101,7 @@ export function useMetaDataParser<T extends string>(
       if (axios.isCancel(err) || (err instanceof Error && err.name === 'AbortError')) {
         return
       }
+
       setError(err instanceof Error ? err : new Error('Failed to fetch HTML'))
     } finally {
       // Only the current request may update the loading state: a superseded

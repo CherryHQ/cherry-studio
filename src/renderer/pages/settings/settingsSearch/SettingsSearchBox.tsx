@@ -44,6 +44,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   const mirrorOwner = useId()
   const mirrorRevisionRef = useRef(0)
   const acknowledgedMirrorRef = useRef(0)
+
   const mirrorState = useCallback(
     (previous: typeof location.state) => ({
       ...previous,
@@ -51,11 +52,13 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     }),
     [mirrorOwner]
   )
+
   const mirror = (
     location.state as typeof location.state & {
       settingsSearchMirror?: { owner: string; revision: number }
     }
   )?.settingsSearchMirror
+
   // A second dismissal would overwrite the panel that back() returns to.
   const leaveInFlightRef = useRef(false)
   // Debounce handle kept reachable so Enter can flush the navigation early
@@ -67,20 +70,25 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   useEffect(() => {
     const pathnameChanged = prevPathnameRef.current !== location.pathname
     prevPathnameRef.current = location.pathname
+
     if (!pathnameChanged) return
+
     if (isSearchPage) {
       // Any arrival here (own push, back/forward) has the URL on the stack
       // already: the mirrored debounced navigate must replace, not duplicate
       hasPushedRef.current = true
       leaveInFlightRef.current = false
+
       return
     }
+
     // Reset even on empty-value exits (the back path skips the value check):
     // a stale true downgrades the next session's first entry to replace
     hasPushedRef.current = false
     leaveInFlightRef.current = false
     // Leaving the search page ends the search flow — collapse back to icon
     onCollapse()
+
     if (value) {
       setValue('')
       setLiveQuery('')
@@ -91,9 +99,12 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   // its history entry must still restore the query like any external navigation.
   useEffect(() => {
     const isOwnMirror = mirror?.owner === mirrorOwner && mirror.revision > acknowledgedMirrorRef.current
+
     if (isOwnMirror) acknowledgedMirrorRef.current = mirror.revision
+
     if (urlQuery === appliedUrlRef.current) return
     appliedUrlRef.current = urlQuery
+
     if (isOwnMirror || urlQuery === value.trim()) return
     setValue(urlQuery)
     setLiveQuery(urlQuery)
@@ -104,6 +115,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   // with surviving state, re-publishing the input the hide phase cleared
   useEffect(() => {
     setLiveQuery(value || undefined)
+
     return () => setLiveQuery(undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -112,6 +124,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   const performLeave = useCallback(() => {
     if (leaveInFlightRef.current) return
     leaveInFlightRef.current = true
+
     if (router.history.canGoBack()) router.history.back()
     else void navigate({ to: '/settings/general' })
   }, [router, navigate])
@@ -123,6 +136,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     setValue('')
     setLiveQuery('')
     hasPushedRef.current = false
+
     if (!shouldLeave) return
     performLeave()
   }
@@ -135,10 +149,13 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
 
   useEffect(() => {
     const trimmed = value.trim()
+
     if (!trimmed) {
       const wasUserClear = clearIntentRef.current
       clearIntentRef.current = false
+
       if (wasUserClear) setLiveQuery('')
+
       if (isSearchPage && wasUserClear && !leaveInFlightRef.current && hasUrlQueryRef.current) {
         void navigate({
           to: '/settings/search',
@@ -147,12 +164,15 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
           search: (prev: typeof search) => {
             const rest = { ...prev }
             delete rest.q
+
             return rest
           }
         })
       }
+
       return
     }
+
     // Typing again abandons any leave still in flight
     leaveInFlightRef.current = false
 
@@ -165,6 +185,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
       })
       hasPushedRef.current = true
     }, SEARCH_DEBOUNCE_MS)
+
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
@@ -190,6 +211,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
         className={cn(isSearchPage && 'border-primary')}
         onChange={(e) => {
           const next = e.target.value
+
           if (!next.trim()) clearIntentRef.current = true
           setValue(next)
           // Immediate pre-debounce mirror: the results page ranks against the
@@ -215,6 +237,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
             moveActiveIndex(-1)
           } else if (e.key === 'Enter') {
             e.preventDefault()
+
             if (isSearchPage) {
               requestJump()
             } else if (value.trim()) {
@@ -233,6 +256,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
           } else if (e.key === 'Escape') {
             e.preventDefault()
             exitSearch()
+
             if (!isSearchPage) onCollapse()
           }
         }}

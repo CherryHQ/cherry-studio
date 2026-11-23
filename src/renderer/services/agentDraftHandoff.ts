@@ -9,12 +9,14 @@ const listeners = new Map<string, Set<() => void>>()
 
 export function handOffAgentDraft(sessionId: string, draft: ConversationDraft): void {
   pendingDrafts.set(sessionId, [...(pendingDrafts.get(sessionId) ?? []), draft])
+
   for (const listener of listeners.get(sessionId) ?? []) listener()
 }
 
 export function takeAgentDraftHandoffs(sessionId: string): ConversationDraft[] {
   const drafts = pendingDrafts.get(sessionId) ?? []
   pendingDrafts.delete(sessionId)
+
   return drafts
 }
 
@@ -22,8 +24,10 @@ export function subscribeAgentDraftHandoff(sessionId: string, listener: () => vo
   const sessionListeners = listeners.get(sessionId) ?? new Set()
   sessionListeners.add(listener)
   listeners.set(sessionId, sessionListeners)
+
   return () => {
     sessionListeners.delete(listener)
+
     if (sessionListeners.size === 0) listeners.delete(sessionId)
   }
 }

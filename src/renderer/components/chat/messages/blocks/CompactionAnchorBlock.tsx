@@ -39,6 +39,7 @@ const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
   // full-width rule that would cut the group in half.
   if (data?.phase === 'in-loop') {
     const compacting = data.status === 'compacting'
+
     return (
       <div
         className="flex items-center gap-2 py-0.5 text-xs text-muted-foreground"

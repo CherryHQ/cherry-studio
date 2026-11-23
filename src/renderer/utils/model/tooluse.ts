@@ -13,5 +13,6 @@ import { isFunctionCallingModel as sharedIsFunctionCallingModel } from '@shared/
  */
 export function isFunctionCallingModel(model?: Model): boolean {
   if (!model) return false
+
   return sharedIsFunctionCallingModel(model)
 }

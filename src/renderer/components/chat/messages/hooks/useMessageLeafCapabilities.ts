@@ -32,6 +32,7 @@ type MessageLeafActions = Pick<
   'previewFile' | 'openFile' | 'subscribeToolProgress' | 'openExternalUrl'
 > &
   MessagePlatformActions
+
 type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved'>
 
 interface MessageLeafCapabilitiesParams {
@@ -45,17 +46,22 @@ function isRecord(value: unknown): value is { metadata?: unknown; type?: unknown
 
 function isMcpToolPart(part: CherryMessagePart): boolean {
   const partType = part.type
+
   if (partType === 'dynamic-tool') return true
+
   if (!partType?.startsWith('tool-')) return false
 
   const output = 'output' in part && isRecord(part.output) ? part.output : undefined
   const outputMetadata = isRecord(output?.metadata) ? output.metadata : undefined
+
   if (outputMetadata?.type === 'mcp') return true
 
   const providerMetadata =
     'providerMetadata' in part && isRecord(part.providerMetadata) ? part.providerMetadata : undefined
+
   const cherry = isRecord(providerMetadata?.cherry) ? providerMetadata.cherry : undefined
   const tool = isRecord(cherry?.tool) ? cherry.tool : undefined
+
   return tool?.type === 'mcp'
 }
 
@@ -67,6 +73,7 @@ async function resolveHandlePath(handle: FileHandle): Promise<AbsoluteFilePath |
     return await window.api.file.getPhysicalPath({ id: handle.entryId })
   } catch (error) {
     logger.warn('resolveHandlePath: no physical path for entry', { entryId: handle.entryId, error })
+
     return undefined
   }
 }
@@ -111,6 +118,7 @@ export function useMessageLeafCapabilities({
   const { preview } = useAttachment()
   const platformActions = useMessagePlatformActions()
   const historyPartsByMessageId = streamingLayers?.historyPartsByMessageId
+
   const historyHasMcpToolParts = useMemo(
     () =>
       historyPartsByMessageId
@@ -118,13 +126,17 @@ export function useMessageLeafCapabilities({
         : false,
     [historyPartsByMessageId]
   )
+
   const hasMcpToolParts = useMemo(() => {
     if (!streamingLayers) {
       return Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart))
     }
+
     if (historyHasMcpToolParts) return true
+
     return streamingLayers.liveMessageIds.some((messageId) => partsByMessageId[messageId]?.some(isMcpToolPart))
   }, [historyHasMcpToolParts, partsByMessageId, streamingLayers])
+
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])
 
@@ -133,8 +145,10 @@ export function useMessageLeafCapabilities({
       if (getFileTypeByExt(target.ext) === FILE_TYPE.TEXT) {
         // Main owns path resolution; the inline text preview reads the path it hands back.
         const path = await resolveHandlePath(target.handle)
+
         if (path) {
           await preview(path, target.name, FILE_TYPE.TEXT, target.ext)
+
           return
         }
       }
@@ -173,16 +187,20 @@ export function useMessageLeafCapabilities({
   const openExternalUrl = useCallback<NonNullable<MessageListActions['openExternalUrl']>>((url) => {
     if (resolveSafeExternalUrl(url)?.requiresConfirmation) {
       void openExternalWebsite(url)
+
       return
     }
+
     window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
 
   const isToolAutoApproved = useCallback<NonNullable<MessageListState['isToolAutoApproved']>>(
     (tool: McpTool, allowedTools?: string[]) => {
       if (allowedTools?.includes(tool.id)) return true
+
       if (tool.serverId === 'hub') return tool.name === 'list' || tool.name === 'inspect'
       const server = mcpServers.find((item) => item.id === tool.serverId)
+
       return server ? !server.disabledAutoApproveTools?.includes(tool.name) : false
     },
     [mcpServers]

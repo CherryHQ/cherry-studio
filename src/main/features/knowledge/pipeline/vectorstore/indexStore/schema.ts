@@ -253,5 +253,6 @@ export function resetKnowledgeIndexSchema(executor: SqliteExecutor): void {
   for (const statement of KNOWLEDGE_INDEX_DROP_STATEMENTS) {
     executor.execute(statement)
   }
+
   createKnowledgeIndexSchema(executor)
 }

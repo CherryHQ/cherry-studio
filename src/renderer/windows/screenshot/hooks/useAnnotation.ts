@@ -79,6 +79,7 @@ export function useAnnotation() {
   const undo = useCallback(() => {
     setTransient((prev) => {
       if (prev.annotations.length === 0) return prev
+
       return {
         ...prev,
         annotations: prev.annotations.slice(0, -1),
@@ -91,6 +92,7 @@ export function useAnnotation() {
   const redo = useCallback(() => {
     setTransient((prev) => {
       if (prev.redoStack.length === 0) return prev
+
       return {
         ...prev,
         annotations: [...prev.annotations, prev.redoStack[prev.redoStack.length - 1]],

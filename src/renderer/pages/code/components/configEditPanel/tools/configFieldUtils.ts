@@ -21,8 +21,10 @@ export function makeUpdateSectionField(
   return (section: string, key: string, value: SectionFieldValue): void => {
     const next = { ...config }
     const sectionValue = { ...getRecord(next[section]) }
+
     if (value !== undefined && value !== '') sectionValue[key] = value
     else delete sectionValue[key]
+
     if (Object.keys(sectionValue).length > 0) next[section] = sectionValue
     else delete next[section]
     onChange(next)
@@ -39,6 +41,7 @@ export function makeUpdateField(
 ) {
   return (key: string, value: string | number | boolean | undefined): void => {
     const next = { ...config }
+
     if (value !== undefined && value !== '') next[key] = value
     else delete next[key]
     onChange(next)

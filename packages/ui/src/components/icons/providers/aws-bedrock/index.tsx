@@ -4,6 +4,7 @@ import { AwsBedrockLight } from './light'
 
 const AwsBedrock = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <AwsBedrockLight {...props} className={className} />
+
   return <AwsBedrockLight {...props} className={className} />
 }
 

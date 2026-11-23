@@ -44,37 +44,47 @@ export const ClickableFilePath = memo(function ClickableFilePath({
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
+
   const displayPath = useMemo(
     () => (preserveWrappingPunctuation ? path : normalizeInlineFilePath(path)),
     [path, preserveWrappingPunctuation]
   )
+
   const unresolvedTargetPath = useMemo(
     () => resolveInlineFilePath(path, { preserveWrappingPunctuation }),
     [path, preserveWrappingPunctuation]
   )
+
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath
+
   const targetPath = useMemo(
     () => resolvePath?.(unresolvedTargetPath) ?? unresolvedTargetPath,
     [resolvePath, unresolvedTargetPath]
   )
+
   const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
   const openPath = interactive ? actions?.openPath : undefined
   const isDirectory = interactive ? actions?.isDirectory : undefined
   const notifyError = actions?.notifyError
   const canOpen = Boolean(openArtifactFile || openPath)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
+
   const { isLoading, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
     enabled: canOpen && hasAbsoluteTargetPath && actionsMenuOpen
   })
+
   const hasMoreActions = canOpen && hasAbsoluteTargetPath
+
   const { data: metadata } = useSWR(
     actionsMenuOpen && hasMoreActions ? ['file-context-metadata', targetPath] : null,
     ([, path]) => ipcApi.request('file.get_metadata', createFilePathHandle(AbsoluteFilePathSchema.parse(path))),
     { shouldRetryOnError: false }
   )
+
   const applicationTargets = targets.filter((target) => target.kind !== 'file_manager')
+
   const revealLabel = isMac
     ? t('chat.input.tools.reveal_in_finder')
     : isWin
@@ -105,8 +115,10 @@ export const ClickableFilePath = memo(function ClickableFilePath({
         handle: createFilePathHandle(AbsoluteFilePathSchema.parse(targetPath)),
         options: { mode: 'full', encoding: 'binary' }
       })
+
       const fileName = targetPath.split(/[/\\]/).at(-1) ?? targetPath
       const savedPath = await window.api.file.save(fileName, content)
+
       if (savedPath) actions?.notifySuccess?.(t('common.saved'))
     } catch {
       notifyError?.(t('common.save_failed'))

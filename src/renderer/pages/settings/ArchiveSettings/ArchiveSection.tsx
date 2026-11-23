@@ -95,6 +95,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
   useEffect(() => {
     setSelectedIds((current) => {
       const next = new Set([...current].filter((id) => itemIds.has(id)))
+
       return next.size === current.size ? current : next
     })
   }, [itemIds])
@@ -107,7 +108,9 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
     if (outcome.succeeded.length === 0) return
     setSelectedIds((current) => {
       const next = new Set(current)
+
       for (const id of outcome.succeeded) next.delete(id)
+
       return next
     })
   }
@@ -116,6 +119,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
     const succeeded = outcome.succeeded.length
     const stale = outcome.failed.filter(({ reason }) => reason === 'no-longer-in-recycle-bin').length
     const failed = outcome.failed.length - stale
+
     if (action === 'permanent_delete' && stale > 0) {
       toast.warning(
         t('settings.data.trash.permanent_delete.batch_stale_summary', {
@@ -124,9 +128,12 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
           failed
         })
       )
+
       return
     }
+
     const options = { count: succeeded, succeeded, failed }
+
     const message =
       action === 'restore'
         ? outcome.failed.length === 0
@@ -135,13 +142,16 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
         : outcome.failed.length === 0
           ? t('settings.data.trash.permanent_delete.batch_success', options)
           : t('settings.data.trash.permanent_delete.batch_partial', options)
+
     toast[outcome.failed.length === 0 ? 'success' : 'warning'](message)
   }
 
   const handleRestoreSelected = async () => {
     const targets = selectedItems
+
     if (targets.length === 0) return
     setIsBatchActionPending(true)
+
     try {
       const outcome = await onRestoreMany(targets)
       applyOutcome(outcome)
@@ -162,12 +172,16 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       fileEntryIds: includeFileReferencePreview ? targets.map((item) => item.id) : undefined,
       run: async (confirmedItems) => {
         setIsBatchActionPending(true)
+
         try {
           const outcome = isBatch
             ? await onPermanentDeleteMany(confirmedItems)
             : await onPermanentDelete(confirmedItems[0])
+
           applyOutcome(outcome)
+
           if (isBatch) showBatchOutcome('permanent_delete', outcome)
+
           return outcome
         } finally {
           setIsBatchActionPending(false)
@@ -249,8 +263,10 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
                   onSelectedChange={(selected) =>
                     setSelectedIds((current) => {
                       const next = new Set(current)
+
                       if (selected) next.add(item.id)
                       else next.delete(item.id)
+
                       return next
                     })
                   }

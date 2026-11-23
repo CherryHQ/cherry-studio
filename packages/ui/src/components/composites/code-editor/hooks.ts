@@ -16,6 +16,7 @@ const linterLoaders: ReadonlyMap<string, () => Promise<Extension>> = new Map([
     'json',
     async () => {
       const jsonParseLinter = await import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter)
+
       return linter(jsonParseLinter())
     }
   ]
@@ -28,12 +29,14 @@ async function loadLinterExtension(language: string, languageConfig?: LanguageCo
   const fileExt = await getNormalizedExtension(language, languageConfig)
 
   const loader = linterLoaders.get(fileExt)
+
   if (!loader) return null
 
   try {
     return await loader()
   } catch (error) {
     console.debug(`Failed to load linter for ${language} (${fileExt})`, error as Error)
+
     return null
   }
 }
@@ -110,6 +113,7 @@ export function useSaveKeymap({ onSave, enabled = true }: UseSaveKeymapProps) {
         key: 'Mod-s',
         run: (view: EditorView) => {
           onSave(view.state.sliceDoc())
+
           return true
         },
         preventDefault: true
@@ -132,6 +136,7 @@ export function useBlurHandler({ onBlur }: UseBlurHandlerProps) {
     if (!onBlur) {
       return []
     }
+
     return EditorView.domEventHandlers({
       blur: (_event, view) => {
         onBlur(view.state.sliceDoc())
@@ -180,6 +185,7 @@ export function useScrollToLine(editorViewRef: React.RefObject<EditorView | null
       if (node instanceof HTMLElement && node.classList.contains('cm-line')) {
         return node
       }
+
       node = node.parentElement
     }
 
@@ -188,6 +194,7 @@ export function useScrollToLine(editorViewRef: React.RefObject<EditorView | null
 
   const highlightLine = useCallback((view: EditorView, element: HTMLElement) => {
     const previousHighlight = view.dom.querySelector('.animation-locate-highlight')
+
     if (previousHighlight) {
       previousHighlight.classList.remove('animation-locate-highlight')
     }
@@ -205,17 +212,20 @@ export function useScrollToLine(editorViewRef: React.RefObject<EditorView | null
   return useCallback(
     (lineNumber: number, options?: UseScrollToLineOptions) => {
       const view = editorViewRef.current
+
       if (!view) return
 
       const targetLine = view.state.doc.line(Math.min(lineNumber, view.state.doc.lines))
 
       const lineElement = findLineElement(view, targetLine.from)
+
       if (lineElement) {
         lineElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
 
         if (options?.highlight) {
           requestAnimationFrame(() => highlightLine(view, lineElement))
         }
+
         return
       }
 
@@ -231,6 +241,7 @@ export function useScrollToLine(editorViewRef: React.RefObject<EditorView | null
 
       setTimeout(() => {
         const fallbackElement = findLineElement(view, targetLine.from)
+
         if (fallbackElement) {
           highlightLine(view, fallbackElement)
         }

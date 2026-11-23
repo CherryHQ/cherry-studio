@@ -4,6 +4,7 @@ import { PerplexityLight } from './light'
 
 const Perplexity = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <PerplexityLight {...props} className={className} />
+
   return <PerplexityLight {...props} className={className} />
 }
 

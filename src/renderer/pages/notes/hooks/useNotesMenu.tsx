@@ -38,6 +38,7 @@ export const useNotesMenu = ({
   activeNode
 }: UseNotesMenuProps) => {
   const { t } = useTranslation()
+
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -104,6 +105,7 @@ export const useNotesMenu = ({
       window.api.file.readExternal(node.externalPath),
       import('@renderer/components/ObsidianExportPopup')
     ])
+
     await ObsidianExportPopup.show({ title: node.name, processingMethod: '1', rawContent: content })
   }, [])
 
@@ -120,6 +122,7 @@ export const useNotesMenu = ({
         centered: true,
         okButtonProps: { danger: true }
       })
+
       if (!confirmed) return
 
       onDeleteNode(node.id)
@@ -201,6 +204,7 @@ export const useNotesMenu = ({
         )
 
         const exportChildren: CommandContextMenuExtraItem[] = []
+
         const addExport = (
           id: string,
           label: string,
@@ -213,9 +217,11 @@ export const useNotesMenu = ({
             onSelect: () =>
               void runExport(async () => {
                 const { exportNote } = await import('@renderer/services/ExportService')
+
                 return exportNote({ node, platform })
               })
           })
+
         if (exportMenuOptions.image) {
           exportChildren.push(
             {
@@ -232,10 +238,15 @@ export const useNotesMenu = ({
             }
           )
         }
+
         if (exportMenuOptions.markdown) addExport('notes.export.markdown', t('chat.topics.export.md.label'), 'markdown')
+
         if (exportMenuOptions.docx) addExport('notes.export.docx', t('chat.topics.export.word'), 'docx')
+
         if (exportMenuOptions.notion) addExport('notes.export.notion', t('chat.topics.export.notion'), 'notion')
+
         if (exportMenuOptions.yuque) addExport('notes.export.yuque', t('chat.topics.export.yuque'), 'yuque')
+
         if (exportMenuOptions.obsidian) {
           exportChildren.push({
             type: 'item',
@@ -244,7 +255,9 @@ export const useNotesMenu = ({
             onSelect: () => void runExport(() => handleObsidianExport(node))
           })
         }
+
         if (exportMenuOptions.joplin) addExport('notes.export.joplin', t('chat.topics.export.joplin'), 'joplin')
+
         if (exportMenuOptions.siyuan) addExport('notes.export.siyuan', t('chat.topics.export.siyuan'), 'siyuan')
 
         if (exportChildren.length > 0) {

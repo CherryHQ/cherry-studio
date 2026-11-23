@@ -22,14 +22,17 @@ export const PromptContentSchema = z.string().min(1).max(PROMPT_CONTENT_MAX)
 export const PromptVisibilitySchema = z.enum(['global', 'restricted'])
 
 export const PromptBindingTargetTypeSchema = z.enum(['assistant', 'agent'])
+
 export const PromptAssistantBindingTargetSchema = z.strictObject({
   type: z.literal('assistant'),
   id: AssistantIdSchema
 })
+
 export const PromptAgentBindingTargetSchema = z.strictObject({
   type: z.literal('agent'),
   id: z.string().min(1)
 })
+
 export const PromptBindingTargetSchema = z.discriminatedUnion('type', [
   PromptAssistantBindingTargetSchema,
   PromptAgentBindingTargetSchema
@@ -64,7 +67,11 @@ export const PromptSchema = z.strictObject({
 // ============================================================================
 
 export type Prompt = z.infer<typeof PromptSchema>
+
 export type PromptVisibility = z.infer<typeof PromptVisibilitySchema>
+
 export type PromptBindingTargetType = z.infer<typeof PromptBindingTargetTypeSchema>
+
 export type PromptBindingTarget = z.infer<typeof PromptBindingTargetSchema>
+
 export type PromptBindingRelation = z.infer<typeof PromptBindingRelationSchema>

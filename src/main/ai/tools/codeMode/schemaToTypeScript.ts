@@ -10,9 +10,11 @@ function quotePropertyName(name: string): string {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Schema const/enum entries are unvalidated; emit literals only for supported scalar values and fall back to unknown otherwise.
 function literalType(value: unknown): string {
   if (value === null) return 'null'
+
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return JSON.stringify(value)
   }
+
   return 'unknown'
 }
 
@@ -33,23 +35,30 @@ function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resol
 
   if (typeof value.$ref === 'string') {
     const ref = value.$ref
+
     if (resolvingRefs.has(ref)) return 'unknown'
+
     if (!ref.startsWith('#/')) return 'unknown'
     let resolved: unknown = root
+
     for (const segment of ref.slice(2).split('/')) {
       const key = segment.replaceAll('~1', '/').replaceAll('~0', '~')
+
       if (!resolved || typeof resolved !== 'object' || !(key in resolved)) return 'unknown'
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- A JSON pointer may resolve to any value; the recursive walker validates the next container.
       resolved = (resolved as Record<string, unknown>)[key]
     }
+
     return schemaToTypeScript(resolved, root, depth + 1, new Set([...resolvingRefs, ref]))
   }
 
   if ('const' in value) return literalType(value.const)
+
   if (Array.isArray(value.enum) && value.enum.length > 0) return value.enum.map(literalType).join(' | ')
 
   for (const unionKey of ['anyOf', 'oneOf'] as const) {
     const variants = value[unionKey]
+
     if (Array.isArray(variants) && variants.length > 0) {
       return variants.map((variant) => schemaToTypeScript(variant, root, depth + 1, resolvingRefs)).join(' | ')
     }
@@ -60,6 +69,7 @@ function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resol
   }
 
   const typeValue = value.type
+
   if (Array.isArray(typeValue)) {
     return typeValue.map((type) => schemaToTypeScript({ ...value, type }, root, depth + 1, resolvingRefs)).join(' | ')
   }
@@ -79,12 +89,15 @@ function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resol
     case 'object':
     case undefined: {
       const properties = value.properties
+
       if (!properties || typeof properties !== 'object') {
         return value.additionalProperties && typeof value.additionalProperties === 'object'
           ? `Record<string, ${schemaToTypeScript(value.additionalProperties, root, depth + 1, resolvingRefs)}>`
           : 'Record<string, unknown>'
       }
+
       const required = new Set(Array.isArray(value.required) ? (value.required as string[]) : [])
+
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Property values remain unvalidated schemas and re-enter the bounded recursive walker.
       const fields = Object.entries(properties as Record<string, unknown>)
         .sort(([left], [right]) => left.localeCompare(right))
@@ -93,10 +106,13 @@ function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resol
             property && typeof property === 'object' && typeof (property as JsonSchema).description === 'string'
               ? `/** ${docText(String((property as JsonSchema).description))} */ `
               : ''
+
           return `${description}${quotePropertyName(name)}${required.has(name) ? '' : '?'}: ${schemaToTypeScript(property, root, depth + 1, resolvingRefs)}`
         })
+
       return fields.length > 0 ? `{ ${fields.join('; ')} }` : 'Record<string, unknown>'
     }
+
     default:
       return 'unknown'
   }
@@ -112,6 +128,7 @@ interface ToolTypeScriptInput {
 function toolInvokeToTypeScript(tool: ToolTypeScriptInput, indent: string): string[] {
   const doc = docText(tool.description || tool.name)
   const output = tool.outputSchema ? jsonSchemaToTypeScript(tool.outputSchema) : 'McpToolResult'
+
   return [
     `${indent}/** ${doc} */`,
     `${indent}invoke(name: ${JSON.stringify(tool.name)}, params: ${jsonSchemaToTypeScript(tool.inputSchema)}): Promise<${output}>`

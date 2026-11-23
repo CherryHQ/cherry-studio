@@ -23,10 +23,13 @@ export function useConversationShellPaneState<TResult>({
   const setShellPaneOpen = useCallback(
     (open: boolean) => {
       setAutoCollapsedPane(false)
+
       if (isWindowFrame) {
         setDetachedPaneOpen(open)
+
         return
       }
+
       void setPersistedPaneOpen(open)
     },
     [isWindowFrame, setPersistedPaneOpen]

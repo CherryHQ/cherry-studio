@@ -33,12 +33,14 @@ import { type DoctorAction, type DoctorCheckId, type DoctorCheckResult } from '@
 import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 
 type DoctorFixTargetNameResolver = (target: string) => string | undefined
+
 type DoctorStatusIconStatus =
   | DoctorController['viewModel']['rows'][number]['status']
   | DoctorController['viewModel']['groups'][number]['status']
 
 function useDoctorFixTargetName(): DoctorFixTargetNameResolver {
   const { mcpServers } = useMcpServers()
+
   return useCallback((target) => mcpServers.find((server) => server.id === target)?.name, [mcpServers])
 }
 
@@ -61,6 +63,7 @@ export function DoctorCheckAccordionItems({
   readonly showStatusIcon?: boolean
 }) {
   const resolveFixTargetName = useDoctorFixTargetName()
+
   return (
     <DoctorCheckListItems
       compact={compact}
@@ -133,6 +136,7 @@ function DoctorCheckListItem({
   readonly showStatusIcon: boolean
 }) {
   const { t } = useTranslation()
+
   return (
     <AccordionItem value={`doctor-${row.id}`} className={compact ? 'px-4' : 'px-2'}>
       <AccordionTrigger className="rounded-none py-3 font-normal hover:bg-transparent focus:bg-transparent focus-visible:bg-transparent">
@@ -186,14 +190,17 @@ function DoctorCheckEvidence({
   const { t } = useTranslation()
   const result = row.result
   const evidenceGrant = controller.session.evidenceGrant
+
   const isEvidenceRevealed =
     !!evidenceGrant && evidenceGrant.runId === controller.viewModel.runId && evidenceGrant.checkIds.includes(row.id)
+
   const publicEvidence = result?.evidence?.filter((item) => item.dataClass === 'public') ?? []
   const localEvidence = result?.evidence?.filter((item) => item.dataClass === 'local_only') ?? []
   const sensitiveEvidence = result?.evidence?.filter((item) => item.dataClass === 'consent_required') ?? []
   const sensitiveEvidenceRef = useRef<HTMLDListElement>(null)
   const evidenceItemValue = `doctor-evidence-${row.id}`
   const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(isEvidenceRevealed || defaultLocalDetailsExpanded)
+
   const isConfirming =
     controller.session.interaction.kind === 'confirm-evidence' && controller.session.interaction.checkId === row.id
 
@@ -297,6 +304,7 @@ export function DoctorCheckActions({
   readonly row: DoctorController['viewModel']['rows'][number]
 }) {
   const resolveFixTargetName = useDoctorFixTargetName()
+
   return (
     <DoctorCheckActionButtons
       className={className}
@@ -372,9 +380,11 @@ function DoctorActionButton({
 }) {
   const { t } = useTranslation()
   const disabled = row.actionsDisabled || controller.isInteracting
+
   const loading =
     (controller.session.interaction.kind === 'fixing' && controller.session.interaction.request.checkId === row.id) ||
     (controller.session.interaction.kind === 'action' && controller.session.interaction.checkId === row.id)
+
   return (
     <Button
       variant="outline"
@@ -390,10 +400,13 @@ function DoctorActionButton({
 function CheckDescription({ result }: { readonly result?: DoctorCheckResult }) {
   const { t } = useTranslation()
   const className = 'min-w-0 break-words text-muted-foreground text-xs'
+
   if (!result) return <p className={className}>{t('settings.doctor.checks.pending')}</p>
+
   if (result.status === 'error') {
     return <p className={className}>{t('settings.doctor.checks.error')}</p>
   }
+
   if (result.status === 'skip' && 'skippedBy' in result) {
     return (
       <p className={className}>
@@ -401,7 +414,9 @@ function CheckDescription({ result }: { readonly result?: DoctorCheckResult }) {
       </p>
     )
   }
+
   if (!result.detail) return <p className={className}>{t(DOCTOR_STATUS_LABEL_KEYS[result.status])}</p>
+
   return (
     <p className={className}>
       {t(doctorCheckDetailKey(result.id, result.detail.variant), doctorCheckDetailParams(t, result.detail.params))}
@@ -462,8 +477,10 @@ function actionLabel(
   switch (action.kind) {
     case 'fix': {
       const label = resolveDoctorFixLabel(checkId, action, resolveFixTargetName)
+
       return t(label.key, label.params)
     }
+
     case 'navigate':
       return t(DOCTOR_NAVIGATION_LABEL_KEYS[action.target])
     case 'open_path':

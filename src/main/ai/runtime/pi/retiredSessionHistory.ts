@@ -20,6 +20,7 @@ const pending = new Map<string, Promise<void>>()
 
 export async function migrateRetiredSessionHistories(): Promise<void> {
   const db = application.get('DbService').getDb()
+
   for (const migration of listRetiredAgentSessionMigrations(db)) {
     try {
       await ensureRetiredSessionHistory(migration.sessionId)
@@ -33,23 +34,29 @@ export async function migrateRetiredSessionHistories(): Promise<void> {
 export function ensureRetiredSessionHistory(sessionId: string): Promise<void> {
   if (!getRetiredAgentSessionMigration(application.get('DbService').getDb(), sessionId)) return Promise.resolve()
   const existing = pending.get(sessionId)
+
   if (existing) return existing
   const migrating = importHistory(sessionId).finally(() => pending.delete(sessionId))
   pending.set(sessionId, migrating)
+
   return migrating
 }
 
 async function importHistory(sessionId: string): Promise<void> {
   const db = application.get('DbService').getDb()
   const migration = getRetiredAgentSessionMigration(db, sessionId)
+
   if (!migration) return
   const history = readRetiredAgentSessionHistory(db, sessionId)
+
   if (!history) {
     application
       .get('DbService')
       .withWriteTx((tx) => commitRetiredAgentSessionMigration(tx, migration, new Map(), history, new Set()))
+
     return
   }
+
   const sdk = await loadPiSdk()
   const manager = sdk.SessionManager.inMemory(history.workspacePath, { id: migration.resumeToken })
   const anchors = new Map<string, RuntimeForkAnchor>()
@@ -58,6 +65,7 @@ async function importHistory(sessionId: string): Promise<void> {
   const orderedMessages: typeof history.messages = []
   let queuedMessages: typeof history.messages = []
   let boundaryExclusions = new Set<string>()
+
   // Queued prompts are persisted before their assistant placeholders, so timestamps alone
   // cannot recover which prompts had entered the model context at a historical boundary.
   for (const row of history.messages) {
@@ -65,8 +73,10 @@ async function importHistory(sessionId: string): Promise<void> {
       queuedMessages.push(row)
       continue
     }
+
     const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
     boundaryExclusions = new Set(anchor.data?.excludedMessageIds ?? [])
+
     if (row.status !== 'success' && !anchor.success) {
       for (const message of queuedMessages) {
         if (message.role === 'user' && message.status === 'success' && !message.deliveryStatus) {
@@ -74,16 +84,20 @@ async function importHistory(sessionId: string): Promise<void> {
         }
       }
     }
+
     orderedMessages.push(...queuedMessages.filter((message) => !boundaryExclusions.has(message.id)), row)
     queuedMessages = queuedMessages.filter((message) => boundaryExclusions.has(message.id))
   }
+
   // Saving a FIFO input is not a consumption receipt; keep unacknowledged tail inputs pending.
   for (const message of queuedMessages) {
     if (message.role === 'user' && message.status === 'success' && !message.deliveryStatus) {
       pendingMessageIds.add(message.id)
     }
   }
+
   orderedMessages.push(...queuedMessages.filter((message) => !boundaryExclusions.has(message.id)))
+
   for (const row of orderedMessages) {
     if (
       pendingMessageIds.has(row.id) ||
@@ -94,6 +108,7 @@ async function importHistory(sessionId: string): Promise<void> {
       excludedMessageIds.push(row.id)
       continue
     }
+
     const content = buildAgentUserContent({
       ...row,
       role: row.role as AgentSessionMessageEntity['role'],
@@ -110,13 +125,17 @@ async function importHistory(sessionId: string): Promise<void> {
       createdAt: new Date(row.createdAt).toISOString(),
       updatedAt: new Date(row.updatedAt).toISOString()
     })
+
     const tools = (row.data.parts ?? []).flatMap((part) => {
       if (part.type !== 'dynamic-tool' && !part.type.startsWith('tool-')) return []
+
       return [JSON.stringify(part)]
     })
+
     const text = [content, ...tools.map((tool) => `Historical tool record (already executed):\n${tool}`)]
       .filter(Boolean)
       .join('\n\n')
+
     if (text && row.role === 'user') {
       manager.appendMessage({ role: 'user', content: [{ type: 'text', text }], timestamp: row.createdAt })
     } else if (text && row.role === 'assistant') {
@@ -140,7 +159,9 @@ async function importHistory(sessionId: string): Promise<void> {
     } else if (text) {
       manager.appendCustomMessageEntry('cherry-history', text, false)
     }
+
     const leafId = manager.getLeafId()
+
     if (leafId && row.role === 'assistant') {
       anchors.set(row.id, {
         checkpoint: { runtime: 'pi', runtimeSessionId: migration.resumeToken, leafId },
@@ -153,10 +174,12 @@ async function importHistory(sessionId: string): Promise<void> {
       })
     }
   }
+
   const sessions = application.getPath('feature.agents.pi.sessions')
   await mkdir(sessions, { recursive: true })
   const file = path.join(sessions, `1970-01-01T00-00-00-000Z_${migration.resumeToken}.jsonl`)
   const temporary = `${file}.tmp`
+
   try {
     await writeFile(
       temporary,
@@ -164,12 +187,14 @@ async function importHistory(sessionId: string): Promise<void> {
       { mode: 0o600 }
     )
     const reopened = sdk.SessionManager.open(temporary, sessions, history.workspacePath)
+
     if (
       reopened.getSessionId() !== migration.resumeToken ||
       reopened.getEntries().length !== manager.getEntries().length
     ) {
       throw new Error('Retired session history validation failed')
     }
+
     await rename(temporary, file)
     application
       .get('DbService')

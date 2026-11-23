@@ -28,6 +28,7 @@ import {
 } from './globalSearchGroups'
 
 export type GlobalSearchPanelMode = 'search' | 'message-search'
+
 export type GlobalSearchTimeFilter = 'any' | 'today' | 'week' | 'month' | 'quarter'
 
 type ContentSearchCursorMap = Partial<Record<ContentSearchSourceType, string>>
@@ -128,6 +129,7 @@ function getContentSearchNextCursors(groups: readonly ContentSearchGroup[]): Con
 function areContentSearchCursorsEqual(a: ContentSearchCursorMap, b: ContentSearchCursorMap) {
   const aEntries = Object.entries(a)
   const bEntries = Object.entries(b)
+
   return (
     aEntries.length === bEntries.length &&
     aEntries.every(([source, cursor]) => b[source as ContentSearchSourceType] === cursor)
@@ -139,7 +141,9 @@ function areMessageSearchItemsEqual(a: readonly GlobalMessageSearchResult[], b: 
     a.length === b.length &&
     a.every((item, index) => {
       const next = b[index]
+
       if (!next) return false
+
       if (
         item.sourceType !== next.sourceType ||
         item.messageId !== next.messageId ||
@@ -196,12 +200,16 @@ export function useGlobalSearchPanelData({
   const shouldShowGlobalMessagePreview = panelMode === 'search' && filter === 'all'
   const searchTypes = useMemo(() => getGlobalSearchTypes(filter), [filter])
   const messageSearchSources = useMemo(() => getMessageSearchSources(messageSourceFilter), [messageSourceFilter])
+
   const shouldSearchTopicMessages =
     shouldShowGlobalMessagePreview || (isMessageSearchMode && messageSearchSources.includes('topic'))
+
   const shouldSearchSessionMessages =
     shouldShowGlobalMessagePreview || (isMessageSearchMode && messageSearchSources.includes('session'))
+
   const updatedAtFrom = useMemo(() => getUpdatedAtFromForTimeFilter(timeFilter), [timeFilter])
   const messageSearchLimit = shouldShowGlobalMessagePreview ? GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT : 50
+
   const contentSearchSources = useMemo(
     () =>
       getContentSearchSources({
@@ -210,6 +218,7 @@ export function useGlobalSearchPanelData({
       }),
     [shouldSearchSessionMessages, shouldSearchTopicMessages]
   )
+
   const contentSearchStateKey = useMemo(
     () =>
       getContentSearchStateKey({
@@ -220,7 +229,9 @@ export function useGlobalSearchPanelData({
       }),
     [contentSearchSources, deferredQuery, messageSearchLimit, updatedAtFrom]
   )
+
   const [contentSearchState, setContentSearchState] = useState(() => createContentSearchState(contentSearchStateKey))
+
   // When the search key changes we render against a fresh, empty accumulator immediately (derive-during-render)
   // and let the effect below reconcile `contentSearchState` afterwards. The fresh state has empty `requestedCursors`,
   // so the memoized SWR key it feeds stays value-stable - do NOT "simplify" this into a setState-in-render or it loops.
@@ -228,24 +239,34 @@ export function useGlobalSearchPanelData({
     contentSearchState.baseKey === contentSearchStateKey
       ? contentSearchState
       : createContentSearchState(contentSearchStateKey)
+
   const requestedContentSearchCursors = activeContentSearchState.requestedCursors
+
   const requestedContentSearchSources = useMemo(() => {
     const cursorSources = contentSearchSources.filter((source) => requestedContentSearchCursors[source])
+
     return cursorSources.length > 0 ? cursorSources : contentSearchSources
   }, [contentSearchSources, requestedContentSearchCursors])
+
   const contentSearchQuery = useMemo(() => {
     const query: ContentSearchQueryParams = {
       q: deferredQuery,
       sources: requestedContentSearchSources,
       limitPerSource: messageSearchLimit
     }
+
     if (Object.keys(requestedContentSearchCursors).length > 0) query.cursors = requestedContentSearchCursors
+
     if (updatedAtFrom) query.createdAtFrom = updatedAtFrom
+
     return query
   }, [deferredQuery, messageSearchLimit, requestedContentSearchCursors, requestedContentSearchSources, updatedAtFrom])
+
   const searchQuery = useMemo(() => {
     const query: EntitySearchQueryParams = { q: deferredQuery, types: searchTypes }
+
     if (updatedAtFrom) query.updatedAtFrom = updatedAtFrom
+
     return query
   }, [deferredQuery, searchTypes, updatedAtFrom])
 
@@ -300,16 +321,20 @@ export function useGlobalSearchPanelData({
   }, [contentSearchData, contentSearchStateKey, deferredQuery])
 
   const hasMoreMessageResults = isMessageSearchMode && Object.keys(activeContentSearchState.nextCursors).length > 0
+
   const isLoadingMoreMessageResults =
     isMessageSearchMode &&
     Object.keys(activeContentSearchState.requestedCursors).length > 0 &&
     isContentSearchRefreshing
+
   const isMessageLoading = isMessageSearchMode && activeContentSearchState.items.length === 0 && isContentSearchLoading
   const messageError = contentSearchError
   const messageLoadMoreCount = Object.keys(activeContentSearchState.nextCursors).length * messageSearchLimit
+
   const loadMoreMessageResults = useCallback(() => {
     setContentSearchState((state) => {
       const current = state.baseKey === contentSearchStateKey ? state : createContentSearchState(contentSearchStateKey)
+
       if (Object.keys(current.nextCursors).length === 0) return current
 
       return {
@@ -334,8 +359,11 @@ export function useGlobalSearchPanelData({
       [...activeContentSearchState.items].sort((a, b) => {
         const timeA = dayjs(a.createdAt).valueOf() || 0
         const timeB = dayjs(b.createdAt).valueOf() || 0
+
         if (timeA !== timeB) return timeB - timeA
+
         if (a.sourceType !== b.sourceType) return a.sourceType === 'topic' ? -1 : 1
+
         return b.messageId.localeCompare(a.messageId)
       }),
     [activeContentSearchState.items]

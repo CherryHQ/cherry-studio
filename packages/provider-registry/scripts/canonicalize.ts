@@ -39,6 +39,7 @@ export const canonOf = (id: string): string => {
   s = expandKnownPrefixes(s) // mm- → minimax-
   s = stripVariantQuantDateSuffixes(s) // variant/quant/date suffixes, iterated to a fixpoint
   s = normalizeVersionSeparators(s) // 4.6 → 4-6
+
   return s
     .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
@@ -61,6 +62,7 @@ export const deriveOverrideModelId = <T extends { modelId?: string; apiModelId: 
 }: T): Omit<T, 'modelId' | 'apiModelId'> & { modelId: string; apiModelId?: string } => {
   if (modelId) return { ...rest, modelId, apiModelId }
   const canonical = canonOf(apiModelId) || apiModelId
+
   return canonical === apiModelId ? { ...rest, modelId: canonical } : { ...rest, modelId: canonical, apiModelId }
 }
 

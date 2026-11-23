@@ -36,6 +36,7 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
   const switchTo = useCallback(
     async (targetId: string) => {
       if (!actions.setActiveBranch) return
+
       try {
         await actions.setActiveBranch(targetId)
       } catch (error) {

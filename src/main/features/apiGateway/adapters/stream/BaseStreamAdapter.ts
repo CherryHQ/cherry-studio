@@ -93,6 +93,7 @@ export abstract class BaseStreamAdapter<TOutputEvent, TResponse> implements IStr
         statusCode: 502
       })
     }
+
     // JSON schemas may omit SDK validation, so both tool events must enforce the wire object shape.
     if (
       (chunk.type === 'tool-input-error' || (chunk.type === 'tool-input-available' && chunk.input !== undefined)) &&
@@ -104,8 +105,10 @@ export abstract class BaseStreamAdapter<TOutputEvent, TResponse> implements IStr
           : `Invalid tool arguments for ${chunk.toolName}: expected an object`
       )
     }
+
     this.emitMessageStart()
     this.processChunk(chunk)
+
     return this.drainPending()
   }
 
@@ -116,12 +119,14 @@ export abstract class BaseStreamAdapter<TOutputEvent, TResponse> implements IStr
   finalizeEvents(): TOutputEvent[] {
     this.emitMessageStart()
     this.finalize()
+
     return this.drainPending()
   }
 
   private drainPending(): TOutputEvent[] {
     const events = this.pendingEvents
     this.pendingEvents = []
+
     return events
   }
 
@@ -152,6 +157,7 @@ export abstract class BaseStreamAdapter<TOutputEvent, TResponse> implements IStr
    */
   protected getOrCreateBlock(index: number, type: ContentBlockState['type']): ContentBlockState {
     let block = this.state.blocks.get(index)
+
     if (!block) {
       block = {
         type,
@@ -161,6 +167,7 @@ export abstract class BaseStreamAdapter<TOutputEvent, TResponse> implements IStr
       }
       this.state.blocks.set(index, block)
     }
+
     return block
   }
 

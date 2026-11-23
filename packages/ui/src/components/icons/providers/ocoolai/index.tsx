@@ -6,7 +6,9 @@ import { OcoolaiLight } from './light'
 
 const Ocoolai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <OcoolaiLight {...props} className={className} />
+
   if (variant === 'dark') return <OcoolaiDark {...props} className={className} />
+
   return (
     <>
       <OcoolaiLight className={cn('dark:hidden', className)} {...props} />

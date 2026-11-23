@@ -9,6 +9,7 @@ const ENDPOINT_CONFIG_PRESET_FIELDS = ['endpointConfigs'] as const
 export function usePaintingProviderRuntime(providerId: string) {
   const { provider, isLoading, error } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
+
   const {
     data: preset,
     isLoading: isPresetLoading,

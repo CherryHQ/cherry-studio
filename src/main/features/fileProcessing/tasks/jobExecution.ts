@@ -63,19 +63,24 @@ export async function prepareFileProcessingJob(
   const { feature, file, processorId } = input
   const config = resolveProcessorConfigByFeature(feature, processorId)
   const handler = getCapabilityHandler(config.id, feature)
+
   if (handler.mode !== 'auto') {
     assertModeMatches({ mode: handler.mode }, expectedMode)
   } else if (expectedMode !== 'background') {
     throw new Error('Internal error - Auto capability must use the background job type')
   }
+
   const fileInfo = await resolveFileProcessingFileInfo(file)
   assertFileTypeSupported(fileInfo, feature, config)
   await assertDocumentInputLimits(ctx, handler.mode, fileInfo, config)
 
   const context: NonNullable<Parameters<typeof handler.prepare>[3]> = {}
+
   if (ctx.metadata.remoteState !== undefined) context.remoteState = ctx.metadata.remoteState
+
   if (input.context?.dataId) context.dataId = input.context.dataId
   const prepared = await handler.prepare(fileInfo, config, ctx.signal, context)
+
   if (handler.mode !== 'auto') {
     assertModeMatches(prepared, expectedMode)
   }
@@ -103,6 +108,7 @@ async function assertDocumentInputLimits(
   }
 
   const capability = config.capabilities.find((item) => item.feature === 'document_to_markdown')
+
   if (capability?.maxInputBytes !== undefined && file.size >= capability.maxInputBytes) {
     throw new Error(
       t('file_processing.errors.document_size_limit_exceeded', {
@@ -120,6 +126,7 @@ async function assertDocumentInputLimits(
   }
 
   const pageCount = await getPdfPageCount(file.path)
+
   if (pageCount > capability.maxInputPages) {
     throw new Error(t('file_processing.errors.pdf_page_limit_exceeded', { maxPages: capability.maxInputPages }))
   }
@@ -129,9 +136,11 @@ function formatByteLimit(bytes: number): string {
   if (bytes % GB === 0) {
     return `${bytes / GB} GB`
   }
+
   if (bytes % MB === 0) {
     return `${bytes / MB} MB`
   }
+
   return `${bytes} bytes`
 }
 
@@ -198,6 +207,7 @@ export function assertFileTypeSupported(
   }
 
   const inputs: readonly FileProcessorInput[] = presetCapability.inputs
+
   if (!inputs.includes(file.type as FileProcessorInput)) {
     throw new Error(`File processor ${config.id} ${feature} does not support ${file.type} files`)
   }
@@ -210,11 +220,13 @@ export async function resolveFileProcessingFileInfo(file: FileHandle): Promise<F
 
   const fileManager = application.get('FileManager')
   const metadata = await fileManager.getMetadata(file.entryId)
+
   if (metadata.kind === 'directory') {
     throw new Error('File processing does not support directories')
   }
 
   const entry = await fileManager.getById(file.entryId)
+
   return toFileInfo(entry)
 }
 
@@ -232,12 +244,14 @@ export async function resolveFileProcessingFileInfo(file: FileHandle): Promise<F
  */
 async function resolveFileProcessingPathInfo(filePath: AbsoluteFilePath): Promise<FileInfo> {
   const stats = await fsStat(filePath)
+
   if (stats.isDirectory) {
     throw new Error('File processing does not support directories')
   }
 
   const parsed = path.parse(filePath)
   const ext = parsed.ext.length > 0 ? parsed.ext.slice(1) : null
+
   return FileInfoSchema.parse({
     path: filePath,
     name: parsed.name,

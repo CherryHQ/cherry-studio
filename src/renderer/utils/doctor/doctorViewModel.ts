@@ -12,7 +12,9 @@ import {
 } from '@shared/types/doctor'
 
 type DisplayedDoctorDomain = (typeof DOCTOR_CHECK_CATALOG)[DoctorCheckId]['domain']
+
 type DoctorRowStatus = DoctorCheckStatus | 'pending'
+
 type DoctorGroupStatus = 'pass' | 'warn' | 'fail' | 'running' | 'neutral'
 
 interface DoctorRowViewModel {
@@ -59,14 +61,19 @@ const DOMAIN_ORDER = [...new Set(DOCTOR_CHECK_IDS.map((id) => DOCTOR_CHECK_CATAL
 
 function resultActions(result: DoctorCheckResult): readonly DoctorAction[] {
   if (result.status !== 'warn' && result.status !== 'fail') return []
+
   return result.actions
 }
 
 function groupStatus(rows: readonly DoctorRowViewModel[]): DoctorGroupStatus {
   if (rows.some((row) => row.status === 'fail' || row.status === 'error')) return 'fail'
+
   if (rows.some((row) => row.status === 'warn')) return 'warn'
+
   if (rows.some((row) => row.status === 'pending')) return 'running'
+
   if (rows.every((row) => row.status === 'pass')) return 'pass'
+
   return 'neutral'
 }
 
@@ -76,8 +83,10 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   if (state.status === 'completed') {
     const resultById = new Map(state.report.results.map((result) => [result.id, result]))
     const pendingIds = new Set((state.report.pendingChecks ?? []).map((pending) => pending.checkId))
+
     return DOCTOR_CHECK_IDS.flatMap<DoctorRowViewModel>((id) => {
       const result = resultById.get(id)
+
       if (result) {
         return [
           {
@@ -90,7 +99,9 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
           }
         ]
       }
+
       if (!pendingIds.has(id)) return []
+
       return [
         {
           id,
@@ -105,8 +116,10 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   }
 
   const resultById = new Map(state.results.map((result) => [result.id, result]))
+
   return state.selectedCheckIds.map<DoctorRowViewModel>((id) => {
     const result = resultById.get(id)
+
     return {
       id,
       domain: DOCTOR_CHECK_CATALOG[id].domain,
@@ -123,14 +136,19 @@ export function buildDoctorViewModel(state: DoctorState, now = Date.now()): Doct
   const runId = state.status === 'completed' ? state.report.runId : state.status === 'idle' ? undefined : state.runId
   const isStale = report ? Date.parse(report.expiresAt) <= now : false
   const rows = rowsForState(state, isStale)
+
   const groups = DOMAIN_ORDER.flatMap((domain) => {
     const domainRows = rows.filter((row) => row.domain === domain)
+
     return domainRows.length > 0 ? [{ domain, status: groupStatus(domainRows), rows: domainRows }] : []
   })
+
   const summary = rows.reduce(
     (counts, row) => {
       const result = row.result
+
       if (!result) return counts
+
       if (result.status === 'warn' || result.status === 'fail') {
         const key =
           result.attribution === 'user-fixable'
@@ -138,12 +156,14 @@ export function buildDoctorViewModel(state: DoctorState, now = Date.now()): Doct
             : result.attribution === 'app-bug'
               ? 'appBug'
               : 'transient'
+
         counts[key] += 1
       } else if (result.status === 'error') {
         counts.error += 1
       } else if (result.status === 'skip') {
         counts.skip += 1
       }
+
       return counts
     },
     { userFixable: 0, appBug: 0, transient: 0, error: 0, skip: 0 }

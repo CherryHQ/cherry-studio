@@ -48,6 +48,7 @@ export const useFiles = (props?: Props) => {
       const useAllFiles = extensions.length > 20
 
       setSelecting(true)
+
       const _files = await window.api.file.select({
         properties: selectProps,
         filters: [
@@ -57,14 +58,18 @@ export const useFiles = (props?: Props) => {
           }
         ]
       })
+
       setSelecting(false)
 
       if (_files) {
         if (!useAllFiles) {
           setFiles((currentFiles) => [...currentFiles, ..._files])
+
           return _files
         }
+
         const supportedFiles = await filterSupportedFiles(_files, extensions)
+
         if (supportedFiles.length > 0) {
           setFiles((currentFiles) => [...currentFiles, ...supportedFiles])
         }
@@ -76,6 +81,7 @@ export const useFiles = (props?: Props) => {
             })
           )
         }
+
         return supportedFiles
       } else {
         return []

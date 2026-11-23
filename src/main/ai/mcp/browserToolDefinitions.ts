@@ -59,7 +59,9 @@ const targetShape = {
   tabId: z.string().optional().describe('Tab ID returned by open; defaults to the active tab'),
   privateMode: z.boolean().optional().describe('Target the private browsing session')
 }
+
 export const SnapshotSchema = snapshotOptionsSchema.extend(targetShape)
+
 const snapshotToolDefinition = {
   name: 'snapshot',
   description:
@@ -80,6 +82,7 @@ const screenshotToolDefinition = {
 }
 
 const refShape = { ...targetShape, ref: browserRefSchema }
+
 export const interactionSchemas = {
   click: z.strictObject({
     ...refShape,
@@ -103,6 +106,7 @@ export const interactionSchemas = {
   press_key: z.strictObject({ ...targetShape, key: z.string().min(1).max(80) }),
   select_option: z.strictObject({ ...refShape, values: z.array(z.string()).max(100) })
 }
+
 const descriptions: Record<keyof typeof interactionSchemas, string> = {
   click:
     'Click a snapshot ref using mouse input. A covered left single click uses a reported synthetic fallback; other covered clicks fail.',
@@ -113,6 +117,7 @@ const descriptions: Record<keyof typeof interactionSchemas, string> = {
   select_option:
     'Select native select options by value, then label. Unknown or disabled options fail without changing selection.'
 }
+
 const interactionToolDefinitions = Object.entries(interactionSchemas).map(([name, schema]) => ({
   name,
   description: descriptions[name as keyof typeof interactionSchemas],
@@ -126,11 +131,13 @@ export const findSchema = z
     name: z.string().min(1).max(2000).optional()
   })
   .refine((input) => input.role !== undefined || input.name !== undefined, 'Provide role or name')
+
 export const consoleSchema = z.strictObject({
   ...targetShape,
   level: z.enum(['error', 'warning', 'all']).default('all'),
   clear: z.boolean().default(false)
 })
+
 export const networkSchema = z.strictObject({ ...targetShape, clear: z.boolean().default(false) })
 
 const inspectToolDefinitions = [
@@ -155,6 +162,7 @@ const inspectToolDefinitions = [
 ]
 
 export const historySchema = z.strictObject(targetShape)
+
 export const waitForSchema = z
   .strictObject({
     ...targetShape,
@@ -164,6 +172,7 @@ export const waitForSchema = z
     timeoutMs: z.number().int().min(1).max(30_000).default(10_000)
   })
   .refine((p) => p.text !== undefined || p.ref !== undefined, 'Provide text or ref')
+
 const navigateToolDefinitions = [
   ...['go_back', 'go_forward'].map((name) => ({
     name,
@@ -183,6 +192,7 @@ export const dialogSchema = z.strictObject({
   accept: z.boolean(),
   promptText: z.string().max(40_000).optional()
 })
+
 const dialogToolDefinition = {
   name: 'handle_dialog',
   description:
@@ -219,6 +229,7 @@ const resetToolDefinition = {
 }
 
 export const webMcpListSchema = z.strictObject(targetShape)
+
 export const webMcpCallSchema = z.strictObject({
   ...targetShape,
   toolId: z.uuid(),

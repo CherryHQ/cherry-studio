@@ -22,6 +22,7 @@ export function useAccountSubmenu() {
   const onPointerEnter = (event: PointerEvent) => {
     if (event.pointerType !== 'mouse') return
     cancelHoverClose()
+
     if (!open) {
       keepCurrentFocusRef.current = true
       onOpenChange(true)
@@ -68,6 +69,7 @@ export function useAccountSubmenu() {
       },
       onOpenAutoFocus: (event: Event) => {
         event.preventDefault()
+
         if (!keepCurrentFocusRef.current) initialFocusRef.current?.focus()
       },
       onCloseAutoFocus: (event: Event) => {

@@ -33,6 +33,7 @@ export function useCherryCloudModelAvailability(enabled = true) {
   const fact = receipt?.models
   const cloudAvailability = fact && fact.freshness !== 'unknown' ? fact.value : undefined
   const availabilityFreshness = fact?.freshness ?? 'unknown'
+
   const availabilityError = useMemo(
     () => (fact && fact.freshness !== 'fresh' && fact.error ? new Error(fact.error) : receiptError),
     [fact, receiptError]
@@ -69,10 +70,13 @@ export function useCherryCloudModelAvailability(enabled = true) {
       getModelDescription: (model: Pick<Model, 'id' | 'providerId'>): string | undefined => {
         if (!isManagedCherryCloudModel(model.providerId)) return undefined
         const isFree = freeModelIds.has(model.id)
+
         if (settled && quotaExhaustedModelIds.has(model.id)) {
           return t(isFree ? 'models.detail.free_quota_exhausted' : 'models.detail.quota_exhausted')
         }
+
         if (!isFree) return undefined
+
         return t(
           generalModelIds.has(model.id)
             ? 'models.detail.limited_time_free'

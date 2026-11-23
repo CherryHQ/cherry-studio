@@ -4,6 +4,7 @@ import { ExaLight } from './light'
 
 const Exa = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <ExaLight {...props} className={className} />
+
   return <ExaLight {...props} className={className} />
 }
 

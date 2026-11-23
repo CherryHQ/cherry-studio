@@ -41,6 +41,7 @@ const PromptPopupContainer: React.FC<Props> = ({
   const [value, setValue] = useState(defaultValue)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const { t } = useTranslation()
+
   const {
     allowClear = true,
     className,
@@ -58,6 +59,7 @@ const PromptPopupContainer: React.FC<Props> = ({
 
     window.setTimeout(() => {
       const textArea = textAreaRef.current
+
       if (!textArea) return
 
       textArea.focus()
@@ -88,6 +90,7 @@ const PromptPopupContainer: React.FC<Props> = ({
     if (event.nativeEvent.isComposing || event.keyCode === 229) return
 
     const isEnterPressed = event.key === 'Enter'
+
     if (isEnterPressed) {
       onPressEnter?.(event)
     }

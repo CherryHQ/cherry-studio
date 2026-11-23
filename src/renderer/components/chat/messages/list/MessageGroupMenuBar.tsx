@@ -25,6 +25,7 @@ function selectRetryCandidates(messages: MessageListItem[], selectedMessageId: s
     const modelId = resolveUniqueModelId(message.modelId, message.model ?? message.messageSnapshot?.model)
     const key = modelId ?? `message:${message.id}`
     const current = candidatesByModel.get(key)
+
     if (
       !current ||
       message.id === selectedMessageId ||
@@ -62,17 +63,21 @@ const MessageGroupMenuBar: FC<Props> = ({
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const foldDisplayMode = renderConfig.multiModelFoldDisplayMode
   const isCompactFoldDisplay = foldDisplayMode === 'compact'
+
   const foldToggleLabel = t(
     isCompactFoldDisplay
       ? 'message.message.multi_model_style.fold.expand'
       : 'message.message.multi_model_style.fold.compress'
   )
+
   const groupMessageIds = messages.map((message) => message.id)
 
   const deleteAvailability = groupMessageIds
     .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
     .find((availability) => availability?.enabled === false)
+
   const isDeleteDisabled = deleteAvailability?.enabled === false
+
   const deleteDisabledReason =
     deleteAvailability?.enabled === false ? getMessageDeleteUnavailableText(deleteAvailability.reason, t) : undefined
 
@@ -85,6 +90,7 @@ const MessageGroupMenuBar: FC<Props> = ({
   const isFailedMessage = (m: MessageListItem) => {
     if (m.role !== 'assistant') return false
     const parts = partsMap?.[m.id]
+
     return m.status === 'error' || m.status === 'paused' || parts?.length === 0
   }
 
@@ -110,6 +116,7 @@ const MessageGroupMenuBar: FC<Props> = ({
     if (failedCount > 0) {
       actions.notifyError?.(formatErrorMessageWithPrefix(lastError, t('message.group.retry_failed')))
     }
+
     if (skippedCount > 0) {
       actions.notifyInfo?.(t('message.group.retry_skipped_same_model', { count: skippedCount }))
     }
@@ -213,6 +220,7 @@ const GroupMenuBar = ({
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { $layout: MultiModelMessageStyle }) => {
   void $layout
+
   return (
     <div
       className={[

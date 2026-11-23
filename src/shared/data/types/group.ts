@@ -15,6 +15,7 @@ import { EntityTypeSchema } from './entityType'
 // ============================================================================
 
 export const GroupIdSchema = z.uuidv4()
+
 /**
  * Persisted group names.
  *
@@ -44,4 +45,5 @@ export const GroupSchema = z.strictObject({
   /** Last update timestamp (ISO string) */
   updatedAt: z.iso.datetime()
 })
+
 export type Group = z.infer<typeof GroupSchema>

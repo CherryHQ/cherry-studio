@@ -21,9 +21,11 @@ export async function computeImageNaturalSize(src: string): Promise<ImageNatural
   try {
     const blob = await getImageBlobFromSource(src)
     bitmap = await createImageBitmap(blob)
+
     return { naturalWidth: bitmap.width, naturalHeight: bitmap.height }
   } catch (error) {
     logger.warn('Failed to compute natural size for painting image', { error })
+
     return null
   } finally {
     bitmap?.close()

@@ -6,7 +6,9 @@ import { HailuoLight } from './light'
 
 const Hailuo = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <HailuoLight {...props} className={className} />
+
   if (variant === 'dark') return <HailuoDark {...props} className={className} />
+
   return (
     <>
       <HailuoLight className={cn('dark:hidden', className)} {...props} />

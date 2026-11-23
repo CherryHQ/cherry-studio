@@ -23,6 +23,7 @@ export function MobileAppShowcase() {
   useEffect(() => {
     if (reducedMotion || isHovered || isFocused) return
     const timer = setInterval(() => setSelected((current) => (current + 1) % SLIDES.length), 5000)
+
     return () => clearInterval(timer)
   }, [reducedMotion, isHovered, isFocused])
 

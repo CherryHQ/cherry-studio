@@ -20,16 +20,20 @@ function createDeepseekResponsesReasoningReplayMiddleware(): LanguageModelMiddle
 
     transformParams: async ({ params }) => {
       if (!Array.isArray(params.prompt)) return params
+
       return {
         ...params,
         prompt: params.prompt.map((message) => {
           if (message.role !== 'assistant') return message
+
           return {
             ...message,
             content: message.content.map((part) => {
               if (part.type !== 'reasoning') return part
               const openai = part.providerOptions?.openai
+
               if (openai?.reasoningEncryptedContent != null) return part
+
               return {
                 ...part,
                 providerOptions: {

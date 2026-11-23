@@ -18,11 +18,13 @@ class LazyFileReader extends VectorStoreFileReader<Document> {
 
   override async loadData(filePath: string): Promise<Document[]> {
     const reader = await (this.readerPromise ??= this.loadReader())
+
     return reader.loadData(filePath)
   }
 
   async loadDataAsContent(fileContent: Uint8Array, filename?: string): Promise<Document[]> {
     const reader = await (this.readerPromise ??= this.loadReader())
+
     return reader.loadDataAsContent(fileContent, filename)
   }
 }
@@ -42,16 +44,19 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
     case '.doc':
       return new AnydocReader(async () => {
         const { DocReader } = await import('./files/DocReader')
+
         return new DocReader()
       })
     case '.docx':
       return new AnydocReader(async () => {
         const { DocxReader } = await import('@vectorstores/readers/docx')
+
         return new DocxReader()
       })
     case '.epub':
       return new AnydocReader(async () => {
         const { EpubReader } = await import('./files/EpubReader')
+
         return new EpubReader()
       }, true)
     case '.ppt':

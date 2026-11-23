@@ -79,7 +79,9 @@ export class KnowledgeIndexStore {
           `Knowledge index unit ${unit.unitIndex} of material ${materialId} has charEnd ${unit.charEnd} beyond the content length ${input.content.text.length}`
         )
       }
+
       const bodyText = input.content.text.slice(unit.charStart, unit.charEnd)
+
       return {
         ...unit,
         bodyText,
@@ -94,6 +96,7 @@ export class KnowledgeIndexStore {
       //    anything, without an extra full-table scan.
       const priorRow = tx.execute(`SELECT current_content_hash FROM material WHERE material_id = ?`, [materialId])
         .rows[0]
+
       const priorContentHash = priorRow === undefined ? undefined : (priorRow.current_content_hash as string | null)
 
       // 1. Content is immutable by hash — keep the existing row if present.
@@ -169,6 +172,7 @@ export class KnowledgeIndexStore {
             `Knowledge index rebuild for material ${materialId} set usesEmbeddings: false but supplied embeddings`
           )
         }
+
         tx.execute(`INSERT OR IGNORE INTO embedding (embedding_text_hash, vector_blob, created_at) VALUES (?, ?, ?)`, [
           embedding.embeddingTextHash,
           encodeVectorBlob(embedding.vector),
@@ -211,6 +215,7 @@ export class KnowledgeIndexStore {
       //    slip through and leave that old content row an orphan — so both conditions
       //    are required.
       const contentChanged = priorContentHash !== undefined && priorContentHash !== contentHash
+
       if (deletedUnits > 0 || contentChanged) {
         this.collectIndexGarbage(tx)
       }
@@ -254,23 +259,28 @@ export class KnowledgeIndexStore {
    */
   async deleteMaterials(materialIds: string[]): Promise<void> {
     const uniqueMaterialIds = [...new Set(materialIds)]
+
     if (uniqueMaterialIds.length === 0) {
       return
     }
+
     // performance.now() is monotonic — a wall-clock step (NTP/manual) mid-batch
     // must not make the delta negative and silently disable the yields for the
     // rest of a large delete, reintroducing the freeze this loop prevents.
     let lastYieldAt = performance.now()
+
     for (const materialId of uniqueMaterialIds) {
       this.driver.transaction((tx) => {
         this.deleteMaterialSearchText(tx, materialId)
         tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
       })
+
       if (performance.now() - lastYieldAt >= DELETE_YIELD_BUDGET_MS) {
         await new Promise<void>((resolve) => setImmediate(resolve))
         lastYieldAt = performance.now()
       }
     }
+
     this.driver.transaction((tx) => {
       this.collectIndexGarbage(tx)
     })
@@ -336,6 +346,7 @@ export class KnowledgeIndexStore {
       if (row.body == null) {
         throw new Error(`Knowledge index store is missing the body text for unit ${row.unit_id as string}`)
       }
+
       return {
         unitId: row.unit_id as string,
         materialId: row.material_id as string,
@@ -359,10 +370,13 @@ export class KnowledgeIndexStore {
     const result = this.driver.execute(`SELECT material_id, relative_path FROM material WHERE relative_path = ?`, [
       relativePath
     ])
+
     const row = result.rows[0]
+
     if (!row) {
       return null
     }
+
     return {
       materialId: row.material_id as string,
       relativePath: row.relative_path as string
@@ -384,10 +398,13 @@ export class KnowledgeIndexStore {
         WHERE m.material_id = ?`,
       [materialId]
     )
+
     const row = result.rows[0]
+
     if (!row || row.text == null) {
       return null
     }
+
     return row.text as string
   }
 
@@ -402,6 +419,7 @@ export class KnowledgeIndexStore {
     if (input.mode === 'bm25') {
       return this.bm25Search(input.queryText, input.topK)
     }
+
     if (input.mode === 'vector') {
       return this.vectorSearch(this.requireQueryEmbedding(input), input.topK)
     }
@@ -412,6 +430,7 @@ export class KnowledgeIndexStore {
     // Promise.all: the driver has no true concurrency to parallelize.
     const vector = this.vectorSearch(this.requireQueryEmbedding(input), prefetch)
     const bm25 = this.bm25Search(input.queryText, prefetch)
+
     return fuseWithRrf(vector, bm25, alpha, input.topK)
   }
 
@@ -476,6 +495,7 @@ export class KnowledgeIndexStore {
 
   private tableCount(table: string): number {
     const result = this.driver.execute(`SELECT count(*) AS count FROM ${table}`)
+
     return Number(result.rows[0]?.count ?? 0)
   }
 
@@ -485,6 +505,7 @@ export class KnowledgeIndexStore {
        LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
        WHERE e.embedding_text_hash IS NULL`
     )
+
     return Number(result.rows[0]?.count ?? 0)
   }
 
@@ -492,6 +513,7 @@ export class KnowledgeIndexStore {
     if (!input.queryEmbedding?.length) {
       throw new Error(`A query embedding is required for '${input.mode}' search`)
     }
+
     return input.queryEmbedding
   }
 
@@ -515,6 +537,7 @@ export class KnowledgeIndexStore {
        LIMIT ?`,
       [this.vectorIndex.bindQueryVector(queryEmbedding), topK]
     )
+
     return result.rows.map((row) => toMatch(row, 1 - Number(row.dist)))
   }
 
@@ -525,12 +548,16 @@ export class KnowledgeIndexStore {
     if (needsLikeFallback(queryText)) {
       const tokens = extractFtsTokens(queryText)
       logger.debug('BM25 LIKE fallback search', { tokens })
+
       return this.bm25LikeSearch(tokens, topK)
     }
+
     const matchQuery = toFtsMatchQuery(queryText)
+
     if (!matchQuery) {
       return []
     }
+
     // Short terms (2-char CJK words, "Go") produce no trigram, but they are often
     // the query's content words — AND each as a LIKE substring filter so 「公司
     // 年假 政策 PDF」 does not degrade to a bare MATCH "PDF". Preferred, not
@@ -540,15 +567,19 @@ export class KnowledgeIndexStore {
     const shortTerms = extractShortTerms(queryText)
     logger.debug('BM25 MATCH search', { matchQuery, shortTerms })
     const matches = this.bm25MatchSearch(matchQuery, shortTerms, topK)
+
     if (matches.length > 0 || shortTerms.length === 0) {
       return matches
     }
+
     logger.debug('BM25 short-term filters eliminated every candidate; relaxing them', { shortTerms })
+
     return this.bm25MatchSearch(matchQuery, [], topK)
   }
 
   private bm25MatchSearch(matchQuery: string, shortTerms: string[], topK: number): KnowledgeIndexSearchMatch[] {
     const shortTermFilters = shortTerms.map(() => `AND st.text LIKE ? ESCAPE '\\'`).join(' ')
+
     const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, bm25(search_text_fts) AS score
        FROM search_text_fts
@@ -561,6 +592,7 @@ export class KnowledgeIndexStore {
        LIMIT ?`,
       [matchQuery, ...shortTerms.map(toFtsLikePattern), topK]
     )
+
     // bm25() is lower-is-better; negate so the returned score is higher-is-better.
     return result.rows.map((row) => toMatch(row, -Number(row.score)))
   }
@@ -576,8 +608,10 @@ export class KnowledgeIndexStore {
     if (tokens.length === 0) {
       return []
     }
+
     const likeClauses = tokens.map(() => `st.text LIKE ? ESCAPE '\\'`).join(' AND ')
     const args: SqlValue[] = [...tokens.map(toFtsLikePattern), topK]
+
     const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, length(st.text) AS len
        FROM search_text st
@@ -588,23 +622,28 @@ export class KnowledgeIndexStore {
        LIMIT ?`,
       args
     )
+
     return result.rows.map((row) => toMatch(row, -Number(row.len)))
   }
 
   /** Of the given embedding-text hashes, return those already stored — chunked to stay well under SQLite's bound-parameter limit. */
   private selectExistingEmbeddingHashes(executor: SqliteExecutor, hashes: string[]): Set<string> {
     const existing = new Set<string>()
+
     for (let i = 0; i < hashes.length; i += EMBEDDING_HASH_QUERY_BATCH) {
       const batch = hashes.slice(i, i + EMBEDDING_HASH_QUERY_BATCH)
       const placeholders = batch.map(() => '?').join(', ')
+
       const result = executor.execute(
         `SELECT embedding_text_hash FROM embedding WHERE embedding_text_hash IN (${placeholders})`,
         batch
       )
+
       for (const row of result.rows) {
         existing.add(row.embedding_text_hash as string)
       }
     }
+
     return existing
   }
 
@@ -612,6 +651,7 @@ export class KnowledgeIndexStore {
   private assertEmbeddingCoverage(tx: SqliteTransaction, materialId: string, hashes: string[]): void {
     const present = this.selectExistingEmbeddingHashes(tx, hashes)
     const missing = new Set(hashes.filter((hash) => !present.has(hash)))
+
     if (missing.size > 0) {
       throw new Error(
         `Knowledge index rebuild for material ${materialId} left ${missing.size} unit embedding hash(es) without a vector (first: ${[...missing][0]})`
@@ -637,6 +677,7 @@ function toMatch(row: Record<string, SqlValue>, score: number): KnowledgeIndexSe
   if (row.body == null) {
     throw new Error(`Knowledge index store is missing the body text for unit ${row.unit_id as string}`)
   }
+
   return {
     unitId: row.unit_id as string,
     materialId: row.material_id as string,
@@ -665,6 +706,7 @@ function fuseWithRrf(
     matches.forEach((match, index) => {
       const contribution = weight / (RRF_K + index + 1)
       const existing = fused.get(match.unitId)
+
       if (existing) {
         existing.score += contribution
       } else {

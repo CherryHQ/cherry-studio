@@ -22,7 +22,9 @@ export function DoctorAgentAccordionItem({
 }) {
   const { t } = useTranslation()
   const state = useSharedCacheValue(doctorAgentStateCacheKey(agentKey))
+
   if (!state || state.status !== 'completed' || !state.text) return null
+
   if (reportRunId !== undefined && state.reportRunId !== reportRunId) return null
 
   return (

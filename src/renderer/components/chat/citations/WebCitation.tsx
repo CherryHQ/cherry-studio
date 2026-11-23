@@ -26,6 +26,7 @@ export const WebCitationCard: React.FC<{
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
   const previewUrl = citation.url && !isXPost ? citation.url : undefined
   const providerActions = useOptionalMessageListActions()
+
   const linkActions = {
     openBrowserUrl: actions?.openBrowserUrl ?? providerActions?.openBrowserUrl,
     openPath: actions?.openPath ?? providerActions?.openPath
@@ -44,6 +45,7 @@ export const WebCitationCard: React.FC<{
       ? truncateText(`@${oembedData.author}: ${oembedData.text}`)
       : ''
     : previewContent
+
   const isLoading = isXPost ? isOembedLoading : isPreviewLoading
   const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
   const titleContent = displayTitle || citation.hostname || citation.content || citation.url
@@ -105,6 +107,7 @@ export const WebCitationHoverContent: React.FC<{ citation: WebCitationHoverData;
   isOpen
 }) => {
   const openExternalUrl = useOptionalMessageListActions()?.openExternalUrl
+
   const hostname = useMemo(() => {
     try {
       return new URL(citation.url).hostname
@@ -124,12 +127,15 @@ export const WebCitationHoverContent: React.FC<{ citation: WebCitationHoverData;
 
   const sourceTitle = useMemo(() => {
     if (isXPost && oembedData?.author) return `@${oembedData.author}`
+
     return citation.title?.trim() || hostname
   }, [citation.title, hostname, isXPost, oembedData])
 
   const displayContent = useMemo(() => {
     if (citation.content?.trim()) return citation.content
+
     if (isXPost && oembedData?.text) return oembedData.text
+
     return undefined
   }, [citation.content, isXPost, oembedData])
 

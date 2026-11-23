@@ -2,6 +2,7 @@ export function billingUtcOffset(timeZone = Intl.DateTimeFormat().resolvedOption
   const offset = new Intl.DateTimeFormat('en', { timeZone, timeZoneName: 'longOffset' })
     .formatToParts(new Date())
     .find((part) => part.type === 'timeZoneName')!.value
+
   return offset.replace('GMT', '') || '+00:00'
 }
 
@@ -23,5 +24,6 @@ export const billingUtcOffsets = [
   .sort((a, b) => a - b)
   .map((minutes) => {
     const hours = String(Math.floor(Math.abs(minutes) / 60)).padStart(2, '0')
+
     return `${minutes < 0 ? '-' : '+'}${hours}:${String(Math.abs(minutes) % 60).padStart(2, '0')}`
   })

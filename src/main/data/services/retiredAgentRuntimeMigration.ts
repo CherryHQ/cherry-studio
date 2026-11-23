@@ -28,21 +28,29 @@ export function queueRetiredAgentRuntimeMigration(db: DbType): void {
   db.transaction(
     (tx) => {
       const agents = tx.select().from(agentTable).where(eq(agentTable.type, 'dsh')).all()
+
       for (const agent of agents) {
         const configuration = { ...agent.configuration }
+
         if (configuration.permission_mode === 'plan') configuration.permission_mode = 'default'
+
         const disabledTools = [
           ...new Set(
             agent.disabledTools.flatMap((name) => {
               if (name === BROWSER_TOOL_GROUP) return [name]
               const nativeName = name.toLowerCase()
+
               if (PI_FILE_SHELL_TOOLS.has(nativeName)) return [nativeName]
+
               if (nativeName === 'read_image') return ['read']
+
               if (nativeName === 'pwsh') return ['bash']
+
               return name.startsWith('mcp__') ? [`${LEGACY_DSH_TOOL_PREFIX}${name}`] : []
             })
           )
         ]
+
         for (const session of tx
           .select()
           .from(agentSessionTable)
@@ -56,6 +64,7 @@ export function queueRetiredAgentRuntimeMigration(db: DbType): void {
             .onConflictDoNothing()
             .run()
         }
+
         tx.update(agentTable)
           .set({ type: 'pi', configuration, disabledTools, updatedAt: agent.updatedAt })
           .where(eq(agentTable.id, agent.id))
@@ -93,13 +102,16 @@ export function readRetiredAgentSessionHistory(db: DbOrTx, sessionId: string) {
     .innerJoin(agentWorkspaceTable, eq(agentSessionTable.workspaceId, agentWorkspaceTable.id))
     .where(eq(agentSessionTable.id, sessionId))
     .get()
+
   if (!session) return undefined
+
   const messages = db
     .select()
     .from(agentSessionMessageTable)
     .where(eq(agentSessionMessageTable.sessionId, sessionId))
     .orderBy(asc(agentSessionMessageTable.createdAt), asc(agentSessionMessageTable.id))
     .all()
+
   return { workspacePath: session.path, messages }
 }
 
@@ -112,8 +124,10 @@ export function commitRetiredAgentSessionMigration(
 ): void {
   if (getRetiredAgentSessionMigration(tx, migration.sessionId)?.resumeToken !== migration.resumeToken)
     throw new Error('Retired session migration changed')
+
   if (JSON.stringify(readRetiredAgentSessionHistory(tx, migration.sessionId)) !== JSON.stringify(expectedHistory))
     throw new Error('Retired session history changed during migration')
+
   for (const row of tx
     .select()
     .from(agentSessionMessageTable)
@@ -123,6 +137,7 @@ export function commitRetiredAgentSessionMigration(
     delete data.runtimeAnchor
     delete data.nativeSessionId
     const anchor = anchors.get(row.id)
+
     if (anchor) data.runtimeAnchor = anchor
     tx.update(agentSessionMessageTable)
       .set({
@@ -134,15 +149,18 @@ export function commitRetiredAgentSessionMigration(
       .where(eq(agentSessionMessageTable.id, row.id))
       .run()
   }
+
   if (expectedHistory) {
     const anchorMessageId = ensureAgentSessionRootTx(tx, migration.sessionId)
     const backend = agentSessionContextService.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
+
     const context = agentSessionContextService.reserveBranchTx(tx, {
       sessionId: migration.sessionId,
       backendId: backend.id,
       anchorMessageId,
       nativeThreadId: migration.resumeToken
     })
+
     agentSessionContextService.confirmBranchTx(
       tx,
       context.id,
@@ -151,6 +169,7 @@ export function commitRetiredAgentSessionMigration(
       migration.resumeToken
     )
   }
+
   tx.delete(appStateTable)
     .where(eq(appStateTable.key, `${MIGRATION_KEY_PREFIX}${migration.sessionId}`))
     .run()

@@ -38,7 +38,9 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
 
 function requireManagedSender(senderId: WindowId | null): TreeOwner {
   const webContents = senderWebContents(senderId)
+
   if (senderId == null || !webContents) throw new Error('file.tree.create requires a managed window sender')
+
   return { windowId: senderId, webContents }
 }
 
@@ -59,6 +61,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     application.get('FileEditService').close(requireManagedSender(senderId).windowId, editId),
   'file.read': async ({ handle, options }) => {
     const fileManager = application.get('FileManager')
+
     if (options.mode === 'range') {
       return dispatchHandle(
         handle as FileHandle,
@@ -66,6 +69,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
         (path) => readChunkByPath(path, options.offset, options.length)
       )
     }
+
     return dispatchHandle(
       handle as FileHandle,
       (entryId) => fileManager.read(entryId, { encoding: options.encoding }),
@@ -79,11 +83,13 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.write_if_unchanged': async ({ handle, data, expectedVersion, expectedContentHash }) => {
     try {
       const fileManager = application.get('FileManager')
+
       return await dispatchHandle(
         handle as FileHandle,
         (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
         async (path) => {
           await assertOutsideManagedStorageMutation(path)
+
           return writeIfUnchangedByPath(path, data, expectedVersion, expectedContentHash)
         }
       )
@@ -94,17 +100,20 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
           current: error.current
         })
       }
+
       if (error instanceof ContentCommittedMetadataPendingError) {
         throw new IpcError(fileErrorCodes.COMMITTED_METADATA_PENDING, error.message, {
           entryId: error.entryId,
           version: error.version
         })
       }
+
       throw error
     }
   },
   'file.batch_get_metadata': async ({ items }) => {
     const fileManager = application.get('FileManager')
+
     const pairs = await Promise.all(
       items.map(async ({ key, handle }) => {
         try {
@@ -113,6 +122,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
             (entryId) => fileManager.getMetadata(entryId),
             getMetadataByPath
           )
+
           return [key, metadata] as const
         } catch (error) {
           logFailure(
@@ -123,14 +133,17 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
             classifyFileFailure(error, handle.kind === 'path'),
             'warn'
           )
+
           return [key, null] as const
         }
       })
     )
+
     return Object.fromEntries(pairs)
   },
   'file.get_metadata': async (handle) => {
     const fileManager = application.get('FileManager')
+
     try {
       return await dispatchHandle(handle as FileHandle, (id) => fileManager.getMetadata(id), getMetadataByPath)
     } catch (error) {
@@ -142,6 +155,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
         classifyFileFailure(error, handle.kind === 'path'),
         'warn'
       )
+
       // Missing / unreadable → null, mirroring batch_get_metadata's per-item null
       // and the former FileStorage.isDirectory swallow. Callers treat null as "no
       // usable file at this path"; genuine transport failures still reject via the
@@ -152,6 +166,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   },
   'file.batch_get_physical_paths': async ({ ids }) => {
     const fileManager = application.get('FileManager')
+
     const pairs = await Promise.all(
       ids.map(async (id) => {
         try {
@@ -161,6 +176,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
         }
       })
     )
+
     return Object.fromEntries(pairs)
   },
   'file.batch_get_dangling_states': async ({ ids }) => application.get('FileManager').batchGetDanglingStates({ ids }),
@@ -179,23 +195,27 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     if (senderId == null) throw new Error('file.copy requires a managed window sender')
     await assertOutsideManagedStorageMutation(destPath)
     const managedSource = await isInsideManagedStorage(sourcePath)
+
     try {
       await copyNew(sourcePath, destPath)
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       let external = !managedSource
+
       if (managedSource && ['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes(code ?? '')) {
         // copyFile reports both paths; probe the source before blaming the external destination.
         external = (await probeReadable(sourcePath)) === 'readable'
       } else if (['EEXIST', 'ENOSPC', 'EROFS'].includes(code ?? '')) {
         external = true
       }
+
       logFailure(logger, 'File copy failed', error, 'file.copy', classifyFileFailure(error, external))
       throw error
     }
   },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')
+
     return dispatchHandle(
       handle as FileHandle,
       (entryId) => fileManager.open(entryId, { channel: 'file.open' }),
@@ -204,10 +224,12 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   },
   'file.show_in_folder': async (handle) => {
     const fileManager = application.get('FileManager')
+
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
   },
   'file.copy_to_clipboard': async (handle, { senderId }) => {
     if (senderId == null) throw new Error('file.copy_to_clipboard requires a managed window sender')
+
     return dispatchHandle(
       handle as FileHandle,
       (id) => application.get('FileManager').copyToClipboard(id),
@@ -244,6 +266,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       if (error instanceof DirectoryTreeStoppedError) {
         throw new IpcError(fileErrorCodes.DIRECTORY_TREE_STOPPED, error.message)
       }
+
       throw error
     }
   },
@@ -251,22 +274,27 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   // that belongs to another window, so ownership never rests on the id's secrecy.
   'file.tree.activate': async ({ treeId, revision }, { senderId }) => {
     const owner = senderWebContents(senderId)
+
     return owner ? application.get('DirectoryTreeManager').activateTree(treeId, revision, owner.id) : false
   },
   'file.tree.dispose': async ({ treeId }, { senderId }) => {
     const owner = senderWebContents(senderId)
+
     if (owner) application.get('DirectoryTreeManager').dispose(treeId, owner.id)
   },
   'file.tree.rename': async ({ treeId, oldPath, newName }, { senderId }) => {
     const owner = senderWebContents(senderId)
+
     return owner ? application.get('DirectoryTreeManager').rename(treeId, oldPath, newName, owner.id) : false
   }
 }
 
 function usesExternalPath(route: string, input: Parameters<(typeof handlers)[keyof typeof handlers]>[0]): boolean {
   if (['file.tree.create', 'file.tree.rename'].includes(route)) return true
+
   if (!input || typeof input !== 'object') return false
   const handle = 'handle' in input ? input.handle : input
+
   return !!handle && typeof handle === 'object' && 'kind' in handle && handle.kind === 'path'
 }
 

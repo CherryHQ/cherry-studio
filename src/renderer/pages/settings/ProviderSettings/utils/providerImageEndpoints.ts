@@ -17,13 +17,16 @@ function setEndpointBaseUrl(
   baseUrl: string
 ) {
   const value = trim(baseUrl)
+
   if (value) {
     endpointConfigs[type] = { ...endpointConfigs[type], baseUrl: value }
+
     return
   }
 
   const remainingConfig = { ...endpointConfigs[type] }
   delete remainingConfig.baseUrl
+
   if (isEmpty(remainingConfig)) {
     delete endpointConfigs[type]
   } else {
@@ -59,11 +62,13 @@ export function findInvalidProviderImageEndpointDraft(
   draft: ProviderImageEndpointDraft
 ): ProviderImageEndpointDraftField | null {
   const imageGenerationBaseUrl = trim(draft.imageGenerationBaseUrl)
+
   if (imageGenerationBaseUrl && !validateApiHost(imageGenerationBaseUrl)) {
     return 'imageGenerationBaseUrl'
   }
 
   const imageEditBaseUrl = trim(draft.imageEditBaseUrl)
+
   if (imageEditBaseUrl && !validateApiHost(imageEditBaseUrl)) {
     return 'imageEditBaseUrl'
   }

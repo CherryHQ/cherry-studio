@@ -5,11 +5,13 @@ const OPENAI_LIKE_ENDPOINTS = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_T
 
 function hasModelEndpoint(model: Model, endpoint: string): boolean {
   if (!model.endpointTypes?.length) return true
+
   return model.endpointTypes.includes(endpoint as any)
 }
 
 function hasAnyModelEndpoint(model: Model, endpoints: string[]): boolean {
   if (!model.endpointTypes?.length) return true
+
   return model.endpointTypes.some((endpoint) => endpoints.includes(endpoint))
 }
 

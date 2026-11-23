@@ -20,6 +20,7 @@ function UpgradeNotesContent({ releaseInfo }: { releaseInfo: UpdateInfo }) {
 
   if (!supported) {
     const notes = releaseInfo.releaseNotes
+
     const content =
       typeof notes === 'string'
         ? localizeReleaseNotes(notes, language)
@@ -27,11 +28,13 @@ function UpgradeNotesContent({ releaseInfo }: { releaseInfo: UpdateInfo }) {
             ?.map(({ note }) => note && localizeReleaseNotes(note, language))
             .filter(Boolean)
             .join('\n\n')
+
     return <ReleaseNotes content={content || t('update.noReleaseNotes')} />
   }
 
   const showTimeline = releases.length > 1
   const missingTarget = !releases.some(({ version }) => version === releaseInfo.version)
+
   return (
     <div className="min-w-0 space-y-4 break-words [overflow-wrap:anywhere]">
       {status !== 'available' && (

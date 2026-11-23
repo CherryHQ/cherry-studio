@@ -27,6 +27,7 @@ export function MessageMenuBarToolbarAction({
   translationItems
 }: MessageMenuBarToolbarActionProps) {
   const renderToolbar = action.renderToolbar ?? renderDefaultToolbarAction
+
   const renderContext: MessageMenuBarToolbarRenderContext = {
     action,
     actionContext,

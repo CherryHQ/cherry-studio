@@ -58,9 +58,11 @@ const resolveEmbeddingModelChangeRoute = (
   if (itemCount === 0) {
     return 'save-directly'
   }
+
   if (previousEmbeddingModelId === null && typeof itemCount === 'number' && itemCount > 0) {
     return 'enable-in-place'
   }
+
   return 'restore'
 }
 
@@ -101,9 +103,11 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
   const formState = useMemo(() => getKnowledgeRagConfigFormState(initialValues, values), [initialValues, values])
   const { validationErrorCodes, isDirty, canSave } = formState
   const embeddingModelChanged = values.embeddingModelId !== initialValues.embeddingModelId
+
   const embeddingModelChangeRoute = embeddingModelChanged
     ? resolveEmbeddingModelChangeRoute(itemCount, initialValues.embeddingModelId)
     : null
+
   const canEnableEmbeddingInPlace = embeddingModelChangeRoute === 'enable-in-place'
   const requiresRestore = embeddingModelChangeRoute === 'restore'
   // Restore only ever reads embeddingModelId (it ignores the rest of the dirty
@@ -126,6 +130,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
       }
+
       return
     }
 
@@ -133,15 +138,18 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
 
     if (route === 'restore') {
       onRestoreBase(base, { embeddingModelId: values.embeddingModelId })
+
       return
     }
 
     let dimensions: number | null = null
+
     if (values.embeddingModelId) {
       try {
         dimensions = await fetchDimensions(values.embeddingModelId)
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+
         return
       }
     }
@@ -154,6 +162,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
       }
+
       return
     }
 

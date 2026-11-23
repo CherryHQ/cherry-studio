@@ -6,8 +6,10 @@ import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data
 
 // Sub-ms tiebreaker for back-to-back regenerate clicks. Resets per process; only needs to be session-unique.
 let siblingsGroupCounter = 0
+
 function nextSiblingsGroupId(): number {
   siblingsGroupCounter = (siblingsGroupCounter + 1) % 1000
+
   return Date.now() * 1000 + siblingsGroupCounter
 }
 
@@ -16,11 +18,13 @@ export function resolveModels(mentionedModelIds: UniqueModelId[] | undefined, de
   if (mentionedModelIds?.length) {
     return mentionedModelIds.map((uniqueModelId) => {
       const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+
       return modelService.getByKey(providerId, modelId)
     })
   }
 
   const { providerId, modelId } = parseUniqueModelId(defaultModelId)
+
   return [modelService.getByKey(providerId, modelId)]
 }
 
@@ -32,12 +36,16 @@ export function resolveModels(mentionedModelIds: UniqueModelId[] | undefined, de
 export function resolveAssistantModelId(assistantId: string | null | undefined) {
   if (assistantId) {
     const assistant = assistantDataService.getById(assistantId)
+
     if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
+
     return { assistantId, defaultModelId: assistant.modelId }
   }
 
   const defaultModelId = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
+
   if (!defaultModelId) throw new Error('No default model configured for assistant-less topic')
+
   return { assistantId: undefined, defaultModelId }
 }
 
@@ -53,9 +61,11 @@ export function resolvePersistentSiblingsGroupId(
   userMessageId: string
 ): number | undefined {
   if (models.length > 1) return nextSiblingsGroupId()
+
   if (!isRegenerate) return undefined
 
   const children = messageService.getChildrenByParentId(userMessageId)
   const existingGroup = children.find((m) => m.siblingsGroupId > 0)?.siblingsGroupId
+
   return existingGroup ?? nextSiblingsGroupId()
 }

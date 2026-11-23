@@ -29,6 +29,7 @@ const PRESET_POSTER = 1
 const PRESET_PHOTO = 2
 
 type PresetName = 'poster' | 'photo' | 'bw' | 'custom'
+
 type SourceDir = 'providers' | 'models'
 
 const RASTER_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg'])
@@ -54,6 +55,7 @@ function parseArgs(): CliArgs {
       outputDir = arg.split('=')[1]
     } else if (arg.startsWith('--preset=')) {
       const value = arg.split('=')[1]
+
       if (['poster', 'photo', 'bw'].includes(value)) {
         preset = value as PresetName
       } else {
@@ -61,6 +63,7 @@ function parseArgs(): CliArgs {
       }
     } else if (arg.startsWith('--dir=')) {
       const value = arg.split('=')[1]
+
       if (value === 'providers' || value === 'models') {
         dir = value
       } else {
@@ -68,9 +71,11 @@ function parseArgs(): CliArgs {
       }
     } else if (arg.startsWith('--size=')) {
       const value = parseInt(arg.split('=')[1], 10)
+
       if (isNaN(value) || value <= 0) {
         throw new Error(`Invalid --size value. Must be a positive integer.`)
       }
+
       size = value
     } else if (!arg.startsWith('--')) {
       inputs.push(arg)
@@ -86,6 +91,7 @@ function parseArgs(): CliArgs {
     if (!outputDir) {
       outputDir = path.join(__dirname, '../icons/providers')
     }
+
     if (inputs.length === 0) {
       console.error(
         'Usage: tsx scripts/icons-vectorize.ts <input.png> [--output=<dir>] [--preset=poster|photo|bw]\n' +
@@ -100,7 +106,9 @@ function parseArgs(): CliArgs {
 
 function getPresetConfig(preset: PresetName) {
   if (preset === 'poster') return PRESET_POSTER
+
   if (preset === 'photo') return PRESET_PHOTO
+
   if (preset === 'bw') return PRESET_BW
 
   // Custom config tuned for logo/icon quality
@@ -171,6 +179,7 @@ function toKebabCase(name: string): string {
 async function scanRasterFiles(dir: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(dir)
+
     return entries
       .filter((f) => RASTER_EXTENSIONS.has(path.extname(f).toLowerCase()))
       .map((f) => path.join(dir, f))
@@ -186,10 +195,13 @@ async function main() {
 
   // Resolve final input list
   let filesToProcess: string[]
+
   if (dir) {
     filesToProcess = await scanRasterFiles(outputDir)
+
     if (filesToProcess.length === 0) {
       console.log(`No PNG/JPG files found in icons/${dir}/. Nothing to vectorize.`)
+
       return
     }
   } else {
@@ -233,6 +245,7 @@ async function main() {
   }
 
   console.log(`\nDone! ${succeeded} converted, ${failed} failed.`)
+
   if (succeeded > 0) {
     const label = dir || 'providers'
     console.log(`Output: ${outputDir}`)

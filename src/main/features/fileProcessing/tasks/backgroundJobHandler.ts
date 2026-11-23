@@ -13,6 +13,7 @@ import {
 // Auto capabilities keep their persisted job type while selecting a protocol at execution time.
 async function executeBackgroundJob(ctx: JobContext<FileProcessingJobPayload>): Promise<FileProcessingJobOutput> {
   const { config, prepared } = await prepareFileProcessingJob(ctx, 'background')
+
   const output =
     prepared.mode === 'remote-poll'
       ? await executeRemotePolling(ctx, prepared, config)

@@ -15,6 +15,7 @@ const CLEANUP_CHILD_MAX_BUFFER_BYTES = 4 * 1024
 const CLEANUP_CHILD_TIMEOUT_MS = 2_000
 const HARD_LINK_FALLBACK_CODES = new Set(['EACCES', 'EMLINK', 'ENOSYS', 'ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EXDEV'])
 const WINDOWS_INVALID_FILENAME_CHARACTERS = '<>:"|?*'
+
 const UNLINK_OWNED_PATH_SCRIPT = String.raw`
 'use strict'
 const fs = require('node:fs')
@@ -67,6 +68,7 @@ export function relativeWorkspacePath(workspacePath: string, targetPath: string)
 
 export function hasWindowsInvalidFilenameSegment(filePath: string): boolean {
   const pathWithoutDriveRoot = /^[A-Za-z]:[\\/]/.test(filePath) ? filePath.slice(2) : filePath
+
   return pathWithoutDriveRoot
     .split(/[\\/]+/)
     .some((segment) =>
@@ -85,10 +87,12 @@ export async function assertWorkspacePathUnchanged(
   const currentPath = await validatePath(requestedPath, workspacePath)
   const resolvedCurrent = path.resolve(currentPath)
   const resolvedExpected = path.resolve(expectedPath)
+
   const equal =
     process.platform === 'win32'
       ? resolvedCurrent.toLowerCase() === resolvedExpected.toLowerCase()
       : resolvedCurrent === resolvedExpected
+
   if (!equal) throw new Error(`${errorMessage}: ${requestedPath}`)
 }
 
@@ -104,7 +108,9 @@ export async function readBoundedRegularFile(
   options.signal?.throwIfAborted()
   const maxBytes = BigInt(options.maxBytes)
   const initialPathStat = await lstat(target, { bigint: true })
+
   if (!initialPathStat.isFile()) throw new Error(`Path is not a regular file: ${target}`)
+
   if (initialPathStat.size > maxBytes) {
     throw new Error(`File exceeds the ${options.maxBytes}-byte read limit: ${target}`)
   }
@@ -115,40 +121,51 @@ export async function readBoundedRegularFile(
 
   try {
     const openedStat = await handle.stat({ bigint: true })
+
     if (!openedStat.isFile()) throw new Error(`Path is not a regular file: ${target}`)
+
     if (!sameFileIdentity(openedStat, initialPathStat)) throw new Error(`Path changed while being opened: ${target}`)
+
     if (openedStat.size > maxBytes) {
       throw new Error(`File exceeds the ${options.maxBytes}-byte read limit: ${target}`)
     }
 
     const chunks: Buffer[] = []
     let totalBytes = 0
+
     for (;;) {
       options.signal?.throwIfAborted()
       const remainingWithOverflowByte = options.maxBytes - totalBytes + 1
       const buffer = Buffer.allocUnsafe(Math.min(IO_CHUNK_BYTES, remainingWithOverflowByte))
       const { bytesRead } = await handle.read(buffer, 0, buffer.byteLength, null)
+
       if (bytesRead === 0) break
 
       totalBytes += bytesRead
+
       if (totalBytes > options.maxBytes) {
         throw new Error(`File exceeds the ${options.maxBytes}-byte read limit: ${target}`)
       }
+
       chunks.push(buffer.subarray(0, bytesRead))
     }
 
     options.signal?.throwIfAborted()
     const finalOpenedStat = await handle.stat({ bigint: true })
+
     if (!sameStableFile(openedStat, finalOpenedStat)) throw new Error(`File changed while being read: ${target}`)
 
     const finalPathStat = await lstat(target, { bigint: true })
+
     if (!finalPathStat.isFile() || !sameStableFile(finalOpenedStat, finalPathStat)) {
       throw new Error(`Path changed while being read: ${target}`)
     }
 
     const data = Buffer.concat(chunks, totalBytes)
+
     if (!isUtf8(data)) throw new Error(`File is not valid UTF-8 text: ${target}`)
     const text = data.toString('utf8')
+
     return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
   } finally {
     await handle.close()
@@ -194,8 +211,10 @@ function runUnlinkOwnedPathChild(
   file: Pick<BigIntStats, 'dev' | 'ino'>
 ): Promise<void> {
   const env: NodeJS.ProcessEnv = { ELECTRON_RUN_AS_NODE: '1' }
+
   if (process.platform === 'win32') {
     if (process.env.SystemRoot) env.SystemRoot = process.env.SystemRoot
+
     if (process.env.SYSTEMROOT) env.SYSTEMROOT = process.env.SYSTEMROOT
   }
 
@@ -235,6 +254,7 @@ async function bestEffortUnlinkOwnedPath(
 ): Promise<void> {
   const parentPath = path.dirname(target)
   const leafName = path.basename(target)
+
   if (
     !leafName ||
     leafName === '.' ||
@@ -244,11 +264,13 @@ async function bestEffortUnlinkOwnedPath(
     leafName.includes('\\')
   ) {
     logger.warn(`${operation}: refusing unsafe cleanup leaf name`, { target })
+
     return
   }
 
   try {
     const parentStat = await stat(parentPath, { bigint: true })
+
     if (!parentStat.isDirectory()) throw new Error(`Cleanup parent is not a directory: ${parentPath}`)
     await runUnlinkOwnedPathChild(parentPath, leafName, parentStat, expected)
   } catch (error) {
@@ -270,20 +292,25 @@ async function copyFileHandles(source: FileHandle, destination: FileHandle, sign
   for (;;) {
     signal?.throwIfAborted()
     const { bytesRead } = await source.read(buffer, 0, buffer.byteLength, position)
+
     if (bytesRead === 0) break
 
     let chunkOffset = 0
+
     while (chunkOffset < bytesRead) {
       signal?.throwIfAborted()
+
       const { bytesWritten } = await destination.write(
         buffer,
         chunkOffset,
         bytesRead - chunkOffset,
         position + chunkOffset
       )
+
       if (bytesWritten === 0) throw new Error('Published target stopped accepting data')
       chunkOffset += bytesWritten
     }
+
     position += bytesRead
   }
 
@@ -294,6 +321,7 @@ async function copyFileHandles(source: FileHandle, destination: FileHandle, sign
 
 async function assertPathIdentity(target: AbsoluteFilePath, expected: Pick<BigIntStats, 'dev' | 'ino'>): Promise<void> {
   const current = await lstat(target, { bigint: true })
+
   if (!current.isFile() || !sameFileIdentity(current, expected)) {
     throw new Error(`Target path changed while being published: ${target}`)
   }
@@ -302,6 +330,7 @@ async function assertPathIdentity(target: AbsoluteFilePath, expected: Pick<BigIn
 async function fsyncDirectoryOf(target: AbsoluteFilePath): Promise<void> {
   try {
     const directoryHandle = await open(path.dirname(target), 'r')
+
     try {
       await directoryHandle.sync()
     } finally {
@@ -309,6 +338,7 @@ async function fsyncDirectoryOf(target: AbsoluteFilePath): Promise<void> {
     }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
+
     if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP') return
     logger.warn('Failed to fsync Assistant artifact directory', { target, code, error })
   }
@@ -322,6 +352,7 @@ export async function publishFileNoClobber(
 ): Promise<void> {
   options.signal?.throwIfAborted()
   const stagedPathStat = await lstat(staged, { bigint: true })
+
   if (!stagedPathStat.isFile()) throw new Error(`Staged path is not a regular file: ${staged}`)
 
   const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0
@@ -336,6 +367,7 @@ export async function publishFileNoClobber(
 
   try {
     const openedStagedStat = await stagedHandle.stat({ bigint: true })
+
     if (!openedStagedStat.isFile() || !sameFileIdentity(openedStagedStat, stagedPathStat)) {
       throw new Error(`Staged path changed while being opened: ${staged}`)
     }
@@ -347,6 +379,7 @@ export async function publishFileNoClobber(
 
     options.signal?.throwIfAborted()
     await options.validateTarget?.()
+
     try {
       await link(reservationPath, target)
       targetReserved = true
@@ -370,6 +403,7 @@ export async function publishFileNoClobber(
     await stagedHandle.close()
     options.signal?.throwIfAborted()
     await destinationHandle.close()
+
     if (destinationHandle === reservationHandle) reservationHandle = undefined
     destinationHandle = undefined
     committed = true
@@ -386,13 +420,16 @@ export async function publishFileNoClobber(
         })
       }
     }
+
     await destinationHandle?.close().catch(() => undefined)
+
     if (reservationHandle !== destinationHandle) await reservationHandle?.close().catch(() => undefined)
     await stagedHandle.close().catch(() => undefined)
 
     if (!committed && targetReserved && destinationStat) {
       await bestEffortUnlinkOwnedPath(target, destinationStat, 'publishFileNoClobber')
     }
+
     if (reservationPath && reservationStat) {
       await bestEffortUnlinkOwnedPath(reservationPath, reservationStat, 'publishFileNoClobber')
     }

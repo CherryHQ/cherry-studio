@@ -62,11 +62,14 @@ export function useConversationTurnController<TInput, TConversation>({
       const scopeEpoch = scopeEpochRef.current
       const isCurrentScope = () => scopeEpochRef.current === scopeEpoch
       let conversation: TConversation | null = null
+
       try {
         setPhase('persisting')
         conversation = await ensureConversation(input)
+
         if (!conversation) {
           if (isCurrentScope()) setPhase('draft')
+
           return false
         }
 
@@ -79,18 +82,22 @@ export function useConversationTurnController<TInput, TConversation>({
         void Promise.resolve(refreshMetadata?.(conversation, ack)).catch((err) => {
           logger.warn('Failed to refresh conversation metadata after stream open', err as Error)
         })
+
         if (!isCurrentScope()) return ack.mode !== 'blocked'
 
         if (ack.mode === 'blocked') {
           setPhase('ready')
           const message = getStreamBlockedMessage(ack)
+
           if (options.throwOnError) return Promise.reject(new Error(message))
           toast.error(message)
+
           return false
         }
 
         callbacks.onAccepted?.(ack)
         const reservedMessages = ack.reservedMessages ?? []
+
         if (reservedMessages.length > 0) {
           await historyAdapter.seedReservedMessages(reservedMessages, {
             activeExecutions: ack.activeExecutions,
@@ -99,21 +106,28 @@ export function useConversationTurnController<TInput, TConversation>({
         }
 
         if (isCurrentScope()) setPhase('streaming')
+
         return true
       } catch (err) {
         if (!isCurrentScope()) return false
+
         try {
           await historyAdapter.rollback()
         } catch (rollbackErr) {
           logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
         }
+
         if (!isCurrentScope()) return false
         setPhase('draft')
+
         if (options.throwOnError) throw err
+
         if (callbacks.onError) {
           callbacks.onError(err, input)
+
           return false
         }
+
         throw err
       }
     },

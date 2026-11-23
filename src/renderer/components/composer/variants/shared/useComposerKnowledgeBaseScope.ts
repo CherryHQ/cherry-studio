@@ -65,12 +65,15 @@ export function useComposerKnowledgeBaseScope({
 }: UseComposerKnowledgeBaseScopeParams): UseComposerKnowledgeBaseScopeResult {
   const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(remountsOnScopeChange ? scopeKey : null)
   const knowledgeBaseIdsRef = useRef([...initialKnowledgeBaseIds])
+
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
     initialKnowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
   )
+
   const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(initialKnowledgeBaseIds.length === 0)
 
   const configuredKnowledgeBaseIdsKey = (configuredKnowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
+
   const configuredKnowledgeBaseIdSet = useMemo(
     () =>
       new Set(
@@ -78,19 +81,23 @@ export function useComposerKnowledgeBaseScope({
       ),
     [configuredKnowledgeBaseIdsKey]
   )
+
   const availableKnowledgeBaseIdsKey = useMemo(
     () => allKnowledgeBases.map((base) => base.id).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR),
     [allKnowledgeBases]
   )
+
   const availableKnowledgeBaseIdSet = useMemo(
     () =>
       new Set(availableKnowledgeBaseIdsKey ? availableKnowledgeBaseIdsKey.split(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR) : []),
     [availableKnowledgeBaseIdsKey]
   )
+
   const filterSelectableKnowledgeBases = useCallback(
     (bases: readonly KnowledgeBase[]) => {
       if (configuredKnowledgeBaseIdSet.size === 0)
         return bases.filter((base) => isKnowledgeBasesLoading || availableKnowledgeBaseIdSet.has(base.id))
+
       return bases.filter(
         (base) =>
           configuredKnowledgeBaseIdSet.has(base.id) &&
@@ -99,10 +106,12 @@ export function useComposerKnowledgeBaseScope({
     },
     [availableKnowledgeBaseIdSet, configuredKnowledgeBaseIdSet, isKnowledgeBasesLoading]
   )
+
   const selectableKnowledgeBases = useMemo(
     () => filterSelectableKnowledgeBases(allKnowledgeBases),
     [allKnowledgeBases, filterSelectableKnowledgeBases]
   )
+
   const knowledgeBaseMarkerMap = useMemo(() => {
     const map = new Map<string, KnowledgeBase>()
     selectableKnowledgeBases.forEach((base) => {
@@ -110,16 +119,21 @@ export function useComposerKnowledgeBaseScope({
       map.set(base.name, base)
       map.set(composerKnowledgeBaseTokenId(base), base)
     })
+
     return map
   }, [selectableKnowledgeBases])
+
   const resolveKnowledgeBaseMarker = useCallback(
     (marker: string): ComposerDraftToken | null => {
       const base = knowledgeBaseMarkerMap.get(marker)
+
       return base ? knowledgeBaseToComposerToken(base) : null
     },
     [knowledgeBaseMarkerMap]
   )
+
   const isSelectedKnowledgeBasesScopeCurrent = selectedKnowledgeBasesScopeKeyRef.current === scopeKey
+
   const selectedKnowledgeBasesInScope = useMemo(
     () => (isSelectedKnowledgeBasesScopeCurrent ? filterSelectableKnowledgeBases(selectedKnowledgeBases) : []),
     [filterSelectableKnowledgeBases, isSelectedKnowledgeBasesScopeCurrent, selectedKnowledgeBases]
@@ -142,14 +156,17 @@ export function useComposerKnowledgeBaseScope({
   const syncKnowledgeBaseIds = useCallback(() => {
     const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
     const selectedKnowledgeBaseIdsKey = JSON.stringify(selectedKnowledgeBaseIds)
+
     if (observedKnowledgeBaseSelectionKeyRef.current === null) {
       observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
     } else if (observedKnowledgeBaseSelectionKeyRef.current !== selectedKnowledgeBaseIdsKey) {
       observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
       const selectableKnowledgeBaseIdSet = new Set(selectableKnowledgeBases.map((base) => base.id))
+
       const unresolvedKnowledgeBaseIds = knowledgeBaseIdsRef.current.filter(
         (id) => !selectableKnowledgeBaseIdSet.has(id)
       )
+
       knowledgeBaseIdsRef.current = [...new Set([...unresolvedKnowledgeBaseIds, ...selectedKnowledgeBaseIds])]
     }
   }, [selectableKnowledgeBases, selectedKnowledgeBasesInScope])
@@ -159,7 +176,9 @@ export function useComposerKnowledgeBaseScope({
     selectedKnowledgeBasesScopeKeyRef.current = scopeKey
     setSelectedKnowledgeBases((prev) => {
       const next = scopeChanged ? [] : filterSelectableKnowledgeBases(prev)
+
       if (next.length === prev.length && next.every((base, index) => base.id === prev[index]?.id)) return prev
+
       return next
     })
   }, [filterSelectableKnowledgeBases, scopeKey, setSelectedKnowledgeBases])

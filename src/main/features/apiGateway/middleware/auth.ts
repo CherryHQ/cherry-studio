@@ -6,9 +6,11 @@ import { application } from '@application'
 export const isValidToken = (token: string, apiKey: string): boolean => {
   const tokenBuf = Buffer.from(token, 'utf8')
   const keyBuf = Buffer.from(apiKey, 'utf8')
+
   if (tokenBuf.length !== keyBuf.length) {
     return false
   }
+
   return crypto.timingSafeEqual(tokenBuf, keyBuf)
 }
 
@@ -46,7 +48,9 @@ export const authorizeApiRequest = (
       ? undefined
       : { status: 403, error: 'Forbidden' }
   }
+
   const apiKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
+
   return apiKey && isValidToken(token, apiKey) ? undefined : { status: 403, error: 'Forbidden' }
 }
 
@@ -59,8 +63,10 @@ export const authorizeCredentialScope = (
 ): AuthFailure | undefined => {
   if (surface !== 'internal') return undefined
   const scope = application.get('ApiGatewayService').getCredentialScope(request.headers)
+
   if (!scope) return undefined
   const model = body && typeof body === 'object' && 'model' in body ? body.model : undefined
   const allowed = request.method === 'POST' && new URL(request.url).pathname === scope.path && model === scope.model
+
   return allowed ? undefined : { status: 403, error: 'Forbidden' }
 }

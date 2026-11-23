@@ -36,6 +36,7 @@ export class ServiceContainer {
     if (!ServiceContainer.instance) {
       ServiceContainer.instance = new ServiceContainer()
     }
+
     return ServiceContainer.instance
   }
 
@@ -63,18 +64,22 @@ export class ServiceContainer {
 
     if (this.services.has(name)) {
       logger.warn(`Service '${name}' is already registered, skipping`)
+
       return
     }
 
     // Check activation conditions before registering
     const conditions = getConditions(target)
+
     if (conditions && conditions.length > 0) {
       const phase = getPhase(target)
+
       for (const condition of conditions) {
         try {
           if (!condition.matches(this.conditionContext)) {
             this.excluded.set(name, phase)
             logger.info(`Service '${name}' excluded: ${condition.description}`)
+
             return
           }
         } catch (error) {
@@ -83,6 +88,7 @@ export class ServiceContainer {
             `Service '${name}' excluded: condition '${condition.description}' threw during evaluation`,
             error as Error
           )
+
           return
         }
       }
@@ -122,6 +128,7 @@ export class ServiceContainer {
       if (this.excluded.has(name)) {
         throw new Error(`[ServiceContainer] Service '${name}' was conditionally excluded — use getOptional('${name}').`)
       }
+
       throw new Error(`[ServiceContainer] Service '${name}' not found`)
     }
 
@@ -157,6 +164,7 @@ export class ServiceContainer {
     }
 
     const entry = this.services.get(name)
+
     if (!entry) {
       return undefined
     }
@@ -183,6 +191,7 @@ export class ServiceContainer {
    */
   public has(token: ServiceToken): boolean {
     const name = typeof token === 'string' ? token : getServiceName(token)
+
     return this.services.has(name)
   }
 
@@ -192,6 +201,7 @@ export class ServiceContainer {
    */
   public getMetadata(token: ServiceToken): ServiceMetadata | undefined {
     const name = typeof token === 'string' ? token : getServiceName(token)
+
     return this.services.get(name)?.provider.metadata
   }
 
@@ -218,9 +228,11 @@ export class ServiceContainer {
 
     for (const entry of this.services.values()) {
       const metadata = entry.provider.metadata
+
       if (phase !== undefined && metadata.phase !== phase) {
         continue
       }
+
       nodes.push({
         name: metadata.name,
         dependencies: metadata.dependencies,
@@ -239,6 +251,7 @@ export class ServiceContainer {
    */
   public updatePhase(serviceName: string, phase: Phase): void {
     const entry = this.services.get(serviceName)
+
     if (entry) {
       entry.provider.metadata.phase = phase
     }
@@ -250,6 +263,7 @@ export class ServiceContainer {
    */
   public getInstance<T = BaseService>(token: ServiceToken<T>): T | undefined {
     const name = typeof token === 'string' ? token : getServiceName(token)
+
     return this.services.get(name)?.instance as T | undefined
   }
 
@@ -261,6 +275,7 @@ export class ServiceContainer {
   public setInstance<T>(token: ServiceToken<T>, instance: T): void {
     const name = typeof token === 'string' ? token : getServiceName(token)
     const entry = this.services.get(name)
+
     if (entry) {
       entry.instance = instance
     }
@@ -279,14 +294,18 @@ export class ServiceContainer {
    */
   public getExcludedByPhase(): Map<Phase, string[]> {
     const result = new Map<Phase, string[]>()
+
     for (const [name, phase] of this.excluded) {
       let list = result.get(phase)
+
       if (!list) {
         list = []
         result.set(phase, list)
       }
+
       list.push(name)
     }
+
     return result
   }
 
@@ -296,10 +315,13 @@ export class ServiceContainer {
    */
   public excludeDependentsOfExcluded(): void {
     let changed = true
+
     while (changed) {
       changed = false
+
       for (const [name, entry] of this.services) {
         const excludedDep = entry.provider.metadata.dependencies.find((dep) => this.excluded.has(dep))
+
         if (excludedDep) {
           this.excluded.set(name, entry.provider.metadata.phase)
           this.services.delete(name)
@@ -315,10 +337,12 @@ export class ServiceContainer {
    */
   public getRegistrationSummary() {
     const byPhase: Record<string, number> = {}
+
     for (const entry of this.services.values()) {
       const phase = entry.provider.metadata.phase
       byPhase[phase] = (byPhase[phase] || 0) + 1
     }
+
     return {
       total: this.services.size,
       excluded: this.excluded.size,
@@ -338,6 +362,7 @@ export class ServiceContainer {
       if (!this.services.has(depName)) {
         throw new Error(`[ServiceContainer] Dependency '${depName}' not found for service '${metadata.name}'`)
       }
+
       deps.push(this.get(depName))
     }
 

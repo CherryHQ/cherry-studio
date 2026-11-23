@@ -43,8 +43,10 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
     return (listener: (e: T) => void): Disposable => {
       if (this._resolved && !this._disposed) {
         listener(this._value as T)
+
         return { dispose: () => {} }
       }
+
       return this._emitter.event(listener)
     }
   }
@@ -58,6 +60,7 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
     if (this._resolved) {
       throw new Error('Signal has already been resolved')
     }
+
     if (this._disposed) return
 
     this._value = value
@@ -81,6 +84,7 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
     if (!this._resolved) {
       throw new Error('Signal has not been resolved yet')
     }
+
     return this._value as T
   }
 

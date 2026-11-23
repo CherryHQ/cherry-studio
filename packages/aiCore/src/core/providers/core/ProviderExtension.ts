@@ -146,6 +146,7 @@ export class ProviderExtension<
   >(config: TConfig | (() => TConfig)): ProviderExtension<TSettings, TProvider, TConfig>
   static create(config: any): ProviderExtension<any, any, any> {
     const resolvedConfig = typeof config === 'function' ? config() : config
+
     return new ProviderExtension(resolvedConfig)
   }
 
@@ -166,23 +167,31 @@ export class ProviderExtension<
       }
 
       const seen = new WeakSet()
+
       const stableStringify = (obj: any): string => {
         if (obj === null || obj === undefined) return 'null'
+
         if (typeof obj === 'function') {
           let id = this.functionIds.get(obj)
+
           if (id === undefined) {
             id = this.nextFunctionId++
             this.functionIds.set(obj, id)
           }
+
           return `[function:${id}]`
         }
+
         if (typeof obj !== 'object') return JSON.stringify(obj)
+
         if (seen.has(obj)) return '"[circular]"'
         seen.add(obj)
+
         if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`
 
         const keys = Object.keys(obj).sort()
         const pairs = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`)
+
         return `{${pairs.join(',')}}`
       }
 
@@ -199,6 +208,7 @@ export class ProviderExtension<
   async createProvider(settings?: TSettings, variantSuffix?: string): Promise<TProvider> {
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)
+
       if (!variant) {
         throw new Error(
           `ProviderExtension "${this.config.name}": variant "${variantSuffix}" not found. ` +
@@ -212,11 +222,13 @@ export class ProviderExtension<
     const hash = this.computeHash(mergedSettings, variantSuffix)
 
     const cachedInstance = this.instances.get(hash)
+
     if (cachedInstance) {
       return cachedInstance
     }
 
     const pending = this.pendingCreations.get(hash)
+
     if (pending) {
       return pending
     }
@@ -266,13 +278,17 @@ export class ProviderExtension<
     this.attachRerankingModel(baseProvider as TProvider, mergedSettings)
 
     let finalProvider: TProvider
+
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)!
+
       if (variant.transform) {
         const baseHash = this.computeHash(mergedSettings)
+
         if (!this.instances.has(baseHash)) {
           this.instances.set(baseHash, baseProvider as TProvider)
         }
+
         finalProvider = await Promise.resolve(variant.transform(baseProvider as TProvider, mergedSettings))
       } else {
         finalProvider = baseProvider as TProvider
@@ -290,6 +306,7 @@ export class ProviderExtension<
 
   private attachRerankingModel(provider: TProvider, settings: TSettings): void {
     const { createRerankingModel } = this.config
+
     if (!createRerankingModel || provider.rerankingModel) {
       return
     }
@@ -352,9 +369,11 @@ export class ProviderExtension<
     for (const [key, value] of this.instances) {
       if (!key.includes(':')) return value
     }
+
     for (const [, value] of this.instances) {
       return value
     }
+
     return undefined
   }
 

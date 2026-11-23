@@ -166,10 +166,13 @@ export function stripAggregatorPrefixes(modelId: string, additionalPrefixes: str
  */
 export function stripHostReprefix(modelId: string, isKnownId: (id: string) => boolean): string {
   const segs = modelId.split('-')
+
   for (let n = 1; n <= 2 && n < segs.length; n++) {
     const rest = segs.slice(n).join('-')
+
     if (isKnownId(rest)) return rest
   }
+
   return modelId
 }
 
@@ -203,6 +206,7 @@ export function expandKnownPrefixes(modelId: string): string {
       return canonical + modelId.slice(abbrev.length)
     }
   }
+
   return modelId
 }
 
@@ -225,8 +229,10 @@ export function stripVariantSuffixes(
   }
 
   const colonIdx = modelId.lastIndexOf(':')
+
   if (colonIdx > 0) {
     const suffix = modelId.slice(colonIdx)
+
     if (colonSuffixes.includes(suffix)) {
       return modelId.slice(0, colonIdx)
     }
@@ -235,11 +241,13 @@ export function stripVariantSuffixes(
   for (const suffix of hyphenSuffixes) {
     if (modelId.endsWith(suffix)) {
       const remaining = modelId.slice(0, -suffix.length)
+
       // Only protect when the prefix is its OWN token (`...-no-think` → keep), not a substring of the
       // last word (`volcano-free`, `pino-search`, `inferno-search` must still strip).
       if (PROTECTED_COMPOUND_PREFIXES.some((p) => remaining === p || remaining.endsWith(`-${p}`))) {
         continue
       }
+
       return remaining
     }
   }
@@ -247,9 +255,11 @@ export function stripVariantSuffixes(
   for (const suffix of parenSuffixes) {
     if (modelId.endsWith(suffix)) {
       let result = modelId.slice(0, -suffix.length)
+
       if (result.endsWith(' ')) {
         result = result.slice(0, -1)
       }
+
       return result
     }
   }
@@ -268,6 +278,7 @@ export function stripQuantization(modelId: string): string {
       return modelId.slice(0, -suffix.length)
     }
   }
+
   return modelId
 }
 
@@ -283,8 +294,10 @@ export function stripDateSnapshot(modelId: string): string {
  */
 export function stripVariantQuantDateSuffixes(modelId: string): string {
   let result = modelId
+
   for (;;) {
     const next = stripDateSnapshot(stripQuantization(stripVariantSuffixes(result)))
+
     if (next === result) return result
     result = next
   }
@@ -292,6 +305,7 @@ export function stripVariantQuantDateSuffixes(modelId: string): string {
 
 export function extractParameterSize(modelId: string): string | undefined {
   const match = modelId.match(PARAMETER_SIZE_PATTERN)
+
   return match ? match[1].toLowerCase() : undefined
 }
 
@@ -308,9 +322,11 @@ export function stripParameterSize(modelId: string): string {
  */
 export function colonVariantTagToHyphen(modelId: string): string {
   const colonIdx = modelId.lastIndexOf(':')
+
   if (colonIdx > 0 && COLON_VARIANT_TAG_PATTERN.test(modelId.slice(colonIdx + 1))) {
     return `${modelId.slice(0, colonIdx)}-${modelId.slice(colonIdx + 1)}`
   }
+
   return modelId
 }
 
@@ -332,22 +348,27 @@ export function normalizeModelId(modelId: string, options: { keepParameterSize?:
   baseName = stripBedrockVendorPrefix(baseName)
   baseName = stripBedrockRevision(baseName)
   baseName = expandKnownPrefixes(baseName)
+
   if (options.keepParameterSize) {
     // Realign `:20b` → `-20b` so the size is a normal hyphen token the loop below leaves intact
     // (stripParameterSize is skipped in this mode).
     baseName = colonVariantTagToHyphen(baseName)
   }
+
   // Parameter size joins the fixpoint loop too: stripping `-30b` can expose a variant suffix and
   // vice versa, so iterate the whole strip stage until stable.
   for (;;) {
     const stripped = stripVariantQuantDateSuffixes(baseName)
     const next = options.keepParameterSize ? stripped : stripParameterSize(stripped)
+
     if (next === baseName) break
     baseName = next
   }
+
   baseName = normalizeVersionSeparators(baseName)
   // Underscores are an interchangeable separator (HF-style `bce-embedding-base_v1`). The catalog folds
   // them to `-` (every base id is dash-only), so fold here too or such ids would never resolve.
   baseName = baseName.replace(/_/g, '-')
+
   return baseName
 }

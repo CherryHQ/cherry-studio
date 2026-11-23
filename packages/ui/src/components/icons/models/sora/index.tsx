@@ -4,6 +4,7 @@ import { SoraLight } from './light'
 
 const Sora = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SoraLight {...props} className={className} />
+
   return <SoraLight {...props} className={className} />
 }
 

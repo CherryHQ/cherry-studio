@@ -8,6 +8,7 @@ const claudeWebSearchModels = [
   'claude-3-5-sonnet',
   'claude-3-7-sonnet'
 ]
+
 const geminiWebToolModels = [
   'gemini-2',
   'gemini-3',

@@ -49,6 +49,7 @@ export function ExportAssistantsDialog({
   }, [assistants, loading, open])
 
   const query = search.toLowerCase()
+
   const visible = assistants.filter(
     (assistant) => assistant.name.toLowerCase().includes(query) || assistant.description.toLowerCase().includes(query)
   )
@@ -100,8 +101,10 @@ export function ExportAssistantsDialog({
                   onCheckedChange={(checked) =>
                     setSelected((previous) => {
                       const next = new Set(previous)
+
                       if (checked === true) next.add(assistant.id)
                       else next.delete(assistant.id)
+
                       return next
                     })
                   }

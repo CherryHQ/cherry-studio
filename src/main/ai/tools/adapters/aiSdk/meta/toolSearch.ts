@@ -29,9 +29,11 @@ const ToolSearchOutputSchema = z.object({
     })
   )
 })
+
 type ToolSearchOutput = z.infer<typeof ToolSearchOutputSchema>
 
 const NO_MATCHING_TOOLS_MESSAGE = 'No tools matched. Broaden `query`, or omit it to browse all namespaces.'
+
 const INVALID_SEARCH_OUTPUT_MESSAGE =
   'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
 
@@ -64,7 +66,9 @@ export function createToolSearchTool(
 
       for (const [ns, entries] of grouped) {
         const filtered = entries.filter((e) => deferredNames.has(e.name))
+
         if (filtered.length === 0) continue
+
         const tools = await Promise.all(
           filtered.map(async (e) => {
             if (!verbose) return { name: e.name, description: e.description }
@@ -74,7 +78,9 @@ export function createToolSearchTool(
             // Only record when the schema actually serialized: a tool whose schema failed (undefined)
             // wasn't really shown, so it must still be bounced on first invoke.
             const inputSchema = await serializeToolSchema(e.tool.inputSchema)
+
             if (inputSchema !== undefined) inspectedNames.add(e.name)
+
             return {
               name: e.name,
               description: e.description,
@@ -82,8 +88,10 @@ export function createToolSearchTool(
             }
           })
         )
+
         matchedNamespaces.push({ namespace: ns, tools })
       }
+
       return { matchedNamespaces }
     },
     // Render the catalog as a compact namespace listing instead of nested JSON — fewer tokens and
@@ -96,16 +104,22 @@ export function createToolSearchTool(
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK model-output adapters can receive saved opaque results; ToolSearchOutputSchema must validate them before formatting.
 function formatSearchForModel(output: unknown): string {
   const parsed = ToolSearchOutputSchema.safeParse(output)
+
   if (!parsed.success) return INVALID_SEARCH_OUTPUT_MESSAGE
+
   if (parsed.data.matchedNamespaces.length === 0) return NO_MATCHING_TOOLS_MESSAGE
 
   const lines: string[] = []
+
   for (const group of parsed.data.matchedNamespaces) {
     lines.push(group.namespace)
+
     for (const t of group.tools) {
       lines.push(`  - ${t.name} — ${t.description}`)
+
       if (t.inputSchema !== undefined) lines.push(`    input: ${JSON.stringify(t.inputSchema)}`)
     }
   }
+
   return lines.join('\n')
 }

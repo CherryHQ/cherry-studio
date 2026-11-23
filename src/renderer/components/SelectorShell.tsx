@@ -31,11 +31,13 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 
 type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
+
 /**
  * Use `lazy-keep` only for high-frequency popovers where remounting list state is noticeably costly.
  * Low-frequency selectors should keep the default `destroy` behavior.
  */
 export type SelectorShellMountStrategy = 'destroy' | 'lazy-keep'
+
 const DEFAULT_COLLISION_PADDING = 12
 export const DEFAULT_SELECTOR_CONTENT_HEIGHT = 344
 const SELECTOR_CONTENT_POSITION_CLASS = 'animation-selector-shell-content'
@@ -132,9 +134,11 @@ function parsePixelValue(value: string | null | undefined) {
   if (!value) return undefined
 
   const match = value.trim().match(/^(-?\d+(?:\.\d+)?)px$/)
+
   if (!match) return undefined
 
   const parsed = Number.parseFloat(match[1])
+
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
@@ -149,6 +153,7 @@ function parseCssSize(value: number | string | undefined) {
 function getAvailablePopoverHeight(element: HTMLElement, contentHeight?: number | string) {
   const styles = window.getComputedStyle(element)
   const parentStyles = element.parentElement ? window.getComputedStyle(element.parentElement) : null
+
   const heightCandidates = [
     parsePixelValue(styles.getPropertyValue('--radix-popover-content-available-height')),
     parsePixelValue(styles.getPropertyValue('--radix-popper-available-height')),
@@ -168,6 +173,7 @@ function createLocalPortalContainer() {
   const element = document.createElement('div')
   element.dataset.selectorShellPortal = 'true'
   element.style.display = 'contents'
+
   return element
 }
 
@@ -211,6 +217,7 @@ export function SelectorShell({
   const { t } = useTranslation()
   const { isPresent } = useExitPresence(open ? true : null, SELECTOR_EXIT_DURATION_MS)
   const triggerNode = isValidElement(trigger) ? trigger : <span>{trigger}</span>
+
   const {
     forceMount,
     hidden,
@@ -221,6 +228,7 @@ export function SelectorShell({
     collisionPadding = DEFAULT_COLLISION_PADDING,
     ...restContentProps
   } = contentProps ?? {}
+
   const isDialog = presentation === 'dialog'
   const presentationRef = useRef(presentation)
   presentationRef.current = presentation
@@ -250,28 +258,35 @@ export function SelectorShell({
 
   const measureAvailableListHeight = useCallback(() => {
     const contentElement = contentRef.current
+
     if (!contentElement) {
       setAvailableListHeight(undefined)
+
       return
     }
 
     const availablePopoverHeight = getAvailablePopoverHeight(contentElement, contentHeight)
+
     if (!availablePopoverHeight) {
       setAvailableListHeight(undefined)
+
       return
     }
 
     const contentStyles = window.getComputedStyle(contentElement)
     const panelStyles = panelRef.current ? window.getComputedStyle(panelRef.current) : null
+
     const verticalPadding =
       (parsePixelValue(contentStyles.paddingTop) ?? 0) +
       (parsePixelValue(contentStyles.paddingBottom) ?? 0) +
       (parsePixelValue(panelStyles?.paddingTop) ?? 0) +
       (parsePixelValue(panelStyles?.paddingBottom) ?? 0)
+
     const chromeHeight = [searchRef.current, filterRef.current, multiSelectRef.current, bottomActionRef.current].reduce(
       (height, element) => height + (element?.getBoundingClientRect().height ?? 0),
       0
     )
+
     const nextListHeight = Math.max(0, Math.floor(availablePopoverHeight - chromeHeight - verticalPadding))
 
     setAvailableListHeight((previousHeight) => (previousHeight === nextListHeight ? previousHeight : nextListHeight))
@@ -312,6 +327,7 @@ export function SelectorShell({
   const setSearchInputElement = useCallback(
     (element: HTMLInputElement | null) => {
       internalSearchInputRef.current = element
+
       if (search?.inputRef) {
         search.inputRef.current = element
       }
@@ -365,11 +381,13 @@ export function SelectorShell({
 
   useLayoutEffect(() => {
     const root = localPortalRootRef.current
+
     if (!root || !localPortalContainer || portalContainer || pagePortalContainer) {
       return undefined
     }
 
     root.appendChild(localPortalContainer)
+
     return () => {
       if (localPortalContainer.parentElement === root) {
         root.removeChild(localPortalContainer)
@@ -384,6 +402,7 @@ export function SelectorShell({
 
     if (!open) {
       setAvailableListHeight(undefined)
+
       return undefined
     }
 
@@ -394,6 +413,7 @@ export function SelectorShell({
     }
 
     const observer = new ResizeObserver(measureAvailableListHeight)
+
     // Keep every element that can change availableListHeight in this observer list.
     const observedElements = [
       contentRef.current,
@@ -413,6 +433,7 @@ export function SelectorShell({
         window.cancelAnimationFrame(measureFrameRef.current)
         measureFrameRef.current = null
       }
+
       observer.disconnect()
       window.removeEventListener('resize', measureAvailableListHeight)
     }
@@ -443,12 +464,15 @@ export function SelectorShell({
 
   const shouldRenderContent = mountStrategy === 'lazy-keep' ? open || hasOpened : true
   const shouldForceMount = mountStrategy === 'lazy-keep' || forceMount ? true : undefined
+
   const resolvedPortalContainer =
     (isDialog ? dialogElement : null) ?? portalContainer ?? pagePortalContainer ?? localPortalContainer ?? undefined
+
   const layout = useMemo(
     () => ({ availableListHeight, portalContainer: resolvedPortalContainer ?? null }),
     [availableListHeight, resolvedPortalContainer]
   )
+
   const canRenderContent = shouldRenderContent && resolvedPortalContainer !== undefined
   const body = canRenderContent ? (typeof children === 'function' ? children(layout) : children) : null
 
@@ -619,6 +643,7 @@ export function SelectorShell({
                 event.preventDefault()
                 internalSearchInputRef.current?.focus()
               }
+
               onOpenAutoFocus?.(event)
             }}
             onCloseAutoFocus={(event) => {
@@ -655,13 +680,16 @@ export function SelectorShell({
               onInteractOutside={(event) => {
                 const originalEvent = event.detail?.originalEvent
                 const originalTarget = (originalEvent?.target ?? event.target) as Element | null
+
                 if (originalTarget?.closest?.('[data-entity-context-menu-root]')) {
                   event.preventDefault()
                 }
+
                 // Kept-mounted content defers dismissal to the click, so a press that opened it from outside must not close it.
                 if (originalEvent && originalEvent.timeStamp < openedAtRef.current) {
                   event.preventDefault()
                 }
+
                 onInteractOutside?.(event)
               }}
               onOpenAutoFocus={(event) => {
@@ -669,6 +697,7 @@ export function SelectorShell({
                   event.preventDefault()
                   internalSearchInputRef.current?.focus()
                 }
+
                 onOpenAutoFocus?.(event)
               }}
               onCloseAutoFocus={(event) => {

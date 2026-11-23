@@ -33,25 +33,31 @@ const DOMAIN_PRESENTATION = {
 
 export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
   const { t } = useTranslation()
+
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/archives', {
     limit: 50,
     swrOptions: { revalidateOnMount: false, revalidateIfStale: false }
   })
+
   const entries = useInfiniteFlatItems(pages)
   const pendingActions = useRef(0)
+
   const refreshArchive = useCallback(async () => {
     if (pendingActions.current > 0) return
+
     try {
       await refresh()
     } catch (error) {
       logger.warn('Failed to refresh archive', error as Error)
     }
   }, [refresh])
+
   useLayoutEffect(() => {
     let cancelled = false
     queueMicrotask(() => {
       if (!cancelled) void refreshArchive()
     })
+
     return () => {
       cancelled = true
     }
@@ -68,22 +74,28 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
     paintings: usePaintingArchiveActions(refreshArchive),
     files: useFileArchiveActions()
   }
+
   const entriesById = new Map(entries.map((entry) => [entry.id, entry]))
+
   const items = useMemo(
     () =>
       entries.map((entry) => {
         const { icon: Icon, labelKey } = DOMAIN_PRESENTATION[entry.domain]
+
         return { ...entry, categoryLabel: t(labelKey), icon: <Icon className="size-4.5" /> }
       }),
     [entries, t]
   )
+
   const pendingDomain = (Object.keys(actions) as ArchiveDomain[]).find(
     (domain) => actions[domain].pendingRestoreId !== null
   )
+
   const pendingRestoreId = pendingDomain ? `${pendingDomain}:${actions[pendingDomain].pendingRestoreId}` : null
 
   const withArchiveRefresh = async <T,>(run: () => Promise<T>): Promise<T> => {
     pendingActions.current += 1
+
     try {
       return await run()
     } finally {
@@ -98,19 +110,24 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
   ): Promise<ArchiveBatchOutcome> =>
     withArchiveRefresh(async () => {
       const outcome: ArchiveBatchOutcome = { succeeded: [], failed: [] }
+
       for (const domain of Object.keys(actions) as ArchiveDomain[]) {
         const domainItems = targets.filter((item) => entriesById.get(item.id)?.domain === domain)
+
         if (domainItems.length === 0) continue
+
         try {
           const result = await actions[domain][action](
             domainItems.map((item) => ({ ...item, id: entriesById.get(item.id)!.entityId }))
           )
+
           outcome.succeeded.push(...result.succeeded.map((id) => `${domain}:${id}`))
           outcome.failed.push(...result.failed.map((failure) => ({ ...failure, id: `${domain}:${failure.id}` })))
         } catch (error) {
           outcome.failed.push(...domainItems.map(({ id }) => ({ id, error: formatErrorMessage(error) })))
         }
       }
+
       return outcome
     })
 
@@ -134,6 +151,7 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
         withArchiveRefresh(async () => {
           const entry = entriesById.get(item.id)!
           const result = await actions[entry.domain].onPermanentDelete({ ...item, id: entry.entityId })
+
           return {
             succeeded: result.succeeded.map((id) => `${entry.domain}:${id}`),
             failed: result.failed.map((failure) => ({ ...failure, id: `${entry.domain}:${failure.id}` }))
@@ -144,8 +162,10 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
       onRequestDelete={(request) => {
         const fileEntryIds = request.items.flatMap((item) => {
           const entry = entriesById.get(item.id)!
+
           return entry.domain === 'files' ? [entry.entityId] : []
         })
+
         const domains = new Set(request.items.map((item) => entriesById.get(item.id)!.domain))
         props.onRequestDelete({
           ...request,

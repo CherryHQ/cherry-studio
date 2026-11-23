@@ -43,6 +43,7 @@ export function getCompatibilityPolicyViolations(input: CompatibilityPolicyInput
 
   const allowedVersions = new Set(baseBaselines.keys())
   allowedVersions.add(currentVersion)
+
   for (const version of currentBaselines.keys()) {
     if (!allowedVersions.has(version)) {
       violations.push(`compat/v${version}-validator.mjs does not correspond to an accepted schema version`)
@@ -54,22 +55,27 @@ export function getCompatibilityPolicyViolations(input: CompatibilityPolicyInput
 
 function parseVersion(source: string): number | null {
   const match = source.match(VERSION_PATTERN)
+
   return match ? Number(match[1]) : null
 }
 
 function readCurrentBaselines(compatDirectory: string): Map<number, string> {
   const baselines = new Map<number, string>()
+
   if (!existsSync(compatDirectory)) return baselines
 
   for (const name of readdirSync(compatDirectory)) {
     const match = name.match(BASELINE_PATTERN)
+
     if (match) baselines.set(Number(match[1]), readFileSync(path.join(compatDirectory, name), 'utf8'))
   }
+
   return baselines
 }
 
 function readBaseBaselines(repositoryRoot: string, baseRef: string, compatPath: string): Map<number, string> {
   const baselines = new Map<number, string>()
+
   const files = execFileSync('git', ['ls-tree', '-r', '--name-only', baseRef, '--', compatPath], {
     cwd: repositoryRoot,
     encoding: 'utf8'
@@ -77,14 +83,18 @@ function readBaseBaselines(repositoryRoot: string, baseRef: string, compatPath: 
 
   for (const file of files.split('\n').filter(Boolean)) {
     const match = path.basename(file).match(BASELINE_PATTERN)
+
     if (!match) continue
+
     const content = execFileSync('git', ['show', `${baseRef}:${file}`], {
       cwd: repositoryRoot,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024
     })
+
     baselines.set(Number(match[1]), content)
   }
+
   return baselines
 }
 
@@ -92,6 +102,7 @@ export function checkCompatibilityPolicy(baseRef: string): void {
   const repositoryRoot = path.resolve(scriptDirectory, '../../..')
   const packageRoot = path.resolve(scriptDirectory, '..')
   let baseVersion: number | null = null
+
   // Older refs kept the version constant in the Node loader.
   for (const sourcePath of ['src/catalog.ts', 'src/registry-loader.ts']) {
     try {
@@ -100,7 +111,9 @@ export function checkCompatibilityPolicy(baseRef: string): void {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore']
       })
+
       baseVersion = parseVersion(baseSource)
+
       if (baseVersion !== null) break
     } catch {
       continue
@@ -120,8 +133,10 @@ export function checkCompatibilityPolicy(baseRef: string): void {
 }
 
 const isCommandLine = process.argv[1] && path.resolve(process.argv[1]) === scriptPath
+
 if (isCommandLine) {
   const baseRef = process.argv.slice(2).find((argument) => argument !== '--')
+
   if (!baseRef) {
     console.error('Usage: pnpm compat:policy <git-base-ref>')
     process.exitCode = 1

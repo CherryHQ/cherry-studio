@@ -45,6 +45,7 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
   const toggle = useCallback(
     (key: CodexFlag, value: boolean) => {
       const next = { ...config }
+
       if (value) next[key] = true
       else delete next[key]
       onChange(next)

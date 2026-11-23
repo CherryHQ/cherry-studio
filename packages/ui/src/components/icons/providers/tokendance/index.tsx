@@ -4,6 +4,7 @@ import { TokendanceLight } from './light'
 
 const Tokendance = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <TokendanceLight {...props} className={className} />
+
   return <TokendanceLight {...props} className={className} />
 }
 

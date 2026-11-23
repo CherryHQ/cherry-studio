@@ -27,7 +27,9 @@ const formatZoomLabel = (zoom: number) => `${Math.round(zoom * 100)}%`
 /** Visible sheets from model.sheets. If all are hidden, fall back to the first sheet so one tab remains selectable. */
 const visibleSheets = (model: WorkbookRenderModel): SheetRenderModel[] => {
   const visible = model.sheets.filter((sheet) => !sheet.hidden)
+
   if (visible.length > 0) return visible
+
   return model.sheets.slice(0, 1)
 }
 
@@ -41,6 +43,7 @@ const loadChartRenderer = () => {
       chartRendererPromise = null
       throw error
     })
+
   return chartRendererPromise
 }
 
@@ -79,9 +82,11 @@ const buildRangeExcerpt = (sheet: SheetRenderModel, rect: CellRangeRect): string
 
   for (let row = rect.top; row <= rect.bottom; row++) {
     while (nextMerge < intersecting.length && intersecting[nextMerge].top <= row) active.push(intersecting[nextMerge++])
+
     if (active.length > 0) active = active.filter((merge) => merge.bottom >= row)
 
     const values: string[] = []
+
     for (let col = rect.left; col <= rect.right; col++) {
       if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
       scanned++
@@ -90,11 +95,15 @@ const buildRangeExcerpt = (sheet: SheetRenderModel, rect: CellRangeRect): string
       const text = isMergeFollower ? '' : (sheet.cells[`${row}:${col}`]?.text ?? '')
       values.push(text)
       const charged = normalizeSelectionText(text).length
+
       if (charged > 0) length += charged + 1
     }
+
     lines.push(values.join('\t'))
+
     if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
   }
+
   return lines.join('\n')
 }
 
@@ -111,10 +120,12 @@ export default function SpreadsheetFilePreview({
   const state = useXlsxWorkbook(previewDocument, fileName)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [activeSheetName, setActiveSheetName] = useState<string | null>(null)
+
   // The sheet is stored with the selection: an A1 range means nothing without the sheet it was taken from.
   const [selectedCell, setSelectedCell] = useState<
     (SelectedCellInfo & { sheet: SheetRenderModel; document: FilePreviewPluginProps['document'] }) | null
   >(null)
+
   const [chartRenderer, setChartRenderer] = useState<ChartRenderer | null>(null)
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({})
 
@@ -125,7 +136,9 @@ export default function SpreadsheetFilePreview({
   // Reset the selected cell when switching sheets or replacing the model, and clamp the active sheet to a valid value.
   useEffect(() => {
     setSelectedCell(null)
+
     if (sheets.length === 0) return
+
     if (!sheets.some((sheet) => sheet.name === activeSheetName)) {
       setActiveSheetName(sheets[0].name)
     }
@@ -148,6 +161,7 @@ export default function SpreadsheetFilePreview({
       selectedCell.document !== previewDocument
     )
       return null
+
     return createPreviewSelection({
       sourceId,
       anchor: { format: 'xlsx', sheet: activeSheet.name, range: selectedCell.range },
@@ -161,12 +175,16 @@ export default function SpreadsheetFilePreview({
   useEffect(() => {
     if (!onSelection) {
       captureArmedRef.current = false
+
       return
     }
+
     if (!captureArmedRef.current) {
       captureArmedRef.current = true
+
       return
     }
+
     onSelection(selectionReference)
   }, [selectionReference, onSelection])
 
@@ -175,9 +193,11 @@ export default function SpreadsheetFilePreview({
     if (!model) return
 
     const nextUrls: Record<number, string> = {}
+
     for (const [imageId, image] of Object.entries(model.images)) {
       nextUrls[Number(imageId)] = URL.createObjectURL(new Blob([image.data], { type: image.mime }))
     }
+
     setImageUrls(nextUrls)
 
     return () => {
@@ -201,6 +221,7 @@ export default function SpreadsheetFilePreview({
         const normalized = error instanceof Error ? error : new Error(String(error))
         logger.error('Failed to load xlsx chart renderer', normalized)
       })
+
     return () => {
       cancelled = true
     }
@@ -208,19 +229,24 @@ export default function SpreadsheetFilePreview({
 
   const renderChart = useMemo(() => {
     if (!chartRenderer) return undefined
+
     return (chart: ChartModel, container: HTMLElement) => chartRenderer.render(chart, container)
   }, [chartRenderer])
 
   const zoomIndex = ZOOM_LEVELS.indexOf(zoom)
+
   const zoomOut = useCallback(() => {
     setZoom((current) => {
       const index = ZOOM_LEVELS.indexOf(current)
+
       return index > 0 ? ZOOM_LEVELS[index - 1] : current
     })
   }, [])
+
   const zoomIn = useCallback(() => {
     setZoom((current) => {
       const index = ZOOM_LEVELS.indexOf(current)
+
       return index >= 0 && index < ZOOM_LEVELS.length - 1 ? ZOOM_LEVELS[index + 1] : current
     })
   }, [])
@@ -254,9 +280,11 @@ export default function SpreadsheetFilePreview({
     // The sheet is compared for the same reason selectionReference compares it: the clearing effect runs one
     // commit later, so the new sheet's tabs would otherwise render beside the previous sheet's range for a frame.
     const cellOnActiveSheet = selectedCell && selectedCell.sheet === activeSheet ? selectedCell : null
+
     const selectedCellContent = cellOnActiveSheet?.cell?.formula
       ? `= ${cellOnActiveSheet.cell.formula}`
       : cellOnActiveSheet?.cell?.text
+
     const statusBarText = cellOnActiveSheet
       ? selectedCellContent
         ? `${cellOnActiveSheet.range}  ${selectedCellContent}`

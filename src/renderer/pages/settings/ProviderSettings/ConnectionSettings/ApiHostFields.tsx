@@ -86,6 +86,7 @@ export function ApiHostField({
   const { t } = useTranslation()
   const [apiHostCopied, copyApiHost] = useCopyToClipboard()
   const trimmedApiHost = apiHost.trim()
+
   const help = isVertexAI ? (
     <div className="space-y-1 pt-1">
       <div className="text-[12px] leading-[1.35] text-muted-foreground">

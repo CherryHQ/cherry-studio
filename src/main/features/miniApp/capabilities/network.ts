@@ -44,9 +44,11 @@ const UNFORWARDED_HEADERS = new Set([
   'te',
   'trailer'
 ])
+
 const forwardsHeader = (name: string) => !UNFORWARDED_HEADERS.has(name) && !name.startsWith('proxy-')
 
 export const MINI_APP_FETCH_TIMEOUT_MS = 30_000
+
 /** Design §9 freezes the REQUEST body at 1 MB; these are the same limit either side of base64. */
 export const MINI_APP_FETCH_MAX_REQUEST_BYTES = 1024 * 1024
 export const MINI_APP_FETCH_MAX_REQUEST_CHARS = Math.ceil(MINI_APP_FETCH_MAX_REQUEST_BYTES / 3) * 4 + 4
@@ -75,16 +77,21 @@ const FetchParams = z.object({
  */
 export function isAllowedUrl(url: string, hosts: readonly string[]): boolean {
   let parsed: URL
+
   try {
     parsed = new URL(url)
   } catch {
     return false
   }
+
   if (parsed.protocol !== 'https:') return false
+
   // `URL` normalises an explicit `:443` to the empty string, so a declared host still
   // works when written out; any other port is refused rather than silently matched.
   if (parsed.port !== '') return false
+
   if (parsed.hostname.startsWith('[') || /^\d+(\.\d+)*$/.test(parsed.hostname)) return false
+
   return hosts.includes(parsed.hostname)
 }
 
@@ -99,6 +106,7 @@ export function isAllowedUrl(url: string, hosts: readonly string[]): boolean {
  * Surge answer every intercepted lookup from it, so refusing it refuses every fetch there.
  */
 const NON_GLOBAL = new BlockList()
+
 for (const [address, prefix] of [
   ['0.0.0.0', 8],
   ['10.0.0.0', 8],
@@ -113,6 +121,7 @@ for (const [address, prefix] of [
 ] as const) {
   NON_GLOBAL.addSubnet(address, prefix, 'ipv4')
 }
+
 for (const [address, prefix] of [
   ['::', 128],
   ['::1', 128],
@@ -130,8 +139,10 @@ for (const [address, prefix] of [
 
 export function isPrivateAddress(address: string): boolean {
   const family = isIP(address)
+
   // Unparsable is refused, not passed: the lookup answer is the only thing this trusts.
   if (family === 0) return true
+
   return NON_GLOBAL.check(address, family === 6 ? 'ipv6' : 'ipv4')
 }
 
@@ -145,6 +156,7 @@ export const networkCapability = {
     // The MANIFEST, not the grant table: hosts are the scope of `network.fetch`, not
     // grants of their own. The revocable half is the capability, checked at the bridge.
     const hosts = MiniAppManifestSchema.parse(installationOf(appId).manifestJson).network
+
     if (!isAllowedUrl(url, hosts)) {
       throw new PermissionDeniedError(
         appId,
@@ -152,7 +164,9 @@ export const networkCapability = {
         `Mini app "${appId}" may not fetch ${url}: only https on the default port to a host the manifest declares`
       )
     }
+
     const requestBody = body ? Buffer.from(body, 'base64') : undefined
+
     // Re-checked in BYTES after decoding: the guest gate and the schema both bound the
     // base64 TEXT, and base64 is only an upper bound on what it decodes to.
     if (requestBody && requestBody.byteLength > MINI_APP_FETCH_MAX_REQUEST_BYTES) {
@@ -172,10 +186,12 @@ export const networkCapability = {
     const owned = inflight.get(senderId) ?? new Set<AbortController>()
     owned.add(abort)
     inflight.set(senderId, owned)
+
     try {
       // Resolved here and connected by Chromium: the answer can change in between (TOCTOU,
       // accepted by the plan). Inside the try so a lookup failure reports like any DNS error.
       const addresses = await dns.promises.lookup(new URL(url).hostname, { all: true })
+
       if (addresses.some(({ address }) => isPrivateAddress(address))) {
         throw new PermissionDeniedError(
           appId,
@@ -183,10 +199,12 @@ export const networkCapability = {
           `Mini app "${appId}" may not fetch ${url}: the host resolves to a private address`
         )
       }
+
       const fetchOptions: NonNullable<Parameters<typeof net.fetch>[1]> = {
         method,
         headers
       }
+
       if (requestBody) fetchOptions.body = requestBody
       // Electron would otherwise send Cherry's default-session credentials.
       fetchOptions.credentials = 'omit'
@@ -197,16 +215,20 @@ export const networkCapability = {
 
       const chunks: Uint8Array[] = []
       let total = 0
+
       for await (const chunk of response.body ?? []) {
         total += chunk.byteLength
+
         if (total > MINI_APP_FETCH_MAX_BODY_BYTES) {
           // Abort, do not just throw: leaving the stream open keeps the socket and the
           // concurrency slot alive for as long as the server cares to keep sending.
           abort.abort()
           throw new QuotaExceededError(`Response exceeds ${MINI_APP_FETCH_MAX_BODY_BYTES} bytes`)
         }
+
         chunks.push(chunk)
       }
+
       return {
         status: response.status,
         headers: Object.fromEntries([...response.headers].filter(([name]) => forwardsHeader(name))),
@@ -214,8 +236,10 @@ export const networkCapability = {
       }
     } catch (error) {
       if (error instanceof QuotaExceededError || error instanceof PermissionDeniedError) throw error
+
       if (abort.signal.reason === 'guest')
         throw new MiniAppUnavailableError(`Request to ${url} abandoned: the guest went away`)
+
       if (abort.signal.aborted) throw new MiniAppUnavailableError(`Request to ${url} timed out`)
       // Everything else is the REMOTE end failing — DNS, refused connection, TLS, a stream
       // that dies mid-body. Raw, the bridge answers `Internal` and blames the author's code.
@@ -223,6 +247,7 @@ export const networkCapability = {
     } finally {
       clearTimeout(timer)
       owned.delete(abort)
+
       if (owned.size === 0) inflight.delete(senderId)
       release()
     }

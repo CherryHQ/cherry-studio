@@ -27,6 +27,7 @@ export function SidebarFooter({ layout, actions, userAction, onOverlayOpenChange
   const resolvedUserAction = typeof userAction === 'function' ? userAction(layout, onOverlayOpenChange) : userAction
 
   if (layout === 'icon') return <IconFooter actions={resolvedActions} userAction={resolvedUserAction} {...props} />
+
   return <FullFooter actions={resolvedActions} userAction={resolvedUserAction} {...props} />
 }
 

@@ -11,12 +11,16 @@ export const managedTools = defineDoctorCheck({
   timeoutMs: 20_000,
   async run({ signal }) {
     const manager = application.get('BinaryManager')
+
     if (!manager.isReady) throw new Error('Binary manager is not ready')
     const inventory = await manager.getToolInventory(signal)
+
     if (inventory.some((tool) => tool.status === 'unknown')) throw new Error('Managed tool inventory is incomplete')
+
     if (inventory.some((tool) => tool.status === 'installing' || tool.status === 'removing'))
       throw new Error('Managed tool operations are still running')
     const failed = inventory.filter((tool) => tool.status === 'failed')
+
     if (failed.length === 0) return { status: 'pass' }
 
     return {
@@ -38,11 +42,15 @@ export const claudeLogin = defineDoctorCheck({
     const needsClaudeLogin = agentService.listAgents().agents.some((agent) => {
       if (agent.type !== 'claude-code' || !agent.model) return false
       const { providerId } = parseUniqueModelId(agent.model)
+
       return isExternalCliProvider(providerService.getByProviderId(providerId))
     })
+
     if (!needsClaudeLogin) return { status: 'pass' }
     const cli = application.get('CodeCliService')
+
     if (!cli.isReady) throw new Error('Code CLI service is not ready')
+
     if (await cli.checkClaudeLogin(signal)) return { status: 'pass' }
 
     return {

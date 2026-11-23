@@ -6,7 +6,9 @@ import { BilibiliindexLight } from './light'
 
 const Bilibiliindex = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <BilibiliindexLight {...props} className={className} />
+
   if (variant === 'dark') return <BilibiliindexDark {...props} className={className} />
+
   return (
     <>
       <BilibiliindexLight className={cn('dark:hidden', className)} {...props} />

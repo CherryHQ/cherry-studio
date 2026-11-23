@@ -4,6 +4,7 @@ import { SmitheryLight } from './light'
 
 const Smithery = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <SmitheryLight {...props} className={className} />
+
   return <SmitheryLight {...props} className={className} />
 }
 

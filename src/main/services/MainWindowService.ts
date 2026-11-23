@@ -42,6 +42,7 @@ const logger = loggerService.withContext('MainWindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
+
 // Matches the renderer's main tab bar height (AppShellTabBar `h-11`).
 const MAIN_TITLE_BAR_HEIGHT = 44
 
@@ -74,6 +75,7 @@ export class MainWindowService extends BaseService {
     this._onMainWindowCreated = new Emitter<BrowserWindow>()
     this.onMainWindowCreated = (listener) => {
       const disposable = this._onMainWindowCreated.event(listener)
+
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         try {
           listener(this.mainWindow)
@@ -82,6 +84,7 @@ export class MainWindowService extends BaseService {
           logger.error('Failed to replay main window listener', error as Error)
         }
       }
+
       return disposable
     }
   }
@@ -139,6 +142,7 @@ export class MainWindowService extends BaseService {
     const handler = (_: Electron.Event, window: BrowserWindow) => {
       optimizer.watchWindowShortcuts(window)
     }
+
     app.on('browser-window-created', handler)
     this.registerDisposable(() => app.removeListener('browser-window-created', handler))
   }
@@ -152,6 +156,7 @@ export class MainWindowService extends BaseService {
     const handler = (_: Electron.Event, webContents: Electron.WebContents) => {
       contextMenu.contextMenu(webContents)
     }
+
     app.on('web-contents-created', handler)
     this.registerDisposable(() => app.removeListener('web-contents-created', handler))
   }
@@ -163,6 +168,7 @@ export class MainWindowService extends BaseService {
     // (in createWindow's trailing updateDockVisibility), so the Dock is hidden
     // from the moment the app finishes launching.
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
+
     if (isLaunchToTray) {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       // Suppress only the process-launch window; runtime rebuilds must show.
@@ -183,9 +189,11 @@ export class MainWindowService extends BaseService {
 
   private requireMainWindow(): BrowserWindow {
     const mainWindow = this.mainWindow
+
     if (!mainWindow || mainWindow.isDestroyed()) {
       throw new Error('Main window does not exist or has been destroyed')
     }
+
     return mainWindow
   }
 
@@ -222,6 +230,7 @@ export class MainWindowService extends BaseService {
     const mainWindow = this.requireMainWindow()
     mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+
     if (width < MIN_WINDOW_WIDTH) {
       mainWindow.setSize(MIN_WINDOW_WIDTH, height)
     }
@@ -235,10 +244,13 @@ export class MainWindowService extends BaseService {
   /** Start the native close flow when `windowId` identifies the current main window. */
   public requestClose(windowId: string): boolean {
     const mainWindow = this.mainWindow
+
     if (!mainWindow || mainWindow.isDestroyed()) return false
+
     if (application.get('WindowManager').getWindowId(mainWindow) !== windowId) return false
 
     mainWindow.close()
+
     return true
   }
 
@@ -257,6 +269,7 @@ export class MainWindowService extends BaseService {
 
     const windowsBackgroundMaterial = getWindowsBackgroundMaterial()
     let mainWindowBackgroundColor: string | undefined
+
     if (!isMac && !windowsBackgroundMaterial) {
       mainWindowBackgroundColor = nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF'
     }
@@ -271,7 +284,9 @@ export class MainWindowService extends BaseService {
         titleBarOverlay: getTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
       })
     }
+
     if (windowsBackgroundMaterial) options.backgroundMaterial = windowsBackgroundMaterial
+
     if (mainWindowBackgroundColor) options.backgroundColor = mainWindowBackgroundColor
     options.webPreferences = { zoomFactor: preferenceService.get('app.zoom_factor') }
     windowManager.open(WindowType.Main, { initData, options })
@@ -288,6 +303,7 @@ export class MainWindowService extends BaseService {
     // launch defers it to first show — see setupMaximize).
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
+
     // Runs inside openMainWindow's open() call, so it sees the same preference value.
     if (this.usesTitleBarOverlay()) syncTitleBarOverlayWithTheme(mainWindow)
 
@@ -307,11 +323,13 @@ export class MainWindowService extends BaseService {
    */
   private setupSpellCheck() {
     const preferenceService = application.get('PreferenceService')
+
     const apply = () => {
       try {
         const enabled = preferenceService.get('app.spell_check.enabled')
         const languages = preferenceService.get('app.spell_check.languages')
         session.defaultSession.setSpellCheckerEnabled(enabled)
+
         if (enabled && languages.length > 0) {
           session.defaultSession.setSpellCheckerLanguages(languages)
         }
@@ -319,6 +337,7 @@ export class MainWindowService extends BaseService {
         logger.error('Failed to apply spell check settings:', error as Error)
       }
     }
+
     apply()
     this.registerDisposable(
       preferenceService.subscribeMultipleChanges(['app.spell_check.enabled', 'app.spell_check.languages'], apply)
@@ -337,12 +356,14 @@ export class MainWindowService extends BaseService {
         },
         exitCode: details.exitCode
       })
+
       // A window being torn down can report its renderer gone after the webContents is
       // destroyed, where reload() throws and hides the real crash behind a dialog.
       if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
       const currentTime = Date.now()
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
+
       if (currentTime - lastCrashTime > 60 * 1000) {
         // 如果大于1分钟，则重启渲染进程
         mainWindow.webContents.reload()
@@ -374,8 +395,10 @@ export class MainWindowService extends BaseService {
       ({ url, resourceType }) => {
         if (url === 'about:blank') return true
         const protocol = new URL(url).protocol
+
         if (resourceType !== 'mainFrame' && ['data:', 'blob:', 'ws:', 'wss:'].includes(protocol)) return true
         normalizeBrowserUrl(url)
+
         return true
       },
       undefined,
@@ -401,6 +424,7 @@ export class MainWindowService extends BaseService {
   ) {
     const restrictedSession = session.fromPartition(partition)
     const handleWillDownload = (event: Electron.Event) => event.preventDefault()
+
     const userAgent = restrictedSession
       .getUserAgent()
       .replace(/CherryStudio\/\S+\s/, '')
@@ -409,14 +433,18 @@ export class MainWindowService extends BaseService {
     restrictedSession.setUserAgent(userAgent)
     restrictedSession.setPermissionCheckHandler(() => false)
     restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
+
     if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       try {
         const result = isAllowed(details)
+
         if (typeof result === 'boolean') {
           callback({ cancel: !result })
+
           return
         }
+
         void result.then(
           (allowed) => callback({ cancel: !allowed }),
           () => callback({ cancel: true })
@@ -438,6 +466,7 @@ export class MainWindowService extends BaseService {
   private isBrowserEntryUrl(url: string): boolean {
     try {
       normalizeBrowserUrl(url)
+
       return true
     } catch {
       return false
@@ -452,12 +481,15 @@ export class MainWindowService extends BaseService {
 
     mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
       const securityProfile = getWebviewSecurityProfile(params.partition ?? '')
+
       // Mini app partitions carry their own gate (installMiniAppWebviewHost) and the
       // shared `persist:webview` lockdown lives in WebviewService.attachWebviewPreload.
       if (!securityProfile) {
         if (!isMiniAppPartition(params.partition)) event.preventDefault()
+
         return
       }
+
       if (securityProfile === WebviewSecurityProfile.MiniApp) return
 
       if (
@@ -471,6 +503,7 @@ export class MainWindowService extends BaseService {
           !isAllowedAgentHtmlArtifactEntryUrl(params.src))
       ) {
         event.preventDefault()
+
         return
       }
 
@@ -479,6 +512,7 @@ export class MainWindowService extends BaseService {
       } else {
         webPreferences.preload = application.getPath('feature.webview.preload_file')
       }
+
       webPreferences.nodeIntegration = false
       webPreferences.nodeIntegrationInSubFrames = false
       webPreferences.contextIsolation = true
@@ -486,6 +520,7 @@ export class MainWindowService extends BaseService {
       webPreferences.webSecurity = true
       webPreferences.allowRunningInsecureContent = false
       webPreferences.safeDialogs = true
+
       if (securityProfile === WebviewSecurityProfile.AgentBrowser) webPreferences.enableBlinkFeatures = 'WebMCP'
     })
 
@@ -499,8 +534,10 @@ export class MainWindowService extends BaseService {
           this.agentDevPreviewRequestPolicy.forget(webContents.id)
           this.agentHtmlArtifactRequestPolicy.forget(webContents.id)
         })
+
         return
       }
+
       if (webContents.session !== previewSession) return
 
       webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -525,6 +562,7 @@ export class MainWindowService extends BaseService {
       cancelId: 1,
       noLink: true
     })
+
     if (response === 0) {
       await shell.openExternal(
         getAppEdition() === 'cn' ? 'https://cherryai.com.cn/download' : 'https://cherryai.com/download'
@@ -548,6 +586,7 @@ export class MainWindowService extends BaseService {
       // onReady, consumed once); runtime rebuilds must always become visible.
       const suppressShow = this.suppressInitialLaunchShow
       this.suppressInitialLaunchShow = false
+
       if (!suppressShow) mainWindow.show()
     })
 
@@ -571,6 +610,7 @@ export class MainWindowService extends BaseService {
           mainWindow.setSkipTaskbar(false)
         }
       }
+
       mainWindow.on('restore', restoreOpacity)
       mainWindow.on('show', restoreOpacity)
     }
@@ -586,19 +626,25 @@ export class MainWindowService extends BaseService {
 
   async openWebsite(url: string, external = false, options?: Electron.OpenExternalOptions): Promise<void> {
     const resolved = resolveSafeExternalUrl(url)
+
     if (!resolved) {
       logger.warn('Blocked website URL with an unsupported scheme')
+
       return
     }
+
     const { url: destination, protocol, requiresConfirmation } = resolved
+
     if (
       !external &&
       ['http:', 'https:'].includes(protocol) &&
       application.get('PreferenceService').get('app.browser.open_links_in_browser')
     ) {
       this.openBrowserTab(url)
+
       return
     }
+
     if (requiresConfirmation) {
       const { response } = await dialog.showMessageBox({
         type: 'warning',
@@ -609,11 +655,14 @@ export class MainWindowService extends BaseService {
         cancelId: 0,
         noLink: true
       })
+
       if (response !== 1) {
         logger.warn('External URL opening cancelled', { protocol })
+
         return
       }
     }
+
     await shell.openExternal(destination, options)
   }
 
@@ -629,25 +678,34 @@ export class MainWindowService extends BaseService {
 
   private setupExternalWebsiteHandlers(window: BrowserWindow) {
     const contents = window.webContents
+
     const openWebsite = (url: string) => {
       void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
     }
+
     contents.setWindowOpenHandler(({ url }) => {
       if (resolveSafeExternalUrl(url)) openWebsite(url)
+
       return { action: 'deny' }
     })
+
     const navigate = (_event: Electron.Event, url: string) => {
       if (!url.startsWith('http:') && !url.startsWith('https:')) return
       const currentUrl = contents.getURL()
+
       if (currentUrl && new URL(url).origin !== new URL(currentUrl).origin) openWebsite(url)
     }
+
     contents.on('will-navigate', navigate)
+
     const dispose = () => {
       this.externalWebsiteCleanups.delete(dispose)
       window.removeListener('closed', dispose)
       contents.removeListener('will-navigate', navigate)
+
       if (!contents.isDestroyed()) contents.setWindowOpenHandler(() => ({ action: 'deny' }))
     }
+
     this.externalWebsiteCleanups.add(dispose)
     window.once('closed', dispose)
   }
@@ -666,6 +724,7 @@ export class MainWindowService extends BaseService {
       }
 
       event.preventDefault()
+
       if (isSafeExternalUrl(url)) {
         void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
       } else {
@@ -681,6 +740,7 @@ export class MainWindowService extends BaseService {
         'https://dash.302.ai/sso/login',
         'https://maas.aiionly.com/login'
       ]
+
       const billingUrls = [
         'https://cloud.siliconflow.cn/bills',
         'https://cloud.siliconflow.cn/expensebill',
@@ -688,8 +748,10 @@ export class MainWindowService extends BaseService {
         'https://console.inferera.com/statistics',
         'https://dash.302.ai/charge'
       ]
+
       const matchesEntry = (entry: string) =>
         url === entry || ['/', '?', '#'].some((separator) => url.startsWith(entry + separator))
+
       const isOAuthPopup = oauthProviderUrls.some(matchesEntry)
 
       if (isOAuthPopup || billingUrls.some(matchesEntry)) {
@@ -711,12 +773,16 @@ export class MainWindowService extends BaseService {
 
       if (/^https?:/i.test(url) && url.includes('http://file/')) {
         const fileName = url.replace('http://file/', '')
+
         if (!fileName) {
           logger.warn('Blocked empty file name in http://file/ URL')
+
           return { action: 'deny' }
         }
+
         const storageDir = application.getPath('feature.files.data')
         const filePath = path.resolve(storageDir, fileName)
+
         // Prevent path traversal: ensure resolved path is within storageDir
         if (!filePath.startsWith(path.resolve(storageDir) + path.sep)) {
           logger.warn(`Blocked path traversal attempt: ${fileName}`)
@@ -751,6 +817,7 @@ export class MainWindowService extends BaseService {
           event.preventDefault()
           // Let Electron finish cancelling this close before starting a new quit attempt.
           setImmediate(() => application.quit())
+
           return
         }
       }
@@ -777,6 +844,7 @@ export class MainWindowService extends BaseService {
 
       if (isWin) {
         this.hideToTrayOnWindows(mainWindow)
+
         return
       }
 
@@ -792,18 +860,23 @@ export class MainWindowService extends BaseService {
     application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, true)
 
     const mainWindow = this.mainWindow
+
     if (mainWindow && !mainWindow.isDestroyed()) {
       // Repair tray appearance before exposing the window; listeners cover out-of-band restores.
       if (isWin) {
         mainWindow.setOpacity(1)
         mainWindow.setSkipTaskbar(false)
       }
+
       if (mainWindow.isMinimized()) {
         mainWindow.restore()
+
         if (isWin) mainWindow.show()
         mainWindow.focus()
+
         if (isMac) app.focus({ steal: true })
         this.pushMainWindowInitData(initData)
+
         return
       }
 
@@ -821,12 +894,14 @@ export class MainWindowService extends BaseService {
           // Re-check through the field — the window may have been destroyed
           // between hide() and this tick (e.g. user quit via tray).
           const w = this.mainWindow
+
           if (w && !w.isDestroyed()) {
             w.show()
             w.focus()
           }
         })
         this.pushMainWindowInitData(initData)
+
         return
       }
 
@@ -849,10 +924,13 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
+
       if (isMac) app.focus({ steal: true })
+
       if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
+
       this.pushMainWindowInitData(initData)
     } else {
       // Singleton: WM creates a fresh window when none exists; openMainWindow re-injects
@@ -869,6 +947,7 @@ export class MainWindowService extends BaseService {
 
   public toggleMainWindow() {
     const mainWindow = this.mainWindow
+
     // should not toggle main window when in full screen
     // but if the main window is close to tray when it's in full screen, we can show it again
     // (it's a bug in macos, because we can close the window when it's in full screen, and the state will be remained)
@@ -893,6 +972,7 @@ export class MainWindowService extends BaseService {
       } else {
         mainWindow.focus()
       }
+
       return
     }
 
@@ -920,8 +1000,10 @@ export class MainWindowService extends BaseService {
     // quotes either go to a detached SubWindow (identified by id) or fall back
     // to the main window — debugging them requires telling the two paths apart.
     let quoteTarget = 'main window'
+
     try {
       const sourceWindow = this.resolveQuoteSourceWindow(sourceWebContents)
+
       if (sourceWindow) {
         quoteTarget = `source window ${sourceWindow.id}`
         // The source window already has a composer mounted with the same App_QuoteToMain
@@ -930,12 +1012,14 @@ export class MainWindowService extends BaseService {
         // window must not undo the user's close-to-tray choice (macOS keeps the
         // Dock icon hidden while Main stays hidden; the tray still shows the app).
         sourceWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+
         return
       }
 
       this.showMainWindow()
 
       const mainWindow = this.mainWindow
+
       if (mainWindow && !mainWindow.isDestroyed()) {
         setTimeout(() => {
           // Re-check at fire time: the window can be destroyed during the 100ms
@@ -960,10 +1044,13 @@ export class MainWindowService extends BaseService {
     if (!sourceWebContents) return null
     const windowManager = application.get('WindowManager')
     const sourceWindowId = windowManager.getWindowIdByWebContents(sourceWebContents)
+
     if (!sourceWindowId) return null
     const sourceWindowType = windowManager.getWindowType(sourceWindowId)
+
     if (sourceWindowType !== WindowType.SubWindow && sourceWindowType !== WindowType.SelectionAgent) return null
     const sourceWindow = windowManager.getWindow(sourceWindowId)
+
     return sourceWindow && !sourceWindow.isDestroyed() ? sourceWindow : null
   }
 }

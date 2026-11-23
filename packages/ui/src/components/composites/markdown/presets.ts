@@ -41,5 +41,6 @@ export const defaultMarkdownPlugins: PluginConfig = {
 /** KaTeX math plugin. `singleDollar` enables `$x$` inline math (off by default). */
 export function withMath(opts?: WithMathOptions): PluginConfig['math'] {
   const math = createMathPlugin({ singleDollarTextMath: opts?.singleDollar ?? false })
+
   return opts?.streaming ? { ...math, rehypePlugin: [rehypeStreamingMath, math.rehypePlugin] } : math
 }

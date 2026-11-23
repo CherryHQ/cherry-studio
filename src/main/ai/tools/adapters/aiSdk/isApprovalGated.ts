@@ -27,8 +27,11 @@ export interface ApprovalGateOptions {
  */
 export async function isApprovalGated(tool: Tool, opts: ApprovalGateOptions = {}): Promise<boolean> {
   const needsApproval = tool.needsApproval
+
   if (needsApproval === undefined) return false
+
   if (typeof needsApproval === 'boolean') return needsApproval
+
   try {
     return await needsApproval(opts.input, {
       toolCallId: opts.toolCallId ?? '',
@@ -37,6 +40,7 @@ export async function isApprovalGated(tool: Tool, opts: ApprovalGateOptions = {}
     })
   } catch (err) {
     logger.warn('needsApproval threw; treating tool as approval-gated', err as Error)
+
     return true
   }
 }

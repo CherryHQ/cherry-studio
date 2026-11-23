@@ -40,9 +40,13 @@ export function HistoryRecordsContent<T>({
         return
 
       const target = event.target
+
       if (!(target instanceof HTMLElement)) return
+
       if (target !== document.body && !contentRef.current?.contains(target)) return
+
       if (target.isContentEditable) return
+
       if (
         !target.closest('[data-history-selection-checkbox], [data-history-record-title]') &&
         target.closest('a[href], button, input, select, textarea, [role="button"], [role="menuitem"]')
@@ -53,7 +57,9 @@ export function HistoryRecordsContent<T>({
       event.stopPropagation()
       toggleSelectAll(true)
     }
+
     document.addEventListener('keydown', handleKeyDown)
+
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [selectionDisabled, toggleSelectAll])
 

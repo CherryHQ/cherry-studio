@@ -8,6 +8,7 @@ const logger = loggerService.withContext('composeHooks')
 
 export function composeHooks(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks {
   if (parts.length === 0) return {}
+
   if (parts.length === 1) return parts[0]
 
   return {
@@ -45,8 +46,11 @@ function chainVoid<TArgs extends unknown[]>(
   key: string
 ): ((...args: TArgs) => void | Promise<void>) | undefined {
   const fns = hooks.flatMap((hook) => (hook ? [hook] : []))
+
   if (fns.length === 0) return undefined
+
   if (fns.length === 1) return fns[0]
+
   return async (...args) => {
     for (const fn of fns) {
       try {
@@ -61,15 +65,21 @@ function chainVoid<TArgs extends unknown[]>(
 function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks['onError'] | undefined {
   const fns = parts.flatMap((p) => {
     const f = p.onError
+
     return f ? [f] : []
   })
+
   if (fns.length === 0) return undefined
+
   if (fns.length === 1) return fns[0]
+
   return async (ctx: ErrorContext) => {
     let action: 'retry' | 'abort' = 'abort'
+
     for (const fn of fns) {
       try {
         const r = await fn(ctx)
+
         if (r === 'retry') action = 'retry'
       } catch (err) {
         // A throwing handler contributes no decision; isolate it and continue
@@ -77,6 +87,7 @@ function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopH
         logger.warn('composed onError hook threw; continuing chain', err as Error)
       }
     }
+
     return action
   }
 }
@@ -96,23 +107,31 @@ function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopH
 function chainPrepareStep(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks['prepareStep'] | undefined {
   const fns = parts.flatMap((p) => {
     const f = p.prepareStep
+
     return f ? [f] : []
   })
+
   if (fns.length === 0) return undefined
+
   if (fns.length === 1) return fns[0]
+
   return async (options) => {
     let mutated = options
     let merged: PrepareStepResult
+
     for (const fn of fns) {
       const r = await fn(mutated)
+
       if (r) {
         merged ??= {}
         Object.defineProperties(merged, Object.getOwnPropertyDescriptors({ ...r }))
+
         if (r.messages) {
           mutated = { ...options, messages: r.messages }
         }
       }
     }
+
     return merged
   }
 }

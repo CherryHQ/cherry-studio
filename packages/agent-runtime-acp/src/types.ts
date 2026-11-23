@@ -38,6 +38,7 @@ export interface AcpHostContext {
 }
 
 type HostMethod = Exclude<keyof ClientRequestParamsByMethod, 'session/request_permission'>
+
 export type AcpHostHandler<M extends HostMethod> = (
   params: ClientRequestParamsByMethod[M],
   context: AcpHostContext
@@ -67,12 +68,14 @@ export interface AcpRuntimeOptions {
 }
 
 export type AcpInputDraft = Omit<InputDraft, 'text'> & { readonly content: readonly ContentBlock[] }
+
 export interface AcpNativeMessage {
   readonly id: string
   readonly kind: 'user_message_chunk' | 'agent_message_chunk' | 'agent_thought_chunk'
   readonly nativeId?: string
   readonly chunks: readonly Extract<SessionUpdate, { content: ContentBlock }>[]
 }
+
 export interface AcpSessionState {
   readonly configuration: Omit<NewSessionResponse, 'sessionId'>
   readonly turns: readonly { inputId: InputId; response: PromptResponse }[]
@@ -80,6 +83,7 @@ export interface AcpSessionState {
   readonly tools: readonly ToolCallUpdate[]
   readonly metadata: readonly SessionUpdate[]
 }
+
 export interface AcpObservationFrame {
   readonly revision: number
   readonly event: ObservationPayload
@@ -97,6 +101,7 @@ export interface AcpThreadHandle extends ThreadHandle {
     setConfigOption(configId: string, value: string | boolean): Promise<OperationResult<void>>
   }
 }
+
 export interface AcpRuntime extends AgentRuntime {
   initialize(): Promise<OperationResult<InitializeResponse>>
   authenticate(methodId: string): Promise<OperationResult<void>>

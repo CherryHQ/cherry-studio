@@ -12,8 +12,10 @@ export function resolveDefaultCollapsedGroupIds<T>({
   if (collapsedIds !== null) return collapsedIds
 
   const groupIds = new Set<string>()
+
   for (const item of items) {
     const group = groupBy(item)
+
     if (group?.label) groupIds.add(group.id)
   }
 

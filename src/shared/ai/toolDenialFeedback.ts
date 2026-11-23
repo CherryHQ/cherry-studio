@@ -9,6 +9,7 @@ const REJECTED_HEADER =
 /** Renders the rejection reason — or the no-reason wording — for the model-facing tool result. */
 export function withUserDenialFeedback(reason?: string): string {
   const said = reason?.trim()
+
   return said
     ? `${REJECTED_HEADER} To tell you how to proceed, the user said:\n${said}`
     : `${REJECTED_HEADER} Wait for the user's instructions instead of retrying it.`

@@ -44,6 +44,7 @@ export function chunkKnowledgeDocuments(
     separator: base.chunkSeparator,
     strategy: base.chunkStrategy
   }
+
   const parts: string[] = []
   const chunks: KnowledgeContentChunk[] = []
   let baseOffset = 0
@@ -53,6 +54,7 @@ export function chunkKnowledgeDocuments(
     if (index > 0) {
       baseOffset += DOCUMENT_SEPARATOR.length
     }
+
     for (const chunk of splitTextWithOffsets(document.text, options)) {
       chunks.push({
         unitIndex: unitIndex,
@@ -62,6 +64,7 @@ export function chunkKnowledgeDocuments(
       })
       unitIndex += 1
     }
+
     parts.push(document.text)
     baseOffset += document.text.length
   })

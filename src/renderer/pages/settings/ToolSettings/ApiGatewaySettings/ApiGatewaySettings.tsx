@@ -93,10 +93,13 @@ const ApiGatewaySettings: FC = () => {
     // Emptying the field is how you retype it, not how you unset the port — the
     // gateway always needs one. The field snaps back to the saved value on blur.
     if (value === null) return
+
     if (value < PORT_MIN || value > PORT_MAX) {
       toast.error(t('apiGateway.messages.portInvalid', { min: PORT_MIN, max: PORT_MAX }))
+
       return
     }
+
     void setApiGatewayConfig({ port: value })
   }
 

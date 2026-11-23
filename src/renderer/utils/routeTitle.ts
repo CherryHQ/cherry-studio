@@ -30,9 +30,11 @@ const routeTitleKeys = new Map([
  */
 function getBasePath(pathname: string): string {
   const segments = pathname.split('/').filter(Boolean)
+
   if (segments[0] === 'app' && segments.length >= 2) {
     return '/' + segments.slice(0, 2).join('/')
   }
+
   return '/' + (segments[0] || '')
 }
 
@@ -52,18 +54,21 @@ export function getDefaultRouteTitle(url: string): string {
 
   // Try exact match first
   const exactKey = routeTitleKeys.get(sanitizedUrl)
+
   if (exactKey) {
     return i18n.t(exactKey)
   }
 
   // Try matching base path
   const baseKey = routeTitleKeys.get(getBasePath(sanitizedUrl))
+
   if (baseKey) {
     return i18n.t(baseKey)
   }
 
   // Fallback to last segment of pathname
   const segments = sanitizedUrl.split('/').filter(Boolean)
+
   return segments.pop() || sanitizedUrl
 }
 
@@ -74,6 +79,7 @@ export function getRouteTitleKey(url: string): string | undefined {
   const sanitizedUrl = pathnameOf(url)
 
   const exactKey = routeTitleKeys.get(sanitizedUrl)
+
   if (exactKey) return exactKey
 
   return routeTitleKeys.get(getBasePath(sanitizedUrl))
@@ -85,6 +91,7 @@ export function getRouteTitleKey(url: string): string | undefined {
  */
 export function isTopLevelRoute(url: string): boolean {
   const parsedUrl = parseAppRouteUrl(url)
+
   return !!parsedUrl && !parsedUrl.search && !parsedUrl.hash && routeTitleKeys.has(parsedUrl.pathname)
 }
 
@@ -93,5 +100,6 @@ const PAGE_TITLED_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
 
 export function isPageTitledRoute(url: string): boolean {
   const pathname = pathnameOf(url)
+
   return PAGE_TITLED_ROUTE_BASE_PATHS.has(getBasePath(pathname))
 }

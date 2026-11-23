@@ -31,6 +31,7 @@ interface Params {
 
 const withDot = (ext: string | null | undefined): string => {
   if (!ext) return ''
+
   return ext.startsWith('.') ? ext : `.${ext}`
 }
 
@@ -43,6 +44,7 @@ const withDot = (ext: string | null | undefined): string => {
 async function entryStillExists(id: FileEntryId): Promise<boolean> {
   try {
     await window.api.file.getPhysicalPath({ id })
+
     return true
   } catch {
     return false
@@ -120,9 +122,11 @@ export function usePaintingComposerInputFiles({
     unseededEntriesRef.current = []
 
     const entries = inputFilesRef.current
+
     if (entries.length === 0) {
       entryCacheRef.current = new Map()
       setFiles([])
+
       return
     }
 
@@ -131,6 +135,7 @@ export function usePaintingComposerInputFiles({
       const cache = new Map<string, FileEntry>()
       const attachments: ComposerAttachment[] = []
       const unseeded: FileEntry[] = []
+
       for (const entry of entries) {
         try {
           const path = await window.api.file.getPhysicalPath({ id: entry.id })
@@ -150,6 +155,7 @@ export function usePaintingComposerInputFiles({
           unseeded.push(entry)
         }
       }
+
       if (draftEpochRef.current !== epoch) return
       entryCacheRef.current = cache
       unseededEntriesRef.current = unseeded
@@ -169,6 +175,7 @@ export function usePaintingComposerInputFiles({
     lastProviderIdRef.current = providerId
 
     const droppedImageSupport = lastCapabilityRef.current === 'accept' && inputCapability === 'reject'
+
     // 'unknown' (catalog still loading) carries the last resolved capability forward,
     // so a load blip between two edit models never looks like a support drop.
     if (inputCapability !== 'unknown') lastCapabilityRef.current = inputCapability
@@ -190,8 +197,10 @@ export function usePaintingComposerInputFiles({
     const cache = entryCacheRef.current
     const entries: FileEntry[] = []
     const failedSourceIds: string[] = []
+
     for (const file of filesRef.current) {
       const cached = cache.get(file.fileTokenSourceId)
+
       // A cached id is not proof the row still exists. Materialized entries are
       // `delete_when_unreferenced`, and any send that ends before `generate`
       // persists the painting refs leaves them zero-referenced — an aborted
@@ -204,18 +213,21 @@ export function usePaintingComposerInputFiles({
         entries.push(cached)
         continue
       }
+
       if (cached) {
         cache.delete(file.fileTokenSourceId)
         logger.info('input entry was reclaimed since it was cached; re-importing', {
           entryId: cached.id
         })
       }
+
       try {
         const entry = await window.api.file.createInternalEntry({
           source: 'path',
           path: AbsoluteFilePathSchema.parse(file.path),
           cleanupPolicy: 'delete_when_unreferenced'
         })
+
         cache.set(file.fileTokenSourceId, entry)
         entries.push(entry)
       } catch (error) {
@@ -241,6 +253,7 @@ export function usePaintingComposerInputFiles({
     // failure is not a promote failure — those entries already exist and stay
     // complete.
     const preserved = unseededEntriesRef.current
+
     return {
       entries: preserved.length ? [...entries, ...preserved] : entries,
       complete: failedSourceIds.length === 0

@@ -55,15 +55,18 @@ export function usePaintingList({
 
   const saveCurrent = useCallback(async () => {
     const current = paintingRef.current
+
     if (!current.persistedAt) {
       return true
     }
 
     try {
       await updatePainting(current.id, omit(paintingDataToUpdateDto(current), ['files']))
+
       return true
     } catch (error) {
       presentPaintingGenerateError(error)
+
       return false
     }
   }, [updatePainting])
@@ -71,7 +74,9 @@ export function usePaintingList({
   const select = useCallback(
     async (target: PaintingData) => {
       const current = paintingRef.current
+
       if (target.id === current.id) return
+
       if (!(await saveCurrent())) return
       setCurrentPainting(target)
     },
@@ -86,6 +91,7 @@ export function usePaintingList({
     if (savingRef.current) return
     savingRef.current = true
     setSaving(true)
+
     try {
       if (await saveCurrent()) resetDraft()
     } finally {
@@ -98,6 +104,7 @@ export function usePaintingList({
     (deletedId: string) => {
       const currentItems = historyItemsRef.current
       const deletedIndex = currentItems.findIndex((item) => item.id === deletedId)
+
       const nextPainting =
         deletedIndex >= 0
           ? (currentItems[deletedIndex + 1] ?? currentItems[deletedIndex - 1])
@@ -105,8 +112,10 @@ export function usePaintingList({
 
       if (nextPainting) {
         setCurrentPainting(nextPainting)
+
         return
       }
+
       resetDraft()
     },
     [resetDraft, setCurrentPainting]
@@ -115,6 +124,7 @@ export function usePaintingList({
   const remove = useCallback(
     async (target: PaintingData) => {
       cancelGeneration(target.id)
+
       try {
         await deletePainting(target.id)
       } catch (error) {
@@ -122,24 +132,31 @@ export function usePaintingList({
           if (target.id === paintingRef.current.id) {
             selectNextAfterDelete(target.id)
           }
+
           try {
             await refresh()
           } catch (refreshError) {
             logger.warn('Failed to refresh paintings after stale deletion', refreshError as Error)
           }
+
           toast.info(t('recycle_bin.already_moved'))
+
           return
         }
+
         // A rejected DELETE (SQLITE_BUSY / FK / IPC) must surface like the
         // sibling write paths — otherwise the row silently reappears on the
         // next refresh with no toast or log.
         logger.error('Failed to delete painting', error as Error)
         presentPaintingGenerateError(error)
+
         return
       }
+
       if (target.id === paintingRef.current.id) {
         selectNextAfterDelete(target.id)
       }
+
       try {
         await refresh()
       } catch (error) {
@@ -153,18 +170,22 @@ export function usePaintingList({
             await restorePainting(target.id)
           } catch (error) {
             if (!isDataApiNotFoundError(error)) throw error
+
             try {
               await refresh()
             } catch (refreshError) {
               logger.warn('Failed to refresh paintings after restore', refreshError as Error)
             }
+
             try {
               await dataApiService.get(`/paintings/${target.id}`)
+
               return
             } catch {
               throw error
             }
           }
+
           try {
             await refresh()
           } catch (error) {

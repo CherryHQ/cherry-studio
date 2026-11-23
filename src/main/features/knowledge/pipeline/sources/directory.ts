@@ -95,6 +95,7 @@ async function expandDirectoryNode(
     // which is also what brands it for `copyFileIntoKnowledgeBaseAt`.
     const materialPath = `${pathPrefix}/${subtreePath}`
     assertSafeKnowledgeRelativePath(materialPath)
+
     // Thread the abort signal so a hung single-file copy can be interrupted, and allow
     // overwrite so a retry after a mid-scan abort re-copies over its own leftover files
     // instead of failing on the pre-existing dest (see prepareRoot retry idempotency).
@@ -102,6 +103,7 @@ async function expandDirectoryNode(
       signal,
       overwrite: true
     })
+
     signal.throwIfAborted()
     onFileCopied()
 
@@ -118,6 +120,7 @@ async function expandDirectoryNode(
 
   for (const child of node.children ?? []) {
     const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied)
+
     if (expandedChild) {
       children.push(expandedChild)
     }
@@ -155,12 +158,15 @@ export function chooseDirectoryPathPrefix(owner: KnowledgeItem, reservedTopLevel
   const resolvedPath = path.resolve(owner.data.source)
   const rootName = path.parse(resolvedPath).root.replace(/[:\\/]+/g, '')
   const sourceName = path.basename(resolvedPath) || rootName || 'root'
+
   const pathPrefix = nextFreeKnowledgeRelativePath(
     sourceName,
     (candidate) => !reservedTopLevelNames.has(candidate),
     false // a directory basename is not a filename — keep any trailing ".ext" intact
   )
+
   assertSafeKnowledgeRelativePath(pathPrefix)
+
   return pathPrefix
 }
 
@@ -189,9 +195,11 @@ export async function expandDirectoryOwnerToTree(
   const expandedChildren: ExpandedDirectoryNode[] = []
   const totalFiles = countSupportedFiles(children)
   let copiedFiles = 0
+
   if (totalFiles > 0) {
     onCopyProgress(0)
   }
+
   const onFileCopied = () => {
     copiedFiles += 1
     onCopyProgress(Math.round((copiedFiles / totalFiles) * 100))
@@ -199,6 +207,7 @@ export async function expandDirectoryOwnerToTree(
 
   for (const child of children) {
     const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied)
+
     if (expandedChild) {
       expandedChildren.push(expandedChild)
     }
@@ -209,6 +218,7 @@ export async function expandDirectoryOwnerToTree(
 
 function countSupportedFiles(nodes: DirectoryEntryNode[]): number {
   let count = 0
+
   for (const node of nodes) {
     if (node.type === 'file') {
       if (KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
@@ -218,5 +228,6 @@ function countSupportedFiles(nodes: DirectoryEntryNode[]): number {
       count += countSupportedFiles(node.children ?? [])
     }
   }
+
   return count
 }

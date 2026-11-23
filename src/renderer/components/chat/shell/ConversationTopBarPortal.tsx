@@ -16,6 +16,7 @@ const ConversationTopBarPortalContext = createContext<ConversationTopBarPortalCo
 export function ConversationTopBarPortalProvider({ children }: { children: ReactNode }) {
   const { iconOnly, containerRef } = useOverflowIconOnly()
   const [target, setPortalTarget] = useState<HTMLDivElement | null>(null)
+
   const setTarget = useCallback(
     (nextTarget: HTMLDivElement | null) => {
       containerRef(nextTarget)
@@ -23,6 +24,7 @@ export function ConversationTopBarPortalProvider({ children }: { children: React
     },
     [containerRef]
   )
+
   const value = useMemo(() => ({ iconOnly, target, setTarget }), [iconOnly, setTarget, target])
 
   return <ConversationTopBarPortalContext value={value}>{children}</ConversationTopBarPortalContext>
@@ -49,6 +51,7 @@ export function ConversationTopBarPortal({ children }: { children: ReactNode }) 
   const composerOverridden = useActiveComposerOverride() !== null
 
   if (!context) return children
+
   if (!context.target || composerOverridden) return null
 
   return createPortal(children, context.target)
@@ -56,5 +59,6 @@ export function ConversationTopBarPortal({ children }: { children: ReactNode }) 
 
 export function useConversationTopBarPortalLayout() {
   const context = use(ConversationTopBarPortalContext)
+
   return { available: context !== undefined, iconOnly: context?.iconOnly ?? false }
 }

@@ -67,6 +67,7 @@ interface ComposerToolRuntimeBootstrapProps {
 }
 
 type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
+
 type AnyToolRenderContext = ToolRenderContext<readonly ToolStateKey[], readonly ToolActionKey[]>
 
 interface ComposerToolRuntimeEntryProps extends ComposerToolRuntimeBootstrapProps {
@@ -92,11 +93,14 @@ const ComposerToolRuntimeEntry = ({
 }: ComposerToolRuntimeEntryProps) => {
   const context = useMemo<AnyToolRenderContext>(() => {
     const state: Partial<AnyToolRenderContext['state']> = {}
+
     for (const key of tool.dependencies?.state ?? []) Object.assign(state, { [key]: toolState[key] })
 
     const actions: Partial<AnyToolRenderContext['actions']> = {}
+
     for (const key of tool.dependencies?.actions ?? []) {
       const action = toolActions[key]
+
       if (action) Object.assign(actions, { [key]: action })
     }
 
@@ -114,10 +118,12 @@ const ComposerToolRuntimeEntry = ({
 
   useEffect(() => {
     if (!tool.composer?.menuItems) return
+
     return toolsRegistry.registerLaunchers(tool.key, tool.composer.menuItems.createItems(context))
   }, [context, tool, toolsRegistry])
 
   const Runtime = tool.composer?.runtime
+
   return Runtime ? <Runtime context={context} /> : null
 }
 
@@ -138,6 +144,7 @@ const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previou
   for (const key of next.tool.dependencies?.state ?? []) {
     if (!Object.is(previous.toolState[key], next.toolState[key])) return false
   }
+
   for (const key of next.tool.dependencies?.actions ?? []) {
     if (!Object.is(previous.toolActions[key], next.toolActions[key])) return false
   }
@@ -148,8 +155,10 @@ const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previou
 export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
   const toolState = useComposerToolProviderState()
+
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
     useComposerToolProviderDispatch()
+
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
 
   const toolActions = useMemo<ToolActionMap>(
@@ -206,6 +215,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 
 export const useComposerToolState = useComposerToolProviderState
 export const useComposerToolDispatch = useComposerToolProviderDispatch
+
 export { ComposerToolDerivedStateProvider }
 
 export const ComposerToolFooterActionsSync = () => {
@@ -216,6 +226,7 @@ export const ComposerToolFooterActionsSync = () => {
   useLayoutEffect(() => {
     if (!symbol) {
       updateFooterActions([])
+
       return
     }
 
@@ -243,10 +254,13 @@ interface ReconcileContextInputs {
 const buildReconcileContext = (tool: AnyToolDefinition, inputs: ReconcileContextInputs): AnyToolRenderContext => {
   const deps = tool.dependencies
   const state: Partial<AnyToolRenderContext['state']> = {}
+
   for (const key of deps?.state ?? []) Object.assign(state, { [key]: inputs.toolState[key] })
   const actions: Partial<AnyToolRenderContext['actions']> = {}
+
   for (const key of deps?.actions ?? []) {
     const value = inputs.dispatch[key]
+
     if (value) Object.assign(actions, { [key]: value })
   }
 
@@ -290,9 +304,11 @@ export function useComposerTokenReconcile(
 
   return useCallback((draftTokens: readonly ComposerSerializedToken[]) => {
     const current = latestRef.current
+
     const tokenTools = getAllTools().filter(
       (tool) => tool.composer?.tokens && (!tool.visibleInScopes || tool.visibleInScopes.includes(current.scope))
     )
+
     for (const tool of tokenTools) {
       tool.composer?.tokens?.reconcile(draftTokens, buildReconcileContext(tool, current))
     }
@@ -307,6 +323,7 @@ const getSortedLaunchers = (
     if (launcher.hidden) return []
 
     const matchesSource = !source || !launcher.sources || launcher.sources.includes(source)
+
     const nestedRootPanelItems =
       source === 'root-panel'
         ? (launcher.submenu ?? []).filter((item) => !item.hidden && (!item.sources || item.sources.includes(source)))
@@ -391,6 +408,7 @@ export function useComposerPinnedTools() {
 export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuProps) => {
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const pinnedIds = useComposerPinnedTools()
+
   const activeLaunchers = useMemo(
     () =>
       getLaunchers('popover').filter(
@@ -427,6 +445,7 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
 
 export const ComposerToolMenu = ({ unifiedPanelControl }: ComposerToolMenuProps) => {
   const { t } = useTranslation()
+
   if (!unifiedPanelControl?.available) return null
 
   return (

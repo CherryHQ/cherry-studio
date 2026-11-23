@@ -13,16 +13,19 @@ function getReleaseChannel(version, edition) {
   assertEdition(edition)
   const semver = require('semver')
   const prerelease = semver.prerelease(version)
+
   if (prerelease === null && !semver.valid(version)) {
     throw new Error(`Invalid release version: ${version}`)
   }
 
   const channel = prerelease === null ? 'latest' : String(prerelease[0])
+
   return edition === CHINA_EDITION ? `${channel}-cn` : channel
 }
 
 function getReleaseProductName(productName, edition) {
   assertEdition(edition)
+
   return edition === CHINA_EDITION ? 'Cherry Studio CN' : productName
 }
 
@@ -64,6 +67,7 @@ function getReleaseDownloadGroups({ edition, platform, productName, version }) {
 function getAllReleaseArtifacts({ edition, platform, productName, version }) {
   const downloadGroups = getReleaseDownloadGroups({ edition, platform, productName, version })
   const channel = getReleaseChannel(version, edition)
+
   const fileName = (architecture, label) =>
     downloadGroups
       .find((group) => group.architecture === architecture)
@@ -72,6 +76,7 @@ function getAllReleaseArtifacts({ edition, platform, productName, version }) {
   if (platform === 'windows') {
     const x64Setup = fileName('x64', 'Installer')
     const arm64Setup = fileName('arm64', 'Installer')
+
     return {
       files: [x64Setup, arm64Setup, fileName('x64', 'Portable'), fileName('arm64', 'Portable')],
       manifests: [{ file: `${channel}.yml`, urls: [x64Setup, arm64Setup] }]
@@ -81,6 +86,7 @@ function getAllReleaseArtifacts({ edition, platform, productName, version }) {
   if (platform === 'mac') {
     const x64Zip = fileName('x64', 'ZIP')
     const arm64Zip = fileName('arm64', 'ZIP')
+
     return {
       files: [
         x64Zip,
@@ -97,6 +103,7 @@ function getAllReleaseArtifacts({ edition, platform, productName, version }) {
   if (platform === 'linux') {
     const x64AppImage = fileName('x64', 'AppImage')
     const arm64AppImage = fileName('arm64', 'AppImage')
+
     return {
       files: [
         x64AppImage,
@@ -118,11 +125,14 @@ function getAllReleaseArtifacts({ edition, platform, productName, version }) {
 
 function getExpectedReleaseArtifacts({ architecture, ...options }) {
   const expected = getAllReleaseArtifacts(options)
+
   if (architecture === undefined) return expected
+
   if (!RELEASE_ARCHITECTURES.includes(architecture))
     throw new Error(`Unsupported release architecture: ${architecture}`)
   const group = getReleaseDownloadGroups(options).find((entry) => entry.architecture === architecture)
   const files = new Set(group.artifacts.flatMap(({ fileName }) => [fileName, `${fileName}.blockmap`]))
+
   return {
     files: expected.files.filter((file) => files.has(file)),
     manifests: expected.manifests

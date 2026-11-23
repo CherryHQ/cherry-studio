@@ -45,6 +45,7 @@ function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
   const { t } = useTranslation()
   const { onRequestOpen } = usePreviewHost()
   const canOpen = kind === 'unsupported' && onRequestOpen !== undefined
+
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
@@ -72,6 +73,7 @@ function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
 
 export function Preview({ locale = 'en-us', ...props }: PreviewProps) {
   const i18n = useMemo(() => createPreviewI18n(locale), [locale])
+
   return (
     <I18nextProvider i18n={i18n}>
       <PreviewSession {...props} />
@@ -93,12 +95,14 @@ function PreviewSession({
   onRequestOpen
 }: Omit<PreviewProps, 'locale'>) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
+
   const [session, setSession] = useState<{
     source: PreviewSource
     requestId: number
     document: PreviewDocument
     plugin: ReturnType<typeof resolvePreviewPlugin>
   } | null>(null)
+
   const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number } | null>(null)
   const closeRef = useRef<(() => void) | undefined>(undefined)
   const plugin = useMemo(() => resolvePreviewPlugin(source.name, source.mediaType), [source.name, source.mediaType])
@@ -106,13 +110,16 @@ function PreviewSession({
   const hasFailedRef = useRef(false)
   const callbacks = useRef({ onSelection, onDiagnostic, onError, onRequestOpen })
   callbacks.current = { onSelection, onDiagnostic, onError, onRequestOpen }
+
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Document opening, parsing and React rendering can fail with arbitrary values; normalize the terminal failure to PreviewError here.
   const reportFailure = useCallback((error: unknown) => {
     if (hasFailedRef.current) return
     hasFailedRef.current = true
     closeRef.current?.()
+
     const normalized =
       error instanceof PreviewError ? error : new PreviewError('load_error', 'Failed to load preview', { cause: error })
+
     callbacks.current.onDiagnostic?.({
       level: normalized.code === 'too_large' ? 'warn' : 'error',
       code: normalized.code,
@@ -122,16 +129,19 @@ function PreviewSession({
     })
     callbacks.current.onError?.(normalized)
   }, [])
+
   // Invalidate retained documents before child callbacks can run, including
   // Activity reconnections with unchanged props. Opening belongs to this request.
   const requestIdRef = useRef(0)
   useLayoutEffect(() => {
     requestIdRef.current += 1
+
     return () => {
       requestIdRef.current += 1
     }
   }, [source, refreshKey, plugin])
   const isCurrentSession = useCallback(() => session?.requestId === requestIdRef.current, [session])
+
   const failDocument = useCallback(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Format plugins and React ErrorBoundary forward raw failures; only the current document may report them.
     (error: unknown) => {
@@ -139,21 +149,26 @@ function PreviewSession({
     },
     [isCurrentSession, reportFailure]
   )
+
   const reportSelection = useCallback(
     (selection: PreviewSelection | null) => {
       if (isCurrentSession()) callbacks.current.onSelection?.(selection)
     },
     [isCurrentSession]
   )
+
   const reportDiagnostic = useCallback(
     (diagnostic: PreviewDiagnostic) => callbacks.current.onDiagnostic?.(diagnostic),
     []
   )
+
   const requestOpen = useCallback(
     (reason: 'unsupported' | 'too_large') => callbacks.current.onRequestOpen?.(reason),
     []
   )
+
   const hasOpenAction = onRequestOpen !== undefined
+
   const host = useMemo(
     () => ({
       root,
@@ -166,14 +181,17 @@ function PreviewSession({
     }),
     [root, resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument, isCurrentSession]
   )
+
   useEffect(() => {
     setFailure(null)
     hasFailedRef.current = false
+
     if (!plugin) return
     const requestId = requestIdRef.current
     const controller = new AbortController()
     let opened: PreviewDocument | null = null
     let closed = false
+
     const close = () => {
       if (!opened || closed) return
       closed = true
@@ -187,32 +205,40 @@ function PreviewSession({
         })
       )
     }
+
     closeRef.current = close
     void (async () => {
       try {
         opened = await source.open(controller.signal)
+
         if (controller.signal.aborted) {
           close()
+
           return
         }
+
         assertPreviewRange(opened.size, 0, opened.size)
         setSession({ source, requestId, document: opened, plugin })
       } catch (error) {
         close()
+
         if (controller.signal.aborted) return
         setFailure({ source, refreshKey })
         reportFailure(error)
       }
     })()
+
     return () => {
       controller.abort()
       close()
+
       if (closeRef.current === close) closeRef.current = undefined
     }
   }, [source, refreshKey, plugin, reportFailure])
 
   const ready = session?.source.id === source.id && session.plugin === plugin ? session : null
   const failed = failure?.source === source && failure.refreshKey === refreshKey
+
   const content = !Plugin ? (
     <PreviewState kind="unsupported" />
   ) : failed ? (

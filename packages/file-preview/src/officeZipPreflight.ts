@@ -7,6 +7,7 @@ const ZIP_UINT16_MAX = 0xffff
 const ZIP_UINT32_MAX = 0xffffffff
 
 const OFFICE_ZIP_MAX_ENTRIES = 4000
+
 // 64 MiB accepts real workbooks whose data lives in one large worksheet XML (40+ MiB sheet1.xml has been seen in a
 // 12 MB xlsx) while still bounding how far a single crafted part can inflate below the archive-wide total.
 const OFFICE_ZIP_MAX_ENTRY_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
@@ -31,6 +32,7 @@ function findEndOfCentralDirectory(view: DataView, label: string): number {
     if (view.getUint32(offset, true) !== ZIP_EOCD_SIGNATURE) continue
 
     const commentLength = view.getUint16(offset + 20, true)
+
     if (offset + ZIP_EOCD_MIN_BYTES + commentLength === view.byteLength) return offset
   }
 
@@ -82,6 +84,7 @@ function assertZipLimits(bytes: Uint8Array, label: string, limits: OfficeZipLimi
   }
 
   const centralDirectoryEnd = centralDirectoryOffset + centralDirectorySize
+
   if (centralDirectoryEnd > eocdOffset || centralDirectoryEnd < centralDirectoryOffset) {
     throw new Error(`${label} preview requires a valid ZIP central directory`)
   }
@@ -121,6 +124,7 @@ function assertZipLimits(bytes: Uint8Array, label: string, limits: OfficeZipLimi
     }
 
     totalUncompressedBytes += uncompressedBytes
+
     if (totalUncompressedBytes > limits.maxTotalUncompressedBytes) {
       throw new Error(
         `${label} preview supports ZIP archives up to ${limits.maxTotalUncompressedBytes} total uncompressed bytes`
@@ -128,6 +132,7 @@ function assertZipLimits(bytes: Uint8Array, label: string, limits: OfficeZipLimi
     }
 
     cursor += ZIP_CENTRAL_FILE_HEADER_BYTES + fileNameLength + extraFieldLength + commentLength
+
     if (cursor > centralDirectoryEnd) {
       throw new Error(`${label} preview requires a valid ZIP central directory`)
     }

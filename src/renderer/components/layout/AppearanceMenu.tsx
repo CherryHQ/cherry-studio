@@ -10,11 +10,13 @@ export function AppearanceMenu({ onRequestClose }: { onRequestClose?: () => void
   const { t } = useTranslation()
   const { settedTheme, setTheme } = useTheme()
   const { open, onOpenChange, initialFocusRef, triggerProps, contentProps } = useAccountSubmenu()
+
   const labels = {
     [ThemeMode.light]: t('settings.theme.light'),
     [ThemeMode.dark]: t('settings.theme.dark'),
     [ThemeMode.system]: t('settings.theme.system')
   }
+
   const icons = { [ThemeMode.light]: Sun, [ThemeMode.dark]: Moon, [ThemeMode.system]: Monitor }
   const CurrentThemeIcon = icons[settedTheme]
   const options = [ThemeMode.light, ThemeMode.dark, ThemeMode.system]
@@ -47,6 +49,7 @@ export function AppearanceMenu({ onRequestClose }: { onRequestClose?: () => void
         <MenuList role="group" aria-label={t('settings.appearance.title')} className="gap-0.5">
           {options.map((value) => {
             const Icon = icons[value]
+
             return (
               <MenuItem
                 key={value}

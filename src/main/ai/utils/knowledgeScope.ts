@@ -24,15 +24,18 @@ export function resolveKnowledgeBaseScope(
   selectedIds: readonly string[] | null | undefined
 ): string[] {
   if (!configuredIds?.length) return canonicalize(selectedIds)
+
   if (!selectedIds?.length) return canonicalize(configuredIds)
 
   const configured = new Set(configuredIds)
   const narrowed = selectedIds.filter((id) => configured.has(id))
+
   if (narrowed.length !== selectedIds.length) {
     logger.warn('Dropped selected knowledge bases outside the static binding', {
       outOfScopeIds: selectedIds.filter((id) => !configured.has(id))
     })
   }
+
   return canonicalize(narrowed.length ? narrowed : configuredIds)
 }
 

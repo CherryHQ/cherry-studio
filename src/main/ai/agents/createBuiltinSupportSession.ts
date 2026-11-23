@@ -13,6 +13,7 @@ import { loadBuiltinAgentEnsureInput } from './ensureBuiltinAgent'
 export function createBuiltinSupportSession(): AgentSessionEntity {
   const supportInput = loadBuiltinAgentEnsureInput(BUILTIN_AGENT_ROLE.SUPPORT)
   const sessionId = uuidv4()
+
   const ensured = application.get('DbService').withWriteTx((tx) => {
     const result = agentService.ensureBuiltinAgentTx(tx, supportInput)
     agentSessionService.createTx(tx, sessionId, {
@@ -20,12 +21,15 @@ export function createBuiltinSupportSession(): AgentSessionEntity {
       name: '',
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
     })
+
     return result
   })
 
   if (ensured.created || ensured.restored) {
     agentService.emitAgentCreated(ensured.agent)
   }
+
   agentSessionService.notifyReadModelChange([sessionId], 'membership')
+
   return agentSessionService.getById(sessionId)
 }

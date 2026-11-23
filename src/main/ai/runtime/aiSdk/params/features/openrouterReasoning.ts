@@ -10,10 +10,12 @@ import { definePlugin } from '@cherrystudio/ai-core'
  */
 function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
   const REDACTED_BLOCK = '[REDACTED]'
+
   return {
     specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate }) => {
       const { content, ...rest } = await doGenerate()
+
       const modifiedContent = content.map((part) => {
         if (part.type === 'reasoning' && part.text.includes(REDACTED_BLOCK)) {
           return {
@@ -21,12 +23,15 @@ function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
             text: part.text.replace(REDACTED_BLOCK, '')
           }
         }
+
         return part
       })
+
       return { content: modifiedContent, ...rest }
     },
     wrapStream: async ({ doStream }) => {
       const { stream, ...rest } = await doStream()
+
       return {
         stream: stream.pipeThrough(
           new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({

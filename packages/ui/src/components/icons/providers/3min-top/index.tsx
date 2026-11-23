@@ -6,7 +6,9 @@ import { MinTop3Light } from './light'
 
 const MinTop3 = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'light') return <MinTop3Light {...props} className={className} />
+
   if (variant === 'dark') return <MinTop3Dark {...props} className={className} />
+
   return (
     <>
       <MinTop3Light className={cn('dark:hidden', className)} {...props} />

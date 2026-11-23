@@ -29,6 +29,7 @@ const ANTHROPIC_OFFICIAL_HOST = 'api.anthropic.com'
  */
 export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
   if (!baseUrl) return true
+
   try {
     return new URL(baseUrl).hostname === ANTHROPIC_OFFICIAL_HOST
   } catch {
@@ -42,8 +43,12 @@ export function with1mSuffix(
   isAnthropicNative: boolean
 ): string {
   if (!modelId) return ''
+
   if (isAnthropicNative) return modelId
+
   if (/\[1m\]$/i.test(modelId)) return modelId
+
   if (!contextWindow || contextWindow < ONE_MILLION) return modelId
+
   return `${modelId}[1m]`
 }

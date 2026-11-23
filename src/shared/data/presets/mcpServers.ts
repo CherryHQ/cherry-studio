@@ -20,8 +20,11 @@ const freezePresets = (presets: McpServerPreset[]): readonly Readonly<McpServerP
   Object.freeze(
     presets.map((preset) => {
       if (preset.env) Object.freeze(preset.env)
+
       if (preset.headers) Object.freeze(preset.headers)
+
       if (preset.args) Object.freeze(preset.args)
+
       return Object.freeze(preset)
     })
   )

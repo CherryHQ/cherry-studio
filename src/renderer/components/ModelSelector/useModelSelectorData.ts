@@ -24,6 +24,7 @@ import type {
 import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
+
 function getModelSearchScore(keywords: string, model: Model, provider: Provider, providerDisplayName: string) {
   return getSearchMatchScore(keywords, [
     { value: model.name, weight: 0, allowAbbreviation: true },
@@ -57,10 +58,13 @@ function getModelIdentifier(model: Model) {
 
 function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: readonly string[]) {
   const providerById = new Map(providers.map((provider) => [provider.id, provider]))
+
   const prioritized = [...new Set(prioritizedProviderIds)].flatMap((providerId) => {
     const provider = providerById.get(providerId)
+
     return provider ? [provider] : []
   })
+
   const prioritizedIds = new Set(prioritized.map((provider) => provider.id))
   const remaining = providers.filter((provider) => !prioritizedIds.has(provider.id))
 
@@ -87,12 +91,14 @@ export function useModelSelectorData({
     error: providersError,
     refetch: refetchProviders
   } = useProviders({ enabled: true }, { enabled })
+
   const {
     models,
     isLoading: isModelsLoading,
     error: modelsError,
     refetch: refetchModels
   } = useModels({ enabled: true }, { fetchEnabled: enabled })
+
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -101,6 +107,7 @@ export function useModelSelectorData({
     refetch: refetchPinnedModels,
     togglePin
   } = usePins('model', { enabled })
+
   const getModelPresentation = useCallback(
     (model: Model, provider: Provider) =>
       composition?.getModelPresentation?.(model, provider) ?? {
@@ -108,17 +115,21 @@ export function useModelSelectorData({
       },
     [composition]
   )
+
   const getModelTags = useCallback(
     (model: Model, provider?: Provider) =>
       provider ? getModelPresentation(model, provider).tags : getModelDisplayTags(model),
     [getModelPresentation]
   )
+
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter(getModelTags)
+
   const getDisplayGroupId = useCallback(
     (providerId: string) =>
       composition?.providerGroups?.find((group) => group.providerIds.includes(providerId))?.id ?? providerId,
     [composition]
   )
+
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
   const baseModelFilter = useCallback(
@@ -143,6 +154,7 @@ export function useModelSelectorData({
 
     for (const model of models) {
       const provider = providerById.get(model.providerId)
+
       if (!provider || !baseModelFilter(model, provider)) {
         continue
       }
@@ -152,6 +164,7 @@ export function useModelSelectorData({
       }
 
       const existingModels = grouped.get(model.providerId)
+
       if (existingModels) {
         existingModels.push(model)
       } else {
@@ -164,6 +177,7 @@ export function useModelSelectorData({
 
   const availableTags = useMemo(() => {
     const providerIds = new Set(sortedProviders.map((provider) => provider.id))
+
     const providerByIdHasAction = (action: ModelSelectorActionItem) =>
       providerIds.has(action.providerId) ||
       Boolean(
@@ -172,6 +186,7 @@ export function useModelSelectorData({
           (group) => group.id === action.groupId && group.providerIds.some((id) => providerIds.has(id))
         )
       )
+
     if (modelsByProvider.size === 0 && !composition?.actions?.length) return EMPTY_TAGS
 
     return MODEL_SELECTOR_TAGS.filter(
@@ -190,6 +205,7 @@ export function useModelSelectorData({
 
   const selectableModelsById = useMemo(() => {
     const entries = [...modelsByProvider.values()].flat().map((model) => [model.id, model] as const)
+
     return new Map(entries)
   }, [modelsByProvider])
 
@@ -217,9 +233,11 @@ export function useModelSelectorData({
 
       if (searchText.trim()) {
         const providerDisplayName = getProviderDisplayName(provider)
+
         return sortBy(
           providerModels.flatMap((model) => {
             const searchScore = getModelSearchScore(searchText, model, provider, providerDisplayName)
+
             return searchScore === null ? [] : [{ model, searchScore }]
           }),
           ['searchScore', 'model.group', 'model.name']
@@ -260,14 +278,17 @@ export function useModelSelectorData({
     const items: FlatListItem[] = []
     const pinnedIdSet = new Set(pinnedIds)
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
+
     const finalModelFilter = (model: Model) => {
       const provider = providerById.get(model.providerId)
+
       return (
         (!showTagFilter || tagFilter(model, provider)) &&
         baseModelFilter(model, provider) &&
         (visibilityFilter?.(model, provider) ?? true)
       )
     }
+
     // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
     // result so display-group duplicate-name detection and the list below share one pass.
     const tagFilteredModelsByProvider = new Map<string, Model[]>(
@@ -276,6 +297,7 @@ export function useModelSelectorData({
         searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model, provider)))
       ])
     )
+
     const displayGroupsById = new Map<
       string,
       {
@@ -285,6 +307,7 @@ export function useModelSelectorData({
         actions: ModelSelectorActionItem[]
       }
     >()
+
     for (const provider of sortedProviders) {
       const providerModels = tagFilteredModelsByProvider.get(provider.id) ?? []
       const groupId = getDisplayGroupId(provider.id)
@@ -297,12 +320,16 @@ export function useModelSelectorData({
         displayGroupsById.set(groupId, { id: groupId, provider, models: modelsWithProvider, actions: [] })
       }
     }
+
     for (const action of composition?.actions ?? []) {
       if (!(actionVisibilityFilter?.(action) ?? true)) continue
+
       if (showTagFilter && !selectedTags.every((tag) => action.tags.includes(tag))) continue
       const groupId = action.groupId ?? getDisplayGroupId(action.providerId)
       const provider = providerById.get(action.providerId) ?? displayGroupsById.get(groupId)?.provider
+
       if (!provider) continue
+
       if (
         searchText.trim() &&
         getSearchMatchScore(searchText, [
@@ -317,7 +344,9 @@ export function useModelSelectorData({
         continue
       displayGroupsById.get(groupId)?.actions.push(action)
     }
+
     const displayGroups = [...displayGroupsById.values()]
+
     const duplicateModelNamesByDisplayGroup = new Map(
       displayGroups.map((group) => [group.id, getDuplicateModelNames(group.models.map(({ model }) => model))])
     )
@@ -326,6 +355,7 @@ export function useModelSelectorData({
       const pinnedItems = pinnedIds.flatMap((modelId) => {
         const model = selectableModelsById.get(modelId)
         const provider = model ? providerById.get(model.providerId) : undefined
+
         if (!model || !provider || !finalModelFilter(model)) {
           return []
         }
@@ -355,6 +385,7 @@ export function useModelSelectorData({
       const visibleModels = group.models.filter(
         ({ model }) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
       )
+
       const modelRows = visibleModels.map(({ model, provider }) =>
         createModelItem(
           model,
@@ -364,7 +395,9 @@ export function useModelSelectorData({
           duplicateModelNamesByDisplayGroup.get(group.id)?.has(model.name) ?? false
         )
       )
+
       const rows: ModelSelectorNavigableItem[] = [...modelRows, ...group.actions]
+
       if (rows.length === 0) return
       items.push({
         key: `provider-${group.id}`,
@@ -384,6 +417,7 @@ export function useModelSelectorData({
     })
 
     const selectableModelItems = items.filter((item): item is ModelSelectorModelItem => item.type === 'model')
+
     return {
       listItems: items,
       modelItems: selectableModelItems,

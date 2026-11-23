@@ -56,13 +56,16 @@ const ALLOWED_HIDDEN_DIRS = new Set(['.agents', '.claude', '.gemini'])
 export async function findSkillMdPath(dirPath: string): Promise<string | null> {
   for (const variant of SKILL_MD_VARIANTS) {
     const skillMdPath = path.join(dirPath, variant)
+
     try {
       await fs.promises.stat(skillMdPath)
+
       return skillMdPath
     } catch {
       // Try next variant
     }
   }
+
   return null
 }
 
@@ -74,16 +77,19 @@ async function isDirectoryOrSymlinkToDirectory(entry: fs.Dirent, parentDir: stri
   if (entry.isDirectory()) {
     return true
   }
+
   if (entry.isSymbolicLink()) {
     try {
       const fullPath = path.join(parentDir, entry.name)
       const stats = await fs.promises.stat(fullPath) // stat follows symlinks
+
       return stats.isDirectory()
     } catch {
       // Broken symlink or permission error
       return false
     }
   }
+
   return false
 }
 
@@ -99,12 +105,14 @@ function toStringArray(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
     return value.filter(isString)
   }
+
   if (isString(value)) {
     return value
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean)
   }
+
   return undefined
 }
 
@@ -116,8 +124,10 @@ function toString(value: unknown): string | undefined {
 // oxlint-disable anti-slop/no-unknown-returns, anti-slop/no-known-value-widening -- Recovered YAML values remain unvalidated; metadata readers narrow each selected field.
 function parseLooseValue(raw: string): unknown {
   if (!raw) return ''
+
   try {
     const parsed: unknown = parse(raw, YAML_PARSE_OPTIONS)
+
     return parsed === undefined ? raw : parsed
   } catch {
     return raw
@@ -127,17 +137,20 @@ function parseLooseValue(raw: string): unknown {
 
 function parseFrontmatterLoose(content: string) {
   const lines = content.split(/\r?\n/)
+
   if (lines.length === 0 || lines[0].trim() !== '---') {
     return {}
   }
 
   let endIndex = -1
+
   for (let i = 1; i < lines.length; i += 1) {
     if (lines[i].trim() === '---') {
       endIndex = i
       break
     }
   }
+
   if (endIndex === -1) {
     return {}
   }
@@ -157,22 +170,27 @@ function parseFrontmatterLoose(content: string) {
 
   for (const line of frontmatterLines) {
     const keyMatch = line.match(/^([A-Za-z0-9_-]+)\s*:(.*)$/)
+
     if (keyMatch) {
       flush()
       currentKey = keyMatch[1]
       const rest = keyMatch[2].trimStart()
+
       if (rest.length > 0) {
         data.set(currentKey, parseLooseValue(rest))
         currentKey = null
       }
+
       continue
     }
+
     if (currentKey) {
       buffer.push(line)
     }
   }
 
   flush()
+
   return Object.fromEntries(data)
 }
 
@@ -182,6 +200,7 @@ function recoverFrontmatter(content: string, context: FrontmatterContext) {
     ...context,
     keys: Object.keys(data)
   })
+
   return data
 }
 
@@ -204,6 +223,7 @@ export async function parsePluginMetadata(
 
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- YAML and JSON fields are unvalidated metadata; readers check each selected field.
   let data: Record<string, unknown> = {}
+
   try {
     const parsed = matter(content, FRONTMATTER_OPTIONS)
     data = parsed.data ?? {}
@@ -284,6 +304,7 @@ export async function findAllSkillDirectories(
       folderPath: dirPath,
       sourcePath: relativePath
     })
+
     return results
   }
 
@@ -292,9 +313,12 @@ export async function findAllSkillDirectories(
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
 
     const isRoot = path.relative(basePath, dirPath) === ''
+
     for (const entry of entries) {
       if (entry.name === 'node_modules') continue
+
       if (entry.name.startsWith('.') && !(isRoot && ALLOWED_HIDDEN_DIRS.has(entry.name))) continue
+
       // Support both directories and symlinks pointing to directories
       if (await isDirectoryOrSymlinkToDirectory(entry, dirPath)) {
         const subDirPath = path.join(dirPath, entry.name)
@@ -348,6 +372,7 @@ export async function parseSkillMetadata(
 
   // Read SKILL.md content
   let content: string
+
   try {
     content = await fs.promises.readFile(skillMdPath, 'utf8')
   } catch (error) {
@@ -359,6 +384,7 @@ export async function parseSkillMetadata(
 
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- YAML and JSON fields are unvalidated metadata; readers check each selected field.
   let data: Record<string, unknown> = {}
+
   try {
     const parsed = matter(content, FRONTMATTER_OPTIONS)
     data = parsed.data ?? {}
@@ -380,6 +406,7 @@ export async function parseSkillMetadata(
 
   // Get total folder size
   let folderSize = 0
+
   if (options.calculateSize !== false) {
     try {
       folderSize = await getDirectorySize(skillFolderPath)
@@ -410,6 +437,7 @@ export async function parseSkillMetadata(
     typeof data.metadata === 'object' && data.metadata !== null && !Array.isArray(data.metadata)
       ? (data.metadata as Record<string, unknown>) // oxlint-disable-line anti-slop/no-unsafe-dictionary-type -- Nested YAML/JSON metadata is unvalidated; version is checked as a string.
       : undefined
+
   const version = toString(data.version) ?? toString(nestedMetadata?.version)
   const author = toString(data.author)
 

@@ -59,7 +59,9 @@ export class ChannelRuntime {
       name: `channel:${channelId}`,
       getSnapshot: () => {
         const desired = this.hooks.readDesired(channelId)
+
         if (desired.kind === 'connected') this.lastAgentId = desired.agentId
+
         return { ...desired, revision: this.requestedRevision }
       },
       isSettled: (target) => this.isSettled(target),
@@ -80,11 +82,13 @@ export class ChannelRuntime {
     this.clearConnectRetry()
     this.connectRetryDelayMs = CONNECT_RETRY_INITIAL_DELAY_MS
     this.requestedRevision++
+
     if (this.ownership && !this.ownership.quarantined) {
       this.ownership.quarantined = true
       this.ownership.adapter.abortConnect()
       this.hooks.onStatus({ channelId: this.channelId, connected: false })
     }
+
     this.reconciler.request()
   }
 
@@ -96,16 +100,19 @@ export class ChannelRuntime {
   async flush(): Promise<void> {
     await this.reconciler.flush()
     const error = this.reconciler.getLastError()
+
     if (error) throw error
   }
 
   waitForQrUrl(agentId: string, timeoutMs: number): Promise<string> {
     this.cancelQrWaiter(new Error('QR wait superseded'))
+
     return new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.qrWaiter?.timer === timer) this.qrWaiter = undefined
         reject(new Error('Timed out waiting for QR code'))
       }, timeoutMs)
+
       timer.unref?.()
       this.qrWaiter = { agentId, resolve, reject, timer }
     })
@@ -113,6 +120,7 @@ export class ChannelRuntime {
 
   trackDynamicChatId(adapter: ChannelAdapter, chatId: string): void {
     const ownership = this.ownership
+
     if (!ownership || ownership.adapter !== adapter || !this.isCurrent(ownership)) return
     this.trackChatId(ownership, chatId)
   }
@@ -122,6 +130,7 @@ export class ChannelRuntime {
     this.cancelQrWaiter(new Error('Channel runtime disposed'))
     this.reconciler.dispose()
     const ownership = this.ownership
+
     if (ownership) {
       ownership.quarantined = true
       ownership.adapter.abortConnect()
@@ -131,23 +140,29 @@ export class ChannelRuntime {
 
   private isSettled(target: ChannelRuntimeTarget): boolean {
     if (this.appliedRevision !== target.revision) return false
+
     if (target.kind === 'disconnected') return this.ownership === undefined
+
     return this.ownership?.revision === target.revision && !this.ownership.quarantined
   }
 
   private async apply(target: ChannelRuntimeTarget): Promise<void> {
     await this.disconnectCurrent()
+
     if (target.revision !== this.requestedRevision) return
 
     if (target.kind === 'disconnected') {
       this.appliedRevision = target.revision
+
       return
     }
 
     const adapter = await this.hooks.loadAdapter(target.channel, target.agentId)
+
     if (target.revision !== this.requestedRevision) {
       adapter.abortConnect()
       await adapter.disconnect().catch(() => undefined)
+
       return
     }
 
@@ -157,6 +172,7 @@ export class ChannelRuntime {
       dynamicChatIds: adapter.notifyChatIds.length === 0,
       quarantined: false
     }
+
     if (ownership.dynamicChatIds) adapter.notifyChatIds = [...(target.channel.activeChatIds ?? [])]
     this.bindAdapterEvents(ownership)
     this.ownership = ownership
@@ -167,8 +183,10 @@ export class ChannelRuntime {
     } catch (error) {
       if (ownership.quarantined || this.ownership !== ownership) {
         await this.disconnectOwnership(ownership)
+
         return
       }
+
       await this.disconnectOwnership(ownership)
       this.hooks.onStatus({
         channelId: this.channelId,
@@ -181,8 +199,10 @@ export class ChannelRuntime {
 
     if (ownership.quarantined || this.ownership !== ownership || target.revision !== this.requestedRevision) {
       await this.disconnectOwnership(ownership)
+
       return
     }
+
     this.appliedRevision = target.revision
     this.connectRetryDelayMs = CONNECT_RETRY_INITIAL_DELAY_MS
   }
@@ -194,6 +214,7 @@ export class ChannelRuntime {
     this.connectRetryDelayMs = Math.min(delayMs * 2, CONNECT_RETRY_MAX_DELAY_MS)
     this.connectRetryTimer = setTimeout(() => {
       this.connectRetryTimer = null
+
       if (revision !== this.requestedRevision) return
       this.requestedRevision++
       this.reconciler.request()
@@ -220,6 +241,7 @@ export class ChannelRuntime {
     adapter.on('qr', (url) => {
       if (!this.isCurrent(ownership)) return
       const waiter = this.qrWaiter
+
       if (!waiter || waiter.agentId !== adapter.agentId) return
       clearTimeout(waiter.timer)
       this.qrWaiter = undefined
@@ -249,6 +271,7 @@ export class ChannelRuntime {
 
   private async disconnectCurrent(): Promise<void> {
     const ownership = this.ownership
+
     if (!ownership) return
     await this.disconnectOwnership(ownership)
   }
@@ -257,23 +280,27 @@ export class ChannelRuntime {
     ownership.quarantined = true
     ownership.adapter.abortConnect()
     let disconnected = false
+
     try {
       await ownership.adapter.disconnect()
       disconnected = true
     } catch (error) {
       this.hooks.onError(this.channelId, error)
+
       if (!suppressErrors) throw error
     } finally {
       if (disconnected || suppressErrors) {
         if (this.ownership === ownership) this.ownership = undefined
         ownership.adapter.removeAllListeners()
       }
+
       this.hooks.onStatus({ channelId: this.channelId, connected: false })
     }
   }
 
   private cancelQrWaiter(error: Error): void {
     const waiter = this.qrWaiter
+
     if (!waiter) return
     clearTimeout(waiter.timer)
     this.qrWaiter = undefined

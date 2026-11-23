@@ -22,16 +22,19 @@ const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 export function PrivacyPolicyUpdateGate() {
   const { t } = useTranslation()
   const [, setPolicyVersion] = usePreference('app.privacy.policy_version', PESSIMISTIC_PREFERENCE_OPTIONS)
+
   const [, setDataCollectionEnabled] = usePreference(
     'app.privacy.data_collection.enabled',
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
+
   const [showPolicy, setShowPolicy] = useState(false)
   const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
   const open = useIsPrivacyUpdateRequired()
 
   const acknowledge = useCallback(async () => {
     setIsUpdatingPrivacy(true)
+
     try {
       await setPolicyVersion(LATEST_PRIVACY_POLICY_VERSION)
     } catch {
@@ -43,6 +46,7 @@ export function PrivacyPolicyUpdateGate() {
 
   const continueWithoutConsent = useCallback(async () => {
     setIsUpdatingPrivacy(true)
+
     try {
       await setDataCollectionEnabled(false)
       setShowPolicy(false)

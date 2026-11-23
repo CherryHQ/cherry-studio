@@ -62,9 +62,11 @@ function resolveUserAgent(headers: HeadersInit): string | null {
   if (headers instanceof Headers) return headers.get('user-agent')
   const entries = Array.isArray(headers) ? headers : Object.entries(headers)
   let userAgent: string | null = null
+
   for (const [key, value] of entries) {
     if (key.toLowerCase() === 'user-agent') userAgent = value
   }
+
   return userAgent
 }
 
@@ -81,13 +83,16 @@ function canPreserveSensitiveHeaders(from: URL, to: URL): boolean {
 
 function redirectHeaders(headersInit: HeadersInit | undefined, preserveSensitive: boolean, dropBody: boolean) {
   const headers = new Headers(headersInit)
+
   for (const key of [...headers.keys()]) {
     const normalizedKey = key.toLowerCase()
     const isSensitive = SENSITIVE_REDIRECT_HEADERS.has(normalizedKey) || normalizedKey.endsWith('api-key')
+
     if ((!preserveSensitive && isSensitive) || (dropBody && normalizedKey.startsWith('content-'))) {
       headers.delete(key)
     }
   }
+
   return headers
 }
 
@@ -110,10 +115,13 @@ async function fetchFollowingRedirects(
 
   while (true) {
     const response = await sendRequest(url, { ...requestInit, redirect: 'manual' })
+
     if (!REDIRECT_STATUSES.has(response.status)) return response
 
     const location = response.headers.get('location')
+
     if (!location) return response
+
     if (redirectCount === MAX_REDIRECTS) {
       await response.body?.cancel()
       throw new Error('fetch: too many redirects')
@@ -121,6 +129,7 @@ async function fetchFollowingRedirects(
 
     const currentUrl = new URL(url)
     const nextUrl = new URL(location, currentUrl)
+
     if (nextUrl.protocol !== 'http:' && nextUrl.protocol !== 'https:') {
       await response.body?.cancel()
       throw new TypeError(`fetch: unsupported redirect protocol "${nextUrl.protocol}"`)
@@ -166,17 +175,21 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
   const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
+
   const sendRequest = async (requestTarget: string | Request, requestInit?: RequestInit) => {
     if (finalBodySlot) finalBodySlot.body = requestInit?.body ?? null
+
     try {
       return await net.fetch(requestTarget, requestInit)
     } catch (error) {
       if (error instanceof Error && error.name === 'Error' && /^net::ERR_[A-Z0-9_]+$/.test(error.message)) {
         const reason = classifyErrorCategory({ text: error.message })
+
         if (reason === 'network' || reason === 'stream' || reason === 'proxy') {
           throw new ProviderTransportError(reason, error)
         }
       }
+
       throw error
     }
   }
@@ -186,10 +199,12 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
   // interceptor restore it. Only the (string, init) call shape carries headers here;
   // the AI SDK always uses it, so the Request-input path needs no handling.
   const userAgent = init?.headers ? resolveUserAgent(init.headers) : null
+
   if (userAgent) {
     const headers = new Headers(init?.headers)
     headers.set(PROVIDER_USER_AGENT_HEADER, userAgent)
     const requestInit = { ...init, headers }
+
     return typeof target === 'string' && (!init?.redirect || init.redirect === 'follow')
       ? fetchFollowingRedirects(target, requestInit, sendRequest)
       : sendRequest(target, requestInit)
@@ -217,19 +232,24 @@ export function installProviderUserAgentInterceptor(): () => void {
     const sentinelKey = Object.keys(details.requestHeaders).find(
       (key) => key.toLowerCase() === PROVIDER_USER_AGENT_HEADER
     )
+
     if (!sentinelKey) {
       callback({ requestHeaders: details.requestHeaders })
+
       return
     }
 
     const userAgent = details.requestHeaders[sentinelKey]
     const requestHeaders: Record<string, string> = {}
+
     for (const [key, value] of Object.entries(details.requestHeaders)) {
       const lower = key.toLowerCase()
+
       // Drop the sentinel and Chromium's default UA; the latter is re-added below.
       if (lower === PROVIDER_USER_AGENT_HEADER || lower === 'user-agent') continue
       requestHeaders[key] = value
     }
+
     requestHeaders['User-Agent'] = userAgent
     callback({ requestHeaders })
   })

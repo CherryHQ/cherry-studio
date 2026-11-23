@@ -31,8 +31,10 @@ const ProviderCostSchema = z.union([
 
 function carriesCurrency(raw: LanguageModelV3Usage['raw']): boolean {
   if (!raw) return false
+
   if ('currency' in raw) return true
   const usage = raw.usage
+
   return typeof usage === 'object' && usage !== null && 'currency' in usage
 }
 
@@ -41,14 +43,18 @@ export function extractProviderCostWithCurrency(
   reportedCostCurrency?: Currency | null
 ): { amount: number; currency: Currency } | undefined {
   const withCurrency = ProviderCostWithCurrencySchema.safeParse(raw)
+
   if (withCurrency.success) {
     const value = 'cost' in withCurrency.data ? withCurrency.data : withCurrency.data.usage
+
     return { amount: value.cost, currency: value.currency }
   }
 
   if (!reportedCostCurrency || carriesCurrency(raw)) return undefined
   const amountOnly = ProviderCostSchema.safeParse(raw)
+
   if (!amountOnly.success) return undefined
   const value = 'cost' in amountOnly.data ? amountOnly.data : amountOnly.data.usage
+
   return { amount: value.cost, currency: reportedCostCurrency }
 }

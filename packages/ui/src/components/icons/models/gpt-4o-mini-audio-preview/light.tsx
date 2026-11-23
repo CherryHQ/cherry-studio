@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const Gpt4oMiniAudioPreviewLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
@@ -41,5 +42,7 @@ const Gpt4oMiniAudioPreviewLight: IconComponent = (props: SVGProps<SVGSVGElement
     </svg>
   )
 }
+
 export { Gpt4oMiniAudioPreviewLight }
+
 export default Gpt4oMiniAudioPreviewLight

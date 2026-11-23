@@ -19,6 +19,8 @@ export function bindStorage(storage: Storage): Storage {
     scanDocuments: storage.scanDocuments.bind(storage),
     close: storage.close.bind(storage)
   }
+
   if (storage.publishing) bound.publishing = storage.publishing.bind(storage)
+
   return bound
 }

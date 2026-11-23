@@ -14,6 +14,7 @@ import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
+
 // Filesystem availability has no app event (for example, an external workspace volume remount).
 // Keep this low-frequency fallback; move to path-specific events if the platform exposes them.
 const DELIVERY_RETRY_SWEEP_MS = 60_000
@@ -86,11 +87,14 @@ export class AgentSessionDeliveryService extends BaseService {
 
   accept(input: AcceptSessionDeliveryInput): AgentSessionMessageEntity {
     this.assertWritesAvailable()
+
     const message = agentSessionMessageService.acceptSessionDelivery({
       ...input,
       senderMessageId: application.get('AgentSessionRuntimeService').getExecutionHead(input.senderSessionId)
     })
+
     this.kick(message.sessionId)
+
     return message
   }
 
@@ -99,16 +103,20 @@ export class AgentSessionDeliveryService extends BaseService {
     message: AgentSessionMessageEntity
   } {
     this.assertWritesAvailable()
+
     const created = agentSessionMessageService.createSessionWithDelivery({
       ...input,
       senderMessageId: application.get('AgentSessionRuntimeService').getExecutionHead(input.senderSessionId)
     })
+
     this.kick(created.message.sessionId)
+
     return created
   }
 
   kick(sessionId?: string): void {
     if (this.isShuttingDown) return
+
     if (this.isWriteQuiesced) {
       if (sessionId) this.suppressedSessionIds.add(sessionId)
       else {
@@ -116,6 +124,7 @@ export class AgentSessionDeliveryService extends BaseService {
           this.suppressedSessionIds.add(message.sessionId)
         }
       }
+
       return
     }
 
@@ -125,10 +134,13 @@ export class AgentSessionDeliveryService extends BaseService {
       )) {
         this.kick(targetSessionId)
       }
+
       return
     }
+
     if (this.kicks.has(sessionId)) {
       this.pendingKicks.add(sessionId)
+
       return
     }
 
@@ -138,8 +150,10 @@ export class AgentSessionDeliveryService extends BaseService {
       .finally(() => {
         this.kicks.delete(sessionId)
         this.inFlight.delete(work)
+
         if (this.pendingKicks.delete(sessionId)) this.kick(sessionId)
       })
+
     this.kicks.set(sessionId, work)
     this.inFlight.set(work, `kick:${sessionId}`)
   }
@@ -152,6 +166,7 @@ export class AgentSessionDeliveryService extends BaseService {
     const token = Symbol(reason)
     this.pauseHolds.add(token)
     logger.info('AgentSessionDeliveryService paused', { reason: reason ?? null, holds: this.pauseHolds.size })
+
     return {
       dispose: () => {
         if (!this.pauseHolds.delete(token)) return
@@ -159,9 +174,11 @@ export class AgentSessionDeliveryService extends BaseService {
           reason: reason ?? null,
           holds: this.pauseHolds.size
         })
+
         if (this.pauseHolds.size > 0 || this.isShuttingDown) return
         const sessionIds = [...this.suppressedSessionIds]
         this.suppressedSessionIds.clear()
+
         if (sessionIds.length === 0) this.kick()
         else sessionIds.forEach((sessionId) => this.kick(sessionId))
       }
@@ -170,6 +187,7 @@ export class AgentSessionDeliveryService extends BaseService {
 
   async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
     const deadline = Date.now() + opts.timeoutMs
+
     while (this.inFlight.size > 0 && Date.now() < deadline) {
       const snapshot = [...this.inFlight.keys()]
       const remaining = deadline - Date.now()
@@ -178,6 +196,7 @@ export class AgentSessionDeliveryService extends BaseService {
         new Promise<void>((resolve) => setTimeout(resolve, Math.max(remaining, 0)))
       ])
     }
+
     return { stragglerIds: [...this.inFlight.values()] }
   }
 
@@ -202,8 +221,10 @@ export class AgentSessionDeliveryService extends BaseService {
     for (;;) {
       const queues = sessionIds.flatMap((sessionId) => {
         const queue = this.kicks.get(sessionId)
+
         return queue ? [queue] : []
       })
+
       if (queues.length === 0) return
       await Promise.allSettled(queues)
     }
@@ -217,21 +238,26 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private async runSessionQueue(sessionId: string): Promise<void> {
     let revalidatedRequestId: string | undefined
+
     while (!this.isShuttingDown && !this.isWriteQuiesced) {
       if (this.reconcileCompletedDelivery(sessionId)) return
       const next = agentSessionMessageService.listAcceptedSessionDeliveries(sessionId)[0]
+
       if (!next) return
       const outcome = await this.dispatchOne(next)
+
       if (outcome === 'settled') {
         revalidatedRequestId = undefined
         continue
       }
+
       // Validation crosses an async boundary, so one fresh snapshot retry is useful. Never spin on
       // one durable row: a deterministic mismatch must release backup/shutdown drains.
       if (outcome === 'revalidate' && revalidatedRequestId !== next.id) {
         revalidatedRequestId = next.id
         continue
       }
+
       return
     }
   }
@@ -252,23 +278,29 @@ export class AgentSessionDeliveryService extends BaseService {
       if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
         this.suppressedSessionIds.add(message.sessionId)
         outcome = 'blocked'
+
         return
       }
+
       if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
         outcome = 'blocked'
+
         return
       }
 
       let current: AgentSessionMessageEntity
+
       try {
         current = agentSessionMessageService.getSessionMessage(message.sessionId, message.id)
       } catch (error) {
         if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return
         throw error
       }
+
       if (current.delivery?.status !== 'accepted') return
 
       let validated
+
       try {
         validated = await agentChatContextProvider.validateDispatch({
           trigger: 'submit-message',
@@ -285,10 +317,13 @@ export class AgentSessionDeliveryService extends BaseService {
             error
           })
           outcome = 'blocked'
+
           return
         }
+
         this.failBeforeStart(current, error)
         outcome = 'settled'
+
         return
       }
 
@@ -297,10 +332,13 @@ export class AgentSessionDeliveryService extends BaseService {
       if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
         this.suppressedSessionIds.add(message.sessionId)
         outcome = 'blocked'
+
         return
       }
+
       if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
         outcome = 'blocked'
+
         return
       }
 
@@ -309,23 +347,31 @@ export class AgentSessionDeliveryService extends BaseService {
       } catch (error) {
         if (runtime.isSessionBusy(message.sessionId)) {
           outcome = 'blocked'
+
           return
         }
+
         this.failBeforeStart(current, error)
         outcome = 'settled'
+
         return
       }
+
       if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
         this.suppressedSessionIds.add(message.sessionId)
         outcome = 'blocked'
+
         return
       }
+
       if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
         outcome = 'blocked'
+
         return
       }
 
       let persisted
+
       try {
         persisted = application.get('DbService').withWriteTx((tx) => {
           const prepared = agentChatContextProvider.persistDispatchTx(tx, validated, {
@@ -334,23 +380,30 @@ export class AgentSessionDeliveryService extends BaseService {
             model: validated.agentDefaultModel,
             type: validated.agentType
           })
+
           const claimed = agentSessionMessageService.claimSessionDeliveryTx(
             tx,
             current.sessionId,
             current.id,
             prepared.assistantMessageId
           )
+
           if (!claimed) throw new DeliveryClaimLostError(`Delivery ${current.id} lost its accepted claim`)
+
           return prepared
         })
       } catch (error) {
         if (error instanceof DeliveryClaimLostError) return
+
         if (isDataApiError(error) && error.code === ErrorCode.CONCURRENT_MODIFICATION) {
           outcome = 'revalidate'
+
           return
         }
+
         this.failBeforeStart(current, error)
         outcome = 'settled'
+
         return
       }
 
@@ -361,6 +414,7 @@ export class AgentSessionDeliveryService extends BaseService {
           persisted,
           new AgentSessionDeliverySubscriber(current.id)
         )
+
         try {
           manager.send({
             topicId: prepared.topicId,
@@ -380,6 +434,7 @@ export class AgentSessionDeliveryService extends BaseService {
             assistantMessageId: persisted.assistantMessageId
           })
         }
+
         outcome = 'started'
       } catch (error) {
         await runtime.closeSession(current.sessionId)
@@ -396,27 +451,32 @@ export class AgentSessionDeliveryService extends BaseService {
           ],
           [current.sessionId]
         )
+
         const result = agentSessionMessageService.finalizeSessionDelivery({
           requestSessionId: current.sessionId,
           requestMessageId: current.id,
           assistantMessageId: persisted.assistantMessageId,
           outcome: 'interrupted'
         })
+
         logger.warn('Agent Session delivery turn handoff was interrupted', {
           deliveryId: current.id,
           assistantMessageId: persisted.assistantMessageId,
           error
         })
+
         if (result) this.kick(result.sessionId)
         outcome = 'settled'
       }
     })
+
     return outcome
   }
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Admission catches routing, workspace, and data failures; recognized errors determine delivery status before logging the original value.
   private failBeforeStart(message: AgentSessionMessageEntity, error: unknown): void {
     const fallbackMessage = 'Internal Session delivery error'
+
     const deliveryError =
       error instanceof AgentSessionDeliveryRoutingError
         ? { code: error.code, message: error.message }
@@ -428,12 +488,14 @@ export class AgentSessionDeliveryService extends BaseService {
                 code: 'INTERNAL_ERROR',
                 message: error instanceof Error ? getErrorMessage(error, fallbackMessage) : fallbackMessage
               }
+
     const result = agentSessionMessageService.failSessionDelivery(message, deliveryError)
     logger.warn('Agent Session delivery admission failed', {
       deliveryId: message.id,
       code: deliveryError.code,
       error
     })
+
     if (result) this.kick(result.sessionId)
   }
 
@@ -443,13 +505,16 @@ export class AgentSessionDeliveryService extends BaseService {
     status: 'success' | 'paused' | 'error'
   }): Promise<void> {
     const request = agentSessionMessageService.findDeliveringSessionDeliveryByTurnRef(event.assistantMessageId)
+
     if (!request) return
+
     const result = agentSessionMessageService.finalizeSessionDelivery({
       requestSessionId: event.sessionId,
       requestMessageId: request.id,
       assistantMessageId: event.assistantMessageId,
       outcome: event.status === 'success' ? 'success' : event.status === 'paused' ? 'interrupted' : 'failed'
     })
+
     if (result) this.kick(result.sessionId)
   }
 
@@ -457,9 +522,11 @@ export class AgentSessionDeliveryService extends BaseService {
     const delivering = agentSessionMessageService
       .listRecoverableSessionDeliveries(sessionId)
       .find((message) => message.delivery?.status === 'delivering')
+
     if (!delivering?.delivery?.turnRef) return false
 
     let assistant: AgentSessionMessageEntity
+
     try {
       assistant = agentSessionMessageService.getSessionMessage(sessionId, delivering.delivery.turnRef)
     } catch (error) {
@@ -468,14 +535,19 @@ export class AgentSessionDeliveryService extends BaseService {
           code: 'DELIVERY_TURN_DELETED',
           message: 'The delivery turn was deleted before it could be finalized'
         })
+
         if (result) this.kick(result.sessionId)
+
         return false
       }
+
       throw error
     }
+
     if (assistant.status === 'pending') {
       const topicId = buildAgentSessionTopicId(sessionId)
       const manager = application.get('AiStreamManager')
+
       if (
         application.get('AgentSessionRuntimeService').isSessionBusy(sessionId) ||
         manager.hasLiveStream(topicId) ||
@@ -483,10 +555,12 @@ export class AgentSessionDeliveryService extends BaseService {
       ) {
         return true
       }
+
       // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
       // A transient repair failure is retried by the next idle/sweep kick.
       agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
       assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)
+
       if (assistant.status === 'pending') return true
     }
 
@@ -496,7 +570,9 @@ export class AgentSessionDeliveryService extends BaseService {
       assistantMessageId: assistant.id,
       outcome: assistant.status === 'success' ? 'success' : assistant.status === 'paused' ? 'interrupted' : 'failed'
     })
+
     if (result) this.kick(result.sessionId)
+
     return false
   }
 

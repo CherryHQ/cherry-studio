@@ -19,12 +19,14 @@ export async function safeOpen(handle: FileHandle): Promise<void> {
   } catch (error) {
     if (error instanceof IpcError && error.code === fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE) {
       logger.warn('Blocked unsafe default-open; falling back to show in folder', { handle })
+
       try {
         await ipcApi.request('file.show_in_folder', handle)
       } catch (showError) {
         logger.error('Failed to show blocked file in folder', showError as Error)
         throw showError
       }
+
       return
     }
 

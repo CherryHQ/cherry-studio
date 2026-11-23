@@ -50,6 +50,7 @@ export const LogoBing = (props) => {
     </svg>
   )
 }
+
 export const LogoBaidu = (props) => {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>
@@ -124,6 +125,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
     })
     .superRefine((value, ctx) => {
       if (value.engine !== 'custom') return
+
       if (!value.customName || value.customName.trim().length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -137,7 +139,9 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
           message: t('selection.settings.search_modal.custom.name.max_length')
         })
       }
+
       const url = value.customUrl ?? ''
+
       if (!url || url.trim().length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -168,9 +172,11 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
 
   useEffect(() => {
     if (!isModalOpen) return
+
     if (currentAction?.searchEngine) {
       const [engine, url] = currentAction.searchEngine.split('|')
       const defaultEngine = DEFAULT_SEARCH_ENGINES.find((e) => e.value === engine)
+
       if (defaultEngine) {
         form.reset({ engine: defaultEngine.value, customName: '', customUrl: '' })
       } else {
@@ -186,10 +192,12 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
   const handleSubmit = (values: FieldType) => {
     try {
       const selectedEngine = DEFAULT_SEARCH_ENGINES.find((e) => e.value === values.engine)
+
       const searchEngine =
         selectedEngine?.value === 'custom'
           ? `${values.customName}|${values.customUrl}`
           : selectedEngine?.searchEngine || ''
+
       onOk(searchEngine)
     } catch (error) {
       logger.debug('Submit failed:', error as Error)
@@ -198,6 +206,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
 
   const handleTest = () => {
     const customUrl = form.getValues('customUrl')
+
     if (customUrl) {
       const testUrl = customUrl.replace('{{queryString}}', 'cherry studio')
       void openExternalWebsite(testUrl)
@@ -223,6 +232,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
                       value={field.value}
                       onValueChange={(value) => {
                         field.onChange(value)
+
                         if (value === 'custom') {
                           form.setValue('customName', '')
                           form.setValue('customUrl', EXAMPLE_URL)

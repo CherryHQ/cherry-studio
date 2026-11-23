@@ -1,10 +1,19 @@
 export { prepareClaudeBranch, reserveClaudeBranchTx } from './claudeContext'
+
 export { ClaudeCodeBinaryService } from './ClaudeCodeBinaryService'
+
 export { ClaudeCodeProcessManager } from './ClaudeCodeProcessManager'
+
 export { ClaudeCodeSessionStateService } from './ClaudeCodeSessionStateService'
+
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
+
 export { createClaudeCodeRuntimeDriver } from './loaders'
+
 export { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+
 export { readClaudeTranscriptEvidence } from './transcriptEvidence'
+
 export type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'
+
 export { claudeWorkspaceRelocation } from './workspaceRelocation'

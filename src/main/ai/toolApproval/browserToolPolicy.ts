@@ -5,8 +5,10 @@ import type { BuiltinToolPolicyEntry } from './builtinToolPolicyRegistry'
 
 export function resolveBrowserToolPermission(runtimeName: string) {
   const toolName = browserToolFromRuntimeName(runtimeName)
+
   if (!toolName) return undefined
   const preferences = application.get('PreferenceService')
+
   return preferences.get('app.browser.agent_control.enabled') ? 'allow' : 'deny'
 }
 

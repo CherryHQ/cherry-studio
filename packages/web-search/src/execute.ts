@@ -10,12 +10,16 @@ export async function runProtocol<T>(
   try {
     if (call.signal?.aborted) throw cancelled(call)
     const [issue] = validateWebSearchCall(call)
+
     if (issue) throw new WebSearchError({ ...call, kind: 'configuration', code: issue.code, message: issue.message })
     const result = await execute({ call, transport, apiHost: resolveApiHost(call) })
+
     if (call.signal?.aborted) throw cancelled(call)
+
     return result
   } catch (error) {
     if (call.signal?.aborted) throw cancelled(call)
+
     if (isWebSearchError(error)) throw error
     const kind = isWebSearchTransportError(error) ? error.kind : 'unknown'
     const normalizedKind = kind === 'cancelled' ? 'network' : kind

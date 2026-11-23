@@ -90,6 +90,7 @@ export function readAgentDraftCache(
   scope: AgentDraftCacheScope
 ): RestoredAgentComposerDraftCache {
   const cached = cacheService.get(cacheKey)
+
   if (!isRecord(cached)) {
     return {
       ...EMPTY_DRAFT_CACHE,
@@ -100,6 +101,7 @@ export function readAgentDraftCache(
   }
 
   const cachedAgentId = typeof cached.agentId === 'string' ? cached.agentId : ''
+
   if (cachedAgentId && cachedAgentId !== scope.agentId) {
     return {
       ...EMPTY_DRAFT_CACHE,
@@ -113,8 +115,10 @@ export function readAgentDraftCache(
     text: typeof cached.text === 'string' ? cached.text : '',
     tokens: Array.isArray(cached.tokens) ? cached.tokens : []
   })
+
   const cachedWorkspaceKey = typeof cached.workspaceKey === 'string' ? cached.workspaceKey : ''
   const workspaceMatches = cachedWorkspaceKey === '' || cachedWorkspaceKey === scope.workspaceKey
+
   const shouldValidateSkills =
     (cached.shouldValidateSkills === true || !workspaceMatches) && getCachedSkillTokens(draft.tokens).length > 0
 
@@ -153,6 +157,7 @@ export async function toConversationDraft(draft: AgentComposerDraftCache): Promi
       blob ? { ...file, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: blob.type } : file
     )
   )
+
   return { text: draft.text, tokens: draft.tokens, files, knowledgeBaseIds: draft.knowledgeBaseIds }
 }
 
@@ -165,6 +170,7 @@ export function appendConversationDraft(
   const textOffset = draft.text.length + separator.length
   // Tokens the policy keeps in their own composer stay behind as plain text.
   const tokens = handoff.tokens.filter((token) => isComposerClipboardTokenKind(token.kind))
+
   return {
     ...draft,
     text: draft.text + separator + handoff.text,

@@ -21,17 +21,21 @@ export class AgentSessionContextSeeder implements ISeeder {
         const migrations = new Map(
           listRetiredAgentSessionMigrations(tx).map((migration) => [migration.sessionId, migration.resumeToken])
         )
+
         const sessions = tx
           .select({ id: agentSessionTable.id, type: agentTable.type })
           .from(agentSessionTable)
           .leftJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
           .all()
+
         const locator = { version: 1, kind: 'pi' } as const
         let backend = tx.select().from(backends).where(eq(backends.locator, locator)).get()
 
         for (const session of sessions) {
           const migratedId = migrations.get(session.id)
+
           if (!migratedId && session.type !== 'pi') continue
+
           // Pending DSH conversion owns a new Pi identity; its old message tokens still belong to DSH.
           const ids = migratedId
             ? [migratedId]
@@ -45,6 +49,7 @@ export class AgentSessionContextSeeder implements ISeeder {
           for (const id of new Set(ids)) {
             if (typeof id !== 'string' || !id.trim()) continue
             backend ??= tx.insert(backends).values({ locator, state: 'bound' }).returning().get()
+
             const existing = tx
               .select({ id: contexts.id })
               .from(contexts)
@@ -56,6 +61,7 @@ export class AgentSessionContextSeeder implements ISeeder {
                 )
               )
               .get()
+
             if (!existing) {
               tx.insert(contexts).values({ sessionId: session.id, backendId: backend.id, nativeThreadId: id }).run()
             }

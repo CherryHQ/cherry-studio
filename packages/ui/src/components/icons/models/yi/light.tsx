@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
+
 const YiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path fill="var(--icon-neutral-background, #FFFFFF)" d="M0 0H120V120H0z" />
@@ -18,5 +19,7 @@ const YiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
+
 export { YiLight }
+
 export default YiLight

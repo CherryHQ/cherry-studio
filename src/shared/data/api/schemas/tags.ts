@@ -23,12 +23,14 @@ export const TagIdSchema = SharedTagIdSchema
  * - `color` is optional
  */
 export const CreateTagSchema = TagSchema.pick({ name: true, color: true }).partial().required({ name: true })
+
 export type CreateTagDto = z.infer<typeof CreateTagSchema>
 
 /**
  * DTO for updating an existing tag. All fields optional, chain-derived from Create.
  */
 export const UpdateTagSchema = CreateTagSchema.partial()
+
 export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
 
 /**
@@ -47,6 +49,7 @@ export const SyncEntityTagsSchema = z.object({
       message: 'Duplicate tag ids are not allowed'
     })
 })
+
 export type SyncEntityTagsDto = z.infer<typeof SyncEntityTagsSchema>
 
 /**
@@ -62,6 +65,7 @@ export const SetTagEntitiesSchema = z.object({
       { message: 'Duplicate entity bindings are not allowed' }
     )
 })
+
 export type SetTagEntitiesDto = z.infer<typeof SetTagEntitiesSchema>
 
 // ============================================================================

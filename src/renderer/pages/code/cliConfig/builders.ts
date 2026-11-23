@@ -67,6 +67,7 @@ function openCodeProviderRequestOptions(options: Pick<OpenCodeConfigOptions, 'pr
       (entry): entry is [string, string] => typeof entry[1] === 'string'
     )
   )
+
   return Object.keys(headers).length > 0 ? { headers } : {}
 }
 
@@ -77,14 +78,18 @@ export function buildClaudeConfig(
 ) {
   const configEnv = { ...asRecord(userBlob.env) }
   const envBlock = { ...configEnv }
+
   if (resolved.baseUrl) envBlock.ANTHROPIC_BASE_URL = resolved.baseUrl
+
   if (resolved.apiKey) envBlock.ANTHROPIC_AUTH_TOKEN = resolved.apiKey
+
   if (resolved.writePrimaryModel === false) delete envBlock.ANTHROPIC_MODEL
   else if (resolved.model) envBlock.ANTHROPIC_MODEL = resolved.model
 
   // SAFETY: Existing env fields come from the JSONC parser; the branch below checks the object container.
   const existingEnv =
     existing.env && typeof existing.env === 'object' ? { ...(existing.env as Record<string, Serializable>) } : null
+
   if (existingEnv) {
     for (const key of CLAUDE_MANAGED_ENV_KEYS) {
       if (!(key in envBlock)) delete existingEnv[key]
@@ -92,18 +97,24 @@ export function buildClaudeConfig(
   }
 
   const merged = { ...existing, ...userBlob }
+
   for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
     if (!(key in userBlob)) delete merged[key]
   }
+
   const nextPermissions = { ...asRecord(existing.permissions) }
+
   for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) delete nextPermissions[key]
   const userPermissions = asRecord(userBlob.permissions)
+
   for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) {
     if (userPermissions[key] !== undefined) nextPermissions[key] = userPermissions[key]
   }
+
   if (Object.keys(nextPermissions).length > 0) merged.permissions = nextPermissions
   else delete merged.permissions
   merged.env = existingEnv ? { ...existingEnv, ...envBlock } : { ...envBlock }
+
   return merged
 }
 
@@ -116,6 +127,7 @@ export function buildClaudeConfig(
  */
 function resolveCodexProviderDisplayName(providerName: string, remoteCompaction: boolean): string {
   if (remoteCompaction) return 'OpenAI'
+
   return providerName === 'OpenAI' ? 'OpenAI (Cherry)' : providerName
 }
 
@@ -126,20 +138,25 @@ export function buildCodexConfig(
 ): TomlTable {
   const isValidTokenCount = (value: unknown): value is number =>
     typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+
   const existingWindow = existingToml.model_context_window
   const existingCompaction = existingToml.model_auto_compact_token_limit
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${resolved.providerName.replace(/\./g, '-')}`
+
   // SAFETY: Existing provider entries come from parsed TOML; the container view preserves native TOML values.
   const preservedProviders = omitKeysByPrefix(
     asRecord(existingToml.model_providers) as TomlTable,
     CHERRY_PROVIDER_PREFIX
   )
+
   const cleaned: TomlTable = {}
+
   for (const [key, value] of Object.entries(existingToml)) {
     if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key)) {
       cleaned[key] = value
     }
   }
+
   dropFeatureGoalsIfEmpty(cleaned)
 
   const merged: TomlTable = {
@@ -156,20 +173,27 @@ export function buildCodexConfig(
       }
     }
   }
+
   if (isValidTokenCount(options.contextWindow)) merged.model_context_window = options.contextWindow
   else if (isValidTokenCount(existingWindow)) merged.model_context_window = existingWindow
+
   if (isValidTokenCount(existingCompaction)) merged.model_auto_compact_token_limit = existingCompaction
+
   if (options.disableResponseStorage === true) merged.disable_response_storage = true
+
   if (options.goalMode === true) {
     // SAFETY: The existing feature fields retain the parsed TOML value domain after managed-key deletion.
     const features = asRecord(merged.features) as TomlTable
     features.goals = true
     merged.features = features
   }
+
   if (isCodexPermissionMode(options.permissionMode)) {
     Object.assign(merged, codexPermissionModeToConfig(options.permissionMode))
   }
+
   if (isCodexReasoningEffort(options.reasoningEffort)) merged.model_reasoning_effort = options.reasoningEffort
+
   return merged
 }
 
@@ -179,14 +203,18 @@ export function buildCodexAuthConfig(existingAuth: Record<string, Serializable>,
 
 function hasRestorableCodexChatgptAuth(auth: Record<string, Serializable>): boolean {
   const tokens = asRecord(auth.tokens)
+
   const hasCompleteTokens = ['id_token', 'access_token', 'refresh_token'].every(
     (key) => typeof tokens[key] === 'string' && tokens[key].trim().length > 0
   )
+
   const lastRefresh = auth.last_refresh
+
   const hasValidLastRefresh =
     typeof lastRefresh === 'string' &&
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(lastRefresh) &&
     Number.isFinite(Date.parse(lastRefresh))
+
   return hasCompleteTokens && hasValidLastRefresh
 }
 
@@ -196,6 +224,7 @@ export function clearCodexApiKeyAuth(existingAuth: Record<string, Serializable>)
 
   if (hasRestorableCodexChatgptAuth(nextAuth)) {
     nextAuth.auth_mode = 'chatgpt'
+
     return nextAuth
   }
 
@@ -210,6 +239,7 @@ function buildOpenCodeModelOptions(
     if (options.reasoning === true) {
       return { reasoning: true, options: { thinking: { budgetTokens: 10000, type: 'enabled' } } }
     }
+
     return
   }
 
@@ -217,17 +247,20 @@ function buildOpenCodeModelOptions(
     if (options.reasoning === true) {
       return { reasoning: true, options: { thinkingConfig: { includeThoughts: true, thinkingBudget: -1 } } }
     }
+
     return
   }
 
   if (options.reasoning === true && options.supportsReasoningEffort === true) {
     return { reasoning: true, options: { reasoningEffort: 'medium' } }
   }
+
   return undefined
 }
 
 function openCodeModelLimit(options: OpenCodeConfigOptions): Partial<Record<'context' | 'output', number>> | undefined {
   const limit: Partial<Record<'context' | 'output', number>> = {}
+
   if (
     typeof options.contextWindow === 'number' &&
     Number.isInteger(options.contextWindow) &&
@@ -235,6 +268,7 @@ function openCodeModelLimit(options: OpenCodeConfigOptions): Partial<Record<'con
   ) {
     limit.context = options.contextWindow
   }
+
   if (
     typeof options.maxOutputTokens === 'number' &&
     Number.isInteger(options.maxOutputTokens) &&
@@ -242,6 +276,7 @@ function openCodeModelLimit(options: OpenCodeConfigOptions): Partial<Record<'con
   ) {
     limit.output = options.maxOutputTokens
   }
+
   return Object.keys(limit).length > 0 ? limit : undefined
 }
 
@@ -258,6 +293,7 @@ export function buildOpenCodeConfig(
   // OpenCode's UI displays — in gateway mode the id is UUID-prefixed, so show the label.
   const modelName = resolved.modelLabel ?? resolved.model
   const limit = openCodeModelLimit(options)
+
   const modelConfig = {
     name: modelName,
     ...(limit && { limit }),
@@ -266,18 +302,23 @@ export function buildOpenCodeConfig(
       supportsReasoningEffort: options.supportsReasoningEffort === true
     })
   }
+
   // SAFETY: Existing provider entries come from parsed JSON; the container check does not change their value domain.
   const preservedProviders = omitKeysByPrefix(
     asRecord(existing.provider) as Record<string, Serializable>,
     CHERRY_PROVIDER_PREFIX
   )
+
   const cleaned = { ...existing }
+
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
   // SAFETY: Existing compaction values come from parsed JSON and are copied without interpretation.
   const compaction = { ...(asRecord(existing.compaction) as Record<string, Serializable>) }
   delete cleaned.compaction
   delete compaction.auto
+
   if (options.autoCompact === true) compaction.auto = true
+
   return {
     $schema: OPENCODE_SCHEMA,
     ...cleaned,
@@ -308,13 +349,18 @@ export function buildGeminiEnvConfig(
   resolved: { apiKey: string; baseUrl: string; gateway?: boolean }
 ): Map<string, string> {
   const next = new Map(envMap)
+
   for (const key of GEMINI_MANAGED_ENV_KEYS) next.delete(key)
+
   if (resolved.apiKey) next.set('GEMINI_API_KEY', resolved.apiKey)
+
   if (resolved.baseUrl) next.set('GOOGLE_GEMINI_BASE_URL', resolved.baseUrl)
+
   // The gateway serves only `/v1beta`. Force the SDK's API version so a stale
   // `GOOGLE_GENAI_API_VERSION=v1` left in the user's ~/.gemini/.env can't redirect
   // gemini-cli's @google/genai to the unsupported `/v1` prefix and break launch.
   if (resolved.gateway) next.set('GOOGLE_GENAI_API_VERSION', 'v1beta')
+
   return next
 }
 
@@ -329,6 +375,7 @@ export function buildGeminiSettingsConfig(
   next.model = { ...asRecord(next.model), name: resolved.model }
   const security = asRecord(next.security)
   next.security = { ...security, auth: { ...asRecord(security.auth), selectedType: 'gemini-api-key' } }
+
   return next
 }
 
@@ -348,6 +395,7 @@ export function buildQwenConfig(
   existingEnv[envKey] = resolved.apiKey
 
   const security = asRecord(existing.security)
+
   const merged = {
     ...existing,
     modelProviders: { ...asRecord(existing.modelProviders), openai: userModels },
@@ -358,7 +406,9 @@ export function buildQwenConfig(
     },
     model: { name: resolved.model }
   }
+
   applyManagedJsonSettings(merged, sanitizedConfigBlob, QWEN_WRITABLE_SETTINGS_KEYS)
+
   return merged
 }
 
@@ -372,10 +422,12 @@ export function buildKimiConfig(
   providerTable[resolved.modelKey] = { type: 'openai', base_url: resolved.baseUrl, api_key: resolved.apiKey }
 
   const modelsTable = omitKeysByPrefix(asRecord(existing.models), CHERRY_PROVIDER_PREFIX)
+
   const modelConfig: TomlTable = {
     provider: resolved.modelKey,
     model: resolved.model
   }
+
   if (resolved.maxContextSize !== undefined) modelConfig.max_context_size = resolved.maxContextSize
   modelsTable[resolved.modelKey] = modelConfig
 
@@ -385,14 +437,18 @@ export function buildKimiConfig(
     providers: providerTable,
     models: modelsTable
   }
+
   applyWritableTomlSettings(merged, sanitizedConfigBlob)
+
   return merged
 }
 
 export function buildHermesEnvConfig(envMap: Map<string, string>, apiKey: string): Map<string, string> {
   const next = new Map(envMap)
   next.delete('CHERRY_HERMES_API_KEY')
+
   if (apiKey) next.set('CHERRY_HERMES_API_KEY', apiKey)
+
   return next
 }
 

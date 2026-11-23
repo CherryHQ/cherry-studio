@@ -9,6 +9,7 @@ import {
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 type OpenFilePreviewTab = (filePath: AbsoluteFilePath, fileName?: string) => string
+
 type FilePreviewTabsContext = Pick<TabsContextValue, 'openTab' | 'tabs' | 'updateTab'>
 
 function useOpenFilePreviewTabFromContext(tabsContext: FilePreviewTabsContext | null): OpenFilePreviewTab {
@@ -32,6 +33,7 @@ function useOpenFilePreviewTabFromContext(tabsContext: FilePreviewTabsContext | 
             [FILE_PREVIEW_REFRESH_KEY]: getFilePreviewRefreshKey(existingTab.metadata) + 1
           }
         })
+
         return tabId
       }
 
@@ -51,5 +53,6 @@ export function useOpenFilePreviewTab(): OpenFilePreviewTab {
 export function useOptionalOpenFilePreviewTab(): OpenFilePreviewTab | undefined {
   const tabsContext = useOptionalTabsContext()
   const openFilePreviewTab = useOpenFilePreviewTabFromContext(tabsContext)
+
   return tabsContext ? openFilePreviewTab : undefined
 }

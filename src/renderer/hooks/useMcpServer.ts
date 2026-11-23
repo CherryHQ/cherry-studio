@@ -65,6 +65,7 @@ export const useScopedMcpServers = (
   const servers = useMemo(() => {
     if (boundServerIds === null) return []
     const bound = boundServerIds === 'all' ? null : new Set(boundServerIds)
+
     return mcpServers.filter((server) => server.isActive && (!bound || bound.has(server.id)))
   }, [boundServerIds, mcpServers])
 
@@ -96,8 +97,10 @@ export const useMcpServer = (id: string) => {
  */
 export const useIsToolAutoApproved = (tool: McpTool): boolean => {
   const { mcpServers } = useMcpServers()
+
   return useMemo(() => {
     const server = mcpServers.find((s) => s.id === tool.serverId)
+
     return server ? resolveMcpSourceToolAccess(server, tool).approval === 'auto' : false
   }, [mcpServers, tool])
 }

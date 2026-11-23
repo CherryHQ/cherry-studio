@@ -34,15 +34,19 @@ export function useSessionExpansion({
     'ui.agent.session.expansion.time',
     'ui.window.agent.session.expansion.time'
   )
+
   const [sessionExpansionAgent, setSessionExpansionAgent] = useWindowScopedPersistCache(
     'ui.agent.session.expansion.agent',
     'ui.window.agent.session.expansion.agent'
   )
+
   const [sessionExpansionWorkdir, setSessionExpansionWorkdir] = useWindowScopedPersistCache(
     'ui.agent.session.expansion.workdir',
     'ui.window.agent.session.expansion.workdir'
   )
+
   const [rightPanelSessionExpansion, setRightPanelSessionExpansion] = useState<string[]>([])
+
   const sessionExpansion = isRightPanel
     ? rightPanelSessionExpansion
     : displayMode === 'agent'
@@ -58,6 +62,7 @@ export function useSessionExpansion({
   useEffect(() => {
     if (rightPanelExpansionFilterRef.current === agentIdFilter) return
     rightPanelExpansionFilterRef.current = agentIdFilter
+
     if (isRightPanel) setRightPanelSessionExpansion([])
   }, [agentIdFilter, isRightPanel])
 
@@ -74,6 +79,7 @@ export function useSessionExpansion({
 
     return remapResourceListCollapsedGroupIds(resolvedSessionExpansion, (groupId) => {
       const path = getWorkdirPathFromSessionGroupId(groupId)
+
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
   }, [displayMode, filteredGroupedSessions, sessionExpansion, sessionGroupBy, workdirDisplay])
@@ -82,6 +88,7 @@ export function useSessionExpansion({
     (nextCollapsedIds: string[]) => {
       if (isRightPanel) {
         setRightPanelSessionExpansion(nextCollapsedIds)
+
         return
       }
 

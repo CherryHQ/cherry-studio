@@ -33,6 +33,7 @@ export type GenerateImageToolInput = Partial<Record<CanonicalParamKey, unknown>>
 
 function describeParam(key: CanonicalParamKey, spec: SupportSpec, modes: readonly ToolMode[]): string {
   const prefix = `Canonical painting parameter for ${modes.join('/')} mode: ${key}.`
+
   switch (spec.type) {
     case 'enum':
       return `${prefix} Allowed values: ${spec.options.join(', ')}.${spec.default === undefined ? '' : ` Default: ${spec.default}.`}`
@@ -46,6 +47,7 @@ function describeParam(key: CanonicalParamKey, spec: SupportSpec, modes: readonl
       return prefix
     default: {
       const exhaustive: never = spec
+
       return exhaustive
     }
   }
@@ -57,6 +59,7 @@ function catalogJsonType(key: CanonicalParamKey): CatalogJsonType | undefined {
   // provider-registry and the app can temporarily resolve different Zod patch versions. Read the
   // catalog schema's plain JSON type instead of embedding its Zod instance into the app schema.
   const type = IMAGE_PARAM_CATALOG[key].schema.nonoptional().toJSONSchema().type
+
   return type === 'boolean' || type === 'integer' || type === 'number' || type === 'string' ? type : undefined
 }
 
@@ -77,19 +80,25 @@ function catalogValueSchema(key: CanonicalParamKey): z.ZodType {
 
 function constrainedParamSchema(key: CanonicalParamKey, spec: SupportSpec): z.ZodType {
   const base = catalogValueSchema(key)
+
   switch (spec.type) {
     case 'enum': {
       const [first, ...rest] = spec.options
+
       return first === undefined ? base : z.enum([first, ...rest])
     }
+
     case 'range': {
       let range =
         catalogJsonType(key) === 'integer'
           ? z.coerce.number().int().min(spec.min).max(spec.max)
           : z.coerce.number().min(spec.min).max(spec.max)
+
       if (spec.step !== undefined) range = range.multipleOf(spec.step)
+
       return range
     }
+
     case 'size':
       return z
         .string()
@@ -97,6 +106,7 @@ function constrainedParamSchema(key: CanonicalParamKey, spec: SupportSpec): z.Zo
         .refine(
           (value) => {
             const [width, height] = value.toLowerCase().split('x').map(Number)
+
             return width >= spec.minSide && width <= spec.maxSide && height >= spec.minSide && height <= spec.maxSide
           },
           { message: 'size side out of range' }
@@ -109,8 +119,11 @@ function constrainedParamSchema(key: CanonicalParamKey, spec: SupportSpec): z.Zo
 function resolveToolModes(support: ImageGenerationSupport | null | undefined): ToolMode[] {
   if (!support) return ['generate']
   const modes: ToolMode[] = []
+
   if (support.modes.generate) modes.push('generate')
+
   if (support.modes.edit) modes.push('edit')
+
   return modes
 }
 
@@ -123,7 +136,9 @@ export function buildGenerateImageToolSchema(
 
   for (const mode of modes) {
     const modeSupports = support?.modes[mode]?.supports
+
     if (!modeSupports) continue
+
     for (const [key, spec] of Object.entries(modeSupports) as Array<[CanonicalParamKey, SupportSpec]>) {
       const entries = params.get(key) ?? []
       entries.push({ mode, spec })
@@ -136,6 +151,7 @@ export function buildGenerateImageToolSchema(
 
   for (const [key, entries] of params) {
     const variants = entries.map(({ spec }) => constrainedParamSchema(key, spec))
+
     const schema = (
       variants.length === 1 ? variants[0] : z.union(variants as [z.ZodType, z.ZodType, ...z.ZodType[]])
     ).describe(
@@ -145,6 +161,7 @@ export function buildGenerateImageToolSchema(
         entries.map(({ mode }) => mode)
       )
     )
+
     inputShape[key] = schema.optional()
   }
 
@@ -152,9 +169,11 @@ export function buildGenerateImageToolSchema(
     const maxInputImages = editInputImageLimit(support)
     const imageIds = z.array(z.string().trim().min(1)).min(1)
     const limitedImageIds = maxInputImages === undefined ? imageIds : imageIds.max(maxInputImages)
+
     const describedImageIds = limitedImageIds.describe(
       'FileEntry ids of existing images to edit or use as references. Omit to generate a new image.'
     )
+
     const editOnly = !modes.includes('generate')
     inputShape.image_ids = editOnly ? describedImageIds : describedImageIds.optional()
   }

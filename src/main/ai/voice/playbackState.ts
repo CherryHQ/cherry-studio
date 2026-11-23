@@ -19,6 +19,7 @@ export function createPlaybackState(): PlaybackState {
 
 export function beginPlaybackSynthesis(state: PlaybackState): PlaybackState {
   if (state.synthesis === 'generating') return state
+
   return { ...state, attemptId: state.attemptId + 1, synthesis: 'generating', observed: 'empty', failure: undefined }
 }
 
@@ -28,6 +29,7 @@ export function completePlaybackSynthesis(state: PlaybackState): PlaybackState {
 
 export function readyPlaybackOutput(state: PlaybackState): PlaybackState {
   if (state.observed !== 'empty') return state
+
   return {
     ...state,
     observed: 'ready',
@@ -51,6 +53,7 @@ export function failPlayback(
 
 export function createPlaybackSnapshot(state: PlaybackState, hasOutput: boolean): VoicePlaybackState {
   const availableCommands: VoicePlaybackControl[] = ['stop']
+
   if (state.desired !== 'stopped') {
     if (state.failure) {
       if (hasOutput && state.failure.stage !== 'synthesis') availableCommands.unshift('retry')
@@ -58,6 +61,7 @@ export function createPlaybackSnapshot(state: PlaybackState, hasOutput: boolean)
       availableCommands.unshift(state.desired === 'paused' ? 'resume' : 'pause')
     }
   }
+
   return { ...state, availableCommands }
 }
 
@@ -67,9 +71,11 @@ export function applyPlaybackCommand(
   hasOutput: boolean
 ): PlaybackState {
   if (state.pendingCommand === command) return state
+
   if (!createPlaybackSnapshot(state, hasOutput).availableCommands.includes(command)) {
     throw new VoiceRuntimeError('invalid_request')
   }
+
   return {
     ...state,
     commandRevision: state.commandRevision + 1,
@@ -82,27 +88,40 @@ export function applyPlaybackCommand(
 
 export function applyPlaybackReport(state: PlaybackState, report: InputFor<'ai.voice.playback.report'>): PlaybackState {
   if (report.attemptId !== state.attemptId) return state
+
   if (report.phase === 'failed') {
     if (state.desired === 'stopped' || state.failure?.stage === 'playback') return state
+
     return failPlayback(state, 'playback', report.reason ?? 'operation_failed')
   }
+
   if (report.phase === 'ended') {
     if (state.failure || state.desired === 'stopped' || state.observed === 'ended') return state
+
     return { ...state, observed: 'ended' }
   }
+
   if (report.commandRevision !== state.commandRevision) return state
+
   if (report.phase === 'stopped') {
     return state.desired === 'stopped' ? { ...state, pendingCommand: null } : state
   }
+
   if (state.failure || state.desired === 'stopped') return state
+
   if (report.phase === 'completed') return { ...state, observed: 'ended', pendingCommand: null }
+
   if (report.phase !== state.desired) return state
+
   return { ...state, observed: report.phase, pendingCommand: null }
 }
 
 export function playbackPhase(state: PlaybackState): Exclude<VoiceSessionPhase, 'idle'> {
   if (state.failure) return 'failed'
+
   if (state.observed === 'playing' || state.observed === 'paused') return state.observed
+
   if (state.synthesis === 'generating') return 'generating'
+
   return 'ready'
 }

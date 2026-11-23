@@ -55,6 +55,7 @@ const meta: Meta<typeof Slider> = {
 }
 
 export default meta
+
 type Story = StoryObj<typeof meta>
 
 // Default
@@ -263,6 +264,7 @@ export const VerticalSizes: Story = {
 export const Controlled: Story = {
   render: function ControlledExample() {
     const [value, setValue] = useState([50])
+
     return (
       <div className="w-96">
         <div className="mb-4 flex items-center justify-between">
@@ -278,6 +280,7 @@ export const Controlled: Story = {
 export const ControlledRange: Story = {
   render: function ControlledRangeExample() {
     const [value, setValue] = useState([25, 75])
+
     return (
       <div className="w-96">
         <div className="mb-4 flex items-center justify-between">
@@ -451,6 +454,7 @@ export const VerticalWithMarks: Story = {
 export const TemperatureWithMarks: Story = {
   render: function TemperatureExample() {
     const [value, setValue] = useState([0.7])
+
     return (
       <div className="w-96">
         <div className="mb-4 flex items-center justify-between">
@@ -519,6 +523,7 @@ export const ValueLabelSizes: Story = {
 export const ValueLabelRange: Story = {
   render: function RangeExample() {
     const [value, setValue] = useState([20, 80])
+
     return (
       <div className="w-96 pt-8">
         <div className="mb-4 flex items-center justify-between">
@@ -536,6 +541,7 @@ export const ValueLabelRange: Story = {
 export const ValueLabelWithMarks: Story = {
   render: function Example() {
     const [value, setValue] = useState([0.7])
+
     return (
       <div className="w-96 pt-8">
         <div className="mb-4 flex items-center justify-between">

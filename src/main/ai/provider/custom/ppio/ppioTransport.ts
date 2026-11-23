@@ -25,6 +25,7 @@ export const DEFAULT_PPIO_BASE_URL = 'https://api.ppio.com'
 // undici abandons response headers after 300s, below a sync image model's submit budget;
 // an injected fetch has no such bound, so this only backs the global-fetch fallback.
 const REQUEST_DISPATCHER_TIMEOUT_MS = 15 * 60 * 1000
+
 const longRunningDispatcher = new Agent({
   headersTimeout: REQUEST_DISPATCHER_TIMEOUT_MS,
   bodyTimeout: REQUEST_DISPATCHER_TIMEOUT_MS
@@ -169,6 +170,7 @@ class PpioTransport implements ImageGenerationTransport {
     if (method === 'POST') {
       fetchOptions.body = JSON.stringify(body)
     }
+
     if (!this.fetch) fetchOptions.dispatcher = longRunningDispatcher
 
     try {
@@ -180,6 +182,7 @@ class PpioTransport implements ImageGenerationTransport {
       }
 
       const data = await response.json()
+
       return data as T
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -189,6 +192,7 @@ class PpioTransport implements ImageGenerationTransport {
 
         throw new Error(`PPIO API request timeout after ${timeout / 1000}s`)
       }
+
       throw error
     } finally {
       clearTimeout(timeoutId)
@@ -199,6 +203,7 @@ class PpioTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bagParams = input.providerParams as PpioProviderParams
     const descriptor = input.modelDescriptor
+
     if (!descriptor) {
       throw new Error(`Unknown model: ${input.modelId}`)
     }
@@ -221,6 +226,7 @@ class PpioTransport implements ImageGenerationTransport {
         timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
         signal: input.signal
       })
+
       return { imageUrls: this.extractSyncImageUrls(result) }
     }
 
@@ -228,6 +234,7 @@ class PpioTransport implements ImageGenerationTransport {
       timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal
     })
+
     return { taskId: result.task_id }
   }
 
@@ -275,6 +282,7 @@ class PpioTransport implements ImageGenerationTransport {
 
     if (painting.size) {
       const [width, height] = painting.size.split('x').map(Number)
+
       if (width && height) {
         dimensions = { width, height }
       }
@@ -308,6 +316,7 @@ class PpioTransport implements ImageGenerationTransport {
 
   private buildQwenEditParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams) {
     const firstFile = input.files?.[0]
+
     return {
       prompt: input.prompt,
       image: firstFile ? fileToDataUrl(firstFile) : undefined,
@@ -355,6 +364,7 @@ class PpioTransport implements ImageGenerationTransport {
   private buildSeedreamEditParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams, modelId: string) {
     const firstFile = input.files?.[0]
     const rawImage = firstFile ? fileToDataUrl(firstFile) : ''
+
     if (modelId === 'seedream-4.0' || modelId === 'seedream-4.0-edit') {
       return {
         prompt: input.prompt,
@@ -366,6 +376,7 @@ class PpioTransport implements ImageGenerationTransport {
     }
 
     const base64Image = rawImage.replace(/^data:[^;]+;base64,/, '')
+
     return {
       prompt: input.prompt,
       image: base64Image ? [base64Image] : [],
@@ -381,6 +392,7 @@ class PpioTransport implements ImageGenerationTransport {
     return result.images
       .map((image) => {
         if (typeof image === 'string') return image
+
         return image.image_url ?? image.url
       })
       .filter((url): url is string => typeof url === 'string' && url.length > 0)
@@ -388,6 +400,7 @@ class PpioTransport implements ImageGenerationTransport {
 
   async getTaskResult(taskId: string, timeout: number = 120000, signal?: AbortSignal): Promise<PpioTaskResult> {
     const endpoint = `/v3/async/task-result?task_id=${encodeURIComponent(taskId)}`
+
     return this.request<PpioTaskResult>(endpoint, {}, 'GET', { timeout, signal })
   }
 
@@ -396,6 +409,7 @@ class PpioTransport implements ImageGenerationTransport {
     options: { signal?: AbortSignal; onProgress?: (progress: number) => void }
   ): Promise<string[]> {
     const result = await this.pollTaskResult(taskId, options)
+
     return (result.images ?? []).map((img) => img.image_url)
   }
 

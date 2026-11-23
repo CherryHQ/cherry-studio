@@ -32,12 +32,15 @@ function openConversationTabImpl(
   title?: string
 ): string | undefined {
   const app = getSidebarApp(appId)
+
   if (!tabs || !app?.conversationRoute) return
+
   return tabs.openTab(app.conversationRoute.urlForKey(key), { forceNew: true, title })
 }
 
 function openConversationWindowImpl(appId: ConversationAppId, key: string, title?: string): void {
   const app = getSidebarApp(appId)
+
   if (!app?.conversationRoute) return
   // Mirrors TabsContext.detachTab's tab.detach payload, but with a fresh tab id and
   // without closing any current-window tab — this is "open elsewhere", not "move".
@@ -69,6 +72,7 @@ export function useConversationNavigation(appId: ConversationAppId): Conversatio
       openConversation: (key, title) => {
         if (tabs && !isDetachedWindowFrame) return openConversationTabImpl(tabs, appId, key, title)
         openConversationWindowImpl(appId, key, title)
+
         return undefined
       },
       openConversationWindow: (key, title) => openConversationWindowImpl(appId, key, title)

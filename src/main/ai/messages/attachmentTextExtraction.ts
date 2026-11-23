@@ -42,14 +42,18 @@ async function extract(entryId: FileEntryId, ext: string, signal?: AbortSignal):
   if (ext === 'pdf') return (await extractPdfText(content)).trim()
 
   if (ext === 'doc') return extractLegacyDocText(Buffer.from(content))
+
   if (OFFICE_PARSER_EXTS.has(ext)) {
     // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
     const { default: officeParser } = await import('officeparser')
+
     const text = await officeParser.parseOfficeAsync(Buffer.from(content), {
       tempFilesLocation: application.getPath('app.temp')
     })
+
     return text.trim()
   }
+
   return runAttachmentWorker('decode', { content, conservative: getFileTypeByExt(ext) === FILE_TYPE.OTHER }, signal)
 }
 
@@ -72,6 +76,7 @@ export async function extractDocumentText(
   const version = await fileManager.getVersion(entryId)
   const cacheKey = `doc-extraction:${entryId}:${version.mtime}:${version.size}`
   const cached = cache.get<string | null>(cacheKey)
+
   if (cached !== undefined) return cached
 
   if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
@@ -81,5 +86,6 @@ export async function extractDocumentText(
 
   logger.debug('Processed document text', { entryId, ext, chars: text?.length ?? 0, binary: text === null })
   cache.set(cacheKey, text, CACHE_TTL_MS)
+
   return text
 }

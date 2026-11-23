@@ -44,19 +44,23 @@ export function describeError(error: unknown): string {
   const details: string[] = []
   const seen = new Set<object>()
   let current: unknown = error
+
   for (let depth = 0; depth < 4; depth++) {
     const value =
       (typeof current === 'object' && current !== null) || typeof current === 'function' ? current : undefined
+
     if (value) {
       if (seen.has(value)) break
       seen.add(value)
     }
+
     try {
       const name = value && 'name' in value ? (value.name ?? 'Error') : 'Error'
       const message = value && 'message' in value ? (value.message ?? String(current)) : String(current)
       const code = value && 'code' in value && value.code ? ` code=${value.code}` : ''
       const next = value && 'cause' in value ? value.cause : undefined
       details.push(`${name}${code}: ${message}`)
+
       if (next === undefined || next === null) break
       current = next
     } catch {
@@ -64,6 +68,7 @@ export function describeError(error: unknown): string {
       break
     }
   }
+
   return details.join(' <- caused by ')
 }
 
@@ -75,10 +80,13 @@ export function applyInitData(initData: InferenceInitData): void {
   // Must be set before the first lazy require of @huggingface/transformers / ppu-paddle-ocr,
   // both of which transitively require onnxruntime-node — see patches/onnxruntime-node@1.25.1.patch.
   const bindingPath = initData.artifactPaths['onnxruntime-node']
+
   if (bindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = bindingPath
   const sherpaBindingPath = initData.artifactPaths['sherpa-onnx']
+
   if (sherpaBindingPath) process.env.CHERRY_SHERPA_ONNX_BINDING_PATH = sherpaBindingPath
   const mlxBindingPath = initData.artifactPaths['mlx-node']
+
   if (mlxBindingPath) process.env.NAPI_RS_NATIVE_LIBRARY_PATH = mlxBindingPath
 }
 
@@ -86,6 +94,7 @@ export async function getMlxAsr(): Promise<typeof MlxAsrRuntime> {
   mlxAsr ??= (await import(
     pathToFileURL(projectRequire().resolve('@cherrystudio/mlx-asr')).href
   )) as typeof MlxAsrRuntime
+
   return mlxAsr
 }
 
@@ -96,6 +105,7 @@ function projectRequire(): NodeRequire {
 
 export function getTransformers(): any {
   transformers ??= projectRequire()('@huggingface/transformers')
+
   return transformers
 }
 
@@ -105,6 +115,7 @@ export async function getPpu(): Promise<any> {
     // dynamic import so this works regardless of the host Node's require(esm) support.
     ppu = await import(pathToFileURL(projectRequire().resolve('ppu-paddle-ocr')).href)
   }
+
   return ppu
 }
 
@@ -118,29 +129,35 @@ export function getSherpa(): any {
       })
     }
   }
+
   return sherpa
 }
 
 /** Memoizes a loaded model, dropping the entry on failure so a later request can retry. */
 export function cacheResource<T extends DisposableResource>(key: string, load: () => Promise<T>): Promise<T> {
   const existing = cachedResources.get(key)
+
   if (existing !== undefined) return existing as Promise<T>
   const promise = load()
   cachedResources.set(key, promise)
   promise.catch(() => cachedResources.delete(key))
+
   return promise
 }
 
 export async function disposeCachedResources(logger: UtilityProcessLogger): Promise<void> {
   const resources = [...cachedResources.values()]
   cachedResources.clear()
+
   const results = await Promise.allSettled(
     resources.map(async (resourcePromise) => {
       const resource = await resourcePromise
       const dispose = resource.dispose ?? resource.destroy
+
       if (typeof dispose === 'function') await dispose.call(resource)
     })
   )
+
   for (const result of results) {
     if (result.status === 'rejected') {
       logger.warn(`failed to dispose cached inference resource error=${describeError(result.reason)}`)
@@ -170,6 +187,7 @@ export async function withHardwareFallback<T>(
     )
     await disposeCachedResources(context.logger)
     runtimeProfile = CPU_LOCAL_INFERENCE_PROFILE
+
     try {
       return await operation()
     } catch (cpuError) {

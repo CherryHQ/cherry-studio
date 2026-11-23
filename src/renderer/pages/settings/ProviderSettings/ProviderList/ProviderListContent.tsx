@@ -68,6 +68,7 @@ function reorderProviderBlocks({
 
   const sourceMembers = source.kind === 'group' ? source.members : [source.provider]
   const destinationMembers = target.kind === 'group' ? target.members : [target.provider]
+
   // Enabled and disabled rows occupy separate display partitions. Crossing that
   // boundary cannot change status, so reject the drop rather than persist a jump.
   if (
@@ -82,9 +83,11 @@ function reorderProviderBlocks({
   // partition while still moving every source member as one full block.
   const targetMembers = target.kind === 'group' ? target.members : [target.provider]
   const enabledTargetMembers = targetMembers.filter((provider) => provider.isEnabled)
+
   const targetIds = new Set(
     (enabledTargetMembers.length > 0 ? enabledTargetMembers : targetMembers).map((provider) => provider.id)
   )
+
   const moving = providers.filter((provider) => sourceIds.has(provider.id))
   const remaining = providers.filter((provider) => !sourceIds.has(provider.id))
 
@@ -102,6 +105,7 @@ function reorderProviderBlocks({
   const insertIndex = oldIndex < newIndex ? targetIndex + 1 : targetIndex
   const nextProviders = [...remaining]
   nextProviders.splice(insertIndex, 0, ...moving)
+
   return nextProviders
 }
 
@@ -122,6 +126,7 @@ export default function ProviderListContent({
   const { t } = useTranslation()
   const entries = useMemo(() => groupProvidersByPreset(visibleProviders), [visibleProviders])
   const hasResults = visibleProviders.length > 0
+
   const visibleIndexById = useMemo(
     () => new Map(visibleProviders.map((provider, index) => [provider.id, index])),
     [visibleProviders]
@@ -140,6 +145,7 @@ export default function ProviderListContent({
       onDragStateChange={onDragStateChange}
       onReorder={(reordered) => {
         const next = restoreProviderStatusSlots(providers, reordered)
+
         if (next !== providers) return onReorder(next)
       }}
       onReorderError={onReorderError}

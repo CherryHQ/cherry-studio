@@ -19,6 +19,7 @@ declare module '@tiptap/core' {
 /** The slice is open so its first and last lines merge into the text around the insertion point. */
 export function createComposerLineSlice(schema: Schema, content: readonly JSONContent[]): Slice {
   const paragraphs = createComposerLineParagraphs(content).map((node) => schema.nodeFromJSON(node))
+
   return new Slice(Fragment.fromArray(paragraphs), 1, 1)
 }
 
@@ -27,11 +28,13 @@ function foldHardBreaks(state: EditorState) {
   state.doc.descendants((node, position) => {
     if (node.type.name === 'hardBreak') breaks.push(position)
   })
+
   if (breaks.length === 0) return null
 
   const transaction = state.tr
   // Splitting before deleting keeps a caret on either side of the break on its own line.
   breaks.reverse().forEach((position) => transaction.split(position + 1).delete(position, position + 1))
+
   return transaction
 }
 
@@ -48,12 +51,14 @@ export const ComposerLines = Extension.create({
             if (!tr.selection.empty) tr.deleteSelection()
             tr.split(tr.selection.from).scrollIntoView()
           }
+
           return true
         },
       insertComposerLines:
         (content) =>
         ({ tr, dispatch }) => {
           if (dispatch) tr.replaceSelection(createComposerLineSlice(tr.doc.type.schema, content))
+
           return true
         }
     }

@@ -7,6 +7,7 @@ const { setTimeout: delay } = require('node:timers/promises')
 
 async function smoke() {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'cherry-external-app-'))
+
   try {
     const data = path.join(directory, 'data')
     const config = path.join(directory, 'config')
@@ -37,13 +38,16 @@ async function smoke() {
     const launcher = path.join(directory, 'capture.cjs')
     writeFileSync(fileFixture, 'external app native smoke\n')
     writeFileSync(launcher, `require('node:fs').writeFileSync(${JSON.stringify(marker)}, process.argv[2])`)
+
     const handlers = [
       ['cherry-native-smoke.desktop', 'cherry-native-smoke'],
       ['cherry-absolute-icon.desktop', absoluteIcon],
       ['cherry-missing-icon.desktop', 'cherry-no-such-icon'],
       ['cherry-broken-icon.desktop', path.join(directory, 'broken.png')]
     ]
+
     writeFileSync(path.join(directory, 'broken.png'), 'not an image')
+
     for (const [id, icon] of handlers)
       writeFileSync(
         path.join(applications, id),
@@ -62,8 +66,10 @@ async function smoke() {
       `[Default Applications]\ntext/plain=cherry-native-smoke.desktop;\ninode/directory=cherry-native-smoke.desktop;\n[Added Associations]\ntext/plain=${handlers.map(([id]) => id).join(';')};\ninode/directory=${handlers.map(([id]) => id).join(';')};\n`
     )
     const electron = process.argv[2]
+
     for (const fixture of [fileFixture, folderFixture]) {
       rmSync(marker, { force: true })
+
       const result = spawnSync(
         electron ?? process.execPath,
         [
@@ -78,36 +84,46 @@ async function smoke() {
           timeout: 15000
         }
       )
+
       assert.equal(result.status, 0, result.stderr)
       const listing = JSON.parse(result.stdout)
       assert.equal(listing.defaultApplication?.id, 'cherry-native-smoke.desktop')
+
       for (const [id] of handlers) {
         assert(
           listing.applications.some((app) => app.id === id),
           `Missing handler ${id} for ${fixture}`
         )
       }
+
       const png = (id) => {
         const app = listing.applications.find((entry) => entry.id === id)
         assert(app?.iconDataUrl?.startsWith('data:image/png;base64,'), `Missing icon for ${id}`)
+
         return Buffer.from(app.iconDataUrl.split(',')[1], 'base64')
       }
+
       const red = png('cherry-native-smoke.desktop')
       const blue = png('cherry-absolute-icon.desktop')
+
       for (const image of [red, blue]) {
         assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a')
         assert.equal(image.readUInt32BE(16), 32)
         assert.equal(image.readUInt32BE(20), 32)
       }
+
       assert.notDeepEqual(red, blue, 'Theme and absolute icons must retain distinct artwork')
+
       for (const id of ['cherry-missing-icon.desktop', 'cherry-broken-icon.desktop']) {
         const app = listing.applications.find((entry) => entry.id === id)
         assert(app, 'An unreadable icon must not hide its application')
         assert.equal(app.iconDataUrl, undefined)
       }
+
       for (let attempt = 0; attempt < 100 && !existsSync(marker); attempt++) await delay(50)
       assert.equal(readFileSync(marker, 'utf8'), fixture)
     }
+
     process.stdout.write(
       'GIO enumerated and opened Unicode file and folder fixtures; themed and absolute SVG icons became distinct PNGs; missing and corrupt icons preserved their handlers.\n'
     )
@@ -115,6 +131,7 @@ async function smoke() {
     rmSync(directory, { recursive: true, force: true })
   }
 }
+
 smoke().catch((error) => {
   process.stderr.write(`${error.stack}\n`)
   process.exitCode = 1

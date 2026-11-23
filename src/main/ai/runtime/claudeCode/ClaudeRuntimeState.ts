@@ -26,8 +26,10 @@ export function claudeControlEvents(control: ClaudeControl): AgentRuntimeEvent[]
     case 'result': {
       const usage = convertClaudeCodeUsage(control.usage)
       usage.outputTokens.reasoning = control.reasoningTokens
+
       return [{ type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { stats: v3UsageToStats(usage) } } }]
     }
+
     case 'autonomous-turn-state':
       return [
         control.state === 'started'
@@ -100,6 +102,7 @@ function taskEventData({ message, status }: ClaudeTaskFact): AgentTaskEventPartD
     toolUseId: 'tool_use_id' in message ? message.tool_use_id : undefined,
     status
   }
+
   switch (message.subtype) {
     case 'task_started':
       return {
@@ -152,5 +155,6 @@ function taskUsage(
   value: Extract<ClaudeTaskFact['message'], { subtype: 'task_progress' | 'task_notification' }>['usage']
 ): AgentTaskEventPartData['usage'] {
   if (!value) return undefined
+
   return { totalTokens: value.total_tokens, toolUses: value.tool_uses, durationMs: value.duration_ms }
 }

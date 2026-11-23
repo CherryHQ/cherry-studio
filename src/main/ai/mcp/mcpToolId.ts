@@ -28,22 +28,26 @@ const PINYIN_SEGMENT_HAN = 2
  */
 function toWireSlug(value: string): string {
   if (!tinyPinyin.isSupported()) return toCamelCase(value)
+
   const romanized = tinyPinyin
     .parse(value)
     .map((segment) => (segment.type === PINYIN_SEGMENT_HAN ? ` ${segment.target} ` : segment.source))
     .join('')
+
   return toCamelCase(romanized)
 }
 
 export function buildMcpToolWireId({ serverId, serverName, toolName }: McpToolWireIdInput): string {
   const serverPart = toWireSlug(serverName) || 'server'
   const toolPart = toWireSlug(toolName) || 'tool'
+
   const digest = createHash('sha256')
     .update(serverId)
     .update('\0')
     .update(toolName)
     .digest('hex')
     .slice(0, IDENTITY_DIGEST_LENGTH)
+
   const suffix = `_${digest}`
   const body = `mcp__${serverPart}__${toolPart}`.slice(0, MCP_TOOL_ID_MAX_LENGTH - suffix.length).replace(/_+$/, '')
 

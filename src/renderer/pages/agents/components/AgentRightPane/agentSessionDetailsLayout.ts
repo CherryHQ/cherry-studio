@@ -5,5 +5,6 @@ export type AgentDetailsMode = 'inline' | 'popover'
 
 export function resolveAgentDetailsMode(width: number, height: number, previous: AgentDetailsMode): AgentDetailsMode {
   const minimumWidth = previous === 'inline' ? 976 : 980
+
   return width >= minimumWidth && height >= 160 ? 'inline' : 'popover'
 }

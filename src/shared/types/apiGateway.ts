@@ -9,4 +9,5 @@ export type ApiGatewayConfig = {
 export type ApiGatewayStatusResult = { success: true } | { success: false; error: string }
 
 export type ApiGatewayStopOutcome = 'stopped'
+
 export type ApiGatewayStopResult = { success: true; outcome: ApiGatewayStopOutcome } | { success: false; error: string }
