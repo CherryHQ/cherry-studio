@@ -2,7 +2,7 @@
   "name": "@cherrystudio/agent-behavior",
   "version": "0.0.0",
   "private": true,
-  "description": "Harness-neutral agent behavior: rule core, ports, fake harness and contract cases.",
+  "description": "Harness-neutral agent behavior: rule core, ports and adapter contracts.",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -13,6 +13,10 @@
     "./policy": {
       "types": "./dist/policy.d.mts",
       "default": "./dist/policy.mjs"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.mts",
+      "default": "./dist/testing.mjs"
     }
   },
   "scripts": {

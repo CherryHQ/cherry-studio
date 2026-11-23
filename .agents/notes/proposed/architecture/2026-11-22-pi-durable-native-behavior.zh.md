@@ -16,6 +16,8 @@ Status: proposed
 
 沿用已落盘的会话 ID、任务名和版本、输入和阶段布局、去重键、memo 和 provider 绑定。恢复调度前先恢复模型选项和子会话归属。现有 SQLite 数据库可以原地打开。Timeline 归档有独立的存储 Spec。
 
+移除内存 Harness。核心测试验证产品规则，执行端口契约继续在真实适配器上测试，恢复和结果去重由原生 SQLite 验证。脚本化 Host 作为测试 fixture 提供审批、问答和配置输入。
+
 ## Alternatives considered
 
 - 保留执行端口，逐一优化读取。这样可以消除单个扫描，新接入的原生能力仍然需要经端口转换。

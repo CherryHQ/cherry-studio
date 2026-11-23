@@ -3,7 +3,7 @@ import { defineExtension, defineTool } from '@earendil-works/pi-durable'
 import { bool, obj } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 
 import { conversationId, pages } from '../src/behavior/history'
 import { openDurableHarness } from './behaviorHarness'

@@ -14,7 +14,7 @@ import { createRegistry, type Storage, type SubmissionRecord } from '@earendil-w
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { expect, it } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 import { runtimeId, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime } from '../src'

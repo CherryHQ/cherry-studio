@@ -16,7 +16,8 @@ import {
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
-import { createScriptedHost, encodeEntry } from '@cherrystudio/agent-behavior'
+import { encodeEntry } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime, type PiDurableThreadHandle } from '../src'

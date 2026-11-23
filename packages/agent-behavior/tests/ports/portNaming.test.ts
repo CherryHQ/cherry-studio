@@ -79,7 +79,7 @@ describe('port naming and documentation', () => {
     expect(identifiers().filter((name) => segments(name).some((s) => HARNESS_NOUNS.has(s)))).toEqual([])
   })
 
-  // Catches a port added without saying how coding-agent, Durable and the fake implement it, or without the keys and
+  // Catches a port added without saying how coding-agent and Durable implement it, or without the keys and
   // waits the design assigns it, which leaves an adapter author guessing.
   it('documents every port for each harness, with its keys and waits', () => {
     const ports = portInterfaces()
@@ -89,7 +89,7 @@ describe('port naming and documentation', () => {
       const name = port.name.text
       const harnesses = tagTexts(port, 'harness').map((text) => text.split(/\s+/)[0])
       return [
-        ...['coding-agent', 'durable', 'fake']
+        ...['coding-agent', 'durable']
           .filter((harness) => harnesses.filter((h) => h === harness).length !== 1)
           .map((harness) => `${name}: @harness ${harness}`),
         ...(KEYS_AND_WAITS[name] ?? [])

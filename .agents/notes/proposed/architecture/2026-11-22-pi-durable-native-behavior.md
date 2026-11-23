@@ -16,6 +16,8 @@ Move ordinary submission, child state and shutdown off full-history reads first.
 
 Reuse persisted conversation IDs, task names and versions, input and phase layouts, deduplication keys, memos and provider bindings. Restore model options and child ownership before scheduling resumed work. Existing SQLite databases can open in place. The Timeline archive has its own storage spec.
 
+Remove the in-memory harness. Verify product rules in core tests and keep the port contracts on the real adapters. Cover recovery and result deduplication with native SQLite. Keep the scripted host as a test fixture for approval, question and configuration inputs.
+
 ## Alternatives considered
 
 - Keep the execution ports and optimize each read. This removes individual scans, while new native features continue to need port translation.

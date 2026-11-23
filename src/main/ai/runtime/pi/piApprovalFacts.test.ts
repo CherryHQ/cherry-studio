@@ -5,14 +5,9 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import {
-  callKeyOf,
-  createFakeHarness,
-  createScriptedHost,
-  install,
-  type GateHandlers
-} from '@cherrystudio/agent-behavior'
-import type { JsonValue } from '@cherrystudio/agent-runtime'
+import { callKeyOf, createToolPolicy } from '@cherrystudio/agent-behavior/policy'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
+import { runtimeId, type JsonValue } from '@cherrystudio/agent-runtime'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
@@ -68,7 +63,7 @@ beforeAll(async () => {
 
 afterAll(() => rmSync(testRoot, { recursive: true, force: true }))
 
-/** Exercise the installed shared gate with production desktop facts and interaction ports. */
+/** Exercise the shared gate with production desktop facts and interaction ports. */
 function buildGate(
   overrides: Partial<{
     workspacePath: string
@@ -99,62 +94,42 @@ function buildGate(
     delegationTools: new Set(),
     ...overrides
   }
-  let gate: GateHandlers
+  const thread = runtimeId<'thread'>('approval-test')
   let sequence = 0
   const calls = new Map<string, string>()
-  const setup = (async () => {
-    const host = createScriptedHost({
-      settings: {
-        goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
-        autonomy: 'auto',
-        permissionMode: context.getPermissionMode() ?? 'default',
-        attendance: context.getInteractionState().userResponse,
-        maxBackground: 4,
-        offloadThreshold: 20000
-      }
-    })
-    const interactions = createPiInteractionPorts({
-      input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
-      approval: context,
-      toolCallIdentity: async (call) => ({ toolCallId: calls.get(call.key)! }),
-      emit: (event) => {
-        if (event.type === 'tool-approval-request') emitted.push(event)
-      }
-    })
-    const fake = createFakeHarness({
-      install: (ports) =>
-        install(
-          {
-            ...ports,
-            lifecycle: { register: () => {} },
-            toolGate: {
-              register: (handlers) => {
-                gate = handlers
-              }
-            }
-          },
-          { ...host, ...interactions }
-        )
-    })
-    return { fake, thread: await fake.createThread() }
-  })()
+  const host = createScriptedHost({
+    settings: {
+      goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+      autonomy: 'auto',
+      permissionMode: context.getPermissionMode() ?? 'default',
+      attendance: context.getInteractionState().userResponse,
+      maxBackground: 4,
+      offloadThreshold: 20000
+    }
+  })
+  const interactions = createPiInteractionPorts({
+    input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
+    approval: context,
+    toolCallIdentity: async (call) => ({ toolCallId: calls.get(call.key)! }),
+    emit: (event) => {
+      if (event.type === 'tool-approval-request') emitted.push(event)
+    }
+  })
+  const policy = createToolPolicy({ ...host, ...interactions })
   const handler = async (event: ToolEvent, ctx: { signal?: AbortSignal }) => {
-    const { fake, thread } = await setup
     const key = callKeyOf(String(++sequence))
     calls.set(key, event.toolCallId)
-    const result = await fake.withCall(thread, (ports) =>
-      gate.before(
-        {
-          thread,
-          key,
-          tool: event.toolName,
-          args: event.input,
-          nested: Boolean(event.parentToolCallId),
-          signal: ctx.signal ?? new AbortController().signal
-        },
-        { goalRound: false, callWindow: [], plan: undefined },
-        ports
-      )
+    const result = await policy.approve(
+      {
+        thread,
+        key,
+        tool: event.toolName,
+        args: event.input,
+        nested: Boolean(event.parentToolCallId),
+        signal: ctx.signal ?? new AbortController().signal
+      },
+      { goalRound: false, callWindow: [], plan: undefined },
+      (_name, ask) => ask()
     )
     if (result.block) return { block: true, reason: result.block }
     if (result.args && typeof result.args === 'object') Object.assign(event.input, result.args)

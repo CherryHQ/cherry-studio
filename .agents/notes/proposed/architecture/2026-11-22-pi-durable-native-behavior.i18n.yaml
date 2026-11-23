@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-22-pi-durable-native-behavior.md
-2026-11-22-pi-durable-native-behavior.md: 51ec1c36fcd0d37b556db60bfadedc782fd06ff5
-2026-11-22-pi-durable-native-behavior.zh.md: d66a664123a18dad3e6c96d2c2750a0a6b714fa6
+2026-11-22-pi-durable-native-behavior.md: eb8fe3161992526d6cd38012a0b2dd31eb5c7fbe
+2026-11-22-pi-durable-native-behavior.zh.md: e14fe5ebe7024648b63a1c7008080f2880009b7e

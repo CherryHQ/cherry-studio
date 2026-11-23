@@ -1,5 +1,5 @@
-import type { BehaviorEvent } from '../core/decisions'
-import type { ToolCallFact } from '../core/facts'
+import type { BehaviorEvent } from '../src/core/decisions'
+import type { ToolCallFact } from '../src/core/facts'
 import type {
   ApprovalAnswer,
   ApprovalHostFacts,
@@ -9,8 +9,8 @@ import type {
   QuestionAnswer,
   SubagentModelCandidate,
   VerifierVerdict
-} from '../core/hostFacts'
-import type { HostPorts, OutputFile } from '../ports/host'
+} from '../src/core/hostFacts'
+import type { HostPorts, OutputFile } from '../src/ports/host'
 
 export type ScriptedHostOptions = {
   readonly settings: HostSettingsSnapshot

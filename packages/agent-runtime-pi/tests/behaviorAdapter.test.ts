@@ -7,7 +7,6 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 import {
   type ChildSpec,
   type ConversationFacts,
-  createScriptedHost,
   encodeEntry,
   type HarnessPorts,
   type HostPorts,
@@ -18,6 +17,7 @@ import {
   type TurnInput,
   type TxOp
 } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { AgentRuntimeEvent } from '../src'

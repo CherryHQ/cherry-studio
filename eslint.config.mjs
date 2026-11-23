@@ -118,7 +118,7 @@ const FILE_PREVIEW_HOST_IMPORTS = [
   '**/src/main/**'
 ]
 
-// Agent behavior must run unchanged on coding-agent, Durable and the fake (packages/agent-behavior/README.md).
+// Agent behavior rules are shared by coding-agent and Durable (packages/agent-behavior/README.md).
 const AGENT_BEHAVIOR_PORTABLE =
   'Agent behavior is harness-neutral: no Pi, Node, Electron, host, logger or AI SDK modules.'
 const AGENT_BEHAVIOR_IMPORTS = {
@@ -155,7 +155,8 @@ const AGENT_BEHAVIOR_IMPORTS = {
         '@cherrystudio/agent-runtime-pi-durable/**',
         '**/src/main/**',
         '**/src/shared/**',
-        '**/src/renderer/**'
+        '**/src/renderer/**',
+        '**/tests/**'
       ],
       message: AGENT_BEHAVIOR_PORTABLE
     }
@@ -447,6 +448,10 @@ const barrelPlugin = {
         const f = barrelFilename(ctx)
         const check = (node, spec) => {
           if (spec === '@cherrystudio/agent-behavior/policy') return
+          if (spec === '@cherrystudio/agent-behavior/testing') {
+            ctx.report({ node, message: 'Import @cherrystudio/agent-behavior/testing only from tests.' })
+            return
+          }
           const tgt = resolveBarrelSpec(spec, f)
           if (!tgt) return
           const d = outermostCrossedBarrelDir(tgt, f)
@@ -1292,7 +1297,7 @@ export default defineConfig([
     files: ['packages/agent-behavior/src/core/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
-        '(?:^|/)(?:ports|orchestration|fake|contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        '(?:^|/)(?:ports|orchestration|contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
         'core/ imports only core/.'
       ),
       'no-restricted-syntax': [
@@ -1321,7 +1326,7 @@ export default defineConfig([
     files: ['packages/agent-behavior/src/ports/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
-        '(?:^|/)(?:orchestration|fake|contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        '(?:^|/)(?:orchestration|contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
         'ports/ depends only on core/ types.'
       ),
       'no-restricted-syntax': [
@@ -1340,8 +1345,8 @@ export default defineConfig([
     files: ['packages/agent-behavior/src/orchestration/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
-        '(?:^|/)(?:fake|contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
-        'Orchestration never depends on the fake or the contract.'
+        '(?:^|/)(?:contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        'Orchestration never depends on the contract.'
       ),
       'no-restricted-syntax': [
         'error',
@@ -1377,7 +1382,7 @@ export default defineConfig([
     files: ['packages/agent-behavior/src/contract/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
-        '(?:^|/)(?:orchestration|fake|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        '(?:^|/)(?:orchestration|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
         'contract/ depends only on core/ and ports/.'
       )
     }

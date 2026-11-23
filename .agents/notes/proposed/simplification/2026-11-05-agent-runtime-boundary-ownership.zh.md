@@ -317,7 +317,7 @@ CompactionReason
 | --- | --- |
 | AskUser 与 Todo | `behaviorRuntime.test.ts` 验证审批／回答、Stop 后迟到答案、Todo 原生文件重开且不请求模型；`agent-behavior/tests/core/interaction/interaction.test.ts` 负责输入校验。 |
 | 输出落盘 | `behaviorAdapter.test.ts` 覆盖保存成功／失败、摘录、图片顺序、结构化输出及文件重开；`agent-behavior/tests/core/context/context.test.ts` 负责选择／豁免规则。 |
-| Goal 状态、停止与恢复 | `agent-behavior/tests/core/goal/` 负责预算／状态／历史；`tests/orchestration/fixtures/goal.test.ts` 和 `reopen.test.ts` 负责策略／恢复；Pi `behaviorRuntime.test.ts` 验证本地 goal 命令及压缩。 |
+| Goal 状态、停止与恢复 | `agent-behavior/tests/core/goal/` 验证预算、状态和历史。Pi `behaviorRuntime.test.ts` 验证本地 Goal 命令和压缩。Pi Durable 通过 Main 连接测试验证 Goal，通过原生 SQLite 测试验证恢复。 |
 | Child 创建／fork／审批／模型／续接／停止／投递 | Pi `behaviorAdapter.test.ts`、`behaviorRuntime.test.ts`、`behaviorContract.test.ts` 和 `behaviorHistory.test.ts` 覆盖原生所有权、持久 lineage、独立续接、接纳失败、已停止轮次及报告；Main 子投影／归档套件保留产品持久化契约。 |
 | 根 runtime 与原生存储 | 现有 runtime、生命周期、启动／流／边界观察、session／存储／事件及压缩套件继续保留；Gateway 和原生工具集成改为使用 `createPiRuntime`，不再依赖公开 session builder。 |
 

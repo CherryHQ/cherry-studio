@@ -28,7 +28,6 @@ export type TransactResult<R extends JsonValue> = {
  * @harness durable `api.commit` in tools, `runtime.commit` in jobs, `Conversation.commit` in host entries: scan entries
  * (full lineage) and read documents first, then call `decide`, then write; records are `tx.appendEntry` with
  * `{ kind, data }`; `ensure-job` is `tx.createTask`.
- * @harness fake An in-memory log behind one lock; a throwing `decide` or an operation that cannot apply writes nothing.
  * @keys Every operation carries a key. Applied keys show in `keysSeen` of the thread they landed on: records and quiet
  * inputs as `data.key`, a spawn through the parent's run record and the child's origin record, a job on the transacting
  * thread while the job lives. Callers drop operations whose key is already seen.
@@ -66,8 +65,6 @@ export type RetractResult = 'withdrawn' | 'already-started' | 'settled' | 'not-f
  * `Harness.abortTask(pi.live.run.taskId)` plus `abortSubmission` for each queued input, neither of which enables
  * scheduling; with `turn`, it first checks that the latest run, `pi.live.run` or else the last one, began with that
  * entry.
- * @harness fake A per-thread inbox in front of the scripted model, with Durable's admission rules; `stop` with `turn`
- * acts only while the thread's latest run began with that entry.
  * @keys The key is the request id: the same key returns the original admission and never adds a second input; a
  * 'busy' answer records nothing, so the key stays usable; a withdrawn key is spent. `stop` takes no key: `turn` names
  * the run it may stop, so repeating a stop never reaches a later turn.
@@ -110,9 +107,6 @@ export type MessageResult = { readonly run: number; readonly status: 'started' |
  * `awaitAnswer` looks up the submission by request id and waits for its answer. A completed foreground child's
  * immutable owner cannot provide independent continuation: reject it before recording or starting another run until
  * ownership is resolved. Background conversations support native continuation without a target-run condition.
- * @harness fake Queue for the next input boundary, carrying pending messages past normal completion; cancellation
- * withdraws them. A foreground child's first input after its owning call aborted starts nothing. `awaitAnswer`
- * follows the input's actual run; `stop` acts only on the named active run.
  * @keys The same message key returns the original result and adds no input, even after its run ended. A message
  * keeps its request key across a run boundary. `awaitAnswer` follows that key, not the run observed before sending.
  * @waits `message` resolves when input starts or joins a run, or cancellation withdraws it. `awaitAnswer` waits for
@@ -142,8 +136,6 @@ export type JobHandler = (ports: BoundPorts, job: JobSpec) => Promise<void>
  * `abandonOnRestart` for 'abandon' jobs; its single phase runs the handler, which reruns safely because every step is
  * keyed. Jobs are deduplicated by op key, never by kind; an 'abandon' job created before a reopen counts as ended from
  * that reopen on, although Durable marks it only once scheduling resumes.
- * @harness fake An in-memory job table; on restart 'abandon' jobs are dropped before any `onOpen` and 'resume' jobs
- * rerun from the start after it.
  * @keys Only the `ensure-job` operation creates a job; its key stays in `keysSeen` while the job lives and leaves when
  * it finishes, fails or is abandoned. A restart abandons an `'abandon'` job from the reopen on, before `onOpen`, and
  * resumes a `'resume'` job. A key whose job ended creates a new job. The idle driver's key is
@@ -169,8 +161,6 @@ export interface Jobs {
  * read it again. A run hands over to a new generation task after every tool round, and queued input starts the next
  * run in the commit that ends this one, so the wait loops until `pi.live.run` is gone. `untilDone` refetches the
  * submission by request id and waits the same way for the run it joined. Both are re-established when a phase reruns.
- * @harness fake Resolved by the fake's run loop: `untilIdle` once the thread has no active run, `untilDone` once the
- * submission settled or was withdrawn.
  * @keys `untilDone` takes the key `Turns.start` was called with, the input's request id.
  * @waits `untilIdle` resolves at once when no run is active, even while inputs a failed run left are still queued
  * (`LiveFacts.leftoverInputs`). `untilDone` resolves once the input submitted under `key` has run to its end in
@@ -188,7 +178,6 @@ export interface Waits {
  * @harness coding-agent An in-session store; restarts do not resume calls, so nothing needs to outlive the session.
  * @harness durable `api.memo(name, candidate)`: persistent, first writer wins; hooks and tasks share one namespace,
  * hence the `cherry.` prefix.
- * @harness fake A map that survives simulated restarts.
  * @keys Names are memo keys from `core/keys.ts` (`cherry.approval:`, `cherry.ask:`, `cherry.verdict:`, `cherry.summary:`).
  */
 export interface Memory {
@@ -201,7 +190,6 @@ export interface Memory {
  *
  * @harness coding-agent `Date.now()`.
  * @harness durable `runtime.now()`, the harness clock.
- * @harness fake A fixed clock that always reads 0.
  */
 export interface Clock {
   /** Whole milliseconds since the epoch, non-decreasing. */
@@ -223,7 +211,6 @@ export interface ToolDefinition extends ToolSpec {
  *
  * @harness coding-agent `pi.registerTool` with the same name, schema and execution mode.
  * @harness durable Tools of an extension installed through `HarnessOptions.registry`, declaring `replay`.
- * @harness fake Called by the fake's run loop, which applies Durable's replay rules after a restart.
  */
 export interface Tools {
   /** Called during install. */
@@ -254,8 +241,6 @@ export interface GateHandlers {
  * @harness durable `beforeTool` and `afterTool`; plan from mirrored documents; the call window from the
  * late-bound `Conversation.entries()`, or an in-process window that resets on restart (harness-limited row 5); the
  * signal is the one `beforeTool` gets, aborted with the tool task.
- * @harness fake Called by the run loop with facts computed from its log; the window is kept in memory; the signal is
- * the run's abort signal.
  * @keys The call key is `callKeyOf` applied to Durable's tool task id or to coding-agent's `<sessionId>:<toolCallId>`;
  * history carries the same key as `callKey` on the call and on its result; approvals are memoized under
  * `cherry.approval:<callKey>`.
@@ -276,7 +261,6 @@ export interface ContextFilterHandler {
  * @harness coding-agent The `context` event.
  * @harness durable Never consulted, a declared difference: a round that started and was then withdrawn, or that a
  * restart cut before its admission, stays in history, and later model requests see its marker.
- * @harness fake Consulted before every model request; the omitted ids are absent from the request it records.
  */
 export interface ContextFilter {
   /** Called during install. */
@@ -300,8 +284,6 @@ export interface RequestMeterHandler {
  * @harness durable The model bridge counts per session id, rebuilt from the run's entries, and fails a refused request
  * with a non-retryable `quota exceeded` error; the adapter reports such a child run as `limit_reached`. A conversation
  * with a parent is `'child'`.
- * @harness fake Counts the scripted model's requests per run; a refusal ends the run with an error carrying its text. A
- * spawned conversation is `'child'`.
  */
 export interface RequestMeter {
   /** Called during install. */
@@ -337,9 +319,6 @@ export interface LifecycleHandlers {
  * @harness durable The host calls `onOpen` for every conversation after `Harness.open` and `inspect()` and before
  * `resume()`. Stops there only mark (`abortTask`, `abortSubmission`), because `abort()`, `submit` and the waits enable
  * scheduling; compaction completion is observed through a watch; `close()` writes nothing.
- * @harness fake `onOpen` at creation and, on every restart, for every conversation before any resumed run or job,
- * with ports that reject every method outside the list above; a stop there only marks the restored run, which resume
- * ends as aborted, and a job ensured there starts after the last `onOpen`; `onClose` runs on close.
  */
 export interface Lifecycle {
   /** Called during install. */

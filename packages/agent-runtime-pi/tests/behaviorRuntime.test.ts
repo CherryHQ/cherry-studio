@@ -4,7 +4,7 @@ import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished, vi } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 import {
   runtimeId,
   type ObservationPayload,

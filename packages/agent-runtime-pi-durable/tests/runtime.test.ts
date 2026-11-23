@@ -24,7 +24,7 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 import { obj, str } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 import { runtimeId, ThreadFeed, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import {
@@ -802,6 +802,88 @@ describe('Pi Durable runtime contract', () => {
       aliases: {}
     })
     expect(faux.state.callCount).toBe(before + 1)
+  })
+
+  it('settles a pending background report once across SQLite reopens', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'durable-report-'))
+    onTestFinished(() => rm(directory, { recursive: true, force: true }))
+    const model = sessionOptions.agent.model
+    const { runtime, faux, options, errors } = await setup(
+      () => openNodeSqliteStorage(join(directory, 'session.sqlite')),
+      {
+        host: createScriptedHost({
+          settings: {
+            goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+            autonomy: 'auto',
+            permissionMode: 'bypassPermissions',
+            attendance: 'stream',
+            maxBackground: 2,
+            offloadThreshold: 4000
+          }
+        }),
+        configureChild: () => ({ model })
+      }
+    )
+    const child = blocked()
+    const respond: FauxResponseStep = (...args) => {
+      const input = args[0].messages.findLast((message) => message.role === 'user')?.content
+      return typeof input === 'string' && input.includes('Scan in the background')
+        ? child.step(...args)
+        : fauxAssistantMessage('parent done')
+    }
+    faux.setResponses([
+      fauxAssistantMessage(
+        fauxToolCall(
+          'subagent',
+          { description: 'Scan', prompt: 'Scan in the background', background: true },
+          { id: 'spawn' }
+        ),
+        { stopReason: 'toolUse' }
+      ),
+      respond,
+      respond
+    ])
+    const root = confirmed(await runtime.create(sessionOptions))
+    expect((await root.input.submit(draft('Delegate the scan'))).status).toBe('acknowledged')
+    await child.reached
+    await expect.poll(() => root.durable.runState()).toEqual({ state: 'idle', outcome: 'completed' })
+    const id = Number(root.thread.id) as ConversationId
+    const report = await runtime.durable.commit(async (tx) => {
+      const tasks = await tx.scanTasks({ conversationId: id, kind: 'cherry.behavior-job' }, 32)
+      return tasks.items.find((task) => task.state.status !== 'terminal')
+    }, BACKGROUND_CONTEXT)
+    if (!report) throw new Error('Expected a pending background report')
+    expect(report.input).toMatchObject({ job: { kind: 'subagent-report' } })
+    confirmed(await runtime.shutdown())
+
+    const calls = faux.state.callCount
+    for (let reopening = 0; reopening < 2; reopening++) {
+      const reopened = confirmed(await createPiDurableRuntime(options))
+      try {
+        if (reopening === 0) {
+          const pending = await reopened.durable.commit((tx) => tx.task(report.id), BACKGROUND_CONTEXT)
+          expect(pending).toBeDefined()
+          expect(pending?.state.status).not.toBe('terminal')
+        }
+        confirmed(await reopened.resume())
+        await reopened.settled()
+        const facts = await reopened.durable.commit((tx) => readFacts(tx, new DurableFolds(), id), BACKGROUND_CONTEXT)
+        expect(
+          facts.history.flatMap((entry) =>
+            entry.kind === 'record' && entry.record.type === 'subagent-run' && entry.record.value.status === 'finished'
+              ? [entry.record.value.outcome]
+              : []
+          )
+        ).toEqual(['interrupted'])
+        expect(await reopened.durable.commit((tx) => tx.task(report.id), BACKGROUND_CONTEXT)).toMatchObject({
+          state: { status: 'terminal', outcome: { status: 'completed' } }
+        })
+        expect(faux.state.callCount).toBe(calls)
+      } finally {
+        confirmed(await reopened.shutdown())
+      }
+    }
+    expect(errors).toEqual([])
   })
 })
 

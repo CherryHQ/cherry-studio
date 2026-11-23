@@ -23,7 +23,7 @@ const IMPORTS = '@typescript-eslint/no-restricted-imports'
 const SYNTAX = 'no-restricted-syntax'
 const GLOBALS = 'no-restricted-globals'
 
-const LAYERS = ['core', 'ports', 'orchestration', 'contract', 'fake']
+const LAYERS = ['core', 'ports', 'orchestration', 'contract']
 const PACKAGE_BANS: readonly (readonly [string, string, string])[] = [
   ['node', `import { readFile } from 'node:fs'\nexport { readFile }`, IMPORTS],
   ['bare builtin', `import { createHash } from 'crypto'\nexport { createHash }`, IMPORTS],
@@ -31,6 +31,11 @@ const PACKAGE_BANS: readonly (readonly [string, string, string])[] = [
   ['electron', `import { app } from 'electron'\nexport { app }`, IMPORTS],
   ['main', `import { x } from '@main/utils/file'\nexport { x }`, IMPORTS],
   ['shared', `import { x } from '@shared/ai/piBuiltinTools'\nexport { x }`, IMPORTS],
+  [
+    'test fixture',
+    `import { createScriptedHost } from '../../tests/scriptedHost'\nexport { createScriptedHost }`,
+    IMPORTS
+  ],
   ['logger', `import { loggerService } from '@logger'\nexport { loggerService }`, IMPORTS],
   ['application', `import { application } from '@application'\nexport { application }`, IMPORTS],
   ['ai sdk', `import { generateText } from 'ai'\nexport { generateText }`, IMPORTS],
@@ -54,7 +59,7 @@ describe('agent-behavior boundary guards', () => {
   })
 
   // Catches a guard that silently stops firing (flat-config last-wins override, a glob typo), letting harness, host
-  // or environment code into a package that must run unchanged on coding-agent, Durable and the fake.
+  // or environment code into the shared rules.
   it.each([
     [
       'adapter deep import',
@@ -69,6 +74,12 @@ describe('agent-behavior boundary guards', () => {
       'barrel/closed'
     ],
     [
+      'dynamic import of the host fixture in production',
+      'packages/agent-runtime-pi-durable/src/probe.ts',
+      `export const fixture = () => import('@cherrystudio/agent-behavior/testing')`,
+      'barrel/closed'
+    ],
+    [
       'core → ports',
       `${SRC}/core/probe.ts`,
       `import type { Ledger } from '../ports/harness'\nexport type { Ledger }`,
@@ -80,7 +91,6 @@ describe('agent-behavior boundary guards', () => {
       `import { x } from '../../orchestration/gate'\nexport { x }`,
       IMPORTS
     ],
-    ['core → fake', `${SRC}/core/probe.ts`, `import { x } from '../fake/fakeHarness'\nexport { x }`, IMPORTS],
     ['core → contract', `${SRC}/core/probe.ts`, `import { x } from '../contract/cases'\nexport { x }`, IMPORTS],
     ['core → barrel', `${SRC}/core/probe.ts`, `import { x } from '..'\nexport { x }`, IMPORTS],
     // Catches core reaching the barrel through a file path, which the bare-directory pattern missed.
@@ -125,12 +135,6 @@ describe('agent-behavior boundary guards', () => {
       'ports → barrel file',
       `${SRC}/ports/probe.ts`,
       `import type { X } from '../index.js'\nexport type { X }`,
-      IMPORTS
-    ],
-    [
-      'ports → fake',
-      `${SRC}/ports/probe.ts`,
-      `import type { FakeHarness } from '../fake/fakeHarness'\nexport type { FakeHarness }`,
       IMPORTS
     ],
     [
@@ -191,14 +195,6 @@ describe('agent-behavior boundary guards', () => {
       `import { x } from '../index.js'\nexport { x }`,
       IMPORTS
     ],
-    [
-      'orchestration → fake',
-      `${SRC}/orchestration/probe.ts`,
-      `import { x } from '../fake/fakeHarness'\nexport { x }`,
-      IMPORTS
-    ],
-    // Catches contract cases depending on the fake or on orchestration, so they would stop being harness-neutral.
-    ['contract → fake', `${SRC}/contract/probe.ts`, `import { x } from '../fake/fakeHarness'\nexport { x }`, IMPORTS],
     [
       'contract → orchestration',
       `${SRC}/contract/probe.ts`,

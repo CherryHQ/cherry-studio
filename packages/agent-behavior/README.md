@@ -2,8 +2,7 @@
 
 Harness-neutral agent behavior for Cherry. The package holds what every agent harness must do the same way and
 nothing that belongs to one harness: the vocabulary of facts, decisions, records and keys; the ports a harness and
-the host implement; an in-memory fake harness with a scripted host; and the contract cases an adapter runs to prove
-its harness behaves as the ports promise. The decisions behind it are in the
+the host implement; and contract cases for the real adapters. The decisions behind it are in the
 [Agent Note](../../.agents/notes/proposed/architecture/2026-10-18-agent-behavior-package.md); this README is the
 contract documentation adapters follow.
 
@@ -14,13 +13,13 @@ freeing background capacity and allowing the idle driver to continue. Successful
 ## What this package is
 
 ```text
-Cherry host -> coding-agent and fake -> agent-behavior -> agent-runtime (types only)
+Cherry host -> coding-agent -> agent-behavior -> agent-runtime (types only)
 Cherry host -> Durable -> agent-behavior/policy
 ```
 
 Dependencies point one way. The package imports no adapter, Pi, Node, Electron, AI SDK, logger or host code, and from
 [`@cherrystudio/agent-runtime`](../agent-runtime/README.md) only types: ids and `JsonValue`. That is
-its only declared dependency, used only for types. The emitted JavaScript import graph has no external executable dependency; the common runtime may itself implement AI SDK readers. The fake is the third harness implementation and ships here. Each layer under `src/` has
+its only declared dependency, used only for types. The emitted JavaScript import graph has no external executable dependency; the common runtime may itself implement AI SDK readers. Each layer under `src/` has
 one job:
 
 | Directory        | Holds                                                                                                                                                                                   | Rule                                                                                                                                                           |
@@ -28,7 +27,6 @@ one job:
 | `core/`          | Facts, host facts, entry codecs, `Step` / `TxOp` / `Effect`, key derivation, `sha256Hex`, and the rule topics `goal/`, `subagents/`, `approval/`, `interaction/`, `context/`, `driver/` | Synchronous and pure: imports no other layer, has no `async`, `await`, `Promise` or `yield`, and touches no clock, randomness, process, `fetch` or timers.     |
 | `ports/`         | The harness ports (`harness.ts`) and the host ports (`host.ts`)                                                                                                                         | Interfaces and TSDoc only; imports core types only.                                                                                                            |
 | `orchestration/` | `install`: the tools, jobs, tool gate, lifecycle handlers and host entries                                                                                                              | Runs the rules over the ports: one decision per `Ledger.transact`, then the step's effects in order; no module or instance state, no timers, no `new Promise`. |
-| `fake/`          | `createFakeHarness`, `createScriptedHost`                                                                                                                                               | The in-memory second implementation of the ports.                                                                                                              |
 | `contract/`      | `harnessContract` and the `ContractHarness` an adapter implements                                                                                                                       | The cases every harness must pass.                                                                                                                             |
 
 The rule functions live in `core/`: each topic folder maps facts to a `Step` or a plain result, synchronously and
@@ -45,7 +43,7 @@ assigning its result to the original model call. `DEFAULT_MAX_BACKGROUND` is
 the default of the host's `Settings.maxBackground()`, and `FORK_PLACEHOLDER_RESULT` and `INTERRUPTED_CALL_RESULT` are
 the texts of the results an adapter gives a child's open tool calls ([Applying a step](#applying-a-step)).
 
-Pi and the test fixtures use `@cherrystudio/agent-behavior`. Pi Durable production code uses
+Pi and the contract fixtures use `@cherrystudio/agent-behavior`. Pi Durable production code uses
 `@cherrystudio/agent-behavior/policy`. A deep import such as `@cherrystudio/agent-behavior/core/facts`
 is a lint error (`barrel/closed`). An adapter depends on the package as
 `workspace:*` and resolves it through its built `dist/`, so build it before the adapter's tests import it:
@@ -62,11 +60,10 @@ makes the call require approval. It does not save executable, command-prefix or 
 
 ## Ports
 
-`HarnessPorts` in `src/ports/harness.ts` serves Pi, the fake, and the contract fixtures. Both production runtimes
+`HarnessPorts` in `src/ports/harness.ts` serves Pi and the contract fixtures. Both production runtimes
 receive desktop capabilities through `HostPorts` in `src/ports/host.ts`.
 
-Each port's TSDoc is its specification: the intent, one `@harness` section each for `coding-agent`, `durable` and
-`fake` saying how that implementation realises it, and `@keys` and `@waits` where the port has keys or waits. This
+Each port's TSDoc is its specification: the intent, `@harness` sections for `coding-agent` and `durable`, and `@keys` and `@waits` where the port has keys or waits. This
 README does not repeat them; `tests/ports/portNaming.test.ts` fails a port that lacks them. Methods and parameters
 are named as a verb and an object and carry no harness noun (hook, commit, session, task, extension).
 
@@ -239,11 +236,10 @@ text and `isError: true`, unless that entry ended in an error or was aborted (H3
 The tool gate reads the same history through `GateFacts`. `plan` is the latest `plan` record (Durable: the mirrored
 document). `goalRound` says whether the call's run started from a `cherry.goal-round` input: coding-agent reads it from
 the branch; Durable from the run's first input, through the late-bound `Conversation.entries()` of harness-limited row
-5; the fake from the run's starting input. `GateCall.nested` says whether another tool made the call, and every adapter
+5. `GateCall.nested` says whether another tool made the call, and every adapter
 reports it truthfully: on Durable the call has a `parent`; on coding-agent (Pi 1.3.0) a call made through
 `ctx.executeTool` carries a `parentToolCallId`. `before` and `after` receive the same `GateCall`, `nested` included
-(`after` with the arguments the call ran with); `GateFacts` does not repeat it. The fake makes no nested calls, so it is
-`false` there.
+(`after` with the arguments the call ran with); `GateFacts` does not repeat it.
 
 ### History projection
 
@@ -322,7 +318,7 @@ past it. The completed foreground run's cancellation
 ownership ends with it; stopping its parent cannot stop the later background run. `parentToolCallId` records origin
 only, so neither messaging nor stopping redirects to another child with the same tool origin. Explicit `fork` remains
 a separate operation that creates a new child. The shared contract tests continuation history and run identity,
-stale stops and parent cancellation on both the fake and Pi. A child absent from the harness's facts is refused before
+stale stops and parent cancellation on Pi. A child absent from the harness's facts is refused before
 writing a continuation record or report job; a stored parent record alone does not establish an available context.
 The [Durable adapter](../agent-runtime-pi-durable/README.md#shared-behavior) implements these ports. Its immutable
 conversation ownership still prevents independent continuation of a completed foreground child; the adapter rejects
@@ -468,66 +464,13 @@ Every other difference between harnesses is a row of the Agent Note's
 [Capabilities limited by the harness](../../.agents/notes/proposed/architecture/2026-10-18-agent-behavior-package.md#capabilities-limited-by-the-harness)
 table, and an adapter declares it by citing that row.
 
-A change to the set of harness port methods must change the fake and add or extend a contract case in the same PR.
+A change to the set of harness port methods must add or extend a case on the real adapters.
 `src/contract/portMethods.ts` lists every method as `HARNESS_PORT_METHODS`. The typecheck fails when that list and
 `PortMethod` differ, and `tests/contract/coverage.test.ts` fails when a listed method is in no case's `covers`.
-`tests/contract/fake.test.ts` runs every case on the fake and skips none. Each case is preceded by a `// Catches ...`
-comment naming the bug it catches.
+## The scripted host
 
-## The fake and the scripted host
-
-`createFakeHarness(options)` is a complete in-memory harness. It implements `ContractHarness`, so every contract case
-runs on it, and adds controls for the tests that build on it. Options, all optional:
-
-- `install(ports)`: registers handlers at creation and again after every restart.
-- `scripts(thread, lineage)`: seeds the script of each conversation as it is created, children created inside jobs
-  included.
-
-Beyond `ContractHarness` it offers:
-
-- `scriptSummary(thread, reply)`: queue a native summary reply independently of normal run replies.
-- `awaitPoints`: await points passed since creation. Every outbound port call, every model request and every tool call
-  of a run is one, and so is the end of every job; `clock.now` is not.
-- `crashAt(n)` and `whenCrashed()`: crash at the n-th await point from now (1-based). That point and all later work of
-  the current epoch never settle. `whenCrashed()` resolves when the armed crash fires, and is already resolved if it
-  has.
-- `persistentLog()`: the persistent state as sorted JSON (entries, submissions by key, the memo table, the job table),
-  for crash-equivalence checks.
-- `requestLog(thread)`: the ids of the entries each model request on `thread` saw, after the context filter.
-
-A compaction keeps its native summary across restarts and into forks, and the model context then starts with that summary followed by retained entries.
-
-A message may reserve a minimum number for a new run, keeping a recorded but never-started run from shifting later
-usage and stops. Skipped numbers count zero usage in `ChildFacts.runUsage`. The reservation never restricts a steer
-to that run: normal completion still carries unconsumed input forward, and `message` returns the actual run.
-
-`restart()` loses what a Durable restart loses (handlers, run loops, running jobs, waiters) and keeps what it keeps
-(entries, submissions, memo, the job table, the final arguments of tool calls). The lost run loops' abort signals fire,
-so a host ask they still wait on (an approval, a question) is withdrawn instead of taking a later answer. `abandon` jobs are dropped
-first. Every conversation then gets `onOpen(reopened: true)` before any resumed work. A stop there only marks the
-restored run, which stays active in the facts until resume ends it as aborted, and a job ensured there starts once every
-`onOpen` has run. Then runs resume: a tool call cut in the middle reruns with its final arguments when its tool is
-`replay: 'safe'`, and gets an interrupted result when the tool is `'unsafe'` and the call had reached it. `resume` jobs
-rerun from the start.
-
-The fake fails fast on wiring mistakes. An `ensure-job` for a kind with no registered handler rejects the transaction,
-as does a foreground `spawn-child` outside a tool call; a call to a tool that is not registered, or to a
-`'parent-only'` tool from a child, returns an error result. Inside `onOpen` on reopen, every port method outside
-`ledger.*`, `turns.stop`, `helpers.stop` and `clock.now` rejects with an error naming it. A script that runs out fails
-the next model request with `script exhausted`. After `close()`, the harness and its ports fail, and its runs stop as at
-a restart: their signals abort, so the host asks they hold are withdrawn, and nothing they do afterwards is written.
-
-To check that a flow survives a crash at any step, sweep the crash over every await point, as
-[`tests/fake/crashSweep.test.ts`](tests/fake/crashSweep.test.ts) does for a keyed report job:
-
-1. Run the flow once without a crash. Note the await points it spent and keep `persistentLog()` as the expected state.
-2. For each point `n`, build a fresh fake, call `crashAt(n)` before the call that starts the flow (it counts from now,
-   and a job starts passing await points as soon as its commit returns), and race `settle()` against `whenCrashed()`
-   to confirm the crash fired.
-3. Call `restart()` and `settle()`, then compare `persistentLog()` with the expected state. Item ids come from a global
-   counter and may shift after a restart, so strip them before comparing.
-
-`createScriptedHost(options)` implements `HostPorts` for tests and is independent of the fake harness.
+[`createScriptedHost(options)`](tests/scriptedHost.ts) implements `HostPorts` for tests. Adapter tests import it
+from `@cherrystudio/agent-behavior/testing`.
 `options.settings` (a `HostSettingsSnapshot`) is required; `models` (default none), `supportsTools` (default true) and
 `modelKeys` (default `scripted/parent-model` and `scripted/child-model`), which `Models.current` answers, and
 `approvalFacts` (default: category `other`, everything else off) are optional. Its controls:
@@ -549,9 +492,8 @@ pnpm test:agent-behavior <test files>
 pnpm --filter @cherrystudio/agent-behavior typecheck
 ```
 
-Pass explicit test file paths under `packages/agent-behavior/tests/`; `tests/orchestration/` runs the orchestration on
-the fake, and `tests/orchestration/fixtures/` runs each scenario fixture three ways (to the end, crashed at every await
-point, replayed into the core). `typecheck` resolves `@cherrystudio/agent-runtime`
+Pass explicit test file paths under `packages/agent-behavior/tests/`. The Pi and Pi Durable packages run the
+contract against native execution. `typecheck` resolves `@cherrystudio/agent-runtime`
 types from its built `dist/`, hence the first command, and runs `tsrs` twice: once over the package and once over
 `src/core/` alone with no Node or DOM types, which keeps core free of the environment. The lint guards for imports,
 layers and key minting have their own test:

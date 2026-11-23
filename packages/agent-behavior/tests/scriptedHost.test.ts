@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
-import { callKeyOf } from '../../src/core/facts'
-import type { HostSettingsSnapshot } from '../../src/core/hostFacts'
-import { createScriptedHost } from '../../src/fake/scriptedHost'
+import { callKeyOf } from '../src/core/facts'
+import type { HostSettingsSnapshot } from '../src/core/hostFacts'
+import { createScriptedHost } from './scriptedHost'
 
 const settings: HostSettingsSnapshot = {
   goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },

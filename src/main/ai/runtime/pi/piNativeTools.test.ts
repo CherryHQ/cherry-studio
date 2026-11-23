@@ -18,7 +18,7 @@ import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import { expect, it } from 'vitest'
 import * as z from 'zod'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 import { createPiRuntime } from '@cherrystudio/agent-runtime-pi'
 
