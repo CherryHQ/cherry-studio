@@ -1,10 +1,8 @@
-import type * as ChildProcessModule from 'node:child_process'
-import type { ChildProcess } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
+import { once } from 'node:events'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// killProcessTree reads `isWin` at call time, so a getter lets each test flip the
-// platform without re-importing the module.
 const platform = vi.hoisted(() => ({ isWin: false }))
 vi.mock('@main/core/platform', () => ({
   get isWin() {
@@ -15,84 +13,143 @@ vi.mock('@main/core/platform', () => ({
   isDev: false,
   isPortable: false
 }))
-
-const execFileMock = vi.hoisted(() => vi.fn())
-vi.mock('child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof ChildProcessModule>()
-  return { ...actual, execFile: execFileMock }
-})
-
-// processRunner imports these at module scope; stub so importing it doesn't pull in Electron.
-vi.mock('@application', () => ({ application: { getPath: () => '/mock' } }))
 vi.mock('../shellEnv', () => ({ getShellEnv: vi.fn() }))
 
-const { killProcessTree } = await import('../processRunner')
+const { killProcessTree, terminateProcessTree } = await import('../processRunner')
 
-const makeChild = (pid?: number) => ({ pid, kill: vi.fn<ChildProcess['kill']>().mockReturnValue(true) })
-
-// Stub process.kill so tests never signal a real process group; default succeeds.
-const mockProcessKill = () => vi.spyOn(process, 'kill').mockReturnValue(true)
+async function stopChild(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return
+  const exited = once(child, 'exit', { signal: AbortSignal.timeout(5000) })
+  child.kill('SIGKILL')
+  await exited
+}
 
 describe('killProcessTree', () => {
-  let processKillSpy!: ReturnType<typeof mockProcessKill>
-
   beforeEach(() => {
-    vi.clearAllMocks()
-    platform.isWin = false
-    processKillSpy = mockProcessKill()
+    platform.isWin = process.platform === 'win32'
   })
 
-  afterEach(() => {
-    processKillSpy.mockRestore()
-  })
-
-  it('signals the whole process group via a negative PID on non-Windows platforms', () => {
-    const child = makeChild(4242)
-    killProcessTree(child)
-    expect(processKillSpy).toHaveBeenCalledWith(-4242, 'SIGTERM')
-    expect(child.kill).not.toHaveBeenCalled()
-    expect(execFileMock).not.toHaveBeenCalled()
-  })
-
-  it('falls back to child.kill() when the process group signal fails on non-Windows platforms', () => {
-    processKillSpy.mockImplementation(() => {
-      throw Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' })
+  it('terminates a running child through the native platform backend', async () => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      detached: process.platform !== 'win32'
     })
-    const child = makeChild(4242)
-    killProcessTree(child)
-    expect(processKillSpy).toHaveBeenCalledWith(-4242, 'SIGTERM')
-    expect(child.kill).toHaveBeenCalledTimes(1)
+
+    try {
+      await once(child, 'spawn')
+      const exited = once(child, 'exit', { signal: AbortSignal.timeout(5000) })
+
+      killProcessTree(child)
+
+      await exited
+      if (process.platform !== 'win32') expect(child.signalCode).toBe('SIGTERM')
+      else expect(child.exitCode).not.toBeNull()
+    } finally {
+      await stopChild(child)
+    }
   })
 
-  it('kills directly when a non-Windows child has no pid', () => {
-    const child = makeChild(undefined)
-    killProcessTree(child)
-    expect(processKillSpy).not.toHaveBeenCalled()
-    expect(child.kill).toHaveBeenCalledTimes(1)
+  it.skipIf(process.platform === 'win32').each([
+    ['null', () => null],
+    [
+      'unprintable value',
+      () => ({
+        toString() {
+          throw new Error('unprintable signal failure')
+        }
+      })
+    ],
+    [
+      'revoked proxy',
+      () => {
+        const { proxy, revoke } = Proxy.revocable({}, {})
+        revoke()
+        return proxy
+      }
+    ]
+  ] as const)('still terminates the child after a %s group-signal failure', async (_label, createFailure) => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'])
+    const originalKill = process.kill
+
+    try {
+      await once(child, 'spawn')
+      const exited = once(child, 'exit', { signal: AbortSignal.timeout(5000) })
+      const failure = createFailure()
+      process.kill = () => {
+        throw failure
+      }
+
+      killProcessTree(child)
+
+      await exited
+      expect(child.signalCode).toBe('SIGTERM')
+    } finally {
+      process.kill = originalKill
+      await stopChild(child)
+    }
+  })
+})
+
+describe('terminateProcessTree on POSIX', () => {
+  beforeEach(() => {
+    platform.isWin = false
   })
 
-  it('force-kills the whole tree via taskkill /T /F on Windows', () => {
-    platform.isWin = true
-    const child = makeChild(4242)
-    killProcessTree(child)
-    expect(execFileMock).toHaveBeenCalledWith('taskkill', ['/PID', '4242', '/T', '/F'], expect.any(Function))
-    expect(child.kill).not.toHaveBeenCalled()
+  it.each([false, true])('accepts ESRCH as already terminated (force=%s)', async (force) => {
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'])
+    const originalKill = process.kill
+
+    try {
+      await once(child, 'spawn')
+      process.kill = () => {
+        throw Object.assign(new Error('no such process'), { code: 'ESRCH' })
+      }
+
+      await expect(terminateProcessTree(child, force, 'test')).resolves.toBeUndefined()
+    } finally {
+      process.kill = originalKill
+      await stopChild(child)
+    }
   })
 
-  it('falls back to child.kill() when taskkill reports an error on Windows', () => {
-    platform.isWin = true
-    const child = makeChild(4242)
-    killProcessTree(child)
-    const callback = execFileMock.mock.calls[0][2] as (error: Error | null) => void
-    callback(new Error('ERROR: The process 4242 not found.'))
-    expect(child.kill).toHaveBeenCalledTimes(1)
-  })
+  it.each([false, true])('preserves all other failure identities (force=%s)', async (force) => {
+    const { proxy, revoke } = Proxy.revocable({}, {})
+    revoke()
+    const failures = [
+      Object.assign(new Error('permission denied'), { code: 'EPERM' }),
+      new Error('uncoded signal failure'),
+      null,
+      undefined,
+      Object.defineProperty({}, 'code', {
+        get() {
+          throw new Error('unreadable code')
+        }
+      }),
+      proxy
+    ]
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'])
+    const originalKill = process.kill
 
-  it('kills directly when a Windows child has no pid', () => {
-    platform.isWin = true
-    const child = makeChild(undefined)
-    killProcessTree(child)
-    expect(execFileMock).not.toHaveBeenCalled()
-    expect(child.kill).toHaveBeenCalledTimes(1)
+    try {
+      await once(child, 'spawn')
+
+      for (const failure of failures) {
+        process.kill = () => {
+          throw failure
+        }
+        let rejected = false
+
+        try {
+          await terminateProcessTree(child, force, 'test')
+        } catch (error) {
+          rejected = true
+          expect(Object.is(error, failure)).toBe(true)
+        }
+
+        expect(rejected).toBe(true)
+      }
+    } finally {
+      process.kill = originalKill
+      await stopChild(child)
+    }
   })
 })

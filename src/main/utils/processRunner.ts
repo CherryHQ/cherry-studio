@@ -8,6 +8,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 
+import { getErrorCode, toError } from './error'
 import { getShellEnv } from './shellEnv'
 
 const execFileAsync = promisify(execFile)
@@ -119,7 +120,10 @@ export function killProcessTree(child: Pick<ChildProcess, 'pid' | 'kill'>): void
       return
     } catch (error) {
       // No such group (child not detached, or already exited): fall back to a direct kill.
-      logger.debug('Could not signal the process group, falling back to child.kill()', error as Error)
+      logger.debug(
+        'Could not signal the process group, falling back to child.kill()',
+        toError(error, 'Unknown signal failure')
+      )
     }
   }
 
@@ -155,7 +159,7 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
   try {
     process.kill(-child.pid, force ? 'SIGKILL' : 'SIGTERM')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
+    if (getErrorCode(error) !== 'ESRCH') throw error
   }
 }
 

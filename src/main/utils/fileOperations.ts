@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import { isOutsidePath } from '@main/utils/file'
 
 const logger = loggerService.withContext('Utils:FileOperations')
@@ -87,7 +88,7 @@ export async function copyDirectoryRecursive(
           logger.debug('Copied file', { from: sourcePath, to: destPath })
         } catch (error) {
           // Handle race condition where file was deleted during copy
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          if (getErrorCode(error) === 'ENOENT') {
             logger.warn('File disappeared during copy', { sourcePath })
             continue
           }
@@ -139,7 +140,7 @@ export async function deleteDirectoryRecursive(dirPath: string, options?: { allo
         throw new Error(`Path is not a directory: ${dirPath}`)
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (getErrorCode(error) === 'ENOENT') {
         logger.warn('Directory already deleted', { dirPath })
 
         return
