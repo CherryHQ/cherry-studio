@@ -30,7 +30,6 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { isBrowserMcpServer } from '@shared/utils/mcp'
 
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
@@ -481,7 +480,7 @@ export class AssistantDataService {
                 .from(mcpServerTable)
                 .where(eq(mcpServerTable.isActive, true))
                 .all()
-                .filter((server) => !isBrowserMcpServer({ name: server.name, type: server.type ?? undefined }))
+                .filter((server) => !(server.type === 'inMemory' && server.name === '@cherry/browser'))
                 .map((server) => server.id)
             : []
         )
