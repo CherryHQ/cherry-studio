@@ -1504,14 +1504,14 @@ export class McpRuntimeService extends BaseService {
       try {
         application.get('McpCatalogService').clearSharedToolsCache(server.id)
       } catch (error) {
-        getServerLogger(server).error('Post-removal tools cache cleanup failed', error as Error)
+        getServerLogger(server).error('Post-removal tools cache cleanup failed', error)
       }
 
       try {
         if (rowDeleted) application.get('CacheService').deleteShared(mcpStatusCacheKey(server.id))
         else this.setServerStatus(server.id, 'disabled')
       } catch (error) {
-        getServerLogger(server).error('Post-removal status cleanup failed', error as Error)
+        getServerLogger(server).error('Post-removal status cleanup failed', error)
       }
     }
 
@@ -1523,7 +1523,7 @@ export class McpRuntimeService extends BaseService {
           await deleteOAuthStorage(oauthServerUrlHash(server.baseUrl), application.getPath('feature.mcp.oauth'))
         }
       } catch (error) {
-        getServerLogger(server).error('Failed to clean OAuth storage', error as Error)
+        getServerLogger(server).error('Failed to clean OAuth storage', error)
       }
     }
 

@@ -107,6 +107,7 @@ export class ClaudeCodeOtlpAdapter {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Collector JSON parsing does not validate OTLP structure; conversion failures propagate to its HTTP 400 boundary before span entities are published.
   static spansFromPayload(payload: unknown, resolveTraceContext: TraceContextResolver): SpanEntity[] {
     const result: SpanEntity[] = []
+
     const resourceSpans = arrayFrom(
       payload !== null && typeof payload === 'object' && 'resourceSpans' in payload ? payload.resourceSpans : undefined
     )
@@ -145,6 +146,7 @@ export class ClaudeCodeOtlpAdapter {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Collector input is JSON with unverified OTLP nesting; conversion must finish before publishing log events, and failures become HTTP 400.
   static logEventsFromPayload(payload: unknown): ClaudeCodeOtlpLogEvent[] {
     const result: ClaudeCodeOtlpLogEvent[] = []
+
     const resourceLogs = arrayFrom(
       payload !== null && typeof payload === 'object' && 'resourceLogs' in payload ? payload.resourceLogs : undefined
     )

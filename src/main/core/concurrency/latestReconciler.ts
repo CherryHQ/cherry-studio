@@ -19,7 +19,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
     onError:
       options.onError ??
       ((error) => {
-        loggerService.withContext('latestReconciler').error(`[${options.name}] reconcile failed`, error as Error)
+        loggerService.withContext('latestReconciler').error(`[${options.name}] reconcile failed`, error)
       })
   })
 }

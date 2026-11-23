@@ -902,7 +902,7 @@ export class FileManager extends BaseService implements IFileManager {
     } catch (err) {
       // A throw means the scan never returned a verdict, so the window stays
       // open and the next idle tick retries.
-      fileManagerLogger.error('Scheduled file sweep failed', err as Error)
+      fileManagerLogger.error('Scheduled file sweep failed', err)
     } finally {
       this.fileSweepInFlight = false
     }
@@ -1050,7 +1050,7 @@ export class FileManager extends BaseService implements IFileManager {
         fileRefService: this.deps.fileRefService
       })
     } catch (err) {
-      fileManagerLogger.error('DB orphan sweep failed', err as Error)
+      fileManagerLogger.error('DB orphan sweep failed', err)
       dbReport = {
         outcome: 'failed',
         errorMessage: err instanceof Error ? err.message : String(err),
