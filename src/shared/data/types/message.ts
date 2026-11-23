@@ -538,7 +538,7 @@ export function coerceSearchRole<TRole extends MessageRole>(
   role: string,
   allowedRoles: readonly TRole[]
 ): TRole | undefined {
-  return allowedRoles.includes(role as TRole) ? (role as TRole) : undefined
+  return allowedRoles.find((allowedRole) => allowedRole === role)
 }
 
 /**

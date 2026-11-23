@@ -15,6 +15,7 @@ function toSerializable(value: unknown): Serializable {
   const seen = new WeakSet<object>()
 
   try {
+    // SAFETY: A successful stringify/parse yields JSON values; the replacer handles repeated references and BigInts.
     return JSON.parse(
       JSON.stringify(value, (_key, val) => {
         if (typeof val === 'object' && val !== null) {
@@ -32,19 +33,15 @@ function toSerializable(value: unknown): Serializable {
   }
 }
 
-/** Serialize any Error to a plain object safe for IPC / JSON.
- *  Detects AI SDK error types and extracts their specific fields
- *  (statusCode, responseBody, etc.) so Renderer can use type guards.
- *
- *  Mirrors the field-extraction cascade in `src/renderer/utils/error.ts`
- *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
- *  fields and the renderer's type guards match. */
+/** Serialize failure identity and selected provider extensions for display.
+ * SDK response failures are redacted. Other extensions remain opaque;
+ * consumers must validate values before using them. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AI operations may throw arbitrary values; this boundary normalizes them for IPC without trusting extension fields.
 export function serializeError(error: unknown): SerializedError {
   const ownership: Record<string, Serializable> = hasReportingOwner(error) ? { reportingHandled: true } : {}
 
   if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
-    return { ...(serializeNestedProviderError(error) as SerializedError), ...ownership }
+    return { ...serializeNestedProviderError(error), ...ownership }
   }
 
   if (error instanceof Error) {
@@ -64,7 +61,7 @@ export function serializeError(error: unknown): SerializedError {
 
     if ('requestBodyValues' in e) serialized.requestBodyValues = toSerializable(e.requestBodyValues)
 
-    if ('statusCode' in e) serialized.statusCode = (e.statusCode as number) ?? null
+    if ('statusCode' in e) serialized.statusCode = e.statusCode ?? null
 
     if ('responseBody' in e) serialized.responseBody = e.responseBody != null ? String(e.responseBody) : null
 
@@ -72,25 +69,25 @@ export function serializeError(error: unknown): SerializedError {
 
     if ('data' in e) serialized.data = toSerializable(e.data)
 
-    if ('responseHeaders' in e) serialized.responseHeaders = (e.responseHeaders as Record<string, string>) ?? null
+    if ('responseHeaders' in e) serialized.responseHeaders = e.responseHeaders ?? null
 
-    if ('statusText' in e) serialized.statusText = (e.statusText as string) ?? null
+    if ('statusText' in e) serialized.statusText = e.statusText ?? null
 
-    if ('parameter' in e) serialized.parameter = e.parameter as string
+    if ('parameter' in e) serialized.parameter = e.parameter
 
     if ('value' in e) serialized.value = toSerializable(e.value)
 
     if ('content' in e) serialized.content = toSerializable(e.content)
 
-    if ('role' in e) serialized.role = e.role as string
+    if ('role' in e) serialized.role = e.role
 
     if ('prompt' in e) serialized.prompt = toSerializable(e.prompt)
 
-    if ('toolName' in e) serialized.toolName = (e.toolName as string) ?? null
+    if ('toolName' in e) serialized.toolName = e.toolName ?? null
 
-    if ('toolInput' in e) serialized.toolInput = e.toolInput as string
+    if ('toolInput' in e) serialized.toolInput = e.toolInput
 
-    if ('text' in e) serialized.text = (e.text as string) ?? null
+    if ('text' in e) serialized.text = e.text ?? null
 
     if ('originalMessage' in e) serialized.originalMessage = toSerializable(e.originalMessage)
 
@@ -98,19 +95,19 @@ export function serializeError(error: unknown): SerializedError {
 
     if ('usage' in e) serialized.usage = toSerializable(e.usage)
 
-    if ('finishReason' in e) serialized.finishReason = (e.finishReason as string) ?? null
+    if ('finishReason' in e) serialized.finishReason = e.finishReason ?? null
 
-    if ('modelId' in e) serialized.modelId = e.modelId as string
+    if ('modelId' in e) serialized.modelId = e.modelId
 
-    if ('modelType' in e) serialized.modelType = e.modelType as string
+    if ('modelType' in e) serialized.modelType = e.modelType
 
-    if ('providerId' in e) serialized.providerId = e.providerId as string
+    if ('providerId' in e) serialized.providerId = e.providerId
 
-    if ('availableProviders' in e) serialized.availableProviders = e.availableProviders as string[]
+    if ('availableProviders' in e) serialized.availableProviders = e.availableProviders
 
-    if ('availableTools' in e) serialized.availableTools = (e.availableTools as string[]) ?? null
+    if ('availableTools' in e) serialized.availableTools = e.availableTools ?? null
 
-    if ('reason' in e) serialized.reason = e.reason as string
+    if ('reason' in e) serialized.reason = e.reason
 
     if ('lastError' in e) serialized.lastError = serializeNestedProviderError(e.lastError)
 
@@ -118,13 +115,13 @@ export function serializeError(error: unknown): SerializedError {
 
     if ('originalError' in e) serialized.originalError = serializeError(e.originalError)
 
-    if ('functionality' in e) serialized.functionality = e.functionality as string
+    if ('functionality' in e) serialized.functionality = e.functionality
 
-    if ('provider' in e) serialized.provider = e.provider as string
+    if ('provider' in e) serialized.provider = e.provider
 
-    if ('responses' in e) serialized.responses = e.responses as string[]
+    if ('responses' in e) serialized.responses = e.responses
 
-    if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
+    if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = e.maxEmbeddingsPerCall ?? null
 
     if ('values' in e && Array.isArray(e.values)) serialized.values = e.values.map((v) => toSerializable(v))
 

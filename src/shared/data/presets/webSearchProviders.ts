@@ -127,6 +127,7 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   serpkite: ['searchKeywords']
 }
 
+// SAFETY: Every remote provider ID emits its own config entry; Object.fromEntries erases this complete key coverage.
 const remotePresets = Object.fromEntries(
   REMOTE_PROVIDER_IDS.map((id): [RemoteProviderId, WebSearchProviderPresetConfig] => {
     const metadata = WEB_SEARCH_PROVIDER_CATALOG[id]
