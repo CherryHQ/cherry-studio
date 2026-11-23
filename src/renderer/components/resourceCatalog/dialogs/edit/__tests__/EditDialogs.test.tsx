@@ -2141,6 +2141,68 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('preserves refreshed A when an overflow toggle is batched with a B edit', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 5, compressWindow: 6 } }
+    }
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    selectTab('Model')
+    view.rerender(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...original,
+          settings: { ...original.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+        }}
+        onOpenChange={onOpenChange}
+      />
+    )
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '4')
+    await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { settings: { contextSettings: expect.objectContaining({ maxMessages: 3, compressWindow: 4 }) } }
+    })
+  })
+
+  it('keeps a newer detail while an older unrelated PATCH is awaiting refresh', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const pending = Promise.withResolvers<typeof original>()
+    updateAssistantMock.mockReturnValueOnce(pending.promise)
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    const name = screen.getByRole('textbox', { name: 'Name' })
+    await user.clear(name)
+    await user.type(name, 'Renamed')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    const refreshed = {
+      ...original,
+      name: 'Renamed',
+      settings: { ...original.settings, contextSettings: { maxMessages: 5, compressWindow: 6 } }
+    }
+    view.rerender(<AssistantEditDialog open resource={refreshed} onOpenChange={onOpenChange} />)
+    await act(async () => pending.resolve({ ...original, name: 'Renamed' }))
+    selectTab('Model')
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { settings: { contextSettings: { maxMessages: 5, compressWindow: 7 } } }
+    })
+  })
+
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 

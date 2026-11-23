@@ -176,8 +176,12 @@ export function diffAssistantUpdate(
   if (form.contextCompressWindow === undefined) delete windowOnlySettings.compressWindow
   else windowOnlySettings.compressWindow = form.contextCompressWindow
   const storedWindow = form.contextCompressWindow
+  const recentLimit =
+    baseline.contextMaxMessages === form.contextMaxMessages
+      ? assistant.settings.contextSettings?.maxMessages
+      : (form.contextMaxMessages ?? undefined)
   const scopeOverride = {
-    ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
+    ...(recentLimit !== undefined ? { maxMessages: recentLimit } : {}),
     ...(storedWindow !== undefined ? { compressWindow: storedWindow } : {})
   }
   const settings: NonNullable<UpdateAssistantDto['settings']> = {

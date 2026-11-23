@@ -236,10 +236,12 @@ function AssistantEditDialogContent({
   const formBaselineRef = useRef(formBaseline)
   const savedResourceRef = useRef(resource)
   const [savedResource, setSavedResource] = useState(resource)
+  const confirmedDetailRevisionRef = useRef(0)
   // Resource identity marks a newly confirmed detail read. Do not order saves by
   // wall-clock timestamps: the clock can move backward. If refresh fails, the
   // unchanged resource prop does not replace our successful PATCH snapshot.
   useEffect(() => {
+    confirmedDetailRevisionRef.current += 1
     savedResourceRef.current = resource
     setSavedResource(resource)
   }, [resource])
@@ -253,9 +255,9 @@ function AssistantEditDialogContent({
     return diffAssistantSaveIntent(
       buildAssistantFormState(formBaseline, values),
       formBaseline,
-      savedResourceRef.current
+      savedResource
     )
-  }, [formBaseline, values])
+  }, [formBaseline, values, savedResource])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -334,9 +336,13 @@ function AssistantEditDialogContent({
     failedSaveKeyRef.current = null
 
     try {
+      const detailRevision = confirmedDetailRevisionRef.current
       const updated = await updateAssistant(pending.payload)
-      savedResourceRef.current = updated
-      setSavedResource(updated)
+      // A detail observed during this write/refresh is newer than its PATCH snapshot.
+      if (confirmedDetailRevisionRef.current === detailRevision) {
+        savedResourceRef.current = updated
+        setSavedResource(updated)
+      }
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
