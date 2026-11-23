@@ -1,9 +1,15 @@
+import { createServer } from 'node:http'
+
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { APICallError, generateText, streamText } from 'ai'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createExecutor } from '@cherrystudio/ai-core'
+import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { readProviderRegistry, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { mergePresetModel } from '@data/services/ProviderRegistryService'
 import type * as CherryCloudProviderModule from '@main/ai/provider/cherryCloud'
@@ -26,13 +32,22 @@ import type { AuthConfig } from '@shared/data/types/provider'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { collectFromFeatures } from '../../runtime/aiSdk/params/collectFromFeatures'
+import { INTERNAL_FEATURES } from '../../runtime/aiSdk/params/features/internalFeatures'
+import type { AppProviderSettingsMap } from '../../types'
+import { chatErrorContext } from '../../utils/chatErrorContext'
 import { customFetch } from '../../utils/customFetch'
 import { splitParamValues } from '../../utils/imageOptions'
 import { resolveImageTransport } from '../custom/imageTransportRegistry'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { buildVendorProviderOptions } from '../custom/wire/buildImageRequest'
 import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
-import { resolveWireModelId } from '../endpoint'
+import { resolveEffectiveEndpoint, resolveWireModelId } from '../endpoint'
+import { OpenResponsesExtension } from '../extensions'
+import { resolveSdkConfig } from '../sdkConfig'
+import { exactPathSuccessFixture } from './fixtures/exactPathSuccessFixture'
+
+if (!extensionRegistry.has(OpenResponsesExtension.config.name)) extensionRegistry.register(OpenResponsesExtension)
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
@@ -2435,5 +2450,309 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('newapi')
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
+  })
+})
+
+describe('complete path mode (endpoint config pathMode: complete, #18972)', () => {
+  it('appends no API version and pins requests to the exact stored URL when the path is a custom route', async () => {
+    const provider = makeProvider({
+      id: 'custom-1',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com/router/answer',
+          pathMode: 'complete'
+        }
+      }
+    })
+    const model = makeModel({ providerId: 'custom-1', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, unknown>
+
+    // The SDK base URL collapses to the origin; the exact path is restored by
+    // the fetch wrapper (unit-tested in utils/__tests__/exactPathFetch.test.ts).
+    expect(settings.baseURL).toBe('https://gateway.example.com')
+    expect(settings.fetch).not.toBe(customFetch)
+  })
+
+  it('pins a path ending in a supported endpoint to the exact URL as well (trailing #)', async () => {
+    const provider = makeProvider({
+      id: 'custom-2',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com/custom/chat/completions#',
+          pathMode: 'complete'
+        }
+      }
+    })
+    const model = makeModel({ providerId: 'custom-2', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, unknown>
+
+    // formatApiHost strips the trailing # before routeToEndpoint runs, so the
+    // exact path is restored by the fetch wrapper either way.
+    expect(settings.baseURL).toBe('https://gateway.example.com')
+    expect(settings.fetch).not.toBe(customFetch)
+  })
+
+  it('pins a bare host in complete mode to the root rather than the SDK default endpoint', async () => {
+    const provider = makeProvider({
+      id: 'custom-3',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com',
+          pathMode: 'complete'
+        }
+      }
+    })
+    const model = makeModel({ providerId: 'custom-3', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, unknown>
+
+    expect(settings.baseURL).toBe('https://gateway.example.com')
+    expect(settings.fetch).not.toBe(customFetch)
+  })
+
+  it.each(['/router/answer/', '/', '/router/%2Fanswer?version=2&mode=literal', '/custom/chat/completions#'])(
+    'sends complete path %s through a real SDK-to-gateway request',
+    async (path) => {
+      const received: Array<{ url: string; method: string; auth?: string; body: string }> = []
+      const server = createServer((request, response) => {
+        let body = ''
+        request.on('data', (chunk) => {
+          body += chunk
+        })
+        request.on('end', () => {
+          received.push({ url: request.url!, method: request.method!, auth: request.headers.authorization, body })
+          response.writeHead(200, { 'Content-Type': 'application/json' })
+          response.end(
+            JSON.stringify({
+              id: 'fixture',
+              object: 'chat.completion',
+              created: 1,
+              model: 'fixture-model',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'OK' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+            })
+          )
+        })
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}${path}`
+      vi.mocked(net.fetch).mockImplementation((input, init) => globalThis.fetch(input as string, init))
+      try {
+        const provider = makeProvider({
+          id: 'custom-roundtrip',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: url, pathMode: 'complete' } }
+        })
+        const model = makeModel({ providerId: provider.id, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Parameters<typeof createOpenAICompatible>[0]
+        const sdk = createOpenAICompatible({ ...settings, name: 'fixture' })
+        const result = await generateText({ model: sdk.chatModel('fixture-model'), prompt: 'hello', maxRetries: 0 })
+        expect(result.text).toBe('OK')
+        expect(received).toHaveLength(1)
+        expect(received[0]).toMatchObject({ url: path.replace(/#$/, ''), method: 'POST', auth: 'Bearer sk-test-key' })
+        expect(JSON.parse(received[0].body)).toMatchObject({
+          model: 'fixture-model',
+          messages: [{ role: 'user', content: 'hello' }]
+        })
+      } finally {
+        vi.mocked(net.fetch).mockReset()
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
+
+  it.each([
+    ['generate', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+    ['stream', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+    ['generate', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    ['stream', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    ['generate', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    ['stream', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    ['generate', ENDPOINT_TYPE.OPENAI_RESPONSES, 'open-responses'],
+    ['stream', ENDPOINT_TYPE.OPENAI_RESPONSES, 'open-responses']
+  ] as const)(
+    'corrects SDK-created HTTP errors through resolved config and registered features (%s, %s)',
+    async (mode, endpointType, adapterFamily) => {
+      const paths: string[] = []
+      const server = createServer((request, response) => {
+        paths.push(request.url!)
+        request.resume()
+        response.writeHead(404, { 'Content-Type': 'application/json' })
+        response.end(JSON.stringify({ error: { message: 'route unavailable', type: 'not_found' } }))
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+      vi.mocked(net.fetch).mockImplementation((input, init) => globalThis.fetch(input as string, init))
+      try {
+        const provider = makeProvider({
+          id: 'custom-errors',
+          defaultChatEndpoint: endpointType,
+          endpointConfigs: {
+            [endpointType]: {
+              baseUrl: `${origin}/literal/?api_key=private-token&version=2`,
+              pathMode: 'complete',
+              adapterFamily
+            }
+          }
+        })
+        const model = makeModel({
+          providerId: provider.id,
+          apiModelId: 'fixture-model',
+          endpointTypes: [endpointType]
+        })
+        const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+        const { sdkConfig } = await resolveSdkConfig(provider, model, resolvedEndpoint)
+        const plugins = collectFromFeatures(
+          { sdkConfig } as never,
+          INTERNAL_FEATURES.filter((feature) => feature.name === 'exact-path-diagnostics')
+        ).modelAdapters
+        const executor = await createExecutor<AppProviderSettingsMap>(
+          sdkConfig.providerId,
+          sdkConfig.providerSettings,
+          plugins
+        )
+        const resolvedModel = await executor.resolveLanguageModel(sdkConfig.modelId)
+        let error: unknown
+        if (mode === 'generate')
+          error = await generateText({ model: resolvedModel, prompt: 'hello', maxRetries: 0 }).catch(
+            (failure: unknown) => failure
+          )
+        else {
+          const result = streamText({ model: resolvedModel, prompt: 'hello', maxRetries: 0, onError: () => {} })
+          for await (const chunk of result.fullStream) if (chunk.type === 'error') error = chunk.error
+        }
+        expect(APICallError.isInstance(error)).toBe(true)
+        expect((error as APICallError).url).toBe(`${origin}/literal/?api_key=%3Credacted%3E&version=2`)
+        expect((error as APICallError).statusCode).toBe(404)
+        expect(paths).toEqual(['/literal/?api_key=private-token&version=2'])
+        expect(JSON.stringify(chatErrorContext(error))).not.toMatch(/private-token|chat\/completions|sk-test-key/)
+      } finally {
+        vi.mocked(net.fetch).mockReset()
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
+
+  it.each([
+    ['generate', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+    ['stream', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-compatible'],
+    ['generate', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    ['stream', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    ['generate', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    ['stream', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    ['generate', ENDPOINT_TYPE.OPENAI_RESPONSES, 'open-responses'],
+    ['stream', ENDPOINT_TYPE.OPENAI_RESPONSES, 'open-responses']
+  ] as const)(
+    'preserves successful SDK output through exact routing and diagnostics (%s, %s)',
+    async (mode, endpointType, adapterFamily) => {
+      const requests: Array<{
+        path: string
+        method: string
+        headers: import('node:http').IncomingHttpHeaders
+        body: string
+      }> = []
+      const server = createServer((request, response) => {
+        let body = ''
+        request.on('data', (chunk) => {
+          body += chunk
+        })
+        request.on('end', () => {
+          requests.push({ path: request.url!, method: request.method!, headers: request.headers, body })
+          response.writeHead(200, { 'Content-Type': mode === 'stream' ? 'text/event-stream' : 'application/json' })
+          response.end(exactPathSuccessFixture(endpointType, mode === 'stream'))
+        })
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+      vi.mocked(net.fetch).mockImplementation((input, init) => globalThis.fetch(input as string, init))
+      try {
+        const provider = makeProvider({
+          id: 'custom-success',
+          defaultChatEndpoint: endpointType,
+          endpointConfigs: {
+            [endpointType]: {
+              baseUrl: `${origin}/literal/?api_key=private-token&version=2`,
+              pathMode: 'complete',
+              adapterFamily
+            }
+          }
+        })
+        const model = makeModel({
+          providerId: provider.id,
+          apiModelId: 'fixture-model',
+          endpointTypes: [endpointType]
+        })
+        const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+        const { sdkConfig } = await resolveSdkConfig(provider, model, resolvedEndpoint)
+        const plugins = collectFromFeatures(
+          { sdkConfig } as never,
+          INTERNAL_FEATURES.filter((feature) => feature.name === 'exact-path-diagnostics')
+        ).modelAdapters
+        const executor = await createExecutor<AppProviderSettingsMap>(
+          sdkConfig.providerId,
+          sdkConfig.providerSettings,
+          plugins
+        )
+        const resolvedModel = await executor.resolveLanguageModel(sdkConfig.modelId)
+        const options = { model: resolvedModel, prompt: 'hello', maxRetries: 0, maxOutputTokens: 16 }
+        const result = mode === 'generate' ? await generateText(options) : streamText(options)
+        expect(await result.text).toBe('OK')
+        expect(await result.finishReason).toBe('stop')
+        expect((await result.usage).inputTokens).toBe(1)
+        expect((await result.usage).outputTokens).toBe(1)
+        expect(requests).toHaveLength(1)
+        expect(requests[0]).toMatchObject({ path: '/literal/?api_key=private-token&version=2', method: 'POST' })
+        const headers = requests[0].headers
+        expect(
+          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+            ? headers['x-api-key']
+            : endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+              ? headers['x-goog-api-key']
+              : headers.authorization
+        ).toBe(
+          endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES || endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+            ? 'sk-test-key'
+            : 'Bearer sk-test-key'
+        )
+        const body = JSON.parse(requests[0].body)
+        if (endpointType !== ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) expect(body.model).toBe('fixture-model')
+        if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+          expect(body.contents[0].parts).toEqual([{ text: 'hello' }])
+        else if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) expect(JSON.stringify(body.input)).toContain('hello')
+        else expect(JSON.stringify(body.messages)).toContain('hello')
+      } finally {
+        vi.mocked(net.fetch).mockReset()
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
+
+  it('still appends the default API version in host mode', async () => {
+    const provider = makeProvider({
+      id: 'custom-4',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example.com/router'
+        }
+      }
+    })
+    const model = makeModel({ providerId: 'custom-4', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+    const config = await providerToAiSdkConfig(provider, model)
+
+    expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://gateway.example.com/router/v1')
   })
 })

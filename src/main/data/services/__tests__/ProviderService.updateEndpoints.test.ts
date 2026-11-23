@@ -45,6 +45,39 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 describe('ProviderService.update — endpoint config overrides', () => {
   const dbh = setupTestDatabase()
 
+  it('persists exact mode and unchanged route details through the real provider store', async () => {
+    const providerId = 'exact-route-roundtrip'
+    const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const messages = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    providerService.create({
+      providerId,
+      name: 'Exact route',
+      defaultChatEndpoint: chat,
+      endpointConfigs: {
+        [chat]: { baseUrl: 'https://gateway.example/router/answer/?mode=literal', pathMode: 'complete' },
+        [messages]: { baseUrl: 'https://gateway.example/anthropic/' }
+      }
+    })
+    const saved = providerService.getByProviderId(providerId)
+    expect(saved.endpointConfigs?.[chat]).toMatchObject({
+      baseUrl: 'https://gateway.example/router/answer/?mode=literal',
+      pathMode: 'complete'
+    })
+    expect(saved.endpointConfigs?.[messages]?.pathMode).toBeUndefined()
+    providerService.update(providerId, {
+      endpointConfigs: {
+        ...saved.endpointConfigs,
+        [chat]: { ...saved.endpointConfigs?.[chat], pathMode: 'host' }
+      }
+    })
+    const reloaded = providerService.getByProviderId(providerId)
+    expect(reloaded.endpointConfigs?.[chat]).toMatchObject({
+      baseUrl: 'https://gateway.example/router/answer/?mode=literal',
+      pathMode: 'host'
+    })
+    expect(reloaded.endpointConfigs?.[messages]).toEqual(saved.endpointConfigs?.[messages])
+  })
+
   it('strips legacy reasoningFormatType from persisted endpoint configs on read', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'legacy-reasoning-format',

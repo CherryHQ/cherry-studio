@@ -5532,6 +5532,8 @@
   "settings.provider.api.url.tip": "Přidáním # na konec zakážete automaticky připojovanou verzi API.",
   "settings.provider.api_host": "Hostitel API",
   "settings.provider.api_host_drawer_hint": "Vlastní URL pro požadavky API; ponechte prázdné, pokud platí výchozí adresa z katalogu.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "Adresa API je neplatná",
   "settings.provider.api_host_placeholder": "Nenakonfigurováno",
   "settings.provider.api_host_preview": "Náhled: {{url}}",

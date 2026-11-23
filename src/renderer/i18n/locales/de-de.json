@@ -5531,6 +5531,8 @@
   "settings.provider.api.url.tip": "Fügen Sie am Ende ein # hinzu, um die automatisch angehängte API-Version zu deaktivieren.",
   "settings.provider.api_host": "API-Adresse",
   "settings.provider.api_host_drawer_hint": "Benutzerdefinierte API-Anfrage-URL; leer lassen, wenn der Katalogstandard gilt.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "API-Adresse ist ungültig",
   "settings.provider.api_host_placeholder": "Nicht konfiguriert",
   "settings.provider.api_host_preview": "Vorschau: {{url}}",

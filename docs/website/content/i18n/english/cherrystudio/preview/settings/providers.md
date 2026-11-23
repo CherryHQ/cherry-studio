@@ -46,6 +46,14 @@ That is:
 *   When the API address ends with `#`, no appending operation will be performed, and only the entered address will be used.
 {% endhint %}
 
+### Custom provider exact URLs
+
+For a custom provider whose gateway supplies a complete route, turn on **Use exact URL** beside that endpoint. You can do this while adding the provider or in its **Request configuration** drawer, independently for text and image endpoints. The request-path preview updates before you save.
+
+For example, `https://gateway.example.com/router/answer/` stays on `/router/answer/`. Cherry Studio does not add an API version or protocol path in this mode. A bare origin targets `/`, trailing slashes and query parameters are kept, and a legacy trailing `#` marker is removed. Normal URL parsing still applies.
+
+Leave the switch off when the provider expects normal Base URL handling. Turning it off does not change the text you entered. Select the protocol endpoint that matches the gateway's request and response format; exact URL mode does not convert protocols or try a different endpoint after a failure. Keep API credentials in the API Key field rather than the URL.
+
 ### Adding Models
 
 Click **Sync models** to the right of the **Models** heading to automatically retrieve the models supported by the provider, then add the ones you want to the model list. To add a model by hand, click the **+** next to **Sync models** and fill in the Model ID, Model Name and Group Name.

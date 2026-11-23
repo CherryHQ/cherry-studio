@@ -5531,6 +5531,8 @@
   "settings.provider.api.url.tip": "Otomatik olarak eklenen API sürümünü devre dışı bırakmak için sona # ekleyin.",
   "settings.provider.api_host": "API Sunucusu",
   "settings.provider.api_host_drawer_hint": "Özel API istek URL'si; katalog varsayılanı geçerliyse boş bırakın.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "API adresi geçersiz",
   "settings.provider.api_host_placeholder": "Yapılandırılmadı",
   "settings.provider.api_host_preview": "Önizleme: {{url}}",

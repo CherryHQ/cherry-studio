@@ -5,6 +5,8 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 
 export interface ProviderImageEndpointDraft {
+  imageGenerationPathMode?: EndpointConfig['pathMode']
+  imageEditPathMode?: EndpointConfig['pathMode']
   imageGenerationBaseUrl: string
   imageEditBaseUrl: string
 }
@@ -39,7 +41,13 @@ export function readProviderImageEndpointDraft(
 
   return {
     imageGenerationBaseUrl,
-    imageEditBaseUrl
+    imageEditBaseUrl,
+    ...(endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]?.pathMode
+      ? { imageGenerationPathMode: endpointConfigs[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]!.pathMode }
+      : {}),
+    ...(endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]?.pathMode
+      ? { imageEditPathMode: endpointConfigs[ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]!.pathMode }
+      : {})
   }
 }
 
@@ -52,6 +60,12 @@ export function mergeProviderImageEndpointDraft(
   setEndpointBaseUrl(endpointConfigs, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, trim(draft.imageGenerationBaseUrl))
   setEndpointBaseUrl(endpointConfigs, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, trim(draft.imageEditBaseUrl))
 
+  for (const [type, pathMode] of [
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, draft.imageGenerationPathMode],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, draft.imageEditPathMode]
+  ] as const) {
+    if (pathMode) endpointConfigs[type] = { ...endpointConfigs[type], pathMode }
+  }
   return endpointConfigs
 }
 

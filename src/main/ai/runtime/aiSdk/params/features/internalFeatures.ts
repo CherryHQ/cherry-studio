@@ -19,6 +19,7 @@ import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
+import { exactPathDiagnosticsFeature } from './exactPathDiagnostics'
 import { gatewayAnthropicCacheFeature, gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { grokReasoningReplayFeature } from './grokReasoningReplay'
 import { inLoopCompactionFeature } from './inLoopCompaction'
@@ -40,6 +41,7 @@ import { toolSchemaCompatibilityFeature } from './toolSchemaCompatibility'
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   devtoolsFeature,
   gatewayUsageNormalizeFeature,
+  exactPathDiagnosticsFeature,
   // DeepSeek-only: re-extract DSML-markup tool calls from text before reasoning extraction.
   deepseekDsmlParserFeature,
   // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).

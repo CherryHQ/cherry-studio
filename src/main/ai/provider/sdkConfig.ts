@@ -15,6 +15,8 @@ export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
   readonly providerOptionsKey: string
   readonly providerSettings: AppProviderSettingsMap[T]
   readonly modelId: string
+  /** Validated complete-mode transport URL; diagnostic middleware only. */
+  readonly exactRequestUrl?: string
   /** See `ProviderConfig.conversationHeader`. */
   readonly conversationHeader?: string
 }

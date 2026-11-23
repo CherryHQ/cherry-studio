@@ -40,6 +40,7 @@ import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 
+import { EndpointPathModeControl } from '../components/EndpointPathModeControl'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import {
   buildCustomProviderCreationPayload,
@@ -49,6 +50,7 @@ import {
   type CustomProviderCreationInvalidUrl,
   type CustomProviderEndpoint,
   type CustomProviderEndpointUrls,
+  type CustomProviderEndpointPathModes,
   type CustomProviderTextEndpoint,
   findInvalidCustomProviderCreationUrl,
   findInvalidCustomProviderEndpointUrl,
@@ -156,6 +158,7 @@ export default function ProviderEditorDrawer({
   const [apiKey, setApiKey] = useState('')
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
   const [moreEndpointsOpen, setMoreEndpointsOpen] = useState(false)
+  const [endpointPathModes, setEndpointPathModes] = useState<CustomProviderEndpointPathModes>({})
   const [endpointUrls, setEndpointUrls] = useState<CustomProviderEndpointUrls>({})
   const [preferredChatEndpoint, setPreferredChatEndpoint] = useState<CustomProviderTextEndpoint>(
     ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
@@ -261,6 +264,7 @@ export default function ProviderEditorDrawer({
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
     setEndpointUrls({})
+    setEndpointPathModes({})
     const initialDefaultEndpoint =
       duplicateSource?.defaultChatEndpoint && isCustomProviderTextEndpoint(duplicateSource.defaultChatEndpoint)
         ? duplicateSource.defaultChatEndpoint
@@ -346,6 +350,7 @@ export default function ProviderEditorDrawer({
     )
     setSecondaryUrls({})
     setEndpointUrls({})
+    setEndpointPathModes({})
     setInvalidCreationUrl(null)
     onSelectPreset?.(source)
   }
@@ -382,6 +387,7 @@ export default function ProviderEditorDrawer({
     if (mode.kind === 'create-custom') {
       const creationPayload = buildCustomProviderCreationPayload({
         endpointUrls,
+        endpointPathModes,
         preferredChatEndpoint
       })
       return {
@@ -448,6 +454,7 @@ export default function ProviderEditorDrawer({
     if (mode?.kind === 'create-custom') {
       const invalidUrl = findInvalidCustomProviderCreationUrl({
         endpointUrls,
+        endpointPathModes,
         preferredChatEndpoint
       })
       setInvalidCreationUrl(invalidUrl)
@@ -578,6 +585,10 @@ export default function ProviderEditorDrawer({
           <ApiKeyField value={apiKey} onChange={setApiKey} />
           <CustomProviderEndpointFields
             endpointUrls={endpointUrls}
+            endpointPathModes={endpointPathModes}
+            onEndpointPathModeChange={(endpointType, pathMode) =>
+              setEndpointPathModes((previous) => ({ ...previous, [endpointType]: pathMode }))
+            }
             preferredChatEndpoint={preferredChatEndpoint}
             invalidUrl={invalidCreationUrl}
             moreOpen={moreEndpointsOpen}
@@ -700,6 +711,8 @@ const CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS: Record<CustomProviderEndpoint, string
 }
 
 interface CustomProviderEndpointFieldsProps {
+  endpointPathModes?: CustomProviderEndpointPathModes
+  onEndpointPathModeChange?: (endpointType: CustomProviderEndpoint, pathMode: 'host' | 'complete') => void
   endpointUrls: CustomProviderEndpointUrls
   preferredChatEndpoint: CustomProviderTextEndpoint
   invalidUrl: CustomProviderCreationInvalidUrl | null
@@ -716,6 +729,8 @@ interface CustomProviderEndpointFieldsProps {
 }
 
 function CustomProviderEndpointFields({
+  endpointPathModes,
+  onEndpointPathModeChange,
   endpointUrls,
   preferredChatEndpoint,
   invalidUrl,
@@ -737,7 +752,11 @@ function CustomProviderEndpointFields({
     const endpointValue = endpointUrls[endpointType] ?? ''
     const invalidEndpoint = invalidUrl?.field === 'endpointUrl' && invalidUrl.endpointType === endpointType
     const missingTextEndpoint = textEndpointRequired && endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-    const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType)
+    const requestPreview = buildCustomProviderEndpointPreview(
+      endpointValue,
+      endpointType,
+      endpointPathModes?.[endpointType]
+    )
     const emptyValueHelp = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
       ? t('settings.provider.create_custom.endpoint_fields.url_help')
       : t(
@@ -747,26 +766,35 @@ function CustomProviderEndpointFields({
         )
 
     return (
-      <BaseUrlField
-        label={t(CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS[endpointType])}
-        placeholder={t('settings.provider.base_url.placeholder')}
-        value={endpointValue}
-        error={
-          invalidEndpoint
-            ? t('settings.provider.base_url.invalid')
-            : missingTextEndpoint
-              ? t('settings.provider.create_custom.endpoint_fields.text_endpoint_required')
-              : undefined
-        }
-        description={
-          requestPreview
-            ? t('settings.provider.create_custom.request_preview', { path: requestPreview })
-            : emptyValueHelp
-        }
-        labelAccessory={labelAccessory}
-        inputRef={endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? firstTextEndpointRef : undefined}
-        onChange={(nextValue) => onEndpointUrlChange(endpointType, nextValue)}
-      />
+      <div>
+        <BaseUrlField
+          label={t(CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS[endpointType])}
+          placeholder={t('settings.provider.base_url.placeholder')}
+          value={endpointValue}
+          error={
+            invalidEndpoint
+              ? t('settings.provider.base_url.invalid')
+              : missingTextEndpoint
+                ? t('settings.provider.create_custom.endpoint_fields.text_endpoint_required')
+                : undefined
+          }
+          description={
+            requestPreview
+              ? t('settings.provider.create_custom.request_preview', { path: requestPreview })
+              : emptyValueHelp
+          }
+          labelAccessory={labelAccessory}
+          inputRef={endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? firstTextEndpointRef : undefined}
+          onChange={(nextValue) => onEndpointUrlChange(endpointType, nextValue)}
+        />
+        {onEndpointPathModeChange && (
+          <EndpointPathModeControl
+            endpointLabel={t(CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS[endpointType])}
+            checked={endpointPathModes?.[endpointType] === 'complete'}
+            onCheckedChange={(checked) => onEndpointPathModeChange(endpointType, checked ? 'complete' : 'host')}
+          />
+        )}
+      </div>
     )
   }
 

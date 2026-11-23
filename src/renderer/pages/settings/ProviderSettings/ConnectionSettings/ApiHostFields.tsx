@@ -1,9 +1,10 @@
 import { Check, Copy, RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { Button, HelpTooltip, InputGroup, InputGroupAddon, InputGroupInput, Switch, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
+import { EndpointPathModeControl } from '../components/EndpointPathModeControl'
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
@@ -65,6 +66,12 @@ interface ApiHostFieldProps {
   isChineseUser: boolean
   isVertexAI: boolean
   isApiHostResettable: boolean
+  /** Effective request URL preview, shown while exact-path mode is on. */
+  hostPreview: string
+  /** Exact-path mode (pathMode: 'complete') availability + state. */
+  showExactPathToggle: boolean
+  isExactPath: boolean
+  onExactPathChange: (checked: boolean) => void
   onApiHostChange: (value: string) => void
   onApiHostCommit: () => void
   onResetApiHost: () => void
@@ -78,6 +85,10 @@ export function ApiHostField({
   isChineseUser,
   isVertexAI,
   isApiHostResettable,
+  hostPreview,
+  showExactPathToggle,
+  isExactPath,
+  onExactPathChange,
   onApiHostChange,
   onApiHostCommit,
   onResetApiHost,
@@ -180,11 +191,31 @@ export function ApiHostField({
           </Tooltip>
         </div>
       )}
+      {showExactPathToggle ? (
+        <div className="mt-2 flex items-center gap-2">
+          <Switch
+            size="sm"
+            aria-label={t('settings.provider.api_host_exact_path')}
+            checked={isExactPath}
+            onCheckedChange={onExactPathChange}
+          />
+          <span className="text-[12px] text-muted-foreground">{t('settings.provider.api_host_exact_path')}</span>
+          <HelpTooltip content={t('settings.provider.api_host_exact_path_tooltip')} />
+        </div>
+      ) : null}
+      {showExactPathToggle ? (
+        <div className="pt-1 text-[12px] leading-[1.35] break-all text-muted-foreground">
+          {t('settings.provider.api_host_preview', { url: hostPreview || '—' })}
+        </div>
+      ) : null}
     </ProviderField>
   )
 }
 
 interface AnthropicApiHostFieldProps {
+  showExactPathToggle?: boolean
+  isExactPath?: boolean
+  onExactPathChange?: (checked: boolean) => void
   anthropicApiHost: string
   anthropicHostPreview: string
   onAnthropicApiHostChange: (value: string) => void
@@ -193,6 +224,9 @@ interface AnthropicApiHostFieldProps {
 }
 
 export function AnthropicApiHostField({
+  showExactPathToggle,
+  isExactPath,
+  onExactPathChange,
   anthropicApiHost,
   anthropicHostPreview,
   onAnthropicApiHostChange,
@@ -258,6 +292,13 @@ export function AnthropicApiHostField({
           </span>
         </Tooltip>
       </div>
+      {showExactPathToggle && onExactPathChange && (
+        <EndpointPathModeControl
+          endpointLabel={t('settings.provider.anthropic_api_host')}
+          checked={Boolean(isExactPath)}
+          onCheckedChange={onExactPathChange}
+        />
+      )}
     </ProviderField>
   )
 }

@@ -5531,6 +5531,8 @@
   "settings.provider.api.url.tip": "在結尾新增 # 以停用自動附加的 API 版本。",
   "settings.provider.api_host": "API 主機位址",
   "settings.provider.api_host_drawer_hint": "自訂 API 請求網址；留空則使用目錄預設。",
+  "settings.provider.api_host_exact_path": "使用完整網址",
+  "settings.provider.api_host_exact_path_tooltip": "依輸入的網址原樣發送請求，不自動附加 API 版本或端點路徑。",
   "settings.provider.api_host_no_valid": "API 位址不合法",
   "settings.provider.api_host_placeholder": "未設定",
   "settings.provider.api_host_preview": "預覽：{{url}}",

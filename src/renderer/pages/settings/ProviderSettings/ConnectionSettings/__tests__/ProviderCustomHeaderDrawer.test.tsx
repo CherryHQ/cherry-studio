@@ -13,6 +13,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
 
   return {
+    ...(await import('../../../../../../../packages/ui/src/components/primitives/switch')),
     HelpTooltip: MockCherrystudioUI.HelpTooltip,
     Badge: ({ children, ...props }: any) => React.createElement('span', props, children),
     Button: ({ children, onClick, ...props }: any) =>
@@ -71,7 +72,11 @@ vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) =>
-      params && 'key' in params ? `${key} ${String(params.key)}` : key
+      params && 'key' in params
+        ? `${key} ${String(params.key)}`
+        : params && 'url' in params
+          ? `${key}:${String(params.url)}`
+          : key
   })
 }))
 
@@ -95,6 +100,49 @@ describe('ProviderCustomHeaderDrawer', () => {
     updateProviderMock.mockResolvedValue(undefined)
     syncProviderModelsMock.mockResolvedValue([])
     useProviderMock.mockReturnValue({ provider, updateProvider: updateProviderMock })
+  })
+
+  it('reloads and changes only a secondary endpoint path mode while retaining its URL and headers', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://gateway.example.com/router/',
+            pathMode: 'complete',
+            headers: { 'x-route': 'anthropic' }
+          }
+        }
+      },
+      updateProvider: updateProviderMock
+    })
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={vi.fn()} />)
+    const toggle = screen.getByRole('switch', {
+      name: 'settings.provider.more_endpoints.anthropic: settings.provider.api_host_exact_path'
+    })
+    expect(toggle).toBeChecked()
+    expect(
+      screen.getByText('settings.provider.api_host_preview:https://gateway.example.com/router/')
+    ).toBeInTheDocument()
+    await user.click(toggle)
+    expect(
+      screen.getByText('settings.provider.api_host_preview:https://gateway.example.com/router/v1/messages')
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    expect(updateProviderMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.example.com' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://gateway.example.com/router/',
+            pathMode: 'host',
+            headers: { 'x-route': 'anthropic' }
+          }
+        }
+      })
+    )
   })
 
   it('persists a configured endpoint as the provider default', async () => {

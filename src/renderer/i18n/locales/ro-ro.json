@@ -5532,6 +5532,8 @@
   "settings.provider.api.url.tip": "Adaugă # la final pentru a dezactiva versiunea API adăugată automat.",
   "settings.provider.api_host": "Gazdă API",
   "settings.provider.api_host_drawer_hint": "URL personalizat pentru cererea API; lăsați gol când se aplică valoarea implicită a catalogului.",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "Adresa API este invalidă",
   "settings.provider.api_host_placeholder": "Neconfigurat",
   "settings.provider.api_host_preview": "Previzualizare: {{url}}",

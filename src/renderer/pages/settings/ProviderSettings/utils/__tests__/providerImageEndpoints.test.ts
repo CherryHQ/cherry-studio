@@ -9,6 +9,25 @@ import {
 } from '../providerImageEndpoints'
 
 describe('provider image endpoint drafts', () => {
+  it('reloads and changes image path modes without losing routes, adapter metadata or sibling settings', () => {
+    const generation = ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+    const edit = ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+    const existing = {
+      [generation]: {
+        baseUrl: 'https://gateway.example.com/create/',
+        pathMode: 'complete' as const,
+        adapterFamily: 'openai-compatible'
+      },
+      [edit]: { baseUrl: 'https://gateway.example.com/edit/', pathMode: 'host' as const }
+    }
+    const draft = readProviderImageEndpointDraft(existing)
+    expect(draft.imageGenerationPathMode).toBe('complete')
+    expect(mergeProviderImageEndpointDraft(existing, { ...draft, imageGenerationPathMode: 'host' })).toEqual({
+      [generation]: { ...existing[generation], pathMode: 'host' },
+      [edit]: existing[edit]
+    })
+  })
+
   it('stores generation and editing URLs independently', () => {
     expect(
       mergeProviderImageEndpointDraft(undefined, {

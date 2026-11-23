@@ -91,6 +91,32 @@ describe('useProviderEndpointActions', () => {
     vi.useRealTimers()
   })
 
+  it('changes only the primary endpoint declaration and preserves the exact URL and siblings', async () => {
+    const configured = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example/router/',
+          pathMode: 'host' as const
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://gateway.example/messages',
+          pathMode: 'complete' as const
+        }
+      }
+    }
+    const { result } = renderHook(() => useDraftEndpointActions(configured))
+    await act(async () => {
+      expect(await result.current.setApiHostPathMode('complete')).toBe(true)
+    })
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        ...configured.endpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://gateway.example/router/', pathMode: 'complete' }
+      }
+    })
+  })
+
   it('debounces api host persistence without syncing models', async () => {
     renderHook(() =>
       useProviderEndpointActions({

@@ -5531,6 +5531,8 @@
   "settings.provider.api.url.tip": "自動的に付加されるAPIバージョンを無効にするには、末尾に#を追加します。",
   "settings.provider.api_host": "APIホスト",
   "settings.provider.api_host_drawer_hint": "カスタムAPIリクエストURL; カタログのデフォルトが適用される場合は空のままにしてください。",
+  "settings.provider.api_host_exact_path": "Use exact URL",
+  "settings.provider.api_host_exact_path_tooltip": "Send requests to this URL exactly as entered, without appending an API version or endpoint path.",
   "settings.provider.api_host_no_valid": "APIアドレスが無効です",
   "settings.provider.api_host_placeholder": "未設定",
   "settings.provider.api_host_preview": "プレビュー：{{url}}",

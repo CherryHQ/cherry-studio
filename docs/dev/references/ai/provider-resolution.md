@@ -141,6 +141,16 @@ The builder table (`config.ts`, first match wins):
 Several builders are `async` (Copilot token, CherryIN relay URLs), which is
 why `providerToAiSdkConfig` returns a promise.
 
+## Custom provider exact paths
+
+`EndpointConfig.pathMode` is a user-owned connection override. Missing or `host` keeps normal URL formatting. `complete` bypasses API-version formatting and endpoint-suffix inference, then `createExactPathFetch` pins the request to the configured URL over the builder's existing fetch. The adapter still owns the request/response protocol. A bare origin therefore targets `/`; trailing slashes, encoded paths and query parameters are preserved, subject to standard URL parsing and removal of a legacy trailing `#` marker.
+
+Custom-provider creation stores the mode independently for each entered endpoint. Request configuration reloads and saves the text and image modes without replacing sibling configuration or adapter metadata. Both surfaces preview the selected mode; primary connection settings also support Anthropic's independent exact-path preview.
+
+The fetch wrapper annotates thrown transport failures with a redacted effective URL and supplies that route to the HTTP trace slot. `exactRequestUrl` also travels with the resolved config, outside adapter settings. Chat's `exact-path-diagnostics` feature installs model middleware that corrects SDK-created HTTP/parser errors, stream error chunks and rejected stream reads after adapter execution. Compression models use the same middleware. Direct image, embedding and rerank calls use the shared error boundary after SDK execution. Error identity, status and retry flags are preserved; frozen third-party error objects are left unchanged rather than replacing the failure.
+
+Local tests cover successful and failing OpenAI-compatible, Anthropic, Google and Open Responses generate/stream round trips through production config, feature registration and SDK model execution, plus parsing errors, late stream errors, cancellation, service boundaries and credential redaction. These substitute Node fetch at the Electron boundary. A transport-only Electron harness can check the real `customFetch` boundary, but does not establish full application startup, provider persistence or settings UI acceptance. Packaged-app acceptance remains separate; the implementation remains draft under open spec PR #23804.
+
 ## Custom providers
 
 `src/main/ai/provider/custom/`:

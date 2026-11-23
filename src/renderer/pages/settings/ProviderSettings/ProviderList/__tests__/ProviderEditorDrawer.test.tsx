@@ -1,5 +1,6 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -29,6 +30,9 @@ vi.mock('@cherrystudio/ui', async () => {
   const AccordionItemContext = React.createContext('')
 
   return {
+    ...(await import('../../../../../../../packages/ui/src/components/primitives/switch')),
+    ...(await import('../../../../../../../packages/ui/src/components/primitives/label')),
+    HelpTooltip: MockCherrystudioUI.HelpTooltip,
     Accordion: ({ children, value, onValueChange }: any) => (
       <AccordionContext value={{ value, onValueChange }}>
         <div>{children}</div>
@@ -380,6 +384,41 @@ describe('ProviderEditorDrawer', () => {
         })
       )
     })
+  })
+
+  it('saves a creation endpoint exact URL without changing its sibling and lets the user return to host mode', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(<ProviderEditorDrawer open mode={{ kind: 'create-custom' }} onClose={vi.fn()} onSubmit={onSubmit} />)
+    await user.type(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), 'Gateway')
+    await user.type(
+      screen.getByLabelText('settings.provider.more_endpoints.openai_chat'),
+      'https://gateway.example.com/router/'
+    )
+    await user.type(screen.getByLabelText('settings.provider.more_endpoints.anthropic'), 'https://other.example.com')
+    const toggle = screen.getByRole('switch', {
+      name: 'settings.provider.more_endpoints.openai_chat: settings.provider.api_host_exact_path'
+    })
+    await user.click(toggle)
+    expect(
+      screen.getByText('settings.provider.create_custom.request_preview:https://gateway.example.com/router/')
+    ).toBeInTheDocument()
+    await user.click(toggle)
+    expect(
+      screen.getByText(
+        'settings.provider.create_custom.request_preview:https://gateway.example.com/router/v1/chat/completions'
+      )
+    ).toBeInTheDocument()
+    await user.click(toggle)
+    await user.click(screen.getByRole('button', { name: 'button.add' }))
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://gateway.example.com/router/', pathMode: 'complete' },
+          'anthropic-messages': { baseUrl: 'https://other.example.com' }
+        }
+      })
+    )
   })
 
   it('submits a Chat Completions endpoint without assigning a preset', () => {

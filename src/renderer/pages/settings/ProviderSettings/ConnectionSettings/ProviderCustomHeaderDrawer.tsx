@@ -27,7 +27,9 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 
+import { EndpointPathModeControl } from '../components/EndpointPathModeControl'
 import { ProviderImageEndpointFields } from '../components/ProviderImageEndpointFields'
+import { buildHostEndpointPreviews } from '../hooks/providerSetting/buildHostEndpointPreviews'
 import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -160,6 +162,7 @@ export function resolveEndpointTypes(
 }
 
 export interface EndpointDraft {
+  pathMode?: EndpointConfig['pathMode']
   baseUrl: string
 }
 
@@ -176,6 +179,7 @@ export function mergeEndpointConfigs(
   const out: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
   for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
     const next: EndpointConfig = { ...out[type] }
+    if (draft.pathMode) next.pathMode = draft.pathMode
     const value = trim(draft.baseUrl)
     if (value) {
       next.baseUrl = value
@@ -250,7 +254,8 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
       drafts[type] = {
-        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
+        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? ''),
+        pathMode: provider?.endpointConfigs?.[type]?.pathMode
       }
     }
     setEndpointDrafts(drafts)
@@ -469,6 +474,37 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                   autoComplete="off"
                 />
               </InputGroup>
+              {!provider?.presetProviderId && provider && (
+                <>
+                  <EndpointPathModeControl
+                    endpointLabel={label}
+                    checked={endpointDrafts[type]?.pathMode === 'complete'}
+                    onCheckedChange={(checked) =>
+                      setEndpointDrafts((previous) => ({
+                        ...previous,
+                        [type]: {
+                          ...previous[type],
+                          baseUrl: previous[type]?.baseUrl ?? '',
+                          pathMode: checked ? 'complete' : 'host'
+                        }
+                      }))
+                    }
+                  />
+                  <p className="text-xs break-all text-muted-foreground">
+                    {t('settings.provider.api_host_preview', {
+                      url:
+                        buildHostEndpointPreviews({
+                          provider,
+                          primaryEndpoint: type,
+                          apiHost: endpointDrafts[type]?.baseUrl ?? '',
+                          anthropicApiHost: '',
+                          providerAnthropicHost: '',
+                          pathMode: endpointDrafts[type]?.pathMode
+                        }).hostPreview || '—'
+                    })}
+                  </p>
+                </>
+              )}
             </div>
           )
         })}
@@ -496,6 +532,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
         )}
 
         <ProviderImageEndpointFields
+          showExactPathToggle={!provider?.presetProviderId}
           value={imageEndpointDraft}
           invalidField={invalidImageEndpointField}
           onChange={(value) => {

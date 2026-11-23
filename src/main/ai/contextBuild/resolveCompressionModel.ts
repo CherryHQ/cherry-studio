@@ -19,6 +19,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 import type { ConversationRef } from '../types'
+import { createExactPathDiagnosticsMiddleware } from '../utils/exactPathDiagnostics'
 import { resolveContextWindow } from './resolveContextWindow'
 
 const logger = loggerService.withContext('resolveCompressionModel')
@@ -72,7 +73,13 @@ export async function resolveCompressionModel(
       sdkConfig.providerId as Parameters<typeof createExecutor>[0],
       sdkConfig.providerSettings as Parameters<typeof createExecutor>[1]
     )
-    const languageModel = await executor.languageModel(sdkConfig.modelId)
+    const resolvedModel = await executor.languageModel(sdkConfig.modelId)
+    const languageModel = sdkConfig.exactRequestUrl
+      ? wrapLanguageModel({
+          model: resolvedModel,
+          middleware: createExactPathDiagnosticsMiddleware(sdkConfig.exactRequestUrl)
+        })
+      : resolvedModel
     return {
       languageModel: sdkConfig.conversationHeader
         ? wrapLanguageModel({
