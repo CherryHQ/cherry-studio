@@ -1,19 +1,7 @@
 import type OpenAI from '@cherrystudio/openai'
 import type { OpenAIVerbosity } from '@shared/types/aiSdk'
 
-export type ProviderType =
-  | 'openai'
-  | 'openai-response'
-  | 'anthropic'
-  | 'gemini'
-  | 'azure-openai'
-  | 'vertexai'
-  | 'mistral'
-  | 'aws-bedrock'
-  | 'vertex-anthropic'
-  | 'new-api'
-  | 'gateway'
-  | 'ollama'
+export type ProviderType = string
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
 

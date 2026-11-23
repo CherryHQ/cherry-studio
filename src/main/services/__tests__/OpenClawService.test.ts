@@ -1107,6 +1107,17 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
+    it.each([{ ok: 'false', status: 'live' }, { ok: 1, status: 'live' }, { ok: true, status: 'starting' }, null, []])(
+      'does not report malformed health JSON as healthy: %j',
+      async (data) => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+          new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } })
+        )
+
+        await expect((service as any).checkGatewayHealthWithError()).resolves.toMatchObject({ status: 'unhealthy' })
+      }
+    )
+
     it('reports an HTML health response without exposing a JSON parser error', async () => {
       vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response('<!doctype html><html></html>', {
@@ -2536,6 +2547,60 @@ describe('OpenClawService gateway status state machine', () => {
       expect('message' in result && result.message).toMatch(/not valid JSON/)
       // The unparseable file must survive so the user can repair it by hand.
       expect(fs.readFileSync(configPath, 'utf-8')).toBe('{ not json')
+    })
+
+    it.each([
+      null,
+      [],
+      { gateway: [] },
+      { models: [] },
+      { models: { providers: [] } },
+      { models: { providers: { 'cherry-openai': { models: {} } } } },
+      { models: { providers: { 'cherry-openai': { models: [{ id: 1 }] } } } },
+      { models: { providers: { 'cherry-openai': { headers: { 'X-Invalid': 1 }, models: [] } } } },
+      { agents: { defaults: [] } },
+      { update: false }
+    ])('preserves the formal config when a container or header is malformed: %j', async (value) => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      const original = JSON.stringify(value)
+      fs.writeFileSync(configPath, original)
+
+      await expect(service.syncProviderConfig(legacyProvider, legacyModel)).resolves.toMatchObject({ success: false })
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
+    })
+
+    it('preserves unrelated prototype-named JSON keys while validating touched containers', async () => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      fs.writeFileSync(configPath, '{"__proto__":{"keep":true},"agents":{"__proto__":{"nested":true}}}')
+
+      await expect(service.syncProviderConfig(legacyProvider, legacyModel)).resolves.toEqual({ success: true })
+
+      const written = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      expect(Object.hasOwn(written, '__proto__')).toBe(true)
+      expect(written.__proto__).toEqual({ keep: true })
+      expect(Object.hasOwn(written.agents, '__proto__')).toBe(true)
+      expect(written.agents.__proto__).toEqual({ nested: true })
+    })
+
+    it('recovers a string auth token without validating or rewriting unrelated settings', () => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      const original = JSON.stringify({ gateway: { auth: { token: 'recovered-token' } }, models: false })
+      fs.writeFileSync(configPath, original)
+      ;(service as any).gatewayAuthToken = ''
+
+      ;(service as any).loadAuthTokenFromConfig()
+
+      expect((service as any).gatewayAuthToken).toBe('recovered-token')
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
+    })
+
+    it.each([1, { value: 'token' }, ['token']])('does not recover a non-string auth token: %j', (token) => {
+      fs.writeFileSync(path.join(configDir, 'openclaw.json'), JSON.stringify({ gateway: { auth: { token } } }))
+      ;(service as any).gatewayAuthToken = ''
+
+      ;(service as any).loadAuthTokenFromConfig()
+
+      expect((service as any).gatewayAuthToken).toBe('')
     })
 
     it('writes a fresh config when none exists yet', async () => {

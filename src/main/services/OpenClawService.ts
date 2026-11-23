@@ -352,30 +352,6 @@ export interface HealthInfo {
 
 type GatewayHealthProbeResult = { status: 'healthy' } | { status: 'unhealthy'; error: string }
 
-export interface OpenClawConfig {
-  gateway?: {
-    mode?: 'local' | 'remote'
-    port?: number
-    auth?: {
-      token?: string
-    }
-  }
-  agents?: {
-    defaults?: {
-      model?: {
-        primary?: string
-      }
-    }
-  }
-  models?: {
-    mode?: string
-    providers?: Record<string, OpenClawProviderConfig>
-  }
-  update?: {
-    checkOnStart?: boolean
-  }
-}
-
 export interface OpenClawModelConfig {
   id: string
   name: string
@@ -411,7 +387,17 @@ export interface OpenClawProviderConfig {
 type OpenClawSyncModel = Model &
   Pick<OpenClawModelConfig, 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
 
-type OpenClawSyncProvider = Provider & { headers?: Record<string, string> }
+type OpenClawSyncProvider = Omit<Provider, 'models'> & {
+  models: OpenClawSyncModel[]
+  headers?: Record<string, string>
+}
+
+function configObject(value: Serializable | undefined, location: string): Record<string, Serializable> {
+  if (value === undefined) return {}
+
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) return value
+  throw new Error(`Existing OpenClaw config ${location} must be an object`)
+}
 
 /**
  * OpenClaw API types
@@ -711,32 +697,32 @@ export class OpenClawService extends BaseService {
       fail()
     }
 
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) fail()
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return fail()
 
-    const report = parsed as { valid?: unknown; path?: unknown; issues?: unknown; warnings?: unknown }
+    const valid = 'valid' in parsed ? parsed.valid : undefined
+    const reportPath = 'path' in parsed ? parsed.path : undefined
+    const issues = 'issues' in parsed && parsed.issues !== undefined ? parsed.issues : []
+    const warnings = 'warnings' in parsed && parsed.warnings !== undefined ? parsed.warnings : []
 
     const isIssue = (issue: unknown): issue is OpenClawValidationIssue => {
       if (issue === null || typeof issue !== 'object' || Array.isArray(issue)) return false
-      const candidate = issue as { path?: unknown; message?: unknown; allowedValues?: unknown }
 
       return (
-        typeof candidate.path === 'string' &&
-        typeof candidate.message === 'string' &&
-        (candidate.allowedValues === undefined || Array.isArray(candidate.allowedValues))
+        'path' in issue &&
+        typeof issue.path === 'string' &&
+        'message' in issue &&
+        typeof issue.message === 'string' &&
+        (!('allowedValues' in issue) || issue.allowedValues === undefined || Array.isArray(issue.allowedValues))
       )
     }
 
-    if (typeof report.valid !== 'boolean') fail()
+    if (typeof valid !== 'boolean') return fail()
 
-    if (report.path !== undefined && typeof report.path !== 'string') fail()
+    if (reportPath !== undefined && typeof reportPath !== 'string') return fail()
 
-    if (report.issues !== undefined && (!Array.isArray(report.issues) || !report.issues.every(isIssue))) fail()
+    if (!Array.isArray(issues) || !issues.every(isIssue)) return fail()
 
-    if (report.warnings !== undefined && (!Array.isArray(report.warnings) || !report.warnings.every(isIssue))) fail()
-    const valid = report.valid as boolean
-    const reportPath = report.path as string | undefined
-    const issues = (report.issues ?? []) as OpenClawValidationIssue[]
-    const warnings = (report.warnings ?? []) as OpenClawValidationIssue[]
+    if (!Array.isArray(warnings) || !warnings.every(isIssue)) return fail()
 
     if (!valid && issues.length === 0) fail()
 
@@ -1392,10 +1378,22 @@ export class OpenClawService extends BaseService {
     try {
       if (fs.existsSync(openclawConfigPath())) {
         const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
-        const config = JSON.parse(content) as OpenClawConfig
-        const token = config.gateway?.auth?.token
+        const config: unknown = JSON.parse(content)
 
-        if (token) {
+        const gateway =
+          config !== null && typeof config === 'object' && !Array.isArray(config) && 'gateway' in config
+            ? config.gateway
+            : undefined
+
+        const auth =
+          gateway !== null && typeof gateway === 'object' && !Array.isArray(gateway) && 'auth' in gateway
+            ? gateway.auth
+            : undefined
+
+        const token =
+          auth !== null && typeof auth === 'object' && !Array.isArray(auth) && 'token' in auth ? auth.token : undefined
+
+        if (typeof token === 'string' && token) {
           this.gatewayAuthToken = token
           logger.info('Recovered auth token from config file')
         }
@@ -1534,7 +1532,7 @@ export class OpenClawService extends BaseService {
       return 'gemini'
     }
 
-    return providerType as Provider['type']
+    return providerType
   }
 
   private ensureSyncProviderSupported(provider: DataProvider): void {
@@ -1650,7 +1648,7 @@ export class OpenClawService extends BaseService {
     return 'openai'
   }
 
-  public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
+  public async syncProviderConfig(provider: OpenClawSyncProvider, primaryModel: Model): Promise<OperationResult> {
     try {
       const runtime = await this.resolveOpenClawRuntime()
       const configSchema = await this.assertSchemaCapability(runtime)
@@ -1674,16 +1672,20 @@ export class OpenClawService extends BaseService {
       // Read existing config. An unparseable file aborts the sync instead of
       // being rebuilt from scratch — silently replacing it would destroy any
       // hand-edited OpenClaw config the user could otherwise repair.
-      let config: OpenClawConfig = {}
+      let config: Record<string, Serializable> = {}
 
       if (fs.existsSync(openclawConfigPath())) {
         const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
 
+        let parsed: unknown
+
         try {
-          config = JSON.parse(content)
+          parsed = JSON.parse(content)
         } catch {
           throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${openclawConfigPath()}`)
         }
+
+        config = configObject(SerializableSchema.parse(parsed), 'root')
       }
 
       // Build provider key
@@ -1725,16 +1727,29 @@ export class OpenClawService extends BaseService {
       // endpoint, credential, and model-name fields are always regenerated below.
       const providerSchemaPath = ['models', 'providers', '*']
       const modelSchemaPath = [...providerSchemaPath, 'models', '[]']
-      const providers = config.models?.providers ?? {}
+      const modelsConfig = configObject(config.models, 'models')
+      const providers = configObject(modelsConfig.providers, 'models.providers')
 
       const externalProviders = Object.fromEntries(
         Object.entries(providers).filter(([key]) => !key.startsWith('cherry-'))
       )
 
-      const existingProvider = providers[providerKey]
-      const existingModelMap = new Map((existingProvider?.models ?? []).map((model) => [model.id, model]))
-      config.models = config.models || { mode: 'merge', providers: {} }
-      const providerHeaders = (provider as OpenClawSyncProvider).headers
+      const existingProvider = configObject(providers[providerKey], `models.providers.${providerKey}`)
+      const existingModels = existingProvider.models === undefined ? [] : existingProvider.models
+
+      if (!Array.isArray(existingModels)) throw new Error('Existing OpenClaw provider models must be an array')
+
+      const existingModelMap = new Map(
+        existingModels.map((value) => {
+          const model = configObject(value, 'provider model')
+
+          if (typeof model.id !== 'string') throw new Error('Existing OpenClaw provider model id must be a string')
+
+          return [model.id, model] as const
+        })
+      )
+
+      const providerHeaders = provider.headers
 
       const existingProviderOverrides = pickSchemaSupportedProperties(
         configSchema,
@@ -1752,9 +1767,8 @@ export class OpenClawService extends BaseService {
         apiKey,
         api: apiType,
         models: provider.models.map((m) => {
-          const synced = m as OpenClawSyncModel
           const existing = existingModelMap.get(m.id)
-          let cost = synced.cost
+          let cost = m.cost
 
           if (cost && !supportsTieredPricing) {
             cost = { ...cost }
@@ -1763,15 +1777,15 @@ export class OpenClawService extends BaseService {
 
           const defaults: Pick<OpenClawModelConfig, 'maxTokens' | 'reasoning' | 'input' | 'cost' | 'contextWindow'> = {}
 
-          if (supportsModelField('maxTokens') && synced.maxTokens !== undefined) defaults.maxTokens = synced.maxTokens
+          if (supportsModelField('maxTokens') && m.maxTokens !== undefined) defaults.maxTokens = m.maxTokens
 
-          if (supportsModelField('reasoning') && synced.reasoning !== undefined) defaults.reasoning = synced.reasoning
+          if (supportsModelField('reasoning') && m.reasoning !== undefined) defaults.reasoning = m.reasoning
 
-          if (supportsModelField('input') && synced.input) defaults.input = synced.input
+          if (supportsModelField('input') && m.input) defaults.input = m.input
 
           if (supportsModelField('cost') && cost) defaults.cost = cost
 
-          if (supportsModelField('contextWindow')) defaults.contextWindow = synced.contextWindow ?? 128000
+          if (supportsModelField('contextWindow')) defaults.contextWindow = m.contextWindow ?? 128000
 
           return {
             ...defaults,
@@ -1783,8 +1797,15 @@ export class OpenClawService extends BaseService {
       }
 
       if (supportsProviderField('headers')) {
-        const existingHeaders = existingProviderOverrides.headers as Record<string, string> | undefined
-        const headers = { ...providerHeaders, ...existingHeaders }
+        const existingHeaders = configObject(existingProviderOverrides.headers, 'provider headers')
+
+        const headerEntries = Object.entries(existingHeaders).map(([key, value]) => {
+          if (typeof value !== 'string') throw new Error('Existing OpenClaw provider header values must be strings')
+
+          return [key, value] as const
+        })
+
+        const headers = { ...providerHeaders, ...Object.fromEntries(headerEntries) }
 
         if (Object.keys(headers).length > 0) openclawProvider.headers = headers
       } else {
@@ -1792,35 +1813,31 @@ export class OpenClawService extends BaseService {
       }
 
       // Set gateway mode to local (required for gateway to start)
-      config.gateway = config.gateway || {}
-      config.gateway.mode = 'local'
-      config.gateway.port = this.gatewayPort
+      const gateway = configObject(config.gateway, 'gateway')
       // Auto-generate auth token if not already set. Publish it in memory only after
       // the candidate is valid and the formal config write succeeds.
       const token = this.gatewayAuthToken || this.generateAuthToken()
-      config.gateway.auth = { token }
+      config.gateway = { ...gateway, mode: 'local', port: this.gatewayPort, auth: { token } }
 
       // Silence OpenClaw's update banner. Its "Update now" button swaps the binary
       // BinaryManager installed and version-tracks; the hint has no env kill switch
       // (unlike OPENCLAW_NO_AUTO_UPDATE, which only blocks automatic applies).
       // Only defaulted, never forced: a user who sets checkOnStart themselves keeps it.
-      if (config.update?.checkOnStart === undefined) {
-        config.update = { ...config.update, checkOnStart: false }
-      }
+      const update = configObject(config.update, 'update')
 
-      config.models.providers = {
-        ...externalProviders,
-        [providerKey]: openclawProvider
+      if (update.checkOnStart === undefined) config.update = { ...update, checkOnStart: false }
+
+      const models = {
+        ...(config.models === undefined ? { mode: 'merge' } : modelsConfig),
+        providers: { ...externalProviders, [providerKey]: openclawProvider }
       }
 
       // Set primary model
-      config.agents = config.agents || { defaults: {} }
-      config.agents.defaults = config.agents.defaults || {}
-      config.agents.defaults.model = {
-        primary: `${providerKey}/${primaryModel.id}`
-      }
+      const agents = configObject(config.agents, 'agents')
+      const defaults = configObject(agents.defaults, 'agents.defaults')
+      config.agents = { ...agents, defaults: { ...defaults, model: { primary: `${providerKey}/${primaryModel.id}` } } }
 
-      const serialized = JSON.stringify(config, null, 2)
+      const serialized = JSON.stringify({ ...config, models }, null, 2)
 
       const candidatePath = AbsoluteFilePathSchema.parse(
         path.join(openclawConfigDir(), `openclaw.json.cherry-candidate-${crypto.randomUUID()}`)
@@ -1868,17 +1885,25 @@ export class OpenClawService extends BaseService {
       }
 
       const body = await response.text()
-      let data: { ok?: boolean; status?: string }
+      let data: unknown
 
       try {
-        data = JSON.parse(body) as { ok?: boolean; status?: string }
+        data = JSON.parse(body)
       } catch {
         const contentType = response.headers.get('content-type')?.split(';', 1)[0] || 'unknown content type'
 
         return { status: 'unhealthy', error: `Invalid JSON from /healthz (${contentType})` }
       }
 
-      if (data.ok && data.status === 'live') {
+      if (
+        data !== null &&
+        typeof data === 'object' &&
+        !Array.isArray(data) &&
+        'ok' in data &&
+        data.ok === true &&
+        'status' in data &&
+        data.status === 'live'
+      ) {
         return { status: 'healthy' }
       }
 
