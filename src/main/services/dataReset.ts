@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
 // Preboot dialogs cannot use PreferenceService-backed translations.
 import { t } from '@main/i18n'
+import { getErrorCode, getErrorMessage } from '@main/utils/error'
 
 const logger = loggerService.withContext('DataReset')
 
@@ -126,7 +127,7 @@ function readMarker(): DataResetMarker | null {
   try {
     raw = fs.readFileSync(file, 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    if (getErrorCode(error) === 'ENOENT') return null
     throw error
   }
 
@@ -135,7 +136,9 @@ function readMarker(): DataResetMarker | null {
   try {
     parsed = JSON.parse(raw)
   } catch (error) {
-    logger.error('Data reset marker is not valid JSON — renaming aside and ignoring', { error: String(error) })
+    logger.error('Data reset marker is not valid JSON — renaming aside and ignoring', {
+      error: getErrorMessage(error, 'Unknown error')
+    })
     renameMarkerAside(file)
 
     return null
@@ -216,7 +219,7 @@ function deleteMarker(): void {
   try {
     fs.unlinkSync(file)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (getErrorCode(error) !== 'ENOENT') throw error
   }
 
   syncParentDirectory(file)
@@ -257,7 +260,7 @@ async function stageDataReset(): Promise<void> {
     if (!(error instanceof MarkerCommitError)) throw error
     // The marker may be committed, so continue shutting down safely.
     logger.error('Data reset marker committed without durable directory metadata — relaunching safely', {
-      error: String(error)
+      error: getErrorMessage(error, 'Unknown error')
     })
   }
 
@@ -302,7 +305,7 @@ export function runDataReset(): void {
         deleteMarker()
       } catch (error) {
         logger.warn('Could not remove a completed data reset marker — leaving it for a later boot', {
-          error: String(error)
+          error: getErrorMessage(error, 'Unknown error')
         })
       }
 
@@ -350,7 +353,7 @@ export function runDataReset(): void {
       // Without a durable attempt count the reset can never progress, and quitting would repeat
       // forever on a disk that stays unwritable — abandon it and let the app start instead.
       logger.error('Data reset abandoned: the attempt count could not be durably recorded', {
-        error: String(error)
+        error: getErrorMessage(error, 'Unknown error')
       })
       abandonIncompleteReset()
 
@@ -364,7 +367,9 @@ export function runDataReset(): void {
     try {
       fs.rmSync(application.getPath('app.temp'), RM_OPTIONS)
     } catch (error) {
-      logger.warn('Failed to remove the app temp dir during data reset', { error: String(error) })
+      logger.warn('Failed to remove the app temp dir during data reset', {
+        error: getErrorMessage(error, 'Unknown error')
+      })
     }
 
     if (failures.length > 0) {
@@ -391,7 +396,7 @@ export function runDataReset(): void {
       logger.error(
         'Data reset wiped successfully but the completion record could not be committed — refusing to boot',
         {
-          error: String(error)
+          error: getErrorMessage(error, 'Unknown error')
         }
       )
       showDataResetError(
@@ -409,7 +414,7 @@ export function runDataReset(): void {
       deleteMarker()
     } catch (error) {
       logger.warn('Could not remove the completed data reset marker — the next boot will clear it', {
-        error: String(error)
+        error: getErrorMessage(error, 'Unknown error')
       })
     }
 
@@ -434,7 +439,10 @@ function wipeNestedUserDataTargets(failures: string[]): void {
     try {
       fs.rmSync(target, RM_OPTIONS)
     } catch (error) {
-      logger.warn('Failed to remove nested user data during reset', { target, error: String(error) })
+      logger.warn('Failed to remove nested user data during reset', {
+        target,
+        error: getErrorMessage(error, 'Unknown error')
+      })
       failures.push(target)
     }
   }
@@ -468,7 +476,7 @@ function showPrebootNotice(title: string, message: string): void {
   try {
     dialog.showErrorBox(title, message)
   } catch (error) {
-    logger.warn('Could not show the preboot dialog', { title, error: String(error) })
+    logger.warn('Could not show the preboot dialog', { title, error: getErrorMessage(error, 'Unknown error') })
   }
 }
 
@@ -490,7 +498,7 @@ async function clearChromiumState(): Promise<void> {
       await operation()
     } catch (error) {
       logger.warn(`Failed to clear ${stateName} for the ${sessionName} session during data reset request`, {
-        error: String(error)
+        error: getErrorMessage(error, 'Unknown error')
       })
     }
   }
@@ -551,8 +559,8 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
   try {
     entries = fs.readdirSync(dir)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.warn('Cannot list directory for data reset', { dir, error: String(error) })
+    if (getErrorCode(error) !== 'ENOENT') {
+      logger.warn('Cannot list directory for data reset', { dir, error: getErrorMessage(error, 'Unknown error') })
       failures.push(dir)
     }
 
@@ -565,7 +573,7 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
     try {
       fs.rmSync(path.join(dir, entry), RM_OPTIONS)
     } catch (error) {
-      logger.warn('Failed to remove entry during data reset', { entry, error: String(error) })
+      logger.warn('Failed to remove entry during data reset', { entry, error: getErrorMessage(error, 'Unknown error') })
       failures.push(path.join(dir, entry))
     }
   }

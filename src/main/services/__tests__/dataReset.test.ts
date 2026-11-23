@@ -482,6 +482,33 @@ describe('runDataReset', () => {
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['ENOTDIR', () => Object.assign(new Error('invalid marker parent'), { code: 'ENOTDIR' })],
+    [
+      'unreadable code',
+      () =>
+        Object.defineProperty({}, 'code', {
+          get() {
+            throw new Error('unreadable code')
+          }
+        })
+    ]
+  ] as const)('fails closed when marker reading rejects with %s', async (_label, createFailure) => {
+    stubAll(pendingMarker())
+    const failure = createFailure()
+    readFileSyncMock.mockImplementation(() => {
+      throw failure
+    })
+
+    await runReset()
+
+    expect(readStoredMarker()).toEqual(pendingMarker())
+    expect(fsCtl.commits).toHaveLength(0)
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+  })
+
   it('quits without wiping when an invalid marker cannot be quarantined', async () => {
     stubAll(null)
     seedRawMarker('{ this is not valid json')
@@ -697,6 +724,24 @@ describe('runDataReset', () => {
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
+  it('keeps a completed marker disarmed when its unlink failure cannot be formatted', async () => {
+    stubAll(completedMarker())
+    unlinkSyncMock.mockImplementation(() => {
+      throw {
+        toString() {
+          throw new Error('unprintable unlink failure')
+        }
+      }
+    })
+
+    await runReset()
+
+    expect(readStoredMarker()).toMatchObject({ status: 'completed' })
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['negative attempts', { ...pendingMarker(), attempts: -100 }],
     ['fractional attempts', { ...pendingMarker(), attempts: 0.5 }],
@@ -732,6 +777,53 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(readStoredMarker()).toMatchObject({ status: 'pending', attempts: 1 })
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('retries instead of declaring completion when listing fails with unreadable diagnostics', async () => {
+    stubAll(pendingMarker())
+    readdirSyncMock.mockImplementation(() => {
+      throw {
+        get code() {
+          throw new Error('unreadable code')
+        },
+        toString() {
+          throw new Error('unprintable listing failure')
+        }
+      }
+    })
+
+    await runReset()
+
+    expect(readStoredMarker()).toMatchObject({ status: 'pending', attempts: 1 })
+    expect(fsCtl.commits.some((marker) => marker?.status === 'completed')).toBe(false)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('continues after an unprintable deletion failure and retains the pending retry', async () => {
+    stubAll(pendingMarker())
+    const failed = `${USER_DATA}/cherrystudio.sqlite`
+    const later = `${USER_DATA}/version.log`
+    fsCtl.files.set(failed, 'locked database')
+    fsCtl.files.set(later, 'old version')
+    rmSyncMock.mockImplementation((target: string) => {
+      if (target === failed)
+        throw {
+          toString() {
+            throw new Error('unprintable deletion failure')
+          }
+        }
+      fsCtl.files.delete(target)
+    })
+
+    await runReset()
+
+    expect(fsCtl.files.get(failed)).toBe('locked database')
+    expect(fsCtl.files.has(later)).toBe(false)
+    expect(readStoredMarker()).toMatchObject({ status: 'pending', attempts: 1 })
+    expect(fsCtl.commits.some((marker) => marker?.status === 'completed')).toBe(false)
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
@@ -880,6 +972,22 @@ describe('requestDataReset', () => {
     expect(webviewSession.clearData).toHaveBeenCalledTimes(1)
     expect(applicationMock.shutdown).toHaveBeenCalledTimes(1)
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+  })
+
+  it('shuts down and relaunches after an unprintable Chromium clear failure', async () => {
+    stubAll(null)
+    defaultSession.clearData.mockRejectedValueOnce({
+      toString() {
+        throw new Error('unprintable session failure')
+      }
+    })
+
+    await expect(requestReset()).resolves.toBeUndefined()
+
+    expect(readStoredMarker()).toMatchObject({ status: 'pending', canonicalPath: USER_DATA })
+    expect(applicationMock.shutdown).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('bounds a Chromium clear that never settles after the marker is staged', async () => {
