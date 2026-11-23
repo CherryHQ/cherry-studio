@@ -1,5 +1,5 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -476,7 +476,9 @@ describe('WorkspaceSelector', () => {
     await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
 
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce())
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // The modal traps focus, so the failure and its Details stay inside the dialog instead of a toast.
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toBeInTheDocument()
+    expect(toastErrorMock).not.toHaveBeenCalled()
   })
 })
