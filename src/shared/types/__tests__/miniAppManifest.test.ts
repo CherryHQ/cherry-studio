@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   declaredGrantKeys,
+  expandPermissions,
   MINI_APP_MAX_PACKAGE_BYTES,
   MiniAppDistributionManifestSchema,
   MiniAppManifestSchema,
@@ -136,6 +137,10 @@ describe('MiniAppManifestSchema', () => {
   it('expands a namespace wildcard into its grantable leaves', () => {
     const m = MiniAppManifestSchema.parse({ ...valid, permissions: ['storage.*'] })
     expect(declaredGrantKeys(m)).toEqual(['storage.delete', 'storage.get', 'storage.keys', 'storage.set'])
+  })
+
+  it('never expands unknown or ungated methods into grants', () => {
+    expect(expandPermissions(['app.getInfo', 'ai.cancel', 'storage.usage', 'storage.wipe', 'camera.*'])).toEqual([])
   })
 
   it('leaves introspection methods out of the expansion', () => {

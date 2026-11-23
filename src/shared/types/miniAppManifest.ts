@@ -77,6 +77,7 @@ export const MINI_APP_METHODS = {
 export type MiniAppMethod = keyof typeof MINI_APP_METHODS
 
 /** The declarable, revocable leaves — derived, never written out a second time. */
+// SAFETY: Entries come from the closed method catalog, and filtering retains only grant-gated method names.
 export const MINI_APP_PERMISSIONS = Object.entries(MINI_APP_METHODS)
   .filter(([, m]) => m.gate === 'grant')
   .map(([name]) => name)
@@ -98,7 +99,7 @@ export const PermissionDeclarationSchema = z
   .string()
   .refine(
     (p) =>
-      MINI_APP_PERMISSIONS.includes(p as MiniAppPermission) ||
+      MINI_APP_PERMISSIONS.some((permission) => permission === p) ||
       (MINI_APP_NAMESPACES.includes(p.replace(/\.\*$/, '')) && p.endsWith('.*')),
     'must be a known method (e.g. "file.save") or namespace wildcard (e.g. "file.*")'
   )
@@ -113,7 +114,9 @@ export function expandPermissions(declared: readonly string[]): MiniAppPermissio
 
       for (const p of MINI_APP_PERMISSIONS) if (p.startsWith(`${ns}.`)) out.add(p)
     } else {
-      out.add(entry as MiniAppPermission)
+      const permission = MINI_APP_PERMISSIONS.find((candidate) => candidate === entry)
+
+      if (permission) out.add(permission)
     }
   }
 
@@ -272,7 +275,7 @@ export type LocalizedText = z.infer<typeof LocalizedNameSchema>
  */
 export function resolveLocalizedText(text: LocalizedText, locale: string): string {
   if (typeof text === 'string') return text
-  const table = text as Record<string, string | undefined>
+  const table = text
 
   return table[locale] ?? table[locale.split('-')[0]] ?? table.en ?? table.zh!
 }
