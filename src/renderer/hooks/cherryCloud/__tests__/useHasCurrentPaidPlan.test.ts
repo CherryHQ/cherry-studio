@@ -66,4 +66,15 @@ describe('useHasCurrentPaidPlan', () => {
     })
     expect(result.current).toBe(false)
   })
+
+  it('turns false when the deadline passes between render and its effect', () => {
+    plans.activePaid = { id: 'pro', expires_at: '2026-11-20T00:00:00.010Z' }
+    const now = Date.parse('2026-11-20T00:00:00.000Z')
+    // Render reads the clock first (still valid); the effect then sees the deadline already gone.
+    vi.spyOn(Date, 'now').mockReturnValueOnce(now).mockReturnValue(now + 20)
+
+    const { result } = renderHook(() => useHasCurrentPaidPlan())
+
+    expect(result.current).toBe(false)
+  })
 })

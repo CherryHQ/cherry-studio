@@ -11,13 +11,19 @@ export function useHasCurrentPaidPlan(enabled = true): boolean {
   const expiresAt = activePaid?.expires_at ? Date.parse(activePaid.expires_at) : undefined
   const [tick, recheck] = useReducer((count: number) => count + 1, 0)
 
+  const current = enabled && isPlansReady && !!activePaid && (expiresAt === undefined || expiresAt > Date.now())
+
   useEffect(() => {
     if (expiresAt === undefined) return
     const delay = expiresAt - Date.now()
-    if (delay <= 0) return
+    // The deadline can pass between render and this effect; re-render once so the result catches up.
+    if (delay <= 0) {
+      if (current) recheck()
+      return
+    }
     const timer = setTimeout(recheck, Math.min(delay, MAX_TIMER_DELAY_MS))
     return () => clearTimeout(timer)
-  }, [expiresAt, tick])
+  }, [current, expiresAt, tick])
 
-  return enabled && isPlansReady && !!activePaid && (expiresAt === undefined || expiresAt > Date.now())
+  return current
 }
