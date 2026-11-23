@@ -32,6 +32,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
+import { cherryInSignInFailureResult } from '@renderer/services/cherryInAnalytics'
 import { CHERRYIN_API_KEY_URL, oauthWithCherryIn } from '@renderer/services/oauth'
 import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
@@ -389,6 +390,14 @@ export default function OnboardingPage({
 
   const handleCherryInLogin = useCallback(async () => {
     const attemptId = ++loginAttemptRef.current
+    const startedAt = Date.now()
+    const trackResult = (result: 'success' | 'failed' | 'cancelled' | 'no_model') =>
+      trackProductEvent({
+        event: 'cherryin_sign_in_result',
+        source: 'onboarding',
+        result,
+        durationMs: Date.now() - startedAt
+      })
 
     if (loginLoadingTimeoutRef.current !== null) {
       window.clearTimeout(loginLoadingTimeoutRef.current)
@@ -425,14 +434,17 @@ export default function OnboardingPage({
       if (loginAttemptRef.current !== attemptId) return
 
       if (!cherryInModels.some((model) => model.isEnabled)) {
+        trackResult('no_model')
         toast.error(t('onboarding.provider_setup.missing_model'))
         setStep('provider')
         return
       }
+      trackResult('success')
       toast.success(t('onboarding.toast.connected'))
       setStep('select-model')
-    } catch {
+    } catch (error) {
       if (loginAttemptRef.current === attemptId) {
+        trackResult(cherryInSignInFailureResult(error))
         toast.error(t('settings.provider.oauth.error'))
       }
     } finally {

@@ -7,6 +7,7 @@ import { omit } from 'es-toolkit'
 import { application } from '@application'
 import { cloneObservationValue } from '@cherrystudio/agent-runtime'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
 import { logAiFailure } from '@main/ai/errorReporting'
@@ -47,10 +48,12 @@ import { aiStreamAdmissionReasons, isDeferredToolOutput, toolResultValue } from 
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
+import { matchesPreset } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
@@ -370,6 +373,30 @@ const nullStreamListener: StreamListener = {
   onPaused: () => {},
   onError: () => {},
   isAlive: () => false
+}
+
+// Agent sessions, including their gateway model calls, are the agent composer; other prompt streams have none.
+function analyticsComposer(input: SendInput): 'chat' | 'agent' | undefined {
+  if (isAgentSessionTopic(input.topicId)) return 'agent'
+  if (input.models.some(({ request }) => request.tokenUsageSource === 'agent')) return 'agent'
+  return input.lifecycle === promptStreamLifecycle ? undefined : 'chat'
+}
+
+/** Insufficient CherryIN balance, classified the same way as the failure shown to the user. */
+function trackCherryInQuotaError(
+  composer: 'chat' | 'agent' | undefined,
+  modelId: UniqueModelId,
+  error: SerializedError
+): void {
+  if (!composer || toExecutionFailure(error, modelId).failure.reasonCode !== 'quota') return
+  try {
+    // Preset-derived instances such as `cherryin-express` bill against CherryIN too.
+    const provider = providerService.getByProviderId(parseUniqueModelId(modelId).providerId)
+    if (!matchesPreset(provider, SystemProviderIds.cherryin)) return
+    application.get('AnalyticsService').trackProductEvent({ event: 'cherryin_quota_error', composer })
+  } catch {
+    // Telemetry must never affect stream termination.
+  }
 }
 
 /**
@@ -1022,7 +1049,8 @@ export class AiStreamManager extends BaseService {
       isMultiModel,
       lifecycle: input.lifecycle ?? this.chatLifecycle,
       isPersistentConversation: input.isPersistentConversation === true,
-      hasTaskResultOwner: input.listeners.some((listener) => listener.ownsTaskResult)
+      hasTaskResultOwner: input.listeners.some((listener) => listener.ownsTaskResult),
+      analyticsComposer: analyticsComposer(input)
     }
     this.activeStreams.set(input.topicId, stream)
     if (stream.lifecycle !== promptStreamLifecycle) {
@@ -1775,6 +1803,7 @@ export class AiStreamManager extends BaseService {
     exec.status = 'error'
     exec.error = error
     endRootSpan(exec, 'error', error)
+    trackCherryInQuotaError(stream.analyticsComposer, modelId, error)
 
     // Mirror of onExecutionPaused: clear the set so the status anchor drops;
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
