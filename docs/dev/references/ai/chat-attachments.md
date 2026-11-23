@@ -131,9 +131,11 @@ per-request attachment allow-list from the tool-call context.
   attachments (`applies: scope.hasFileAttachments`), then filtered per request in
   `AiService.streamText`. It stays exposed when an attachment was truncated, when an
   attachment was folded out of the served history, or while in-loop compaction is
-  active, either the LLM compaction hook or the sliding-window fallback used when no
-  compressor resolves and the model has a known context window (a later fold can summarize an inline attachment away, and the reader is the
-  only path back to the exact contents). When every attachment is fully inline and
+  active through either the LLM compaction hook or the sliding-window fallback.
+  The fallback requires a Cherry-owned request with context management and compression enabled,
+  no resolved compressor, and a model with a known context window. When over budget it can
+  drop older attachment-bearing turns outright, whereas LLM compaction can summarize them.
+  Both paths keep exact attachment text recoverable through the reader. When every attachment is fully inline and
   none of those hold, the tool is removed so the model is not nudged into needless
   calls. A caller-owned `read_file` (gateway `callOverrides.tools`) is never filtered.
 - Claude Code exposes the same read operation through the Cherry Assistant-only
