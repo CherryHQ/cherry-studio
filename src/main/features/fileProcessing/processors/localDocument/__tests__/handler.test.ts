@@ -86,7 +86,9 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 
 vi.mock('../../../utils/ocr', () => ({ preprocessImage: preprocessImageMock }))
 
-import { isScannedPdfError, localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
+import { isScannedPdfError } from '@main/utils/pdfText'
+
+import { localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
 
 const PDF_BYTES = Buffer.from('%PDF-1.7 fake')
 

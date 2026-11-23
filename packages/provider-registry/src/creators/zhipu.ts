@@ -84,6 +84,26 @@ export default defineCreator({
       maxOutputTokens: 131072,
       openWeights: true
     },
+    {
+      // TokenHub's enhanced lightweight multimodal tier (cloud.tencent.com/document/product/1823/132061):
+      // same 1M context / 128K output envelope as glm-5-3-flash, always-on reasoning.
+      id: 'glm-5-3-flashx',
+      name: 'GLM-5.3-FlashX',
+      family: 'glm',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 131072,
+      openWeights: true
+    },
     { id: 'embedding-3', name: 'Embedding-3', outputModalities: ['vector'], contextWindow: 8192 },
     {
       id: 'cogview-4',

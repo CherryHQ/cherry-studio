@@ -37,26 +37,19 @@ export function useCherryCloudModelSelectorPolicy({
   enabled = true,
   includeAgentOnlyModels = false,
   filter,
-  prioritizedProviderIds = []
+  prioritizedProviderIds
 }: Pick<UseModelSelectorDataOptions, 'enabled' | 'includeAgentOnlyModels' | 'filter' | 'prioritizedProviderIds'>) {
   const availability = useCherryCloudModelAvailability(enabled)
-  const { activePaid, upcomingPaid } = useCherryCloudPlans(enabled)
+  const [isCherryAIPinned, setCherryAIPinned] = usePersistCache('ui.model_selector.cherryai_pinned')
   const { providers } = useProviders({ enabled: true }, { enabled })
-  const hasPaidPlan = Boolean(activePaid || upcomingPaid)
   const orderedProviderIds = useMemo(() => {
-    const otherProviderIds = prioritizedProviderIds.filter(
+    if (isCherryAIPinned) return [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...(prioritizedProviderIds ?? [])]
+
+    const otherProviderIds = [...(prioritizedProviderIds ?? []), ...providers.map(({ id }) => id)].filter(
       (id) => !CHERRY_CLOUD_SELECTOR_PROVIDER_IDS.some((cloudId) => cloudId === id)
     )
-    return hasPaidPlan
-      ? [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...otherProviderIds]
-      : [
-          ...otherProviderIds,
-          ...providers
-            .filter((provider) => !CHERRY_CLOUD_SELECTOR_PROVIDER_IDS.some((id) => id === provider.id))
-            .map((provider) => provider.id),
-          ...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS
-        ]
-  }, [hasPaidPlan, prioritizedProviderIds, providers])
+    return [...otherProviderIds, ...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS]
+  }, [isCherryAIPinned, prioritizedProviderIds, providers])
   const { isModelHidden, isModelFree, getModelDescription, isModelUnavailable } = availability
   const modelFilter = useCallback<ModelSelectorFilter>(
     (model, provider) => !isModelHidden(model, includeAgentOnlyModels) && (filter?.(model, provider) ?? true),
@@ -75,7 +68,14 @@ export function useCherryCloudModelSelectorPolicy({
     },
     [getModelDescription, isModelFree, isModelUnavailable]
   )
-  return { availability, modelFilter, getModelPresentation, prioritizedProviderIds: orderedProviderIds }
+  return {
+    availability,
+    modelFilter,
+    getModelPresentation,
+    prioritizedProviderIds: orderedProviderIds,
+    isCherryAIPinned,
+    setCherryAIPinned
+  }
 }
 
 /** Cloud-aware resolution for consumers that classify saved selections without rendering a picker. */
