@@ -40,11 +40,21 @@ Main `PreferenceService.resolveKey()` routes each unified key:
 |---|---|
 | Ordinary generated key, such as `ui.theme_mode` | SQLite preference row |
 | Public `BootConfig.app.*` key | File-backed `bootConfigService` |
-| Internal `BootConfig.temp.*` key | Rejected at the unified Preference boundary |
+| Internal `BootConfig.temp.*`, unknown or inherited key | Rejected at the unified Preference boundary |
 
 A mixed `setMultiple` validates every route before writing. BootConfig writes
 and the SQLite transaction are separate stores and therefore are not one atomic
 cross-store commit.
+
+Database keys must be own keys of the generated default registry. Loading stored
+rows ignores unregistered keys, and the mutable cache is separate from that
+registry. This validates key membership, not ordinary preference value shapes:
+SQLite preference values currently have no per-key runtime schemas. BootConfig
+values pass their selected Zod schema before mutation.
+
+`getMultiple` captures own enumerable string aliases once and reads the requested
+preferences from that mapping. Inherited aliases are ignored; literal aliases
+such as `__proto__` remain own data properties on the result.
 
 ## Process Responsibilities
 
@@ -79,8 +89,13 @@ With `{ optimistic: false }`, the renderer waits for Main to confirm persistence
 before changing its cache. Use this when the UI must not present an unconfirmed
 setting as saved.
 
-Batch operations apply the same choice to every key in the batch. Main skips
-unchanged values and publishes notifications only after successful writes.
+Batch operations apply the same choice to every key in the batch. The renderer
+captures a shallow update snapshot and validates its keys before either strategy
+changes the cache or sends IPC. Top-level reassignment by the caller cannot change
+a pending batch; nested arrays and objects retain their existing reference
+ownership. A pending batch read likewise retains its requested key list for the
+matching subscriptions. Main skips unchanged values and publishes notifications
+only after successful writes.
 
 ## Data-System Boundary
 

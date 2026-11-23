@@ -7,7 +7,7 @@ import type {
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
-import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
+import { getDefaultValue, isUnifiedPreferenceKey } from '@shared/data/preference/preferenceUtils'
 
 const logger = loggerService.withContext('PreferenceService')
 
@@ -269,11 +269,13 @@ export class PreferenceService {
   public async getMultipleRaw<K extends UnifiedPreferenceKeyType>(
     keys: K[]
   ): Promise<UnifiedPreferenceMultipleResultType<K>> {
+    const requestedKeys = [...keys]
+
     // Check which keys are already cached
     const cachedResults: Partial<UnifiedPreferenceType> = {}
     const uncachedKeys: UnifiedPreferenceKeyType[] = []
 
-    for (const key of keys) {
+    for (const key of requestedKeys) {
       if (key in this.cache && this.cache[key] !== undefined) {
         cachedResults[key] = this.cache[key]
       } else {
@@ -300,18 +302,18 @@ export class PreferenceService {
 
         // Fill in default values for failed keys (not cached, not subscribed —
         // the next read retries both)
-        const defaultResults = Object.fromEntries(
-          uncachedKeys.map((key) => [key, getDefaultValue(key)])
-        ) as Partial<UnifiedPreferenceType>
+        const defaultResults = Object.fromEntries(uncachedKeys.map((key) => [key, getDefaultValue(key)]))
 
+        // SAFETY: Each requested key is present in cachedResults or filled by getDefaultValue after the failed batch read.
         return { ...cachedResults, ...defaultResults } as UnifiedPreferenceMultipleResultType<K>
       }
     }
 
     // Subscribe to every requested key in one batched IPC (deduped internally).
     // Unconditional on purpose: cached-but-unsubscribed keys are healed too.
-    await this.subscribeToKeyInternal(keys)
+    await this.subscribeToKeyInternal(requestedKeys)
 
+    // SAFETY: Cached and fetched results cover the requested keys; each value retains the main preference API's existing keyed contract.
     return { ...cachedResults, ...uncachedResults } as UnifiedPreferenceMultipleResultType<K>
   }
 
@@ -323,11 +325,18 @@ export class PreferenceService {
   public async getMultiple<T extends Record<string, UnifiedPreferenceKeyType>>(
     keys: T
   ): Promise<{ [P in keyof T]: UnifiedPreferenceType[T[P]] }> {
-    const values = await this.getMultipleRaw(Object.values(keys))
+    const aliases = Object.entries(keys)
+    const values = await this.getMultipleRaw(aliases.map(([, preferenceKey]) => preferenceKey))
+    // SAFETY: The captured own enumerable aliases are populated from their requested keys; inherited aliases are outside this API contract.
     const result = {} as { [P in keyof T]: UnifiedPreferenceType[T[P]] }
 
-    for (const key in keys) {
-      result[key] = values[keys[key]]
+    for (const [alias, preferenceKey] of aliases) {
+      Object.defineProperty(result, alias, {
+        value: values[preferenceKey],
+        enumerable: true,
+        configurable: true,
+        writable: true
+      })
     }
 
     return result
@@ -343,10 +352,20 @@ export class PreferenceService {
     updates: Partial<UnifiedPreferenceType>,
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
+    const snapshot = { ...updates }
+
+    const keys = Object.keys(snapshot).map((key) => {
+      if (!isUnifiedPreferenceKey(key)) {
+        throw new Error(`Preference key "${key}" is not accessible via the unified preference API`)
+      }
+
+      return key
+    })
+
     if (options.optimistic) {
-      return this.setMultipleOptimistic(updates)
+      return this.setMultipleOptimistic(snapshot, keys)
     } else {
-      return this.setMultiplePessimistic(updates)
+      return this.setMultiplePessimistic(snapshot, keys)
     }
   }
 
@@ -355,10 +374,12 @@ export class PreferenceService {
    * @param updates Object containing preference key-value pairs to update
    * @returns Promise that resolves when batch update completes
    */
-  private async setMultipleOptimistic(updates: Partial<UnifiedPreferenceType>): Promise<void> {
+  private async setMultipleOptimistic(
+    updates: Partial<UnifiedPreferenceType>,
+    keysToUpdate: UnifiedPreferenceKeyType[]
+  ): Promise<void> {
     const batchRequestId = this.generateRequestId()
     const originalValues: Partial<UnifiedPreferenceType> = {}
-    const keysToUpdate = Object.keys(updates) as UnifiedPreferenceKeyType[]
 
     // For batch updates, we need to check for existing optimistic states
     // and preserve the original values from first requests
@@ -368,8 +389,8 @@ export class PreferenceService {
     }
 
     // Update cache immediately and track original values
-    for (const [key, value] of Object.entries(updates)) {
-      Object.assign(this.cache, { [key]: value })
+    for (const key of keysToUpdate) {
+      Object.assign(this.cache, { [key]: updates[key] })
       this.notifyChangeListeners(key)
     }
 
@@ -412,17 +433,20 @@ export class PreferenceService {
    * @param updates Object containing preference key-value pairs to update
    * @returns Promise that resolves when batch update completes
    */
-  private async setMultiplePessimistic(updates: Partial<UnifiedPreferenceType>): Promise<void> {
+  private async setMultiplePessimistic(
+    updates: Partial<UnifiedPreferenceType>,
+    keys: UnifiedPreferenceKeyType[]
+  ): Promise<void> {
     try {
       await window.api.preference.setMultiple(updates)
 
       // Update local cache for all updated values after successful database update
-      for (const [key, value] of Object.entries(updates)) {
-        Object.assign(this.cache, { [key]: value })
+      for (const key of keys) {
+        Object.assign(this.cache, { [key]: updates[key] })
         this.notifyChangeListeners(key)
       }
 
-      logger.debug(`Pessimistic batch update completed for ${Object.keys(updates).length} preferences`)
+      logger.debug(`Pessimistic batch update completed for ${keys.length} preferences`)
     } catch (error) {
       logger.error(`Pessimistic batch update failed:`, error)
       throw error
@@ -607,18 +631,20 @@ export class PreferenceService {
     try {
       const allPreferences = await window.api.preference.getAll()
 
-      // Update local cache with all preferences
-      for (const [key, value] of Object.entries(allPreferences)) {
-        Object.assign(this.cache, { [key]: value })
+      const keys = Object.keys(allPreferences).filter(isUnifiedPreferenceKey)
+
+      // Update local cache with registered public preferences
+      for (const key of keys) {
+        Object.assign(this.cache, { [key]: allPreferences[key] })
 
         // Notify change listeners for the loaded value
         this.notifyChangeListeners(key)
       }
 
-      await this.subscribeToKeyInternal(Object.keys(allPreferences) as UnifiedPreferenceKeyType[])
+      await this.subscribeToKeyInternal(keys)
 
       this.fullCacheLoaded = true
-      logger.info(`Loaded all ${Object.keys(allPreferences).length} preferences into cache`)
+      logger.info(`Loaded all ${keys.length} public preferences into cache`)
     } catch (error) {
       logger.error('Failed to load all preferences:', error)
     }

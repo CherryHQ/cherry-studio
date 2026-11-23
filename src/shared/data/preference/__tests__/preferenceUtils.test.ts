@@ -8,7 +8,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import type { UnifiedPreferenceKeyType } from '../preferenceTypes'
-import { isPublicBootConfigKey } from '../preferenceUtils'
+import { isPreferenceKey, isPublicBootConfigKey, isUnifiedPreferenceKey } from '../preferenceUtils'
 
 const PUBLIC_KEY = 'BootConfig.app.disable_hardware_acceleration'
 const INTERNAL_KEY = 'BootConfig.temp.user_data_relocation'
@@ -40,5 +40,28 @@ describe('UnifiedPreferenceKeyType boundary', () => {
       Extract<UnifiedPreferenceKeyType, 'BootConfig.app.disable_hardware_acceleration'>
     >().toEqualTypeOf<'BootConfig.app.disable_hardware_acceleration'>()
     expectTypeOf<Extract<UnifiedPreferenceKeyType, 'BootConfig.temp.user_data_relocation'>>().toEqualTypeOf<never>()
+  })
+})
+
+describe('registered preference keys', () => {
+  it('accepts registered database keys without treating a namespace prefix as registration', () => {
+    expect(isPreferenceKey('app.language')).toBe(true)
+    expect(isPreferenceKey('ui.theme_mode')).toBe(true)
+    expect(isPreferenceKey(PUBLIC_KEY)).toBe(false)
+  })
+
+  it.each(['__proto__', 'constructor', 'toString', 'default', 'app.not_registered'])(
+    'rejects unregistered key %s',
+    (key) => {
+      expect(isPreferenceKey(key)).toBe(false)
+      expect(isUnifiedPreferenceKey(key)).toBe(false)
+    }
+  )
+
+  it('includes public BootConfig keys while excluding internal and unknown keys', () => {
+    expect(isUnifiedPreferenceKey(DB_PREFERENCE_KEY)).toBe(true)
+    expect(isUnifiedPreferenceKey(PUBLIC_KEY)).toBe(true)
+    expect(isUnifiedPreferenceKey(INTERNAL_KEY)).toBe(false)
+    expect(isUnifiedPreferenceKey(UNKNOWN_KEY)).toBe(false)
   })
 })

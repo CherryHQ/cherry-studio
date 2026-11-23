@@ -89,6 +89,26 @@ describe('BootConfigService', () => {
   // ---------- get / set ----------
 
   describe('get / set', () => {
+    it('validates runtime input before changing state, notifying or scheduling a save', async () => {
+      mockFs.existsSync.mockReturnValue(false)
+      const service = await createService()
+      const changes: boolean[] = []
+      const unsubscribe = service.onChange('app.disable_hardware_acceleration', ({ value }) => changes.push(value))
+
+      expect(() => service.setFromInput('app.disable_hardware_acceleration', 'true')).toThrow(
+        /Invalid boot config value/
+      )
+      expect(service.get('app.disable_hardware_acceleration')).toBe(false)
+      expect(changes).toEqual([])
+      vi.advanceTimersByTime(350)
+      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+
+      service.setFromInput('app.disable_hardware_acceleration', true)
+      expect(service.get('app.disable_hardware_acceleration')).toBe(true)
+      expect(changes).toEqual([true])
+      unsubscribe()
+    })
+
     it('set updates the value and schedules a debounced save', async () => {
       mockFs.existsSync.mockReturnValue(false)
 

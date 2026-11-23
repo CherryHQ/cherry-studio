@@ -83,7 +83,7 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 - **Invalid values** (`validation_error`): every present key is validated against `bootConfigSchema` on load; invalid keys fall back to defaults (listed in `loadError.invalidKeys`) while valid keys are kept. A non-object file root is also a `validation_error`
 - `Application.bootstrap()` checks `hasLoadError()` before any services start and shows a recovery dialog. Validation errors offer "Repair and Restart" (`repair()` — rewrite the file keeping the valid keys); parse errors offer "Reset and Restart" (`reset()` — delete the file); read errors offer plain "Restart"
 - Errors can be inspected via `hasLoadError()` / `getLoadError()` / `clearLoadError()`
-- `set()` throws on values failing the schema before any state change — the single runtime enforcement point covering typed callers, the Preference IPC route, and `BootConfigMigrator` (which skips invalid v1 values at prepare time)
+- `set()` keeps the typed key/value API and delegates to `setFromInput()`. Preference routing uses `setFromInput()` after validating key membership; the selected Zod schema checks its unknown value before any state change, save scheduling or notification.
 
 ## Architecture
 
@@ -168,9 +168,11 @@ Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 
 | Function                     | Purpose                                                                          |
 | ---------------------------- | -------------------------------------------------------------------------------- |
+| `isPreferenceKey(key)` | Check own membership in the generated SQLite preference key registry |
+| `isUnifiedPreferenceKey(key)` | Check a registered SQLite key or public BootConfig key |
 | `isBootConfigKey(key)`       | Check if a key has the `BootConfig.` prefix                                       |
 | `isPublicBootConfigKey(key)` | Whitelist guard — true only for a `BootConfig.` key that is public (not internal) |
-| `toBootConfigKey(key)`       | Strip `BootConfig.` prefix to get the underlying key                             |
+| `toBootConfigKey(key)` | Strip the prefix; only a registered input proves a BootConfig key |
 | `getDefaultValue(key)`       | Unified default lookup for both preference and boot config keys                  |
 
 ## File Storage

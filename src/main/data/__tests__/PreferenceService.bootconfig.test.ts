@@ -145,25 +145,29 @@ describe('PreferenceService BootConfig persistence', () => {
     expect(service.getAll()).not.toHaveProperty('BootConfig.temp.user_data_relocation')
   })
 
-  it.each(['BootConfig.temp.user_data_relocation', 'BootConfig.foo.does_not_exist'])(
-    'rejects inaccessible key %s before any read, write or subscription',
-    async (key) => {
-      const invalidKey = key as UnifiedPreferenceKeyType
-      expect(() => service.get(invalidKey)).toThrow(/not accessible/)
-      expect(() => service.getMultipleRaw([CDP_KEY, invalidKey])).toThrow(/not accessible/)
-      expect(() => service.subscribeForWindow(1, [CDP_KEY, key])).toThrow(/not accessible/)
-      expect(service.getSubscriptions().size).toBe(0)
-      await expect(service.set(invalidKey, false)).rejects.toThrow(/not accessible/)
-      await expect(
-        service.setMultiple({
-          [CDP_KEY]: false,
-          [key]: false,
-          [DEVELOPER_KEY]: false
-        })
-      ).rejects.toThrow(/not accessible/)
-      expect(service.get(CDP_KEY)).toBe(true)
-      expect(savedDeveloperMode()).toBe(true)
-      expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(true)
-    }
-  )
+  it.each([
+    'BootConfig.temp.user_data_relocation',
+    'BootConfig.foo.does_not_exist',
+    'app.not_registered',
+    '__proto__',
+    'constructor',
+    'toString'
+  ])('rejects inaccessible key %s before any read, write or subscription', async (key) => {
+    const invalidKey = key as UnifiedPreferenceKeyType
+    expect(() => service.get(invalidKey)).toThrow(/not accessible/)
+    expect(() => service.getMultipleRaw([CDP_KEY, invalidKey])).toThrow(/not accessible/)
+    expect(() => service.subscribeForWindow(1, [CDP_KEY, key])).toThrow(/not accessible/)
+    expect(service.getSubscriptions().size).toBe(0)
+    await expect(service.set(invalidKey, false)).rejects.toThrow(/not accessible/)
+    await expect(
+      service.setMultiple({
+        [CDP_KEY]: false,
+        [key]: false,
+        [DEVELOPER_KEY]: false
+      })
+    ).rejects.toThrow(/not accessible/)
+    expect(service.get(CDP_KEY)).toBe(true)
+    expect(savedDeveloperMode()).toBe(true)
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(true)
+  })
 })

@@ -23,6 +23,7 @@ const logger = loggerService.withContext('BootConfigService')
 
 /** Debounce delay for saving config (ms) */
 const SAVE_DEBOUNCE_MS = 350
+const BOOT_CONFIG_KEYS = bootConfigSchema.keyof().options
 
 /** Payload for boot config change notifications */
 interface BootConfigChangePayload<K extends BootConfigKey = BootConfigKey> {
@@ -75,17 +76,22 @@ export class BootConfigService {
    * Set configuration value by key (auto-saves with debounce).
    *
    * THROWS on a value that fails schema validation, before any state change.
-   * Callers are typed, but values also arrive from untrusted runtime inputs
-   * (the Preference IPC route, v1 data in BootConfigMigrator) — the throw is
-   * the single enforcement point for all of them.
+   * Typed callers and runtime input share the validation in setFromInput.
    */
   public set<K extends BootConfigKey>(key: K, value: BootConfigSchema[K]): void {
+    this.setFromInput(key, value)
+  }
+
+  /** Validate runtime input with the selected key's schema before changing state. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preference routing validates the key; the corresponding BootConfig schema validates this value before storage or notification.
+  public setFromInput<K extends BootConfigKey>(key: K, value: unknown): void {
     const parsed = bootConfigSchema.shape[key].safeParse(value)
 
     if (!parsed.success) {
       throw new Error(`Invalid boot config value for "${key}": ${parsed.error.message}`)
     }
 
+    // SAFETY: safeParse succeeded with the schema selected by this exact key; BootConfigSchema is inferred from that schema map.
     const validValue = parsed.data as BootConfigSchema[K]
     const previousValue = this.config[key]
     this.config[key] = validValue
@@ -109,7 +115,7 @@ export class BootConfigService {
     this.loadError = null
     logger.info('Boot config reset to defaults')
 
-    for (const key of Object.keys(previousConfig) as BootConfigKey[]) {
+    for (const key of BOOT_CONFIG_KEYS) {
       this.notifyListeners(key, this.config[key], previousConfig[key])
     }
   }
@@ -168,10 +174,12 @@ export class BootConfigService {
       this.listeners.set(key, new Set())
     }
 
-    this.listeners.get(key)!.add(listener as BootConfigChangeListener)
+    // SAFETY: This listener is stored only under its registered key and invoked with that same key's schema-validated values.
+    const registeredListener = listener as BootConfigChangeListener
+    this.listeners.get(key)!.add(registeredListener)
 
     return () => {
-      this.listeners.get(key)?.delete(listener as BootConfigChangeListener)
+      this.listeners.get(key)?.delete(registeredListener)
     }
   }
 
@@ -236,7 +244,7 @@ export class BootConfigService {
 
     for (const listener of listeners) {
       try {
-        ;(listener as BootConfigChangeListener<K>)(payload)
+        listener(payload)
       } catch (error) {
         logger.error(`Error in boot config change listener for key "${key}"`, error)
       }
@@ -337,7 +345,7 @@ export class BootConfigService {
   private writeToDisk(): void {
     const diff: Partial<BootConfigSchema> = {}
 
-    for (const key of Object.keys(this.config) as BootConfigKey[]) {
+    for (const key of BOOT_CONFIG_KEYS) {
       if (this.config[key] !== DefaultBootConfig[key]) {
         Object.assign(diff, { [key]: this.config[key] })
       }
@@ -354,7 +362,7 @@ export class BootConfigService {
         fs.unlinkSync(this.filePath)
         logger.debug('Boot config file removed (all values are defaults)')
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        if (error === null || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
           throw error
         }
       }
@@ -392,7 +400,7 @@ export class BootConfigService {
     const config = { ...DefaultBootConfig }
     const invalidKeys: BootConfigKey[] = []
 
-    for (const key of Object.keys(config) as BootConfigKey[]) {
+    for (const key of BOOT_CONFIG_KEYS) {
       if (!(key in loaded)) continue
       const parsed = bootConfigSchema.shape[key].safeParse(loaded[key])
 

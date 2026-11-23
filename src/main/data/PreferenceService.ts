@@ -21,7 +21,8 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import {
   BOOT_CONFIG_PREFIX,
-  isBootConfigKey,
+  getDefaultValue,
+  isPreferenceKey,
   isPublicBootConfigKey,
   toBootConfigKey
 } from '@shared/data/preference/preferenceUtils'
@@ -209,7 +210,7 @@ type ResolvedPreferenceKey =
 @DependsOn(['DbService'])
 export class PreferenceService extends BaseService {
   private windowSubscriptions = new Map<number, Set<string>>() // windowId -> Set<keys>
-  private cache: PreferenceDefaultScopeType = DefaultPreferences.default
+  private cache: PreferenceDefaultScopeType = { ...DefaultPreferences.default }
 
   // Custom notifier for main process change notifications
   private notifier = new PreferenceNotifier()
@@ -230,8 +231,8 @@ export class PreferenceService extends BaseService {
       for (const result of results) {
         const key = result.key
 
-        if (key in this.cache) {
-          this.cache[key] = result.value
+        if (isPreferenceKey(key)) {
+          Object.assign(this.cache, { [key]: result.value })
         }
       }
 
@@ -330,8 +331,8 @@ export class PreferenceService extends BaseService {
 
   /**
    * Classify a unified preference key to its backing store, stripping the
-   * 'BootConfig.' prefix and rejecting boot config keys that are not public —
-   * internal `temp.*` transient state or unknown junk keys.
+   * 'BootConfig.' prefix and rejecting unregistered keys, including internal
+   * `temp.*` transient state.
    *
    * This is the single gate for the unified API: get/set/setMultiple/subscribe
    * all route through it, so untrusted renderer input (a raw runtime string
@@ -339,8 +340,8 @@ export class PreferenceService extends BaseService {
    * before any read or write, instead of an assert-then-branch per method.
    */
   private resolveKey(key: string): ResolvedPreferenceKey {
-    if (!isBootConfigKey(key)) {
-      return { store: 'preference', key: key as PreferenceKeyType }
+    if (isPreferenceKey(key)) {
+      return { store: 'preference', key }
     }
 
     if (!isPublicBootConfigKey(key)) {
@@ -360,15 +361,17 @@ export class PreferenceService extends BaseService {
     const route = this.resolveKey(key)
 
     if (route.store === 'bootConfig') {
+      // SAFETY: resolveKey checked this public prefixed key; stripping its prefix selects the same schema-validated BootConfig value.
       return bootConfigService.get(route.key) as UnifiedPreferenceType[K]
     }
 
     if (!this.isReady) {
       logger.warn(`Preference cache not initialized, returning default for ${key}`)
 
-      return DefaultPreferences.default[route.key] as UnifiedPreferenceType[K]
+      return getDefaultValue(key)
     }
 
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Ordinary preference values lack runtime schemas; retain the legacy keyed read contract without claiming complete value validation.
     return (this.cache[route.key] ?? DefaultPreferences.default[route.key]) as UnifiedPreferenceType[K]
   }
 
@@ -392,8 +395,7 @@ export class PreferenceService extends BaseService {
         return
       }
 
-      // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
-      bootConfigService.set(route.key, value as any)
+      bootConfigService.setFromInput(route.key, value)
 
       try {
         bootConfigService.persist()
@@ -454,6 +456,7 @@ export class PreferenceService extends BaseService {
       logger.warn('Preference cache not initialized, returning defaults for multiple keys')
     }
 
+    // SAFETY: The following loop fills every requested key through get before returning the keyed result.
     const output = {} as UnifiedPreferenceMultipleResultType<K>
 
     for (const key of keys) {
@@ -477,14 +480,15 @@ export class PreferenceService extends BaseService {
    * ```
    */
   public getMultiple<T extends Record<string, UnifiedPreferenceKeyType>>(keys: T) {
-    const preferenceKeys = Object.values(keys)
+    const aliases = Object.entries(keys)
+    const preferenceKeys = aliases.map(([, preferenceKey]) => preferenceKey)
     const values = this.getMultipleRaw(preferenceKeys)
-    // SAFETY: Every enumerable alias is filled from its corresponding schema-typed preference key before the result escapes.
+    // SAFETY: The captured own enumerable aliases are populated from their requested keys; inherited aliases are outside this API contract.
     const result = {} as { [P in keyof T]: UnifiedPreferenceType[T[P]] }
 
-    for (const key in keys) {
-      Object.defineProperty(result, key, {
-        value: values[keys[key]],
+    for (const [alias, preferenceKey] of aliases) {
+      Object.defineProperty(result, alias, {
+        value: values[preferenceKey],
         enumerable: true,
         configurable: true,
         writable: true
@@ -523,8 +527,7 @@ export class PreferenceService extends BaseService {
           const oldValue = bootConfigService.get(route.key)
 
           if (!isEqual(oldValue, value)) {
-            // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
-            bootConfigService.set(route.key, value as any)
+            bootConfigService.setFromInput(route.key, value)
             previousBootConfigValues.set(route.key, oldValue)
             allChanges.push([key, value, oldValue])
           }
@@ -652,7 +655,7 @@ export class PreferenceService extends BaseService {
   ): () => void {
     const listener = (changedKey: string, newValue: any, oldValue: any) => {
       if (changedKey === key) {
-        callback(newValue as UnifiedPreferenceType[K], oldValue as UnifiedPreferenceType[K])
+        callback(newValue, oldValue)
       }
     }
 
@@ -670,8 +673,10 @@ export class PreferenceService extends BaseService {
     callback: (key: UnifiedPreferenceKeyType, newValue: any, oldValue: any) => void
   ): () => void {
     const listener = (changedKey: string, newValue: any, oldValue: any) => {
-      if (keys.includes(changedKey as UnifiedPreferenceKeyType)) {
-        callback(changedKey as UnifiedPreferenceKeyType, newValue, oldValue)
+      const key = keys.find((candidate) => candidate === changedKey)
+
+      if (key !== undefined) {
+        callback(key, newValue, oldValue)
       }
     }
 
@@ -908,6 +913,7 @@ export class PreferenceService extends BaseService {
       .map(([k, v]) => [`${BOOT_CONFIG_PREFIX}${k}`, v] as const)
       .filter(([prefixedKey]) => isPublicBootConfigKey(prefixedKey))
 
+    // SAFETY: The complete DB default/cache key set is combined with every public BootConfig entry; values retain their backing stores' existing contracts.
     return { ...cachedValues, ...Object.fromEntries(bootConfigEntries) } as UnifiedPreferenceType
   }
 

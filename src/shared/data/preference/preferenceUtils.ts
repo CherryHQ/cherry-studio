@@ -23,11 +23,10 @@ const PUBLIC_BOOT_CONFIG_KEYS = new Set<string>(
 )
 
 /**
- * Type guard: narrow UnifiedPreferenceKeyType to PreferenceKeyType.
- * Use in generic methods (get/set) where the else branch needs PreferenceKeyType narrowing.
+ * Check the generated registry of SQLite-backed preference keys.
  */
-export function isPreferenceKey(key: UnifiedPreferenceKeyType): key is PreferenceKeyType {
-  return !key.startsWith(BOOT_CONFIG_PREFIX)
+export function isPreferenceKey(key: string): key is PreferenceKeyType {
+  return Object.hasOwn(DefaultPreferences.default, key)
 }
 
 /**
@@ -46,6 +45,11 @@ export function isBootConfigKey(key: string): boolean {
  */
 export function isPublicBootConfigKey(key: string): key is `BootConfig.${PublicBootConfigKey}` {
   return isBootConfigKey(key) && PUBLIC_BOOT_CONFIG_KEYS.has(toBootConfigKey(key))
+}
+
+/** Check the registered public keys exposed by the unified preference API. */
+export function isUnifiedPreferenceKey(key: string): key is UnifiedPreferenceKeyType {
+  return isPreferenceKey(key) || isPublicBootConfigKey(key)
 }
 
 /** Strip 'BootConfig.'; only a typed or validated key guarantees a BootConfigKey result. */

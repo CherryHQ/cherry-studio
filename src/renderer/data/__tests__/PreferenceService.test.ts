@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { APPLE_ASR_MODEL_ID } from '@shared/ai/localVoice'
+import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { Serializable } from '@shared/types/serializable'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL PreferenceService
@@ -31,7 +32,10 @@ const onChanged = vi.fn((callback: (key: string, value: unknown) => void) => {
 const getAll = vi.fn(async () => ({}))
 const subscribe = vi.fn(async () => {})
 const get = vi.fn(async (): Promise<Serializable | undefined> => true)
-const getMultipleRaw = vi.fn(async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, `${key}-value`])))
+const getMultipleRaw = vi.fn(
+  async (keys: string[]): Promise<Record<string, Serializable | undefined>> =>
+    Object.fromEntries(keys.map((key) => [key, `${key}-value`]))
+)
 const set = vi.fn(async () => {})
 const setMultiple = vi.fn(async () => {})
 
@@ -438,5 +442,148 @@ describe('subscription alignment and admission truth', () => {
     expect(subscribe).toHaveBeenCalledOnce()
     second.unmount()
     service.cleanup()
+  })
+})
+
+describe('renderer PreferenceService registered keys and own aliases', () => {
+  it('preserves reserved own aliases without adopting inherited aliases', async () => {
+    getMultipleRaw.mockResolvedValueOnce({ 'app.language': 'zh-CN', 'ui.theme_mode': 'dark' })
+    const service = await createService()
+    const aliases = Object.create(
+      { inherited: 'app.developer_mode.enabled' },
+      {
+        ['__proto__']: { enumerable: true, value: 'app.language' },
+        constructor: { enumerable: true, value: 'ui.theme_mode' }
+      }
+    )
+
+    const values = await service.getMultiple(aliases)
+
+    expect(values).toEqual({ ['__proto__']: 'zh-CN', constructor: 'dark' })
+    expect(Object.hasOwn(values, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(values)).toBe(Object.prototype)
+  })
+
+  it('uses the alias mapping captured before awaiting IPC', async () => {
+    let finish!: () => void
+    const pendingRead = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    getMultipleRaw.mockImplementationOnce(async () => {
+      await pendingRead
+      return { 'app.language': 'zh-CN' }
+    })
+    const service = await createService()
+    const aliases: { language: 'app.language' | 'ui.theme_mode' } = { language: 'app.language' }
+    const result = service.getMultiple(aliases)
+    aliases.language = 'ui.theme_mode'
+    finish()
+
+    expect(await result).toEqual({ language: 'zh-CN' })
+  })
+
+  it('subscribes to the same keys used by a pending batch read', async () => {
+    let finish!: () => void
+    const pendingRead = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    getMultipleRaw.mockImplementationOnce(async () => {
+      await pendingRead
+      return { 'app.language': 'zh-CN' }
+    })
+    const service = await createService()
+    const keys: Array<'app.language' | 'ui.theme_mode'> = ['app.language']
+    const result = service.getMultipleRaw(keys)
+    keys[0] = 'ui.theme_mode'
+    finish()
+
+    expect(await result).toEqual({ 'app.language': 'zh-CN' })
+    expect(subscribe).toHaveBeenCalledWith(['app.language'])
+    expect(subscribe).not.toHaveBeenCalledWith(['ui.theme_mode'])
+  })
+
+  it('warms only registered public preferences from a mixed IPC response', async () => {
+    getAll.mockResolvedValueOnce({
+      'app.developer_mode.enabled': true,
+      'BootConfig.app.disable_hardware_acceleration': true,
+      'BootConfig.temp.user_data_relocation': { injected: true },
+      'app.not_registered': true,
+      ['__proto__']: { injected: true }
+    })
+    const service = await createService()
+    await service.preloadAll()
+
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
+    expect(service.getCachedValue('BootConfig.app.disable_hardware_acceleration')).toBe(true)
+    for (const key of ['BootConfig.temp.user_data_relocation', 'app.not_registered', 'injected']) {
+      expect(service.getCachedValue(key as UnifiedPreferenceKeyType)).toBeUndefined()
+    }
+    expect(subscribe).toHaveBeenCalledWith([
+      'app.developer_mode.enabled',
+      'BootConfig.app.disable_hardware_acceleration'
+    ])
+  })
+
+  it.each([true, false])(
+    'rejects unknown batch keys before changing cache or sending IPC (optimistic=%s)',
+    async (optimistic) => {
+      get.mockResolvedValueOnce(true)
+      const service = await createService()
+      await service.get('app.developer_mode.enabled')
+      const changes: boolean[] = []
+      service.subscribeChange('app.developer_mode.enabled')(() =>
+        changes.push(service.getCachedValue('app.developer_mode.enabled')!)
+      )
+
+      for (const key of [
+        'app.not_registered',
+        '__proto__',
+        'constructor',
+        'toString',
+        'BootConfig.temp.user_data_relocation'
+      ]) {
+        const updates = { 'app.developer_mode.enabled': false, [key]: false }
+        await expect(service.setMultiple(updates, { optimistic })).rejects.toThrow(/not accessible/)
+      }
+
+      expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
+      expect(changes).toEqual([])
+      expect(setMultiple).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps a pending pessimistic write consistent with its submitted value', async () => {
+    let finish!: () => void
+    setMultiple.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    const service = await createService()
+    const updates = { 'app.developer_mode.enabled': true }
+    const result = service.setMultiple(updates, { optimistic: false })
+    updates['app.developer_mode.enabled'] = false
+    finish()
+    await result
+
+    expect(setMultiple).toHaveBeenCalledWith({ 'app.developer_mode.enabled': true })
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
+  })
+
+  it('keeps an optimistic write snapshot when a synchronous listener mutates the caller object', async () => {
+    get.mockResolvedValueOnce(true)
+    const service = await createService()
+    await service.get('app.developer_mode.enabled')
+    const updates = { 'app.developer_mode.enabled': false }
+    service.subscribeChange('app.developer_mode.enabled')(() => {
+      updates['app.developer_mode.enabled'] = true
+      Object.assign(updates, { 'app.not_registered': true })
+    })
+    await service.setMultiple(updates)
+
+    expect(setMultiple).toHaveBeenCalledWith({ 'app.developer_mode.enabled': false })
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(false)
+    expect(service.getPendingOptimisticUpdates()).toEqual([])
   })
 })
