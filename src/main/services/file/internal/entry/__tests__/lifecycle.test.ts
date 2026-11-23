@@ -339,13 +339,14 @@ describe('internal/entry/lifecycle', () => {
       const last = await makeInternal()
       const failure = create()
       const getByIdTx = fileEntryService.getByIdTx.bind(fileEntryService)
-      vi.spyOn(fileEntryService, 'getByIdTx').mockImplementation((tx, id) => {
+      const lookup = vi.spyOn(fileEntryService, 'getByIdTx').mockImplementation((tx, id) => {
         if (id === middle) throw failure
 
         return getByIdTx(tx, id)
       })
 
       const result = batchTrash(deps, [first, middle, last])
+      lookup.mockRestore()
 
       expect(result).toEqual({ succeeded: [first, last], failed: [{ id: middle, error: message }] })
       expect(fileEntryService.getById(first)).toMatchObject({ deletedAt: expect.any(Number) })
