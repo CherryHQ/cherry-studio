@@ -28,19 +28,9 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 import { sanitizeChannelOutput } from '../security/OutputSanitizer'
 
-const { mockPrepareAgentSessionWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
-  class MockAgentSessionWorkspaceError extends Error {
-    constructor(message: string) {
-      super(message)
-      this.name = 'AgentSessionWorkspaceError'
-    }
-  }
-
-  return {
-    mockPrepareAgentSessionWorkspaceDirectory: vi.fn(),
-    MockAgentSessionWorkspaceError
-  }
-})
+const { mockPrepareAgentSessionWorkspaceDirectory } = vi.hoisted(() => ({
+  mockPrepareAgentSessionWorkspaceDirectory: vi.fn()
+}))
 
 const persistedChannelSessions = vi.hoisted(() => ({
   bindings: new Map<string, string>(),
@@ -49,8 +39,6 @@ const persistedChannelSessions = vi.hoisted(() => ({
 
 vi.mock(import('@main/ai/runtime/agentSessionWorkspace'), async (importOriginal) => ({
   ...(await importOriginal()),
-  AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
-  isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
   prepareAgentSessionWorkspaceDirectory: mockPrepareAgentSessionWorkspaceDirectory
 }))
 
