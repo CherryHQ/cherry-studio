@@ -55,7 +55,7 @@ export default openaiCompatible({
       imageGeneration: {
         modes: {
           generate: {
-            supports: seedreamSupports('1:1'),
+            supports: seedreamSupports(),
             vendorTransport: { endpoint: '/api/v3/bytedance/seedream-v5.5' }
           },
           edit: {

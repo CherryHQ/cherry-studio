@@ -7,26 +7,29 @@
  * `@renderer/aiCore/errors/paintingGenerateError`, which re-exports this core.
  */
 
-export type PaintingGenerateErrorCode =
-  | 'PROVIDER_DISABLED'
-  | 'PROMPT_REQUIRED'
-  | 'TEXT_DESC_REQUIRED'
-  | 'IMAGE_REQUIRED'
-  | 'IMAGE_RETRY_REQUIRED'
-  | 'EDIT_IMAGE_REQUIRED'
-  | 'INPUT_IMAGE_LIMIT_EXCEEDED'
-  | 'MISSING_REQUIRED_FIELDS'
-  | 'IMAGE_HANDLE_REQUIRED'
-  | 'REQ_ERROR_TOKEN'
-  | 'REQ_ERROR_NO_BALANCE'
-  | 'OPERATION_FAILED'
-  | 'GENERATE_FAILED'
-  | 'IMAGE_MIX_FAILED'
-  | 'CUSTOM_SIZE_REQUIRED'
-  | 'CUSTOM_SIZE_RANGE'
-  | 'CUSTOM_SIZE_DIVISIBLE'
-  | 'CUSTOM_SIZE_PIXELS'
-  | 'REMOTE_ERROR'
+export const PAINTING_GENERATE_ERROR_CODES = [
+  'PROVIDER_DISABLED',
+  'PROMPT_REQUIRED',
+  'TEXT_DESC_REQUIRED',
+  'IMAGE_REQUIRED',
+  'IMAGE_RETRY_REQUIRED',
+  'EDIT_IMAGE_REQUIRED',
+  'INPUT_IMAGE_LIMIT_EXCEEDED',
+  'MISSING_REQUIRED_FIELDS',
+  'IMAGE_HANDLE_REQUIRED',
+  'REQ_ERROR_TOKEN',
+  'REQ_ERROR_NO_BALANCE',
+  'OPERATION_FAILED',
+  'GENERATE_FAILED',
+  'IMAGE_MIX_FAILED',
+  'CUSTOM_SIZE_REQUIRED',
+  'CUSTOM_SIZE_RANGE',
+  'CUSTOM_SIZE_DIVISIBLE',
+  'CUSTOM_SIZE_PIXELS',
+  'REMOTE_ERROR'
+] as const
+
+export type PaintingGenerateErrorCode = (typeof PAINTING_GENERATE_ERROR_CODES)[number]
 
 export interface PaintingGenerateErrorOptions {
   message?: string
@@ -55,12 +58,26 @@ export function createPaintingGenerateError(
   return new PaintingGenerateError(code, options)
 }
 
+const PAINTING_GENERATE_ERROR_CODE_SET: ReadonlySet<string> = new Set(PAINTING_GENERATE_ERROR_CODES)
+
+/**
+ * A main-process transport throws `createPaintingGenerateError(code)`, whose message is the bare code.
+ * Crossing the image job and IPC keeps only that message, so the renderer recovers the code from it.
+ */
+export function paintingGenerateErrorCodeFromMessage(message: unknown): PaintingGenerateErrorCode | undefined {
+  return typeof message === 'string' && PAINTING_GENERATE_ERROR_CODE_SET.has(message)
+    ? (message as PaintingGenerateErrorCode)
+    : undefined
+}
+
 export function normalizePaintingGenerateError(error: unknown): Error {
   if (error instanceof PaintingGenerateError) {
     return error
   }
 
   if (error instanceof Error) {
+    const code = paintingGenerateErrorCodeFromMessage(error.message)
+    if (code) return createPaintingGenerateError(code)
     return createPaintingGenerateError('REMOTE_ERROR', { message: error.message })
   }
 

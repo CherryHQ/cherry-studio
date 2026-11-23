@@ -42,6 +42,29 @@ describe('runPainting error surfacing', () => {
     })
   })
 
+  it('recovers a transport error code that crossed the image job as a bare message', async () => {
+    // A main-process transport throws createPaintingGenerateError('REQ_ERROR_TOKEN') on HTTP 401; the job
+    // keeps only the message, and the IPC layer wraps it as AI_REQUEST_FAILED without a status code.
+    const detail = { name: 'Error', message: 'REQ_ERROR_TOKEN', stack: null }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, 'REQ_ERROR_TOKEN', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_TOKEN' })
+  })
+
+  it('recovers a bare transport error code from a plain error', async () => {
+    await expect(fail(new Error('REQ_ERROR_NO_BALANCE'))).rejects.toMatchObject({
+      name: 'PaintingGenerateError',
+      code: 'REQ_ERROR_NO_BALANCE'
+    })
+  })
+
+  it('keeps a vendor message that merely mentions a code as a remote error', async () => {
+    await expect(fail(new Error('REQ_ERROR_TOKEN: upstream said no'))).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: 'REQ_ERROR_TOKEN: upstream said no'
+    })
+  })
+
   it('falls back to HTTP status + response body when the detail has no message', async () => {
     const detail = { name: 'AI_APICallError', message: '', stack: null, statusCode: 500, responseBody: 'upstream boom' }
     const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)

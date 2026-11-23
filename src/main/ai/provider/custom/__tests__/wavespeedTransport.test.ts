@@ -97,6 +97,33 @@ describe('WavespeedTransport', () => {
       expect(body.images).toEqual(['data:image/png;base64,iVBORw0KGgo=', 'https://example.com/ref.jpg'])
     })
 
+    it('omits aspect_ratio from an edit request when no ratio was chosen', async () => {
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(envelope({ id: 'pred-3' }))
+      const transport = createWavespeedTransport({ apiKey: 'ws-key' })
+
+      await transport.submit({
+        ...baseInput,
+        modelDescriptor: EDIT,
+        files: [{ type: 'url', url: 'https://example.com/ref.jpg' }]
+      })
+
+      expect(request(fetchMock, 0).body).not.toHaveProperty('aspect_ratio')
+    })
+
+    it('keeps an explicitly chosen ratio on an edit request', async () => {
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(envelope({ id: 'pred-4' }))
+      const transport = createWavespeedTransport({ apiKey: 'ws-key' })
+
+      await transport.submit({
+        ...baseInput,
+        aspectRatio: '9:16',
+        modelDescriptor: EDIT,
+        files: [{ type: 'url', url: 'https://example.com/ref.jpg' }]
+      })
+
+      expect(request(fetchMock, 0).body.aspect_ratio).toBe('9:16')
+    })
+
     it('treats a non-200 envelope code on HTTP 200 as a remote error carrying the vendor message', async () => {
       vi.spyOn(globalThis, 'fetch').mockResolvedValue(envelope(null, 400, 'prompt is required'))
       const transport = createWavespeedTransport({ apiKey: 'ws-key' })

@@ -45029,7 +45029,6 @@
           "generate": {
             "supports": {
               "aspectRatio": {
-                "default": "1:1",
                 "options": [
                   "1:1",
                   "1:2",
@@ -45543,5 +45542,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "f73e0edbbae1c1de"
+  "version": "f85b1d8de6aadf2b"
 }
