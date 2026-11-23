@@ -102,16 +102,17 @@ export const ContextManagementSettings = () => {
         </div>
         <div className="w-28 shrink-0 sm:w-60">
           <InputNumber
-            min={1}
-            step={1}
             aria-label={recentLabel}
             aria-invalid={invalidRecent || undefined}
             placeholder={t('settings.models.context_management.max_messages_unlimited')}
             className="h-8 rounded-lg px-2.5"
             value={recentDraft === undefined ? maxMessages : recentDraft}
             onBlur={(value) => {
-              const next = value === null ? null : Math.floor(value)
-              if (!isValidCompressionWindow(next, compressWindow)) {
+              const next = value
+              if (
+                (next !== null && (!Number.isInteger(next) || next < 1)) ||
+                !isValidCompressionWindow(next, compressWindow)
+              ) {
                 setInvalidRecent(true)
                 setRecentDraft(next)
                 return

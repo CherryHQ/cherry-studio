@@ -183,8 +183,8 @@ On success, `read_file` and `fs_read` access is limited to the B-round window;
 the summary names files and stored outputs in the summarized middle. On fallback,
 access is limited to the actually served A rounds. This is separate from ordinary
 budget-triggered compaction and does not apply to temporary Chat or Agent/Work
-sessions. The Settings controls and UI validation remain a later layer of
-[the proposed Spec](../../../../.agents/notes/implemented/feature/2026-11-17-content-compression-window.md).
+sessions. Settings controls and UI validation are implemented as described in
+[the implemented Spec](../../../../.agents/notes/implemented/feature/2026-11-17-content-compression-window.md).
 
 ### Budget with a declared window
 

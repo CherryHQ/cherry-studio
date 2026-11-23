@@ -50,6 +50,7 @@ import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
+import { isValidCompressionWindow } from '@shared/utils/contextSettings'
 
 import type { RequestFeature } from '../feature'
 import { createOverflowRecoveryMiddleware } from './contextOverflowRecovery'
@@ -296,6 +297,15 @@ export const inLoopCompactionFeature: RequestFeature = {
         const estimate = foldCache
           ? foldCache.prefixTokens + estimateModelMessages(messages.slice(foldCache.consumedCount), dialect)
           : estimatePromptTokens(messages, steps, dialect)
+        // The turn-start window already chose verbatim recent rounds or its recent-only fallback.
+        // Do not proactively fold that first request while it still fits the actual input room.
+        if (
+          (steps?.length ?? 0) === 0 &&
+          typeof scope.contextSettings.compressWindow === 'number' &&
+          isValidCompressionWindow(scope.contextSettings.maxMessages, scope.contextSettings.compressWindow) &&
+          estimate <= inputRoom
+        )
+          return undefined
         if (estimate <= trigger) {
           // A previously folded view that still fits is served as-is — zero LLM calls.
           return foldCache ? { messages: candidate } : undefined

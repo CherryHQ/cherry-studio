@@ -123,6 +123,18 @@ describe('ContextManagementSettings', () => {
   })
 
   // Catches enabling without A, or invalidating B by changing/clearing A later.
+  it('rejects fractional window and zero recent drafts without coercing saved bounds', async () => {
+    mockPreferenceState.set('chat.context_settings.max_messages', 3)
+    mockPreferenceState.set('chat.context_settings.compress_window', 6)
+    const user = userEvent.setup()
+    render(<ContextManagementSettings />)
+    await edit(user, label('window_rounds'), '7.5')
+    expect(mockPreferenceState.get('chat.context_settings.compress_window')).toBe(6)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    await edit(user, label('window_recent'), '0')
+    expect(mockPreferenceState.get('chat.context_settings.max_messages')).toBe(3)
+  })
+
   it('requires a finite recent limit and protects an enabled window when A changes', async () => {
     const user = userEvent.setup()
     render(<ContextManagementSettings />)

@@ -1018,8 +1018,6 @@ function ContextManagementFields({
             <FormControl>
               {/* Outside the override group: scope is not an overflow policy. */}
               <InputNumber
-                min={1}
-                step={1}
                 placeholder={
                   globalDefaults.maxMessages === null
                     ? t('library.config.basic.context_count_unlimited')
@@ -1028,8 +1026,11 @@ function ContextManagementFields({
                 className="h-8 rounded-lg px-2.5"
                 value={recentDraft === undefined ? field.value : recentDraft}
                 onBlur={(value) => {
-                  const next = value === null ? null : Math.floor(value)
-                  if (!isValidCompressionWindow(next ?? globalDefaults.maxMessages, effectiveWindow)) {
+                  const next = value
+                  if (
+                    (next !== null && (!Number.isInteger(next) || next < 1)) ||
+                    !isValidCompressionWindow(next ?? globalDefaults.maxMessages, effectiveWindow)
+                  ) {
                     setRecentDraft(next)
                     form.setError('contextMaxMessages', {
                       message: t('settings.models.context_management.window_invalid')

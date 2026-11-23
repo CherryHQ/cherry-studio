@@ -246,6 +246,17 @@ describe('inLoopCompactionFeature', () => {
     return hooks.prepareStep!
   }
 
+  it('retains a compression-window first request above the proactive trigger but within input room', async () => {
+    compactModelMessages.mockClear()
+    const custom = scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 30 })
+    custom.contextSettings.maxMessages = 3
+    custom.contextSettings.compressWindow = 4
+    const prepareStep = getPrepareStep(custom)
+    const messages = [userMessage(12_000), assistantMessage(12_000), userMessage(12_000)]
+    expect(await prepareStep({ messages, steps: [] } as any)).toBeUndefined()
+    expect(compactModelMessages).not.toHaveBeenCalled()
+  })
+
   // #17837: at step 0 there is no usage anchor, so the whole prompt is estimated locally.
   // Stringifying a file part fed its base64 payload to the tokenizer and scored a 13 MB MP3
   // at ~3.7 M tokens (~183x the provider's 20 k), firing compaction on a first turn that has

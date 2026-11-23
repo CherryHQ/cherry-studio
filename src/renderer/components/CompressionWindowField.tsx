@@ -88,7 +88,6 @@ export function CompressionWindowField({
           </label>
           <InputNumber
             id={id}
-            step={1}
             value={draft === undefined ? value : draft}
             className="h-8 w-28 shrink-0 rounded-lg px-2.5"
             aria-invalid={invalid || undefined}

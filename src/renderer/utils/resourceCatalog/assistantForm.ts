@@ -164,6 +164,17 @@ export function diffAssistantUpdate(
         baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
+  const onlyWindowChanged =
+    baseline.contextCompressWindow !== form.contextCompressWindow &&
+    baseline.contextMaxMessages === form.contextMaxMessages &&
+    baseline.contextOverrideEnabled === form.contextOverrideEnabled &&
+    baseline.contextCompressEnabled === form.contextCompressEnabled &&
+    baseline.contextTruncateThreshold === form.contextTruncateThreshold &&
+    baseline.contextCompressThresholdPercent === form.contextCompressThresholdPercent &&
+    baseline.contextCompressModelId === form.contextCompressModelId
+  const windowOnlySettings = { ...assistant.settings.contextSettings }
+  if (form.contextCompressWindow === undefined) delete windowOnlySettings.compressWindow
+  else windowOnlySettings.compressWindow = form.contextCompressWindow
   const storedWindow = form.contextCompressWindow
   const scopeOverride = {
     ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
@@ -186,22 +197,26 @@ export function diffAssistantUpdate(
       ? {
           // null clears the override; the `enabled` kill-switch stays global.
           // An empty limit is ABSENT, matching the "follow global" placeholder.
-          contextSettings: form.contextOverrideEnabled
-            ? {
-                truncateThreshold: form.contextTruncateThreshold,
-                ...scopeOverride,
-                compress: {
-                  enabled: form.contextCompressEnabled,
-                  modelId: form.contextCompressModelId,
-                  // Absent = inherit the global trigger; the UI's empty field.
-                  ...(form.contextCompressThresholdPercent !== null
-                    ? { thresholdPercent: form.contextCompressThresholdPercent }
-                    : {})
-                }
-              }
-            : Object.keys(scopeOverride).length
-              ? scopeOverride
+          contextSettings: onlyWindowChanged
+            ? Object.keys(windowOnlySettings).length
+              ? windowOnlySettings
               : null
+            : form.contextOverrideEnabled
+              ? {
+                  truncateThreshold: form.contextTruncateThreshold,
+                  ...scopeOverride,
+                  compress: {
+                    enabled: form.contextCompressEnabled,
+                    modelId: form.contextCompressModelId,
+                    // Absent = inherit the global trigger; the UI's empty field.
+                    ...(form.contextCompressThresholdPercent !== null
+                      ? { thresholdPercent: form.contextCompressThresholdPercent }
+                      : {})
+                  }
+                }
+              : Object.keys(scopeOverride).length
+                ? scopeOverride
+                : null
         }
       : {})
   }
