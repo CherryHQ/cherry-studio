@@ -489,7 +489,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
   // concurrency detection on template paths.
   const inFlightParamsRef = useRef<NonNullable<Parameters<typeof resolveTemplate>[1]> | null>(null)
 
-  const apiFetcher = useMemo(() => createApiFetcher<ConcreteApiPaths, TMethod>(method), [method])
+  const apiFetcher = useMemo(() => createApiFetcher<TPath, TMethod>(method), [method])
 
   // SWR discards errors from older overlapping mutations on the same key, so
   // keep the concrete request owned by each trigger as its source of truth.
@@ -571,7 +571,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         const request = apiFetcher(resolvedPath as ConcreteApiPaths, {
           body: capturedArgs?.body,
           query: capturedArgs?.query
-        }) as Promise<ResponseForPath<TPath, TMethod>>
+        })
 
         const [requestOutcome] = await Promise.allSettled([request, swrTrigger({ request })])
 
@@ -1020,7 +1020,11 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
       let committedPages: Page[] | undefined
       let previousPages: Page[] | undefined
 
-      const pages = await mutate<Page[] | undefined, Page[] | undefined>(infiniteCacheKey, value, {
+      // Scoped mutate accepts an undefined async result through its callback contract.
+      // Keep an omitted value as revalidation instead of writing undefined.
+      const mutationValue = typeof value === 'function' || value === undefined ? value : () => value
+
+      const pages = await mutate<Page[] | undefined, Page[]>(infiniteCacheKey, mutationValue, {
         revalidate: false,
         populateCache: (nextPages: Page[] | undefined, currentPages: Page[] | undefined) => {
           didCommit = true
@@ -1289,11 +1293,11 @@ export function usePaginatedQuery<TPath extends ApiPath>(
  * @param method - HTTP method to use
  * @returns Async function that makes the API request
  */
-function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+function createApiFetcher<TPath extends ApiPath, TMethod extends 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
   method: TMethod
 ) {
   return async (
-    path: TPath,
+    path: ConcreteApiPaths,
     options?: {
       body?: BodyForPath<TPath, TMethod>
       query?: QueryParamsForPath<TPath, TMethod>
@@ -1303,32 +1307,32 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
 
     switch (method) {
       case 'GET':
-        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
+        // SAFETY: The resolved path retains the captured schema owner; the method selects this service branch, which TypeScript cannot infer for generics.
         return dataApiService.get(path, {
-          query: query as QueryParamsForPath<TPath, 'GET'> | undefined
+          query: query as QueryParamsForPath<ConcreteApiPaths, 'GET'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'POST':
-        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
+        // SAFETY: The resolved path retains the captured schema owner; the method selects this service branch, which TypeScript cannot infer for generics.
         return dataApiService.post(path, {
-          body: options?.body as BodyForPath<TPath, 'POST'>,
-          query: query as QueryParamsForPath<TPath, 'POST'> | undefined
+          body: options?.body as BodyForPath<ConcreteApiPaths, 'POST'>,
+          query: query as QueryParamsForPath<ConcreteApiPaths, 'POST'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PUT':
-        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
+        // SAFETY: The resolved path retains the captured schema owner; the method selects this service branch, which TypeScript cannot infer for generics.
         return dataApiService.put(path, {
-          body: (options?.body || {}) as BodyForPath<TPath, 'PUT'>,
-          query: query as QueryParamsForPath<TPath, 'PUT'> | undefined
+          body: (options?.body || {}) as BodyForPath<ConcreteApiPaths, 'PUT'>,
+          query: query as QueryParamsForPath<ConcreteApiPaths, 'PUT'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'DELETE':
-        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
+        // SAFETY: The resolved path retains the captured schema owner; the method selects this service branch, which TypeScript cannot infer for generics.
         return dataApiService.delete(path, {
-          query: query as QueryParamsForPath<TPath, 'DELETE'> | undefined
+          query: query as QueryParamsForPath<ConcreteApiPaths, 'DELETE'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PATCH':
-        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
+        // SAFETY: The resolved path retains the captured schema owner; the method selects this service branch, which TypeScript cannot infer for generics.
         return dataApiService.patch(path, {
-          body: options?.body as BodyForPath<TPath, 'PATCH'>,
-          query: query as QueryParamsForPath<TPath, 'PATCH'> | undefined
+          body: options?.body as BodyForPath<ConcreteApiPaths, 'PATCH'>,
+          query: query as QueryParamsForPath<ConcreteApiPaths, 'PATCH'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       default:
         throw new Error(`Unsupported method: ${method}`)
