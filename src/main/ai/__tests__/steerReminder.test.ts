@@ -34,4 +34,36 @@ describe('wrapSteerReminder', () => {
     const out = wrapSteerReminder('compare a < b and c > d')
     expect(out).toContain('compare a < b and c > d')
   })
+
+  it('identifies a mid-turn message as a new user instruction', () => {
+    const out = wrapSteerReminder('switch to Python')
+    expect(out).toContain('arrived while you were already working')
+    expect(out).toContain('a new instruction from the user, not a continuation of the current task')
+  })
+
+  it('requires a short visible restatement before further work or ending the turn', () => {
+    const out = wrapSteerReminder('switch to Python')
+    expect(out).toContain('Before any further work and before ending this turn, you must write')
+    expect(out).toContain('one short user-visible sentence that restates what the user asked for')
+  })
+
+  it('allows finishing an uninterruptible step, then acting or stating when the message will be handled', () => {
+    const out = wrapSteerReminder('switch to Python')
+    expect(out).toContain('Finish the step already in flight if it cannot be interrupted')
+    expect(out).toContain('Then either act on the message or state when it will be handled')
+    expect(out).toContain('Do not silently defer it to a later turn')
+  })
+
+  it('prioritizes the instruction over conflicting parts of the current plan', () => {
+    const out = wrapSteerReminder('switch to Python')
+    expect(out).toContain(
+      "Where it conflicts with the remainder of your current plan, the user's message takes priority"
+    )
+  })
+
+  it('preserves user text verbatim between the framing line and the directive', () => {
+    const text = '  switch to Python\nkeep a < b and c > d\n  '
+    const out = wrapSteerReminder(text)
+    expect(out).toContain(`The user sent the following message:\n${text}\nThis message arrived`)
+  })
 })

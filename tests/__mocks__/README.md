@@ -13,6 +13,7 @@ Unified test mocks for the project, organized by process type and globally confi
 | Renderer | `PreferenceService` | User preferences |
 | Renderer | `useDataApi` | Data API hooks (useQuery, useMutation, etc.) |
 | Renderer | `usePreference` | Preference hooks |
+| Renderer | `FileObservationService` | Opt-in file-observation fixture; tests explicitly import the factory or named mock |
 | Renderer | `useCache` | Cache hooks |
 | Main | `application` | Unified mock application factory with `application.get()` |
 | Main | `DbService` | Database service with mock db |

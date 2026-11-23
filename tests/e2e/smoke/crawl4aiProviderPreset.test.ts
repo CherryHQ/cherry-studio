@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures/electron.fixture'
 import { openSettings } from './utils/navigation'
 
-test('Crawl4AI defaults to Cloud and keeps its setup description visible', async ({ mainWindow: page }, testInfo) => {
+test('Crawl4AI defaults to Cloud and exposes setup help', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(300_000)
   const languageSelect = page.locator('[data-onboarding-language-select]')
   await expect(page.locator('[data-ui="app.content"]').first().or(languageSelect).first()).toBeVisible({
@@ -42,16 +42,17 @@ test('Crawl4AI defaults to Cloud and keeps its setup description visible', async
   await page.getByRole('option', { name: /Crawl4AI/ }).click()
 
   const apiHost = section.getByPlaceholder('API Host')
-  const description = section.getByText(/Crawl4AI Cloud with an API key/i)
+  const help = section.getByRole('img', { name: /Crawl4AI Cloud with an API key/i })
+  const description = page.getByRole('tooltip')
   await expect(apiHost).toHaveValue('https://api.crawl4ai.com')
-  await expect(description).toBeVisible()
-  await expect(description).toContainText(/self-hosted/i)
+  await help.hover()
+  await expect(description).toContainText(/Crawl4AI Cloud with an API key.*self-hosted/i)
   await expect(section.locator('a[href="https://crawl4ai.com"]')).toBeVisible()
 
   await page.setViewportSize({ width: 960, height: 600 })
   await section.getByPlaceholder('API Key').fill('dummy-key-for-layout')
-  await expect(description).toBeVisible()
-  expect(await description.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true)
+  await help.focus()
+  await expect(description).toContainText(/self-hosted/i)
   const screenshotPath = testInfo.outputPath('crawl4ai-preset.png')
   await page.screenshot({ path: screenshotPath })
   await testInfo.attach('Crawl4AI preset', { path: screenshotPath, contentType: 'image/png' })

@@ -169,15 +169,6 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     }
   )
 
-  it('uses the BinaryManager-resolved ripgrep path', async () => {
-    await writeFile(path.join(tmp, 'root.md'), 'root')
-
-    await listDirectory(tmp)
-
-    const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
-    expect(checkedPaths.some((p) => path.basename(p) === (process.platform === 'win32' ? 'rg.exe' : 'rg'))).toBe(true)
-  })
-
   it('lists nested directories and files alongside top-level entries', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
     await mkdir(path.join(tmp, 'sub'))

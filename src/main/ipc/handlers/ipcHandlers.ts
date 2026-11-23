@@ -5,6 +5,7 @@ import { agentHandlers } from './agent'
 import { aiHandlers } from './ai'
 import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
+import { assistantHandlers } from './assistant'
 import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
 import { browserHandlers } from './browser'
@@ -21,6 +22,7 @@ import { doctorAgentHandlers } from './doctorAgent'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
+import { fileObservationHandlers } from './fileObservation'
 import { fileProcessingHandlers } from './fileProcessing'
 import { hermesDashboardHandlers } from './hermesDashboard'
 import { knowledgeHandlers } from './knowledge'
@@ -83,6 +85,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,
+  ...fileObservationHandlers,
   ...fileProcessingHandlers,
   ...hermesDashboardHandlers,
   ...knowledgeHandlers,
@@ -96,6 +99,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...ovmsHandlers,
   ...pdfjsHandlers,
   ...printHandlers,
+  ...assistantHandlers,
   ...profileHandlers,
   ...proxyHandlers,
   ...providerHandlers,

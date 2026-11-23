@@ -22,6 +22,8 @@ The provider publishes option changes only when activation or context values cha
 
 `TabRouter` supplies explicit tab/transition activation around React Activity. Retained list panes pass their existing `dataEnabled` visibility state to the list scope. Layout cleanup, DOM attachment and activation prevent hidden/disposed owners from executing. The three deletion consumer families share this routing; `commandFocus.ts` and its scan-only tests are removed.
 
+Only an external tab retarget starts the transition cover and suspends the tab scope. Internal route resolution stays interactive while its URL is written back to tab state; a delayed persistence acknowledgement is not an external transition.
+
 Conversation-number navigation is registered with the owning tab runtime captured by `TabIdProvider` and read through `useTabCommandRuntime`. List ordering, loading, active-tab and list-activation guards still determine eligible slots. This allows Cmd/Ctrl+1–9 from the composer without hoisting permanent deletion out of the list. Outside a tab provider, navigation uses the window owner.
 
 ### Interaction boundaries and origins
@@ -56,6 +58,8 @@ The [permanent-deletion guards note](../bug-fix/2026-10-19-permanent-deletion-gu
 - The prerequisite remains independently reviewable. Source/CI scope is checked against the actual #21837 head, and this note records behavior rather than claiming a GitHub review Approval.
 
 ## Verification
+
+- Regression — `TabRouter.test.tsx` keeps an internally navigated page uncovered before the owning tab acknowledges its URL, while the external-retarget test retains its cover until resolution. The internal-navigation test fails before the repair.
 
 - Regression — `CommandFocusScope.test.tsx` preserves local routing during descendant layout effects on rerender, rebinds a replaced DOM root, and covers inactive/disposed scopes; Activity restoration remains covered by `CommandFocusLayers.test.tsx`.
 - Regression — `CommandFocusScope.test.tsx` keeps equivalent inline context snapshots stable and observes changed values or removed overrides.

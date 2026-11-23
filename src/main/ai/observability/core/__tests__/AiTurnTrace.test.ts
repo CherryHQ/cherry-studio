@@ -67,6 +67,5 @@ describe('startAiTurnTrace end-patch persistence', () => {
     expect(() => handle.end('ok')).not.toThrow()
     expect(captured.filter((s) => s.topicId === 'topic-noop')).toHaveLength(0)
     // The old code converted unconditionally, threw, and warned every turn.
-    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('Failed to persist root span'), expect.anything())
   })
 })

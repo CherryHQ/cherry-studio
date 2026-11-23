@@ -28,7 +28,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../scan', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof ScanModule
+  const actual = await importOriginal<typeof ScanModule>()
   return {
     ...actual,
     collectErrorLogRecords: (...args: Parameters<typeof actual.collectErrorLogRecords>) => {

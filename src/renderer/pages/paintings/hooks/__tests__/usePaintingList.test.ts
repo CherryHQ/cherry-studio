@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { useMutation } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
+import type { FileMetadata } from '@renderer/types/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import type { PaintingData } from '../../model/types/paintingData'
@@ -133,16 +134,20 @@ describe('usePaintingList', () => {
         })
     )
     const { result, setCurrentPainting } = renderList({
-      painting: makePainting({ id: 'saved', persistedAt: '2026-01-01', prompt: 'Edited prompt' })
+      painting: makePainting({
+        id: 'saved',
+        persistedAt: '2026-01-01',
+        prompt: 'Edited prompt',
+        model: 'new-composer-model',
+        files: [{ id: 'generated-image' } as FileMetadata]
+      })
     })
     let adding!: Promise<void>
     act(() => {
       adding = result.current.add()
     })
     expect(updatePainting).toHaveBeenCalledWith('saved', {
-      prompt: 'Edited prompt',
-      providerId: 'silicon',
-      modelId: undefined
+      prompt: 'Edited prompt'
     })
     expect(setCurrentPainting).not.toHaveBeenCalled()
     await act(async () => {
@@ -150,6 +155,28 @@ describe('usePaintingList', () => {
       await adding
     })
     expect(setCurrentPainting).toHaveBeenCalledWith(expect.objectContaining({ prompt: '' }))
+  })
+
+  it('saveCurrent() persists the selected provider and model for a saved draft without files', async () => {
+    const { result } = renderList({
+      painting: makePainting({
+        id: 'saved-draft',
+        persistedAt: '2026-01-01',
+        prompt: 'Draft prompt',
+        providerId: 'openai',
+        model: 'dall-e-3'
+      })
+    })
+
+    await act(async () => {
+      await result.current.saveCurrent()
+    })
+
+    expect(updatePainting).toHaveBeenCalledWith('saved-draft', {
+      prompt: 'Draft prompt',
+      providerId: 'openai',
+      modelId: 'dall-e-3'
+    })
   })
 
   it('keeps edits on save failure and allows retry', async () => {

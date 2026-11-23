@@ -12,6 +12,8 @@ import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -198,12 +200,74 @@ describe('ProviderService.delete — preset protection boundary', () => {
       expect(pins.find((row) => row.id === pin.id)).toBeUndefined()
     }
     expect(pins.find((row) => row.id === siblingPin.id)).toBeDefined()
+    // Call 1 is the pin purge; call 2 announces the model membership removed by
+    // the provider-row delete (user_model FK cascade) — no sessions exist here.
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [{ endpoint: '/pins', kind: 'membership' }])
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
+      { endpoint: '/models', kind: 'membership', entityIds: targetModelIds }
+    ])
+  })
+
+  it('publishes model and affected session effects when deleting the provider clears a session override', async () => {
+    const [openaiWorkOrderKey, providerOpenaiOrderKey, gpt4oOrderKey, siblingOrderKey, sessionWorkspaceOrderKey] =
+      generateOrderKeySequence(5)
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'openai-work', presetProviderId: 'openai', name: 'OpenAI Work', orderKey: openaiWorkOrderKey },
+      { providerId: 'anthropic', presetProviderId: null, name: 'Anthropic', orderKey: providerOpenaiOrderKey }
+    ])
+    const targetModelId = createUniqueModelId('openai-work', 'gpt-4o')
+    const siblingModelId = createUniqueModelId('anthropic', 'claude-3')
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: targetModelId,
+        providerId: 'openai-work',
+        modelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: gpt4oOrderKey
+      },
+      {
+        id: siblingModelId,
+        providerId: 'anthropic',
+        modelId: 'claude-3',
+        name: 'Claude 3',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: siblingOrderKey
+      }
+    ])
+    await dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'ws-provider-fx', name: 'W', path: '/tmp/ws-provider-fx', orderKey: sessionWorkspaceOrderKey })
+    await dbh.db.insert(agentSessionTable).values([
+      { id: 'session-provider-target', name: '', workspaceId: 'ws-provider-fx', model: targetModelId, orderKey: 'a0' },
+      { id: 'session-provider-sibling', name: '', workspaceId: 'ws-provider-fx', model: siblingModelId, orderKey: 'a1' }
+    ])
+    notifyDataApiDataChangeMock.mockClear()
+
+    providerService.delete('openai-work')
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
+      { endpoint: '/models', kind: 'membership', entityIds: [targetModelId] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-provider-target'] }
+    ])
+    // The FK cascade cleared the override of the deleted provider's model...
+    const [target] = await dbh.db
+      .select()
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-provider-target'))
+    expect(target.model).toBeNull()
+    // ...while the sibling session's override on another provider is untouched.
+    const [sibling] = await dbh.db
+      .select()
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-provider-sibling'))
+    expect(sibling.model).toBe(siblingModelId)
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('purges pins for every model under the provider as part of the delete transaction', async () => {
-    const purgeForEntityTxSpy = vi.spyOn(pinService, 'purgeForEntityTx')
-    const purgeForEntitiesTxSpy = vi.spyOn(pinService, 'purgeForEntitiesTx')
     const gpt4 = createUniqueModelId('openai-work', 'gpt-4')
     const gpt35 = createUniqueModelId('openai-work', 'gpt-3.5')
     const claude = createUniqueModelId('anthropic', 'claude-3')
@@ -261,13 +325,6 @@ describe('ProviderService.delete — preset protection boundary', () => {
     ])
 
     providerService.delete('openai-work')
-
-    expect(purgeForEntitiesTxSpy).toHaveBeenCalledTimes(1)
-    const [, entityType, entityIds] = purgeForEntitiesTxSpy.mock.calls[0]
-    expect(entityType).toBe('model')
-    expect(entityIds).toHaveLength(2)
-    expect(new Set(entityIds)).toEqual(new Set([gpt4, gpt35]))
-    expect(purgeForEntityTxSpy).not.toHaveBeenCalled()
 
     // Pins for the deleted provider's models are gone.
     const deletedProviderPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, gpt4))
