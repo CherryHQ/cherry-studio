@@ -6,6 +6,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorMessage } from '@main/utils/error'
 
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
@@ -238,7 +239,7 @@ async function promoteStaged(journal: StagedJournal): Promise<void> {
       return expire(ctx, 'journal chain is not a prefix of the bundled migration chain (fork or ahead-of-code DB)')
     }
   } catch (error) {
-    return expire(ctx, `admission gate failed: ${(error as Error).message}`)
+    return expire(ctx, `admission gate failed: ${getErrorMessage(error, 'Unknown error')}`)
   }
 
   logger.info('Restore admission gate passed, promoting', { restoreId: journal.restoreId })
@@ -546,7 +547,7 @@ function integrityCheck(dbPath: string): string {
     return String(sqlite.pragma('integrity_check', { simple: true }))
   } catch (error) {
     // Open failures (missing/locked/not-a-db) are integrity failures too.
-    return (error as Error).message
+    return getErrorMessage(error, 'Unknown error')
   } finally {
     try {
       sqlite?.close()
