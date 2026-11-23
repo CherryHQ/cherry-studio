@@ -168,52 +168,73 @@ async function startInternalGateway(service: ApiGatewayService) {
 
 const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
 
-describe('native model payload budget', () => {
-  const large = { data: 'A'.repeat(12 * 1024 * 1024) }
-
-  it('serializes oversized requests while allowing small requests to proceed', async () => {
+describe('internal request budget', () => {
+  it('allows a small request alongside a large one and queues a second large request', async () => {
     const service = new ApiGatewayService()
-    const release = await service.acquireModelPayloadBudget(large)
-    let acquired = false
-    const second = service.acquireModelPayloadBudget(large).then((done) => {
-      acquired = true
-      return done
-    })
-    const small = await service.acquireModelPayloadBudget({ text: 'hello' })
-    expect(acquired).toBe(false)
+    const signal = new AbortController().signal
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const first = await service.acquireInternalRequestBudget(large, signal)
+    const small = await service.acquireInternalRequestBudget(new Headers({ 'content-length': '1024' }), signal)
     small()
+
+    let admitted = false
+    const second = service.acquireInternalRequestBudget(large, signal).then((release) => {
+      admitted = true
+      return release
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(admitted).toBe(false)
+    first()
+    const release = await second
     release()
-    const finish = await second
-    expect(acquired).toBe(true)
-    finish()
   })
 
-  it('cancels queued requests without leaking capacity or blocking the next request', async () => {
+  it('admits the next small request when the blocking waiter is cancelled', async () => {
     const service = new ApiGatewayService()
-    const release = await service.acquireModelPayloadBudget(large)
-    const controller = new AbortController()
-    const aborted = service.acquireModelPayloadBudget(large, controller.signal)
-    const rejected = expect(aborted).rejects.toMatchObject({ name: 'AbortError' })
-    controller.abort()
-    await rejected
-    const next = service.acquireModelPayloadBudget(large)
-    release()
-    const done = await next
-    done()
-    const final = await service.acquireModelPayloadBudget(large)
-    final()
+    const active = new AbortController().signal
+    const waiting = new AbortController()
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const small = new Headers({ 'content-length': '1024' })
+    const first = await service.acquireInternalRequestBudget(large, active)
+    const cancelled = service.acquireInternalRequestBudget(large, waiting.signal)
+    let releaseNext: (() => void) | undefined
+    const next = service.acquireInternalRequestBudget(small, active).then((release) => {
+      releaseNext = release
+      return release
+    })
+
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(releaseNext).toBeUndefined()
+      waiting.abort()
+      await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(releaseNext).toBeTypeOf('function')
+    } finally {
+      first()
+      const release = await next
+      release()
+    }
   })
 
-  it('rejects queued requests when the gateway stops and can be used again afterward', async () => {
+  it('rejects all pending requests when the service stops', async () => {
     const service = new ApiGatewayService()
-    const release = await service.acquireModelPayloadBudget(large)
-    const queued = service.acquireModelPayloadBudget(large)
-    const rejected = expect(queued).rejects.toBeInstanceOf(Error)
-    await service._doStop()
-    await rejected
-    release()
-    const done = await service.acquireModelPayloadBudget(large)
-    done()
+    await service._doInit()
+    const signal = new AbortController().signal
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const small = new Headers({ 'content-length': '1024' })
+    const release = await service.acquireInternalRequestBudget(large, signal)
+    const pending = Promise.allSettled([
+      service.acquireInternalRequestBudget(large, signal),
+      service.acquireInternalRequestBudget(small, signal)
+    ])
+
+    try {
+      await service._doStop()
+      expect((await pending).map(({ status }) => status)).toEqual(['rejected', 'rejected'])
+    } finally {
+      release()
+    }
   })
 })
 

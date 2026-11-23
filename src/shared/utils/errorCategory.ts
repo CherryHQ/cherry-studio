@@ -61,6 +61,7 @@ function isQuotaExhaustionMessage(message: string): boolean {
     message.includes('insufficient balance') ||
     message.includes('insufficient_credit') ||
     message.includes('insufficient credit') ||
+    message.includes('credit balance is running low') ||
     message.includes('billing_hard_limit_reached') ||
     message.includes('余额不足')
   )

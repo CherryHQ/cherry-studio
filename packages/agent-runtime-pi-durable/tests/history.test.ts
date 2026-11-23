@@ -132,12 +132,23 @@ it('advances a warm fold by only newer entries and reads the same facts as an em
     const folds = new DurableFolds()
     await native.commit((tx) => readFacts(tx, folds, conversation.id), context)
     await append(40, 2)
+    await native.commit(
+      (tx) =>
+        tx.appendEntry(conversation.id, {
+          kind: 'cherry.reference-context',
+          model: [{ role: 'user', content: 'Reference only', timestamp: 0 }]
+        }),
+      context
+    )
 
     const counts = noReads()
     const warm = await native.commit((tx) => readFacts(countingTx(tx, counts), folds, conversation.id), context)
-    expect(counts.entries).toBe(2)
+    expect(counts.entries).toBe(3)
     expect(warm).toEqual(await native.commit((tx) => readFacts(tx, new DurableFolds(), conversation.id), context))
     expect(warm.history.flatMap((entry) => (entry.kind === 'user' ? [entry.text] : []))).toEqual(texts(42))
+    const repeated = noReads()
+    await native.commit((tx) => readFacts(countingTx(tx, repeated), folds, conversation.id), context)
+    expect(repeated.entries).toBe(0)
 
     const earlier = await native.commit((tx) => readFacts(tx, folds, conversation.id, new Set(), boundary.id), context)
     expect(earlier.history.flatMap((entry) => (entry.kind === 'user' ? [entry.text] : []))).toEqual(texts(40))

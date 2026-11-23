@@ -1,7 +1,8 @@
 const SENSITIVE_KEYS =
   /^(authorization|cookie|set-cookie|x-api-key|api[-_]?key|password|access[-_]?token|refresh[-_]?token)$/i
 const BEARER_SECRET = /(\bBearer\s+)[A-Za-z0-9._~+/=-]+/gi
-const QUERY_SECRET = /([?&](?:code|state|code_verifier|api[-_]?key|access[-_]?token|refresh[-_]?token)=)[^&\s"'<>]+/gi
+const QUERY_SECRET =
+  /([?&](?:code|state|code_verifier|(?:login|consent)_(?:challenge|verifier)|api[-_]?key|access[-_]?token|refresh[-_]?token)=)[^&\s"'<>]+/gi
 const NAMED_SECRET_ASSIGNMENT =
   /(\b(?:authorization|cookie|set-cookie|x-api-key|api[-_]?keys?|password|access[-_]?tokens?|refresh[-_]?tokens?)\b["']?\s*[:=]\s*)(["']?)([^'"\s,}\]]+)\2/gi
 const LONG_GENERIC_KEY_ASSIGNMENT = /(\bkey\b["']?\s*:\s*)(["'])([^'"]{20,})\2/gi

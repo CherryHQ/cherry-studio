@@ -210,6 +210,26 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it('keys Agent lists by session topic while preserving expanded tool steps', () => {
+    const topic = { id: 'agent-session:first', assistantId: 'agent-1', name: 'First', messages: [] } as unknown as Topic
+    const { result, rerender } = renderHook(
+      ({ activeTopic }) =>
+        useAgentMessageListProviderValue({
+          topic: activeTopic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'none'
+        }),
+      { initialProps: { activeTopic: topic } }
+    )
+    expect(result.current.state.listKey).toBe('agent-session:first')
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+    rerender({ activeTopic: { ...topic, id: 'agent-session:second' } })
+    expect(result.current.state.listKey).toBe('agent-session:second')
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+  })
+
   it('keeps historical avatars current until their agent is deleted', () => {
     const messages: CherryUIMessage[] = [
       {
@@ -718,6 +738,15 @@ describe('useAgentMessageListProviderValue', () => {
       messages: []
     } as Topic
     const messages = [
+      ...(['TIMEOUT', 'INCOMPLETE', 'CONTENT_FILTER', 'FINISHED'] as const).map((status) => ({
+        id: `imported-${status}`,
+        role: 'assistant',
+        parts: status === 'TIMEOUT' ? [{ type: 'text', text: 'Preserved partial answer' }] : [],
+        metadata: {
+          status: status === 'FINISHED' ? 'success' : 'error',
+          importedHistory: { source: 'deepseek', messageId: '2', status }
+        }
+      })),
       {
         id: 'assistant-error',
         role: 'assistant',
@@ -761,6 +790,14 @@ describe('useAgentMessageListProviderValue', () => {
 
     render(<Probe />)
 
+    for (const status of ['TIMEOUT', 'INCOMPLETE', 'CONTENT_FILTER', 'FINISHED']) {
+      const expected = [
+        ...(status === 'TIMEOUT' ? [{ type: 'text', text: 'Preserved partial answer' }] : []),
+        { type: 'data-imported-status', data: { status } }
+      ]
+      expect(value?.state.partsByMessageId?.[`imported-${status}`]).toEqual(expected)
+      expect(value?.state.streamingLayers?.historyPartsByMessageId[`imported-${status}`]).toEqual(expected)
+    }
     expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])

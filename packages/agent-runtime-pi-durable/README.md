@@ -38,7 +38,12 @@ background subtrees are not. These effects are not application-wide cancellation
 
 ## Input and output
 
-Every Durable access provides `input.submit(input)`. Busy rejection comes from native
+Every Durable access provides `input.submit(input)`. Before command routing or input submission,
+the desktop may call `durable.initializeContext(text)` to admit initial model-only reference
+history as a passive native write. The native request ID makes repeated initialization
+idempotent across reopening. It starts no model run and is excluded from product projections
+and behavior-authorizing user history, while ordinary and autonomous model requests see it.
+Busy rejection comes from native
 `ConversationBusy`; uncertain failures return `unknown`. Once native admission returns, a failed
 status read cannot erase the acknowledged receipt. Inputs retain their logical InputId in native
 entry metadata, so observations recover their placement and outcome after reopening. External
@@ -58,6 +63,10 @@ and tool-only termination. The adapter reads the actual assistant stop reason be
 map to `aborted`, known model/task failures to `failed`, and other unanswered reasons remain
 `unanswered`. A late status read cannot downgrade a known terminal state. These reads do not
 enable the scheduler.
+
+Committed model failures retain their cause in `RuntimeMessage.metadata.error`, including responses without text.
+Each attempt remains in history after later retries. Input outcomes come from native submission and run results,
+independently of these message-local errors. Live observations and archive reads use the same projection.
 
 `durable.observe` captures content, inputs, aliases, live provenance, `backgroundResults` and foreground
 completion from one native `ConversationView` revision. Completion includes the last visible committed entry ID for desktop fork checkpoints. A history fold of the lineage's entries and tool

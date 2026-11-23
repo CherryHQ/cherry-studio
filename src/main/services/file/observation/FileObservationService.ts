@@ -11,7 +11,7 @@ import type { WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
 
-import type { CreateDirectoryWatcherOptions } from '../watcher'
+import { DirectoryWatcherHost, type CreateDirectoryWatcherOptions } from '../watcher'
 import { WatchScope, type ObservationEvent, type ObservationLease } from './WatchScope'
 
 interface SharedScope {
@@ -37,6 +37,7 @@ interface ObservationOwner {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager', 'PowerService'])
 export class FileObservationService extends BaseService {
+  private readonly watcherHost = new DirectoryWatcherHost()
   private readonly allScopes = new Set<WatchScope>()
   private readonly scopes = new Map<string, SharedScope>()
   private readonly subscriptions = new Map<string, Subscription>()
@@ -67,7 +68,7 @@ export class FileObservationService extends BaseService {
     if (this.stopped) throw new Error('File observation stopped')
     let shared = this.scopes.get(key)
     if (!shared || shared.scope.needsRestart) {
-      shared = { scope: new WatchScope(root, options), references: 0 }
+      shared = { scope: new WatchScope(root, options, this.watcherHost), references: 0 }
       this.scopes.set(key, shared)
       this.allScopes.add(shared.scope)
     }
@@ -155,10 +156,7 @@ export class FileObservationService extends BaseService {
         // A file may already exist when its newly created parent's scan starts.
         emitInitial: !binding,
         maxDepth: path.relative(physicalRoot, physicalTarget).split(path.sep).length - 1,
-        ignore: (candidate) => {
-          const normalized = candidate.replace(/\\/g, '/')
-          return normalized !== normalizedTarget && !normalizedTarget.startsWith(`${normalized}/`)
-        }
+        filter: { kind: 'file', target: normalizedTarget }
       },
       listener
     )
@@ -262,6 +260,7 @@ export class FileObservationService extends BaseService {
     this.stopped = true
     for (const id of this.subscriptions.keys()) this.close(id)
     await Promise.all([...this.allScopes].map((scope) => scope.close()))
+    await this.watcherHost.close()
     this.allScopes.clear()
     this.scopes.clear()
     await Promise.all(this.closing)

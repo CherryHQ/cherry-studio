@@ -1,6 +1,7 @@
 import { hostname, networkInterfaces } from 'node:os'
 
-import { Mutex, Semaphore } from 'async-mutex'
+import type { ProviderHeaders } from '@earendil-works/pi-ai'
+import { E_CANCELED, Mutex } from 'async-mutex'
 import { retry } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -10,13 +11,17 @@ import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
 import { isValidToken } from './middleware/auth'
+import { createGatewayObjectTransports } from './objectStream'
 import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses'
 import type { ApiGateway } from './server'
 
@@ -24,20 +29,8 @@ const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
 const AGENT_USAGE_CAPTURE_HEADER = 'x-cherry-agent-usage-capture'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
-const PAYLOAD_UNIT_BYTES = 1024 * 1024
-const PAYLOAD_BUDGET_UNITS = 64
-
-function payloadBytes(value: unknown): number {
-  const limit = PAYLOAD_UNIT_BYTES * PAYLOAD_BUDGET_UNITS
-  if (typeof value === 'string') return Math.min(limit, value.length * 6 + 2)
-  if (!value || typeof value !== 'object') return 32
-  let bytes = 32
-  for (const [key, child] of Object.entries(value)) {
-    bytes += key.length * 6 + 8 + payloadBytes(child)
-    if (bytes >= limit) return limit
-  }
-  return bytes
-}
+const REQUEST_UNIT_BYTES = 1024 * 1024
+const INTERNAL_REQUEST_BUDGET = 32
 
 /** What a scoped internal credential may call: one generation path, one model address. */
 export type InternalCredentialScope = { path: string; model: string }
@@ -59,7 +52,12 @@ function presentedToken(headers: Headers): string | undefined {
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
-  private readonly modelPayloadBudget = new Semaphore(PAYLOAD_BUDGET_UNITS)
+  private availableInternalRequestUnits = INTERNAL_REQUEST_BUDGET
+  private readonly pendingInternalRequests = new Set<{
+    units: number
+    grant: (release: () => void) => void
+    cancel: (reason: unknown) => void
+  }>()
   /** Never persisted or shown to the user; unrestricted on the internal listener. */
   private readonly internalApiKey = `cs-internal-${uuidv4()}`
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
@@ -166,7 +164,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   protected async onStop(): Promise<void> {
-    this.modelPayloadBudget.cancel()
+    for (const request of this.pendingInternalRequests) request.cancel(E_CANCELED)
+    this.pendingInternalRequests.clear()
     const internalGateway = this.internalGateway
     this.internalGateway = null
     this.internalOrigin = undefined
@@ -431,6 +430,57 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
   }
 
+  /** Limit overlapping internal HTTP payloads before image preparation and SDK encoding. */
+  async acquireInternalRequestBudget(headers: Headers, signal: AbortSignal): Promise<() => void> {
+    signal.throwIfAborted()
+    const length = Number(headers.get('content-length'))
+    const units =
+      Number.isSafeInteger(length) && length > 0
+        ? Math.min(INTERNAL_REQUEST_BUDGET, Math.ceil(length / REQUEST_UNIT_BYTES))
+        : INTERNAL_REQUEST_BUDGET
+    const release = await new Promise<() => void>((resolve, reject) => {
+      const request = {
+        units,
+        grant: (release: () => void) => {
+          signal.removeEventListener('abort', abort)
+          resolve(release)
+        },
+        cancel: (reason: unknown) => {
+          signal.removeEventListener('abort', abort)
+          reject(reason)
+        }
+      }
+      const abort = () => {
+        this.pendingInternalRequests.delete(request)
+        request.cancel(signal.reason)
+        this.grantInternalRequestBudget()
+      }
+      signal.addEventListener('abort', abort, { once: true })
+      this.pendingInternalRequests.add(request)
+      this.grantInternalRequestBudget()
+    })
+    if (signal.aborted) {
+      release()
+      signal.throwIfAborted()
+    }
+    return release
+  }
+
+  private grantInternalRequestBudget(): void {
+    for (const request of this.pendingInternalRequests) {
+      if (request.units > this.availableInternalRequestUnits) break
+      this.pendingInternalRequests.delete(request)
+      this.availableInternalRequestUnits -= request.units
+      let released = false
+      request.grant(() => {
+        if (released) return
+        released = true
+        this.availableInternalRequestUnits += request.units
+        this.grantInternalRequestBudget()
+      })
+    }
+  }
+
   /** The scope of a live scoped credential; undefined for every other request. */
   getCredentialScope(headers: Headers): InternalCredentialScope | undefined {
     const token = presentedToken(headers)
@@ -464,26 +514,40 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return { [AGENT_SESSION_ID_HEADER]: sessionId }
   }
 
-  /** Reserve native request memory before SDK serialization; small requests remain concurrent. */
-  async acquireModelPayloadBudget(payload: unknown, signal?: AbortSignal): Promise<() => void> {
-    signal?.throwIfAborted()
-    const units = Math.ceil(payloadBytes(payload) / PAYLOAD_UNIT_BYTES)
-    if (units <= 8) return () => {}
-    const acquired = this.modelPayloadBudget.acquire(units)
-    return new Promise((resolve, reject) => {
-      const abort = () => reject(signal?.reason ?? new DOMException('Request aborted', 'AbortError'))
-      signal?.addEventListener('abort', abort, { once: true })
-      void acquired.then(
-        ([, release]) => {
-          signal?.removeEventListener('abort', abort)
-          if (signal?.aborted) release()
-          else resolve(release)
-        },
-        (error) => {
-          signal?.removeEventListener('abort', abort)
-          reject(error)
+  createAgentObjectTransports(input: {
+    sessionId: string
+    headers?: ProviderHeaders
+    reasoningEffort?: ReasoningEffortOption
+    serviceTier?: ServiceTierSelection
+    fastMode?: boolean
+    traceContext?: InProcessUsageContext['traceContext']
+    onRetryEvent?: (event: RetryPartData) => void
+  }) {
+    const headers = new Headers()
+    for (const [name, value] of Object.entries(input.headers ?? {})) {
+      if (value !== null) headers.set(name, value)
+    }
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim() || input.sessionId
+    const key = headers.get(AGENT_USAGE_CAPTURE_HEADER)
+    const captured = key ? this.usageCaptures.get(key) : undefined
+    return createGatewayObjectTransports({
+      requestHeaders: headers,
+      agentContext: {
+        agentSessionId: sessionId,
+        onRetryEvent: input.onRetryEvent,
+        reasoningEffort: input.reasoningEffort ?? 'default',
+        serviceTier: input.serviceTier,
+        fastMode: input.fastMode === true,
+        resolveUsage: (responseId) => {
+          const usage = key
+            ? captured?.agentSessionId === sessionId
+              ? captured
+              : undefined
+            : application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
+          const traceContext = key ? (captured?.traceContext ?? input.traceContext) : input.traceContext
+          return usage && traceContext ? { ...usage, traceContext } : usage
         }
-      )
+      }
     })
   }
 
