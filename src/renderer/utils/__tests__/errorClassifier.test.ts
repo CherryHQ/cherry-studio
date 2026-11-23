@@ -205,6 +205,23 @@ required service tier.`
     expect(result.category).toBe('rate_limit')
   })
 
+  it('routes ACP local-agent Authentication required errors (without HTTP status or API key mention) to local_agent_auth', () => {
+    expect(classifyError(makeError({ message: 'Authentication required: Authentication is required.' }))).toEqual({
+      category: 'auth',
+      i18nKey: 'error.diagnosis.local_agent_auth',
+      navTarget: '/settings/provider'
+    })
+
+    // HTTP 401 or explicit API key mentions keep the standard auth diagnosis.
+    expect(classifyError(makeError({ message: 'Authentication required', statusCode: 401 }))).toMatchObject({
+      category: 'auth',
+      i18nKey: 'error.diagnosis.auth'
+    })
+    expect(
+      classifyError(makeError({ message: 'Authentication required', statusCode: undefined }), 'openai')
+    ).toMatchObject({ category: 'auth', i18nKey: 'error.diagnosis.auth' })
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')

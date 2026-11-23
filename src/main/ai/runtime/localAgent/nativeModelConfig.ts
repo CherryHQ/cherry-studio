@@ -102,12 +102,23 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
     case 'opencode-config':
     case 'kilo-config':
     case 'copilot-settings':
-    case 'cline-settings':
     case 'zcode-config':
-    case 'snow-config':
     case 'glm-credentials':
       updates = [[['model'], model]]
       break
+    case 'snow-config':
+      updates = [
+        [['snowcfg', 'advancedModel'], model],
+        [['snowcfg', 'basicModel'], model]
+      ]
+      break
+    case 'cline-providers': {
+      const lastUsed =
+        typeof config.lastUsedProvider === 'string' && config.lastUsedProvider ? config.lastUsedProvider : undefined
+      const activeProvider = lastUsed ?? 'openai-compatible'
+      updates = [[['providers', activeProvider, 'settings', 'model'], model]]
+      break
+    }
     case 'factory-settings':
       updates = [[['sessionDefaultSettings', 'model'], model]]
       break
@@ -176,6 +187,50 @@ export function readNativeModelConfig(target: CliConfigTarget, content: string):
   const config = parse(content, errors, { allowTrailingComma: true })
   if (errors.length || !config || typeof config !== 'object' || Array.isArray(config))
     throw new Error(t('code_cli.model.invalid_config', { format: 'JSON' }))
+  if (target === 'cline-providers') {
+    const providers =
+      config.providers && typeof config.providers === 'object' && !Array.isArray(config.providers)
+        ? (config.providers as Record<string, unknown>)
+        : undefined
+    const lastUsed =
+      typeof config.lastUsedProvider === 'string' && config.lastUsedProvider ? config.lastUsedProvider : undefined
+    const entry = (lastUsed ? providers?.[lastUsed] : undefined) ?? providers?.['openai-compatible']
+    const settings =
+      entry && typeof entry === 'object' && !Array.isArray(entry)
+        ? (entry as Record<string, unknown>).settings
+        : undefined
+    const model =
+      settings && typeof settings === 'object' && !Array.isArray(settings)
+        ? (settings as Record<string, unknown>).model
+        : undefined
+    return typeof model === 'string' && model ? model : undefined
+  }
+  if (target === 'snow-config') {
+    const snowcfg =
+      config.snowcfg && typeof config.snowcfg === 'object' && !Array.isArray(config.snowcfg)
+        ? (config.snowcfg as Record<string, unknown>)
+        : undefined
+    const model = (typeof snowcfg?.advancedModel === 'string' && snowcfg.advancedModel) || config.model
+    return typeof model === 'string' && model ? model : undefined
+  }
+  if (target === 'zcode-config') {
+    if (config.provider && typeof config.provider === 'object' && !Array.isArray(config.provider)) {
+      const cherryEntry = Object.entries(config.provider as Record<string, unknown>).find(([key]) =>
+        key.startsWith('cherry-')
+      )
+      if (cherryEntry) {
+        const [providerKey, entry] = cherryEntry
+        const models =
+          entry && typeof entry === 'object' && !Array.isArray(entry)
+            ? (entry as Record<string, unknown>).models
+            : undefined
+        const firstModelId =
+          models && typeof models === 'object' && !Array.isArray(models) ? Object.keys(models)[0] : undefined
+        if (firstModelId) return `${providerKey}\\${firstModelId}`
+      }
+    }
+    return typeof config.model === 'string' && config.model ? config.model : undefined
+  }
   const value =
     target === 'factory-settings'
       ? config.sessionDefaultSettings?.model
@@ -186,7 +241,7 @@ export function readNativeModelConfig(target: CliConfigTarget, content: string):
           : target === 'claude-settings'
             ? config.env?.ANTHROPIC_MODEL || config.model
             : config.model
-  return typeof value === 'string' ? value : undefined
+  return typeof value === 'string' && value ? value : undefined
 }
 
 /** Resolves a config-file default against the IDs advertised by the ACP session. */
@@ -199,6 +254,12 @@ export function resolveConfiguredAcpModel(presetId: string | undefined, model: s
     const slash = model.indexOf('/')
     if (slash > 0)
       candidate = `m:${encodeURIComponent(model.slice(0, slash))}:${encodeURIComponent(model.slice(slash + 1))}:v:`
+  }
+  if (presetId === 'zcode') {
+    const slashNormalized = model.includes('/') ? model.replace('/', '\\') : model
+    if (available.includes(slashNormalized)) return slashNormalized
+    const suffixMatch = available.find((item) => item.endsWith(`\\${model}`))
+    if (suffixMatch) return suffixMatch
   }
   return available.includes(candidate) ? candidate : model
 }

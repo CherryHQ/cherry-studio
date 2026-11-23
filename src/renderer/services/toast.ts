@@ -68,7 +68,10 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     ...context.actions
   }
   const actionKind = presentation.action
-  const diagnosisKey = `error.diagnosis.${category}`
+  const diagnosisKey =
+    context.category && context.category !== classification.category
+      ? `error.diagnosis.${context.category}`
+      : classification.i18nKey
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
   let running = false

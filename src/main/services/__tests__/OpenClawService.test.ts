@@ -899,6 +899,22 @@ describe('OpenClawService gateway status state machine', () => {
       ).toEqual({ valid: true, path, issues: [], warnings: [] })
     })
 
+    it.each([1, 0])(
+      'accepts a fresh-install missing-config report (file not found, exitCode %i) as missing',
+      (exitCode) => {
+        const configPath = resolvePath('/mock/openclaw/openclaw.json')
+
+        expect(
+          (service as any).parseValidationResult({
+            exitCode,
+            stdout: JSON.stringify({ valid: false, path: configPath, error: 'file not found' }),
+            stderr: '',
+            outputTruncated: false
+          })
+        ).toEqual({ valid: false, missing: true, path: configPath, issues: [], warnings: [] })
+      }
+    )
+
     it.each([
       { name: 'missing', reportPath: undefined },
       { name: 'different', reportPath: resolvePath('/mock/openclaw/openclaw.json') }
@@ -1228,6 +1244,42 @@ describe('OpenClawService gateway status state machine', () => {
       expect(result).toEqual({ success: false, message: 'Gateway is already starting' })
     })
 
+    it('rejects overlapping startGateway calls while preflight is still running', async () => {
+      let resolveBinary!: (value: { source: 'mise'; path: string }) => void
+      findBinarySpy.mockImplementationOnce(() => new Promise((resolve) => (resolveBinary = resolve)))
+      checkPortOpenSpy.mockResolvedValue(false)
+      startAndWaitSpy.mockResolvedValue(undefined)
+
+      const first = service.startGateway()
+      await expect(service.startGateway()).resolves.toEqual({ success: false, message: 'Gateway is already starting' })
+
+      resolveBinary({ source: 'mise', path: resolvePath('/mock/bin/openclaw') })
+      await expect(first).resolves.toEqual({ success: true })
+      expect(startAndWaitSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('serializes concurrent acquireGateway calls and stops only after the last lease disposes', async () => {
+      let resolveStart!: (value: { success: true }) => void
+      const startSpy = vi
+        .spyOn(service, 'startGateway')
+        .mockImplementationOnce(() => new Promise((resolve) => (resolveStart = resolve)))
+      const stopSpy = vi.spyOn(service, 'stopGateway').mockResolvedValue({ success: true })
+
+      const firstPromise = service.acquireGateway(new AbortController().signal)
+      const secondPromise = service.acquireGateway(new AbortController().signal)
+      await Promise.resolve()
+      expect(startSpy).toHaveBeenCalledTimes(1)
+
+      resolveStart({ success: true })
+      const [firstLease, secondLease] = await Promise.all([firstPromise, secondPromise])
+
+      expect(startSpy).toHaveBeenCalledTimes(1)
+      await firstLease.dispose()
+      expect(stopSpy).not.toHaveBeenCalled()
+      await secondLease.dispose()
+      expect(stopSpy).toHaveBeenCalledTimes(1)
+    })
+
     it('rejects an invalid formal config before checking or stopping the gateway port', async () => {
       checkPortOpenSpy.mockResolvedValue(true)
       checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
@@ -1270,6 +1322,42 @@ describe('OpenClawService gateway status state machine', () => {
       expect(runOpenClawCommandSpy.mock.calls[0][2]).toMatchObject({
         OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json')
       })
+    })
+
+    it('bootstraps minimal local gateway config and starts when openclaw.json does not exist yet', async () => {
+      validateConfigSpy.mockRestore()
+      const freshConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-fresh-'))
+      vi.mocked(application.getPath).mockReturnValue(freshConfigDir)
+      const formalPath = path.join(freshConfigDir, 'openclaw.json')
+      runOpenClawCommandSpy.mockReset()
+      runOpenClawCommandSpy
+        .mockResolvedValueOnce({
+          exitCode: 1,
+          stdout: JSON.stringify({ valid: false, path: formalPath, error: 'file not found' }),
+          stderr: '',
+          outputTruncated: false
+        })
+        .mockImplementationOnce(async (_path, _args, env) => ({
+          exitCode: 0,
+          stdout: JSON.stringify({ valid: true, path: env.OPENCLAW_CONFIG_PATH, warnings: [] }),
+          stderr: '',
+          outputTruncated: false
+        }))
+      checkPortOpenSpy.mockResolvedValue(false)
+      startAndWaitSpy.mockResolvedValue(undefined)
+
+      try {
+        await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+        const written = JSON.parse(fs.readFileSync(formalPath, 'utf-8'))
+        expect(written).toMatchObject({
+          gateway: { mode: 'local', port: 18790, auth: { token: expect.any(String) } },
+          update: { checkOnStart: false }
+        })
+        expect(written.gateway.auth.token.length).toBeGreaterThan(10)
+      } finally {
+        fs.rmSync(freshConfigDir, { recursive: true, force: true })
+      }
     })
 
     it('spawns a system OpenClaw with the raw user environment and formal config path', async () => {

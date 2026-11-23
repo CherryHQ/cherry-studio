@@ -526,4 +526,157 @@ agent_servers:
       terminalPath: '/user/bin/agy'
     })
   })
+
+  it('injects Cherry-managed gateway env vars for GLM Agent, CodeBuddy, Cline, and Snow while respecting overrides', async () => {
+    inventory.snapshots['glm-acp-agent'] = {
+      name: 'glm-acp-agent',
+      availability: { source: 'system', path: '/user/bin/glm-acp-agent' }
+    }
+    inventory.snapshots.codebuddy = {
+      name: 'codebuddy',
+      availability: { source: 'system', path: '/user/bin/codebuddy' }
+    }
+    inventory.snapshots.cline = { name: 'cline', availability: { source: 'system', path: '/user/bin/cline' } }
+    inventory.snapshots.snow = { name: 'snow', availability: { source: 'system', path: '/user/bin/snow' } }
+
+    inventory.readConfigFiles.mockResolvedValueOnce([
+      {
+        target: 'glm-credentials',
+        content: JSON.stringify({
+          z_ai_api_key: 'glm-key',
+          base_url: 'http://127.0.0.1:23334/v1',
+          model: 'cherryin:agent/glm-5',
+          cherry_managed: true
+        })
+      }
+    ])
+    const glmLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })
+    expect(glmLaunch.nativeModel).toBe('cherryin:agent/glm-5')
+    expect(glmLaunch.env).toMatchObject({
+      Z_AI_API_KEY: 'glm-key',
+      ACP_GLM_BASE_URL: 'http://127.0.0.1:23334/v1',
+      ACP_GLM_MODEL: 'cherryin:agent/glm-5',
+      ACP_GLM_AVAILABLE_MODELS: 'cherryin:agent/glm-5'
+    })
+
+    inventory.readConfigFiles.mockResolvedValueOnce([
+      { target: 'codebuddy-settings', content: JSON.stringify({ model: 'cherryin:agent/deepseek-v4-pro' }) },
+      {
+        target: 'codebuddy-models',
+        content: JSON.stringify({
+          models: [{ id: 'cherryin:agent/deepseek-v4-pro', apiKey: 'cb-key', 'x-cherry-studio': true }]
+        })
+      }
+    ])
+    const cbLaunch = await resolveLocalAgentLaunch({
+      ...config,
+      presetId: 'codebuddy-code',
+      protocol: 'acp',
+      env: {}
+    })
+    expect(cbLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
+    expect(cbLaunch.env.CODEBUDDY_API_KEY).toBe('cb-key')
+
+    inventory.readConfigFiles.mockResolvedValueOnce([
+      {
+        target: 'cline-providers',
+        content: JSON.stringify({
+          providers: {
+            'openai-compatible': {
+              cherryManaged: true,
+              settings: {
+                provider: 'openai-compatible',
+                apiKey: 'cline-key',
+                baseUrl: 'http://127.0.0.1:23334/v1',
+                model: 'cherryin:agent/deepseek-v4-pro'
+              }
+            }
+          }
+        })
+      }
+    ])
+    const clineLaunch = await resolveLocalAgentLaunch({
+      ...config,
+      presetId: 'cline',
+      protocol: 'acp',
+      env: { CLINE_API_KEY: 'explicit-override' }
+    })
+    expect(clineLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
+    expect(clineLaunch.env).toMatchObject({
+      CLINE_API_KEY: 'explicit-override',
+      CLINE_PROVIDER: 'openai-compatible',
+      CLINE_MODEL: 'cherryin:agent/deepseek-v4-pro',
+      OPENAI_BASE_URL: 'http://127.0.0.1:23334/v1'
+    })
+
+    inventory.readConfigFiles.mockResolvedValueOnce([
+      {
+        target: 'snow-config',
+        content: JSON.stringify({
+          cherryManaged: true,
+          snowcfg: { advancedModel: 'cherryin:agent/deepseek-v4-pro' }
+        })
+      }
+    ])
+    const snowLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'snow', protocol: 'acp' })
+    expect(snowLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
+
+    inventory.snapshots.goose = { name: 'goose', availability: { source: 'system', path: '/user/bin/goose' } }
+    inventory.readConfigFiles.mockResolvedValueOnce([
+      {
+        target: 'goose-config',
+        content: [
+          'CHERRY_MANAGED: true',
+          'GOOSE_PROVIDER: anthropic',
+          'GOOSE_MODEL: cherryin:agent/glm-5',
+          'ANTHROPIC_HOST: http://127.0.0.1:23334',
+          'ANTHROPIC_API_KEY: goose-anth-key'
+        ].join('\n')
+      }
+    ])
+    const gooseAnthropicLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'goose', protocol: 'acp' })
+    expect(gooseAnthropicLaunch.nativeModel).toBe('cherryin:agent/glm-5')
+    expect(gooseAnthropicLaunch.env).toMatchObject({
+      GOOSE_PROVIDER: 'anthropic',
+      GOOSE_MODEL: 'cherryin:agent/glm-5',
+      ANTHROPIC_HOST: 'http://127.0.0.1:23334',
+      ANTHROPIC_API_KEY: 'goose-anth-key'
+    })
+
+    inventory.readConfigFiles.mockResolvedValueOnce([
+      {
+        target: 'goose-config',
+        content: [
+          'CHERRY_MANAGED: true',
+          'GOOSE_PROVIDER: openai',
+          'GOOSE_MODEL: cherryin:agent/deepseek-v4-pro',
+          'OPENAI_HOST: http://127.0.0.1:23334/v1',
+          'OPENAI_API_KEY: goose-oai-key'
+        ].join('\n')
+      }
+    ])
+    const gooseOpenAiLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'goose', protocol: 'acp' })
+    expect(gooseOpenAiLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
+    expect(gooseOpenAiLaunch.env).toMatchObject({
+      GOOSE_PROVIDER: 'openai',
+      GOOSE_MODEL: 'cherryin:agent/deepseek-v4-pro',
+      OPENAI_HOST: 'http://127.0.0.1:23334/v1',
+      OPENAI_API_KEY: 'goose-oai-key'
+    })
+
+    inventory.readConfigFiles.mockResolvedValueOnce([
+      {
+        target: 'goose-config',
+        content: 'GOOSE_PROVIDER: anthropic\nGOOSE_MODEL: user-model\nANTHROPIC_API_KEY: user-key\n'
+      }
+    ])
+    const gooseUnmanagedLaunch = await resolveLocalAgentLaunch({
+      ...config,
+      presetId: 'goose',
+      protocol: 'acp',
+      env: {}
+    })
+    expect(gooseUnmanagedLaunch.nativeModel).toBeUndefined()
+    expect(gooseUnmanagedLaunch.env.ANTHROPIC_API_KEY).toBeUndefined()
+  })
 })

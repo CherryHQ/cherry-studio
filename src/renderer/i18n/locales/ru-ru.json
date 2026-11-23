@@ -1563,6 +1563,7 @@
   "error.diagnosis.free_model_unavailable": "AI-диагностика временно недоступна",
   "error.diagnosis.go_to_settings": "Перейти к настройкам",
   "error.diagnosis.knowledge": "Ошибка векторизации базы знаний",
+  "error.diagnosis.local_agent_auth": "Локальному агенту требуется вход или настройка аутентификации. Выполните вход через CLI или проверьте настройки в разделе сервисов агентов и повторите попытку.",
   "error.diagnosis.mcp": "Ошибка подключения к серверу MCP, проверьте работу сервиса",
   "error.diagnosis.model": "Модель не найдена или нет доступа",
   "error.diagnosis.model_conflict": "Модель диагностики совпадает с моделью, вызвавшей ошибку",

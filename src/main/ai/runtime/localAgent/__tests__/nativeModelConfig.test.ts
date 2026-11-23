@@ -141,7 +141,8 @@ describe('provider-configured ACP model identities', () => {
       'minimax',
       'custom_provider:cherry-CherryIN/deepseek/deepseek-flash',
       'm:custom_provider%3Acherry-CherryIN:deepseek%2Fdeepseek-flash:v:'
-    ]
+    ],
+    ['zcode', 'cherry-gateway/deepseek/deepseek-flash', 'cherry-gateway\\deepseek/deepseek-flash']
   ])('resolves %s config IDs only when advertised by the session', (preset, configured, advertised) => {
     expect(resolveConfiguredAcpModel(preset, configured, [advertised])).toBe(advertised)
     expect(resolveConfiguredAcpModel(preset, configured, ['unrelated-model'])).toBe(configured)
@@ -179,14 +180,49 @@ describe('extra CLI nativeModelConfig targets', () => {
     expect(cleared).toContain('GOOSE_PROVIDER: anthropic')
   })
 
-  it.each(['cline-settings', 'zcode-config', 'snow-config', 'glm-credentials'] as const)(
-    'updates, reads, and clears JSON model field on %s',
-    (target) => {
-      const updated = updateNativeModelConfig(target, '{"keep":true}', 'openai:gpt-5')
-      expect(readNativeModelConfig(target, updated)).toBe('openai:gpt-5')
-      const cleared = updateNativeModelConfig(target, updated, undefined)
-      expect(readNativeModelConfig(target, cleared)).toBeUndefined()
-      expect(JSON.parse(cleared)).toEqual({ keep: true })
-    }
-  )
+  it('reads ZCode singular provider map as provider\\modelId and falls back to model', () => {
+    expect(
+      readNativeModelConfig(
+        'zcode-config',
+        JSON.stringify({
+          provider: {
+            'cherry-gateway': {
+              kind: 'openai-compatible',
+              models: { 'cherryin:agent/deepseek-v4-pro': { name: 'DeepSeek' } }
+            }
+          }
+        })
+      )
+    ).toBe('cherry-gateway\\cherryin:agent/deepseek-v4-pro')
+    const updated = updateNativeModelConfig('zcode-config', '{"keep":true}', 'openai:gpt-5')
+    expect(readNativeModelConfig('zcode-config', updated)).toBe('openai:gpt-5')
+  })
+
+  it('updates, reads, and clears snow-config snowcfg models', () => {
+    const updated = updateNativeModelConfig('snow-config', '{"keep":true}', 'openai:gpt-5')
+    expect(readNativeModelConfig('snow-config', updated)).toBe('openai:gpt-5')
+    expect(JSON.parse(updated).snowcfg).toEqual({ advancedModel: 'openai:gpt-5', basicModel: 'openai:gpt-5' })
+    const cleared = updateNativeModelConfig('snow-config', updated, undefined)
+    expect(readNativeModelConfig('snow-config', cleared)).toBeUndefined()
+    expect(JSON.parse(cleared).keep).toBe(true)
+  })
+
+  it('updates and reads cline-providers active provider settings model', () => {
+    const updated = updateNativeModelConfig(
+      'cline-providers',
+      JSON.stringify({ version: 1, lastUsedProvider: 'openai-compatible', providers: {} }),
+      'openai:gpt-5'
+    )
+    expect(readNativeModelConfig('cline-providers', updated)).toBe('openai:gpt-5')
+    const cleared = updateNativeModelConfig('cline-providers', updated, undefined)
+    expect(readNativeModelConfig('cline-providers', cleared)).toBeUndefined()
+  })
+
+  it('updates, reads, and clears JSON model field on glm-credentials', () => {
+    const updated = updateNativeModelConfig('glm-credentials', '{"keep":true}', 'openai:gpt-5')
+    expect(readNativeModelConfig('glm-credentials', updated)).toBe('openai:gpt-5')
+    const cleared = updateNativeModelConfig('glm-credentials', updated, undefined)
+    expect(readNativeModelConfig('glm-credentials', cleared)).toBeUndefined()
+    expect(JSON.parse(cleared)).toEqual({ keep: true })
+  })
 })

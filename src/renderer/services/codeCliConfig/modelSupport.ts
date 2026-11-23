@@ -83,10 +83,10 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (provid
   'grok-build': (providers) => providers.filter(hasOpenAILike),
   omp: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
   goose: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
-  cline: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
-  zcode: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  cline: (providers) => providers.filter(hasChat),
+  zcode: (providers) => providers.filter((p) => hasAnthropic(p) || hasChat(p)),
   snow: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
-  'glm-acp-agent': (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p))
+  'glm-acp-agent': (providers) => providers.filter(hasChat)
 }
 
 const OPENAI_LIKE_ENDPOINTS = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
@@ -125,11 +125,13 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
     case 'factory-droid':
     case 'mistral-vibe':
     case 'goose':
-    case 'cline':
-    case 'zcode':
     case 'snow':
-    case 'glm-acp-agent':
       return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ...OPENAI_LIKE_ENDPOINTS])
+    case 'cline':
+    case 'glm-acp-agent':
+      return hasModelEndpoint(model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    case 'zcode':
+      return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
     case CodeCli.ANTIGRAVITY_CLI:
       return hasModelEndpoint(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
     case 'codebuddy-code':

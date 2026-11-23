@@ -233,11 +233,15 @@ describe('extra custom-endpoint local agent adapters', () => {
     const adapter = getAdapter(tool)!
     const files = makeInitialFiles(tool)
     const draft = await adapter.buildDraft({ cliTool: tool, modelId: 'test::model', files }, context)
+    const mergedDraft = adapter.targets.map(
+      (target) => draft.find((f) => f.target === target) ?? files.find((f) => f.target === target)!
+    )
     const draftText = draft.map((f) => f.content).join('\n')
+    const mergedDraftText = mergedDraft.map((f) => f.content).join('\n')
     expect(draftText).toContain('gateway-key')
     expect(draftText).toContain('provider:org/test-model')
-    expect(draftText).toContain('user-key')
-    expect(draftText).toContain('dark')
+    expect(mergedDraftText).toContain('user-key')
+    expect(mergedDraftText).toContain('dark')
 
     const connection = adapter.extractConnection(draft)
     expect(connection).toMatchObject({
@@ -254,11 +258,20 @@ describe('extra custom-endpoint local agent adapters', () => {
       }))
     })
     const cleared = await adapter.buildClearFiles()
-    const clearedText = cleared.map((f) => f.content).join('\n')
-    expect(clearedText).not.toContain('gateway-key')
-    expect(clearedText).not.toContain('provider:org/test-model')
-    expect(clearedText).toContain('user-key')
-    expect(clearedText).toContain('dark')
+    const mergedClearedText = adapter.targets
+      .map(
+        (target) =>
+          cleared.find((f) => f.target === target)?.content ??
+          draft.find((f) => f.target === target)?.content ??
+          files.find((f) => f.target === target)?.content ??
+          ''
+      )
+      .join('\n')
+    expect(cleared.map((f) => f.content).join('\n')).not.toContain('gateway-key')
+    expect(mergedClearedText).not.toContain('gateway-key')
+    expect(mergedClearedText).not.toContain('provider:org/test-model')
+    expect(mergedClearedText).toContain('user-key')
+    expect(mergedClearedText).toContain('dark')
 
     const clearedDraft = createCliConfigDraftFiles(
       adapter.targets.map((target) => ({
@@ -269,6 +282,100 @@ describe('extra custom-endpoint local agent adapters', () => {
       }))
     )
     expect(adapter.extractConnection(clearedDraft)).toBeNull()
+  })
+
+  it('writes CLI-native schemas for glm-acp-agent, snow, zcode, and cline', async () => {
+    const glmDraft = await getAdapter('glm-acp-agent')!.buildDraft(
+      { cliTool: 'glm-acp-agent', modelId: 'test::model', files: makeInitialFiles('glm-acp-agent') },
+      context
+    )
+    expect(json(glmDraft, 'glm-credentials')).toMatchObject({
+      theme: 'dark',
+      z_ai_api_key: 'gateway-key',
+      base_url: 'https://example.test/v1',
+      model: 'provider:org/test-model',
+      cherry_managed: true
+    })
+
+    const snowDraft = await getAdapter('snow')!.buildDraft(
+      { cliTool: 'snow', modelId: 'test::model', files: makeInitialFiles('snow') },
+      context
+    )
+    expect(json(snowDraft, 'snow-config')).toMatchObject({
+      cherryManaged: true,
+      snowcfg: {
+        baseUrl: 'https://example.test/v1',
+        baseUrlMode: 'auto',
+        apiKey: 'gateway-key',
+        requestMethod: 'chat',
+        advancedModel: 'provider:org/test-model',
+        basicModel: 'provider:org/test-model'
+      }
+    })
+
+    const anthropicGatewayProvider = {
+      id: 'api-gateway',
+      name: 'Gateway',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://127.0.0.1:23334' } }
+    } as Provider
+    const snowAnthropicAdapter = getAdapter('snow')!
+    expect(snowAnthropicAdapter.providerBaseUrls(anthropicGatewayProvider)).toEqual(['http://127.0.0.1:23334/v1'])
+    const snowAnthropicDraft = await snowAnthropicAdapter.buildDraft(
+      { cliTool: 'snow', modelId: 'gw::claude', files: makeInitialFiles('snow') },
+      {
+        ...context,
+        provider: anthropicGatewayProvider,
+        model: 'anthropic/claude-sonnet',
+        modelRecord: { ...context.modelRecord!, endpointTypes: ['anthropic-messages'] }
+      }
+    )
+    expect(json(snowAnthropicDraft, 'snow-config')).toMatchObject({
+      cherryManaged: true,
+      snowcfg: {
+        baseUrl: 'http://127.0.0.1:23334/v1',
+        baseUrlMode: 'auto',
+        requestMethod: 'anthropic'
+      }
+    })
+
+    const zcodeDraft = await getAdapter('zcode')!.buildDraft(
+      { cliTool: 'zcode', modelId: 'test::model', files: makeInitialFiles('zcode') },
+      context
+    )
+    expect(json(zcodeDraft, 'zcode-config')).toMatchObject({
+      theme: 'dark',
+      userKey: 'user-key',
+      provider: {
+        'cherry-Test': {
+          kind: 'openai-compatible',
+          source: 'custom',
+          enabled: true,
+          options: { baseURL: 'https://example.test/v1', apiKey: 'gateway-key' },
+          models: { 'provider:org/test-model': { name: 'Test Model', limit: { context: 128000, output: 8000 } } }
+        }
+      }
+    })
+
+    const clineDraft = await getAdapter('cline')!.buildDraft(
+      { cliTool: 'cline', modelId: 'test::model', files: makeInitialFiles('cline') },
+      context
+    )
+    expect(json(clineDraft, 'cline-providers')).toMatchObject({
+      version: 1,
+      lastUsedProvider: 'openai-compatible',
+      providers: {
+        'user-provider': { apiKey: 'user-key' },
+        'openai-compatible': {
+          cherryManaged: true,
+          settings: {
+            provider: 'openai-compatible',
+            apiKey: 'gateway-key',
+            baseUrl: 'https://example.test/v1',
+            model: 'provider:org/test-model'
+          }
+        }
+      }
+    })
   })
 
   it('keeps unmanaged goose-config and grok-config hidden from connection extraction', () => {
@@ -320,22 +427,24 @@ describe('extra custom-endpoint local agent adapters', () => {
   })
 
   it.each(['anthropic-messages', 'openai-responses'] as const)(
-    'goose selects %s protocol cleanly',
+    'goose selects %s protocol cleanly without a trailing /v1 host suffix',
     async (endpoint) => {
       const adapter = getAdapter('goose')!
+      const provider = {
+        ...context.provider,
+        endpointConfigs: { [endpoint]: { baseUrl: 'https://example.test/v1' } }
+      } as Provider
+      expect(adapter.providerBaseUrls(provider)).toEqual(['https://example.test'])
       const draft = await adapter.buildDraft(
         { cliTool: 'goose', modelId: 'test::model', files: makeInitialFiles('goose') },
         {
           ...context,
-          provider: {
-            ...context.provider,
-            endpointConfigs: { [endpoint]: { baseUrl: 'https://example.test/v1' } }
-          },
+          provider,
           modelRecord: { ...context.modelRecord!, endpointTypes: [endpoint] }
         }
       )
       expect(adapter.extractConnection(draft)).toEqual({
-        baseUrl: endpoint === 'anthropic-messages' ? 'https://example.test' : 'https://example.test/v1',
+        baseUrl: 'https://example.test',
         apiKey: 'gateway-key',
         model: 'provider:org/test-model'
       })

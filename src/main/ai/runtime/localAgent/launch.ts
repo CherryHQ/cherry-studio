@@ -2,6 +2,7 @@ import { constants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { parse } from 'jsonc-parser'
 import { lt, valid } from 'semver'
 import { parseDocument } from 'yaml'
 
@@ -118,6 +119,176 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
   )
 }
 
+function parseJsonRecord(content: string | null | undefined): Record<string, unknown> | undefined {
+  if (!content) return undefined
+  const parsed = parse(content, [], { allowTrailingComma: true })
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : undefined
+}
+
+async function readCliConfigFilesSafe(
+  targets: Parameters<ReturnType<typeof application.get<'CodeCliService'>>['readConfigFiles']>[0]
+) {
+  const result = await application.get('CodeCliService').readConfigFiles(targets)
+  return Array.isArray(result) ? result : []
+}
+
+async function injectPresetConfigEnv(
+  presetId: string | undefined,
+  env: Record<string, string>,
+  mode: boolean | 'models'
+): Promise<string | undefined> {
+  let nativeModel: string | undefined
+  if (presetId === 'poolside') {
+    const [file] = await readCliConfigFilesSafe(['poolside-settings'])
+    if (file?.content != null) {
+      const document = parseDocument(file.content)
+      if (document.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+      const server =
+        mode !== 'models' && document.getIn(['pool', 'default_agent_server']) === POOLSIDE_GATEWAY_SERVER
+          ? POOLSIDE_GATEWAY_SERVER
+          : 'Poolside'
+      const model = document.getIn(['agent_servers', server, 'default_config_options', 'model'])
+      if (typeof model === 'string') nativeModel = model
+      if (server === POOLSIDE_GATEWAY_SERVER) {
+        for (const key of ['POOLSIDE_API_KEY', 'POOLSIDE_STANDALONE_BASE_URL', 'POOLSIDE_STANDALONE_MODEL']) {
+          const value = document.getIn(['agent_servers', POOLSIDE_GATEWAY_SERVER, 'env', key])
+          if (typeof value !== 'string' || !value)
+            throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+          env[key] = value
+        }
+      }
+    }
+    return nativeModel
+  }
+
+  if (presetId === 'glm-acp-agent') {
+    const [file] = await readCliConfigFilesSafe(['glm-credentials'])
+    const doc = parseJsonRecord(file?.content)
+    if (!doc) return undefined
+    let apiKey: string | undefined
+    let baseUrl: string | undefined
+    let model: string | undefined
+    if (doc.cherry_managed === true) {
+      apiKey = typeof doc.z_ai_api_key === 'string' ? doc.z_ai_api_key : undefined
+      baseUrl = typeof doc.base_url === 'string' ? doc.base_url : undefined
+      model = typeof doc.model === 'string' ? doc.model : undefined
+    } else if (doc.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers)) {
+      const cherryKey =
+        typeof doc.provider === 'string' && doc.provider.startsWith('cherry-') ? doc.provider : undefined
+      const entry = cherryKey ? (doc.providers as Record<string, unknown>)[cherryKey] : undefined
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const record = entry as Record<string, unknown>
+        apiKey = typeof record.apiKey === 'string' ? record.apiKey : undefined
+        baseUrl = typeof record.baseUrl === 'string' ? record.baseUrl : undefined
+        model = typeof record.model === 'string' ? record.model : undefined
+      }
+    }
+    if (apiKey) env.Z_AI_API_KEY = apiKey
+    if (baseUrl) env.ACP_GLM_BASE_URL = baseUrl
+    if (model) {
+      env.ACP_GLM_MODEL = model
+      if (mode !== 'models') env.ACP_GLM_AVAILABLE_MODELS = model
+      nativeModel = model
+    }
+    return nativeModel
+  }
+
+  if (presetId === 'codebuddy-code') {
+    const files = await readCliConfigFilesSafe(['codebuddy-settings', 'codebuddy-models'])
+    const settings = parseJsonRecord(files.find((file) => file.target === 'codebuddy-settings')?.content)
+    const modelsDoc = parseJsonRecord(files.find((file) => file.target === 'codebuddy-models')?.content)
+    const list = Array.isArray(modelsDoc?.models) ? modelsDoc.models : []
+    const activeId = typeof settings?.model === 'string' ? settings.model : undefined
+    const entry = list.find((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false
+      const record = item as Record<string, unknown>
+      return record['x-cherry-studio'] === true && (!activeId || record.id === activeId)
+    }) as Record<string, unknown> | undefined
+    if (typeof entry?.apiKey === 'string' && entry.apiKey) {
+      env.CODEBUDDY_API_KEY = entry.apiKey
+    }
+    if (activeId) nativeModel = activeId
+    return nativeModel
+  }
+
+  if (presetId === 'cline') {
+    const [file] = await readCliConfigFilesSafe(['cline-providers'])
+    const doc = parseJsonRecord(file?.content)
+    const providers =
+      doc?.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers)
+        ? (doc.providers as Record<string, unknown>)
+        : undefined
+    const entry = providers?.['openai-compatible']
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return undefined
+    const record = entry as Record<string, unknown>
+    if (record.cherryManaged !== true) return undefined
+    const settings =
+      record.settings && typeof record.settings === 'object' && !Array.isArray(record.settings)
+        ? (record.settings as Record<string, unknown>)
+        : undefined
+    if (typeof settings?.apiKey === 'string' && settings.apiKey) env.CLINE_API_KEY = settings.apiKey
+    env.CLINE_PROVIDER =
+      typeof settings?.provider === 'string' && settings.provider ? settings.provider : 'openai-compatible'
+    if (typeof settings?.baseUrl === 'string' && settings.baseUrl) {
+      env.OPENAI_BASE_URL = settings.baseUrl
+      env.CLINE_BASE_URL = settings.baseUrl
+    }
+    if (typeof settings?.model === 'string' && settings.model) {
+      env.CLINE_MODEL = settings.model
+      nativeModel = settings.model
+    }
+    return nativeModel
+  }
+
+  if (presetId === 'snow') {
+    const [file] = await readCliConfigFilesSafe(['snow-config'])
+    const doc = parseJsonRecord(file?.content)
+    const snowcfg =
+      doc?.snowcfg && typeof doc.snowcfg === 'object' && !Array.isArray(doc.snowcfg)
+        ? (doc.snowcfg as Record<string, unknown>)
+        : undefined
+    return doc?.cherryManaged === true && typeof snowcfg?.advancedModel === 'string' && snowcfg.advancedModel
+      ? snowcfg.advancedModel
+      : undefined
+  }
+
+  if (presetId === 'goose') {
+    const [file] = await readCliConfigFilesSafe(['goose-config'])
+    if (file?.content != null) {
+      const document = parseDocument(file.content)
+      if (!document.errors.length && document.get('CHERRY_MANAGED') === true) {
+        const readYamlString = (key: string): string | undefined => {
+          const val = document.get(key)
+          return typeof val === 'string' && val ? val : undefined
+        }
+        const provider = readYamlString('GOOSE_PROVIDER')
+        const model = readYamlString('GOOSE_MODEL')
+        if (provider) env.GOOSE_PROVIDER = provider
+        if (model) {
+          env.GOOSE_MODEL = model
+          nativeModel = model
+        }
+        if (provider === 'anthropic') {
+          const host = readYamlString('ANTHROPIC_HOST')
+          const apiKey = readYamlString('ANTHROPIC_API_KEY')
+          if (host) env.ANTHROPIC_HOST = host
+          if (apiKey) env.ANTHROPIC_API_KEY = apiKey
+        } else if (provider === 'openai') {
+          const host = readYamlString('OPENAI_HOST')
+          const apiKey = readYamlString('OPENAI_API_KEY')
+          if (host) env.OPENAI_HOST = host
+          if (apiKey) env.OPENAI_API_KEY = apiKey
+        }
+      }
+    }
+    return nativeModel
+  }
+
+  return undefined
+}
+
 export async function resolveLocalAgentLaunch(
   config: LocalAgentConfiguration,
   signal?: AbortSignal,
@@ -196,28 +367,7 @@ export async function resolveLocalAgentLaunch(
     env.OPENCLAW_CONFIG_PATH = application.getPath('external.openclaw.config', 'openclaw.json')
     env.OPENCLAW_NO_AUTO_UPDATE = '1'
   }
-  let nativeModel: string | undefined
-  if (config.presetId === 'poolside' && !terminal) {
-    const [file] = await application.get('CodeCliService').readConfigFiles(['poolside-settings'])
-    if (file.content !== null) {
-      const document = parseDocument(file.content)
-      if (document.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
-      const server =
-        mode !== 'models' && document.getIn(['pool', 'default_agent_server']) === POOLSIDE_GATEWAY_SERVER
-          ? POOLSIDE_GATEWAY_SERVER
-          : 'Poolside'
-      const model = document.getIn(['agent_servers', server, 'default_config_options', 'model'])
-      if (typeof model === 'string') nativeModel = model
-      if (server === POOLSIDE_GATEWAY_SERVER) {
-        for (const key of ['POOLSIDE_API_KEY', 'POOLSIDE_STANDALONE_BASE_URL', 'POOLSIDE_STANDALONE_MODEL']) {
-          const value = document.getIn(['agent_servers', POOLSIDE_GATEWAY_SERVER, 'env', key])
-          if (typeof value !== 'string' || !value)
-            throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
-          env[key] = value
-        }
-      }
-    }
-  }
+  const nativeModel = !terminal ? await injectPresetConfigEnv(config.presetId, env, mode) : undefined
   if (config.presetId === 'pi-acp' && !terminal && !config.executableOverride) {
     const nativeExecutable = executable
     const finalEnv = mergeEnvironment(env, preset?.env, config.env)

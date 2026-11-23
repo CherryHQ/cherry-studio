@@ -1563,6 +1563,7 @@
   "error.diagnosis.free_model_unavailable": "Le diagnostic IA est temporairement indisponible",
   "error.diagnosis.go_to_settings": "Aller aux paramètres",
   "error.diagnosis.knowledge": "Échec de la vectorisation de la base de connaissances",
+  "error.diagnosis.local_agent_auth": "L’agent local nécessite une connexion ou une configuration d’authentification. Connectez-vous via la CLI ou vérifiez les paramètres des services d’agents et réessayez.",
   "error.diagnosis.mcp": "Connexion au serveur MCP échouée, vérifiez si le service est en cours d'exécution",
   "error.diagnosis.model": "Modèle introuvable ou accès non autorisé",
   "error.diagnosis.model_conflict": "Le modèle de diagnostic est identique au modèle en erreur",

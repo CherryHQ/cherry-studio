@@ -1563,6 +1563,7 @@
   "error.diagnosis.free_model_unavailable": "Chẩn đoán AI tạm thời không khả dụng",
   "error.diagnosis.go_to_settings": "Đi tới Cài đặt",
   "error.diagnosis.knowledge": "Vector hóa cơ sở tri thức thất bại",
+  "error.diagnosis.local_agent_auth": "Tác tử cục bộ yêu cầu đăng nhập hoặc cấu hình xác thực. Hãy đăng nhập qua CLI hoặc kiểm tra cài đặt trong Dịch vụ tác tử rồi thử lại.",
   "error.diagnosis.mcp": "Kết nối máy chủ MCP thất bại, hãy kiểm tra xem dịch vụ có đang chạy không",
   "error.diagnosis.model": "Không tìm thấy mô hình hoặc bạn không có quyền truy cập",
   "error.diagnosis.model_conflict": "Mô hình chẩn đoán giống với mô hình đang gặp lỗi",

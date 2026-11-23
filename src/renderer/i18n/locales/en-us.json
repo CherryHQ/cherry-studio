@@ -1563,6 +1563,7 @@
   "error.diagnosis.free_model_unavailable": "AI diagnosis is temporarily unavailable",
   "error.diagnosis.go_to_settings": "Go to Settings",
   "error.diagnosis.knowledge": "Knowledge base vectorization failed",
+  "error.diagnosis.local_agent_auth": "Local agent requires sign-in or authentication configuration. Sign in via the CLI or check Agent Services settings and try again.",
   "error.diagnosis.mcp": "MCP server connection failed, check if service is running",
   "error.diagnosis.model": "Model not found or you don't have access",
   "error.diagnosis.model_conflict": "Diagnosis model is the same as the failing model",

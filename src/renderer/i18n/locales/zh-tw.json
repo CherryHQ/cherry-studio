@@ -1563,6 +1563,7 @@
   "error.diagnosis.free_model_unavailable": "AI診斷暫時無法使用",
   "error.diagnosis.go_to_settings": "前往設定",
   "error.diagnosis.knowledge": "知識庫向量化失敗",
+  "error.diagnosis.local_agent_auth": "本地智慧體需要登入或驗證設定，請先在終端完成 CLI 登入或在智慧體服務設定中檢查後重試。",
   "error.diagnosis.mcp": "MCP 伺服器連線失敗，請檢查服務是否已啟動",
   "error.diagnosis.model": "模型不存在或你沒有存取權限",
   "error.diagnosis.model_conflict": "診斷模型與出錯模型相同，無法進行診斷",

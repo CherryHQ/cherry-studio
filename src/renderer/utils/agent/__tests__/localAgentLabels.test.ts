@@ -569,6 +569,82 @@ describe('installed agent translations', () => {
       ['default', 'default'],
       ['bypassPermissions', 'bypass']
     ])
+
+    const glm = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'mode',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Ask for permission' },
+          { value: 'accept_edits', name: 'Auto-approve edits' },
+          { value: 'bypass_permissions', name: 'Bypass all permissions' }
+        ]
+      },
+      i18n.t,
+      'glm-acp-agent'
+    )
+    expect(glm?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['default', 'default'],
+      ['acceptEdits', 'accept_edits'],
+      ['bypassPermissions', 'bypass_permissions']
+    ])
+
+    const vibe = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'mode',
+        currentValue: 'accept-edits',
+        options: [
+          { value: 'ask', name: 'ask' },
+          { value: 'accept-edits', name: 'accept-edits' },
+          { value: 'auto-approve', name: 'auto-approve' }
+        ]
+      },
+      i18n.t,
+      'mistral-vibe'
+    )
+    expect(vibe?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['plan', 'ask'],
+      ['acceptEdits', 'accept-edits'],
+      ['bypassPermissions', 'auto-approve']
+    ])
+
+    const hermes = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'edit_approval_policy',
+        currentValue: 'ask',
+        options: [
+          { value: 'ask', name: 'Default' },
+          { value: 'workspace_session', name: 'Accept Edits' },
+          { value: 'session', name: "Don't Ask" }
+        ]
+      },
+      i18n.t,
+      'hermes'
+    )
+    expect(hermes?.currentCanonicalMode).toBe('default')
+    expect(hermes?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['default', 'ask'],
+      ['acceptEdits', 'workspace_session'],
+      ['auto', 'session']
+    ])
+
+    const cline = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'mode',
+        currentValue: 'act',
+        options: [
+          { value: 'plan', name: 'Plan' },
+          { value: 'act', name: 'Act' }
+        ]
+      },
+      i18n.t,
+      'cline'
+    )
+    expect(cline?.currentCanonicalMode).toBe('default')
+    expect(cline?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['plan', 'plan'],
+      ['default', 'act']
+    ])
   })
 
   it('detects uncategorized thinking effort configOptions without catching unrelated selects', () => {

@@ -1935,4 +1935,62 @@ describe('local protocol processes', () => {
     await connection.close()
     await drained
   })
+
+  it('allows Cline to select unlisted custom gateway models via session/set_config_option', async () => {
+    MockApplicationUtils.setService('CodeCliService', {
+      readConfigFiles: async () => [
+        {
+          target: 'cline-providers',
+          content: JSON.stringify({
+            providers: {
+              'openai-compatible': {
+                cherryManaged: true,
+                settings: {
+                  provider: 'openai-compatible',
+                  apiKey: 'test-key',
+                  baseUrl: 'http://127.0.0.1:23334/v1',
+                  model: 'cherryin:agent/deepseek-v4-pro'
+                }
+              }
+            }
+          })
+        }
+      ]
+    })
+    const { connection, drained } = create('acp', 'normal', 'cherryin:agent/deepseek-v4-pro', 'cline')
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.activeModel).toEqual({ id: 'cherryin:agent/deepseek-v4-pro' })
+    const wire = await readWire()
+    expect(wire.find((m) => m.method === 'session/set_config_option')?.params).toEqual({
+      sessionId: 'native-session',
+      configId: 'model',
+      value: 'cherryin:agent/deepseek-v4-pro'
+    })
+    await connection.close()
+    await drained
+  })
+
+  it('accepts config-file-only Snow sessions without ACP model selectors while still rejecting arbitrary overrides', async () => {
+    MockApplicationUtils.setService('CodeCliService', {
+      readConfigFiles: async () => [
+        {
+          target: 'snow-config',
+          content: JSON.stringify({
+            cherryManaged: true,
+            snowcfg: { advancedModel: 'cherryin:agent/deepseek-v4-pro' }
+          })
+        }
+      ]
+    })
+    const matching = create('acp', 'no-models', 'cherryin:agent/deepseek-v4-pro', 'snow')
+    await matching.connection.start(cwd)
+    expect(matching.connection.localSessionInfo.activeModel).toEqual({ id: 'cherryin:agent/deepseek-v4-pro' })
+    await matching.connection.close()
+    await matching.drained
+
+    const overridden = create('acp', 'no-models', 'different-model', 'snow')
+    await expect(overridden.connection.start(cwd)).rejects.toThrow('This agent does not support model selection')
+    await overridden.connection.close()
+    await overridden.drained
+  })
 })

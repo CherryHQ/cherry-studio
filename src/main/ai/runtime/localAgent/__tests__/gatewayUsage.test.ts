@@ -195,18 +195,19 @@ describe('connection-local gateway attribution', () => {
 
     mocks.read.mockResolvedValueOnce([
       {
-        target: 'cline-settings',
-        content: JSON.stringify({ model: 'provider:model', provider: 'cherry-gateway' })
-      },
-      {
         target: 'cline-providers',
         content: JSON.stringify({
+          version: 1,
+          lastUsedProvider: 'openai-compatible',
           providers: {
-            'cherry-gateway': {
-              baseUrl: 'http://127.0.0.1:23333',
-              apiKey: 'public',
-              api: 'anthropic',
-              model: 'provider:model'
+            'openai-compatible': {
+              cherryManaged: true,
+              settings: {
+                provider: 'openai-compatible',
+                baseUrl: 'http://127.0.0.1:23333',
+                apiKey: 'public',
+                model: 'provider:model'
+              }
             }
           }
         })
@@ -222,11 +223,98 @@ describe('connection-local gateway attribution', () => {
     })
     expect(await bindLocalGatewayUsage(clineConfig, 'session-cline', {})).toBeDefined()
 
+    mocks.read.mockResolvedValueOnce([
+      {
+        target: 'glm-credentials',
+        content: JSON.stringify({
+          z_ai_api_key: 'public',
+          base_url: 'http://127.0.0.1:23333',
+          model: 'provider:model',
+          cherry_managed: true
+        })
+      }
+    ])
+    const glmConfig = LocalAgentConfigurationSchema.parse({
+      presetId: 'glm-acp-agent',
+      protocol: 'acp',
+      enabled: true,
+      nativeModel: 'provider:model',
+      sourceModelId: 'provider::model',
+      sourceModelViaGateway: true
+    })
+    expect(await bindLocalGatewayUsage(glmConfig, 'session-glm', {})).toBeDefined()
+
+    mocks.read.mockResolvedValueOnce([
+      {
+        target: 'snow-config',
+        content: JSON.stringify({
+          cherryManaged: true,
+          snowcfg: {
+            baseUrl: 'http://127.0.0.1:23333',
+            apiKey: 'public',
+            requestMethod: 'anthropic',
+            advancedModel: 'provider:model'
+          }
+        })
+      }
+    ])
+    const snowConfig = LocalAgentConfigurationSchema.parse({
+      presetId: 'snow',
+      protocol: 'acp',
+      enabled: true,
+      nativeModel: 'provider:model',
+      sourceModelId: 'provider::model',
+      sourceModelViaGateway: true
+    })
+    expect(await bindLocalGatewayUsage(snowConfig, 'session-snow', {})).toBeDefined()
+
+    mocks.read.mockResolvedValueOnce([
+      {
+        target: 'zcode-config',
+        content: JSON.stringify({
+          provider: {
+            'cherry-gateway': {
+              kind: 'openai-compatible',
+              options: { baseURL: 'http://127.0.0.1:23333', apiKey: 'public' },
+              models: { 'provider:model': { name: 'Model' } }
+            }
+          }
+        })
+      }
+    ])
+    const zcodeConfig = LocalAgentConfigurationSchema.parse({
+      presetId: 'zcode',
+      protocol: 'acp',
+      enabled: true,
+      nativeModel: 'cherry-gateway\\provider:model',
+      sourceModelId: 'provider::model',
+      sourceModelViaGateway: true
+    })
+    expect(await bindLocalGatewayUsage(zcodeConfig, 'session-zcode', {})).toBeDefined()
+
     expect(mocks.create.mock.calls.map(([scope]) => scope)).toEqual([
       { path: '/v1/responses', model: 'provider:model', agentSessionId: 'session-grok', allowPublicCorrelation: true },
       { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-pi', allowPublicCorrelation: true },
       { path: '/v1/chat/completions', model: 'provider:model', agentSessionId: 'session-poolside' },
-      { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-cline', allowPublicCorrelation: true }
+      {
+        path: '/v1/chat/completions',
+        model: 'provider:model',
+        agentSessionId: 'session-cline',
+        allowPublicCorrelation: true
+      },
+      {
+        path: '/v1/chat/completions',
+        model: 'provider:model',
+        agentSessionId: 'session-glm',
+        allowPublicCorrelation: true
+      },
+      { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-snow', allowPublicCorrelation: true },
+      {
+        path: '/v1/chat/completions',
+        model: 'provider:model',
+        agentSessionId: 'session-zcode',
+        allowPublicCorrelation: true
+      }
     ])
 
     mocks.create.mockClear()

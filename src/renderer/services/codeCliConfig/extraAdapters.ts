@@ -4,12 +4,18 @@ import { type Document, stringify as stringifyYaml } from 'yaml'
 
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { type CliConfigTarget, type CliConfigWriteFile, getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { CHERRY_PROVIDER_PREFIX, PI_ENDPOINTS } from './constants'
-import { getDraftFile, makeDraftFile, readAndParseDraftFile, readConfigFilesForDraft } from './draftFiles'
+import {
+  getDraftFile,
+  makeDraftFile,
+  readAndParseDraftFile,
+  readConfigFilesForDraft,
+  readDraftFileText
+} from './draftFiles'
 import {
   type CliConfigReadFiles,
   parseJsonOrThrow,
@@ -23,6 +29,7 @@ import {
   requireReadFile
 } from './file'
 import { resolveClaudeBaseUrl, resolvePiProviderInfo, resolveSupportedEndpointType } from './resolvers'
+import type { CliConfigFileDraft } from './types'
 import { asRecord, cliProviderKeyName, findCherryProviderKey, omitKeysByPrefix, stringValue } from './values'
 
 const GROK_ENDPOINTS: readonly EndpointType[] = ['openai-responses', 'openai-chat-completions']
@@ -31,6 +38,8 @@ const ANTHROPIC_OR_OPENAI_ENDPOINTS: readonly EndpointType[] = [
   'openai-responses',
   'openai-chat-completions'
 ]
+const ZCODE_ENDPOINTS: readonly EndpointType[] = ['anthropic-messages', 'openai-chat-completions']
+const OPENAI_CHAT_ENDPOINTS: readonly EndpointType[] = ['openai-chat-completions']
 
 function resolveAnthropicOrOpenAiBaseUrl(provider: Provider, endpoint: EndpointType): string {
   return endpoint === 'anthropic-messages'
@@ -38,11 +47,13 @@ function resolveAnthropicOrOpenAiBaseUrl(provider: Provider, endpoint: EndpointT
     : formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
 }
 
-function anthropicOrOpenAiBaseUrls(provider: Provider): string[] {
-  return ANTHROPIC_OR_OPENAI_ENDPOINTS.flatMap((type) => {
-    const url = provider.endpointConfigs?.[type]?.baseUrl
-    return url ? [resolveAnthropicOrOpenAiBaseUrl(provider, type)] : []
-  })
+function resolveSnowBaseUrl(provider: Provider, endpoint: EndpointType): string {
+  return formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
+}
+
+function resolveGooseBaseUrl(provider: Provider, endpoint: EndpointType): string {
+  const url = provider.endpointConfigs?.[endpoint]?.baseUrl
+  return url ? withoutTrailingApiVersion(formatApiHost(url, false)) : ''
 }
 
 function readYamlDocumentOrNull(target: CliConfigTarget, read: CliConfigReadFiles): Document | null {
@@ -222,7 +233,10 @@ export const ompAdapter: CliConfigAdapter = {
 
 export const gooseAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets('goose'),
-  providerBaseUrls: anthropicOrOpenAiBaseUrls,
+  providerBaseUrls: (provider) =>
+    ANTHROPIC_OR_OPENAI_ENDPOINTS.flatMap((type) =>
+      provider.endpointConfigs?.[type]?.baseUrl ? [resolveGooseBaseUrl(provider, type)] : []
+    ),
   sanitize: () => ({}),
   async buildDraft(args, { provider, apiKey, model, modelRecord }) {
     const endpoint = resolveSupportedEndpointType(
@@ -231,7 +245,7 @@ export const gooseAdapter: CliConfigAdapter = {
       ANTHROPIC_OR_OPENAI_ENDPOINTS,
       'anthropic-messages'
     )
-    const baseUrl = resolveAnthropicOrOpenAiBaseUrl(provider, endpoint)
+    const baseUrl = resolveGooseBaseUrl(provider, endpoint)
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const doc = readAndParseDraftFile('goose-config', parseYamlDocumentOrThrow, args.files, read)
     doc.setIn(['CHERRY_MANAGED'], true)
@@ -296,144 +310,371 @@ export const gooseAdapter: CliConfigAdapter = {
   extractConfig: () => ({})
 }
 
-interface JsonProviderAdapterSpec {
-  tool: 'cline' | 'zcode' | 'snow' | 'glm-acp-agent'
-  toolLabel: string
-  primaryTarget: CliConfigTarget
-  providersTarget: CliConfigTarget
+function stripLegacyCherryJsonFields(config: Record<string, any>): Record<string, any> {
+  const next = { ...config }
+  if (next.providers && typeof next.providers === 'object' && !Array.isArray(next.providers)) {
+    const cleanedProviders = omitKeysByPrefix(asRecord(next.providers), CHERRY_PROVIDER_PREFIX)
+    if (Object.keys(cleanedProviders).length > 0) next.providers = cleanedProviders
+    else delete next.providers
+  }
+  if (typeof next.provider === 'string' && next.provider.startsWith(CHERRY_PROVIDER_PREFIX)) {
+    delete next.provider
+    delete next.model
+  }
+  return next
 }
 
-function createJsonProviderAdapter(spec: JsonProviderAdapterSpec): CliConfigAdapter {
-  const singleFile = spec.primaryTarget === spec.providersTarget
-
+function extractLegacyCherryJsonConnection(
+  registry: Record<string, any>
+): { baseUrl?: string; apiKey?: string; model?: string } | null {
+  const providers = asRecord(registry.providers)
+  const cherryKey = findCherryProviderKey(providers)
+  if (!cherryKey) return null
+  const entry = asRecord(providers[cherryKey])
   return {
-    targets: getCliConfigTargets(spec.tool),
-    providerBaseUrls: anthropicOrOpenAiBaseUrls,
-    sanitize: () => ({}),
-    async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
-      const endpoint = resolveSupportedEndpointType(
-        provider,
-        modelRecord?.endpointTypes,
-        ANTHROPIC_OR_OPENAI_ENDPOINTS,
-        'anthropic-messages'
-      )
-      const baseUrl = resolveAnthropicOrOpenAiBaseUrl(provider, endpoint)
-      const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
-      const entry = {
-        name: providerKey,
-        baseUrl,
-        apiKey,
-        api:
-          endpoint === 'anthropic-messages'
-            ? 'anthropic'
-            : endpoint === 'openai-responses'
-              ? 'openai-responses'
-              : 'openai',
-        model,
-        modelName: modelLabel ?? model
-      }
-      const read = await readConfigFilesForDraft(this.targets, args.files)
-      const primary = readAndParseDraftFile(spec.primaryTarget, parseJsonOrThrow, args.files, read)
-      if (singleFile) {
-        const providers = omitKeysByPrefix(asRecord(primary.providers), CHERRY_PROVIDER_PREFIX)
-        providers[providerKey] = entry
-        return [
-          makeDraftFile(
-            spec.primaryTarget,
-            renderJsonFile({ ...primary, model, provider: providerKey, providers }),
-            read
-          )
-        ]
-      }
-      const registry = readAndParseDraftFile(spec.providersTarget, parseJsonOrThrow, args.files, read)
-      const providers = omitKeysByPrefix(asRecord(registry.providers), CHERRY_PROVIDER_PREFIX)
-      providers[providerKey] = entry
-      return [
-        makeDraftFile(spec.providersTarget, renderJsonFile({ ...registry, providers }), read),
-        makeDraftFile(spec.primaryTarget, renderJsonFile({ ...primary, model, provider: providerKey }), read)
-      ]
-    },
-    assertCredentials(context) {
-      if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-        throw new Error(t('code.cli_config.missing_credentials', { tool: spec.toolLabel }))
-      }
-    },
-    updateDraftConfig: (files) => files,
-    async buildClearFiles() {
-      const read = await readConfigFiles(this.targets)
-      if (singleFile) {
-        const config = readValidatedJsonOrNull(spec.primaryTarget, read, spec.toolLabel)
-        if (!config) return []
-        const next = { ...config }
-        const providers = omitKeysByPrefix(asRecord(config.providers), CHERRY_PROVIDER_PREFIX)
-        if (Object.keys(providers).length > 0) next.providers = providers
-        else delete next.providers
-        if (typeof next.provider === 'string' && next.provider.startsWith(CHERRY_PROVIDER_PREFIX)) {
-          delete next.provider
-          delete next.model
-        }
-        return [{ target: spec.primaryTarget, content: renderJsonFile(next) }]
-      }
-      const files: CliConfigWriteFile[] = []
-      const registry = readValidatedJsonOrNull(spec.providersTarget, read, `${spec.toolLabel} providers`)
-      if (registry) {
-        const providers = omitKeysByPrefix(asRecord(registry.providers), CHERRY_PROVIDER_PREFIX)
-        const nextRegistry = { ...registry }
-        if (Object.keys(providers).length > 0) nextRegistry.providers = providers
-        else delete nextRegistry.providers
-        files.push({ target: spec.providersTarget, content: renderJsonFile(nextRegistry) })
-      }
-      const primary = readValidatedJsonOrNull(spec.primaryTarget, read, `${spec.toolLabel} settings`)
-      if (primary && typeof primary.provider === 'string' && primary.provider.startsWith(CHERRY_PROVIDER_PREFIX)) {
-        const nextPrimary = { ...primary }
-        delete nextPrimary.provider
-        delete nextPrimary.model
-        files.push({ target: spec.primaryTarget, content: renderJsonFile(nextPrimary) })
-      }
-      return files
-    },
-    extractConnection(files) {
-      const content = getDraftFile(files, spec.providersTarget)?.content
-      if (!content) return null
-      const registry = parseJsonOrThrow(content)
-      const providers = asRecord(registry.providers)
-      const cherryKey = findCherryProviderKey(providers)
-      if (!cherryKey) return null
-      const entry = asRecord(providers[cherryKey])
-      return {
-        baseUrl: stringValue(entry.baseUrl),
-        apiKey: stringValue(entry.apiKey),
-        model: stringValue(entry.model)
-      }
-    },
-    extractConfig: () => ({})
+    baseUrl: stringValue(entry.baseUrl),
+    apiKey: stringValue(entry.apiKey),
+    model: stringValue(entry.model)
   }
 }
 
-export const clineAdapter = createJsonProviderAdapter({
-  tool: 'cline',
-  toolLabel: 'Cline',
-  primaryTarget: 'cline-settings',
-  providersTarget: 'cline-providers'
-})
+export const clineAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets('cline'),
+  providerBaseUrls: (provider) => {
+    const url = provider.endpointConfigs?.['openai-chat-completions']?.baseUrl
+    return url ? [formatApiHost(url)] : []
+  },
+  sanitize: () => ({}),
+  async buildDraft(args, { provider, apiKey, model }) {
+    const endpoint = resolveSupportedEndpointType(provider, undefined, OPENAI_CHAT_ENDPOINTS, 'openai-chat-completions')
+    const baseUrl = formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const registry = stripLegacyCherryJsonFields(
+      readAndParseDraftFile('cline-providers', parseJsonOrThrow, args.files, read)
+    )
+    const providers = omitKeysByPrefix(asRecord(registry.providers), CHERRY_PROVIDER_PREFIX)
+    providers['openai-compatible'] = {
+      settings: {
+        provider: 'openai-compatible',
+        apiKey,
+        model,
+        baseUrl
+      },
+      updatedAt: new Date().toISOString(),
+      tokenSource: 'manual',
+      cherryManaged: true
+    }
+    const drafts: CliConfigFileDraft[] = [
+      makeDraftFile(
+        'cline-providers',
+        renderJsonFile({
+          ...registry,
+          version: typeof registry.version === 'number' ? registry.version : 1,
+          lastUsedProvider: 'openai-compatible',
+          modes: asRecord(registry.modes),
+          providers
+        }),
+        read
+      )
+    ]
+    const settingsText = readDraftFileText('cline-settings', args.files, read)
+    if (settingsText) {
+      const settings = parseJsonOrThrow(settingsText)
+      if (typeof settings.provider === 'string' && settings.provider.startsWith(CHERRY_PROVIDER_PREFIX)) {
+        const cleaned = stripLegacyCherryJsonFields(settings)
+        drafts.push(makeDraftFile('cline-settings', renderJsonFile(cleaned), read))
+      }
+    }
+    return drafts
+  },
+  assertCredentials(context) {
+    if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
+      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Cline' }))
+    }
+  },
+  updateDraftConfig: (files) => files,
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const files: CliConfigWriteFile[] = []
+    const registry = readValidatedJsonOrNull('cline-providers', read, 'Cline providers')
+    if (registry) {
+      const providers = omitKeysByPrefix(asRecord(registry.providers), CHERRY_PROVIDER_PREFIX)
+      if (asRecord(providers['openai-compatible']).cherryManaged === true) {
+        delete providers['openai-compatible']
+      }
+      const next = { ...registry }
+      if (Object.keys(providers).length > 0) next.providers = providers
+      else delete next.providers
+      if (
+        next.lastUsedProvider === 'openai-compatible' ||
+        (typeof next.lastUsedProvider === 'string' && next.lastUsedProvider.startsWith(CHERRY_PROVIDER_PREFIX))
+      ) {
+        const fallback = Object.keys(providers)[0]
+        if (fallback) next.lastUsedProvider = fallback
+        else delete next.lastUsedProvider
+      }
+      files.push({ target: 'cline-providers', content: renderJsonFile(next) })
+    }
+    const settings = readValidatedJsonOrNull('cline-settings', read, 'Cline settings')
+    if (settings && typeof settings.provider === 'string' && settings.provider.startsWith(CHERRY_PROVIDER_PREFIX)) {
+      files.push({ target: 'cline-settings', content: renderJsonFile(stripLegacyCherryJsonFields(settings)) })
+    }
+    return files
+  },
+  extractConnection(files) {
+    const content = getDraftFile(files, 'cline-providers')?.content
+    if (!content) return null
+    const registry = parseJsonOrThrow(content)
+    const providers = asRecord(registry.providers)
+    const compat = asRecord(providers['openai-compatible'])
+    if (compat.cherryManaged === true) {
+      const settings = asRecord(compat.settings)
+      return {
+        baseUrl: stringValue(settings.baseUrl),
+        apiKey: stringValue(settings.apiKey),
+        model: stringValue(settings.model)
+      }
+    }
+    return extractLegacyCherryJsonConnection(registry)
+  },
+  extractConfig: () => ({})
+}
 
-export const zcodeAdapter = createJsonProviderAdapter({
-  tool: 'zcode',
-  toolLabel: 'ZCode',
-  primaryTarget: 'zcode-config',
-  providersTarget: 'zcode-providers'
-})
+export const zcodeAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets('zcode'),
+  providerBaseUrls: (provider) =>
+    ZCODE_ENDPOINTS.flatMap((type) => {
+      const url = provider.endpointConfigs?.[type]?.baseUrl
+      return url ? [resolveAnthropicOrOpenAiBaseUrl(provider, type)] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
+    const endpoint = resolveSupportedEndpointType(
+      provider,
+      modelRecord?.endpointTypes,
+      ZCODE_ENDPOINTS,
+      'openai-chat-completions'
+    )
+    const baseURL = resolveAnthropicOrOpenAiBaseUrl(provider, endpoint)
+    const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const primary = stripLegacyCherryJsonFields(
+      readAndParseDraftFile('zcode-config', parseJsonOrThrow, args.files, read)
+    )
+    const providerMap = omitKeysByPrefix(asRecord(primary.provider), CHERRY_PROVIDER_PREFIX)
+    const limit: Record<string, number> = {}
+    if (modelRecord?.contextWindow) limit.context = modelRecord.contextWindow
+    if (modelRecord?.maxOutputTokens) limit.output = modelRecord.maxOutputTokens
+    providerMap[providerKey] = {
+      name: providerKey,
+      kind: endpoint === 'anthropic-messages' ? 'anthropic' : 'openai-compatible',
+      source: 'custom',
+      enabled: true,
+      options: { baseURL, apiKey },
+      models: {
+        [model]: {
+          name: modelLabel ?? model,
+          ...(Object.keys(limit).length > 0 ? { limit } : {})
+        }
+      }
+    }
+    const drafts: CliConfigFileDraft[] = [
+      makeDraftFile('zcode-config', renderJsonFile({ ...primary, provider: providerMap }), read)
+    ]
+    const providersText = readDraftFileText('zcode-providers', args.files, read)
+    if (providersText) {
+      const registry = parseJsonOrThrow(providersText)
+      if (findCherryProviderKey(asRecord(registry.providers))) {
+        drafts.push(makeDraftFile('zcode-providers', renderJsonFile(stripLegacyCherryJsonFields(registry)), read))
+      }
+    }
+    return drafts
+  },
+  assertCredentials(context) {
+    if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
+      throw new Error(t('code.cli_config.missing_credentials', { tool: 'ZCode' }))
+    }
+  },
+  updateDraftConfig: (files) => files,
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const files: CliConfigWriteFile[] = []
+    const config = readValidatedJsonOrNull('zcode-config', read, 'ZCode config')
+    if (config) {
+      const next = stripLegacyCherryJsonFields(config)
+      if (next.provider && typeof next.provider === 'object' && !Array.isArray(next.provider)) {
+        const cleaned = omitKeysByPrefix(asRecord(next.provider), CHERRY_PROVIDER_PREFIX)
+        if (Object.keys(cleaned).length > 0) next.provider = cleaned
+        else delete next.provider
+      }
+      files.push({ target: 'zcode-config', content: renderJsonFile(next) })
+    }
+    const registry = readValidatedJsonOrNull('zcode-providers', read, 'ZCode providers')
+    if (registry && findCherryProviderKey(asRecord(registry.providers))) {
+      files.push({ target: 'zcode-providers', content: renderJsonFile(stripLegacyCherryJsonFields(registry)) })
+    }
+    return files
+  },
+  extractConnection(files) {
+    const content = getDraftFile(files, 'zcode-config')?.content
+    if (content) {
+      const config = parseJsonOrThrow(content)
+      if (config.provider && typeof config.provider === 'object' && !Array.isArray(config.provider)) {
+        const cherryKey = findCherryProviderKey(asRecord(config.provider))
+        if (cherryKey) {
+          const entry = asRecord(config.provider[cherryKey])
+          const options = asRecord(entry.options)
+          const firstModel = Object.keys(asRecord(entry.models))[0]
+          return {
+            baseUrl: stringValue(options.baseURL),
+            apiKey: stringValue(options.apiKey),
+            model: stringValue(firstModel)
+          }
+        }
+      }
+    }
+    const legacyContent = getDraftFile(files, 'zcode-providers')?.content
+    return legacyContent ? extractLegacyCherryJsonConnection(parseJsonOrThrow(legacyContent)) : null
+  },
+  extractConfig: () => ({})
+}
 
-export const snowAdapter = createJsonProviderAdapter({
-  tool: 'snow',
-  toolLabel: 'Snow',
-  primaryTarget: 'snow-config',
-  providersTarget: 'snow-config'
-})
+export const snowAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets('snow'),
+  providerBaseUrls: (provider) =>
+    ANTHROPIC_OR_OPENAI_ENDPOINTS.flatMap((type) => {
+      const url = provider.endpointConfigs?.[type]?.baseUrl
+      return url ? [resolveSnowBaseUrl(provider, type)] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, { provider, apiKey, model, modelRecord }) {
+    const endpoint = resolveSupportedEndpointType(
+      provider,
+      modelRecord?.endpointTypes,
+      ANTHROPIC_OR_OPENAI_ENDPOINTS,
+      'anthropic-messages'
+    )
+    const baseUrl = resolveSnowBaseUrl(provider, endpoint)
+    const requestMethod =
+      endpoint === 'anthropic-messages' ? 'anthropic' : endpoint === 'openai-responses' ? 'responses' : 'chat'
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const primary = stripLegacyCherryJsonFields(
+      readAndParseDraftFile('snow-config', parseJsonOrThrow, args.files, read)
+    )
+    const snowcfg = {
+      ...asRecord(primary.snowcfg),
+      baseUrl,
+      baseUrlMode: 'auto',
+      apiKey,
+      requestMethod,
+      advancedModel: model,
+      basicModel: model
+    }
+    return [makeDraftFile('snow-config', renderJsonFile({ ...primary, snowcfg, cherryManaged: true }), read)]
+  },
+  assertCredentials(context) {
+    if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
+      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Snow' }))
+    }
+  },
+  updateDraftConfig: (files) => files,
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const config = readValidatedJsonOrNull('snow-config', read, 'Snow')
+    if (!config) return []
+    const next = stripLegacyCherryJsonFields(config)
+    if (next.cherryManaged === true) {
+      const snowcfg = { ...asRecord(next.snowcfg) }
+      delete snowcfg.apiKey
+      delete snowcfg.baseUrl
+      delete snowcfg.baseUrlMode
+      delete snowcfg.requestMethod
+      delete snowcfg.advancedModel
+      delete snowcfg.basicModel
+      if (Object.keys(snowcfg).length > 0) next.snowcfg = snowcfg
+      else delete next.snowcfg
+      delete next.cherryManaged
+    }
+    return [{ target: 'snow-config', content: renderJsonFile(next) }]
+  },
+  extractConnection(files) {
+    const content = getDraftFile(files, 'snow-config')?.content
+    if (!content) return null
+    const config = parseJsonOrThrow(content)
+    if (config.cherryManaged === true) {
+      const snowcfg = asRecord(config.snowcfg)
+      return {
+        baseUrl: stringValue(snowcfg.baseUrl),
+        apiKey: stringValue(snowcfg.apiKey),
+        model: stringValue(snowcfg.advancedModel)
+      }
+    }
+    return extractLegacyCherryJsonConnection(config)
+  },
+  extractConfig: () => ({})
+}
 
-export const glmAcpAgentAdapter = createJsonProviderAdapter({
-  tool: 'glm-acp-agent',
-  toolLabel: 'GLM ACP Agent',
-  primaryTarget: 'glm-credentials',
-  providersTarget: 'glm-credentials'
-})
+export const glmAcpAgentAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets('glm-acp-agent'),
+  providerBaseUrls: (provider) => {
+    const url = provider.endpointConfigs?.['openai-chat-completions']?.baseUrl
+    return url ? [formatApiHost(url)] : []
+  },
+  sanitize: () => ({}),
+  async buildDraft(args, { provider, apiKey, model, modelLabel }) {
+    const endpoint = resolveSupportedEndpointType(provider, undefined, OPENAI_CHAT_ENDPOINTS, 'openai-chat-completions')
+    const baseUrl = formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const primary = stripLegacyCherryJsonFields(
+      readAndParseDraftFile('glm-credentials', parseJsonOrThrow, args.files, read)
+    )
+    return [
+      makeDraftFile(
+        'glm-credentials',
+        renderJsonFile({
+          ...primary,
+          z_ai_api_key: apiKey,
+          base_url: baseUrl,
+          model,
+          model_name: modelLabel ?? model,
+          cherry_managed: true
+        }),
+        read
+      )
+    ]
+  },
+  assertCredentials(context) {
+    if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
+      throw new Error(t('code.cli_config.missing_credentials', { tool: 'GLM ACP Agent' }))
+    }
+  },
+  updateDraftConfig: (files) => files,
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const config = readValidatedJsonOrNull('glm-credentials', read, 'GLM ACP Agent')
+    if (!config) return []
+    const next = stripLegacyCherryJsonFields(config)
+    if (next.cherry_managed === true) {
+      delete next.z_ai_api_key
+      delete next.base_url
+      delete next.model
+      delete next.model_name
+      delete next.cherry_managed
+    }
+    return [{ target: 'glm-credentials', content: renderJsonFile(next) }]
+  },
+  extractConnection(files) {
+    const content = getDraftFile(files, 'glm-credentials')?.content
+    if (!content) return null
+    const config = parseJsonOrThrow(content)
+    if (config.cherry_managed === true) {
+      return {
+        baseUrl: stringValue(config.base_url),
+        apiKey: stringValue(config.z_ai_api_key),
+        model: stringValue(config.model)
+      }
+    }
+    return extractLegacyCherryJsonConnection(config)
+  },
+  extractConfig: () => ({})
+}

@@ -1563,6 +1563,7 @@
   "error.diagnosis.free_model_unavailable": "Yapay zekâ tanılaması geçici olarak kullanılamıyor",
   "error.diagnosis.go_to_settings": "Ayarlara Git",
   "error.diagnosis.knowledge": "Bilgi tabanı vektörleştirmesi başarısız oldu",
+  "error.diagnosis.local_agent_auth": "Yerel aracı oturum açma veya kimlik doğrulama yapılandırması gerektiriyor. CLI üzerinden oturum açın veya Ajan Hizmetleri ayarlarını kontrol edip yeniden deneyin.",
   "error.diagnosis.mcp": "MCP sunucusu bağlantısı başarısız oldu; hizmetin çalışıp çalışmadığını kontrol edin",
   "error.diagnosis.model": "Model bulunamadı veya erişim izni yok",
   "error.diagnosis.model_conflict": "Tanılama modeli, hata veren modelle aynı",

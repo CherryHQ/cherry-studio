@@ -26,14 +26,19 @@ const modeNameKeys = new Map(
 
 const HIGH_RISK_MODE_IDENTIFIERS = new Set([
   'bypass permissions',
+  'bypass all permissions',
   'full access',
   'bypasspermissions',
+  'bypass_permissions',
+  'bypass-permissions',
   'fullaccess',
   'bypass',
   'yolo',
   'autopilot',
-  'danger-full-access',
-  'allow_all'
+  'auto-approve',
+  'auto_approve',
+  'allow_all',
+  'danger-full-access'
 ])
 
 const UNSANDBOXED_VALUES = new Set(['false', 'off', 'disabled', 'none', 'local', 'local_environment'])
@@ -113,13 +118,18 @@ const NATIVE_PERMISSION_CLASSIFIERS: ReadonlyArray<{
     canonicalMode: 'bypassPermissions',
     identifiers: new Map([
       ['bypasspermissions', 0],
+      ['bypass_permissions', 0],
+      ['bypass-permissions', 0],
       ['bypass permissions', 0],
+      ['bypass all permissions', 0],
       ['fullaccess', 1],
       ['full access', 1],
       ['danger-full-access', 2],
       ['bypass', 3],
       ['yolo', 4],
       ['autopilot', 5],
+      ['auto-approve', 5],
+      ['auto_approve', 5],
       ['allow_all', 6]
     ])
   },
@@ -147,12 +157,16 @@ const NATIVE_PERMISSION_CLASSIFIERS: ReadonlyArray<{
     canonicalMode: 'acceptEdits',
     identifiers: new Map([
       ['acceptedits', 0],
+      ['accept_edits', 0],
+      ['accept-edits', 0],
       ['accept edits', 0],
+      ['auto-approve edits', 0],
       ['auto-edit', 1],
       ['auto edit', 1],
       ['autoedit', 1],
       ['auto_edit', 1],
       ['workspace-write', 2],
+      ['workspace_session', 2],
       ['workspace', 3],
       ['edit', 4],
       ['build', 5],
@@ -232,6 +246,15 @@ export function classifyNativePermissionMode(
   }
   if (presetId === 'cursor' && (value === 'agent' || name === 'agent')) {
     return { canonicalMode: 'acceptEdits', priority: 1 }
+  }
+  if (name === 'default' && value !== 'plan') {
+    return { canonicalMode: 'default', priority: 0 }
+  }
+  if (presetId === 'hermes' && value === 'session') {
+    return { canonicalMode: 'auto', priority: 0 }
+  }
+  if (presetId === 'cline' && value === 'act') {
+    return { canonicalMode: 'default', priority: 1 }
   }
 
   for (const classifier of NATIVE_PERMISSION_CLASSIFIERS) {
@@ -360,7 +383,10 @@ export type LocalPermissionRiskLevel = 'readonly' | 'ask' | 'auto_edit' | 'full_
 const READONLY_MODE_IDENTIFIERS = new Set(['plan', 'read only', 'readonly', 'read-only', 'ask'])
 const AUTO_EDIT_MODE_IDENTIFIERS = new Set([
   'accept edits',
+  'auto-approve edits',
   'acceptedits',
+  'accept_edits',
+  'accept-edits',
   'auto edit',
   'auto-edit',
   'auto',
@@ -368,6 +394,7 @@ const AUTO_EDIT_MODE_IDENTIFIERS = new Set([
   'build',
   'agent',
   'workspace',
+  'workspace_session',
   'workspace-write'
 ])
 const DEFAULT_NON_PLAN_IDENTIFIERS = [

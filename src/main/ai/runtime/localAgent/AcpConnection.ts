@@ -88,6 +88,7 @@ export class AcpConnection extends LocalConnection {
   private openClawLease?: { dispose: () => Promise<void> }
   private releasingOpenClaw?: Promise<void>
   private defaultModel?: string
+  private launchNativeModel?: string
   private stderr = ''
   private promptCapabilities: PromptCapabilities = {}
   private messageId?: string
@@ -181,6 +182,7 @@ export class AcpConnection extends LocalConnection {
     }
     if (!probe && !this.gatewayLease)
       this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
+    this.launchNativeModel = launch.nativeModel
     this.defaultModel =
       this.config.presetId === 'deepseek-harness'
         ? (launch.nativeModel ?? this.config.nativeModel)
@@ -558,7 +560,9 @@ export class AcpConnection extends LocalConnection {
         )
       }
       if (this.defaultModel && this.localSessionInfo.activeModel?.id !== this.defaultModel) {
+        const allowUnlistedModelSelection = this.config.presetId === 'cline' && Boolean(this.modelConfigId)
         if (
+          !allowUnlistedModelSelection &&
           this.localSessionInfo.models?.length &&
           !this.localSessionInfo.models.some((model) => model.id === this.defaultModel)
         )
@@ -578,6 +582,14 @@ export class AcpConnection extends LocalConnection {
             sessionId: this.nativeId,
             modelId: this.defaultModel
           })
+          this.localSessionInfo.activeModel = { id: this.defaultModel }
+        } else if (
+          this.config.presetId === 'snow' &&
+          this.launchNativeModel &&
+          this.defaultModel === this.launchNativeModel &&
+          !this.localSessionInfo.models?.length
+        ) {
+          // Config-file-only ACP CLIs (e.g. Snow) read their model directly from disk without exposing ACP model options.
           this.localSessionInfo.activeModel = { id: this.defaultModel }
         } else throw new Error('This agent does not support model selection')
       }

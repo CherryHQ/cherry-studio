@@ -170,6 +170,13 @@ export function getProviderAuthenticationFailure(error?: SerializedError): { pro
   return terminal ? getProviderAuthenticationFailure(terminal) : null
 }
 
+function isLocalAgentAuthenticationMessage(error: SerializedError): boolean {
+  const message = (error.message ?? '').trim()
+  if (!message) return false
+  if (/api.?key/i.test(message)) return false
+  return /^(?:(?:IpcError|Error):\s*)*(?:Authentication required|No authentication method selected)\b/i.test(message)
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   const authentication = getProviderAuthenticationFailure(error)
   if (authentication) {
@@ -197,6 +204,14 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
       category: 'model',
       i18nKey: 'error.diagnosis.codex_model_unsupported',
       navTarget: '/settings/local-agents?id=codex'
+    }
+  }
+
+  if (!providerId && getErrorHttpStatus(error) === undefined && isLocalAgentAuthenticationMessage(error)) {
+    return {
+      category: 'auth',
+      i18nKey: 'error.diagnosis.local_agent_auth',
+      navTarget: '/settings/provider'
     }
   }
 

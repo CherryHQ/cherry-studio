@@ -72,7 +72,6 @@ function pathForOpenAiOrAnthropic(api: unknown): string {
 
 function extractGatewayRoute(
   presetId: string,
-  nativeTarget: CliConfigTarget,
   nativeModel: string,
   primaryContent: string,
   files: readonly ConfigFile[],
@@ -269,17 +268,72 @@ function extractGatewayRoute(
         path: isAnthropic ? '/v1/messages' : '/v1/chat/completions'
       }
     }
-    case 'cline':
-    case 'zcode':
-    case 'snow':
+    case 'cline': {
+      const doc = parseJsonObject(fileContent(files, 'cline-providers') ?? primaryContent)
+      const providers = asRecord(doc?.providers)
+      const lastUsed = typeof doc?.lastUsedProvider === 'string' ? doc.lastUsedProvider : undefined
+      const compat = asRecord(providers[lastUsed ?? 'openai-compatible'])
+      if (compat.cherryManaged === true) {
+        const settings = asRecord(compat.settings)
+        return {
+          baseUrl: settings.baseUrl,
+          apiKey: settings.apiKey,
+          model: settings.model,
+          path: '/v1/chat/completions'
+        }
+      }
+      const legacyKey = Object.keys(providers).find((key) => key.startsWith('cherry-'))
+      if (!legacyKey) return undefined
+      const legacyEntry = asRecord(providers[legacyKey])
+      return {
+        baseUrl: legacyEntry.baseUrl,
+        apiKey: legacyEntry.apiKey,
+        model: legacyEntry.model,
+        path: pathForOpenAiOrAnthropic(legacyEntry.api)
+      }
+    }
+    case 'zcode': {
+      const doc = parseJsonObject(primaryContent)
+      const providerMap = asRecord(doc?.provider)
+      const backslash = nativeModel.indexOf('\\')
+      const providerKey =
+        backslash > 0
+          ? nativeModel.slice(0, backslash)
+          : (Object.keys(providerMap).find((key) => key.startsWith('cherry-')) ?? '')
+      const entry = asRecord(providerMap[providerKey])
+      const options = asRecord(entry.options)
+      const models = asRecord(entry.models)
+      const modelId = backslash > 0 ? nativeModel.slice(backslash + 1) : (Object.keys(models)[0] ?? nativeModel)
+      if (!Object.prototype.hasOwnProperty.call(models, modelId) && Object.keys(models).length === 0) return undefined
+      return {
+        baseUrl: options.baseURL,
+        apiKey: options.apiKey,
+        model: modelId,
+        path: pathForOpenAiOrAnthropic(entry.kind)
+      }
+    }
+    case 'snow': {
+      const doc = parseJsonObject(primaryContent)
+      const snowcfg = asRecord(doc?.snowcfg)
+      return {
+        baseUrl: snowcfg.baseUrl,
+        apiKey: snowcfg.apiKey,
+        model: snowcfg.advancedModel,
+        path: pathForOpenAiOrAnthropic(snowcfg.requestMethod)
+      }
+    }
     case 'glm-acp-agent': {
-      const primaryDoc = parseJsonObject(primaryContent)
-      const providersTarget: CliConfigTarget =
-        presetId === 'cline' ? 'cline-providers' : presetId === 'zcode' ? 'zcode-providers' : nativeTarget
-      const providersDoc =
-        providersTarget === nativeTarget ? primaryDoc : parseJsonObject(fileContent(files, providersTarget))
-      const providerKey = typeof primaryDoc?.provider === 'string' ? primaryDoc.provider : ''
-      const entry = asRecord(asRecord(providersDoc?.providers)[providerKey])
+      const doc = parseJsonObject(primaryContent)
+      if (doc?.cherry_managed === true) {
+        return {
+          baseUrl: doc.base_url,
+          apiKey: doc.z_ai_api_key,
+          model: doc.model,
+          path: '/v1/chat/completions'
+        }
+      }
+      const providerKey = typeof doc?.provider === 'string' ? doc.provider : ''
+      const entry = asRecord(asRecord(doc?.providers)[providerKey])
       return {
         baseUrl: entry.baseUrl,
         apiKey: entry.apiKey,
@@ -381,7 +435,7 @@ export async function bindLocalGatewayUsage(
   }
   if (savedNativeModel !== config.nativeModel) return
 
-  const route = extractGatewayRoute(config.presetId, native.target, config.nativeModel, primary.content, files, env)
+  const route = extractGatewayRoute(config.presetId, config.nativeModel, primary.content, files, env)
   if (!route?.path || route.model !== wireModel || typeof route.baseUrl !== 'string') return
 
   const gateway = application.get('ApiGatewayService')
