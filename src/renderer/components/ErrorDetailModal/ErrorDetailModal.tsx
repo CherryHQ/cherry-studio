@@ -728,7 +728,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         </div>
       </ErrorDetailContainer>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Tooltip asChild content={t('error.update_check.hint')}>
           <Button
             variant="ghost"
