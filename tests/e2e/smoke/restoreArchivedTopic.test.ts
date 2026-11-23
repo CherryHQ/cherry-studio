@@ -1,11 +1,11 @@
 import { mkdir, rm } from 'node:fs/promises'
 
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { type ElectronApplication, type Page } from '@playwright/test'
 
 import type { CreateMessageDto } from '../../../src/shared/data/api/schemas/messages'
 import type { Message } from '../../../src/shared/data/types/message'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const ASSISTANT = 'Restore E2E assistant'
 const TOPIC = 'Restore E2E topic'
@@ -17,7 +17,7 @@ const test = base.extend({
     await mkdir(profile, { recursive: true })
     let app: ElectronApplication | undefined
     try {
-      app = await electron.launch({
+      app = await launchSmokeElectron({
         args: ['.'],
         env: Object.fromEntries(
           Object.entries({ ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }).filter(

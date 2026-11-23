@@ -699,7 +699,7 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
     onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
     onOpenDiagnosticReport: (initialDescription) =>
       finishHandoff(() => {
-        void DoctorPopup.show({ initialPanel: 'report', initialDescription })
+        void DoctorPopup.show({ initialPanel: 'report', initialDescription, chatTopicId: params.incident?.topicId })
       })
   })
 }
