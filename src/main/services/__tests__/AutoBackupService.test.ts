@@ -29,23 +29,27 @@ const mocks = vi.hoisted(() => ({
         fileName: string | undefined,
         config: unknown,
         signal?: AbortSignal
-      ) => Promise<{ result: string; cleanupError: Error | null }>
+      ) => Promise<{ result: string; cleanupError: Error | null; sizeBytes: number }>
     >()
-    .mockResolvedValue({ result: '/backups/test.zip', cleanupError: null }),
+    .mockResolvedValue({ result: '/backups/test.zip', cleanupError: null, sizeBytes: 5 * 1024 * 1024 }),
   backupToS3: vi
     .fn<
-      (event: unknown, config: unknown, signal?: AbortSignal) => Promise<{ result: object; cleanupError: Error | null }>
+      (
+        event: unknown,
+        config: unknown,
+        signal?: AbortSignal
+      ) => Promise<{ result: object; cleanupError: Error | null; sizeBytes: number }>
     >()
-    .mockResolvedValue({ result: {}, cleanupError: null }),
+    .mockResolvedValue({ result: {}, cleanupError: null, sizeBytes: 200 * 1024 * 1024 }),
   backupToWebdav: vi
     .fn<
       (
         event: unknown,
         config: unknown,
         signal?: AbortSignal
-      ) => Promise<{ result: boolean; cleanupError: Error | null }>
+      ) => Promise<{ result: boolean; cleanupError: Error | null; sizeBytes: number }>
     >()
-    .mockResolvedValue({ result: true, cleanupError: null })
+    .mockResolvedValue({ result: true, cleanupError: null, sizeBytes: 50 * 1024 * 1024 })
 }))
 
 vi.mock('@application', () => ({ application: { get: mocks.applicationGet, getPath: mocks.applicationGetPath } }))
@@ -75,6 +79,14 @@ vi.mock('../LegacyBackupManager', async () => {
       backupToWebdav: mocks.backupToWebdav
     }
   }
+})
+
+const manual = (target: string, status: string) => ({
+  event: 'backup_run',
+  target,
+  mode: 'manual',
+  status,
+  durationMs: expect.any(Number)
 })
 
 const enabledPreferences: Record<string, unknown> = {
@@ -178,9 +190,9 @@ describe('AutoBackupService', () => {
   })
 
   it('preserves manual backup outcomes while recording success, cleanup warning, and failure', async () => {
-    const result = { result: '/backups/saved.zip', cleanupError: null }
+    const result = { result: '/backups/saved.zip', cleanupError: null, sizeBytes: 2 * 1024 * 1024 * 1024 }
     await expect(runManualBackup('file', async () => result)).resolves.toBe(result)
-    const warning = { result: '/backups/saved.zip', cleanupError: new Error('cleanup') }
+    const warning = { result: '/backups/saved.zip', cleanupError: new Error('cleanup'), sizeBytes: 10 * 1024 * 1024 }
     await expect(runManualBackup('nutstore', async () => warning)).resolves.toBe(warning)
     const failure = new Error('upload failed')
     await expect(
@@ -199,11 +211,41 @@ describe('AutoBackupService', () => {
       'backup-failed'
     ])
     expect(mocks.trackProductEvent.mock.calls.map(([event]) => event)).toEqual([
-      { event: 'backup_run', target: 'file', mode: 'manual', status: 'success', durationMs: expect.any(Number) },
-      { event: 'backup_run', target: 'nutstore', mode: 'manual', status: 'warning', durationMs: expect.any(Number) },
-      { event: 'backup_run', target: 's3', mode: 'manual', status: 'error', durationMs: expect.any(Number) },
-      { event: 'backup_run', target: 'webdav', mode: 'manual', status: 'error', durationMs: expect.any(Number) }
+      { ...manual('file', 'success'), sizeBucket: 'over_1gb' },
+      { ...manual('nutstore', 'warning'), sizeBucket: '10mb_to_100mb' },
+      { ...manual('s3', 'error'), errorReason: 'other' },
+      { ...manual('webdav', 'error'), errorReason: 'other' }
     ])
+  })
+
+  it('names why a manual backup failed by kind, never by its message', async () => {
+    const failures: Array<[Error, string]> = [
+      [Object.assign(new Error('Invalid response: 401 Unauthorized'), { status: 401 }), 'auth'],
+      [Object.assign(new Error('Access Denied'), { name: 'AccessDenied', $metadata: { httpStatusCode: 403 } }), 'auth'],
+      [Object.assign(new Error('request to https://dav.example.com/ failed'), { code: 'ENOTFOUND' }), 'network'],
+      [Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' }), 'timeout'],
+      [Object.assign(new Error('Invalid response: 503 Service Unavailable'), { status: 503 }), 'server'],
+      [Object.assign(new Error('Invalid response: 404 Not Found'), { status: 404 }), 'config'],
+      // webdav 5.9.0 shape for a request timeout answer: a 4xx that is not a settings problem.
+      [Object.assign(new Error('Invalid response: 408 Request Timeout'), { status: 408 }), 'timeout'],
+      [
+        Object.assign(new Error('The specified bucket does not exist'), { $metadata: { httpStatusCode: 404 } }),
+        'config'
+      ],
+      [new Error('BACKUP_DISK_FULL:1024'), 'disk_full'],
+      [new Error('BACKUP_WEBDAV_TOO_LARGE: HTTP 413'), 'too_large']
+    ]
+    for (const [error] of failures) {
+      await expect(
+        runManualBackup('webdav', async () => {
+          throw error
+        })
+      ).rejects.toBe(error)
+    }
+
+    expect(mocks.trackProductEvent.mock.calls.map(([event]) => event.errorReason)).toEqual(
+      failures.map(([, reason]) => reason)
+    )
   })
 
   it('reports each automatic backup once with its target and outcome', async () => {
@@ -212,12 +254,20 @@ describe('AutoBackupService', () => {
     expect(reports).toHaveLength(4)
     expect(reports).toEqual(
       expect.arrayContaining(
-        (['webdav', 's3', 'local_dir', 'nutstore'] as const).map((target) => ({
+        (
+          [
+            ['webdav', '10mb_to_100mb'],
+            ['s3', '100mb_to_1gb'],
+            ['local_dir', 'under_10mb'],
+            ['nutstore', '10mb_to_100mb']
+          ] as const
+        ).map(([target, sizeBucket]) => ({
           event: 'backup_run',
           target,
           mode: 'auto',
           status: 'success',
-          durationMs: expect.any(Number)
+          durationMs: expect.any(Number),
+          sizeBucket
         }))
       )
     )
@@ -305,8 +355,8 @@ describe('AutoBackupService', () => {
     let finishBackup: (() => void) | undefined
     mocks.backupToWebdav.mockImplementationOnce(
       () =>
-        new Promise<{ result: boolean; cleanupError: null }>((resolve) => {
-          finishBackup = () => resolve({ result: true, cleanupError: null })
+        new Promise<{ result: boolean; cleanupError: null; sizeBytes: number }>((resolve) => {
+          finishBackup = () => resolve({ result: true, cleanupError: null, sizeBytes: 1 })
         })
     )
 
@@ -355,7 +405,8 @@ describe('AutoBackupService', () => {
     preferences['data.backup.local.max_backups'] = 1
     mocks.backupToLocalDir.mockResolvedValueOnce({
       result: '/backups/test.zip',
-      cleanupError: new Error('delete denied')
+      cleanupError: new Error('delete denied'),
+      sizeBytes: 1
     })
 
     await vi.advanceTimersByTimeAsync(60_000)
@@ -385,7 +436,7 @@ describe('AutoBackupService', () => {
     let uploadSignal: AbortSignal | undefined
     mocks.backupToWebdav.mockImplementationOnce(
       (_event, _config, signal) =>
-        new Promise<{ result: boolean; cleanupError: null }>((_resolve, reject) => {
+        new Promise<{ result: boolean; cleanupError: null; sizeBytes: number }>((_resolve, reject) => {
           uploadSignal = signal
           signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
         })
@@ -463,7 +514,7 @@ describe('AutoBackupService', () => {
     mocks.backupToWebdav
       .mockRejectedValueOnce(new BackupActiveWritersError())
       .mockRejectedValueOnce(new BackupActiveWritersError())
-      .mockResolvedValueOnce({ result: true, cleanupError: null })
+      .mockResolvedValueOnce({ result: true, cleanupError: null, sizeBytes: 1 })
 
     await vi.advanceTimersByTimeAsync(60_000 + 30_000 + 30_000)
 
@@ -492,6 +543,9 @@ describe('AutoBackupService', () => {
     expect(service.getStateSnapshot().pendingNotifications).toEqual([
       expect.objectContaining({ type: 'webdav', status: 'failed', errorMessage: 'BACKUP_WEBDAV_TOO_LARGE: HTTP 413' })
     ])
+    expect(mocks.trackProductEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'backup_run', status: 'error', errorReason: 'too_large' })
+    )
     await vi.advanceTimersByTimeAsync(1_000)
     expect(mocks.backupToWebdav).toHaveBeenCalledTimes(2)
   })
@@ -507,7 +561,14 @@ describe('AutoBackupService', () => {
     expect(mocks.backupToWebdav).toHaveBeenCalledTimes(4)
     // Retries stay silent; only the exhausted run reports a failure.
     expect(mocks.trackProductEvent.mock.calls.map(([event]) => event)).toEqual([
-      { event: 'backup_run', target: 'webdav', mode: 'auto', status: 'error', durationMs: expect.any(Number) }
+      {
+        event: 'backup_run',
+        target: 'webdav',
+        mode: 'auto',
+        status: 'error',
+        durationMs: expect.any(Number),
+        errorReason: 'other'
+      }
     ])
     expect(mocks.broadcastToType).toHaveBeenCalledWith(
       expect.anything(),

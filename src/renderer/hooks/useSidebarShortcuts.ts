@@ -3,11 +3,13 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { sidebarShortcutService } from '@renderer/services/SidebarShortcutService'
 import {
   getVisibleSidebarShortcutItems,
   isSidebarShortcutPinned,
-  normalizeSidebarShortcutItems
+  normalizeSidebarShortcutItems,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS
 } from '@renderer/utils/sidebar'
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 
@@ -36,8 +38,18 @@ export function useSidebarShortcuts() {
     [shortcuts]
   )
   const setPinned = useCallback(
-    (target: SidebarShortcutTarget, pinned: boolean, fallbackLabel?: string) =>
-      runMutation(sidebarShortcutService.setPinned(target, pinned, fallbackLabel)),
+    (target: SidebarShortcutTarget, pinned: boolean, fallbackLabel?: string) => {
+      const operation = sidebarShortcutService.setPinned(target, pinned, fallbackLabel)
+      // Every pin entry point (mini apps page, split picker, launchpad) runs through here.
+      if (pinned && target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP) {
+        // runMutation reports a failed save; this branch only skips the event.
+        void operation.then(
+          () => trackProductEvent({ event: 'feature_used', feature: 'mini_app', action: 'app_pinned' }),
+          () => undefined
+        )
+      }
+      runMutation(operation)
+    },
     [runMutation]
   )
   const remove = useCallback(

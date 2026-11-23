@@ -358,7 +358,26 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       listener('update-available')(release)
       listener('error')(new Error('download interrupted'))
 
-      expect(updateEvents()).toEqual([{ event: 'update_downloaded', status: 'error' }])
+      expect(updateEvents()).toEqual([{ event: 'update_downloaded', status: 'error', errorReason: 'other' }])
+    })
+
+    it('names why a download failed by kind, never by its message', async () => {
+      const failures: Array<[Error, string]> = [
+        [Object.assign(new Error('sha512 checksum mismatch'), { code: 'ERR_CHECKSUM_MISMATCH' }), 'checksum'],
+        [Object.assign(new Error('New version is not signed'), { code: 'ERR_UPDATER_INVALID_SIGNATURE' }), 'signature'],
+        [new Error('net::ERR_INTERNET_DISCONNECTED'), 'network'],
+        [new Error('Request timed out'), 'timeout'],
+        [Object.assign(new Error('404 Not Found'), { statusCode: 404 }), 'server'],
+        // The shape builder-util-runtime 9.7.0 gives a failed installer download: status only in the message.
+        [new Error('Cannot download "https://releases.example/Setup.exe", status 503: Service Unavailable'), 'server'],
+        [Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' }), 'disk_full']
+      ]
+      for (const [error] of failures) {
+        listener('update-available')(release)
+        listener('error')(error)
+      }
+
+      expect(updateEvents().map((event) => event.errorReason)).toEqual(failures.map(([, reason]) => reason))
     })
 
     it('does not blame a cancelled download for the next failed check', async () => {

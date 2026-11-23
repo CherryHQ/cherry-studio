@@ -279,6 +279,14 @@ it.each([
   )
   expect(runtime.get('conversation')?.pageId).toBe(selected)
   expect(runtime.get('conversation', docs)).toBeDefined()
+  const analyticsEvents = () =>
+    vi
+      .mocked(window.api.ipcApi.request)
+      .mock.calls.filter(([channel]) => channel === 'analytics.track')
+      .map(([, event]) => event)
+  await waitFor(() =>
+    expect(analyticsEvents()).toEqual(route === 'tab.detach' ? [{ event: 'window_opened', kind: 'browser' }] : [])
+  )
 })
 
 it('closes the background page from its menu while preserving the selected page', async () => {

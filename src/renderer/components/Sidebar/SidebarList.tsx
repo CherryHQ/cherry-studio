@@ -105,6 +105,7 @@ function IconList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
                 aria-current={isActive ? 'page' : undefined}
                 data-active={isActive || undefined}
                 data-dnd-row-control
+                data-analytics={entry.analyticsName}
                 onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
@@ -148,6 +149,7 @@ function FullList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
                   aria-current={isActive ? 'page' : undefined}
                   aria-disabled={entry.disabled || undefined}
                   data-dnd-row-control
+                  data-analytics={entry.analyticsName}
                   onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                   onMouseDown={preventMiddleClickAutoscroll}
                   onAuxClick={createAuxClickHandler(entry, guardClick)}

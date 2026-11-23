@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyNetworkError } from '../probes'
+import { classifyNetworkError } from '../networkError'
 
 describe('classifyNetworkError', () => {
   it('reads Chromium codes out of net.fetch messages', () => {

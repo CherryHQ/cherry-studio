@@ -31,7 +31,7 @@ import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../pip
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
 import { resolveLiveKnowledgeItem } from './utils/liveItem'
-import { markKnowledgeItemFailedOnSettled } from './utils/settled'
+import { markKnowledgeItemFailedOnSettled, settledJobDurationMs } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:IndexDocumentsJobHandler')
 
@@ -144,12 +144,14 @@ export function createIndexDocumentsJobHandler(
       try {
         const item = knowledgeItemService.getById(event.input.itemId)
         if (item.status === 'deleting') return
+        const durationMs = settledJobDurationMs(event.jobId)
         trackMainProductEvent({
           event: 'feature_used',
           feature: 'knowledge',
           action: 'item_processed',
           target: item.type,
-          status: 'success'
+          status: 'success',
+          ...(durationMs !== undefined && { durationMs })
         })
         if (!(event.output as { embedded?: boolean }).embedded) return
         const base = knowledgeBaseService.getById(event.input.baseId)

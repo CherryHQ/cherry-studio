@@ -14,7 +14,7 @@ import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
-import { markMiniAppOpenTrigger, trackProductEvent } from '@renderer/services/productAnalytics'
+import { markMiniAppOpenTrigger } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isDataApiError } from '@shared/data/api/errors'
@@ -76,9 +76,6 @@ const MiniAppsPage: FC = () => {
     (appId: string) => {
       const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
       const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
-      if (!sidebarFavoriteIds.has(appId)) {
-        trackProductEvent({ event: 'feature_used', feature: 'mini_app', action: 'app_pinned' })
-      }
       setPinned(
         createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId),
         !sidebarFavoriteIds.has(appId),

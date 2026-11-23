@@ -26,6 +26,8 @@ import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscr
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isMac } from '@renderer/utils/platform'
+import { isSidebarAppId, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
+import type { SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 
 import { HelpMenu } from '../layout/HelpMenu'
 import { AppUpdateButton } from '../layout/ShellTabBarActions'
@@ -49,6 +51,17 @@ import {
 } from './sidebarShortcuts'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
+
+const SHORTCUT_PROVIDER_IDS = new Set<string>(Object.values(SIDEBAR_SHORTCUT_PROVIDER_IDS))
+
+// Built-in pages by id, everything else by resource kind: assistant, agent, and mini app ids stay local.
+function sidebarEntryAnalyticsName({ locator }: SidebarShortcutTarget): string {
+  if (locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.APP && isSidebarAppId(locator.resourceId)) {
+    return `app.sidebar.entry:${locator.resourceId}`
+  }
+  const kind = SHORTCUT_PROVIDER_IDS.has(locator.providerId) ? locator.providerId.replace(/^core\./, '') : 'other'
+  return `app.sidebar.entry:${kind}`
+}
 
 function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly string[]): ResolvedSidebarEntry[] {
   const byKey = new Map(entries.map((entry) => [entry.key, entry]))
@@ -244,6 +257,7 @@ export default function Sidebar({
                 : t('sidebar.resource_unavailable'),
           onOpen: () => activate(),
           onOpenNewTab: activateInNewTab,
+          analyticsName: sidebarEntryAnalyticsName(shortcut.target),
           contextMenuItems: [
             ...(activateInNewTab
               ? [

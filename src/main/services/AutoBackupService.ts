@@ -243,7 +243,7 @@ export class AutoBackupService extends BaseService {
     const analyticsTarget = type === 'local' ? 'local_dir' : type
     try {
       logger.info('Starting automatic backup', { type, attempt: state.retryCount + 1, maxAttempts: MAX_ATTEMPTS })
-      const cleanupError = await this.runBackup(type, signal)
+      const { cleanupError, sizeBytes } = await this.runBackup(type, signal)
 
       if (!this.isEnabled(type, generation)) {
         this.markStopped(type)
@@ -263,7 +263,7 @@ export class AutoBackupService extends BaseService {
       } else {
         this.emit({ type, status: 'succeeded', timestamp })
       }
-      trackBackupRun(analyticsTarget, 'auto', cleanupError ? 'warning' : 'succeeded', startedAt)
+      trackBackupRun(analyticsTarget, 'auto', cleanupError ? 'warning' : 'succeeded', startedAt, { sizeBytes })
       this.scheduleNext(type, 'fromNow', generation)
     } catch (error) {
       if (!this.isEnabled(type, generation)) {
@@ -308,12 +308,15 @@ export class AutoBackupService extends BaseService {
         classifyBackupFailure(error)
       )
       this.emit({ type, status: 'failed', timestamp, errorMessage })
-      trackBackupRun(analyticsTarget, 'auto', 'failed', startedAt)
+      trackBackupRun(analyticsTarget, 'auto', 'failed', startedAt, { error })
       this.scheduleNext(type, 'fromNow', generation)
     }
   }
 
-  private async runBackup(type: AutoBackupType, signal: AbortSignal): Promise<Error | null> {
+  private async runBackup(
+    type: AutoBackupType,
+    signal: AbortSignal
+  ): Promise<{ cleanupError: Error | null; sizeBytes?: number }> {
     const preferenceService = application.get('PreferenceService')
 
     if (type === 'webdav') {
@@ -327,9 +330,13 @@ export class AutoBackupService extends BaseService {
         disableStream: preferenceService.get('data.backup.webdav.disable_stream'),
         allowSelfSignedTls: preferenceService.get('data.backup.webdav.allow_self_signed_tls') ?? false
       }
-      const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
+      const {
+        result: success,
+        cleanupError,
+        sizeBytes
+      } = await legacyBackupManager.backupToWebdav(null, config, signal)
       if (success === false) throw new Error('WebDAV automatic backup failed')
-      return cleanupError
+      return { cleanupError, sizeBytes }
     }
 
     if (type === 's3') {
@@ -345,14 +352,14 @@ export class AutoBackupService extends BaseService {
         syncInterval: preferenceService.get('data.backup.s3.sync_interval'),
         maxBackups: preferenceService.get('data.backup.s3.max_backups')
       }
-      const { cleanupError } = await legacyBackupManager.backupToS3(null, config, signal)
-      return cleanupError
+      const { cleanupError, sizeBytes } = await legacyBackupManager.backupToS3(null, config, signal)
+      return { cleanupError, sizeBytes }
     }
 
     if (type === 'local') {
       const directory = path.resolve(untildify(preferenceService.get('data.backup.local.dir')))
       await this.validateLocalBackupDirectory(directory)
-      const { cleanupError } = await legacyBackupManager.backupToLocalDir(
+      const { cleanupError, sizeBytes } = await legacyBackupManager.backupToLocalDir(
         null,
         undefined,
         {
@@ -362,7 +369,7 @@ export class AutoBackupService extends BaseService {
         },
         signal
       )
-      return cleanupError
+      return { cleanupError, sizeBytes }
     }
 
     const credentials = await decryptToken(preferenceService.get('data.backup.nutstore.token'))
@@ -376,9 +383,9 @@ export class AutoBackupService extends BaseService {
       maxBackups: preferenceService.get('data.backup.nutstore.max_backups'),
       skipBackupFile: preferenceService.get('data.backup.nutstore.skip_backup_file')
     }
-    const { result: success, cleanupError } = await legacyBackupManager.backupToWebdav(null, config, signal)
+    const { result: success, cleanupError, sizeBytes } = await legacyBackupManager.backupToWebdav(null, config, signal)
     if (success === false) throw new Error('Nutstore automatic backup failed')
-    return cleanupError
+    return { cleanupError, sizeBytes }
   }
 
   private async validateLocalBackupDirectory(directory: string): Promise<void> {

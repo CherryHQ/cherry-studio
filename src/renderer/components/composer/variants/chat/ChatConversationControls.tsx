@@ -120,7 +120,8 @@ export function ChatConversationControls({
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
       onMentionedModelsSelect(nextModels)
-      trackModelSelected('mention', nextModels)
+      // The chat header picker selects which model(s) answer; it is not an @-mention.
+      trackModelSelected('chat', nextModels)
     },
     [onMentionedModelsSelect]
   )

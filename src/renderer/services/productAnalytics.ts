@@ -60,7 +60,7 @@ export function trackChatErrorAction(
 }
 
 /** A model the user picked in a composer; only built-in providers are named. */
-export function trackModelSelected(surface: 'chat' | 'agent' | 'mention', models: readonly Model[]): void {
+export function trackModelSelected(surface: 'chat' | 'agent', models: readonly Model[]): void {
   const [first] = models
   if (!first) return
   trackProductEvent({
@@ -68,7 +68,7 @@ export function trackModelSelected(surface: 'chat' | 'agent' | 'mention', models
     surface,
     modelSource: analyticsModelSource(first.providerId),
     ...(isSystemProviderId(first.providerId) && { target: first.providerId }),
-    ...(surface === 'mention' && { count: models.length })
+    ...(models.length > 1 && { count: models.length })
   })
 }
 

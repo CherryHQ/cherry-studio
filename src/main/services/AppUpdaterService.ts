@@ -16,13 +16,14 @@ import { isMacElectronBridgePackage } from '@main/core/macElectronBridge'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, t } from '@main/i18n'
-import { trackMainProductEvent } from '@main/services/productAnalytics'
+import { trackMainProductEvent, transferFailureReason } from '@main/services/productAnalytics'
 import { regionService } from '@main/services/RegionService'
 import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
+import type { TransferFailureReason } from '@shared/ipc/schemas/analytics'
 import type { AppUpdaterNotAvailablePayload } from '@shared/ipc/schemas/app'
 import type { OutputFor } from '@shared/ipc/types'
 import type { AppEdition } from '@shared/types/appEdition'
@@ -85,6 +86,19 @@ type ReleaseRegion = 'cn' | 'global'
 export const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
 const RELEASE_HISTORY_TIMEOUT_MS = 10_000
 const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
+
+/** electron-updater codes its checksum and signature failures; its own request timeout has no code. */
+function downloadFailureReason(error: Error): Exclude<TransferFailureReason, 'config'> | 'checksum' | 'signature' {
+  const code = (error as { code?: unknown }).code
+  if (code === 'ERR_CHECKSUM_MISMATCH') return 'checksum'
+  if (code === 'ERR_UPDATER_INVALID_SIGNATURE') return 'signature'
+  if (error.message === 'Request timed out') return 'timeout'
+  // builder-util-runtime reports a failed download only as `Cannot download "<url>", status 503: ...`.
+  const status = /^Cannot download ".*", status (\d{3})\b/.exec(error.message)?.[1]
+  const reason = transferFailureReason(status ? { statusCode: Number(status) } : error)
+  // The update feed is ours, not a user setting, so its 4xx answers are server-side.
+  return reason === 'config' ? 'server' : reason
+}
 
 function getEditionUpdateChannel(channel: UpgradeChannel, edition: AppEdition): string {
   return edition === 'cn' ? `${channel}-cn` : channel
@@ -245,7 +259,11 @@ export class AppUpdaterService extends BaseService {
       logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
       if (this.downloadInProgress) {
         this.downloadInProgress = false
-        trackMainProductEvent({ event: 'update_downloaded', status: 'error' })
+        trackMainProductEvent({
+          event: 'update_downloaded',
+          status: 'error',
+          errorReason: downloadFailureReason(error)
+        })
       }
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', error)
     }

@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { installUiClickTracker } from '@renderer/services/usageAnalytics'
+
 import { SidebarList } from '../SidebarList'
 
 vi.unmock('@cherrystudio/ui')
@@ -93,5 +95,36 @@ describe('Sidebar entry interaction', () => {
 
     await user.hover(screen.getByRole('button', { name: label }))
     expect(await screen.findByRole('tooltip')).toHaveTextContent(label)
+  })
+})
+
+describe('Sidebar entry click reporting', () => {
+  it.each(['icon', 'full'] as const)('reports a click by the row analytics name in %s layout', (layout) => {
+    const report = vi.fn()
+    const uninstall = installUiClickTracker(document, report)
+    render(
+      <SidebarList
+        layout={layout}
+        onReorder={vi.fn()}
+        entries={[
+          {
+            key: 'translate',
+            label: 'Translate',
+            renderIcon: () => null,
+            isActive: false,
+            onOpen: vi.fn(),
+            analyticsName: 'app.sidebar.entry:translate'
+          }
+        ]}
+      />
+    )
+
+    // jsdom has no PointerEvent, which the sortable wrapper's pointerdown listener needs.
+    fireEvent.click(screen.getByRole('button', { name: 'Translate' }), { detail: 1 })
+    uninstall()
+
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'ui_clicked', ui: 'app.sidebar.entry:translate' })
+    )
   })
 })

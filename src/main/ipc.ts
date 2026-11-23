@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { dialog } from 'electron'
@@ -77,9 +78,18 @@ export async function registerIpc() {
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   // backup
-  handleGuarded(IpcChannel.Backup_Backup, (event, fileName, destinationPath, slimBackup) =>
-    runManualBackup('file', () => backupManager.backup(event, fileName, destinationPath, slimBackup))
-  )
+  handleGuarded(IpcChannel.Backup_Backup, async (event, fileName, destinationPath, slimBackup) => {
+    const { result } = await runManualBackup('file', async () => {
+      const result = await backupManager.backup(event, fileName, destinationPath, slimBackup)
+      // Analytics only: an unreadable size must not fail a backup that was written.
+      const sizeBytes = await stat(result).then(
+        (stats) => stats.size,
+        () => undefined
+      )
+      return { result, sizeBytes }
+    })
+    return result
+  })
   handleGuarded(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
     const target = config.webdavHost === NUTSTORE_HOST ? 'nutstore' : 'webdav'

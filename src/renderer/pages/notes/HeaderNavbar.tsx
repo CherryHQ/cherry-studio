@@ -29,6 +29,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
 import { findNode } from '@renderer/services/NotesTreeService'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode, RenameNote } from '@renderer/types/note'
 
@@ -36,6 +37,9 @@ import type { MenuItem as NotesMenuItem } from './MenuConfig'
 import { menuItems } from './MenuConfig'
 
 const logger = loggerService.withContext('HeaderNavbar')
+
+const trackNoteExport = (target: 'docx' | 'pdf', status: 'success' | 'error') =>
+  trackProductEvent({ event: 'feature_used', feature: 'notes', action: 'exported', target, status })
 
 interface HeaderNavbarProps {
   notesTree: NotesTreeNode[]
@@ -104,8 +108,10 @@ const HeaderNavbar = ({
         return
       }
       const fileName = activeNode.name.replace('.md', '')
-      await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
+      const saved = await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
+      if (saved) trackNoteExport('docx', 'success')
     } catch (error) {
+      trackNoteExport('docx', 'error')
       logger.error('Failed to export to Word:', error as Error)
       toast.error(t('notes.export_to_word_failed'))
     }
@@ -135,9 +141,11 @@ const HeaderNavbar = ({
     try {
       const saved = await ipcApi.request('print.export_pdf', payload)
       if (saved) {
+        trackNoteExport('pdf', 'success')
         toast.success(t('notes.export_to_pdf_success'))
       }
     } catch (error) {
+      trackNoteExport('pdf', 'error')
       logger.error('Failed to export note to PDF:', error as Error)
       toast.error(t('notes.export_to_pdf_failed'))
     }

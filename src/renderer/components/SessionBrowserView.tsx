@@ -22,6 +22,7 @@ import {
   type AgentBrowserRuntimeService
 } from '@renderer/services/AgentBrowserRuntimeService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
@@ -86,6 +87,7 @@ export function SessionBrowserView({
       if (destination === 'window') {
         void ipcApi
           .request('tab.detach', { id: crypto.randomUUID(), url, title: title(current), type: 'route' })
+          .then(() => trackProductEvent({ event: 'window_opened', kind: 'browser' }))
           .catch((error) => logger.error('Failed to open browser tab in a new window', error))
       } else if (tabs && frame.mode === 'embedded') {
         tabs.openTab(url, { title: title(current), forceNew: true })

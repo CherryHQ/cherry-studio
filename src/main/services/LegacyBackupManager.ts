@@ -136,6 +136,8 @@ interface BackupFileInfo {
 interface BackupWorkflowResult<T> {
   result: T
   cleanupError: Error | null
+  /** Size of the written archive, for analytics only; absent when it could not be read. */
+  sizeBytes?: number
 }
 
 type BackupInvocationEvent = Electron.IpcMainInvokeEvent | null
@@ -584,13 +586,18 @@ class BackupManager {
         localConfig.skipBackupFile ?? false,
         operationSignal
       )
+      // Analytics only: an unreadable size must not fail a backup that was written.
+      const sizeBytes = await fs.stat(result).then(
+        (stats) => stats.size,
+        () => undefined
+      )
       const cleanupError = await this.cleanupOldBackups(
         localConfig.maxBackups ?? 0,
         (cleanupSignal) => this.listLocalBackupFiles(null, backupDir, cleanupSignal),
         (oldFileName, cleanupSignal) => this.deleteLocalBackupFile(null, oldFileName, backupDir, cleanupSignal),
         operationSignal
       )
-      return { result, cleanupError }
+      return { result, cleanupError, sizeBytes }
     })
   }
 
@@ -619,11 +626,13 @@ class BackupManager {
       const idleTimeout = new IdleTimeoutController(REMOTE_UPLOAD_IDLE_TIMEOUT_MS)
       const uploadSignal = operationSignal ? AbortSignal.any([operationSignal, idleTimeout.signal]) : idleTimeout.signal
       let result: boolean
+      let sizeBytes: number
 
       try {
         uploadSignal.throwIfAborted()
         if (webdavConfig.disableStream) {
           const fileContent = await fs.promises.readFile(backupedFilePath, { signal: uploadSignal })
+          sizeBytes = fileContent.length
           idleTimeout.reset()
           result = await webdavClient.putFileContents(filename, fileContent, {
             overwrite: true,
@@ -632,12 +641,12 @@ class BackupManager {
           })
           uploadSignal.throwIfAborted()
         } else {
-          const contentLength = (await fs.stat(backupedFilePath)).size
+          sizeBytes = (await fs.stat(backupedFilePath)).size
           const { stream, cleanup } = this.createUploadReadStream(backupedFilePath, uploadSignal, idleTimeout.reset)
           try {
             result = await webdavClient.putFileContents(filename, stream, {
               overwrite: true,
-              contentLength,
+              contentLength: sizeBytes,
               signal: uploadSignal,
               onUploadProgress: () => idleTimeout.reset()
             })
@@ -659,7 +668,7 @@ class BackupManager {
         cleanupSignal,
         3
       )
-      return { result, cleanupError }
+      return { result, cleanupError, sizeBytes }
     })
   }
 
@@ -689,10 +698,11 @@ class BackupManager {
       )
       const s3Client = await this.getS3Storage(s3Config)
       let result: unknown
+      let sizeBytes: number
       try {
         operationSignal?.throwIfAborted()
-        const contentLength = (await fs.stat(backupedFilePath)).size
-        result = await s3Client.putFileContents(filename, fs.createReadStream(backupedFilePath), contentLength, {
+        sizeBytes = (await fs.stat(backupedFilePath)).size
+        result = await s3Client.putFileContents(filename, fs.createReadStream(backupedFilePath), sizeBytes, {
           signal: operationSignal
         })
         operationSignal?.throwIfAborted()
@@ -709,7 +719,7 @@ class BackupManager {
         cleanupSignal,
         3
       )
-      return { result, cleanupError }
+      return { result, cleanupError, sizeBytes }
     })
   }
 

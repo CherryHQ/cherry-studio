@@ -101,6 +101,9 @@ export function useMiniAppWebview(appId: string) {
 }
 
 /** Mounted once outside page Activities; page subscriptions never own guests. */
+const openTrigger = <T extends string>(marked: T | 'other', restored: boolean): T | 'other' | 'restore' =>
+  marked === 'other' && restored ? 'restore' : marked
+
 export function useMiniAppRuntimeBinding(): void {
   const { tabs, activeTabId, closeTabs } = useTabs()
   const { split, setSplit, splitMiniAppId, appIds, resources } = useMiniAppLayout()
@@ -109,6 +112,10 @@ export function useMiniAppRuntimeBinding(): void {
   const previousCatalog = useRef(apps)
   const previousTabs = useRef(tabs)
   const previousSplitAppId = useRef(split?.appId)
+  // Apps already open when the window starts came back from the last session, not from a user pick.
+  const restoredAppIds = useRef(
+    new Set([...tabs.map((tab) => miniAppIdFromTabUrl(tab.url)), split?.appId].filter((id): id is string => !!id))
+  )
 
   useLayoutEffect(() => {
     const closed = new Set(
@@ -163,7 +170,7 @@ export function useMiniAppRuntimeBinding(): void {
         event: 'feature_used',
         feature: 'mini_app',
         action: 'opened',
-        trigger: takeMiniAppOpenTrigger(appId),
+        trigger: openTrigger(takeMiniAppOpenTrigger(appId), restoredAppIds.current.delete(appId)),
         ...(presetId && BUILTIN_MINI_APP_TARGETS.has(presetId) && { target: presetId })
       })
     }

@@ -3,9 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
-import type { BackupAnalyticsTarget } from '@shared/ipc/schemas/analytics'
+import type { BackupAnalyticsTarget, BackupSizeBucket, TransferFailureReason } from '@shared/ipc/schemas/analytics'
+import { BACKUP_DISK_FULL_ERROR_CODE, BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE } from '@shared/types/backup'
 
-import { trackMainProductEvent } from './productAnalytics'
+import { trackMainProductEvent, transferFailureReason } from './productAnalytics'
 
 const logger = loggerService.withContext('BackupNotifications')
 
@@ -42,18 +43,38 @@ export function publishBackupResult(
   }
 }
 
+const MB = 1024 * 1024
+
+function backupSizeBucket(sizeBytes: number): BackupSizeBucket {
+  if (sizeBytes < 10 * MB) return 'under_10mb'
+  if (sizeBytes < 100 * MB) return '10mb_to_100mb'
+  return sizeBytes < 1024 * MB ? '100mb_to_1gb' : 'over_1gb'
+}
+
+function backupFailureReason(error: unknown): TransferFailureReason | 'too_large' {
+  const message = error instanceof Error ? error.message : ''
+  if (message.startsWith(BACKUP_DISK_FULL_ERROR_CODE)) return 'disk_full'
+  if (message.startsWith(BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE)) return 'too_large'
+  return transferFailureReason(error)
+}
+
+/** `error` names the failure (none when the upload just returned false); `sizeBytes` is the written archive. */
 export function trackBackupRun(
   target: BackupAnalyticsTarget,
   mode: 'manual' | 'auto',
   status: 'succeeded' | 'warning' | 'failed',
-  startedAt: number
+  startedAt: number,
+  detail: { error?: unknown; sizeBytes?: number } = {}
 ): void {
   trackMainProductEvent({
     event: 'backup_run',
     target,
     mode,
     status: status === 'succeeded' ? 'success' : status === 'failed' ? 'error' : 'warning',
-    durationMs: Math.max(0, Date.now() - startedAt)
+    durationMs: Math.max(0, Date.now() - startedAt),
+    ...(status === 'failed'
+      ? { errorReason: backupFailureReason(detail.error) }
+      : detail.sizeBytes !== undefined && { sizeBucket: backupSizeBucket(detail.sizeBytes) })
   })
 }
 
@@ -63,14 +84,16 @@ export async function runManualBackup<T>(target: BackupAnalyticsTarget, operatio
   try {
     const result = await operation()
     const workflow =
-      result && typeof result === 'object' ? (result as { result?: unknown; cleanupError?: unknown }) : undefined
+      result && typeof result === 'object'
+        ? (result as { result?: unknown; cleanupError?: unknown; sizeBytes?: number })
+        : undefined
     const status = workflow?.result === false ? 'failed' : workflow?.cleanupError ? 'warning' : 'succeeded'
     publishBackupResult(eventKey, status)
-    trackBackupRun(target, 'manual', status, startedAt)
+    trackBackupRun(target, 'manual', status, startedAt, { sizeBytes: workflow?.sizeBytes })
     return result
   } catch (error) {
     publishBackupResult(eventKey, 'failed')
-    trackBackupRun(target, 'manual', 'failed', startedAt)
+    trackBackupRun(target, 'manual', 'failed', startedAt, { error })
     throw error
   }
 }

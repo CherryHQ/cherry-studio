@@ -1,46 +1,8 @@
-/**
- * Network primitives for the probes, the classifier and their consumers (System Doctor).
- * `NETWORK_ERROR_CODES` is the classifier's code table and the superset the log-scan rules
- * (`diagnostics/scan/rules/network.ts`) draw from; those rules only anchor on codes seen in
- * real logs, so they may lag this table but must never contradict it.
- */
+/** Network primitives for the probes and their consumers (System Doctor). */
 
-export type NetworkFailureKind =
-  | 'offline'
-  | 'dns'
-  | 'refused'
-  | 'reset'
-  | 'timeout'
-  | 'tls_cert'
-  | 'proxy_unreachable'
-  | 'proxy_auth'
-  | 'http_client'
-  | 'http_server'
-  | 'unknown'
+import type { NetworkFailureKind } from '@main/utils/networkError'
 
-/** Concrete Chromium (`ERR_*`) and Node (`E*`, OpenSSL) codes per failure kind. */
-export const NETWORK_ERROR_CODES: Readonly<Record<NetworkFailureKind, readonly string[]>> = {
-  offline: ['ERR_INTERNET_DISCONNECTED', 'ENETUNREACH'],
-  dns: ['ERR_NAME_NOT_RESOLVED', 'ENOTFOUND', 'EAI_AGAIN'],
-  refused: ['ERR_CONNECTION_REFUSED', 'ECONNREFUSED'],
-  reset: ['ERR_CONNECTION_RESET', 'ERR_CONNECTION_CLOSED', 'ERR_CONNECTION_ABORTED', 'ECONNRESET', 'ECONNABORTED'],
-  timeout: ['ERR_TIMED_OUT', 'ERR_CONNECTION_TIMED_OUT', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT'],
-  tls_cert: [
-    'ERR_CERT_AUTHORITY_INVALID',
-    'ERR_CERT_COMMON_NAME_INVALID',
-    'ERR_CERT_DATE_INVALID',
-    'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
-    'SELF_SIGNED_CERT_IN_CHAIN',
-    'DEPTH_ZERO_SELF_SIGNED_CERT',
-    'CERT_HAS_EXPIRED',
-    'ERR_TLS_CERT_ALTNAME_INVALID'
-  ],
-  proxy_unreachable: ['ERR_PROXY_CONNECTION_FAILED', 'ERR_TUNNEL_CONNECTION_FAILED'],
-  proxy_auth: ['ERR_PROXY_AUTH_UNSUPPORTED', 'ERR_PROXY_AUTH_REQUESTED'],
-  http_client: [],
-  http_server: [],
-  unknown: []
-}
+export type { NetworkFailureKind }
 
 export type NetworkLayerResult<T = undefined> =
   | { readonly status: 'ok'; readonly durationMs: number; readonly data: T }

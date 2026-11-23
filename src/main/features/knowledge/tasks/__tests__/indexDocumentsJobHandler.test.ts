@@ -1,8 +1,9 @@
 import { mockNotificationService } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { describe, expect, it, type Mock } from 'vitest'
+import { describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
+import { jobService } from '@data/services/JobService'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
@@ -95,6 +96,37 @@ describe('index-documents job handler', () => {
     )
     expect(processedEvents()).toEqual([
       { event: 'feature_used', feature: 'knowledge', action: 'item_processed', target: 'note', status: 'success' }
+    ])
+  })
+
+  it('reports how long the indexing job ran', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    vi.spyOn(jobService, 'getById').mockReturnValueOnce({
+      startedAt: '2026-11-18T10:00:00.000Z',
+      finishedAt: '2026-11-18T10:00:02.500Z'
+    } as never)
+    await handler.onSettled?.({
+      jobId: 'timed-job',
+      type: 'knowledge.index-documents',
+      scheduleId: null,
+      parentId: null,
+      status: 'completed',
+      input: { baseId: 'kb-1', itemId: NOTE_ITEM_ID },
+      output: { embedded: false },
+      error: null,
+      attempt: 1,
+      metadata: {}
+    })
+    expect(processedEvents()).toEqual([
+      {
+        event: 'feature_used',
+        feature: 'knowledge',
+        action: 'item_processed',
+        target: 'note',
+        status: 'success',
+        durationMs: 2500
+      }
     ])
   })
 

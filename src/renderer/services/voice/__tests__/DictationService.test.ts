@@ -1218,8 +1218,54 @@ describe('DictationService failure and retry', () => {
 
     const used = { event: 'feature_used', feature: 'voice', action: 'dictation_used' }
     expect(dictationEvents()).toEqual([
-      { ...used, status: 'error' },
-      { ...used, status: 'success' }
+      { ...used, status: 'error', target: 'other' },
+      { ...used, status: 'success', target: 'other' }
+    ])
+  })
+
+  it('reports where dictation ran by the target kind, never the session id behind it', async () => {
+    const request = vi.mocked(window.api.ipcApi.request)
+    const harness = createHarness()
+    harness.targetManager.bind({
+      targetId: 'composer:session:private-session-1',
+      owner: harness.owner,
+      sourceEntityId: 'private-session-1',
+      captureReplaceRange: () => ({ from: 0, to: 0 }),
+      replaceRange: () => true
+    })
+    harness.targetManager.markCurrent('composer:session:private-session-1')
+    request.mockClear()
+
+    await harness.service.start()
+    await harness.service.stop()
+
+    const events = request.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
+    expect(events).toEqual([
+      { event: 'feature_used', feature: 'voice', action: 'dictation_used', status: 'success', target: 'agent' }
+    ])
+    expect(JSON.stringify(events)).not.toContain('private-session-1')
+  })
+
+  it('keeps the chat target when microphone access is denied', async () => {
+    const request = vi.mocked(window.api.ipcApi.request)
+    const harness = createHarness({
+      getUserMedia: vi.fn(() => Promise.reject(Object.assign(new Error('denied'), { name: 'NotAllowedError' })))
+    })
+    harness.targetManager.bind({
+      targetId: 'composer:chat:private-topic-1',
+      owner: harness.owner,
+      sourceEntityId: 'private-topic-1',
+      captureReplaceRange: () => ({ from: 0, to: 0 }),
+      replaceRange: () => true
+    })
+    harness.targetManager.markCurrent('composer:chat:private-topic-1')
+    request.mockClear()
+
+    await harness.service.start()
+
+    const events = request.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
+    expect(events).toEqual([
+      { event: 'feature_used', feature: 'voice', action: 'dictation_used', status: 'error', target: 'chat' }
     ])
   })
 
