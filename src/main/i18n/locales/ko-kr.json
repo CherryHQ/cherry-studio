@@ -251,6 +251,7 @@
   "paintings.comfyui.workflow_failed": "ComfyUI 워크플로 실패:",
   "paintings.comfyui.workflow_rejected": "ComfyUI가 워크플로를 거부했습니다(HTTP {{status}})",
   "paintings.generate_failed": "이미지 생성에 실패했습니다",
+  "paintings.image_download_failed": "이미지가 생성되었지만 다운로드할 수 없습니다.",
   "paintings.image_mix_failed": "이미지 혼합에 실패했습니다",
   "selection.name": "선택 영역 어시스턴트",
   "settings.mcp.oauth.callback.listen_error": "127.0.0.1:{{port}}에서 OAuth 콜백을 수신할 수 없습니다({{reason}}). 포트를 사용할 수 있는지 확인한 후 다시 시도하세요.",
