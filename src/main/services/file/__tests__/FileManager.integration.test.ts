@@ -153,6 +153,20 @@ describe('FileManager (integration)', () => {
     expect(url).toContain(encodeURIComponent(`${id}.txt`).replace(/%2F/g, '/'))
   })
 
+  it('forwards base64 encoding through the managed-entry read facade', async () => {
+    const entry = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0, 255, 1]),
+      name: 'encoded',
+      ext: 'bin',
+      cleanupPolicy: 'manual'
+    })
+
+    const result = await fm.read(entry.id, { encoding: 'base64' })
+    expect(result.content).toBe('AP8B')
+    expect(result.version.size).toBe(3)
+  })
+
   it('INT-2: external entry canonicalization end-to-end (case-sensitive byte match)', async () => {
     const id = '019606a0-0000-7000-8000-00000000ff02' as FileEntryId
     const file = path.join(tmp, 'doc.pdf')

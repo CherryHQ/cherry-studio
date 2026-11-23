@@ -44,6 +44,11 @@ export async function read(
   deps: FileManagerDeps,
   id: FileEntryId,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
+): Promise<ReadResult<string | Uint8Array>>
+export async function read(
+  deps: FileManagerDeps,
+  id: FileEntryId,
+  options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>> {
   const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)

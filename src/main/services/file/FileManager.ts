@@ -201,6 +201,7 @@ import { runPathMutationExclusive } from './pathMutationLock'
 import { copyFileToClipboard, type DefaultOpenContext, safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
+import type { Base64ReadOptions, BinaryReadOptions, TextReadOptions } from './utils/content'
 import { readEditSnapshot as readEditingSnapshot } from './utils/editSnapshot'
 import { buildPhysicalFileMetadata } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
@@ -822,10 +823,11 @@ export class FileManager extends BaseService implements IFileManager {
     try {
       await internalDeleteInternalTemporaryEntry(this.deps, id)
     } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
       fileManagerLogger.warn('Verified temporary entry deletion failed', {
         id,
         operation: 'delete-retained-temporary-entry',
-        code: (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+        code: code ?? 'UNKNOWN'
       })
       throw error
     }
@@ -1132,11 +1134,9 @@ export class FileManager extends BaseService implements IFileManager {
   read(id: FileEntryId, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
   async read(
     id: FileEntryId,
-    options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean }
+    options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
   ): Promise<ReadResult<string | Uint8Array>> {
-    // Single overload-erasing call site keeps the dispatcher simple; the public
-    // overloads above narrow the return type for type-safe call sites.
-    return internalRead(this.deps, id, options as { encoding?: 'text' })
+    return internalRead(this.deps, id, options)
   }
 
   async readEditSnapshot(id: FileEntryId, expectedPath: AbsoluteFilePath): Promise<FileEditRead> {
@@ -1200,6 +1200,7 @@ export class FileManager extends BaseService implements IFileManager {
     const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
 
+    // SAFETY: Node pathToFileURL constructs a file: URL from the already-resolved absolute path.
     return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
@@ -1277,7 +1278,7 @@ export class FileManager extends BaseService implements IFileManager {
         // Mirror observeExternalAccess: treat both ENOENT and ENOTDIR as
         // "path proven non-existent" and bucket the commit as 'ops' so
         // diagnostics tell them apart from watcher-driven transitions.
-        const code = (err as NodeJS.ErrnoException).code
+        const code = 'code' in err ? err.code : undefined
 
         if (code === 'ENOENT' || code === 'ENOTDIR') {
           this.deps.danglingCache.onFsEvent(physicalPath, 'missing', 'ops')
