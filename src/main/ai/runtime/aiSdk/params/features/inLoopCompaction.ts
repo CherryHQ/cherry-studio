@@ -248,13 +248,15 @@ export const inLoopCompactionFeature: RequestFeature = {
     // this request declares as max_tokens is billed alongside the input.
     const inputRoom = resolveInputRoom(
       contextWindow,
-      resolveRequestedMaxOutputTokens(
-        scope.request.callOverrides?.maxOutputTokens,
-        undefined,
-        scope.assistant,
-        scope.model,
-        scope.endpointType
-      )
+      scope.outputReservation
+        ? scope.outputReservation.maxOutputTokens
+        : resolveRequestedMaxOutputTokens(
+            scope.request.callOverrides?.maxOutputTokens,
+            undefined,
+            scope.assistant,
+            scope.model,
+            scope.endpointType
+          )
     )
     const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)
     const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)

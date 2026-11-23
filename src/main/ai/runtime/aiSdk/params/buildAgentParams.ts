@@ -319,6 +319,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 
   const scope: RequestScope = {
+    outputReservation: { maxOutputTokens: requestedMaxOutputTokens },
     request,
     signal,
     registry,

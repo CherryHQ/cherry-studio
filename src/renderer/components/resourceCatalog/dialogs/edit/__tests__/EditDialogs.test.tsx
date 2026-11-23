@@ -2002,6 +2002,56 @@ describe('edit dialogs', () => {
     }
   }, 10_000)
 
+  it('rejects a custom window for an explicitly unlimited assistant instead of borrowing global A', async () => {
+    const previousRecent = MockUsePreferenceUtils.getPreferenceValue('chat.context_settings.max_messages')
+    try {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 3)
+      const user = userEvent.setup()
+      render(
+        <AssistantEditDialog
+          open
+          resource={{ ...ASSISTANT, settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: null } } }}
+          onOpenChange={vi.fn()}
+        />
+      )
+      selectTab('Model')
+      await user.click(screen.getByRole('combobox', { name: 'Compression window' }))
+      await user.click(await screen.findByRole('option', { name: 'Custom' }))
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      expect(updateAssistantMock).not.toHaveBeenCalled()
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', previousRecent)
+    }
+  })
+
+  it('uses the successful PATCH resource when a stale list survives a failed refresh', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    updateAssistantMock.mockResolvedValueOnce({
+      ...original,
+      settings: { ...original.settings, contextSettings: { maxMessages: 4, compressWindow: 6 } }
+    })
+    render(<AssistantEditDialog open resource={original} onOpenChange={vi.fn()} />)
+    selectTab('Model')
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '4')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({
+        body: { settings: { contextSettings: { maxMessages: 4, compressWindow: 7 } } }
+      })
+    )
+  })
+
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 

@@ -29,6 +29,7 @@ export type { AppProviderKey, SdkConfig, ToolApplyScope }
 
 export interface RequestScope extends ToolApplyScope {
   readonly traceContext?: AgentRuntimeTraceContext
+  readonly outputReservation?: { maxOutputTokens: number | undefined }
   readonly request: AiChatRequest
   readonly signal: AbortSignal | undefined
   readonly registry: ToolRegistry

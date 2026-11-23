@@ -257,6 +257,24 @@ describe('inLoopCompactionFeature', () => {
     expect(compactModelMessages).not.toHaveBeenCalled()
   })
 
+  it.each([
+    [2000, false],
+    [12000, true]
+  ])('uses the request output reservation %s for first-step retention', async (reservation, compacts) => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(1)])
+    const custom = scope({ chatId: 'topic-1', contextWindow: 20000, thresholdPercent: 80 })
+    custom.contextSettings.maxMessages = 3
+    custom.contextSettings.compressWindow = 4
+    custom.assistant = { settings: { enableMaxTokens: true, maxTokens: reservation === 2000 ? 12000 : 2000 } }
+    custom.outputReservation = { maxOutputTokens: reservation }
+    await getPrepareStep(custom)({
+      messages: [userMessage(5000), assistantMessage(5000), userMessage(100)],
+      steps: []
+    } as any)
+    expect(compactModelMessages.mock.calls.length > 0).toBe(compacts)
+  })
+
   // #17837: at step 0 there is no usage anchor, so the whole prompt is estimated locally.
   // Stringifying a file part fed its base64 payload to the tokenizer and scored a 13 MB MP3
   // at ~3.7 M tokens (~183x the provider's 20 k), firing compaction on a first turn that has

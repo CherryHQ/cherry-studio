@@ -234,6 +234,7 @@ function AssistantEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
   const formBaselineRef = useRef(formBaseline)
+  const savedResourceRef = useRef(resource)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -241,8 +242,12 @@ function AssistantEditDialogContent({
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
-    return diffAssistantSaveIntent(buildAssistantFormState(formBaseline, values), formBaseline, resource)
-  }, [formBaseline, resource, values])
+    return diffAssistantSaveIntent(
+      buildAssistantFormState(formBaseline, values),
+      formBaseline,
+      savedResourceRef.current
+    )
+  }, [formBaseline, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -276,6 +281,7 @@ function AssistantEditDialogContent({
     }
     if (!justOpened) return
 
+    savedResourceRef.current = resource
     form.reset(defaultValues)
     formBaselineRef.current = initialAssistantFormState(resource)
     setFormBaseline(formBaselineRef.current)
@@ -299,7 +305,7 @@ function AssistantEditDialogContent({
     diffAssistantSaveIntent(
       buildAssistantFormState(formBaselineRef.current, form.getValues()),
       formBaselineRef.current,
-      resource
+      savedResourceRef.current
     )
 
   const persist = async () => {
@@ -307,7 +313,7 @@ function AssistantEditDialogContent({
     const submittedValues = structuredClone(form.getValues())
     if (!submittedValues.name.trim()) return
     const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)
-    const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, resource)
+    const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, savedResourceRef.current)
     if (!pending) return
     const attemptedKey = JSON.stringify(submittedValues)
 
@@ -319,7 +325,8 @@ function AssistantEditDialogContent({
     failedSaveKeyRef.current = null
 
     try {
-      await updateAssistant(pending.payload)
+      const updated = await updateAssistant(pending.payload)
+      savedResourceRef.current = updated
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
@@ -471,6 +478,7 @@ function AssistantEditDialogContent({
         ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
           <AssistantAdvancedFields
+            explicitUnlimited={savedResourceRef.current.settings.contextSettings?.maxMessages === null}
             form={form}
             modelFilter={modelFilter}
             isModelDisabled={isModelDisabled}
@@ -739,6 +747,7 @@ function AssistantToolsFields({
 }
 
 function AssistantAdvancedFields({
+  explicitUnlimited,
   form,
   modelFilter,
   isModelDisabled,
@@ -746,6 +755,7 @@ function AssistantAdvancedFields({
   modelLabels,
   setModelLabels
 }: {
+  explicitUnlimited: boolean
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -918,6 +928,7 @@ function AssistantAdvancedFields({
       />
 
       <ContextManagementFields
+        explicitUnlimited={explicitUnlimited}
         form={form}
         modelFilter={modelFilter}
         isModelDisabled={isModelDisabled}
@@ -951,6 +962,7 @@ function AssistantAdvancedFields({
 }
 
 function ContextManagementFields({
+  explicitUnlimited,
   form,
   modelFilter,
   isModelDisabled,
@@ -959,6 +971,7 @@ function ContextManagementFields({
   setModelLabels,
   globalDefaults
 }: {
+  explicitUnlimited: boolean
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -982,6 +995,7 @@ function ContextManagementFields({
   // preserve the saved values.
   const hadStoredOverride = useRef(values.contextOverrideEnabled)
   const [recentDraft, setRecentDraft] = useState<number | null | undefined>(undefined)
+  const effectiveRecent = values.contextMaxMessages ?? (explicitUnlimited ? null : globalDefaults.maxMessages)
   const effectiveWindow =
     values.contextCompressWindow === undefined ? globalDefaults.compressWindow : values.contextCompressWindow
 
@@ -1003,14 +1017,12 @@ function ContextManagementFields({
           <FormItem>
             <FieldLabelWithHelp
               label={
-                effectiveWindow == null ||
-                !isValidCompressionWindow(values.contextMaxMessages ?? globalDefaults.maxMessages, effectiveWindow)
+                effectiveWindow == null || !isValidCompressionWindow(effectiveRecent, effectiveWindow)
                   ? t('library.config.basic.context_count')
                   : t('settings.models.context_management.window_recent')
               }
               help={
-                effectiveWindow == null ||
-                !isValidCompressionWindow(values.contextMaxMessages ?? globalDefaults.maxMessages, effectiveWindow)
+                effectiveWindow == null || !isValidCompressionWindow(effectiveRecent, effectiveWindow)
                   ? t('library.config.basic.field.context_count.hint')
                   : t('settings.models.context_management.window_description')
               }
@@ -1050,7 +1062,7 @@ function ContextManagementFields({
 
       <CompressionWindowField
         value={values.contextCompressWindow}
-        recent={values.contextMaxMessages ?? globalDefaults.maxMessages}
+        recent={effectiveRecent}
         inherited={globalDefaults.compressWindow ?? null}
         onChange={(value) => {
           form.clearErrors('contextMaxMessages')
