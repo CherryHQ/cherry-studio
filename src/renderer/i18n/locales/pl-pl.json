@@ -3568,6 +3568,7 @@
   "provider.tokenhub": "TokenHub",
   "provider.vertexai": "Vertex AI",
   "provider.voyageai": "Voyage AI",
+  "provider.wavespeed": "WaveSpeed",
   "provider.xirang": "State Cloud Xirang",
   "provider.yi": "Yi",
   "provider.zai": "Z.ai",
