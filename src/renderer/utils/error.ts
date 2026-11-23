@@ -62,7 +62,8 @@ export function localizedErrorDetail(error: unknown): string | undefined {
   if (actionableMessage) return actionableMessage
   const message = typeof error === 'string' ? error.trim() : error instanceof Error ? error.message : ''
   if (!message) return undefined
-  if (error instanceof LocalizedError || readsInLanguage(message, i18next?.language)) return message
+  if (error instanceof LocalizedError || readsInLanguage(message, i18next?.resolvedLanguage ?? i18next?.language))
+    return message
   return undefined
 }
 

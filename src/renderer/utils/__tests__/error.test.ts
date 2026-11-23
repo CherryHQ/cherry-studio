@@ -21,7 +21,7 @@ import {
 } from '../error'
 import { classifyError } from '../errorClassifier'
 
-const i18nState = vi.hoisted(() => ({ language: 'en-US' }))
+const i18nState = vi.hoisted(() => ({ language: 'en-US', resolvedLanguage: undefined as string | undefined }))
 
 vi.mock('i18next', () => ({ default: i18nState, t: (key: string) => key }))
 
@@ -81,6 +81,14 @@ describe('error', () => {
   describe('formatErrorMessageWithPrefix language', () => {
     afterEach(() => {
       i18nState.language = 'en-US'
+      i18nState.resolvedLanguage = undefined
+    })
+
+    it('judges the cause by the catalog actually displayed, not the requested locale', () => {
+      // zh-HK has no pack, so the UI renders the en-US fallback.
+      i18nState.language = 'zh-HK'
+      i18nState.resolvedLanguage = 'en-US'
+      expect(formatErrorMessageWithPrefix(new Error('技能包缺少 SKILL.md'), 'Import failed')).toBe('Import failed')
     })
 
     it('keeps an English cause out of a Chinese prefix', () => {
