@@ -217,6 +217,24 @@ describe('AppShellTabBar', () => {
     )
   })
 
+  it.each([
+    { isMac: true, isFullscreen: true, minimumInset: 65 },
+    { isMac: true, isFullscreen: false, minimumInset: 0 },
+    { isMac: false, isFullscreen: true, minimumInset: 0 }
+  ])(
+    'clears the native title bar with macOS=$isMac and fullscreen=$isFullscreen',
+    ({ isMac, isFullscreen, minimumInset }) => {
+      mocks.platformState.isMac = isMac
+      renderTabBar({ isFullscreen })
+      const header = document.querySelector<HTMLElement>('[data-ui="app.tab-bar"]')!
+      if (minimumInset) {
+        expect(Number.parseFloat(header.style.marginTop)).toBeGreaterThanOrEqual(minimumInset)
+      } else {
+        expect(header.style.marginTop).toBe('')
+      }
+    }
+  )
+
   const renderTabBar = (
     props?: Partial<ComponentProps<typeof AppShellTabBar>>,
     wrapperProps?: ComponentProps<'div'>
