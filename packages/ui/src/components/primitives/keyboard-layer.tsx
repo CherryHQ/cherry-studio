@@ -81,7 +81,14 @@ export function KeyboardLayer({ children, element, active, releaseAfterFocusRest
   )
 }
 
-export function useKeyboardLayerRef<T extends HTMLElement>(forwardedRef: React.Ref<T> | undefined) {
+export interface KeyboardLayerRef<T extends HTMLElement> {
+  element: T | null
+  ref: React.RefCallback<T>
+}
+
+export function useKeyboardLayerRef<T extends HTMLElement>(
+  forwardedRef: React.Ref<T> | undefined
+): KeyboardLayerRef<T> {
   const [element, setElement] = React.useState<T | null>(null)
   const ref = React.useCallback<React.RefCallback<T>>(
     (node) => {
