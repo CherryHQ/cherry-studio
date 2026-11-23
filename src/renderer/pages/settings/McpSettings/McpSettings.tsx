@@ -18,6 +18,7 @@ import { useMcpServer, useMcpServerMutations } from '@renderer/hooks/useMcpServe
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
@@ -317,9 +318,13 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       toast.success(t('settings.mcp.deleteSuccess'))
       void navigate({ to: '/settings/mcp' })
     } catch (error: any) {
-      toast.error({ title: t('settings.mcp.deleteError'), cause: error })
+      toastAppError(t('settings.mcp.deleteError'), error, {
+        source: 'mcp',
+        operation: 'mcp.delete',
+        recordId: server.id
+      })
     }
-  }, [removeMcpServer, t, navigate])
+  }, [removeMcpServer, t, navigate, server.id])
 
   // The popup body is a localized reason; the raw MCP error stays behind its detail entry.
   const localizedMcpFailure = (error: unknown, fallbackKey: string) => {
@@ -376,7 +381,8 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
             title: t('settings.mcp.startError'),
             content: localizedMcpFailure(error, 'error.diagnosis.mcp'),
             centered: true,
-            cause: error
+            cause: error,
+            data: { source: 'mcp', operation: 'mcp.activate', recordId: serverForUpdate.id }
           })
         }
       } else {
@@ -393,7 +399,8 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
         content: localizedMcpFailure(error, active ? 'error.diagnosis.mcp' : 'toast.error.unexpected'),
         centered: true,
-        cause: error
+        cause: error,
+        data: { source: 'mcp', operation: active ? 'mcp.activate' : 'mcp.deactivate', recordId: server.id }
       })
     } finally {
       setLoadingServer(null)

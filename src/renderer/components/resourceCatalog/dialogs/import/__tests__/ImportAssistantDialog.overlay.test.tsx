@@ -116,6 +116,12 @@ describe('ImportAssistantDialog', () => {
     expect(alert).toHaveTextContent('library.import_dialog.failure')
     expect(alert).not.toHaveTextContent(cause.message)
     expect(within(alert).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
-    expect(importMocks.toastError).toHaveBeenCalledWith({ title: 'library.import_dialog.failure', cause })
+    expect(importMocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'library.import_dialog.failure',
+        cause,
+        data: expect.objectContaining({ errorContext: expect.objectContaining({ operation: 'assistant.import' }) })
+      })
+    )
   })
 })

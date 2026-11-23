@@ -399,6 +399,7 @@ describe('McpSettings', () => {
     expect(shown.title).toBe('settings.mcp.deleteError')
     expect(JSON.stringify([shown.title, shown.description])).not.toContain('EBUSY')
     expect(shown.cause).toBe(failure)
+    expect(shown.data.errorContext).toMatchObject({ operation: 'mcp.delete', recordId: 'server-a' })
   })
 
   it('shows a localized reason, not the raw IPC text, when stopping a server fails', async () => {
@@ -418,6 +419,7 @@ describe('McpSettings', () => {
     expect(shown.title).toBe('settings.mcp.updateError')
     expect(shown.content).toBe('toast.error.unexpected')
     expect(shown.cause).toBe(failure)
+    expect(shown.data).toMatchObject({ operation: 'mcp.deactivate', recordId: 'server-a' })
   })
 
   it('shows the runtime failure as a localized row without the raw connection error', async () => {
