@@ -37,7 +37,7 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
           setLogs((current) => mergeServerLogs(history, current))
         }
       } catch (error) {
-        logger.warn('Failed to load server logs', error as Error)
+        logger.warn('Failed to load server logs', error)
       }
     }
 

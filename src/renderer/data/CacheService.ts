@@ -1048,7 +1048,7 @@ export class CacheService {
         `Synced ${syncedCount} changed shared cache entries from Main (total: ${Object.keys(allShared).length})`
       )
     } catch (error) {
-      logger.error('Failed to sync shared cache from Main:', error as Error)
+      logger.error('Failed to sync shared cache from Main:', error)
     } finally {
       this.sharedKeysUpdatedDuringInitialSync.clear()
       this.markSharedCacheReady()
@@ -1092,7 +1092,7 @@ export class CacheService {
         try {
           callback()
         } catch (error) {
-          logger.error(`Subscriber callback error for key ${key}:`, error as Error)
+          logger.error(`Subscriber callback error for key ${key}:`, error)
         }
       })
     }
@@ -1135,7 +1135,7 @@ export class CacheService {
       this.savePersistCache()
       logger.debug('Loaded persist cache from localStorage with defaults')
     } catch (error) {
-      logger.error('Failed to load persist cache:', error as Error)
+      logger.error('Failed to load persist cache:', error)
       localStorage.removeItem(STORAGE_PERSIST_KEY)
       // Fallback to defaults only
       logger.debug('Fallback to default persist cache values')
@@ -1168,7 +1168,7 @@ export class CacheService {
       localStorage.setItem(STORAGE_PERSIST_KEY, jsonData)
       logger.verbose(`Saved persist cache to localStorage, size: ${(size / (1024 * 1024)).toFixed(2)} MB`)
     } catch (error) {
-      logger.error('Failed to save persist cache:', error as Error)
+      logger.error('Failed to save persist cache:', error)
     }
   }
 

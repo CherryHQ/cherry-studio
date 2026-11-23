@@ -163,7 +163,7 @@ class ImportService {
         throw persistError
       }
     } catch (error) {
-      logger.error('Import failed:', error as Error)
+      logger.error('Import failed:', error)
 
       return {
         success: false,
@@ -199,7 +199,7 @@ class ImportService {
         await ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
       } catch (activeError) {
         if (!isTrashTargetNotFoundError(activeError)) {
-          logger.warn('Failed to roll back an imported topic', activeError as Error, {
+          logger.warn('Failed to roll back an imported topic', activeError, {
             cause: String(cause),
             topicId
           })
@@ -214,7 +214,7 @@ class ImportService {
       await ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: false })
     } catch (activeError) {
       if (!isTrashTargetNotFoundError(activeError)) {
-        logger.error('Failed to roll back the assistant after a failed import', activeError as Error, {
+        logger.error('Failed to roll back the assistant after a failed import', activeError, {
           assistantId,
           cause: String(cause)
         })
@@ -226,7 +226,7 @@ class ImportService {
         await dataApiService.delete(`/assistants/${assistantId}`, { query: { permanent: true } })
       } catch (trashedError) {
         if (!isDataApiNotFoundError(trashedError)) {
-          logger.error('Failed to purge the archived assistant after a failed import', trashedError as Error, {
+          logger.error('Failed to purge the archived assistant after a failed import', trashedError, {
             assistantId,
             cause: String(cause)
           })
@@ -246,7 +246,7 @@ class ImportService {
       await dataApiService.delete(`/topics/${topicId}`, { query: { permanent: true } })
     } catch (error) {
       if (!isDataApiNotFoundError(error)) {
-        logger.warn('Failed to purge an archived imported topic', error as Error, {
+        logger.warn('Failed to purge an archived imported topic', error, {
           cause: String(cause),
           topicId
         })

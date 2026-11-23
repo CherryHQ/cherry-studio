@@ -62,7 +62,7 @@ export function useAppPathSnapshot(): void {
         setInlineFilePathHomePath(info.homePath)
         cacheService.set('app.path.resources', info.resourcesPath)
       })
-      .catch((error) => logger.error('Failed to snapshot app paths', error as Error))
+      .catch((error) => logger.error('Failed to snapshot app paths', error))
   }, [])
 }
 
@@ -106,7 +106,7 @@ export function useWindowRuntime(): void {
       .then((value) => {
         if (active && fullscreenRevision.current === revision) setIsFullscreen(value)
       })
-      .catch((error) => logger.error('Failed to query fullscreen state', error as Error))
+      .catch((error) => logger.error('Failed to query fullscreen state', error))
 
     return () => {
       active = false

@@ -62,7 +62,7 @@ export function useAutoBackupEvents(): void {
 
       void ipcApi
         .request('backup.acknowledge_auto_sync_notification', { type: event.type, id: event.id })
-        .catch((error) => logger.error('Failed to acknowledge automatic backup notification', error as Error))
+        .catch((error) => logger.error('Failed to acknowledge automatic backup notification', error))
     }
   }
 
@@ -80,6 +80,6 @@ export function useAutoBackupEvents(): void {
     void ipcApi
       .request('backup.get_auto_sync_state')
       .then(({ pendingNotifications }) => pendingNotifications.forEach(notifyPending))
-      .catch((error) => logger.error('Failed to load automatic backup notifications', error as Error))
+      .catch((error) => logger.error('Failed to load automatic backup notifications', error))
   }, [])
 }

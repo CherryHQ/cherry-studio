@@ -51,21 +51,21 @@ export const useNotesSettings = () => {
 
   const updateSettings = (newSettings: Partial<NotesSettings>) => {
     void setValues(newSettings).catch((error) => {
-      logger.error('Failed to update notes settings', error as Error)
+      logger.error('Failed to update notes settings', error)
       toast.error(t('notes.settings.save_failed'))
     })
   }
 
   const updateNotesPath = (path: string) => {
     void setValues({ notesPath: path }).catch((error) => {
-      logger.error('Failed to update notes path', error as Error)
+      logger.error('Failed to update notes path', error)
       toast.error(t('notes.settings.save_failed'))
     })
   }
 
   const updateSortType = (value: NotesSortType) => {
     void setValues({ sortType: value }).catch((error) => {
-      logger.error('Failed to update notes sort type', error as Error)
+      logger.error('Failed to update notes sort type', error)
       toast.error(t('notes.settings.save_failed'))
     })
   }

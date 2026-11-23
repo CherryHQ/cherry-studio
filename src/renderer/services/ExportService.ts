@@ -87,7 +87,7 @@ const runNotionExport = async (build: () => Promise<boolean>): Promise<boolean> 
   try {
     return await build()
   } catch (error) {
-    logger.error('Notion export failed:', error as Error)
+    logger.error('Notion export failed:', error)
     toast.error(i18n.t('message.error.notion.export'))
 
     return false
@@ -397,7 +397,7 @@ export async function getMessageTitle(message: ExportableMessage, length = 30): 
       }
     } catch (e) {
       toast.error(i18n.t('chat.topics.export.title_naming_failed'))
-      logger.error('Failed to generate title using topic naming, downgraded to default logic', e as Error)
+      logger.error('Failed to generate title using topic naming, downgraded to default logic', e)
     }
   }
 
@@ -833,7 +833,7 @@ export const exportMessagesAsMarkdown = async (
     toast.error(
       i18n.t(markdownExportPath ? 'message.error.markdown.export.preconf' : 'message.error.markdown.export.specified')
     )
-    logger.error('Failed to export messages as markdown:', error as Error)
+    logger.error('Failed to export messages as markdown:', error)
 
     return false
   } finally {
@@ -1027,7 +1027,7 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
       }
     ]
   } catch (error) {
-    logger.error('failed to process reasoning content:', error as Error)
+    logger.error('failed to process reasoning content:', error)
 
     // 发生错误时，回退到简单的段落处理
     return [
@@ -1395,7 +1395,7 @@ export const exportMarkdownToObsidian = async (attributes: any): Promise<boolean
 
     return true
   } catch (error) {
-    logger.error('Failed to export to Obsidian:', error as Error)
+    logger.error('Failed to export to Obsidian:', error)
     toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
 
     return false
@@ -1586,7 +1586,7 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
 
     return true
   } catch (error) {
-    logger.error('Failed to export to Siyuan:', error as Error)
+    logger.error('Failed to export to Siyuan:', error)
     toast.error(i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''))
 
     return false
@@ -1830,7 +1830,7 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
         return
     }
   } catch (error) {
-    logger.error(`Failed to export note to ${platform}:`, error as Error)
+    logger.error(`Failed to export note to ${platform}:`, error)
     throw error
   }
 }

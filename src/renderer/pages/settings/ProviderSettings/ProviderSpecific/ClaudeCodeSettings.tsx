@@ -35,7 +35,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
     try {
       setLoggedIn(await ipcApi.request('oauth.check_external_login', { providerId }))
     } catch (error) {
-      logger.error('Failed to check Claude login status', error as Error)
+      logger.error('Failed to check Claude login status', error)
       setLoggedIn(false)
     } finally {
       setChecking(false)
@@ -63,7 +63,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
         toast.error(t('settings.provider.claude_code.launch_failed'))
       }
     } catch (error) {
-      logger.error('Failed to launch Claude login terminal', error as Error)
+      logger.error('Failed to launch Claude login terminal', error)
       toast.error(t('settings.provider.claude_code.launch_failed'))
     } finally {
       setLaunching(false)

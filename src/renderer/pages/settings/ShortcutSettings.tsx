@@ -420,7 +420,7 @@ const ShortcutSettings: FC = () => {
       clearSystemConflict()
       await preferenceService.setMultiple(updates)
     } catch (error) {
-      logger.error('Failed to reset all shortcuts to defaults', error as Error)
+      logger.error('Failed to reset all shortcuts to defaults', error)
       toast.error(t('settings.shortcuts.reset_defaults_failed'))
     }
   }
@@ -473,7 +473,7 @@ const ShortcutSettings: FC = () => {
       clearSystemConflict()
       await preferenceService.setMultiple(updates)
     } catch (error) {
-      logger.error(`Failed to toggle shortcuts for group ${activeGroup}`, error as Error)
+      logger.error(`Failed to toggle shortcuts for group ${activeGroup}`, error)
       toast.error(t('settings.shortcuts.save_failed'))
     }
   }
@@ -502,7 +502,7 @@ const ShortcutSettings: FC = () => {
     try {
       await preferenceService.setMultiple(getNumberShortcutUpdates(mode, numberShortcutPlatform))
     } catch (error) {
-      logger.error('Failed to update numbered shortcuts', error as Error)
+      logger.error('Failed to update numbered shortcuts', error)
       toast.error(t('settings.shortcuts.save_failed'))
     } finally {
       setSavingNumberMode(false)

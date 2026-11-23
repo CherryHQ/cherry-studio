@@ -313,7 +313,7 @@ The examples above demonstrate structure only. Write all four diagnosis fields i
 
     return parseResponse(response)
   } catch (error) {
-    logger.error('Free diagnosis model unavailable', error as Error)
+    logger.error('Free diagnosis model unavailable', error)
     throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
   }
 }
@@ -332,7 +332,7 @@ export async function classifyErrorByAI(error: SerializedError, language: string
 
     return response?.trim() || ''
   } catch (error) {
-    logger.warn('Free diagnosis model unavailable for error classification', error as Error)
+    logger.warn('Free diagnosis model unavailable for error classification', error)
 
     return ''
   }

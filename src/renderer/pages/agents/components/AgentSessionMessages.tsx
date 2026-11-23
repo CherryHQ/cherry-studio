@@ -203,12 +203,12 @@ const AgentSessionMessages = ({
   // and a lease held by another window keeps the shared connection alive.
   useEffect(() => {
     void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
-      logger.warn('Failed to acquire agent session warm lease', error as Error)
+      logger.warn('Failed to acquire agent session warm lease', error)
     })
 
     return () => {
       void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
-        logger.warn('Failed to release agent session warm lease', error as Error)
+        logger.warn('Failed to release agent session warm lease', error)
       })
     }
   }, [sessionId])

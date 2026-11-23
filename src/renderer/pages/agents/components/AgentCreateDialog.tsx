@@ -26,7 +26,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
         onOpenChange(false)
         await onCreated(created.id)
       } catch (error) {
-        logger.error('Failed to create agent', error as Error)
+        logger.error('Failed to create agent', error)
         throw error
       }
     },

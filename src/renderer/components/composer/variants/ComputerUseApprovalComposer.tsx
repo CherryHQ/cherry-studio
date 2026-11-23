@@ -61,7 +61,7 @@ export function ComputerUseApprovalComposer({
       if (!accepted) throw new Error('Application approval is no longer pending')
       onResponded()
     } catch (error) {
-      logger.warn('Application approval response failed', error as Error)
+      logger.warn('Application approval response failed', error)
       setFailed(true)
       setSubmitting(false)
       onResponded()

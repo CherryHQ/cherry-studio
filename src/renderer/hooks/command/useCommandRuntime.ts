@@ -24,10 +24,10 @@ export type CommandHandlerSource = CommandHandler | Readonly<RefObject<CommandHa
 export function runCommandHandler(command: CommandId, handler: CommandHandler, args?: unknown): void {
   try {
     void Promise.resolve(handler(args)).catch((error) =>
-      logger.error(`Renderer command handler failed: ${command}`, error as Error)
+      logger.error(`Renderer command handler failed: ${command}`, error)
     )
   } catch (error) {
-    logger.error(`Renderer command handler failed: ${command}`, error as Error)
+    logger.error(`Renderer command handler failed: ${command}`, error)
   }
 }
 

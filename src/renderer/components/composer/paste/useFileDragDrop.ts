@@ -175,7 +175,7 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
 
             return
           } catch (error) {
-            logger.error('handleDrop path:', error as Error)
+            logger.error('handleDrop path:', error)
             toast.error(options.t('chat.input.file_error'))
 
             return

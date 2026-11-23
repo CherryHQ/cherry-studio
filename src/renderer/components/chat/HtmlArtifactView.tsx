@@ -593,7 +593,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
       await window.api.file.write(tempPath, html)
       await ipcApi.request('system.shell.open_path', tempPath)
     } catch (error) {
-      logger.error('Failed to open HTML artifact externally', error as Error)
+      logger.error('Failed to open HTML artifact externally', error)
       toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
     }
   }
@@ -607,7 +607,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
 
       toast.success(t('message.download.success'))
     } catch (error) {
-      logger.error('Failed to download HTML artifact', error as Error)
+      logger.error('Failed to download HTML artifact', error)
       toast.error(formatErrorMessageWithPrefix(error, t('message.download.failed')))
     }
   }
@@ -618,7 +618,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
       toast.success(t('code_block.copy.success'))
       setCopiedTemporarily(true)
     } catch (error) {
-      logger.error('Failed to copy HTML artifact source', error as Error)
+      logger.error('Failed to copy HTML artifact source', error)
       toast.error(t('code_block.copy.failed'))
       setCopiedTemporarily(false)
     }

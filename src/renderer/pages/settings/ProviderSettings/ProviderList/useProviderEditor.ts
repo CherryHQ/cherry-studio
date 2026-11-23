@@ -99,7 +99,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
 
         await ipcApi.request('provider.set_logo', { providerId, image })
       } catch (error) {
-        logger.error('Failed to set provider logo', error as Error)
+        logger.error('Failed to set provider logo', error)
         toast.error(t('settings.provider.logo_upload_failed'))
 
         return
@@ -108,7 +108,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
       try {
         await invalidate(['/providers', `/providers/${providerId}`, `/providers/${providerId}/*`])
       } catch (error) {
-        logger.error('Failed to refresh provider data after logo update', error as Error)
+        logger.error('Failed to refresh provider data after logo update', error)
       }
     },
     [invalidate, t]

@@ -31,7 +31,7 @@ export function useAvailableFileProcessors(): AvailableFileProcessorsState {
         }
       })
       .catch((error) => {
-        logger.warn('Failed to list available file processors', error as Error)
+        logger.warn('Failed to list available file processors', error)
 
         if (mounted) {
           setAvailableProcessors({

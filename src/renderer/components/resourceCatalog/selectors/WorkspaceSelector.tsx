@@ -142,7 +142,7 @@ export function WorkspaceSelector({
     try {
       folderPath = await window.api.file.selectFolder({ properties: ['openDirectory', 'createDirectory'] })
     } catch (error) {
-      logger.error('Failed to select workspace folder', error as Error)
+      logger.error('Failed to select workspace folder', error)
       toast.error(t('agent.session.workspace_selector.select_failed'))
 
       return
@@ -160,7 +160,7 @@ export function WorkspaceSelector({
       await invalidate('/agent-workspaces')
       await onChange(workspace.id)
     } catch (error) {
-      logger.error('Failed to create workspace from folder', error as Error, { folderPath })
+      logger.error('Failed to create workspace from folder', error, { folderPath })
       toast.error(t('agent.session.workspace_selector.create_failed'))
     } finally {
       setIsCreatingWorkspace(false)

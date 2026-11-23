@@ -147,7 +147,7 @@ class PyodideService {
     try {
       await this.initialize()
     } catch (error: unknown) {
-      logger.error('Pyodide initialization failed, cannot execute Python code', error as Error)
+      logger.error('Pyodide initialization failed, cannot execute Python code', error)
       const text = `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
 
       return { text }
@@ -247,7 +247,7 @@ class PyodideService {
       await this.initialize()
       logger.verbose('Pyodide worker has been reset successfully.')
     } catch (error) {
-      logger.error('Failed to re-initialize Pyodide worker after reset.', error as Error)
+      logger.error('Failed to re-initialize Pyodide worker after reset.', error)
       throw error
     }
   }

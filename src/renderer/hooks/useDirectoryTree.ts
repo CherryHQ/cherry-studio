@@ -225,7 +225,7 @@ class DirectoryTreeSession {
 
     const disposeTree = (treeId: string): void => {
       ipcApi.request('file.tree.dispose', { treeId }).catch((err) => {
-        logger.error(`Failed to dispose tree ${treeId}`, err as Error)
+        logger.error(`Failed to dispose tree ${treeId}`, err)
       })
     }
 

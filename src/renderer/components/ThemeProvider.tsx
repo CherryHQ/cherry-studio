@@ -97,7 +97,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           setActualTheme(theme)
         }
       })
-      .catch((error) => logger.error('Failed to resolve system theme', error as Error))
+      .catch((error) => logger.error('Failed to resolve system theme', error))
 
     return () => {
       active = false

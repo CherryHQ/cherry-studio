@@ -51,7 +51,7 @@ export const useAppUpdateState = <TResult>(
       try {
         await showDownloadedUpdate?.(current.info)
       } catch (error) {
-        logger.error('Failed to show update dialog', error as Error)
+        logger.error('Failed to show update dialog', error)
         toast.error(t('settings.about.updateError'))
       }
 
@@ -63,7 +63,7 @@ export const useAppUpdateState = <TResult>(
     try {
       await ipcApi.request('app.updater.check_for_update')
     } catch (error) {
-      logger.error('Failed to check for update', error as Error)
+      logger.error('Failed to check for update', error)
       updateAppUpdateState({ manualCheck: false })
       toast.error(t('settings.about.updateError'))
     } finally {

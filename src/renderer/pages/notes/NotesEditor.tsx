@@ -334,7 +334,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     aria-pressed={enableSpellCheck}
                     onClick={() => {
                       void setEnableSpellCheck(!enableSpellCheck).catch((error) => {
-                        logger.error('Failed to update spell check preference', error as Error)
+                        logger.error('Failed to update spell check preference', error)
                         toast.error(t('notes.settings.save_failed'))
                       })
                     }}

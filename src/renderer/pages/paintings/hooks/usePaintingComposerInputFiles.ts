@@ -151,7 +151,7 @@ export function usePaintingComposerInputFiles({
             type: getFileTypeByExt(entry.ext ?? '')
           })
         } catch (error) {
-          logger.error('failed to seed composer attachment from input file', error as Error)
+          logger.error('failed to seed composer attachment from input file', error)
           unseeded.push(entry)
         }
       }
@@ -231,7 +231,7 @@ export function usePaintingComposerInputFiles({
         cache.set(file.fileTokenSourceId, entry)
         entries.push(entry)
       } catch (error) {
-        logger.error('failed to create input file entry from composer attachment', error as Error)
+        logger.error('failed to create input file entry from composer attachment', error)
         failedSourceIds.push(file.fileTokenSourceId)
       }
     }

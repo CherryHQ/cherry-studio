@@ -441,7 +441,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           onHtmlChange(editor.getHTML())
         }
       } catch (error) {
-        logger.error('Error serializing editor content to markdown:', error as Error)
+        logger.error('Error serializing editor content to markdown:', error)
       }
     },
     onBlur: () => {
@@ -455,7 +455,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
-        logger.warn('Could not set cursor to end:', error as Error)
+        logger.warn('Could not set cursor to end:', error)
       }
     }
   })
@@ -523,7 +523,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
         logger.info('Image pasted and saved:', { id: entry.id })
       } catch (error) {
-        logger.error('Failed to handle image paste:', error as Error)
+        logger.error('Failed to handle image paste:', error)
       }
     },
     [editor]
@@ -545,7 +545,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
             }
           }, 0)
         } catch (error) {
-          logger.warn('Could not set cursor to end after enabling editable:', error as Error)
+          logger.warn('Could not set cursor to end after enabling editable:', error)
         }
       }
     }
@@ -758,7 +758,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         editor.commands.setContent(content, { contentType: 'markdown', emitUpdate: false })
         setMarkdownState(content)
       } catch (error) {
-        logger.error('Error setting markdown content:', error as Error)
+        logger.error('Error setting markdown content:', error)
       }
     },
     [editor]

@@ -193,7 +193,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
       return true
     } catch (error) {
-      logger.error('Failed to refresh binary state', error as Error)
+      logger.error('Failed to refresh binary state', error)
 
       if (propagateError) throw error
 
@@ -226,7 +226,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
         return versionsResult.value
       } catch (error) {
-        logger.error('Failed to fetch latest versions', error as Error)
+        logger.error('Failed to fetch latest versions', error)
 
         if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
           toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
@@ -278,7 +278,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       if (targetVersion) input.targetVersion = targetVersion
       await ipcApi.request('binary.install_tool', input)
     } catch (error) {
-      logger.error('Failed to install tool', error as Error)
+      logger.error('Failed to install tool', error)
     } finally {
       await refreshState()
     }
@@ -310,7 +310,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       // discovered-runtime version pin is grafted on.
       await ipcApi.request('binary.add_custom_tool', tool)
     } catch (error) {
-      logger.error('Failed to add custom tool', error as Error)
+      logger.error('Failed to add custom tool', error)
       setInstallError({ name: tool.name, message: formatErrorMessage(error), action: 'install' })
       throw error
     } finally {
@@ -340,7 +340,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         return
       }
     } catch (error) {
-      logger.error('Failed to remove tool', error as Error)
+      logger.error('Failed to remove tool', error)
       toast.error(formatErrorMessage(error))
     } finally {
       setDeleteTarget(null)
@@ -353,7 +353,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     try {
       await ipcApi.request('binary.remove_tool', { name, definitionOnly: true })
     } catch (error) {
-      logger.error('Failed to remove tool definition', error as Error)
+      logger.error('Failed to remove tool definition', error)
       toast.error(formatErrorMessage(error))
     } finally {
       setDefinitionFallback(null)

@@ -83,7 +83,7 @@ const SiyuanSettings: FC = () => {
 
       toast.success(t('settings.data.siyuan.check.success'))
     } catch (error) {
-      logger.error('Check Siyuan connection failed:', error as Error)
+      logger.error('Check Siyuan connection failed:', error)
       toast.error(t('settings.data.siyuan.check.error'))
     }
   }

@@ -117,7 +117,7 @@ function createHighlightOverlay(element: HTMLElement, container: HTMLElement): v
 
     overlay.addEventListener('animationend', handleAnimationEnd)
   } catch (error) {
-    logger.error('Failed to create highlight overlay:', error as Error)
+    logger.error('Failed to create highlight overlay:', error)
   }
 }
 
@@ -553,7 +553,7 @@ const RichEditor = ({
                   const end = $from.end()
                   userChain().setTextSelection({ from: start, to: end }).setEnhancedLink({ href: url }).run()
                 } catch (error) {
-                  logger.warn('Failed to set enhanced link:', error as Error)
+                  logger.warn('Failed to set enhanced link:', error)
                   userChain().toggleEnhancedLink({ href: '' }).run()
                 }
               } else {
@@ -666,7 +666,7 @@ const RichEditor = ({
             element.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
           }
         } catch (error) {
-          logger.error('Failed in scrollToLine:', error as Error)
+          logger.error('Failed in scrollToLine:', error)
         }
       },
       // Dynamic command management

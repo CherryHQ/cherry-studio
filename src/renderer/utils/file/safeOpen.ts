@@ -23,14 +23,14 @@ export async function safeOpen(handle: FileHandle): Promise<void> {
       try {
         await ipcApi.request('file.show_in_folder', handle)
       } catch (showError) {
-        logger.error('Failed to show blocked file in folder', showError as Error)
+        logger.error('Failed to show blocked file in folder', showError)
         throw showError
       }
 
       return
     }
 
-    logger.error('Failed to open file', error as Error)
+    logger.error('Failed to open file', error)
     throw error
   }
 }

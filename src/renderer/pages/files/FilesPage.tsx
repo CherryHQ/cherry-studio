@@ -430,7 +430,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         loadMoreFiles()
       } catch (error) {
         pendingLoadMoreRef.current = false
-        logger.error('Failed to load more files', error as Error)
+        logger.error('Failed to load more files', error)
       }
     })
   }, [])
@@ -545,7 +545,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
   const handleShowInFolder = useCallback((id: string) => {
     void ipcApi.request('file.show_in_folder', createFileEntryHandle(id)).catch((error) => {
-      logger.error('Failed to show file in folder', error as Error)
+      logger.error('Failed to show file in folder', error)
     })
   }, [])
 
@@ -558,7 +558,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         reportImportFailures(result, t('files.error.import_partial_failed'))
         await refetchFiles()
       } catch (error) {
-        logger.error('Failed to import files', error as Error)
+        logger.error('Failed to import files', error)
         toast.error(t('files.error.import_failed'))
       }
     },
@@ -580,7 +580,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
       await handleImportPaths(paths)
     } catch (error) {
-      logger.error('Failed to select files for import', error as Error)
+      logger.error('Failed to select files for import', error)
       toast.error(t('files.error.import_failed'))
     }
   }, [handleImportPaths, t])
@@ -701,7 +701,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       try {
         await refetchFiles()
       } catch (error) {
-        logger.warn('Failed to refresh files after deletion', error as Error)
+        logger.warn('Failed to refresh files after deletion', error)
       }
 
       const { trashedInternalIds: alreadyTrashedIds } = await inspectFailedFileIds(trashResult.failed)
@@ -741,7 +741,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             try {
               await refetchFiles()
             } catch (error) {
-              logger.warn('Failed to refresh files after restore', error as Error)
+              logger.warn('Failed to refresh files after restore', error)
             }
 
             const { activeInternalIds } = await inspectFailedFileIds(restoreResult.failed)
@@ -809,7 +809,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
           if (confirmed) await performDelete(new Set(targets.map((file) => file.id)))
         } catch (error) {
-          logger.error('Failed to delete files', error as Error)
+          logger.error('Failed to delete files', error)
           toast.error(t('files.error.delete_failed'))
         } finally {
           deleteRequestPendingRef.current = false
@@ -854,7 +854,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         setRenamingId(null)
         await refetchFiles()
       } catch (error) {
-        logger.error('Failed to rename file', error as Error)
+        logger.error('Failed to rename file', error)
         toast.error(t('files.error.rename_failed'))
         setRenamingId(null)
       }

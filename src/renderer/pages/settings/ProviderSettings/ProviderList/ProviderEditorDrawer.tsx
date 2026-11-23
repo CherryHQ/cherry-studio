@@ -531,7 +531,7 @@ export default function ProviderEditorDrawer({
     try {
       await onSubmit(payload)
     } catch (error) {
-      logger.error('Provider editor submit failed', error as Error)
+      logger.error('Provider editor submit failed', error)
       toast.error(t('settings.provider.save_failed'))
     } finally {
       setIsSubmitting(false)

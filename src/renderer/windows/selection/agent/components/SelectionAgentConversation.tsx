@@ -139,7 +139,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
       void ipcApi.request('window.close')
     } catch (error) {
       setHandingOff(false)
-      logger.error('Failed to open the session in the main window', error as Error)
+      logger.error('Failed to open the session in the main window', error)
       toast.error(t('selection.agent.open_in_main_window_failed'))
     }
   }

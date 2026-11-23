@@ -304,7 +304,7 @@ export function useHomeMessageListProviderValue({
             if (!richContent) toast.success(t('message.copy.success'))
           })
           .catch((error) => {
-            logger.error('Failed to copy last message:', error as Error)
+            logger.error('Failed to copy last message:', error)
             toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
           })
       }
@@ -469,7 +469,7 @@ export function useHomeMessageListProviderValue({
         void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: topic.id })
       })
       .catch((error) => {
-        logger.error('Failed to update context boundary:', error as Error)
+        logger.error('Failed to update context boundary:', error)
         toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
       })
   }, [canStartNewContext, requireChatWrite, t, topic.id])
@@ -507,7 +507,7 @@ export function useHomeMessageListProviderValue({
         logger.error(`Failed to save code block content to message block ${msgBlockId}: unable to resolve part`)
         toast.error(t('code_block.edit.save.failed.label'))
       } catch (error) {
-        logger.error(`Failed to save code block content to message block ${msgBlockId}:`, error as Error)
+        logger.error(`Failed to save code block content to message block ${msgBlockId}:`, error)
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
@@ -546,7 +546,7 @@ export function useHomeMessageListProviderValue({
           persistedParts.filter((_, index) => index !== resolved.index)
         )
       } catch (error) {
-        logger.error('Failed to remove error part:', error as Error)
+        logger.error('Failed to remove error part:', error)
         throw error
       }
     },
@@ -611,7 +611,7 @@ export function useHomeMessageListProviderValue({
             return write.editMessage(messageId, [...baseParts, translationPart])
           })
           .catch((error) => {
-            logger.error('Failed to update message translation:', error as Error, { messageId })
+            logger.error('Failed to update message translation:', error, { messageId })
           })
       }
 
@@ -651,7 +651,7 @@ export function useHomeMessageListProviderValue({
         await translationUpdater?.waitForPendingUpdates()
 
         if (!isAbortError(error)) {
-          logger.error('Message translation failed', error as Error)
+          logger.error('Message translation failed', error)
           toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
         }
 
@@ -670,7 +670,7 @@ export function useHomeMessageListProviderValue({
               try {
                 await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
               } catch (cleanupError) {
-                logger.error('Failed to clean up translation loading part:', cleanupError as Error, { messageId })
+                logger.error('Failed to clean up translation loading part:', cleanupError, { messageId })
               }
             }
           }
@@ -784,7 +784,7 @@ export function useHomeMessageListProviderValue({
       try {
         await deleteMessageGroup(messageIds)
       } catch (error) {
-        logger.error('Failed to delete message group:', error as Error)
+        logger.error('Failed to delete message group:', error)
         toast.error(formatErrorMessageWithPrefix(error, t('message.delete.failed')))
       }
     },
@@ -830,7 +830,7 @@ export function useHomeMessageListProviderValue({
         try {
           await regenerateMessageUsingModel(message.id, selected.id)
         } catch (error) {
-          logger.error('Failed to regenerate message using selected model:', error as Error)
+          logger.error('Failed to regenerate message using selected model:', error)
           toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
         }
       }

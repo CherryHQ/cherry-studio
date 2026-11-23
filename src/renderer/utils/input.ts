@@ -30,7 +30,7 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
 
         return null
       } catch (error) {
-        logger.error('getFilesFromDropEvent - getPathForFile error:', error as Error)
+        logger.error('getFilesFromDropEvent - getPathForFile error:', error)
 
         return null
       }

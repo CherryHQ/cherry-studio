@@ -122,7 +122,7 @@ export function useProviderDeepLinkImport(
         void navigate({ to: '/settings/provider', search: { id: providerId } })
         toast.success(t('settings.models.provider_key_added', { provider: displayName }))
       } catch (error) {
-        logger.error('Failed to import provider deep link data', error as Error)
+        logger.error('Failed to import provider deep link data', error)
         toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         void navigate({ to: '/settings/provider' })
       }
@@ -140,7 +140,7 @@ export function useProviderDeepLinkImport(
 
       void importProvider(parsed.data)
     } catch (error) {
-      logger.error('Failed to parse provider deep link import data', error as Error)
+      logger.error('Failed to parse provider deep link import data', error)
       toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       void navigate({ to: '/settings/provider' })
     }

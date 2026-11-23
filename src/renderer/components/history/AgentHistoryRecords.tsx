@@ -293,7 +293,7 @@ const AgentHistoryRecords = ({
 
               if (outcome.status !== 'succeeded') {
                 await reload().catch((refreshError) => {
-                  logger.warn('Failed to refresh sessions after permanent delete failed', refreshError as Error, {
+                  logger.warn('Failed to refresh sessions after permanent delete failed', refreshError, {
                     sessionId: id
                   })
                 })

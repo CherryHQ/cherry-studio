@@ -97,7 +97,7 @@ export function HelpMenu({
 
                 return action()
               })
-              .catch((error) => logger.error('Failed to run help menu action', error as Error))
+              .catch((error) => logger.error('Failed to run help menu action', error))
           }}>
           <MenuList className="gap-0.5">
             <MenuItem

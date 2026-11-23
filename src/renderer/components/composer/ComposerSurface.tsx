@@ -51,7 +51,7 @@ function loadRuntime() {
   runtimePromise ??= import('./ComposerSurfaceRuntime').catch((error) => {
     // Drop the rejected promise so the next interaction retries instead of replaying the failure.
     runtimePromise = undefined
-    logger.error('Failed to load composer runtime', error as Error)
+    logger.error('Failed to load composer runtime', error)
     throw error
   })
 

@@ -57,7 +57,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     try {
       setRemoteHasOAuthToken(await ipcApi.request('oauth.has_token', { providerId: SystemProviderIds.cherryin }))
     } catch (error) {
-      logger.warn('Failed to check CherryIN OAuth token status:', error as Error)
+      logger.warn('Failed to check CherryIN OAuth token status:', error)
       setRemoteHasOAuthToken(false)
     }
   }, [])
@@ -77,7 +77,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       const balance = await ipcApi.request('cherryin.get_balance', { apiHost: CHERRYIN_OAUTH_SERVER })
       setBalanceInfo(balance)
     } catch (error) {
-      logger.warn('Failed to fetch balance:', error as Error)
+      logger.warn('Failed to fetch balance:', error)
       setBalanceInfo(null)
     } finally {
       setIsLoadingData(false)
@@ -142,7 +142,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       )
     } catch (error) {
       if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
-      logger.error('OAuth error:', error as Error)
+      logger.error('OAuth error:', error)
       toast.error(t('settings.provider.oauth.error'))
     } finally {
       if (signInRequestIdRef.current === requestId) {
@@ -162,7 +162,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     try {
       await ipcApi.request('oauth.cancel_sign_in', { providerId: SystemProviderIds.cherryin, requestId })
     } catch (error) {
-      logger.error('Failed to cancel CherryIN OAuth login:', error as Error)
+      logger.error('Failed to cancel CherryIN OAuth login:', error)
       toast.error(t('settings.provider.oauth.error'))
     } finally {
       setIsCancellingLogin(false)
@@ -200,7 +200,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
       toast.success(t('settings.provider.oauth.logout_success'))
     } catch (error) {
-      logger.error('Logout error:', error as Error)
+      logger.error('Logout error:', error)
       toast.warning(t('settings.provider.oauth.logout_warning'))
     } finally {
       setIsLoggingOut(false)

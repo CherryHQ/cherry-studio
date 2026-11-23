@@ -41,7 +41,7 @@ export async function fetchXOEmbed(url: string): Promise<{ author: string; text:
       text: text || ''
     }
   } catch (e) {
-    logger.warn('Failed to fetch X oEmbed', e as Error)
+    logger.warn('Failed to fetch X oEmbed', e)
 
     return null
   }
@@ -66,7 +66,7 @@ export async function fetchRedirectUrl(url: string) {
 
     return response.url
   } catch (e) {
-    logger.error('Failed to fetch redirect url', e as Error)
+    logger.error('Failed to fetch redirect url', e)
 
     return url
   }

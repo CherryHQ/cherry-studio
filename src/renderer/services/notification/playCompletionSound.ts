@@ -11,7 +11,7 @@ export function playCompletionSound(): void {
     clearTimeout(closeTimer)
 
     if (context && context.state !== 'closed') {
-      void context.close().catch((error) => logger.error('Failed to close completion audio', error as Error))
+      void context.close().catch((error) => logger.error('Failed to close completion audio', error))
     }
   }
 
@@ -32,11 +32,11 @@ export function playCompletionSound(): void {
     oscillator.stop(start + 0.32)
     closeTimer = setTimeout(close, 2000)
     void context.resume().catch((error) => {
-      logger.error('Failed to play completion sound', error as Error)
+      logger.error('Failed to play completion sound', error)
       close()
     })
   } catch (error) {
-    logger.error('Failed to create completion audio', error as Error)
+    logger.error('Failed to create completion audio', error)
     close()
   }
 }

@@ -112,7 +112,7 @@ export function useTopicOverlayHandoffOnTerminal(
       void (async () => {
         await onHandoffRef.current()
       })().catch((error) => {
-        logger.warn('Topic overlay handoff failed', error as Error, { topicId })
+        logger.warn('Topic overlay handoff failed', error, { topicId })
       })
     }
   }, [liveAssistants, status, topicId])

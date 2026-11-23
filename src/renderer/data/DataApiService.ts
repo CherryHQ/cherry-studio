@@ -461,7 +461,7 @@ export class DataApiService implements ApiClient {
       try {
         listener(batch)
       } catch (error) {
-        logger.error('data change listener failed', error as Error)
+        logger.error('data change listener failed', error)
       }
     }
   }

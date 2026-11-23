@@ -14,7 +14,7 @@ export function useShowWorkspace() {
   const updateShowWorkspace = useCallback(
     (show: boolean) => {
       void setShowWorkspace(show).catch((error) => {
-        logger.error('Failed to update notes workspace visibility', error as Error)
+        logger.error('Failed to update notes workspace visibility', error)
         toast.error(t('notes.settings.save_failed'))
       })
     },

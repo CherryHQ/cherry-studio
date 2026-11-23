@@ -263,7 +263,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           setSelectedVault(vaultToUse)
         }
       } catch (error) {
-        logger.error('获取Obsidian Vault失败:', error as Error)
+        logger.error('获取Obsidian Vault失败:', error)
         setError(i18n.t('chat.topics.export.obsidian_fetch_error'))
       } finally {
         setLoading(false)
@@ -282,7 +282,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           const filesData = await ipcApi.request('export.obsidian.get_files', { vaultName: selectedVault })
           setFiles(filesData)
         } catch (error) {
-          logger.error('获取Obsidian文件失败:', error as Error)
+          logger.error('获取Obsidian文件失败:', error)
           setError(i18n.t('chat.topics.export.obsidian_fetch_folders_error'))
         } finally {
           setLoading(false)

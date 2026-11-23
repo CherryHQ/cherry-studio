@@ -36,7 +36,7 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
             : t('agent.session.workspace_status.inaccessible', { path: workspacePath })
         )
       } catch (error) {
-        logger.warn('Failed to check agent workspace path status', error as Error)
+        logger.warn('Failed to check agent workspace path status', error)
 
         if (!cancelled) setWarning(undefined)
       }

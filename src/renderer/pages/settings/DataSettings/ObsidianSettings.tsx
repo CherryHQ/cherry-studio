@@ -54,7 +54,7 @@ const ObsidianSettings: FC = () => {
           void setDefaultObsidianVault(vaultsData[0].name)
         }
       } catch (error) {
-        logger.error('Failed to fetch Obsidian vaults', error as Error)
+        logger.error('Failed to fetch Obsidian vaults', error)
         setError(t('settings.data.obsidian.default_vault_fetch_error'))
       } finally {
         setLoading(false)

@@ -135,7 +135,7 @@ export function AssistantConversationPickerDialog({
         // has no topic yet), mirroring picking an existing one.
         await onSelect({ type: 'assistant', assistantId: created.id })
       } catch (error) {
-        logger.error('Failed to create assistant from conversation picker', error as Error)
+        logger.error('Failed to create assistant from conversation picker', error)
         throw error
       }
     },

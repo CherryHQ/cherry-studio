@@ -95,7 +95,7 @@ export function usePreference<K extends UnifiedPreferenceKeyType>(
   useEffect(() => {
     if (rawValue === undefined) {
       preferenceService.get(key).catch((error) => {
-        logger.error(`Failed to load initial preference ${key}:`, error as Error)
+        logger.error(`Failed to load initial preference ${key}:`, error)
       })
     }
   }, [key, rawValue])
@@ -109,7 +109,7 @@ export function usePreference<K extends UnifiedPreferenceKeyType>(
       try {
         await preferenceService.set(key, newValue, options)
       } catch (error) {
-        logger.error(`Failed to set preference ${key}:`, error as Error)
+        logger.error(`Failed to set preference ${key}:`, error)
         throw error
       }
     },
@@ -326,7 +326,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
 
     if (uncachedKeys.length > 0) {
       preferenceService.getMultipleRaw(uncachedKeys).catch((error) => {
-        logger.error('Failed to load initial preferences:', error as Error)
+        logger.error('Failed to load initial preferences:', error)
       })
     }
   }, [keyEntries, rawValues])
@@ -366,7 +366,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
         const prefUpdates: Parameters<typeof preferenceService.setMultiple>[0] = Object.fromEntries(entries)
         await preferenceService.setMultiple(prefUpdates, options)
       } catch (error) {
-        logger.error('Failed to update preferences:', error as Error)
+        logger.error('Failed to update preferences:', error)
         throw error
       }
     },

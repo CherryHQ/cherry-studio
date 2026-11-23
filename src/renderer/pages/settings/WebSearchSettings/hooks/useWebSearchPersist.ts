@@ -16,7 +16,7 @@ export function useWebSearchPersist() {
       try {
         return { ok: true, value: await action() }
       } catch (error) {
-        logger.error(message, error as Error)
+        logger.error(message, error)
         toast.error(t('settings.tool.websearch.errors.save_failed'))
 
         return { ok: false }

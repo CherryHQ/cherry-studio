@@ -105,7 +105,7 @@ const CaptureOverlay: FC = () => {
         setImageLoaded(true)
       } catch (error) {
         if (disposed) return
-        logger.error('Failed to load the frozen capture', error as Error)
+        logger.error('Failed to load the frozen capture', error)
         // Nothing will ever paint here; end the session on the same path Esc takes rather
         // than letting the main-process fallback timer reveal a permanently blank overlay.
         void ipcApi.request('screenshot.cancel')
@@ -257,7 +257,7 @@ const CaptureOverlay: FC = () => {
           await ipcApi.request(route, result)
         }
       } catch (error) {
-        logger.error('Failed to export the selection', error as Error)
+        logger.error('Failed to export the selection', error)
 
         if (action === 'result') throw error
       } finally {

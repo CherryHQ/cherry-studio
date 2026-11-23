@@ -145,7 +145,7 @@ export class AnthropicImporter implements ConversationImporter {
 
         if (importedConversation) importedConversations.push(importedConversation)
       } catch (convError) {
-        logger.warn(`Failed to convert conversation "${conversation.name}":`, convError as Error)
+        logger.warn(`Failed to convert conversation "${conversation.name}":`, convError)
       }
     }
 

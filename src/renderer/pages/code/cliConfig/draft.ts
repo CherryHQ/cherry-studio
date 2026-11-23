@@ -58,7 +58,7 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
       .get(`/models/${args.modelId}`)
       .then((record) => record as Model | null)
       .catch((error) => {
-        logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+        logger.warn(`Failed to load model record for ${args.modelId}`, error)
 
         return null
       })
@@ -83,7 +83,7 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     // Model metadata only tunes optional fields (endpoint pick, context window),
     // so a fetch failure degrades the config quietly — leave a breadcrumb.
     dataApiService.get(`/models/${args.modelId}`).catch((error) => {
-      logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+      logger.warn(`Failed to load model record for ${args.modelId}`, error)
 
       return null
     })

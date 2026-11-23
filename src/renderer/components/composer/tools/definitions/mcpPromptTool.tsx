@@ -176,7 +176,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
         return true
       } catch (error) {
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return false
-        logger.error('Failed to get MCP prompt', error as Error, { serverId: prompt.serverId, name: prompt.name })
+        logger.error('Failed to get MCP prompt', error, { serverId: prompt.serverId, name: prompt.name })
         toast.errorFromException(error, {
           category: 'mcp',
           mcpServer: { id: prompt.serverId, name: prompt.serverName },

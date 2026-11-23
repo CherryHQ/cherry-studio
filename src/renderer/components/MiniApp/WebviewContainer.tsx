@@ -160,7 +160,7 @@ const MiniAppWebview = memo(
             }
           }
         } catch (error) {
-          logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
+          logger.error(`Failed to handle shortcut for webview ${appid}:`, error)
           toast.error(t('miniApp.shortcut.failed', { message: (error as Error).message }))
         }
       }

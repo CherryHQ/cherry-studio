@@ -486,7 +486,7 @@ export function CommandContextMenu({
       try {
         resolved = getExtraItems(event)
       } catch (error) {
-        logger.warn('Failed to resolve command menu extra items', error as Error)
+        logger.warn('Failed to resolve command menu extra items', error)
         setResolvedExtraItems(EMPTY_EXTRA_ITEMS)
 
         return
@@ -508,7 +508,7 @@ export function CommandContextMenu({
           }
         })
         .catch((error) => {
-          logger.warn('Failed to resolve command menu extra items', error as Error)
+          logger.warn('Failed to resolve command menu extra items', error)
 
           if (extraItemsRequestIdRef.current === requestId) {
             setResolvedExtraItems(EMPTY_EXTRA_ITEMS)
@@ -556,13 +556,13 @@ export function CommandContextMenu({
       try {
         nativeExtraItems = resolveExtraItems(event)
       } catch (error) {
-        logger.error('Failed to resolve command menu extra items', error as Error)
+        logger.error('Failed to resolve command menu extra items', error)
         nativeExtraItems = EMPTY_EXTRA_ITEMS
       }
 
       void Promise.resolve(nativeExtraItems)
         .catch((error) => {
-          logger.error('Failed to resolve command menu extra items', error as Error)
+          logger.error('Failed to resolve command menu extra items', error)
 
           return EMPTY_EXTRA_ITEMS
         })
@@ -600,7 +600,7 @@ export function CommandContextMenu({
           })
         })
         .catch((error) => {
-          logger.error('Failed to show native command menu', error as Error)
+          logger.error('Failed to show native command menu', error)
         })
         .finally(() => {
           if (request.close() && extraItemsRequestIdRef.current === requestId) {
@@ -897,7 +897,7 @@ export function CommandPopupMenu({
           getExtraItemActions(decoratedExtraItems).get(result.id)?.()
         }
       } catch (error) {
-        logger.error('Failed to show native command popup menu', error as Error)
+        logger.error('Failed to show native command popup menu', error)
       } finally {
         if (request.close()) onOpenChange?.(false)
       }

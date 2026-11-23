@@ -72,7 +72,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
     window.setTimeout(() => {
       void Promise.resolve()
         .then(action)
-        .catch((error) => logger.error('Failed to run deferred feedback action', error as Error))
+        .catch((error) => logger.error('Failed to run deferred feedback action', error))
     }, 0)
   }
 
@@ -81,7 +81,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
       const { sessionId } = await ipcApi.request('ai.agent.support_session.create')
       openRoute(getFeedbackAgentRoute(sessionId))
     } catch (error) {
-      logger.error('Failed to create Cherry Support feedback session', error as Error)
+      logger.error('Failed to create Cherry Support feedback session', error)
       toast.error(t('settings.about.feedback.agent_error'))
     }
   }
@@ -90,7 +90,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
     try {
       await openExternalWebsite(FEEDBACK_GITHUB_URL)
     } catch (error) {
-      logger.error('Failed to open GitHub issue chooser', error as Error)
+      logger.error('Failed to open GitHub issue chooser', error)
       toast.error(t('settings.about.feedback.github.error'))
     }
   }

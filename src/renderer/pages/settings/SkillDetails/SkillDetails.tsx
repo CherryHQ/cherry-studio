@@ -66,7 +66,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
     try {
       await ipcApi.request('skill.folder.open', { skillId })
     } catch (error) {
-      logger.error('Failed to open Skill folder', error as Error, { skillId })
+      logger.error('Failed to open Skill folder', error, { skillId })
       toast.error(t('library.skill_detail.open_folder_failed'))
     }
   }
@@ -77,7 +77,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
     try {
       await updateGlobalEnabled(checked)
     } catch (error) {
-      logger.error('Failed to update Skill global state', error as Error, { skillId })
+      logger.error('Failed to update Skill global state', error, { skillId })
       toast.error(t('settings.skills.toggleFailed', { name: skill.name }))
     }
   }
@@ -90,7 +90,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       await setMirrorEnabled(checked)
       await refetch()
     } catch (error) {
-      logger.error('Failed to update Skill export', error as Error, { skillId })
+      logger.error('Failed to update Skill export', error, { skillId })
       toast.error(t('settings.skills.mirrorToggleFailed', { name: skill.name }))
     } finally {
       setIsUpdatingMirror(false)
@@ -142,7 +142,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
 
       setRemoteCheck(result)
     } catch (error) {
-      logger.error('Failed to check Skill update', error as Error, { skillId })
+      logger.error('Failed to check Skill update', error, { skillId })
       toast.error(t('settings.skills.remote.checkFailed'))
     } finally {
       setCheckingRemote(false)
@@ -173,7 +173,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         })
         setTimeout(() => void checkRemoteUpdate(), 0)
       } else {
-        logger.error('Failed to apply Skill update', error as Error, { skillId })
+        logger.error('Failed to apply Skill update', error, { skillId })
         toast.error(t('settings.skills.remote.applyFailed'))
       }
     } finally {

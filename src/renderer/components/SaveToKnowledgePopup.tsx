@@ -176,7 +176,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
         setContentStats(stats)
       } catch (error) {
-        logger.error('analyze content failed:', error as Error)
+        logger.error('analyze content failed:', error)
         setContentStats({
           text: 0,
           code: 0,
@@ -268,7 +268,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         }
       })
       .catch((error) => {
-        logger.warn('Failed to load last-used knowledge base:', error as Error)
+        logger.warn('Failed to load last-used knowledge base:', error)
 
         if (!cancelled) {
           setLastUsedLoaded(true)
@@ -364,7 +364,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         try {
           content = await window.api.file.readExternal(note.externalPath)
         } catch (error) {
-          logger.error('Failed to read note file:', error as Error)
+          logger.error('Failed to read note file:', error)
           throw new Error('Failed to read note content. Please ensure the file exists and is accessible.')
         }
 
@@ -448,12 +448,12 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       // a zero-item save returns early above and is not remembered as the
       // last-used base.
       preferenceService.set('chat.save.knowledge.last_base_id', selectedBaseId).catch((error) => {
-        logger.warn('Failed to persist last-used knowledge base:', error as Error)
+        logger.warn('Failed to persist last-used knowledge base:', error)
       })
 
       resolve({ success: true, savedCount })
     } catch (error) {
-      logger.error('save failed:', error as Error)
+      logger.error('save failed:', error)
 
       // Provide more specific error messages
       let errorMessage = t(

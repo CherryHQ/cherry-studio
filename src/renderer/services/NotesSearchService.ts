@@ -167,7 +167,7 @@ export async function searchFileContent(
       score
     }
   } catch (error) {
-    logger.error(`Failed to search file content for ${node.externalPath}:`, error as Error)
+    logger.error(`Failed to search file content for ${node.externalPath}:`, error)
 
     return null
   }

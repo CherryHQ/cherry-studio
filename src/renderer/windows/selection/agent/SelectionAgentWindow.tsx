@@ -103,7 +103,7 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
 
         return null
       } catch (error) {
-        logger.error('Failed to create the selection agent session', error as Error)
+        logger.error('Failed to create the selection agent session', error)
 
         return isSelectionWorkspaceUnavailableError(error)
           ? t('selection.agent.workspace_unavailable_hint')

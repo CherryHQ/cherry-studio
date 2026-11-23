@@ -70,7 +70,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
       try {
         await persistPromise
       } catch (error) {
-        logger.error(`Failed to persist ${actionName}`, error as Error)
+        logger.error(`Failed to persist ${actionName}`, error)
         toast.error(t('common.save_failed'))
       }
     },
@@ -250,7 +250,7 @@ const TranslateModelParameters: FC = () => {
       try {
         await persistPromise
       } catch (error) {
-        logger.error(`Failed to persist ${actionName}`, error as Error)
+        logger.error(`Failed to persist ${actionName}`, error)
         toast.error(t('common.save_failed'))
       }
     },
@@ -388,7 +388,7 @@ const TranslatePromptField: FC = () => {
     try {
       await persistPromise
     } catch (error) {
-      logger.error(`Failed to persist ${actionName}`, error as Error)
+      logger.error(`Failed to persist ${actionName}`, error)
       toast.error(saveFailedMessageRef.current || 'Failed to save')
     }
   }, [])

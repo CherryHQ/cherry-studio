@@ -48,7 +48,7 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
     try {
       await refresh()
     } catch (error) {
-      logger.warn('Failed to refresh archive', error as Error)
+      logger.warn('Failed to refresh archive', error)
     }
   }, [refresh])
 

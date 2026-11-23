@@ -32,7 +32,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
       })
       .catch((error) => {
         // The grid keeps its initials skeleton; just record the failed chunk.
-        logger.warn('Failed to load provider icon catalog:', error as Error)
+        logger.warn('Failed to load provider icon catalog:', error)
       })
 
     return () => {

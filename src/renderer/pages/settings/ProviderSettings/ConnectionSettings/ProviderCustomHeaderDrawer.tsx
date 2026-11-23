@@ -402,7 +402,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
       // instead of silently losing their edits.
-      logger.error('Failed to save provider request config', error as Error, { providerId })
+      logger.error('Failed to save provider request config', error, { providerId })
       toast.error(t('settings.provider.save_failed'))
 
       return
@@ -414,7 +414,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
         endpointConfigs: nextEndpointConfigs,
         defaultChatEndpoint
       }).catch((error) => {
-        logger.error('Background model sync after endpoint change failed', error as Error, { providerId })
+        logger.error('Background model sync after endpoint change failed', error, { providerId })
       })
     }
 

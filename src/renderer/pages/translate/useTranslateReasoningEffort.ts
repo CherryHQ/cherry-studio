@@ -39,7 +39,7 @@ export function useTranslateReasoningEffort() {
 
   const selectEffort = useCallback(
     (next: ReasoningEffortOption) => {
-      setEffort(next).catch((err) => logger.error('Failed to persist translate reasoning effort', err as Error))
+      setEffort(next).catch((err) => logger.error('Failed to persist translate reasoning effort', err))
     },
     [setEffort]
   )

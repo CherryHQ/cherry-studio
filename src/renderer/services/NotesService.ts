@@ -273,7 +273,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       folderCount: result.folderCount
     }
   } catch (error) {
-    logger.error('Batch upload failed:', error as Error)
+    logger.error('Batch upload failed:', error)
     throw error
   }
 }
@@ -411,7 +411,7 @@ async function createFolders(folders: Set<string>): Promise<void> {
     try {
       await window.api.file.mkdir(folder)
     } catch (error) {
-      logger.error('Failed to create folder while uploading notes', error as Error)
+      logger.error('Failed to create folder while uploading notes', error)
       throw error
     }
   }

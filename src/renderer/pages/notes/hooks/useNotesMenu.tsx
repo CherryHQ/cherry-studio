@@ -81,7 +81,7 @@ export const useNotesMenu = ({
         const [{ exportNote }] = await Promise.all([exportServicePromise, selectionReady])
         await exportNote({ node, platform })
       } catch (error) {
-        logger.error(`Failed to ${platform === 'copyImage' ? 'copy' : 'export'} as image:`, error as Error)
+        logger.error(`Failed to ${platform === 'copyImage' ? 'copy' : 'export'} as image:`, error)
         toast.error(t('common.copy_failed'))
       }
     },
@@ -93,7 +93,7 @@ export const useNotesMenu = ({
       try {
         await fn()
       } catch (error) {
-        logger.error('note export failed', error as Error)
+        logger.error('note export failed', error)
         toast.error(t('notes.export_failed'))
       }
     },

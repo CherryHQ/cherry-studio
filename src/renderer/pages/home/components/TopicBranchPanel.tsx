@@ -220,7 +220,7 @@ const TopicBranchPanel: FC<Props> = ({
           return
         }
 
-        logger.error('Failed to set active branch from topic flow', err as Error)
+        logger.error('Failed to set active branch from topic flow', err)
         toast.error(t('common.error'))
       }
     },
@@ -245,7 +245,7 @@ const TopicBranchPanel: FC<Props> = ({
           return
         }
 
-        logger.error('Failed to start message branch from topic flow', err as Error)
+        logger.error('Failed to start message branch from topic flow', err)
         toast.error(t('common.error'))
       }
     },
@@ -267,7 +267,7 @@ const TopicBranchPanel: FC<Props> = ({
           return
         }
 
-        logger.error('Failed to copy topic branch from topic flow', err as Error)
+        logger.error('Failed to copy topic branch from topic flow', err)
         toast.error(t('common.error'))
       }
     },
@@ -290,7 +290,7 @@ const TopicBranchPanel: FC<Props> = ({
         return true
       }
 
-      logger.error('Failed to delete topic branch from topic flow', err as Error)
+      logger.error('Failed to delete topic branch from topic flow', err)
       toast.error(t('common.delete_failed'))
     } finally {
       deletingRef.current = false

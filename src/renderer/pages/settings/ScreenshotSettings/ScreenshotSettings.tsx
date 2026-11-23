@@ -102,7 +102,7 @@ const ScreenshotSettings: FC = () => {
       .then((status) => {
         if (mounted) setPermissionStatus(status)
       })
-      .catch((error) => logger.warn('Failed to read the screen recording permission status', error as Error))
+      .catch((error) => logger.warn('Failed to read the screen recording permission status', error))
 
     return () => {
       mounted = false
@@ -118,17 +118,17 @@ const ScreenshotSettings: FC = () => {
         setRestartRequired(status === 'authorized')
         setPromptUnavailable(status === 'not-determined')
       })
-      .catch((error) => logger.warn('Screen recording permission request failed', error as Error))
+      .catch((error) => logger.warn('Screen recording permission request failed', error))
   }
 
   const openSystemSettings = () => {
     ipcApi
       .request('system.mac.open_screen_capture_settings')
-      .catch((error) => logger.warn('Failed to open the screen recording settings pane', error as Error))
+      .catch((error) => logger.warn('Failed to open the screen recording settings pane', error))
   }
 
   const relaunch = () => {
-    ipcApi.request('app.relaunch').catch((error) => logger.warn('Failed to relaunch the app', error as Error))
+    ipcApi.request('app.relaunch').catch((error) => logger.warn('Failed to relaunch the app', error))
   }
 
   const permissionView = resolvePermissionView(permissionStatus, restartRequired, promptUnavailable)

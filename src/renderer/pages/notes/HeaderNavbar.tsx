@@ -90,7 +90,7 @@ const HeaderNavbar = ({
         toast.warning(t('notes.no_content_to_copy'))
       }
     } catch (error) {
-      logger.error('Failed to copy content:', error as Error)
+      logger.error('Failed to copy content:', error)
       toast.error(t('common.copy_failed'))
     }
   }, [getCurrentNoteContent])
@@ -114,7 +114,7 @@ const HeaderNavbar = ({
       const fileName = activeNode.name.replace('.md', '')
       await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
     } catch (error) {
-      logger.error('Failed to export to Word:', error as Error)
+      logger.error('Failed to export to Word:', error)
       toast.error(t('notes.export_to_word_failed'))
     }
   }, [getCurrentNoteContent, activeNode])
@@ -153,7 +153,7 @@ const HeaderNavbar = ({
         toast.success(t('notes.export_to_pdf_success'))
       }
     } catch (error) {
-      logger.error('Failed to export note to PDF:', error as Error)
+      logger.error('Failed to export note to PDF:', error)
       toast.error(t('notes.export_to_pdf_failed'))
     }
   }, [getPrintableDocumentPayload])
@@ -166,7 +166,7 @@ const HeaderNavbar = ({
     try {
       await ipcApi.request('print.print', payload)
     } catch (error) {
-      logger.error('Failed to print note:', error as Error)
+      logger.error('Failed to print note:', error)
       toast.error(t('notes.print_failed'))
     }
   }, [getPrintableDocumentPayload])
@@ -183,7 +183,7 @@ const HeaderNavbar = ({
         styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
       })
     } catch (error) {
-      logger.error('Failed to load notes settings:', error as Error)
+      logger.error('Failed to load notes settings:', error)
       toast.error(t('common.error'))
     }
   }, [])

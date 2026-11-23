@@ -538,7 +538,7 @@ function AgentEditDialogContent({
     try {
       await updateAgent(pending.payload)
     } catch (error) {
-      logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
+      logger.error('Failed to auto-save agent edit dialog', error, { agentId: resource.id })
       failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: saveFailedMessage })
       toast.error(saveFailedMessage)

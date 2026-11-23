@@ -296,7 +296,7 @@ export function useMessageSelectionController({
 
         toggleMultiSelectMode(false)
       } catch (error) {
-        logger.error('Failed to copy selected messages:', error as Error)
+        logger.error('Failed to copy selected messages:', error)
         toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
       }
     },
@@ -336,7 +336,7 @@ export function useMessageSelectionController({
         toast.success(t('message.save.success.title'))
         toggleMultiSelectMode(false)
       } catch (error) {
-        logger.error('Failed to save selected messages:', error as Error)
+        logger.error('Failed to save selected messages:', error)
         toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
       }
     },
@@ -369,7 +369,7 @@ export function useMessageSelectionController({
           toggleMultiSelectMode(false)
         }
       } catch (error) {
-        logger.error('Failed to export selected messages:', error as Error)
+        logger.error('Failed to export selected messages:', error)
         toast.error(formatErrorMessageWithPrefix(error, t('chat.topics.export.failed')))
       }
     },
@@ -407,7 +407,7 @@ export function useMessageSelectionController({
 
         toast.success(t('message.delete.success'))
       } catch (error) {
-        logger.error('Failed to delete selected messages:', error as Error)
+        logger.error('Failed to delete selected messages:', error)
         toast.error(t('message.delete.failed'))
       } finally {
         toggleMultiSelectMode(false)

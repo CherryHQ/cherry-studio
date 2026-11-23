@@ -82,7 +82,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
 
       setIsEditing(false)
     } catch (error) {
-      logger.error('Failed to save file processing API key', error as Error)
+      logger.error('Failed to save file processing API key', error)
       toast.error(t('settings.tool.file_processing.errors.save_failed'))
     }
   }
@@ -103,7 +103,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
       .writeText(item.key)
       .then(() => toast.success(t('common.copied')))
       .catch((error) => {
-        logger.error('Failed to copy file processing API key', error as Error)
+        logger.error('Failed to copy file processing API key', error)
         toast.error(t('common.copy_failed'))
       })
   }
@@ -120,7 +120,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
       try {
         await onRemove()
       } catch (error) {
-        logger.error('Failed to remove file processing API key', error as Error)
+        logger.error('Failed to remove file processing API key', error)
         toast.error(t('settings.tool.file_processing.errors.save_failed'))
       }
     }

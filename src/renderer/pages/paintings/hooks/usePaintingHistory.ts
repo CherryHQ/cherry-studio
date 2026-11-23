@@ -97,7 +97,7 @@ export function usePaintingHistory() {
       })
       .catch((error) => {
         if (cancelled) return
-        logger.error('Failed to hydrate painting history', error as Error)
+        logger.error('Failed to hydrate painting history', error)
         setHydration({ records, items: [] })
       })
 

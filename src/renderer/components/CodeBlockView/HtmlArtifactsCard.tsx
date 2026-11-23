@@ -36,7 +36,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
       await window.api.file.write(tempPath, htmlContent)
       await ipcApi.request('system.shell.open_path', tempPath)
     } catch (error) {
-      logger.error('Failed to open HTML artifact externally', error as Error)
+      logger.error('Failed to open HTML artifact externally', error)
       toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
     }
   }
@@ -50,7 +50,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
 
       toast.success(t('message.download.success'))
     } catch (error) {
-      logger.error('Failed to download HTML artifact', error as Error)
+      logger.error('Failed to download HTML artifact', error)
       toast.error(formatErrorMessageWithPrefix(error, t('message.download.failed')))
     }
   }

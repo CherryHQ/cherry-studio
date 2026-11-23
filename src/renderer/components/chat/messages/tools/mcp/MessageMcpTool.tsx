@@ -97,7 +97,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
         setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
       })
       .catch((error) => {
-        logger.error('Failed to copy tool response:', error as Error)
+        logger.error('Failed to copy tool response:', error)
         notifyError?.(t('message.copy.failed'))
       })
   }

@@ -449,11 +449,11 @@ const HomePage: FC = () => {
 
         if (result.created) {
           void refreshTopics().catch((err) => {
-            logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
+            logger.warn('Failed to refresh topics after assistant picker topic create', err)
           })
         }
       } catch (err) {
-        logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
+        logger.error('Failed to create assistant conversation from classic-layout picker', err)
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       } finally {
         isCreatingTopicRef.current = false
@@ -480,7 +480,7 @@ const HomePage: FC = () => {
 
       if (result.created) {
         void refreshTopics().catch((err) => {
-          logger.warn('Failed to refresh topics after composer topic create', err as Error)
+          logger.warn('Failed to refresh topics after composer topic create', err)
         })
       }
 
@@ -500,7 +500,7 @@ const HomePage: FC = () => {
 
         return topic
       } catch (err) {
-        logger.error('Failed to create empty topic', err as Error)
+        logger.error('Failed to create empty topic', err)
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
 
         return null
@@ -586,7 +586,7 @@ const HomePage: FC = () => {
         reenterChatRoute()
       } catch (err) {
         if (requestId !== ownerFallbackRequestIdRef.current) return
-        logger.error('Failed to settle chat after deleting active assistant', err as Error, { deletedAssistantId })
+        logger.error('Failed to settle chat after deleting active assistant', err, { deletedAssistantId })
         toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
         reenterChatRoute()
       }

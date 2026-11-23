@@ -224,7 +224,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
           })
         }
       } catch (error) {
-        logger.error('Failed to capture HTML artifact preview', error as Error)
+        logger.error('Failed to capture HTML artifact preview', error)
       }
     },
     [html, t]

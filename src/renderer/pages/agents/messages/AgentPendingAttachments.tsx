@@ -36,7 +36,7 @@ export const AgentPendingAttachments = memo(function AgentPendingAttachments({
           if (!retired) setSnapshot({ sessionId, items })
         }
       } catch (error) {
-        logger.warn('Attachment selection refresh failed', error as Error)
+        logger.warn('Attachment selection refresh failed', error)
       } finally {
         reading = false
       }

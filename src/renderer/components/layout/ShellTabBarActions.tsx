@@ -28,7 +28,7 @@ export function AppUpdateButton({ placement = 'bottom' }: { placement?: 'top' | 
 
     void import('@renderer/components/UpdateDialogPopup')
       .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
-      .catch((error) => logger.error('Failed to open update dialog', error as Error))
+      .catch((error) => logger.error('Failed to open update dialog', error))
   }
 
   const updateLabel = appUpdateState.info

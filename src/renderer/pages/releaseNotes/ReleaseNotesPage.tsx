@@ -36,7 +36,7 @@ export default function ReleaseNotesPage() {
         setRemoteReleases(releaseHistory)
         setExpandedVersions([mergeReleaseHistory(releaseHistory, bundledReleases)[0].version])
       })
-      .catch((error) => logger.warn('Failed to fetch release history', error as Error))
+      .catch((error) => logger.warn('Failed to fetch release history', error))
 
     return () => {
       active = false

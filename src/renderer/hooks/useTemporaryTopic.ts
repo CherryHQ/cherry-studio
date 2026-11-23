@@ -88,7 +88,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
         if (cancelled) {
           void ipcApi.request('ai.temporary_topic.delete', { id: topic.id }).catch((err) => {
-            logger.warn('Failed to cleanup racing temporary topic', err as Error)
+            logger.warn('Failed to cleanup racing temporary topic', err)
           })
 
           return
@@ -98,7 +98,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
         logger.debug('Leased temporary topic', { topicId: topic.id, assistantId, epoch })
       })
       .catch((err) => {
-        logger.error('Failed to create temporary topic', err as Error)
+        logger.error('Failed to create temporary topic', err)
       })
 
     return () => {
@@ -109,7 +109,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
       if (idToCleanup) {
         void ipcApi.request('ai.temporary_topic.delete', { id: idToCleanup }).catch((err) => {
-          logger.warn('Failed to release temporary topic on unmount', err as Error)
+          logger.warn('Failed to release temporary topic on unmount', err)
         })
       }
     }
@@ -139,7 +139,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
           }
         })
       } catch (err) {
-        logger.warn('Failed to seed placeholder topic name', err as Error)
+        logger.warn('Failed to seed placeholder topic name', err)
       }
     }
   }, [])

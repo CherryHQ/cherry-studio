@@ -806,7 +806,7 @@ export async function writeComposerRichClipboardContent(content: ComposerRichCli
 
         return
       } catch (error) {
-        logger.warn('Failed to write composer clipboard custom formats, falling back to text-only data', error as Error)
+        logger.warn('Failed to write composer clipboard custom formats, falling back to text-only data', error)
         await navigator.clipboard.write([new clipboardItemConstructor(baseItems)])
 
         return

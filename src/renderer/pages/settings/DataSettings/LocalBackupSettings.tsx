@@ -147,7 +147,7 @@ const LocalBackupSettings: React.FC = () => {
 
       await handleLocalBackupDirChange(newLocalBackupDir)
     } catch (error) {
-      logger.error('Failed to select directory:', error as Error)
+      logger.error('Failed to select directory:', error)
     }
   }
 

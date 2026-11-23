@@ -118,7 +118,7 @@ export function useAppUpdateHandler() {
         .catch((error) => {
           // Update state stays `downloaded` — AboutSettings' static entry
           // still lets the user open the dialog and install.
-          logger.error('Failed to load UpdateDialogPopup chunk:', error as Error)
+          logger.error('Failed to load UpdateDialogPopup chunk:', error)
         })
     }
   })

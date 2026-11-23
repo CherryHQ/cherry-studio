@@ -370,7 +370,7 @@ const AssistantHistoryRecords = ({
               } catch (err) {
                 logger.error('Failed to permanently delete topic from history records', { topicId: topic.id, err })
                 await refetch().catch((refreshError) => {
-                  logger.warn('Failed to refresh topics after permanent delete failed', refreshError as Error, {
+                  logger.warn('Failed to refresh topics after permanent delete failed', refreshError, {
                     topicId: topic.id
                   })
                 })
@@ -379,7 +379,7 @@ const AssistantHistoryRecords = ({
 
               if (!outcome.deletedIds.includes(topic.id)) {
                 await refetch().catch((refreshError) => {
-                  logger.warn('Failed to refresh topics after stale permanent delete', refreshError as Error, {
+                  logger.warn('Failed to refresh topics after stale permanent delete', refreshError, {
                     topicId: topic.id
                   })
                 })
@@ -428,7 +428,7 @@ const AssistantHistoryRecords = ({
       } catch (error) {
         logger.error('Failed to bulk delete topics from history records', { ids, error })
         await refetch().catch((refreshError) => {
-          logger.warn('Failed to refresh topics after bulk delete', refreshError as Error, { ids })
+          logger.warn('Failed to refresh topics after bulk delete', refreshError, { ids })
         })
 
         if (isTrashTargetNotFoundError(error)) toast.info(t('recycle_bin.already_moved'))

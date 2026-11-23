@@ -131,7 +131,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
         await navigator.clipboard.writeText(value)
         toast.success(t('translate.copied'))
       } catch (error) {
-        logger.error('Failed to copy translate history text', error as Error)
+        logger.error('Failed to copy translate history text', error)
         toast.error(t('common.copy_failed'))
       }
     },
@@ -512,7 +512,7 @@ const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: (files
         if (!loaded.target?.path) toast.error(t('translate.history.file.unavailable'))
       })
       .catch((error) => {
-        logger.error('Failed to load the files of a translate history entry', error as Error)
+        logger.error('Failed to load the files of a translate history entry', error)
 
         if (!active) return
         toast.error(t('translate.history.file.unavailable'))
@@ -533,7 +533,7 @@ const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: (files
       try {
         await action()
       } catch (error) {
-        logger.error(failureMessage, error as Error)
+        logger.error(failureMessage, error)
         toast.error(t('translate.history.file.action_failed'))
       }
     },

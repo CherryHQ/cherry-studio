@@ -119,13 +119,13 @@ export function WorkspaceDeleteConfirmDialog({
           )
         )
       } catch (error) {
-        logger.warn('Failed to refresh after deleting workspace', error as Error, { workspaceId: workspace.id })
+        logger.warn('Failed to refresh after deleting workspace', error, { workspaceId: workspace.id })
       }
 
       try {
         await invalidateCache(result.deletedIds.map((sessionId) => `/agent-sessions/${sessionId}`))
       } catch (error) {
-        logger.warn('Failed to refresh deleted session details', error as Error, {
+        logger.warn('Failed to refresh deleted session details', error, {
           workspaceId: workspace.id,
           sessionIds: result.deletedIds
         })
@@ -134,7 +134,7 @@ export function WorkspaceDeleteConfirmDialog({
       try {
         await onDeleted(workspace.id)
       } catch (error) {
-        logger.warn('Failed to reconcile the deleted workspace selection', error as Error, {
+        logger.warn('Failed to reconcile the deleted workspace selection', error, {
           workspaceId: workspace.id
         })
       }
@@ -142,7 +142,7 @@ export function WorkspaceDeleteConfirmDialog({
       toast.success(t('common.delete_success'))
       hasSucceeded = true
     } catch (error) {
-      logger.error('Failed to delete workspace', error as Error, { workspaceId: workspace.id })
+      logger.error('Failed to delete workspace', error, { workspaceId: workspace.id })
       toast.error(formatErrorMessageWithPrefix(error, t('agent.session.workdir.delete.error.failed')))
     } finally {
       isPendingRef.current = false

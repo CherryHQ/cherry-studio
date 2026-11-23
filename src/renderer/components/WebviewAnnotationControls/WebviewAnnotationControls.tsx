@@ -96,7 +96,7 @@ export function WebviewAnnotationControls({
     try {
       if (await copy()) toast.success(t('webview.annotation.copied'))
     } catch (error) {
-      logger.error('Failed to copy webview annotations', error as Error, { targetId: target.id })
+      logger.error('Failed to copy webview annotations', error, { targetId: target.id })
       toast.error(t('webview.annotation.copy_failed'))
     }
   }

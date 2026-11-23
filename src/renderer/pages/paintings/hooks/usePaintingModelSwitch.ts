@@ -70,7 +70,7 @@ export function usePaintingModelSwitch({
       } catch (error) {
         // Cold-cache + DB/IPC failure must not silently revert the dropdown —
         // surface it like the generate path instead of swallowing the switch.
-        logger.error('Failed to load provider catalog on model switch', error as Error)
+        logger.error('Failed to load provider catalog on model switch', error)
         presentPaintingGenerateError(error)
 
         return

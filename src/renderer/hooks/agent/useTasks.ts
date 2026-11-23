@@ -227,13 +227,13 @@ export const useDeleteTask = () => {
         await options?.onDeleted?.()
       } catch (error) {
         shouldInvalidateTaskDetails = false
-        logger.warn('Post-delete navigation failed', error as Error)
+        logger.warn('Post-delete navigation failed', error)
       }
 
       try {
         await invalidate(shouldInvalidateTaskDetails ? taskReadKeys(agentId) : taskListReadKeys(agentId))
       } catch (error) {
-        logger.warn('Failed to refresh task data after deletion', error as Error)
+        logger.warn('Failed to refresh task data after deletion', error)
       }
 
       return true

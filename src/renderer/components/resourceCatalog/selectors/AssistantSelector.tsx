@@ -178,7 +178,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       try {
         await togglePin(id)
       } catch (error) {
-        logger.error('Failed to toggle assistant pin', error as Error, { id })
+        logger.error('Failed to toggle assistant pin', error, { id })
         toast.error(t('common.error'))
       }
     },
@@ -223,7 +223,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
           body: buildCreateAssistantDto(values)
         })
       } catch (error) {
-        logger.error('Failed to create assistant from selector', error as Error)
+        logger.error('Failed to create assistant from selector', error)
         throw error
       }
 

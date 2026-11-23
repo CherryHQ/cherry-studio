@@ -40,7 +40,7 @@ export function useBinaryActions() {
         await ipcApi.request('binary.install_tool', input)
         toast.success(t(messages.successKey))
       } catch (error) {
-        logger.error(messages.logLabel, error as Error)
+        logger.error(messages.logLabel, error)
       } finally {
         setBusy((prev) => {
           const next = new Set(prev)
@@ -103,7 +103,7 @@ export function useBinaryActions() {
 
         return true
       } catch (error) {
-        logger.error('Failed to remove:', error as Error)
+        logger.error('Failed to remove:', error)
         toast.error(t('settings.dependencies.uninstallFailed'))
 
         return false

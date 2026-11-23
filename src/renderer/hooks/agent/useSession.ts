@@ -414,7 +414,7 @@ export const useSessions = (
         try {
           await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
-          logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
+          logger.warn('Failed to refresh after deleting Agent Session', error, { sessionId: id })
         }
 
         if (!deleted) {
@@ -428,7 +428,7 @@ export const useSessions = (
         try {
           await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (refreshError) {
-          logger.warn('Failed to refresh after Agent Session deletion failed', refreshError as Error, { sessionId: id })
+          logger.warn('Failed to refresh after Agent Session deletion failed', refreshError, { sessionId: id })
         }
 
         const pinned = isAgentSessionPinnedError(error)
@@ -462,7 +462,7 @@ export const useSessions = (
         await writeCache(`/agent-sessions/${id}`, session)
         await invalidate(['/agent-sessions', `/agent-sessions/${id}`, '/agents/*'])
       } catch (error) {
-        logger.warn('Failed to refresh after restoring Agent Session', error as Error, { sessionId: id })
+        logger.warn('Failed to refresh after restoring Agent Session', error, { sessionId: id })
       }
 
       logger.info('Restored Agent Session', { sessionId: id })
@@ -481,7 +481,7 @@ export const useSessions = (
         try {
           await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
-          logger.warn('Failed to refresh after deleting Agent Sessions', error as Error, {
+          logger.warn('Failed to refresh after deleting Agent Sessions', error, {
             sessionIds: result.deletedIds
           })
         }

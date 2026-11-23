@@ -87,7 +87,7 @@ export function ComputerUseSettings() {
                 await setEnabled(value)
               } catch (cause) {
                 setSaveError(true)
-                logger.warn('Failed to change desktop control permission', cause as Error)
+                logger.warn('Failed to change desktop control permission', cause)
               } finally {
                 setSaving(false)
               }
@@ -125,7 +125,7 @@ export function ComputerUseSettings() {
                     await setGlobalInput(value)
                   } catch (cause) {
                     setSaveError(true)
-                    logger.warn('Failed to change the global input setting', cause as Error)
+                    logger.warn('Failed to change the global input setting', cause)
                   } finally {
                     setSaving(false)
                   }
@@ -214,7 +214,7 @@ export function ComputerUseSettings() {
                 try {
                   await ipcApi.request('computer_use.revoke_approval', { identity })
                 } catch (error) {
-                  logger.warn('Failed to revoke application approval', error as Error)
+                  logger.warn('Failed to revoke application approval', error)
                   setSaveError(true)
                 } finally {
                   setSaving(false)

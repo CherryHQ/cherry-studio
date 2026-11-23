@@ -212,7 +212,7 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
         insertReferenceToken(resource, options)
       } catch (error) {
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return
-        logger.error('Failed to read MCP resource', error as Error, {
+        logger.error('Failed to read MCP resource', error, {
           serverId: resource.serverId,
           uri: resource.uri
         })

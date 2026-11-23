@@ -269,7 +269,7 @@ export default function PermissionRequestComposer({
       try {
         await onRespond(input)
       } catch (error) {
-        logger.error('Failed to send permission response', error as Error, {
+        logger.error('Failed to send permission response', error, {
           action,
           approvalId
         })

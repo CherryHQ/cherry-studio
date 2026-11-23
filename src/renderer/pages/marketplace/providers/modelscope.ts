@@ -114,7 +114,7 @@ export const syncModelScopeServers = async (token: string): Promise<ModelScopeSy
 
         allServers.push(mcpServer)
       } catch (err) {
-        logger.error('Error processing ModelScope server:', err as Error)
+        logger.error('Error processing ModelScope server:', err)
       }
     }
 
@@ -124,7 +124,7 @@ export const syncModelScopeServers = async (token: string): Promise<ModelScopeSy
       allServers
     }
   } catch (error) {
-    logger.error('ModelScope sync error:', error as Error)
+    logger.error('ModelScope sync error:', error)
 
     return {
       success: false,

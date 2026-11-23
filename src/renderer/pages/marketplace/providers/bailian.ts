@@ -142,7 +142,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
 
         allServers.push(mcpServer)
       } catch (err) {
-        logger.error(`Error processing Bailian server ${server.id}:`, err as Error)
+        logger.error(`Error processing Bailian server ${server.id}:`, err)
       }
     }
 
@@ -181,7 +181,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
     }
 
     // 其他情况
-    logger.error('Bailian sync error:', error as Error)
+    logger.error('Bailian sync error:', error)
     message = t('settings.mcp.sync.error')
     errorDetails = String(error)
 

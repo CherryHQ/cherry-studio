@@ -175,7 +175,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
     try {
       setActivity(await ipcApi.request('mini_app.activity.list', { appId, limit: 100, deniedOnly }))
     } catch (e) {
-      logger.error('Failed to load mini app activity', e as Error)
+      logger.error('Failed to load mini app activity', e)
       // Not a silent empty list: this panel is where a user goes to find out what an app
       // did, and "nothing recorded" is the one answer a failed read must never give.
       setError(t('miniApp.activity.load_error', { message: readErrorMessage(e) }))
@@ -209,7 +209,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
     try {
       setDetail(await ipcApi.request('mini_app.detail', { appId }))
     } catch (e) {
-      logger.error('Failed to load mini app detail', e as Error)
+      logger.error('Failed to load mini app detail', e)
       setError(t('miniApp.detail.load_error', { message: readErrorMessage(e) }))
     }
   }, [appId, t])
@@ -230,7 +230,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
 
       return true
     } catch (e) {
-      logger.error('Mini app action failed', e as Error)
+      logger.error('Mini app action failed', e)
       setError(t('miniApp.detail.action_error', { message: readErrorMessage(e) }))
 
       return false

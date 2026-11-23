@@ -139,7 +139,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     try {
       await ipcApi.request('system.shell.open_website', MINI_APP_DEVELOPER_DOCS_URL)
     } catch (error) {
-      logger.error('Failed to open mini app developer documentation', error as Error)
+      logger.error('Failed to open mini app developer documentation', error)
       toast.error(t('miniApp.add.developer_docs_open_failed'))
     }
   }
@@ -166,7 +166,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
       }
     } catch (error) {
       toast.error(t('settings.miniApps.custom.save_error'))
-      logger.error('Failed to save custom mini app:', error as Error)
+      logger.error('Failed to save custom mini app:', error)
       setSubmitting(false)
 
       return
@@ -187,7 +187,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
       } catch (error) {
         logoFailed = true
         toast.error(t('settings.miniApps.custom.logo_upload_error'))
-        logger.error('Failed to set custom mini app logo:', error as Error)
+        logger.error('Failed to set custom mini app logo:', error)
       }
     }
 

@@ -92,7 +92,7 @@ const useBabelDoc = (enabled: boolean) => {
       })
       .catch((error) => {
         if (cancelled) return
-        logger.error('Failed to get BabelDOC installation state', error as Error)
+        logger.error('Failed to get BabelDOC installation state', error)
         setAvailability('missing')
       })
 
@@ -120,7 +120,7 @@ const useBabelDoc = (enabled: boolean) => {
       })
       setAvailability('available')
     } catch (error) {
-      logger.error('Failed to install BabelDOC', error as Error)
+      logger.error('Failed to install BabelDOC', error)
       setAvailability((current) => (current === 'checking' ? 'missing' : current))
       toast.error(formatErrorMessageWithPrefix(error, t('settings.dependencies.installError')))
     } finally {
@@ -318,7 +318,7 @@ const TranslatePage: FC = () => {
       try {
         await persistPromise
       } catch (error) {
-        logger.error(`Failed to persist ${actionName}`, error as Error)
+        logger.error(`Failed to persist ${actionName}`, error)
         toast.error(t('common.save_failed'))
       }
     },
@@ -353,7 +353,7 @@ const TranslatePage: FC = () => {
       await navigator.clipboard.writeText(translateInput)
       setInputCopied(true)
     } catch (error) {
-      logger.error('Failed to copy source text:', error as Error)
+      logger.error('Failed to copy source text:', error)
       toast.error(t('common.copy_failed'))
     }
   }, [setInputCopied, t, translateInput])
@@ -363,7 +363,7 @@ const TranslatePage: FC = () => {
       await navigator.clipboard.writeText(translateOutput)
       setOutputCopied(true)
     } catch (error) {
-      logger.error('Failed to copy text to clipboard:', error as Error)
+      logger.error('Failed to copy text to clipboard:', error)
       toast.error(t('common.copy_failed'))
     }
   }, [setOutputCopied, t, translateOutput])
@@ -375,7 +375,7 @@ const TranslatePage: FC = () => {
 
     void exportContentToNotes(getTitleFromTranslationResult(translationResult), translationResult, notesPath).catch(
       (error) => {
-        logger.error('Failed to export output to notes:', error as Error)
+        logger.error('Failed to export output to notes:', error)
       }
     )
   }, [notesPath, translateOutput])
@@ -405,7 +405,7 @@ const TranslatePage: FC = () => {
               await navigator.clipboard.writeText(translated)
               setOutputCopied(true)
             } catch (error) {
-              logger.error('Failed to auto copy translated text', error as Error)
+              logger.error('Failed to auto copy translated text', error)
               toast.error(t('translate.error.auto_copy_failed'))
             }
           },
@@ -463,7 +463,7 @@ const TranslatePage: FC = () => {
 
         try {
           actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
-            logger.error('Failed to detect language', error as Error)
+            logger.error('Failed to detect language', error)
           })
 
           if (isCurrent && !isCurrent()) return
@@ -540,7 +540,7 @@ const TranslatePage: FC = () => {
       await translateTextContent(extractedText, false, () => pdfTextRequestIdRef.current === requestId)
     } catch (error) {
       if (pdfTextRequestIdRef.current !== requestId) return
-      logger.error('Failed to extract PDF text', error as Error)
+      logger.error('Failed to extract PDF text', error)
       setPdfTextFallbackActive(false)
       toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
     } finally {
@@ -701,7 +701,7 @@ const TranslatePage: FC = () => {
           try {
             isText = await isTextFile(file.path)
           } catch (error) {
-            logger.error('Failed to check file type.', error as Error)
+            logger.error('Failed to check file type.', error)
             toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.check_type')))
 
             return
@@ -730,7 +730,7 @@ const TranslatePage: FC = () => {
 
           appendTranslateInput(result)
         } catch (error) {
-          logger.error('Failed to read file.', error as Error)
+          logger.error('Failed to read file.', error)
           toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
         }
       }
@@ -758,7 +758,7 @@ const TranslatePage: FC = () => {
 
         taskId = task.id
       } catch (error) {
-        logger.error('Failed to start image OCR.', error as Error)
+        logger.error('Failed to start image OCR.', error)
         toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
 
         return
@@ -814,7 +814,7 @@ const TranslatePage: FC = () => {
         await processFile(file)
       }
     } catch (error) {
-      logger.error('Unknown error when selecting file.', error as Error)
+      logger.error('Unknown error when selecting file.', error)
       toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
     } finally {
       clearFiles()
@@ -846,7 +846,7 @@ const TranslatePage: FC = () => {
 
       try {
         const data = await getTextFromDropEvent(e).catch((error) => {
-          logger.error('getTextFromDropEvent', error as Error)
+          logger.error('getTextFromDropEvent', error)
           toast.error(t('translate.files.error.unknown'))
 
           return null
@@ -857,7 +857,7 @@ const TranslatePage: FC = () => {
         }
 
         const droppedFiles = await getFilesFromDropEvent(e).catch((error) => {
-          logger.error('handleDrop:', error as Error)
+          logger.error('handleDrop:', error)
           toast.error(t('translate.files.error.unknown'))
 
           return null
@@ -871,7 +871,7 @@ const TranslatePage: FC = () => {
           }
         }
       } catch (error) {
-        logger.error('Drop processing failed', error as Error)
+        logger.error('Drop processing failed', error)
         toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
       } finally {
         setIsProcessing(false)
@@ -927,7 +927,7 @@ const TranslatePage: FC = () => {
 
         await processFile(selectedFile)
       } catch (error) {
-        logger.error('onPaste:', error as Error)
+        logger.error('onPaste:', error)
         toast.error(t('chat.input.file_error'))
       } finally {
         setIsProcessing(false)

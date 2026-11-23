@@ -136,7 +136,7 @@ export function usePaintingList({
           try {
             await refresh()
           } catch (refreshError) {
-            logger.warn('Failed to refresh paintings after stale deletion', refreshError as Error)
+            logger.warn('Failed to refresh paintings after stale deletion', refreshError)
           }
 
           toast.info(t('recycle_bin.already_moved'))
@@ -147,7 +147,7 @@ export function usePaintingList({
         // A rejected DELETE (SQLITE_BUSY / FK / IPC) must surface like the
         // sibling write paths — otherwise the row silently reappears on the
         // next refresh with no toast or log.
-        logger.error('Failed to delete painting', error as Error)
+        logger.error('Failed to delete painting', error)
         presentPaintingGenerateError(error)
 
         return
@@ -160,7 +160,7 @@ export function usePaintingList({
       try {
         await refresh()
       } catch (error) {
-        logger.warn('Failed to refresh paintings after deletion', error as Error)
+        logger.warn('Failed to refresh paintings after deletion', error)
       }
 
       showRecycleBinUndo({
@@ -174,7 +174,7 @@ export function usePaintingList({
             try {
               await refresh()
             } catch (refreshError) {
-              logger.warn('Failed to refresh paintings after restore', refreshError as Error)
+              logger.warn('Failed to refresh paintings after restore', refreshError)
             }
 
             try {
@@ -189,7 +189,7 @@ export function usePaintingList({
           try {
             await refresh()
           } catch (error) {
-            logger.warn('Failed to refresh paintings after restore', error as Error)
+            logger.warn('Failed to refresh paintings after restore', error)
           }
         }
       })

@@ -186,12 +186,12 @@ export function WebviewNavigation({
         }
 
         void webview.loadURL(normalizedAddress).catch((error) => {
-          logger.error('Failed to navigate WebView from address bar', error as Error, { targetId: target.id })
+          logger.error('Failed to navigate WebView from address bar', error, { targetId: target.id })
           restoreCurrentPageUrl()
           toast.error(t('webview.navigation.load_failed'))
         })
       } catch (error) {
-        logger.error('Failed to navigate WebView from address bar', error as Error, { targetId: target.id })
+        logger.error('Failed to navigate WebView from address bar', error, { targetId: target.id })
         restoreCurrentPageUrl()
         toast.error(t('webview.navigation.load_failed'))
       }

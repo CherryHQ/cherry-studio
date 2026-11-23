@@ -80,7 +80,7 @@ export function useConversationTurnController<TInput, TConversation>({
         // Main was opening the stream. Its metadata cache still must converge; only scope-owned
         // adapter/phase/toast state is suppressed below.
         void Promise.resolve(refreshMetadata?.(conversation, ack)).catch((err) => {
-          logger.warn('Failed to refresh conversation metadata after stream open', err as Error)
+          logger.warn('Failed to refresh conversation metadata after stream open', err)
         })
 
         if (!isCurrentScope()) return ack.mode !== 'blocked'
@@ -114,7 +114,7 @@ export function useConversationTurnController<TInput, TConversation>({
         try {
           await historyAdapter.rollback()
         } catch (rollbackErr) {
-          logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
+          logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr)
         }
 
         if (!isCurrentScope()) return false

@@ -161,7 +161,7 @@ export function ProcessorPanel({
 
         return true
       } catch (error) {
-        logger.error(`Failed to ${actionName}`, error as Error)
+        logger.error(`Failed to ${actionName}`, error)
         toast.error(t('settings.tool.file_processing.errors.save_failed'))
 
         return false

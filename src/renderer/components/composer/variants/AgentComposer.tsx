@@ -1440,7 +1440,7 @@ const AgentComposerInner = ({
 
         return true
       } catch (error: unknown) {
-        logger.warn('Failed to send message:', error as Error)
+        logger.warn('Failed to send message:', error)
         toast.errorFromException(error)
 
         return false

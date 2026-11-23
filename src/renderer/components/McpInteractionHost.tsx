@@ -127,7 +127,7 @@ function McpInteractionDialog({ current, remove }: { current: Interaction; remov
       await ipcApi.request('mcp.interaction.respond', { requestId: current.requestId, decision, value: values })
       remove(current.requestId)
     } catch (error) {
-      logger.error('Failed to respond to MCP interaction', error as Error)
+      logger.error('Failed to respond to MCP interaction', error)
 
       if (active.current) setValidationError(error instanceof Error ? error.message : String(error))
     } finally {

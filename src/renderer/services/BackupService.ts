@@ -53,7 +53,7 @@ export async function recordManualBackupCompletion(type: AutoBackupType): Promis
   try {
     await ipcApi.request('backup.manual_completion.record', { type })
   } catch (error) {
-    logger.error('Failed to record manual backup completion', error as Error)
+    logger.error('Failed to record manual backup completion', error)
   }
 }
 
@@ -95,7 +95,7 @@ export async function restore() {
       // The main process has committed the restore journal and will relaunch.
       return
     } catch (error) {
-      logger.error('restore: Error restoring backup file:', error as Error)
+      logger.error('restore: Error restoring backup file:', error)
       void popup.error({
         title: i18n.t(getBackupErrorTitleKey(error)),
         content: getLocalizedBackupErrorMessage(error, 'error.backup.file_format'),

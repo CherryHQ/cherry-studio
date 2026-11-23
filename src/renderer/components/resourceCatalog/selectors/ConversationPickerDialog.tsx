@@ -301,7 +301,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                       // future consumer with a rejecting onSelect doesn't fail silently.
                       onSelect={() =>
                         void Promise.resolve(onSelect(item)).catch((error) =>
-                          logger.error('Conversation picker onSelect rejected', error as Error)
+                          logger.error('Conversation picker onSelect rejected', error)
                         )
                       }>
                       <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">

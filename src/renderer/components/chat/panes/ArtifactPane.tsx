@@ -588,7 +588,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         await navigator.clipboard.writeText(path)
         toast.success(t('message.copy.success'))
       } catch (error) {
-        logger.error('Failed to copy path', error as Error)
+        logger.error('Failed to copy path', error)
         toast.error(t('message.copy.failed'))
       }
     },
@@ -601,7 +601,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         await ipcApi.request('file.copy_to_clipboard', createFilePathHandle(AbsoluteFilePathSchema.parse(path)))
         toast.success(t('message.copy.success'))
       } catch (error) {
-        logger.error('Failed to copy file', error as Error)
+        logger.error('Failed to copy file', error)
         toast.error(t('message.copy.failed'))
       }
     },
@@ -624,7 +624,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       await navigator.clipboard.writeText(content)
       toast.success(t('message.copy.success'))
     } catch (error) {
-      logger.error('Failed to copy file content', error as Error)
+      logger.error('Failed to copy file content', error)
       toast.error(t('message.copy.failed'))
     }
   }, [t])
@@ -712,7 +712,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       await fileSession.reload()
       setContentRefreshToken((value) => value + 1)
     } catch (error) {
-      logger.error('Failed to reload artifact file after a write conflict', error as Error)
+      logger.error('Failed to reload artifact file after a write conflict', error)
       toast.error(t('agent.preview_pane.edit.refresh_failed'))
     }
   }, [fileSession, t])
@@ -723,7 +723,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     try {
       await fileSession.keepDraft()
     } catch (error) {
-      logger.error('Failed to keep the artifact draft after a write conflict', error as Error)
+      logger.error('Failed to keep the artifact draft after a write conflict', error)
       toast.error(t('agent.preview_pane.edit.save_failed'))
     }
   }, [fileSession, t])

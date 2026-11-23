@@ -64,7 +64,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       const userName = (await preferenceService.get('app.user.name')) || 'Unknown Username'
       userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
     } catch (error) {
-      logger.error('Failed to get username:', error as Error)
+      logger.error('Failed to get username:', error)
       userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
     }
   }
@@ -74,7 +74,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       const systemType = await ipcApi.request('system.get_device_type')
       userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
     } catch (error) {
-      logger.error('Failed to get system type:', error as Error)
+      logger.error('Failed to get system type:', error)
       userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
     }
   }
@@ -84,7 +84,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       const language = await preferenceService.get('app.language')
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language || navigator.language || defaultLanguage)
     } catch (error) {
-      logger.error('Failed to get language:', error as Error)
+      logger.error('Failed to get language:', error)
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
     }
   }
@@ -94,7 +94,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       const appInfo = await ipcApi.request('app.get_info')
       userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
     } catch (error) {
-      logger.error('Failed to get architecture:', error as Error)
+      logger.error('Failed to get architecture:', error)
       userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
     }
   }

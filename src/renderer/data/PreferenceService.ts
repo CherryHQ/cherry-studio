@@ -139,7 +139,7 @@ export class PreferenceService {
 
       return value
     } catch (error) {
-      logger.error(`Failed to get preference ${key}:`, error as Error)
+      logger.error(`Failed to get preference ${key}:`, error)
 
       return getDefaultValue(key)
     }
@@ -216,7 +216,7 @@ export class PreferenceService {
     } catch (error) {
       // Failure: rollback optimistic update
       this.rollbackOptimistic(key, requestId)
-      logger.error(`Optimistic update failed for ${key} (${requestId}), rolling back:`, error as Error)
+      logger.error(`Optimistic update failed for ${key} (${requestId}), rolling back:`, error)
       throw error
     }
   }
@@ -241,7 +241,7 @@ export class PreferenceService {
 
       logger.debug(`Pessimistic update for ${key} completed`)
     } catch (error) {
-      logger.error(`Pessimistic update failed for ${key}:`, error as Error)
+      logger.error(`Pessimistic update failed for ${key}:`, error)
       throw error
     }
   }
@@ -296,7 +296,7 @@ export class PreferenceService {
           this.notifyChangeListeners(key)
         }
       } catch (error) {
-        logger.error('Failed to get multiple preferences:', error as Error)
+        logger.error('Failed to get multiple preferences:', error)
 
         // Fill in default values for failed keys (not cached, not subscribed —
         // the next read retries both)
@@ -401,7 +401,7 @@ export class PreferenceService {
       keysToUpdate.forEach((key) => this.rollbackOptimistic(key, `${batchRequestId}_${key}`))
       logger.error(
         `Optimistic batch update failed, rolling back ${keysToUpdate.length} preferences (${batchRequestId}):`,
-        error as Error
+        error
       )
       throw error
     }
@@ -424,7 +424,7 @@ export class PreferenceService {
 
       logger.debug(`Pessimistic batch update completed for ${Object.keys(updates).length} preferences`)
     } catch (error) {
-      logger.error(`Pessimistic batch update failed:`, error as Error)
+      logger.error(`Pessimistic batch update failed:`, error)
       throw error
     }
   }
@@ -450,7 +450,7 @@ export class PreferenceService {
 
           return true
         } catch (error) {
-          logger.error(`Failed to subscribe to preference keys ${keysToSubscribe.join(', ')}:`, error as Error)
+          logger.error(`Failed to subscribe to preference keys ${keysToSubscribe.join(', ')}:`, error)
 
           return false
         }
@@ -620,7 +620,7 @@ export class PreferenceService {
       this.fullCacheLoaded = true
       logger.info(`Loaded all ${Object.keys(allPreferences).length} preferences into cache`)
     } catch (error) {
-      logger.error('Failed to load all preferences:', error as Error)
+      logger.error('Failed to load all preferences:', error)
     }
   }
 
@@ -646,7 +646,7 @@ export class PreferenceService {
       const values = await this.getMultipleRaw(keys)
       logger.debug(`Preloaded ${Object.keys(values).length} preferences`)
     } catch (error) {
-      logger.error('Failed to preload preferences:', error as Error)
+      logger.error('Failed to preload preferences:', error)
     }
   }
 

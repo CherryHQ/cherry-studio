@@ -279,7 +279,7 @@ const MessageGroup = ({
       activeBranchSelectionQueueRef.current = activeBranchSelectionQueueRef.current
         .then(() => setActiveBranch(message.id))
         .catch((error) => {
-          logger.error('Failed to set active branch from context selection', error as Error, { messageId: message.id })
+          logger.error('Failed to set active branch from context selection', error, { messageId: message.id })
           actions.notifyError?.(error instanceof Error ? error.message : String(error))
         })
     },

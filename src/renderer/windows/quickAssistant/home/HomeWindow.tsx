@@ -390,7 +390,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setClipboardText(text.trim())
       }
     } catch (clipboardError) {
-      logger.warn('Failed to read clipboard:', clipboardError as Error)
+      logger.warn('Failed to read clipboard:', clipboardError)
     }
   }, [readClipboardAtStartup])
 

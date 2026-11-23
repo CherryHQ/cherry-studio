@@ -52,7 +52,7 @@ export function useWebSearchProviderCheck({ provider, capability }: UseWebSearch
       },
       (error) => {
         setChecking(false)
-        logger.error('Web search provider check failed', error as Error)
+        logger.error('Web search provider check failed', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
 
         if (error instanceof IpcError && error.code === webSearchErrorCodes.WEB_SEARCH_PAGE_FETCH_FAILED) {

@@ -249,7 +249,7 @@ const ArchiveSettings: FC = () => {
       })
     } catch (error) {
       if (referenceRequestToken.current !== token) return
-      logger.error('file reference preview failed', error as Error)
+      logger.error('file reference preview failed', error)
       setFileReferencePreview({ status: 'error' })
     }
   }, [])
@@ -279,7 +279,7 @@ const ArchiveSettings: FC = () => {
     try {
       await pendingDelete.run(pendingDelete.items)
     } catch (error) {
-      logger.error('permanent delete failed', error as Error)
+      logger.error('permanent delete failed', error)
       toast.error(t('settings.data.trash.permanent_delete.error'))
     } finally {
       setIsDeleting(false)
@@ -312,7 +312,7 @@ const ArchiveSettings: FC = () => {
         toast.error(t('settings.data.trash.empty_trash.error'))
       }
     } catch (error) {
-      logger.error('empty trash failed', error as Error)
+      logger.error('empty trash failed', error)
       toast.error(t('settings.data.trash.empty_trash.error'))
     } finally {
       setIsEmptying(false)

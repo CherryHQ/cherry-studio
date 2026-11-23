@@ -74,7 +74,7 @@ function useArchiveActionRunner() {
         )
       }
     } catch (error) {
-      logger.error(`trash ${action} failed`, error as Error)
+      logger.error(`trash ${action} failed`, error)
       toast.error(messages.error)
     }
   }
@@ -124,7 +124,7 @@ async function runDataPermanentDeletes<TDelete, TRefresh>(
   try {
     await refresh()
   } catch (error) {
-    logger.warn('failed to refresh trash after permanent delete', error as Error)
+    logger.warn('failed to refresh trash after permanent delete', error)
   }
 
   return classifyStaleFailures(outcome, staleIds)
@@ -242,7 +242,7 @@ export function useAgentArchiveActions<TRefresh>(refresh: () => Promise<TRefresh
         try {
           await invalidate(['/agents', `/agents/${item.id}`])
         } catch (error) {
-          logger.warn('failed to refresh agents after restore', error as Error)
+          logger.warn('failed to refresh agents after restore', error)
         }
 
         return restored
@@ -285,7 +285,7 @@ export function useAgentArchiveActions<TRefresh>(refresh: () => Promise<TRefresh
     try {
       await invalidate(['/agents', '/agent-sessions'])
     } catch (error) {
-      logger.warn('failed to refresh agents after permanent delete', error as Error)
+      logger.warn('failed to refresh agents after permanent delete', error)
     }
 
     return classifyStaleFailures(outcome, staleIds)
@@ -318,7 +318,7 @@ export function useSessionArchiveActions<TRefresh>(refresh: () => Promise<TRefre
           await writeCache(`/agent-sessions/${item.id}`, restored)
           await invalidate(['/agent-sessions', `/agent-sessions/${item.id}`, '/agents/*'])
         } catch (error) {
-          logger.warn('failed to refresh sessions after restore', error as Error)
+          logger.warn('failed to refresh sessions after restore', error)
         }
 
         return restored
@@ -361,7 +361,7 @@ export function useSessionArchiveActions<TRefresh>(refresh: () => Promise<TRefre
     try {
       await invalidate(['/agent-sessions', '/agents/*'])
     } catch (error) {
-      logger.warn('failed to refresh sessions after permanent delete', error as Error)
+      logger.warn('failed to refresh sessions after permanent delete', error)
     }
 
     return classifyStaleFailures(outcome, staleIds)
@@ -408,7 +408,7 @@ export function useFileArchiveActions() {
     try {
       await invalidateFiles()
     } catch (error) {
-      logger.warn('failed to refresh files after restore', error as Error)
+      logger.warn('failed to refresh files after restore', error)
     }
 
     const { activeIds: activeAfterFailure } = await inspectFailedFileIds(outcome.failed)
@@ -432,7 +432,7 @@ export function useFileArchiveActions() {
     try {
       await invalidatePurgedFiles()
     } catch (error) {
-      logger.warn('failed to refresh files after permanent delete', error as Error)
+      logger.warn('failed to refresh files after permanent delete', error)
     }
 
     const { activeIds, missingIds } = await inspectFailedFileIds(outcome.failed)

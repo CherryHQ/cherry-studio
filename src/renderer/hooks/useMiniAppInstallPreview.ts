@@ -45,7 +45,7 @@ const releasePending = async (installToken: string) => {
   try {
     await ipcApi.request('mini_app.install.cancel_preview', { installToken })
   } catch (e) {
-    logger.warn('cancel_preview failed', e as Error)
+    logger.warn('cancel_preview failed', e)
   }
 }
 
@@ -122,7 +122,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
         setPreview(result)
       } catch (e) {
         if (closedRef.current || generation !== generationRef.current || /superseded/i.test(errorMessage(e))) return
-        logger.error('Failed to preview mini app', e as Error)
+        logger.error('Failed to preview mini app', e)
         setError({ key: errorKey, params: { message: errorMessage(e) } })
       } finally {
         if (!closedRef.current && generation === generationRef.current) setBusy(false)
@@ -186,7 +186,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
       setPreview(null)
       onDone()
     } catch (e) {
-      logger.error('Failed to install mini app package', e as Error)
+      logger.error('Failed to install mini app package', e)
 
       if (closedRef.current || generation !== generationRef.current) return
       setPreview(null)

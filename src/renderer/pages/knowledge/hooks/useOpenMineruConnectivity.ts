@@ -29,7 +29,7 @@ export function useOpenMineruConnectivity(): OpenMineruConnectivityState {
       .catch((error) => {
         // The route answers false for an unreachable host, so a rejection means the
         // probe itself broke. Do not block a configured deployment without evidence.
-        logger.warn('Failed to probe Open MinerU connectivity', error as Error)
+        logger.warn('Failed to probe Open MinerU connectivity', error)
 
         if (mounted) {
           setState({ reachable: true, isResolved: true })

@@ -24,7 +24,7 @@ export function useCopyToClipboard() {
         setCopied(true)
         announce(t('common.copied'), 'polite')
       } catch (error) {
-        logger.warn('Failed to copy to clipboard', error as Error)
+        logger.warn('Failed to copy to clipboard', error)
         toast.error(t('common.copy_failed'))
       }
     },

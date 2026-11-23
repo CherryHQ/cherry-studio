@@ -129,7 +129,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
         .writeText(text)
         .then(() => toast.success(t('message.copied')))
         .catch((error) => {
-          logger.error('clipboard write failed', error as Error)
+          logger.error('clipboard write failed', error)
           toast.error(t('message.copy.failed'))
         })
     },
@@ -157,7 +157,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
         await exportContentToNotes(title?.slice(0, 50) || t('notes.untitled_note'), text, notesPath)
       } catch (error) {
         // The Notes exporter owns the write-failure toast.
-        logger.error('Failed to save selection to Notes', error as Error)
+        logger.error('Failed to save selection to Notes', error)
       } finally {
         savingNote.current = false
         setIsSavingNote(false)
@@ -244,7 +244,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             label: t('webview.navigation.open_external'),
             onSelect: () => {
               void ipcApi.request('system.shell.open_external_website', href).catch((error) => {
-                logger.error('Failed to open external website', error as Error)
+                logger.error('Failed to open external website', error)
                 toast.error(t('chat.artifacts.preview.openExternal.error.content'))
               })
             }

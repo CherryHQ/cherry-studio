@@ -323,7 +323,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           logger.debug('Default notes directory will be created', { error })
         }
       } catch (error) {
-        logger.error('Failed to validate notes path:', error as Error)
+        logger.error('Failed to validate notes path:', error)
       }
     }
 
@@ -397,7 +397,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
             richEditor.scrollToLine(lineNumber, { highlight: true, lineContent })
           }
         } catch (error) {
-          logger.error('Failed to execute pending scroll:', error as Error)
+          logger.error('Failed to execute pending scroll:', error)
         }
       })
     })
@@ -424,10 +424,10 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const persistMetadataPatch = useCallback(
     (node: NotesTreeNode, patch: Parameters<typeof patchNode>[1]) => {
       void patchNode(node, patch).catch((error) => {
-        logger.error('Failed to persist note patch:', error as Error)
+        logger.error('Failed to persist note patch:', error)
         toast.error(t('notes.metadata_update_failed'))
         void refreshTree().catch((refreshError) => {
-          logger.error('Failed to refresh notes tree after metadata patch failure:', refreshError as Error)
+          logger.error('Failed to refresh notes tree after metadata patch failure:', refreshError)
         })
       })
     },
@@ -488,13 +488,13 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
         return true
       } catch (error) {
-        logger.error('Failed to sync note metadata after file operation:', error as Error)
+        logger.error('Failed to sync note metadata after file operation:', error)
 
         if (rollback) {
           try {
             await rollback()
           } catch (rollbackError) {
-            logger.error('Failed to rollback note file operation after metadata sync failure:', rollbackError as Error)
+            logger.error('Failed to rollback note file operation after metadata sync failure:', rollbackError)
           }
         }
 
@@ -535,7 +535,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         setFolderExpandedByPath(targetPath, true)
         await refreshTree()
       } catch (error) {
-        logger.error('Failed to create folder:', error as Error)
+        logger.error('Failed to create folder:', error)
         toast.error(t('notes.create_folder_failed'))
       }
     },
@@ -565,7 +565,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         // Write failed → file will never appear → clear the flag now so
         // shouldClearPath isn't permanently suppressed.
         isCreatingNoteRef.current = false
-        logger.error('Failed to create note:', error as Error)
+        logger.error('Failed to create note:', error)
         toast.error(t('notes.create_note_failed'))
       }
     },
@@ -706,7 +706,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
         await refreshTree()
       } catch (error) {
-        logger.error('Failed to delete node:', error as Error)
+        logger.error('Failed to delete node:', error)
 
         if (error instanceof Error && error.message) {
           toast.error(t('notes.delete_failed'))
@@ -774,7 +774,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
               oldPath: AbsoluteFilePathSchema.parse(oldPath),
               newName: renamedBasename
             })
-            .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
+            .catch((err) => logger.warn('Failed to notify tree of rename', err))
         }
 
         let nextActivePath: string | undefined
@@ -807,7 +807,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         changed = true
         result = { ok: true, name: renamed.name }
       } catch (error) {
-        logger.error('Failed to rename node:', error as Error)
+        logger.error('Failed to rename node:', error)
         const exists = error instanceof Error && error.message.startsWith('Target name already exists')
         result = { ok: false, reason: exists ? 'exists' : 'failed' }
         toast.error(exists ? t('notes.target_name_exists') : t('notes.rename_failed'))
@@ -816,7 +816,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         try {
           await prepared?.finish()
         } catch (error) {
-          logger.error('Failed to finish note rename:', error as Error)
+          logger.error('Failed to finish note rename:', error)
 
           if (!failureReported) {
             toast.error(t('notes.rename_failed'))
@@ -872,7 +872,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
         try {
           result = await uploadNotes(files, targetFolderPath)
         } catch (uploadError) {
-          logger.error('Upload operation failed:', uploadError as Error)
+          logger.error('Upload operation failed:', uploadError)
           throw uploadError
         }
 
@@ -909,7 +909,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
         toast.success(t('notes.upload_success'))
       } catch (error) {
-        logger.error('Failed to handle file upload:', error as Error)
+        logger.error('Failed to handle file upload:', error)
         toast.error(t('notes.upload_failed'))
       }
     },
@@ -1016,7 +1016,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
         await refreshTree()
       } catch (error) {
-        logger.error('Failed to move nodes:', error as Error)
+        logger.error('Failed to move nodes:', error)
         toast.error(t('notes.move_failed'))
       } finally {
         await prepared?.finish()
@@ -1126,7 +1126,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
             richEditor.scrollToLine(lineNumber, { highlight: true, lineContent })
           }
         } catch (error) {
-          logger.error('Failed to scroll to line:', error as Error)
+          logger.error('Failed to scroll to line:', error)
         }
       }
     },
@@ -1238,7 +1238,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
           if (open || conflictResolvedRef.current) return
           void fileSession.keepDraft().catch((error) => {
-            logger.error('Failed to keep the note draft after an external change', error as Error)
+            logger.error('Failed to keep the note draft after an external change', error)
             toast.error(t('notes.save_failed'))
           })
         }}
@@ -1251,7 +1251,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           conflictResolvedRef.current = true
           setShowConflict(false)
           void reloadFileDraft().catch((error) => {
-            logger.error('Failed to reload note after external change', error as Error)
+            logger.error('Failed to reload note after external change', error)
             toast.error(t('notes.load_failed'))
           })
         }}

@@ -23,7 +23,7 @@ export function useRelocationProgress() {
         if (initial && !receivedProgressEvent) setProgress(initial)
       })
       .catch((error) => {
-        logger.error('Failed to read initial userData relocation progress', error as Error)
+        logger.error('Failed to read initial userData relocation progress', error)
       })
 
     return unsubscribe
@@ -31,7 +31,7 @@ export function useRelocationProgress() {
 
   const restart = useCallback(() => {
     void window.electron.ipcRenderer.invoke(UserDataRelocationIpcChannels.Restart).catch((error) => {
-      logger.error('Failed to restart after userData relocation', error as Error)
+      logger.error('Failed to restart after userData relocation', error)
     })
   }, [])
 

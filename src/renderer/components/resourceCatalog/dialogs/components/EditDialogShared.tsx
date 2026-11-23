@@ -873,7 +873,7 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
       .writeText(variable)
       .then(() => toast.success(t('message.copy.success')))
       .catch((error) => {
-        logger.warn('Failed to copy prompt variable to clipboard', error as Error)
+        logger.warn('Failed to copy prompt variable to clipboard', error)
       })
   }
 

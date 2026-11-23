@@ -111,7 +111,7 @@ function NotificationItem({
         onNavigate()
       }
     } catch (error) {
-      logger.error('Failed to activate notification', error as Error)
+      logger.error('Failed to activate notification', error)
       toast.error(t('notification.center.activation_failed'))
     } finally {
       setActivating(false)
@@ -184,7 +184,7 @@ function NotificationItem({
             void dismiss()
               .then(onDismiss)
               .catch((error) => {
-                logger.error('Failed to dismiss notification', error as Error)
+                logger.error('Failed to dismiss notification', error)
                 toast.error(t('notification.center.error'))
               })
           }>
@@ -204,7 +204,7 @@ function NotificationItem({
               onClick={() =>
                 void ipcApi
                   .request('system.shell.open_website', announcementUrl)
-                  .catch((error) => logger.error('Failed to open announcement link', error as Error))
+                  .catch((error) => logger.error('Failed to open announcement link', error))
               }>
               {t('common.open')}
             </Button>
@@ -470,7 +470,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               loading={markingAllRead}
               onClick={() =>
                 void markAllRead().catch((error) => {
-                  logger.error('Failed to mark notifications read', error as Error)
+                  logger.error('Failed to mark notifications read', error)
                   toast.error(t('notification.center.error'))
                 })
               }>

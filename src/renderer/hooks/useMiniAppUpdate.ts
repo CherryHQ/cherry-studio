@@ -62,7 +62,7 @@ export function useMiniAppUpdate(
       // A check can change the version the host reports (a newer one published since the dot lit).
       options.onChecked?.()
     } catch (e) {
-      logger.error('Mini app update check failed', e as Error)
+      logger.error('Mini app update check failed', e)
       toast.error(t('miniApp.detail.action_error', { message: errorMessage(e) }))
     } finally {
       setBusy(false)
@@ -90,7 +90,7 @@ export function useMiniAppUpdate(
       toast.success(t('miniApp.install.upgrade_success', { name: options.name, version }))
       options.onApplied?.()
     } catch (e) {
-      logger.error('Mini app update failed', e as Error)
+      logger.error('Mini app update failed', e)
       toast.error(t('miniApp.detail.action_error', { message: errorMessage(e) }))
     } finally {
       // Consumed either way: main deletes the review on `consume`, so the token is spent

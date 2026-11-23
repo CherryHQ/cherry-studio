@@ -48,7 +48,7 @@ export function getMcpConfigSampleFromReadme(readme: string): NpxConfigSample | 
         }
       }
     } catch (e) {
-      logger.error('getMcpConfigSampleFromReadme', e as Error)
+      logger.error('getMcpConfigSampleFromReadme', e)
     }
   }
 

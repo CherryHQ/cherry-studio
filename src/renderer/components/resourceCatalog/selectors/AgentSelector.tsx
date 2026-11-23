@@ -126,7 +126,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       try {
         await togglePin(id)
       } catch (error) {
-        logger.error('Failed to toggle agent pin', error as Error, { id })
+        logger.error('Failed to toggle agent pin', error, { id })
         toast.error(t('common.error'))
       }
     },
@@ -169,7 +169,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       try {
         created = await createAgent(buildCreateAgentCommand(values))
       } catch (error) {
-        logger.error('Failed to create agent from selector', error as Error)
+        logger.error('Failed to create agent from selector', error)
         throw error
       }
 

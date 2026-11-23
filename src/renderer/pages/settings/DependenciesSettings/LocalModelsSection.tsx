@@ -264,13 +264,13 @@ const LocalModelsSection: FC = () => {
       .then(({ supported }) => {
         if (mounted) setAccelerationSupported(supported)
       })
-      .catch((error) => logger.warn('Failed to detect local inference hardware acceleration', error as Error))
+      .catch((error) => logger.warn('Failed to detect local inference hardware acceleration', error))
     void ipcApi
       .request('local_model.list')
       .then((result) => {
         if (mounted) setModels(result.models)
       })
-      .catch((error) => logger.warn('Failed to list local models', error as Error))
+      .catch((error) => logger.warn('Failed to list local models', error))
 
     return () => {
       mounted = false

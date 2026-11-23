@@ -157,7 +157,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       applyOutcome(outcome)
       showBatchOutcome('restore', outcome)
     } catch (error) {
-      logger.error('batch restore failed', error as Error)
+      logger.error('batch restore failed', error)
       toast.error(t('settings.data.trash.restore.error'))
     } finally {
       setIsBatchActionPending(false)

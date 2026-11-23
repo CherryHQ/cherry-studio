@@ -227,7 +227,7 @@ export const useImageTools = (
 
       return true
     } catch (error) {
-      logger.error('Copy failed:', error as Error)
+      logger.error('Copy failed:', error)
       toast.error(t('message.copy.failed'))
 
       return false
@@ -260,7 +260,7 @@ export const useImageTools = (
           URL.revokeObjectURL(pngUrl)
         }
       } catch (error) {
-        logger.error('Download failed:', error as Error)
+        logger.error('Download failed:', error)
         toast.error(t('message.download.failed'))
       }
     },
@@ -280,7 +280,7 @@ export const useImageTools = (
 
       await ImagePreviewService.show(imgElement, { format: 'svg' })
     } catch (error) {
-      logger.error('Dialog preview failed:', error as Error)
+      logger.error('Dialog preview failed:', error)
       toast.error(t('message.dialog.failed'))
     }
   }, [getCleanImgElement, t])

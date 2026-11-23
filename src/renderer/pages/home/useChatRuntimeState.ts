@@ -483,7 +483,7 @@ export function useChatRuntimeState({
 
           await invalidateCache(treeCachePath)
         } catch (err) {
-          logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
+          logger.warn('failed to reconcile topic branch flow after execution finish', err)
         } finally {
           finishedBranchExecutionKeysRef.current.add(finishedKey)
 
@@ -508,7 +508,7 @@ export function useChatRuntimeState({
                 try {
                   await refresh()
                 } catch (err) {
-                  logger.warn('failed to refresh messages after branch execution finish', err as Error)
+                  logger.warn('failed to refresh messages after branch execution finish', err)
                 }
               }
 
@@ -576,7 +576,7 @@ export function useChatRuntimeState({
 
         return sent
       } catch (err) {
-        logger.warn('failed to open conversation turn', err as Error)
+        logger.warn('failed to open conversation turn', err)
         throw err
       }
     },

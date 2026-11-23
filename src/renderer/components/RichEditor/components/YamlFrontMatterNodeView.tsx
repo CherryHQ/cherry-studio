@@ -56,7 +56,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
         return { key, value, type }
       })
     } catch (error) {
-      logger.warn('Failed to parse YAML front matter:', error as Error)
+      logger.warn('Failed to parse YAML front matter:', error)
 
       return []
     }
@@ -129,7 +129,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, getPos, editor
           return true
         })
       } catch (error) {
-        logger.error('Failed to update YAML:', error as Error)
+        logger.error('Failed to update YAML:', error)
       }
     },
     [editor, getPos]

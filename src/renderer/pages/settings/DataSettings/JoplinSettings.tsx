@@ -70,7 +70,7 @@ const JoplinSettings: FC = () => {
 
       toast.success(t('settings.data.joplin.check.success'))
     } catch (error) {
-      logger.error('Failed to check Joplin connection', error as Error)
+      logger.error('Failed to check Joplin connection', error)
       toast.error(`${t('settings.data.joplin.check.fail')}: ${formatErrorMessage(error)}`)
     }
   }

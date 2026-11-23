@@ -123,7 +123,7 @@ export async function backupToNutstore({ customFileName = '' }: { customFileName
       throw new Error(i18n.t('message.backup.failed'))
     }
   } catch (error) {
-    logger.error('[Nutstore] Backup failed:', error as Error)
+    logger.error('[Nutstore] Backup failed:', error)
     const message = getLocalizedBackupErrorMessage(error)
     setNutstoreSyncState({ lastSyncError: message })
     toast.error(message)

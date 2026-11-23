@@ -48,7 +48,7 @@ export function useNote(rootPath: string) {
           }
         })
       } catch (mutationError) {
-        logger.error('Failed to update note', mutationError as Error)
+        logger.error('Failed to update note', mutationError)
         throw mutationError
       }
     },
@@ -66,7 +66,7 @@ export function useNote(rootPath: string) {
           }
         })
       } catch (mutationError) {
-        logger.error('Failed to delete note metadata path', mutationError as Error)
+        logger.error('Failed to delete note metadata path', mutationError)
         throw mutationError
       }
     },
@@ -85,7 +85,7 @@ export function useNote(rootPath: string) {
           }
         })
       } catch (mutationError) {
-        logger.error('Failed to rewrite note metadata path', mutationError as Error)
+        logger.error('Failed to rewrite note metadata path', mutationError)
         throw mutationError
       }
     },

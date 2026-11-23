@@ -99,7 +99,7 @@ export function useToolApproval(
         })
       } catch (error) {
         setOptimisticSubmitted(false)
-        logger.error('Tool approval response failed', error as Error)
+        logger.error('Tool approval response failed', error)
         notifyError?.(t('message.tools.approvalError', 'Failed to send approval'))
       }
     },

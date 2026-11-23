@@ -216,7 +216,7 @@ class CodeHighlightService {
     try {
       return await task
     } catch (error) {
-      logger.warn('Code highlighting unavailable; displaying plain text', error as Error)
+      logger.warn('Code highlighting unavailable; displaying plain text', error)
 
       return plainCodeBlockTokens(code, range)
     }
@@ -236,7 +236,7 @@ class CodeHighlightService {
       if (typeof result === 'string') return result
       throw new Error('Expected highlighted HTML')
     } catch (error) {
-      logger.warn('Code highlighting unavailable; displaying plain text', error as Error)
+      logger.warn('Code highlighting unavailable; displaying plain text', error)
 
       return `<pre class="shiki"><code>${escape(code)}</code></pre>`
     }
@@ -250,7 +250,7 @@ class CodeHighlightService {
 
       return result
     } catch (error) {
-      logger.warn('Markdown rendering unavailable; displaying source text', error as Error)
+      logger.warn('Markdown rendering unavailable; displaying source text', error)
 
       return `<pre><code>${escape(code)}</code></pre>`
     }

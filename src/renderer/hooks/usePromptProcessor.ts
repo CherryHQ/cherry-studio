@@ -31,7 +31,7 @@ export function usePromptProcessor({ prompt, modelName }: PromptProcessor): stri
           setCurrentProcessedPrompt(prompt)
         }
       } catch (error) {
-        logger.error('Failed to process prompt variables, falling back:', error as Error)
+        logger.error('Failed to process prompt variables, falling back:', error)
         setCurrentProcessedPrompt(prompt)
       }
     }

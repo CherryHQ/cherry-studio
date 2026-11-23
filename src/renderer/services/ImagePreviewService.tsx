@@ -108,7 +108,7 @@ export class ImagePreviewService {
       const src = await imageInputToPreviewUrl(input, options)
       await imagePreviewPopup.show({ src })
     } catch (error) {
-      logger.error('Failed to show image preview:', error as Error)
+      logger.error('Failed to show image preview:', error)
       throw error
     }
   }

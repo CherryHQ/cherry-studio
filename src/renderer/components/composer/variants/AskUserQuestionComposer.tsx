@@ -163,7 +163,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       try {
         await onRespond(input)
       } catch (error) {
-        logger.error('Failed to send ask-user-question response', error as Error, {
+        logger.error('Failed to send ask-user-question response', error, {
           approvalId: request.approvalId,
           messageId: request.messageId,
           toolCallId: request.toolCallId

@@ -36,7 +36,7 @@ export const useChannels = (type?: AgentChannelType) => {
 
         return channel
       } catch (err) {
-        logger.error('Failed to create channel', err as Error)
+        logger.error('Failed to create channel', err)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.createError')))
 
         return null
@@ -53,7 +53,7 @@ export const useChannels = (type?: AgentChannelType) => {
 
         return channel
       } catch (err) {
-        logger.error('Failed to update channel', err as Error)
+        logger.error('Failed to update channel', err)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.updateError')))
 
         return null
@@ -68,7 +68,7 @@ export const useChannels = (type?: AgentChannelType) => {
         await ipcApi.request('channel.delete', { channelId: id })
         await mutate()
       } catch (err) {
-        logger.error('Failed to delete channel', err as Error)
+        logger.error('Failed to delete channel', err)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.deleteError')))
       }
     },

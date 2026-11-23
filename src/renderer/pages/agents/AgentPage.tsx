@@ -516,7 +516,7 @@ const AgentPage = () => {
 
         return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: lastUsedWorkspaceId }
       } catch (err) {
-        logger.warn('Failed to reuse remembered workspace for new agent session', err as Error, {
+        logger.warn('Failed to reuse remembered workspace for new agent session', err, {
           workspaceId: lastUsedWorkspaceId
         })
         setLastUsedWorkspaceId(null)
@@ -559,7 +559,7 @@ const AgentPage = () => {
           `/agent-sessions/${result.session.id}`,
           ...result.deletedDuplicateSessionIds.map((sessionId) => `/agent-sessions/${sessionId}`)
         ]).catch((err) => {
-          logger.warn('Failed to refresh session metadata after placeholder resolution', err as Error)
+          logger.warn('Failed to refresh session metadata after placeholder resolution', err)
         })
       }
 
@@ -595,7 +595,7 @@ const AgentPage = () => {
 
         return session
       } catch (err) {
-        logger.error('Failed to create empty agent session', err as Error, { agentId })
+        logger.error('Failed to create empty agent session', err, { agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
 
         return null
@@ -649,7 +649,7 @@ const AgentPage = () => {
       })
       .catch((err) => {
         if (generation !== routeAgentActivationGenerationRef.current) return
-        logger.error('Failed to create empty agent session', err as Error, { agentId: routeAgentId })
+        logger.error('Failed to create empty agent session', err, { agentId: routeAgentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       })
       .finally(() => {
@@ -724,7 +724,7 @@ const AgentPage = () => {
 
         activateSession(session, agentId)
       } catch (err) {
-        logger.error('Failed to create agent session after agent creation', err as Error, { agentId })
+        logger.error('Failed to create agent session after agent creation', err, { agentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         isCreatingEmptySessionRef.current = false
@@ -866,7 +866,7 @@ const AgentPage = () => {
       try {
         await invalidateCache(['/agents', '/agent-sessions', `/agent-sessions/${routeSessionId}`])
       } catch (err) {
-        logger.warn('Failed to refresh Agent cache for prepared feedback session', err as Error, {
+        logger.warn('Failed to refresh Agent cache for prepared feedback session', err, {
           sessionId: routeSessionId
         })
       }
@@ -874,7 +874,7 @@ const AgentPage = () => {
       setFeedbackComposerLaunch(routeFeedbackComposerLaunch)
     } catch (err) {
       setFeedbackComposerLaunch(null)
-      logger.error('Failed to prepare Cherry Support feedback session', err as Error)
+      logger.error('Failed to prepare Cherry Support feedback session', err)
       toast.error(t('settings.about.feedback.agent_error'))
       showMissingAgentSelection()
     } finally {
@@ -911,7 +911,7 @@ const AgentPage = () => {
       const [skill] = await Promise.all([
         dataApiService.get(skillPath) as Promise<InstalledSkill>,
         invalidateCache(['/agents', '/skills', '/agent-sessions', `/agent-sessions/${routeSessionId}`]).catch((err) => {
-          logger.warn('Failed to refresh Agent cache for prepared Skill session', err as Error, {
+          logger.warn('Failed to refresh Agent cache for prepared Skill session', err, {
             sessionId: routeSessionId,
             skillId: routeSkillId
           })
@@ -923,7 +923,7 @@ const AgentPage = () => {
       )
     } catch (err) {
       setSkillComposerLaunch(null)
-      logger.error('Failed to prepare Skill session', err as Error, {
+      logger.error('Failed to prepare Skill session', err, {
         sessionId: routeSessionId,
         skillId: routeSkillId
       })
@@ -958,7 +958,7 @@ const AgentPage = () => {
     try {
       if (routeSessionId) {
         await invalidateCache(['/agents', '/agent-sessions', `/agent-sessions/${routeSessionId}`]).catch((err) => {
-          logger.warn('Failed to refresh Agent cache for prepared task session', err as Error, {
+          logger.warn('Failed to refresh Agent cache for prepared task session', err, {
             sessionId: routeSessionId
           })
         })
@@ -1055,7 +1055,7 @@ const AgentPage = () => {
         reenterAgentRoute()
       } catch (err) {
         if (requestId !== ownerFallbackRequestIdRef.current) return
-        logger.error('Failed to settle agent page after deleting active agent', err as Error, { deletedAgentId })
+        logger.error('Failed to settle agent page after deleting active agent', err, { deletedAgentId })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         reenterAgentRoute()
       }

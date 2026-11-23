@@ -147,7 +147,7 @@ const AppearanceSettings: FC = () => {
         const fonts = await ipcApi.request('system.get_fonts')
         setFontList(fonts)
       } catch (error) {
-        logger.error('Failed to get system fonts', error as Error)
+        logger.error('Failed to get system fonts', error)
       }
     }
 
@@ -156,7 +156,7 @@ const AppearanceSettings: FC = () => {
         const factor = await ipcApi.request('app.adjust_zoom', { delta: 0 })
         setCurrentZoom(factor)
       } catch (error) {
-        logger.error('Failed to get current zoom factor', error as Error)
+        logger.error('Failed to get current zoom factor', error)
       }
     }
 

@@ -64,7 +64,7 @@ const BasicDataSettings: React.FC = () => {
       const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: ['normal_cache'] })
       setCacheSize(response.results[0]?.size ?? null)
     } catch (error) {
-      logger.warn('Failed to inspect normal cache size', error as Error)
+      logger.warn('Failed to inspect normal cache size', error)
       setCacheSize(null)
     }
   }, [])
@@ -195,7 +195,7 @@ const BasicDataSettings: React.FC = () => {
         void ipcApi.request('app.relaunch')
       }, 500)
     } catch (error) {
-      logger.error('Failed to change application data path', error as Error)
+      logger.error('Failed to change application data path', error)
       toast.error(t('settings.data.app_data.path_change_failed'))
     }
   }
@@ -257,7 +257,7 @@ const BasicDataSettings: React.FC = () => {
 
           return !hasFailures
         } catch (error) {
-          logger.error('Cache cleanup failed', error as Error)
+          logger.error('Cache cleanup failed', error)
           toast.error(t('settings.data.clear_cache.error'))
 
           return false

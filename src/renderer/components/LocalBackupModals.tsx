@@ -80,7 +80,7 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
       await backupToLocal({ customFileName })
       setIsModalVisible(false)
     } catch (error) {
-      logger.error('Backup failed:', error as Error)
+      logger.error('Backup failed:', error)
     } finally {
       setBackuping(false)
     }

@@ -172,7 +172,7 @@ const MiniApp: FC<Props> = ({
         toast.error(t('settings.miniApps.custom.remove_error'))
       }
 
-      logger.error('Failed to remove custom mini app:', error as Error)
+      logger.error('Failed to remove custom mini app:', error)
     } finally {
       setRemovingCustom(false)
     }

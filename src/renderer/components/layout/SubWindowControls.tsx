@@ -29,7 +29,7 @@ export const SubWindowControls = () => {
 
     if (!tab) return
     ipcApi.request('tab.attach', tab).catch((err) => {
-      logger.error('Back to main window failed', err as Error)
+      logger.error('Back to main window failed', err)
     })
   }
 

@@ -104,7 +104,7 @@ const McpServersList: FC = () => {
   useEffect(() => {
     void ipcApi.request('mcp.protocol_install.list_pending').then(
       (requests) => updateProtocolInstallQueue(() => requests),
-      (error) => logger.error('Failed to list MCP protocol install requests', error as Error)
+      (error) => logger.error('Failed to list MCP protocol install requests', error)
     )
   }, [search.protocolInstallRequestId, updateProtocolInstallQueue])
 
@@ -142,7 +142,7 @@ const McpServersList: FC = () => {
     try {
       await ipcApi.request('mcp.protocol_install.cancel', { requestId: displayedProtocolRequest.requestId })
     } catch (error) {
-      logger.error('Failed to cancel MCP protocol install request', error as Error)
+      logger.error('Failed to cancel MCP protocol install request', error)
 
       return
     }
@@ -242,7 +242,7 @@ const McpServersList: FC = () => {
         requestId: displayedProtocolRequest.requestId
       })
     } catch (error) {
-      logger.error('Failed to install MCP servers from protocol', error as Error)
+      logger.error('Failed to install MCP servers from protocol', error)
       toast.error(t('settings.mcp.addError'))
 
       return
@@ -252,9 +252,7 @@ const McpServersList: FC = () => {
 
     if (!lastCreatedServer) return
 
-    void refetch().catch((error) =>
-      logger.error('Failed to refresh MCP servers after protocol install', error as Error)
-    )
+    void refetch().catch((error) => logger.error('Failed to refresh MCP servers after protocol install', error))
     pendingAutoEnableServerIdRef.current = lastCreatedServer.id
     removeProtocolInstallRequest(displayedProtocolRequest.requestId)
     toast.success(t('settings.mcp.addSuccess'))

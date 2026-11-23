@@ -286,7 +286,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
       setSelectedFile(nextFile)
       setViewMode(isMarkdownFile(nextFile) ? 'preview' : 'edit')
     } catch (error) {
-      logger.error('Failed to save Skill file before switching files', error as Error, { skillId, selectedFile })
+      logger.error('Failed to save Skill file before switching files', error, { skillId, selectedFile })
       toast.error(t('settings.skills.editor.saveFailed'))
     }
   }, [flush, pendingFile, selectedFile, skillId, t])
@@ -295,7 +295,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     try {
       await reloadFile()
     } catch (error) {
-      logger.error('Failed to reload conflicted Skill file', error as Error, { skillId, selectedFile })
+      logger.error('Failed to reload conflicted Skill file', error, { skillId, selectedFile })
       toast.error(t('library.skill_detail.file_load_failed'))
     }
   }, [reloadFile, selectedFile, skillId, t])
@@ -304,7 +304,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     try {
       await keepCurrentDraft()
     } catch (error) {
-      logger.error('Failed to save the current Skill draft', error as Error, { skillId, selectedFile })
+      logger.error('Failed to save the current Skill draft', error, { skillId, selectedFile })
       toast.error(t('settings.skills.editor.saveFailed'))
     }
   }, [keepCurrentDraft, selectedFile, skillId, t])
@@ -530,7 +530,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
             await flushRef.current()
             blocker.proceed()
           } catch (error) {
-            logger.error('Failed to save Skill file before navigation', error as Error, { skillId, selectedFile })
+            logger.error('Failed to save Skill file before navigation', error, { skillId, selectedFile })
             toast.error(t('settings.skills.editor.saveFailed'))
           }
         }}

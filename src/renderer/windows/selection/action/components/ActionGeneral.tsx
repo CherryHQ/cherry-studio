@@ -148,7 +148,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
     // Kick the result-renderer chunk off immediately — rendering waits for the
     // first streamed message, but the download must overlap the model latency.
     importActionResultContent().catch((error) => {
-      logger.warn('Failed to preload ActionResultContent chunk:', error as Error)
+      logger.warn('Failed to preload ActionResultContent chunk:', error)
     })
   }, [])
 

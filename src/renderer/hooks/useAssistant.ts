@@ -144,7 +144,7 @@ export function useAssistantMutations() {
             phase === 'failed'
               ? 'Failed to refresh assistants after delete failed'
               : 'Failed to refresh assistants after delete succeeded',
-            refreshError as Error,
+            refreshError,
             { assistantId: id }
           )
         })

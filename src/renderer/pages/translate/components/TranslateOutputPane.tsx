@@ -81,7 +81,7 @@ const TranslateOutputPane = ({
       if (isCurrent()) toast.success(t('message.copied'))
     } catch (error) {
       if (isCurrent()) {
-        logger.error('Failed to copy translation as image', error as Error)
+        logger.error('Failed to copy translation as image', error)
         toast.error(t('common.copy_failed'))
       }
     } finally {

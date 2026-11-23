@@ -212,7 +212,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
     setIsDetecting(true)
 
     const sourceLanguageCode = await detectLanguageOrUnknown(selectedText, detectLanguage, (error) => {
-      logger.error('Error detecting language:', error as Error)
+      logger.error('Error detecting language:', error)
     }).finally(() => {
       setIsDetecting(false)
     })
@@ -246,7 +246,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
     // Kick the result-renderer chunk off immediately — rendering waits for the
     // response content, but the download must overlap the request latency.
     importActionResultContent().catch((error) => {
-      logger.warn('Failed to preload ActionResultContent chunk:', error as Error)
+      logger.warn('Failed to preload ActionResultContent chunk:', error)
     })
   }, [])
 

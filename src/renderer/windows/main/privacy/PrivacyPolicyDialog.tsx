@@ -71,7 +71,7 @@ export function PrivacyPolicyDialog({
         }
       })
       .catch((error) => {
-        logger.error('Failed to load privacy policy resource', error as Error)
+        logger.error('Failed to load privacy policy resource', error)
 
         if (!cancelled) {
           setLoadFailed(true)

@@ -156,7 +156,7 @@ export function useProviderApiKey(providerId: string) {
     () =>
       debounce((nextValue: string) => {
         void saveApiKeyRef.current(nextValue).catch((error) => {
-          logger.error('Failed to save API keys', error as Error)
+          logger.error('Failed to save API keys', error)
           toast.error(i18n.t('settings.provider.api_key.save_failed'))
           setValue((current) => ({ ...current, hasPendingSync: true }))
         })
@@ -220,7 +220,7 @@ export function useProviderApiKey(providerId: string) {
     try {
       await saveApiKeyRef.current(normalizedInputApiKey)
     } catch (error) {
-      logger.error('Failed to save API keys', error as Error)
+      logger.error('Failed to save API keys', error)
       toast.error(i18n.t('settings.provider.api_key.save_failed'))
       setValue((current) => ({ ...current, hasPendingSync: true }))
       throw error

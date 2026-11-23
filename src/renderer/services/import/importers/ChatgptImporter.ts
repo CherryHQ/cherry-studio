@@ -108,7 +108,7 @@ export class ChatgptImporter implements ConversationImporter {
       try {
         importedConversations.push(this.convertConversation(conversation))
       } catch (convError) {
-        logger.warn(`Failed to convert conversation "${conversation.title}":`, convError as Error)
+        logger.warn(`Failed to convert conversation "${conversation.title}":`, convError)
         // Continue with other conversations
       }
     }

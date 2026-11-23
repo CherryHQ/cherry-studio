@@ -152,7 +152,7 @@ export const handlePaste = async (
           for (const result of results) {
             if (result.status === 'rejected') {
               hasFileError = true
-              logger.error('onPaste:', result.reason as Error)
+              logger.error('onPaste:', result.reason)
             } else if (result.value?.kind === 'file') {
               attachments.push(result.value.attachment)
             } else if (result.value?.kind === 'directory' && onFolderPathPasted) {
@@ -220,7 +220,7 @@ export const handlePaste = async (
             }
           } catch (error) {
             hasFileError = true
-            logger.error('onPaste:', error as Error)
+            logger.error('onPaste:', error)
           }
         }
 
@@ -228,7 +228,7 @@ export const handlePaste = async (
           toast.error(t('chat.input.file_error'))
         }
       } catch (error) {
-        logger.error('onPaste:', error as Error)
+        logger.error('onPaste:', error)
 
         if (t) {
           toast.error(t('chat.input.file_error'))
@@ -241,7 +241,7 @@ export const handlePaste = async (
     // 其他情况默认粘贴
     return false
   } catch (error) {
-    logger.error('handlePaste error:', error as Error)
+    logger.error('handlePaste error:', error)
 
     return false
   }

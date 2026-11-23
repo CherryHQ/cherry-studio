@@ -123,7 +123,7 @@ const MinimalToolbar: FC<Props> = ({
         logger.error('togglePin failed', { code: e.code, message: e.message })
         toast.error(e.message || t(fallbackKey))
       } else {
-        logger.error('togglePin failed', err as Error)
+        logger.error('togglePin failed', err)
         toast.error(t(fallbackKey))
       }
     })

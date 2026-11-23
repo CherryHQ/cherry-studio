@@ -1506,7 +1506,7 @@ const ChatComposerInner = ({
           }
         ])
       } catch (error) {
-        logger.error('Failed to add generated image as a composer reference', error as Error)
+        logger.error('Failed to add generated image as a composer reference', error)
         toast.error(t('common.error'))
       }
     })

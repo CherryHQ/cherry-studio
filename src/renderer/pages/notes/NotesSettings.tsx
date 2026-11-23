@@ -49,7 +49,7 @@ const NotesSettings: FC = () => {
         setTempPath(result)
       }
     } catch (error) {
-      logger.error('Failed to select directory:', error as Error)
+      logger.error('Failed to select directory:', error)
       toast.error(t('notes.settings.data.select_directory_failed'))
     } finally {
       setIsSelecting(false)
@@ -76,7 +76,7 @@ const NotesSettings: FC = () => {
       updateNotesPath(tempPath)
       toast.success(t('notes.settings.data.path_updated'))
     } catch (error) {
-      logger.error('Failed to apply notes path:', error as Error)
+      logger.error('Failed to apply notes path:', error)
       toast.error(t('notes.settings.data.apply_path_failed'))
     }
   }
@@ -88,7 +88,7 @@ const NotesSettings: FC = () => {
       updateNotesPath(info.notesPath)
       toast.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
-      logger.error('Failed to reset to default:', error as Error)
+      logger.error('Failed to reset to default:', error)
       toast.error(t('notes.settings.data.reset_failed'))
     }
   }

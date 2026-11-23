@@ -189,7 +189,7 @@ export const oauthWithAihubmix = async (setKey) => {
     },
     setKey,
     onError: (error) => {
-      logger.error('[oauthWithAihubmix] error', error as Error)
+      logger.error('[oauthWithAihubmix] error', error)
       toast.error(i18n.t('settings.provider.oauth.error'))
     }
   })
@@ -262,7 +262,7 @@ export const oauthWithPPIO = async (setKey) => {
           reject(new Error('No access token received'))
         }
       } catch (error) {
-        logger.error('[PPIO OAuth] Error processing callback:', error as Error)
+        logger.error('[PPIO OAuth] Error processing callback:', error)
         reject(error)
       } finally {
         removeListener()
@@ -280,7 +280,7 @@ export const oauthWith302AI = async (setKey) => {
     matches: isNestedApiKeyOAuthPayload,
     getKey: (data) => data.data.apikey,
     setKey,
-    onError: (error) => logger.error('[oauthWith302AI] error', error as Error)
+    onError: (error) => logger.error('[oauthWith302AI] error', error)
   })
 }
 
@@ -293,7 +293,7 @@ export const oauthWithAiOnly = async (setKey) => {
     matches: isSecretKeyOAuthPayload,
     getKey: (data) => data[0].secretKey,
     setKey,
-    onError: (error) => logger.error('[oauthWithAiOnly] error', error as Error)
+    onError: (error) => logger.error('[oauthWithAiOnly] error', error)
   })
 }
 
@@ -325,7 +325,7 @@ export const oauthWithTokenDance = async (setKey) => {
     const apiKey = await ipcApi.request('oauth.tokendance.authorize_api_key')
     setKey(apiKey)
   } catch (error) {
-    logger.error('[oauthWithTokenDance] error', error as Error)
+    logger.error('[oauthWithTokenDance] error', error)
     toast.error(i18n.t('settings.provider.oauth.error'))
   }
 }

@@ -109,7 +109,7 @@ const MessageGroupMenuBar: FC<Props> = ({
       } catch (e) {
         failedCount++
         lastError = e
-        logger.warn('Failed to retry grouped message', e as Error, { messageId: msg.id })
+        logger.warn('Failed to retry grouped message', e, { messageId: msg.id })
       }
     }
 

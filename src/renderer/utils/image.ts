@@ -180,7 +180,7 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
         const blob = await getImageBlobFromSource(source, { signal: controller.signal })
         dataUrlBySource.set(source, await blobToDataUrl(blob))
       } catch (error) {
-        logger.warn('Failed to inline remote image for capture, using placeholder', error as Error, { source })
+        logger.warn('Failed to inline remote image for capture, using placeholder', error, { source })
       } finally {
         clearTimeout(timer)
       }
@@ -244,7 +244,7 @@ async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
         image.src = await dataUrlPromise
         await waitForSwapSettle(image)
       } catch (error) {
-        logger.warn('Failed to inline local image for capture', error as Error, { source })
+        logger.warn('Failed to inline local image for capture', error, { source })
       }
     })
   )
@@ -326,7 +326,7 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
       bitmap.close()
     }
   } catch (error) {
-    logger.error('Failed to process entity image', error as Error)
+    logger.error('Failed to process entity image', error)
     throw new Error(i18n.t('message.error.image_process_failed'))
   }
 }
@@ -348,7 +348,7 @@ export async function captureElement(elRef: React.RefObject<HTMLElement | null>)
 
       return imageData
     } catch (error) {
-      logger.error('Error capturing element:', error as Error)
+      logger.error('Error capturing element:', error)
 
       return Promise.reject()
     } finally {
@@ -456,7 +456,7 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
 
       return await htmlToImage.toCanvas(el, captureOptions)
     } catch (error) {
-      logger.error('Error capturing scrollable element:', error as Error)
+      logger.error('Error capturing scrollable element:', error)
       throw error
     } finally {
       if (captureMarker === null) {
@@ -933,7 +933,7 @@ export async function captureScrollableIframe(
       }
     })
   } catch (error) {
-    logger.error('Error capturing iframe:', error as Error)
+    logger.error('Error capturing iframe:', error)
 
     return undefined
   } finally {

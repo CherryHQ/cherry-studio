@@ -234,7 +234,7 @@ const MessageErrorInfo: React.FC<{
           try {
             await removeMessageErrorPart?.({ messageId: message.id, partId })
           } catch (error) {
-            logger.error('Failed to dismiss message error part:', error as Error, { messageId: message.id, partId })
+            logger.error('Failed to dismiss message error part:', error, { messageId: message.id, partId })
             notifyError?.(formatErrorMessageWithPrefix(error, t('message.error.dismiss_failed')))
           }
         },

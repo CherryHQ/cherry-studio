@@ -33,7 +33,7 @@ export function showRecycleBinUndo(input: {
           await input.onUndo()
           toast.success(i18n.t('recycle_bin.restored'))
         } catch (error) {
-          logger.error('Recycle Bin undo failed', error as Error)
+          logger.error('Recycle Bin undo failed', error)
           toast.error(i18n.t('recycle_bin.restore_failed'))
         }
       }
@@ -111,7 +111,7 @@ async function refreshAfterRestore<TRefresh>(refresh: () => Promise<TRefresh>): 
   try {
     await refresh()
   } catch (error) {
-    logger.warn('Failed to refresh after Recycle Bin restore', error as Error)
+    logger.warn('Failed to refresh after Recycle Bin restore', error)
   }
 }
 
@@ -179,7 +179,7 @@ export function showRecycleBinBatchUndo(input: { itemCount: number; onUndo: () =
             })
           )
         } catch (error) {
-          logger.error('Recycle Bin batch undo failed', error as Error)
+          logger.error('Recycle Bin batch undo failed', error)
           toast.error(i18n.t('recycle_bin.restore_failed'))
         }
       }

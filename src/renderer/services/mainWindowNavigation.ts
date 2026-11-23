@@ -28,7 +28,7 @@ export function openRoute(path: string, query?: Record<string, string>): void {
 
   if (!event.defaultPrevented) {
     void ipcApi.request('navigation.open_route_in_main', { path: targetPath }).catch((error) => {
-      logger.error('Failed to request main-window navigation', error as Error)
+      logger.error('Failed to request main-window navigation', error)
     })
   }
 }

@@ -56,7 +56,7 @@ export function useNutstoreSso() {
         try {
           url = new URL(data.url)
         } catch (error) {
-          logger.warn('Ignored malformed protocol URL during Nutstore SSO', error as Error)
+          logger.warn('Ignored malformed protocol URL during Nutstore SSO', error)
 
           return
         }
@@ -75,7 +75,7 @@ export function useNutstoreSso() {
 
         if (settled) unsubscribe()
       } catch (error) {
-        logger.error('Failed to listen for Nutstore SSO callback', error as Error)
+        logger.error('Failed to listen for Nutstore SSO callback', error)
         finish(null)
 
         return

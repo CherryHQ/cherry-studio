@@ -121,7 +121,7 @@ export function useScreenshotChat({
         report(true)
         current.actionsRef.current.focus('end')
       } catch (error) {
-        logger.error('Failed to receive screenshot', error as Error)
+        logger.error('Failed to receive screenshot', error)
         report(false)
       } finally {
         pending.current.delete(deliveryId)

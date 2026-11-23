@@ -41,7 +41,7 @@ export function hasLegacyV1Marker(): boolean {
       localStorage.getItem(LEGACY_CLEANUP_RETRY_MARKER_KEY) !== null
     )
   } catch (error) {
-    logger.warn('Failed to inspect legacy localStorage marker', error as Error)
+    logger.warn('Failed to inspect legacy localStorage marker', error)
 
     return false
   }
@@ -53,7 +53,7 @@ export function beginLegacyV1Cleanup(): boolean {
 
     return true
   } catch (error) {
-    logger.error('Failed to persist legacy cleanup retry marker', error as Error)
+    logger.error('Failed to persist legacy cleanup retry marker', error)
 
     return false
   }
@@ -64,7 +64,7 @@ export function finalizeLegacyV1Cleanup(result: CacheCleanupGroupResult): CacheC
     try {
       localStorage.removeItem(LEGACY_CLEANUP_RETRY_MARKER_KEY)
     } catch (error) {
-      logger.warn('Failed to clear legacy cleanup retry marker', error as Error)
+      logger.warn('Failed to clear legacy cleanup retry marker', error)
     }
   }
 
@@ -105,7 +105,7 @@ async function inspectLegacyIndexedDb(signal?: AbortSignal): Promise<BrowserData
     }
   } catch (error) {
     if (signal?.aborted) throw error
-    logger.warn('Failed to check legacy IndexedDB existence', error as Error)
+    logger.warn('Failed to check legacy IndexedDB existence', error)
 
     return { bytes: 0, hasFailures: true }
   }
@@ -161,7 +161,7 @@ async function inspectLegacyIndexedDb(signal?: AbortSignal): Promise<BrowserData
     }
   } catch (error) {
     if (signal?.aborted) throw error
-    logger.warn('Failed to open legacy IndexedDB', error as Error)
+    logger.warn('Failed to open legacy IndexedDB', error)
     hasFailures = true
   } finally {
     db.close()
@@ -201,7 +201,7 @@ async function deleteLegacyIndexedDb(onBlocked?: () => void): Promise<'cleared' 
       }
     })
   } catch (error) {
-    logger.error('Failed to delete legacy IndexedDB', error as Error)
+    logger.error('Failed to delete legacy IndexedDB', error)
 
     return 'failed'
   }

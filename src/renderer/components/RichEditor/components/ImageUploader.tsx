@@ -87,7 +87,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
       toast.success(t('richEditor.imageUploader.uploadSuccess'))
       onClose()
     } catch (error) {
-      logger.error('Image upload failed:', error as Error)
+      logger.error('Image upload failed:', error)
       toast.error(t('richEditor.imageUploader.uploadError'))
     } finally {
       setLoading(false)

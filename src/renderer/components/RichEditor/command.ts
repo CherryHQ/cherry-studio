@@ -582,7 +582,7 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
     try {
       return filterCommands({ query })
     } catch (error) {
-      logger.error('Error filtering commands:', error as Error)
+      logger.error('Error filtering commands:', error)
 
       return []
     }
@@ -707,7 +707,7 @@ export const createCommandSuggestion = (
       try {
         return filterCommands({ query, enableImageInsertion, disabledCommands })
       } catch (error) {
-        logger.error('Error filtering commands:', error as Error)
+        logger.error('Error filtering commands:', error)
 
         return []
       }

@@ -137,7 +137,7 @@ export async function copyAgentSessionAsMarkdown(
     await navigator.clipboard.writeText(markdown)
     toast.success(i18next.t('message.copy.success'))
   } catch (error) {
-    logger.error('Failed to copy agent session as markdown', error as Error, { sessionId: session.id })
+    logger.error('Failed to copy agent session as markdown', error, { sessionId: session.id })
     toast.error(i18next.t('common.copy_failed'))
   }
 }
@@ -151,7 +151,7 @@ export async function copyAgentSessionAsPlainText(
     await navigator.clipboard.writeText(plainText)
     toast.success(i18next.t('message.copy.success'))
   } catch (error) {
-    logger.error('Failed to copy agent session as plain text', error as Error, { sessionId: session.id })
+    logger.error('Failed to copy agent session as plain text', error, { sessionId: session.id })
     toast.error(i18next.t('common.copy_failed'))
   }
 }
@@ -166,7 +166,7 @@ export async function exportAgentSessionAsMarkdown(
     const markdown = await agentSessionToMarkdown(session, exportReasoning, excludeCitations, options)
     await exportMarkdownContentAsFile(getAgentSessionExportTitle(session), markdown)
   } catch (error) {
-    logger.error('Failed to export agent session as markdown', error as Error, { sessionId: session.id })
+    logger.error('Failed to export agent session as markdown', error, { sessionId: session.id })
     toast.error(i18next.t('chat.topics.export.failed'))
   }
 }

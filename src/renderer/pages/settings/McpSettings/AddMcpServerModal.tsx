@@ -117,7 +117,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   const activateImportedServer = async (server: McpServer) => {
     await dataApiService.patch(`/mcp-servers/${server.id}`, { body: { isActive: true } })
     await invalidateCache('/mcp-servers').catch((error) =>
-      logger.warn('Failed to refresh MCP server list after import', error as Error)
+      logger.warn('Failed to refresh MCP server list after import', error)
     )
     await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id })
   }
@@ -287,7 +287,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             1000
           ) // Delay to ensure server is properly added to store
         } catch (error) {
-          logger.error(`${isMcpbImport ? 'MCPB' : 'DXT'} processing error:`, error as Error)
+          logger.error(`${isMcpbImport ? 'MCPB' : 'DXT'} processing error:`, error)
           toast.error(
             t(
               isMcpbImport

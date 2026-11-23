@@ -88,7 +88,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
         if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
 
         if (!mountedRef.current) return
-        logger.error(`${providerId} sign-in failed`, error as Error)
+        logger.error(`${providerId} sign-in failed`, error)
         toast.error(t(`${ns}.sign_in_failed`))
       } finally {
         if (signInRequestRef.current === request) {
@@ -137,7 +137,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
 
       if (!mountedRef.current) return
-      logger.error(`${providerId} attached sign-in failed`, error as Error)
+      logger.error(`${providerId} attached sign-in failed`, error)
       toast.error(t(`${ns}.sign_in_failed`))
     } finally {
       if (signInRequestIdRef.current === requestId) {
@@ -163,7 +163,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       setAccountId(null)
       await attachActiveSignIn()
     } catch (error) {
-      logger.error(`Failed to check ${providerId} login status`, error as Error)
+      logger.error(`Failed to check ${providerId} login status`, error)
       setLoggedIn(false)
     }
   }, [attachActiveSignIn, providerId, showAccountId])
@@ -182,7 +182,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     try {
       await ipcApi.request('oauth.cancel_sign_in', { providerId, requestId })
     } catch (error) {
-      logger.error(`Failed to cancel ${providerId} sign-in`, error as Error)
+      logger.error(`Failed to cancel ${providerId} sign-in`, error)
       toast.error(t(`${ns}.sign_in_failed`))
     } finally {
       if (mountedRef.current) setCancellingSignIn(false)
@@ -207,7 +207,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       setAccountId(null)
       toast.success(t('settings.provider.oauth.logout_success'))
     } catch (error) {
-      logger.error(`${providerId} logout failed`, error as Error)
+      logger.error(`${providerId} logout failed`, error)
       toast.warning(t('settings.provider.oauth.logout_warning'))
     } finally {
       setLoggingOut(false)

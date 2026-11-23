@@ -189,7 +189,7 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
 
       return null
     } catch (error) {
-      logger.error('Failed to select folder:', error as Error)
+      logger.error('Failed to select folder:', error)
       throw error
     }
   }, [setDirectory])

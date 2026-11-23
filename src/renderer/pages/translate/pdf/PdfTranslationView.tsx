@@ -124,7 +124,7 @@ const isRunningPhase = (phase: PdfTranslationPhase) =>
 
 const requestCancel = (jobId: string, warningMessage: string) => {
   void ipcApi.request('translate.pdf.cancel', { jobId }).catch((error) => {
-    logger.warn(warningMessage, error as Error)
+    logger.warn(warningMessage, error)
   })
 }
 
@@ -242,7 +242,7 @@ const PdfTranslationView = ({
           // The run recorded itself in translate history whether or not this view still
           // cares about it, so refresh the list either way.
           void invalidate('/translate/histories').catch((cause) => {
-            logger.warn('Failed to refresh translate history after PDF translation', cause as Error)
+            logger.warn('Failed to refresh translate history after PDF translation', cause)
           })
 
           // Superseded by a newer run (or by a cancel): its result is a legitimate history

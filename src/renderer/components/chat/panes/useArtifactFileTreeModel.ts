@@ -363,7 +363,7 @@ function useLazyArtifactFileTree({
 
     if (watcher.treeId) {
       Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: watcher.treeId })).catch((err) => {
-        logger.warn(`Failed to dispose lazy directory watcher: ${dirId}`, err as Error)
+        logger.warn(`Failed to dispose lazy directory watcher: ${dirId}`, err)
       })
     }
 
@@ -487,7 +487,7 @@ function useLazyArtifactFileTree({
               lazyDirectoryWatchersRef.current.get(dirId) !== watcher
             ) {
               Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
-                logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err as Error)
+                logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err)
               })
 
               return
@@ -525,7 +525,7 @@ function useLazyArtifactFileTree({
             watcher.unsubscribe = undefined
             watcher.treeId = undefined
             Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
-              logger.warn(`Failed to dispose refused lazy directory watcher: ${dirId}`, err as Error)
+              logger.warn(`Failed to dispose refused lazy directory watcher: ${dirId}`, err)
             })
           }
 

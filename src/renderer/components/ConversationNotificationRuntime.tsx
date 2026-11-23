@@ -35,7 +35,7 @@ export function ConversationNotificationRuntime(): null {
         .post('/notifications/read-conversation', {
           body: { conversationType: appId === 'agents' ? 'agent' : 'assistant', conversationId }
         })
-        .catch((error) => logger.error('Failed to mark conversation notifications read', error as Error))
+        .catch((error) => logger.error('Failed to mark conversation notifications read', error))
     }
 
     markRead()
@@ -82,7 +82,7 @@ export function ConversationNotificationRuntime(): null {
       onClick: () => {
         toast.closeToast(notification.id)
         void ipcApi.request('notification.activate', { id: notification.id }).catch((error) => {
-          logger.error('Failed to activate notification', error as Error)
+          logger.error('Failed to activate notification', error)
           toast.error(t('notification.center.activation_failed'))
         })
       }
@@ -104,7 +104,7 @@ export function ConversationNotificationRuntime(): null {
             target: notification.meta,
             title: notification.conversationName
           })
-          .catch((error) => logger.error('Failed to open conversation from notification', error as Error))
+          .catch((error) => logger.error('Failed to open conversation from notification', error))
       }
     })
   })

@@ -349,7 +349,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
           updateAssistant
         })
       } catch (error) {
-        logger.error('Failed to update MCP binding from the composer', error as Error, { scope, serverId })
+        logger.error('Failed to update MCP binding from the composer', error, { scope, serverId })
         toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
       } finally {
         bindingMutationInFlightRef.current = false

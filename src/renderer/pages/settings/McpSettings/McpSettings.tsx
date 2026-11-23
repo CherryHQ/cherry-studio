@@ -142,7 +142,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         setLoadingServer(server.id)
         await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id })
       } catch (error) {
-        logger.error('Failed to list MCP tools', error as Error)
+        logger.error('Failed to list MCP tools', error)
         unmarkCapabilityLoaded('tools')
       } finally {
         setLoadingServer(null)
@@ -157,7 +157,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         const localPrompts = await ipcApi.request('mcp.server.list_prompts', { serverId: server.id })
         setPrompts(localPrompts)
       } catch (error) {
-        logger.error('Failed to list MCP prompts', error as Error)
+        logger.error('Failed to list MCP prompts', error)
         setPrompts([])
         unmarkCapabilityLoaded('prompts')
       } finally {
@@ -179,7 +179,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         setResources(localResources)
         setTemplates(localTemplates)
       } catch (error) {
-        logger.error('Failed to list MCP resources', error as Error)
+        logger.error('Failed to list MCP resources', error)
         setResources([])
         setTemplates([])
         unmarkCapabilityLoaded('resources')
@@ -195,7 +195,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         const version = await ipcApi.request('mcp.server.get_version', { serverId: server.id })
         setServerVersion(version)
       } catch (error) {
-        logger.error('Failed to get MCP server version', error as Error)
+        logger.error('Failed to get MCP server version', error)
         setServerVersion(null)
       }
     }

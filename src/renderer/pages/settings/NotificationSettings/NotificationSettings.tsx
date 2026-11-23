@@ -46,7 +46,7 @@ const NotificationSettings: FC = () => {
 
   const saveSettings = (values: Partial<typeof notificationSettings>) =>
     setNotificationSettings(values).catch((error) => {
-      logger.error('Failed to save notification settings', error as Error)
+      logger.error('Failed to save notification settings', error)
       toast.error(t('common.error'))
     })
 

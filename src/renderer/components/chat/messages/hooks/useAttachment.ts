@@ -33,7 +33,7 @@ export function useAttachment() {
           void ipcApi.request('system.shell.open_path', path)
         }
       } catch (err) {
-        logger.error(`Error opening ${path}:`, err as Error)
+        logger.error(`Error opening ${path}:`, err)
         void popup.error({ content: t('files.preview.error'), centered: true })
       }
     },

@@ -47,7 +47,7 @@ export function SkillLauncherProvider({ children }: PropsWithChildren) {
       try {
         await createSessionAndOpen(skill)
       } catch (error) {
-        logger.error('Failed to launch Skill in Cherry Assistant', error as Error, { skillId: skill.id })
+        logger.error('Failed to launch Skill in Cherry Assistant', error, { skillId: skill.id })
         toast.error(t('settings.skills.launchFailed', { name: skill.name }))
       }
     },
@@ -66,7 +66,7 @@ export function SkillLauncherProvider({ children }: PropsWithChildren) {
       setPendingSkill(null)
       await createSessionAndOpen(enabledSkill)
     } catch (error) {
-      logger.error('Failed to enable and launch Skill', error as Error, { skillId: skill.id })
+      logger.error('Failed to enable and launch Skill', error, { skillId: skill.id })
       toast.error(t('settings.skills.launchFailed', { name: skill.name }))
     } finally {
       setIsLaunching(false)

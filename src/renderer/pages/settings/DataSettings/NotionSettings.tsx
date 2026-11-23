@@ -67,7 +67,7 @@ const NotionSettings: FC = () => {
         toast.error(t('settings.data.notion.check.fail'))
       }
     } catch (error) {
-      logger.error('Failed to check Notion connection', error as Error)
+      logger.error('Failed to check Notion connection', error)
       toast.error(formatErrorMessage(error) || t('settings.data.notion.check.error'))
     }
   }

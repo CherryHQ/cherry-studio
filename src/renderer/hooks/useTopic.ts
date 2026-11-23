@@ -254,7 +254,7 @@ export async function getTopicMessages(
       return []
     }
 
-    logger.error(`Failed to fetch messages from Data API for topic ${id}:`, error as Error)
+    logger.error(`Failed to fetch messages from Data API for topic ${id}:`, error)
     throw error
   }
 }
@@ -469,7 +469,7 @@ export function useTopicMutations() {
             phase === 'failed'
               ? 'Failed to refresh topics after delete failed'
               : 'Failed to refresh topics after delete succeeded',
-            refreshError as Error,
+            refreshError,
             { topicId }
           )
         })

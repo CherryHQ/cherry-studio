@@ -79,7 +79,7 @@ export async function checkModelsHealth(
     outcome = 'completed'
   } catch (error) {
     outcome = signal?.aborted ? 'cancelled' : 'failed'
-    logger.error('[ProviderSettings checkModelsHealth] Model health check failed:', error as Error)
+    logger.error('[ProviderSettings checkModelsHealth] Model health check failed:', error)
     throw error
   } finally {
     logger.info('Model check run finished', {

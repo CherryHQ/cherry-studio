@@ -835,7 +835,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
       skipNextFocusScroll.current = true
       togglePin(modelId).catch((error) => {
-        logger.error('Failed to toggle model pin', error as Error, { modelId })
+        logger.error('Failed to toggle model pin', error, { modelId })
         toast.error(t('common.error'))
       })
     },

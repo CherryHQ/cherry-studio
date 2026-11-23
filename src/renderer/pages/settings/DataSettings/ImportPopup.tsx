@@ -103,7 +103,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
         toast.error(result.error || t(translations.unknownError))
       }
     } catch (error) {
-      logger.error(`${config.loggerName} import failed:`, error as Error)
+      logger.error(`${config.loggerName} import failed:`, error)
       toast.error(t(translations.unknownError))
       resolve({})
     } finally {

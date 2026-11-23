@@ -107,7 +107,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
       await navigator.clipboard.writeText(fullContent)
       setCopiedContent({ nodeId: node.id, tab: safeTab, content: fullContent })
     } catch (error) {
-      logger.error('Failed to copy span detail content', error as Error)
+      logger.error('Failed to copy span detail content', error)
       toast.error(t('common.copy_failed'))
     }
   }
