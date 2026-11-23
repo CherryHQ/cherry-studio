@@ -5,7 +5,7 @@ import { Base64 } from 'js-base64'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 
@@ -509,7 +509,8 @@ async function buildFontEmbedCSS(): Promise<string> {
           blocks.push({ cssText: rule.cssText, base })
         }
 
-        const nested = (rule as CSSMediaRule).cssRules
+        // SAFETY: Native CSSOM containers expose CSSRuleList children; leaf rules omit cssRules, regardless of their specific rule class.
+        const nested = (rule as CSSRule & Partial<Pick<CSSGroupingRule, 'cssRules'>>).cssRules
 
         if (nested) walk(nested)
       }
@@ -529,10 +530,10 @@ async function buildFontEmbedCSS(): Promise<string> {
 
   const readAsDataUrl = async (url: string, base: string): Promise<string | undefined> => {
     try {
-      const abs = new URL(url, base).href
+      const abs = new URL(url, base)
 
-      if (!abs.startsWith('file:')) return undefined
-      const path = fileUrlToPath(abs as FileUrlString)
+      if (abs.protocol !== 'file:') return undefined
+      const path = fileUrlToPath(abs)
       let b64 = b64ByPath.get(path)
 
       if (b64 === undefined) {
@@ -770,12 +771,7 @@ export async function captureScrollableIframe(
         if (!res.ok) return url
         const blob = await res.blob()
 
-        return new Promise((resolve) => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.onerror = () => resolve(url)
-          reader.readAsDataURL(blob)
-        })
+        return await blobToDataUrl(blob)
       } catch {
         return url
       }
@@ -892,10 +888,7 @@ export async function captureScrollableIframe(
     }
 
     // 等待字体就绪，避免序列化时回退到系统字体
-    await Promise.race([
-      (doc as any).fonts?.ready ?? Promise.resolve(),
-      new Promise((resolve) => setTimeout(resolve, 1000))
-    ])
+    await Promise.race([doc.fonts?.ready ?? Promise.resolve(), new Promise((resolve) => setTimeout(resolve, 1000))])
 
     // 计算尺寸
     const { documentElement: de, body: b } = doc
@@ -1067,6 +1060,7 @@ const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
  * wrong box. Give only the preview clone an intrinsic vector size.
  */
 const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
+  // SAFETY: Native cloneNode preserves this SVG element's namespace and element interface.
   const clone = svgElement.cloneNode(true) as SVGElement
 
   if (
@@ -1133,6 +1127,7 @@ export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePr
  * @returns 渲染元素的宽度和高度（以像素为单位）
  */
 function measureElementSize(element: Element) {
+  // SAFETY: Cloning an Element creates another Element, with the same node kind and namespace.
   const clone = element.cloneNode(true) as Element
 
   // 检查元素类型并重置样式
@@ -1388,7 +1383,7 @@ export async function getImageBlobFromSource(src: string, options?: { signal?: A
   }
 
   if (src.startsWith('file://')) {
-    const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
+    const path = AbsoluteFilePathSchema.parse(fileUrlToPath(new URL(src)))
 
     const { content, mime } = await ipcApi.request('file.read', {
       handle: createFilePathHandle(path),
