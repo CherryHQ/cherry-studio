@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import type * as ProcessRunner from '@main/utils/processRunner'
 
 const state = vi.hoisted(() => ({
   env: {} as Record<string, string>,
@@ -17,7 +18,7 @@ const state = vi.hoisted(() => ({
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ ...state.env }) }))
 vi.mock('@main/utils/commandResolver', () => ({ findExecutableInEnv: async () => '/usr/bin/git' }))
 vi.mock('@main/utils/processRunner', async (original) => {
-  const actual = await original<typeof import('@main/utils/processRunner')>()
+  const actual = await original<typeof ProcessRunner>()
   return {
     ...actual,
     executeCommand: async (...args: Parameters<typeof actual.executeCommand>) => {
@@ -173,7 +174,7 @@ describe.skipIf(process.platform !== 'linux')('Gitea smart HTTP installation int
     await fs.mkdir(home)
     state.env = {
       ...process.env,
-      PATH: process.env.PATH!,
+      PATH: process.env.PATH,
       HOME: home,
       USERPROFILE: home,
       GIT_SSL_CAINFO: certPath
