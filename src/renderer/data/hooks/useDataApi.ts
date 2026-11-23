@@ -1314,13 +1314,13 @@ function createApiFetcher<TPath extends ApiPath, TMethod extends 'GET' | 'POST' 
       case 'POST':
         // SAFETY: The resolved path retains the captured schema owner; the method selects this service branch, which TypeScript cannot infer for generics.
         return dataApiService.post(path, {
-          body: options?.body as BodyForPath<ConcreteApiPaths, 'POST'>,
+          body: options?.body,
           query: query as QueryParamsForPath<ConcreteApiPaths, 'POST'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PUT':
         // SAFETY: The resolved path retains the captured schema owner; the method selects this service branch, which TypeScript cannot infer for generics.
         return dataApiService.put(path, {
-          body: (options?.body || {}) as BodyForPath<ConcreteApiPaths, 'PUT'>,
+          body: options?.body || {},
           query: query as QueryParamsForPath<ConcreteApiPaths, 'PUT'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'DELETE':
@@ -1331,7 +1331,7 @@ function createApiFetcher<TPath extends ApiPath, TMethod extends 'GET' | 'POST' 
       case 'PATCH':
         // SAFETY: The resolved path retains the captured schema owner; the method selects this service branch, which TypeScript cannot infer for generics.
         return dataApiService.patch(path, {
-          body: options?.body as BodyForPath<ConcreteApiPaths, 'PATCH'>,
+          body: options?.body,
           query: query as QueryParamsForPath<ConcreteApiPaths, 'PATCH'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       default:
