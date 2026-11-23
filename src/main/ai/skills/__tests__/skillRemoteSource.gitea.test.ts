@@ -20,8 +20,8 @@ describe('fetchRemoteSkill gitea source', () => {
   })
 
   it('rejects an unknown source without touching the gitea fetcher', () => {
-    return expect(fetchRemoteSkill('gitea-mirror', 'https://gitea.example.com/o/r/src/branch/main/SKILL.md')).rejects.toThrow(
-      'Unknown install source'
-    )
+    return expect(
+      fetchRemoteSkill('gitea-mirror', 'https://gitea.example.com/o/r/src/branch/main/SKILL.md')
+    ).rejects.toThrow('Unknown install source')
   })
 })

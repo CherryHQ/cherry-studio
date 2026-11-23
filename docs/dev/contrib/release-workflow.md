@@ -7,7 +7,9 @@ sources:
   - .github/workflows/preview-release.yml
   - .github/workflows/release.yml
   - .github/workflows/release-target.yml
+  - .github/workflows/deploy-release-sync-scf.yml
   - scripts/release/release-cos.py
+  - scripts/release/gitcode-scf.py
   - scripts/release/sync-gitcode.sh
   - scripts/release/validate-release-state.js
   - .github/workflows/backport-release-fixes.yml
@@ -140,6 +142,8 @@ Before building, the workflow verifies that:
 
 Formal releases compile Global and CN JS once each in parallel on Linux with `build:release` or `build:release:cn`. Each edition starts packaging as soon as its own bundle succeeds, without waiting for the other edition. Platform jobs download the corresponding `release-js-<edition>` artifact and invoke electron-builder separately. Each bundle includes main, preload, renderer, and utility-process outputs with a source SHA, edition, version, and SHA-256 file inventory. Packaging rejects missing, altered, or mismatched bundles. Native dependencies and helpers are prepared for the packaging target, rather than copied from the bundle builder. Sentry uploads run in each edition's bundle job, including utility-process sourcemaps.
 
+For a CN macOS bridge release, set the repository variable `CHERRY_MAC_CN_REGION_BRIDGE_TAG` to the exact stable release tag before release-branch CI completes. The automatic build and manual retries both read it. Set `CHERRY_MAC_BRIDGE_ELECTRON_ASSETS` to a JSON object with the pinned Electron `version` and one entry each for `x64` and `arm64`. Each entry contains the corresponding patched Electron ZIP's HTTPS `url` and lowercase hex `sha256`. See [CN macOS Electron bridge packaging](../../../scripts/packaging/README.md#cn-macos-electron-bridge) for building the ZIPs. The bridge tag uses the dual-edition release. CN macOS packaging verifies the pinned ZIP, target architecture, signature, and notarization ticket before upload. Keep the bridge tag and asset variables in place until the release and any retries are complete. To build a replacement bridge, select a higher stable tag and reuse the assets if the pinned Electron version matches.
+
 The release entry points rely on the exact-source CI gate instead of repeating the full typecheck; ordinary development, preview, and nightly build commands still run their existing checks. A release source missing either release entry point fails during preparation. Bundle jobs clear `out` before compilation; packaging jobs clear `out` and `dist` before downloading current output. Bundle artifacts have three-day retention; after expiry, retry the bundle jobs as well as packaging.
 
 macOS and Linux package each edition's x64 and arm64 targets in separate jobs using one hosted runner type per OS: `macos-latest` for macOS and `ubuntu-latest` for Linux. Each job passes its target architecture to electron-builder; Linux ARM64 jobs enable QEMU for the Docker-based addon build. Hosted dependency-store caches are separated by runner OS and host architecture. The Global bundle job owns Linux store writes; the Global macOS x64 job owns macOS store writes. All consumers restore the store, and only its owner saves a missing exact key after its work succeeds. An exact cache hit skips saving. This also applies to single-platform builds. Linux SQLite artifacts use an exact cache keyed by target architecture, dependency lockfile, compatibility/download configuration, and patches; the existing pinned hashes and compatibility metadata are verified on reuse. Other native source builds retain their current preparation paths.
@@ -259,9 +263,9 @@ The COS lifecycle controls retention. Keep referenced objects available for the 
 
 Preparation, build, draft finalization, approval, publication, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
 
-Configure `COS_SECRET_ID` and `COS_SECRET_KEY` with read, write, and multipart access under `releases-sync/` in `cherry-studio-1366585212`. The repository also needs `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
+Configure repository secrets `TENCENT_CLOUD_SECRET_ID` and `TENCENT_CLOUD_SECRET_KEY` for one CAM identity shared by COS and SCF steps. It needs read, write, and multipart access under `releases-sync/` in `cherry-studio-1366585212` and permission to invoke the SCF. Configure both secrets before running the updated workflows; legacy secret names are no longer read. The repository also needs `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
 
-Configure `TENCENT_SECRET_ID` and `TENCENT_SECRET_KEY` for a CAM identity that can invoke the SCF. To deploy code with **Deploy release sync SCF** on `main`, that identity also needs `scf:GetFunction` and `scf:UpdateFunctionCode`. Create `cherry-release-sync` in the `default` namespace in Shanghai as a Python 3.10 event function. Set the timeout to at least 300 seconds, enable outbound HTTPS, and bind a runtime role with COS read access to `releases-sync/`. Run the deploy workflow before enabling release synchronization.
+To deploy code with **Deploy release sync SCF** on `main`, the same CAM identity also needs `scf:GetFunction` and `scf:UpdateFunctionCode`. Create `cherry-release-sync` in the `default` namespace in Shanghai as a Python 3.10 event function. Set the timeout to at least 300 seconds, enable outbound HTTPS, and bind a runtime role with COS read access to `releases-sync/`. Run the deploy workflow before enabling release synchronization.
 
 ## 6. Merge the Release Metadata Pull Request
 

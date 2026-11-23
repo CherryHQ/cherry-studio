@@ -1,4 +1,5 @@
 import type { UpdateInfo } from 'builder-util-runtime'
+import { CancellationError, HttpError } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -9,7 +10,7 @@ const {
   releaseNotesUpdaterInstances,
   trackAppUpdateMock
 } = vi.hoisted(() => ({
-  appEditionState: { current: 'global' },
+  appEditionState: { current: 'global', bridge: false },
   loggerErrorMock: vi.fn(),
   netFetchMock: vi.fn(),
   releaseNotesCheckMock: vi.fn(),
@@ -62,6 +63,10 @@ vi.mock('@main/core/platform', () => ({
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => appEditionState.current
+}))
+
+vi.mock('@main/core/macElectronBridge', () => ({
+  isMacElectronBridgePackage: () => appEditionState.bridge
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -132,8 +137,9 @@ import { application } from '@application'
 import { regionService } from '@main/services/RegionService'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
+import { shouldReportFailure } from '@shared/utils/errorReporting'
 
-import { AppUpdaterService } from '../AppUpdaterService'
+import { AppUpdaterService, classifyUpdateFailure } from '../AppUpdaterService'
 
 describe('AppUpdaterService', () => {
   let appUpdater: AppUpdaterService
@@ -266,6 +272,27 @@ describe('AppUpdaterService', () => {
         'X-Edition': 'cn',
         'X-Region': 'global'
       })
+      expect(autoUpdater.requestHeaders).not.toHaveProperty('X-Desktop-Update-Bridge')
+    })
+
+    it('checks the marked CN stable feed and preserves the preview preference', async () => {
+      appEditionState.current = 'cn'
+      appEditionState.bridge = true
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+      try {
+        await appUpdater.checkForUpdates()
+        expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
+        expect(autoUpdater.channel).toBe('latest-cn')
+        expect(autoUpdater.requestHeaders).toMatchObject({
+          'X-Edition': 'cn',
+          'X-Desktop-Update-Bridge': 'cn-macos'
+        })
+      } finally {
+        appEditionState.bridge = false
+      }
+      await (appUpdater as any).configureUpdaterForCheck()
+      expect(autoUpdater.channel).toBe('beta-cn')
     })
 
     it('keeps existing updater request headers', async () => {
@@ -532,5 +559,26 @@ describe('AppUpdaterService', () => {
 
       expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBe(releaseInfo.releaseNotes)
     })
+  })
+})
+
+describe('update failure classification', () => {
+  it.each([
+    new CancellationError(),
+    new HttpError(429),
+    new HttpError(503),
+    Object.assign(new Error('offline'), { code: 'ENOTFOUND' })
+  ])('keeps cancellation and temporary external failures local', (error) => {
+    expect(shouldReportFailure(classifyUpdateFailure(error))).toBe(false)
+  })
+  it.each(['ERR_CHECKSUM_MISMATCH', 'ERR_UPDATER_INVALID_SIGNATURE', 'ERR_UPDATER_INVALID_VERSION'])(
+    'reports invalid update artifacts: %s',
+    (code) => {
+      expect(classifyUpdateFailure(Object.assign(new Error('private download'), { code })).kind).toBe('reliability')
+    }
+  )
+  it('retains broken feeds and implementation errors', () => {
+    expect(shouldReportFailure(classifyUpdateFailure(new HttpError(404)))).toBe(true)
+    expect(classifyUpdateFailure(new TypeError('network failed')).kind).toBe('defect')
   })
 })

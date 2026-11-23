@@ -125,6 +125,7 @@ describe('createAgentRuntimeSession', () => {
       extensionFactories: [
         (pi) => {
           pi.registerTool(noopTool('extension_tool'))
+          // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
           pi.on('tool_call', (event) => void gated.push(structuredClone(event.input)))
         }
       ]

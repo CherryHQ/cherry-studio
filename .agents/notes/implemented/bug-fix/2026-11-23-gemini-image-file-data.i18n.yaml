@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-23-gemini-image-file-data.md
+2026-11-23-gemini-image-file-data.md: 0858df06dd6eb1e49d6bf158e3ffc666e6bd475b
+2026-11-23-gemini-image-file-data.zh.md: b507557878754c21d1e4ddf801c283378152886a

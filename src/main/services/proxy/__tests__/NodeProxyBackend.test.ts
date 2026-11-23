@@ -1,10 +1,12 @@
 import http from 'node:http'
 import https from 'node:https'
+import type { AddressInfo } from 'node:net'
 
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3'
 import { startTestHttpServer, startTestHttpsServer, unusedPort } from '@test-helpers/http/server'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import { fetch as undiciFetch } from 'undici'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ProxyBypassRuleMatcher } from '../bypassRules'
@@ -146,6 +148,63 @@ describe('NodeProxyBackend request binding', () => {
       await backend.configure(undefined, null, [], () => {})
       client.destroy()
       await Promise.all([local.close(), proxy.close()])
+    }
+  })
+
+  it('keeps undici IPv6 loopback direct with the Agent NO_PROXY value while proxying other origins', async () => {
+    const proxyHits: string[] = []
+    const proxyServer = http.createServer((_request, response) => {
+      proxyHits.push('request')
+      response.writeHead(502).end()
+    })
+    proxyServer.on('connect', (_request, socket) => {
+      proxyHits.push('connect')
+      socket.end('HTTP/1.1 502 Bad Gateway\r\n\r\n')
+    })
+    await new Promise<void>((resolve) => proxyServer.listen(0, '127.0.0.1', resolve))
+    const proxyUrl = `http://127.0.0.1:${(proxyServer.address() as AddressInfo).port}`
+    const backend = new NodeProxyBackend()
+    const previousEnv = {
+      HTTP_PROXY: process.env.HTTP_PROXY,
+      http_proxy: process.env.http_proxy,
+      NO_PROXY: process.env.NO_PROXY,
+      no_proxy: process.env.no_proxy
+    }
+
+    try {
+      process.env.HTTP_PROXY = proxyUrl
+      process.env.http_proxy = proxyUrl
+      process.env.NO_PROXY = 'localhost,127.0.0.1,::1'
+      process.env.no_proxy = 'localhost,127.0.0.1,::1'
+      const targetPort = await unusedPort()
+      await backend.configure(
+        proxyUrl,
+        { kind: 'http', url: proxyUrl, displayOrigin: proxyUrl },
+        ['localhost', '127.0.0.1', '::1'],
+        () => {}
+      )
+
+      let connectionError: unknown
+      try {
+        await undiciFetch(`http://[::1]:${targetPort}/`)
+      } catch (error) {
+        connectionError = error
+      }
+      const error = connectionError as Error & { cause?: NodeJS.ErrnoException }
+      expect(String(error?.cause?.code ?? error?.message)).toContain('ECONNREFUSED')
+      expect(error.cause).toMatchObject({ address: '::1', port: targetPort })
+      expect(proxyHits).toEqual([])
+
+      await expect(undiciFetch('http://undici-control.invalid/')).rejects.toThrow()
+      expect(proxyHits).toEqual(['connect'])
+    } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+      await backend.configure(undefined, null, [], () => {})
+      proxyServer.closeAllConnections()
+      await new Promise<void>((resolve) => proxyServer.close(() => resolve()))
     }
   })
 

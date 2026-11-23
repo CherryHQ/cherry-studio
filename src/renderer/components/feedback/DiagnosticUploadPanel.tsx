@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Checkbox, DescriptionSwitch, DialogFooter, ScrollArea, Textarea } from '@cherrystudio/ui'
+import { Alert, Button, Checkbox, DialogFooter, ScrollArea, Textarea } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -30,6 +30,7 @@ function discardRetainedUpload(bundleId: string) {
 }
 
 interface DiagnosticUploadPanelProps {
+  readonly chatTopicId?: string
   readonly description: string
   readonly onBusyChange?: (busy: boolean) => void
   readonly onClose: () => void
@@ -42,6 +43,7 @@ export interface DiagnosticUploadPanelHandle {
 
 export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   ref,
+  chatTopicId,
   description,
   onBusyChange,
   onClose,
@@ -50,10 +52,8 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const { t } = useTranslation()
   const uploadFormId = useId()
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
+  const [includeChatRecords, setIncludeChatRecords] = useState(false)
   const [acknowledged, setAcknowledged] = useState(true)
-  const [includeChatRecords, setIncludeChatRecords] = useState(true)
-  const [includeLogs, setIncludeLogs] = useState(true)
-  const [includeTraces, setIncludeTraces] = useState(true)
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
@@ -85,8 +85,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     diagnosticDescriptionByteLength(normalizedDescription) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES
   const showDescriptionError = hasAttemptedSubmit && !descriptionValid
   const isBusy = operationStatus !== 'idle'
-  const includesSensitiveSources = includeLogs || includeTraces || includeChatRecords
-  const canAttemptUpload = operationStatus === 'idle' && (!includesSensitiveSources || acknowledged)
+  const canAttemptUpload = operationStatus === 'idle' && acknowledged
 
   useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
 
@@ -181,9 +180,9 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
         description: normalizedDescription,
-        includeChatRecords,
-        includeLogs,
-        includeTraces,
+        ...(includeChatRecords && chatTopicId ? { chatTopicId } : {}),
+        includeLogs: true,
+        includeTraces: true,
         range: '24h'
       })
       acceptSubmissionResult(uploadResult)
@@ -273,58 +272,25 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
               ) : null}
             </section>
 
-            <section className="space-y-2">
-              <p className="text-muted-foreground text-sm">
-                {t('settings.about.diagnostics.report.attachments_description')}
-              </p>
-              <div className="divide-y divide-border rounded-xl border border-border">
-                <div className="p-1">
-                  <DescriptionSwitch
-                    label={t('settings.about.diagnostics.sources.system.title')}
-                    description={t('settings.about.diagnostics.report.system_always_included')}
-                    checked
-                    disabled
-                  />
-                </div>
-                <div className="p-1">
-                  <DescriptionSwitch
-                    aria-label={t('settings.about.diagnostics.sources.logs.title')}
-                    label={t('settings.about.diagnostics.sources.logs.title')}
-                    checked={includeLogs}
-                    disabled={isBusy}
-                    onCheckedChange={setIncludeLogs}
-                  />
-                </div>
-                <div className="p-1">
-                  <DescriptionSwitch
-                    aria-label={t('settings.about.diagnostics.sources.traces.title')}
-                    label={t('settings.about.diagnostics.sources.traces.title')}
-                    checked={includeTraces}
-                    disabled={isBusy}
-                    onCheckedChange={setIncludeTraces}
-                  />
-                </div>
-                <div className="p-1">
-                  <DescriptionSwitch
-                    aria-label={t('settings.about.diagnostics.sources.chat_records.title')}
-                    label={t('settings.about.diagnostics.sources.chat_records.title')}
-                    checked={includeChatRecords}
-                    disabled={isBusy}
-                    onCheckedChange={setIncludeChatRecords}
-                  />
-                </div>
-              </div>
-            </section>
+            <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
+              <Checkbox
+                id="diagnostic-acknowledgement"
+                checked={acknowledged}
+                disabled={isBusy}
+                onCheckedChange={(checked) => setAcknowledged(checked === true)}
+              />
+              <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
+            </label>
 
-            {includesSensitiveSources ? (
-              <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
+            {chatTopicId ? (
+              <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-chat-history">
                 <Checkbox
-                  id="diagnostic-acknowledgement"
-                  checked={acknowledged}
+                  id="diagnostic-chat-history"
+                  checked={includeChatRecords}
                   disabled={isBusy}
-                  onCheckedChange={(checked) => setAcknowledged(checked === true)}
+                  onCheckedChange={(checked) => setIncludeChatRecords(checked === true)}
                 />
-                <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
+                <span>{t('settings.about.diagnostics.report.include_chat_history')}</span>
               </label>
             ) : null}
           </form>

@@ -1,12 +1,6 @@
 import { rm, writeFile } from 'node:fs/promises'
 
-import {
-  _electron as electron,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-  type TestInfo
-} from '@playwright/test'
+import { type ElectronApplication, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
 
 import { AgentEntitySchema } from '../../../src/shared/data/api/schemas/agents'
@@ -15,8 +9,8 @@ import { AgentSessionEntitySchema } from '../../../src/shared/data/api/schemas/a
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { type MockChatServer, startMockChatServer } from '../../helpers/http/mockChatServer'
-import { selectSidebarApp } from '../regression/helpers/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { openConversationListOptions, selectSidebarApp } from '../regression/helpers/navigation'
+import { expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import { stickyWindow } from './utils/stickySmoke'
 
 type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleErrors: string[] }
@@ -24,7 +18,7 @@ type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleE
 async function launchProfile(profile: string, runtime: AvatarRuntime) {
   const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
   Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-  const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+  const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
   runtime.app = app
   const watch = (page: Page) => {
     page.on('pageerror', (error) => runtime.pageErrors.push(error.stack ?? error.message))
@@ -125,8 +119,8 @@ async function readAgent(page: Page, id: string) {
 
 async function catalog(page: Page, name: string) {
   const view = page.locator('[data-ui~="agent.view"]').filter({ visible: true }).first()
-  await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-  await page.getByText('Manage Agents', { exact: true }).click()
+  await openConversationListOptions(view)
+  await page.getByRole('menuitem', { name: 'Manage Agents', exact: true }).click()
   const card = view
     .locator('[data-ui~="resource-catalog.card.button"]')
     .and(view.getByRole('button', { name, exact: true }))
@@ -201,7 +195,7 @@ async function sendTurn(page: Page, server: MockChatServer, sessionId: string, p
   return snapshot!
 }
 
-test('persists an uploaded agent avatar and freezes past message avatars after reset', async ({
+test('persists an uploaded agent avatar and updates past message avatars after reset', async ({
   electronApp,
   mainWindow,
   avatarRuntime,
@@ -333,12 +327,114 @@ test('persists an uploaded agent avatar and freezes past message avatars after r
   await expect(card).toContainText(emoji)
   await screenshot(page, testInfo, 'agent-avatar-after-reset')
   view = await openSession(page, agent.name, 'Avatar session')
-  await expectDecodedImage(messageAvatar(page, 'agent avatar turn').locator('img'))
+  await expect(messageAvatar(page, 'agent avatar turn').locator('img')).toHaveCount(0)
+  await expect(messageAvatar(page, 'agent avatar turn')).toContainText(emoji)
   const newSnapshot = await sendTurn(page, server, session.id, 'Check reset agent avatar', 'agent reset turn')
   expect(newSnapshot).toMatchObject({ id: agent.id, emoji })
   expect(newSnapshot?.avatarFileId).toBeUndefined()
   await expect(messageAvatar(page, 'agent reset turn').locator('img')).toHaveCount(0)
   await expect(messageAvatar(page, 'agent reset turn')).toContainText(emoji)
-  await expectDecodedImage(messageAvatar(page, 'agent avatar turn').locator('img'))
+  await expect(messageAvatar(page, 'agent avatar turn')).toContainText(emoji)
   await screenshot(page, testInfo, 'agent-avatar-old-and-new-messages')
+})
+
+test('applies an image selected after the avatar menu is dismissed', async ({ mainWindow: page, server }, testInfo) => {
+  await initialize(page)
+  const providerId = 'agent-avatar-smoke'
+  const provider = await page.evaluate(
+    ({ providerId, baseUrl }) =>
+      window.api.dataApi.request({
+        id: 'avatar-provider',
+        method: 'POST',
+        path: '/providers',
+        body: {
+          providerId,
+          name: 'Avatar smoke mock',
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: { 'openai-chat-completions': { baseUrl } },
+          apiKeys: [{ id: 'mock-key', key: 'mock-key', isEnabled: true }]
+        }
+      }),
+    { providerId, baseUrl: server.baseUrl }
+  )
+  expect(provider.status).toBe(201)
+  const enabled = await page.evaluate(
+    (id) =>
+      window.api.dataApi.request({
+        id: 'avatar-enable',
+        method: 'PATCH',
+        path: `/providers/${id}`,
+        body: { isEnabled: true }
+      }),
+    providerId
+  )
+  expect(enabled.status).toBe(200)
+  const models = await page.evaluate(
+    ({ providerId, modelId }) =>
+      window.api.dataApi.request({
+        id: 'avatar-model',
+        method: 'POST',
+        path: '/models',
+        body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+      }),
+    { providerId, modelId: server.modelId }
+  )
+  expect(models.status).toBe(201)
+  const created = await page.evaluate(
+    ({ model }) =>
+      window.api.ipcApi.request('ai.agent.create', {
+        type: 'pi',
+        name: 'Avatar Agent Probe',
+        model,
+        instructions: 'Answer briefly without using tools.'
+      }),
+    { model: createUniqueModelId(providerId, server.modelId) }
+  )
+  expect(created).toMatchObject({ ok: true })
+  const agent = AgentEntitySchema.parse((created as { data: unknown }).data)
+  await page.reload()
+  await selectSidebarApp(page, 'Work')
+  const card = await catalog(page, agent.name)
+  await card.click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Agent', exact: true })
+  await expect(dialog).toBeVisible()
+  const picker = dialog.getByRole('button', { name: 'Choose avatar', exact: true }).first()
+  const fixture = testInfo.outputPath('avatar.png')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#ff2d9b"/><circle cx="64" cy="64" r="52" fill="none" stroke="white" stroke-width="8"/><text x="64" y="87" text-anchor="middle" font-family="sans-serif" font-size="64" fill="white">A</text></svg>`
+  await sharp(Buffer.from(svg)).png().toFile(fixture)
+  await testInfo.attach('avatar-fixture', { path: fixture, contentType: 'image/png' })
+  await picker.click()
+  const upload = page.getByRole('button', { name: 'Image Upload', exact: true })
+  await expect(upload).toBeVisible()
+  await dialog.getByRole('textbox', { name: 'Avatar and name', exact: true }).click()
+  await expect(upload).toBeHidden()
+  // Before the fix, closing the popover removed its file input, silently dropping a late selection.
+  // Re-resolving the locator after dismissal would fail because the input was gone.
+  await page.getByLabel('Image Upload', { exact: true }).setInputFiles(fixture)
+  await expect
+    .poll(
+      async () => {
+        const current = await readAgent(page, agent.id)
+        if (!current.avatarFileId || !current.avatarSrc) return null
+        const src = await picker.locator('img').getAttribute('src')
+        return src === current.avatarSrc ? current.avatarSrc : null
+      },
+      { timeout: 20_000, message: 'the avatar selected after the menu was dismissed is persisted and rendered' }
+    )
+    .not.toBeNull()
+  const uploaded = await readAgent(page, agent.id)
+  expect(uploaded.avatarFileId).toBeTruthy()
+  expect(uploaded.avatarSrc).toMatch(/^file:\/\/\/.+/)
+  await expectDecodedImage(picker.locator('img'))
+  await expect(picker.locator('img')).toHaveAttribute('src', uploaded.avatarSrc!)
+  await screenshot(page, testInfo, 'agent-avatar-dismissed-upload')
+  await closeAgentDialog(page)
+  await expect(card.locator('img')).toHaveAttribute('src', uploaded.avatarSrc!)
+  await expectDecodedImage(card.locator('img'))
+  await screenshot(page, testInfo, 'agent-avatar-dismissed-catalog')
+  await card.click()
+  await expect(dialog).toBeVisible()
+  await expect(picker.locator('img')).toHaveAttribute('src', uploaded.avatarSrc!)
+  await expectDecodedImage(picker.locator('img'))
+  await screenshot(page, testInfo, 'agent-avatar-dismissed-reopen')
 })

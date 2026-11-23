@@ -1,3 +1,4 @@
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import type { CreateMessageRequestParamsBase } from '@modelcontextprotocol/client'
 import { trace } from '@opentelemetry/api'
@@ -5,10 +6,11 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { modelMessageSchema } from 'ai'
+import { generateText, modelMessageSchema, NoImageGeneratedError, streamText } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { sanitizeSeedreamImageParams, validateSeedreamImageParams } from '@shared/ai/seedreamImageContract'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -20,6 +22,7 @@ import { makeModel } from './fixtures/model'
 import { makeProvider } from './fixtures/provider'
 
 type AiServicePrivate = {
+  generateTextWithMode: (...args: never[]) => Promise<unknown>
   buildAgentParamsFor: (...args: never[]) => Promise<unknown>
   resolveTransportFor: (...args: never[]) => Promise<unknown>
   trackUsage: (...args: never[]) => void
@@ -31,6 +34,7 @@ const mockCreateAgent = vi.fn()
 const mockRerank = vi.fn()
 const mockEmbedMany = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
+const mockDownloadPublicImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
 const mockAssistantGetById = vi.fn()
 const mockMessageGetById = vi.fn()
@@ -157,7 +161,8 @@ vi.mock('../provider/listModels', async (importOriginal) => {
   }
 })
 vi.mock('@main/utils/downloadAsBase64', () => ({
-  downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
+  downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args),
+  downloadPublicImageAsBase64: (...args: unknown[]) => mockDownloadPublicImageAsBase64(...args)
 }))
 
 vi.mock('@main/data/services/MessageService', () => ({
@@ -218,7 +223,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
 }))
 
 vi.mock('@main/data/services/AiUsageRecordService', async (importActual) => {
-  const actual = (await importActual()) as object
+  const actual = await importActual<object>()
   return {
     ...actual,
     aiUsageRecordService: {
@@ -853,6 +858,43 @@ describe('AiService', () => {
     expect(result).toEqual({ files: [fileEntry] })
   })
 
+  it.each([
+    { providerId: 'google', hasUrl: true, message: 'The image was generated, but it could not be downloaded.' },
+    { providerId: 'google', hasUrl: false, message: 'No image generated.' },
+    { providerId: 'test-provider', hasUrl: true, message: 'No image generated.' }
+  ])(
+    'reports the correct empty image outcome for $providerId (URL: $hasUrl)',
+    async ({ providerId, hasUrl, message }) => {
+      const service = createService()
+      mockApplicationGet.mockImplementation(
+        (name: string) => defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+      )
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId, providerSettings: {}, modelId: 'test-model' }
+      })
+      mockDownloadPublicImageAsBase64.mockResolvedValue(null)
+      mockDownloadImageAsBase64.mockResolvedValue(null)
+      mockGenerateImage.mockImplementation(async (_provider, _settings, options) => {
+        if (hasUrl) {
+          const files = await options.experimental_download([
+            { url: new URL('https://example.com/generated.png'), isUrlSupportedByModel: false }
+          ])
+          expect(files).toEqual([null])
+        }
+        throw new NoImageGeneratedError({ responses: [] })
+      })
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          cleanupPolicy: 'delete_when_unreferenced',
+          prompt: 'draw a cat',
+          paramValues: {}
+        })
+      ).rejects.toThrow(message)
+    }
+  )
+
   it('honors an explicit retry override for direct image requests', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
@@ -949,6 +991,304 @@ describe('AiService', () => {
         }
       })
     )
+  })
+
+  describe('Seedream 5.5 request gate', () => {
+    const target = 'doubao-seedream-5-5'
+    const polluted = {
+      numImages: 4,
+      sequentialImageGeneration: 'auto',
+      maxImages: 4,
+      stream: true,
+      webSearch: true,
+      tools: [{ type: 'web_search' }]
+    }
+    const defaults = { imageResolution: '1K', outputFormat: 'jpeg', background: 'auto', addWatermark: true }
+
+    function setup(providerId: string, modelId = target, presetProviderId?: string) {
+      const service = createService()
+      const uniqueModelId: `${string}::${string}` = `${providerId}::${modelId}`
+      mockProviderGetByProviderId.mockReturnValue(makeProvider({ id: providerId, presetProviderId }))
+      mockModelGetByKey.mockReturnValue(makeModel({ id: uniqueModelId, providerId, apiModelId: modelId }))
+      const resolve = vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId, providerSettings: {}, modelId }
+      })
+      const enqueueTx = vi.fn().mockReturnValue({
+        id: 'seedream-job',
+        finished: Promise.resolve({ status: 'completed', output: { files: [] } })
+      })
+      mockApplicationGet.mockImplementation((name: string) => {
+        if (name === 'JobManager') return { enqueueTx }
+        if (name === 'DbService') return { withWriteTx: (fn: (tx: unknown) => unknown) => fn({}) }
+        return defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+      })
+      mockGetImageGenerationSupport.mockReturnValue(undefined)
+      mockGenerateImage.mockResolvedValue({ images: [] })
+      const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected HTTP request'))
+      return { service, uniqueModelId, resolve, enqueueTx, fetch }
+    }
+
+    afterEach(() => vi.restoreAllMocks())
+
+    it.each(['doubao', 'ppio'])('strips injected fields and sends one image through %s', async (providerId) => {
+      const { service, uniqueModelId, enqueueTx } = setup(providerId)
+      const input = Object.freeze({ ...polluted })
+      await service.generateImage({
+        uniqueModelId,
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: input
+      })
+      if (providerId === 'ppio') {
+        expect(enqueueTx).toHaveBeenCalledTimes(1)
+        expect(enqueueTx.mock.calls[0][2]).toMatchObject({ n: 1, providerParams: defaults })
+        expect(enqueueTx.mock.calls[0][2].providerParams).toEqual(defaults)
+        expect(mockGenerateImage).not.toHaveBeenCalled()
+      } else {
+        expect(mockGenerateImage).toHaveBeenCalledTimes(1)
+        expect(mockGenerateImage.mock.calls[0][2]).toMatchObject({
+          n: 1,
+          providerOptions: { bytedance: { size: '1K', watermark: true, background: 'auto', outputFormat: 'jpeg' } }
+        })
+        expect(mockGenerateImage.mock.calls[0][2].providerOptions.bytedance).toEqual({
+          size: '1K',
+          watermark: true,
+          background: 'auto',
+          outputFormat: 'jpeg'
+        })
+        expect(enqueueTx).not.toHaveBeenCalled()
+      }
+      expect(input).toEqual(polluted)
+    })
+
+    it.each(['doubao', 'ppio'])('applies defaults to an empty request through %s', async (providerId) => {
+      const { service, uniqueModelId, enqueueTx } = setup(providerId)
+      await service.generateImage({ uniqueModelId, prompt: 'a fox', cleanupPolicy: 'manual', paramValues: {} })
+      if (providerId === 'ppio') {
+        expect(enqueueTx.mock.calls[0][2]).toMatchObject({ n: 1, providerParams: defaults })
+      } else {
+        expect(mockGenerateImage.mock.calls[0][2]).toMatchObject({
+          n: 1,
+          providerOptions: { bytedance: { size: '1K', watermark: true } }
+        })
+      }
+    })
+
+    it('preserves explicit dimensions and a disabled watermark without a tier override', async () => {
+      const { service, uniqueModelId } = setup('doubao')
+      await service.generateImage({
+        uniqueModelId,
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: { size: '2140x2160', addWatermark: false, background: 'transparent', outputFormat: 'png' }
+      })
+      expect(mockGenerateImage.mock.calls[0][2]).toMatchObject({
+        n: 1,
+        size: '2140x2160',
+        providerOptions: { bytedance: { watermark: false, background: 'transparent', outputFormat: 'png' } }
+      })
+      expect(mockGenerateImage.mock.calls[0][2].providerOptions.bytedance).not.toHaveProperty('size')
+    })
+
+    it.each(['doubao', 'ppio'])(
+      'rejects invalid dimensions before normalization or dispatch through %s',
+      async (providerId) => {
+        const { service, uniqueModelId, enqueueTx, resolve, fetch } = setup(providerId)
+        for (const paramValues of [
+          { size: '2150x2160' },
+          { size: '959x960' },
+          { size: '0x960' },
+          { size: '960x960', imageResolution: '1K' },
+          { imageResolution: 'custom', customSize_width: 960 }
+        ]) {
+          await expect(
+            service.generateImage({
+              uniqueModelId,
+              prompt: 'a fox',
+              cleanupPolicy: 'manual',
+              paramValues,
+              inputImages: ['https://example.com/reference.png']
+            })
+          ).rejects.toThrow(/Seedream 5.5 size must/)
+        }
+        expect(resolve).not.toHaveBeenCalled()
+        expect(enqueueTx).not.toHaveBeenCalled()
+        expect(mockGenerateImage).not.toHaveBeenCalled()
+        expect(fetch).not.toHaveBeenCalled()
+        expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
+      }
+    )
+
+    it('rejects transparent JPEG with a readable message', async () => {
+      const { service, uniqueModelId, enqueueTx, resolve } = setup('doubao')
+      await expect(
+        service.generateImage({
+          uniqueModelId,
+          prompt: 'a fox',
+          cleanupPolicy: 'manual',
+          paramValues: { background: 'transparent', outputFormat: 'jpeg' }
+        })
+      ).rejects.toThrow('Seedream 5.5 transparent background requires PNG output')
+      expect(enqueueTx).not.toHaveBeenCalled()
+      expect(resolve).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['dmxapi', undefined],
+      ['user-provider-uuid', 'dmxapi']
+    ])('refuses DMXAPI instance %s before any HTTP or enqueue', async (providerId, preset) => {
+      const { service, uniqueModelId, enqueueTx, resolve, fetch } = setup(providerId, target, preset)
+      await expect(
+        service.generateImage({
+          uniqueModelId,
+          prompt: 'a fox',
+          cleanupPolicy: 'manual',
+          paramValues: {},
+          inputImages: ['https://example.com/reference.png']
+        })
+      ).rejects.toThrow('Seedream 5.5 is not supported through DMXAPI pending protocol verification')
+      expect(enqueueTx).not.toHaveBeenCalled()
+      expect(resolve).not.toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
+      expect(mockGenerateImage).not.toHaveBeenCalled()
+      expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['dmxapi', undefined],
+      ['user-provider-uuid', 'dmxapi']
+    ])('rejects target health checks through DMXAPI %s before HTTP', async (providerId, preset) => {
+      const { service, uniqueModelId, fetch } = setup(providerId, target, preset)
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId,
+          apiModelId: target,
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+      )
+      const submit = vi.fn(async () => {
+        await fetch('https://example.test/probe')
+        return {}
+      })
+      mockResolveImageTransport.mockReturnValue({ submit })
+      await expect(service.checkModel({ uniqueModelId, apiKeyOverride: 'selected-key' })).rejects.toThrow(
+        'Seedream 5.5 is not supported through DMXAPI pending protocol verification'
+      )
+      expect(fetch).toHaveBeenCalledTimes(0)
+      expect(submit).not.toHaveBeenCalled()
+    })
+
+    it('preserves non-target DMXAPI health checks and the selected API key', async () => {
+      const modelId = 'doubao-seedream-5-0-lite'
+      const { service, uniqueModelId } = setup('dmxapi', modelId)
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId: 'dmxapi',
+          apiModelId: modelId,
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+      )
+      const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/img.png'] })
+      mockResolveImageTransport.mockReturnValue({ submit })
+      await expect(service.checkModel({ uniqueModelId, apiKeyOverride: 'selected-key' })).resolves.toEqual({
+        latency: expect.any(Number)
+      })
+      expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dmxapi', 'selected-key')
+      expect(submit).toHaveBeenCalledWith(expect.objectContaining({ modelId, n: 1, providerParams: {} }))
+    })
+
+    it('rejects transparent webp before reference download or provider resolution', async () => {
+      const { service, uniqueModelId, fetch, resolve, enqueueTx } = setup('doubao')
+      await expect(
+        service.generateImage({
+          uniqueModelId,
+          prompt: 'fox',
+          cleanupPolicy: 'manual',
+          paramValues: { background: 'transparent', outputFormat: 'webp' },
+          inputImages: ['https://example.test/ref.png']
+        })
+      ).rejects.toThrow('Seedream 5.5 transparent background requires PNG output')
+      expect(fetch).not.toHaveBeenCalled()
+      expect(resolve).not.toHaveBeenCalled()
+      expect(enqueueTx).not.toHaveBeenCalled()
+      expect(mockGenerateImage).not.toHaveBeenCalled()
+      expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
+    })
+
+    it('uses the canonical preset ID when the API SKU differs', async () => {
+      const { service, uniqueModelId } = setup('doubao', 'gateway-sku')
+      mockModelGetByKey.mockReturnValue(
+        makeModel({ id: uniqueModelId, providerId: 'doubao', presetModelId: target, apiModelId: 'gateway-sku' })
+      )
+      await service.generateImage({
+        uniqueModelId,
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: { numImages: 4 }
+      })
+      expect(mockGenerateImage.mock.calls[0][2].n).toBe(1)
+    })
+
+    it('uses the resolved assistant model even without a caller model id', async () => {
+      const { service, uniqueModelId } = setup('doubao')
+      mockAssistantGetById.mockReturnValue({ id: 'seedream-assistant', modelId: uniqueModelId })
+      await service.generateImage({
+        assistantId: 'seedream-assistant',
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: { numImages: 4 }
+      })
+      expect(mockGenerateImage.mock.calls[0][2]).toMatchObject({ n: 1, providerOptions: { bytedance: { size: '1K' } } })
+    })
+
+    it.each([
+      ['doubao', 'doubao-seedream-5-0-lite'],
+      ['doubao', 'doubao-seedream-4-0'],
+      ['other-provider', 'other-image-model'],
+      ['doubao-seedream-5-5', 'unrelated-model'],
+      ['ppio', 'doubao-seedream-5-0-lite']
+    ])('preserves non-target parameters for %s / %s', async (providerId, modelId) => {
+      const { service, uniqueModelId, enqueueTx } = setup(providerId, modelId)
+      await service.generateImage({
+        uniqueModelId,
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: polluted
+      })
+      if (providerId === 'ppio') {
+        expect(enqueueTx.mock.calls[0][2]).toMatchObject({
+          n: 4,
+          providerParams: {
+            sequentialImageGeneration: 'auto',
+            maxImages: 4,
+            stream: true,
+            webSearch: true,
+            tools: [{ type: 'web_search' }]
+          }
+        })
+      } else {
+        const options = mockGenerateImage.mock.calls[0][2]
+        expect(options.n).toBe(4)
+        expect(options.providerOptions[providerId === 'doubao' ? 'bytedance' : providerId]).toEqual({
+          sequentialImageGeneration: 'auto',
+          maxImages: 4,
+          stream: true,
+          webSearch: true,
+          tools: [{ type: 'web_search' }]
+        })
+      }
+    })
+
+    it.each([
+      { imageResolution: '1K', size: '960x960' },
+      { imageResolution: '2K', customSize_width: 960, customSize_height: 960 },
+      { imageResolution: 'custom', customSize_width: 960 }
+    ])('does not sanitize invalid size sources into an accepted request', (params) => {
+      expect(validateSeedreamImageParams(params)).toBe('size')
+      expect(validateSeedreamImageParams(sanitizeSeedreamImageParams(params))).toBe('size')
+    })
   })
 
   // The direct (non-job) image path observes the actual ImageModel doGenerate
@@ -1948,7 +2288,9 @@ describe('AiService tool approval', () => {
 
       const service = createService()
       const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
-      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
+      const generateSpy = vi
+        .spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode')
+        .mockResolvedValue({ text: 'ok', finishReason: 'stop' })
       mockModelGetByKey.mockReturnValue({
         ...listedModel,
         capabilities: [MODEL_CAPABILITY.EMBEDDING]
@@ -1957,7 +2299,7 @@ describe('AiService tool approval', () => {
       await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
 
       expect(embedSpy).not.toHaveBeenCalled()
-      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
+      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }), [], 'stream')
     } finally {
       vi.mocked(customFetch).mockReset()
     }
@@ -1965,7 +2307,9 @@ describe('AiService tool approval', () => {
 
   it('passes the selected API key override into text health checks', async () => {
     const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
+    const generateSpy = vi
+      .spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode')
+      .mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
@@ -1987,8 +2331,85 @@ describe('AiService tool approval', () => {
         apiKeyOverride: 'sk-selected',
         system: 'test',
         prompt: 'hi'
-      })
+      }),
+      [],
+      'stream'
     )
+  })
+
+  it.each([true, false])('completes the supported wire protocol (supportsStreaming=%s)', async (supportsStreaming) => {
+    const service = createService()
+    const model = makeModel({ supportsStreaming })
+    mockModelGetByKey.mockReturnValue(model)
+    const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string)
+      expect(body.stream === true).toBe(supportsStreaming)
+      expect(body.model).toBe('gpt-4')
+      return new Response(
+        supportsStreaming
+          ? 'data: {"choices":[{"index":0,"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'
+          : '{"choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}]}'
+      )
+    })
+    const sdkModel = createOpenAICompatible({ name: 'probe', baseURL: 'https://probe.invalid/v1', fetch }).chatModel(
+      'gpt-4'
+    )
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai-compatible', providerSettings: {}, modelId: 'gpt-4' },
+      credentialReceipt: { attribution: 'unknown' },
+      provider: makeProvider(),
+      model,
+      tools: undefined,
+      plugins: [],
+      system: 'test',
+      options: { maxRetries: 0 },
+      hookParts: [],
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+    mockCreateAgent.mockResolvedValue({
+      generate: (options: Parameters<typeof generateText>[0]) => generateText({ ...options, model: sdkModel }),
+      stream: (options: Parameters<typeof streamText>[0]) =>
+        streamText({ ...options, model: sdkModel, onError: () => {} })
+    })
+    await expect(service.checkModel({ uniqueModelId: model.id, requestOptions: { maxRetries: 0 } })).resolves.toEqual({
+      latency: expect.any(Number)
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the streaming probe at the total deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = createService()
+      let probeSignal: AbortSignal | undefined
+      vi.spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode').mockImplementation((input) => {
+        probeSignal = (input as { requestOptions: { signal: AbortSignal } }).requestOptions.signal
+        return new Promise((_, reject) =>
+          probeSignal!.addEventListener('abort', () => reject(probeSignal!.reason), { once: true })
+        )
+      })
+      const result = expect(service.checkModel({ uniqueModelId: 'test-provider::test-model' })).rejects.toThrow(
+        'Check model timeout'
+      )
+      await vi.advanceTimersByTimeAsync(15000)
+      await result
+      expect(probeSignal?.aborted).toBe(true)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes the probe transport after a streaming failure', async () => {
+    const service = createService()
+    let probeSignal: AbortSignal | undefined
+    const error = new Error('upstream stream error')
+    vi.spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode').mockImplementation((input) => {
+      probeSignal = (input as { requestOptions: { signal: AbortSignal } }).requestOptions.signal
+      return Promise.reject(error)
+    })
+    await expect(service.checkModel({ uniqueModelId: 'test-provider::test-model' })).rejects.toBe(error)
+    expect(probeSignal?.aborted).toBe(true)
   })
 
   it('checks embedding models with the normal embedding path', async () => {
@@ -2037,7 +2458,9 @@ describe('AiService tool approval', () => {
   it('checks chat models that can also generate images through text generation', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
+    const generateSpy = vi
+      .spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode')
+      .mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-multimodal',
       providerId: 'test-provider',

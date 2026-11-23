@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { TabIdContext } from '@renderer/hooks/tab'
 import i18n from '@renderer/i18n/resolver'
 import { dictationService, voiceService, voiceTargetManager } from '@renderer/services/voice'
 import { APPLE_ASR_MODEL_ID, TranscriptionLanguageSource } from '@shared/ai/localVoice'
@@ -13,6 +14,12 @@ import type { InputFor } from '@shared/ipc/types'
 import TranslateInputPane from '../TranslateInputPane'
 
 const dragState = vi.hoisted(() => ({ isDragging: false }))
+const tabs = vi.hoisted(() => ({ activeTabId: 'other-tab', tabs: [] }))
+
+vi.mock('@renderer/hooks/tab/useTabsContext', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useOptionalTabsContext: () => tabs
+}))
 
 vi.mock('@renderer/hooks/useDrag', () => ({
   useDrag: (onDrop: (event: React.DragEvent<HTMLDivElement>) => void) => ({
@@ -62,11 +69,64 @@ describe('TranslateInputPane', () => {
 
   afterEach(async () => {
     dragState.isDragging = false
+    tabs.activeTabId = 'other-tab'
     await act(async () => {
       await dictationService.teardown()
       await voiceService.teardown()
     })
     vi.restoreAllMocks()
+  })
+
+  it('hides dictation while Off and restores it on On while upload remains available', () => {
+    mockPreferenceState.set('feature.voice.recognition.model_id', 'off')
+    const props = baseProps()
+    const view = render(<TranslateInputPane {...props} />)
+    expect(screen.queryByRole('button', { name: i18n.t('chat.input.dictation.title') })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('translate.files.upload') }))
+    expect(props.onSelectFile).toHaveBeenCalledOnce()
+    mockPreferenceState.set('feature.voice.recognition.model_id', '')
+    view.rerender(<TranslateInputPane {...props} />)
+    expect(screen.getByRole('button', { name: i18n.t('chat.input.dictation.title') })).toBeInTheDocument()
+  })
+
+  it('focuses the source and activates its voice target when it becomes available after switching tabs', () => {
+    const props = baseProps()
+    const pane = (disabled: boolean) => (
+      <TabIdContext value="translation">
+        <TranslateInputPane {...props} disabled={disabled} />
+      </TabIdContext>
+    )
+    const view = render(pane(true))
+    const input = screen.getByRole('textbox')
+
+    tabs.activeTabId = 'translation'
+    view.rerender(pane(true))
+    expect(input).not.toHaveFocus()
+
+    view.rerender(pane(false))
+    expect(input).toHaveFocus()
+    expect(voiceTargetManager.captureCurrent()?.targetId).toBe('translate-page-source')
+  })
+
+  it('lets another control keep focus if it takes focus while the source is disabled', () => {
+    tabs.activeTabId = 'translation'
+    const props = baseProps()
+    const pane = (disabled: boolean) => (
+      <TabIdContext value="translation">
+        <button type="button">Other control</button>
+        <TranslateInputPane {...props} disabled={disabled} />
+      </TabIdContext>
+    )
+    const view = render(pane(true))
+    const otherControl = screen.getByRole('button', { name: 'Other control' })
+    otherControl.focus()
+    view.rerender(pane(false))
+    expect(otherControl).toHaveFocus()
+
+    tabs.activeTabId = 'other-tab'
+    view.rerender(pane(true))
+    view.rerender(pane(false))
+    expect(otherControl).toHaveFocus()
   })
 
   it('disables file upload while the parent pane is disabled', () => {
@@ -127,7 +187,7 @@ describe('TranslateInputPane', () => {
       return <TranslateInputPane {...baseProps()} text={text} onTextChange={setText} onKeyDown={onTranslate} />
     }
     render(<Harness />)
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    const textarea = screen.getByRole<HTMLTextAreaElement>('textbox')
 
     expect(voiceTargetManager.captureCurrent()?.targetId).not.toBe('translate-page-source')
     fireEvent.focus(textarea)

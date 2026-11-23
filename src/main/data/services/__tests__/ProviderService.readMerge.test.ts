@@ -28,7 +28,7 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
   class RegistryLoader {
     loadProviders() {
       return [
-        ...registry.providers.filter(({ id }) => ['grok', 'huggingface', 'openai'].includes(id)),
+        ...registry.providers.filter(({ id }) => ['grok', 'huggingface', 'ollama', 'openai'].includes(id)),
         {
           id: 'cherryin',
           endpointConfigs: {
@@ -83,6 +83,28 @@ describe('ProviderService read-time registry merge (#17096)', () => {
       ({ providerId, modelId }) => providerId === 'grok' && modelId === 'grok-imagine-image-2-0'
     )
   )
+
+  it.each([null, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])('resolves a saved Ollama provider with endpoint %s', (endpoint) => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'ollama',
+        presetProviderId: 'ollama',
+        name: 'Ollama',
+        orderKey: 'a0',
+        defaultChatEndpoint: endpoint
+      })
+      .run()
+
+    const provider = providerService.getByProviderId('ollama')
+    const model = makeModel({
+      id: 'ollama::qwen3.5:4b',
+      providerId: 'ollama',
+      apiModelId: 'qwen3.5:4b',
+      endpointTypes: []
+    })
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(endpoint ?? ENDPOINT_TYPE.OLLAMA_CHAT)
+  })
 
   it.each(['grok', 'grok-copy'])(
     'preserves the saved Grok connection without an image URL override on %s',

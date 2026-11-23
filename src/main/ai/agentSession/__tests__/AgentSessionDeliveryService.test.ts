@@ -1,3 +1,4 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { agentService } from '@data/services/AgentService'
@@ -79,6 +80,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     finalizeSessionDelivery: mocks.finalize,
     findDeliveringSessionDeliveryByTurnRef: mocks.findByTurnRef,
     getSessionMessage: mocks.getMessage,
+    inputBinding: () => undefined,
     markAssistantMessageTerminalError: mocks.markTerminalError,
     publishDispatchChanges: mocks.publishDispatchChanges,
     listAcceptedSessionDeliveries: mocks.listAccepted,
@@ -184,6 +186,7 @@ vi.mock('@application', () => ({
       if (name === 'AgentSessionRuntimeService') return runtime
       if (name === 'AiStreamManager') return manager
       if (name === 'DbService') return dbService
+      if (name === 'AgentImportService') return defaultServiceInstances.AgentImportService
       if (name === 'AgentSessionDeliveryService') return deliveryOwner
       if (name === 'ChannelManager')
         return {
@@ -263,6 +266,7 @@ describe('AgentSessionDeliveryService', () => {
       agentId: 'agent-1',
       agentUpdatedAt: now,
       agentType: 'claude-code',
+      agentDefaultModel: 'provider::model',
       uniqueModelId: 'provider::model'
     })
     mocks.persistDispatchTx.mockReturnValue({

@@ -97,7 +97,7 @@ class ReleaseCosTests(unittest.TestCase):
                 with (
                     self.subTest(edition=edition, platform=platform, architecture=architecture),
                     patch.object(sys, "argv", ["release-cos.py", "upload", edition, platform, *architecture]),
-                    patch.dict(os.environ, {"TAG": "v2.2.1", "COS_SECRET_ID": "id", "COS_SECRET_KEY": "key"}),
+                    patch.dict(os.environ, {"TAG": "v2.2.1", "TENCENT_CLOUD_SECRET_ID": "id", "TENCENT_CLOUD_SECRET_KEY": "key"}),
                     patch.object(release, "CosConfig") as config,
                     patch.object(release, "CosS3Client", return_value=self.store),
                 ):
@@ -134,6 +134,16 @@ class ReleaseCosTests(unittest.TestCase):
         draft = Path("github-release-artifacts")
         self.assertEqual({file.name for file in draft.iterdir()}, {"global-windows.bin", "global-mac.bin", "global-linux.bin"})
         self.assertEqual((draft / "global-windows.bin").read_bytes(), b"new")
+
+    def test_partial_retry_requires_the_same_mac_bridge_mode(self):
+        baseline = f"{self.base}/baselines/{os.environ['RELEASE_SHA']}.json"
+        for previous, retry in ((False, "true"), (True, "false")):
+            with self.subTest(previous=previous, retry=retry):
+                release.write_json(self.store, baseline, {"macCnRegionBridge": previous, "files": {}})
+                with patch.dict(os.environ, {"MAC_CN_REGION_BRIDGE": retry}):
+                    with self.assertRaisesRegex(ValueError, "Run an all-platform build"):
+                        release.assemble(self.store, self.base, self.prefix, "windows")
+                self.assertFalse(Path("cos-release.json").exists())
 
     def populate_targets(self):
         for edition in release.EDITIONS:
@@ -206,7 +216,7 @@ class ReleaseCosTests(unittest.TestCase):
     def run_cli(self, *arguments):
         with (
             patch.object(sys, "argv", ["release-cos.py", *arguments]),
-            patch.dict(os.environ, {"COS_SECRET_ID": "id", "COS_SECRET_KEY": "key"}),
+            patch.dict(os.environ, {"TENCENT_CLOUD_SECRET_ID": "id", "TENCENT_CLOUD_SECRET_KEY": "key"}),
             patch.object(release, "CosConfig"),
             patch.object(release, "CosS3Client", return_value=self.store),
         ):

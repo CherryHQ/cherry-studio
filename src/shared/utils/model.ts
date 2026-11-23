@@ -13,7 +13,7 @@
 
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import type { Model, ParameterSupport, RuntimeParameterSupport } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 /** Check if model has reasoning capability */
@@ -139,6 +139,19 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 // Parameter support checks
 // ---------------------------------------------------------------------------
 
+/** Preserve catalog ranges and complete the runtime support defaults. */
+export function projectModelParameterSupport(
+  support: ParameterSupport | null | undefined
+): RuntimeParameterSupport | undefined {
+  if (!support) return undefined
+  return {
+    ...support,
+    maxTokens: support.maxTokens ?? true,
+    stopSequences: support.stopSequences ?? true,
+    systemMessage: support.systemMessage ?? true
+  }
+}
+
 /** Check if model supports temperature parameter */
 export const isSupportTemperatureModel = (model: Model): boolean =>
   !isGemini4Model(model) && model.parameterSupport?.temperature?.supported !== false
@@ -156,8 +169,10 @@ export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean =
 
 /** Check if model has max temperature of 1 */
 export const isMaxTemperatureOneModel = (model: Model): boolean => {
-  if (model.parameterSupport?.temperature) {
-    return model.parameterSupport.temperature.max <= 1
+  const support = model.parameterSupport?.temperature
+  const max = support?.range?.max ?? support?.max
+  if (max !== undefined) {
+    return max <= 1
   }
   // Fallback: infer from model family
   const id = getLowerBaseModelName(getRawModelId(model))
@@ -325,7 +340,7 @@ export const isClaude47SeriesModel = (model: Model): boolean => {
 /** Check if model rejects temperature/top_p/top_k: Claude Opus 4.7+, Claude 5.x, Fable and Mythos. */
 export const isClaudeFixedSamplingModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+)?$/i.test(
+  return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+|\[[^\]]+\])?$/i.test(
     id
   )
 }

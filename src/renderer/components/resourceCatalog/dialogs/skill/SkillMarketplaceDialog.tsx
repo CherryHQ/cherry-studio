@@ -292,9 +292,7 @@ function SkillSearchBody({
   )
 
   if (!query.trim()) {
-    return (
-      <EmptyState preset="no-resource" title={emptyTitle} description={emptyDescription} className="min-h-0 flex-1" />
-    )
+    return <EmptyState title={emptyTitle} description={emptyDescription} className="min-h-0 flex-1" />
   }
 
   if (searching) {
@@ -308,7 +306,6 @@ function SkillSearchBody({
   if (error) {
     return (
       <EmptyState
-        preset="no-result"
         title={t('common.error')}
         description={t('library.skill_marketplace.search_failed_description')}
         className="min-h-0 flex-1"
@@ -319,7 +316,6 @@ function SkillSearchBody({
   if (results.length === 0) {
     return (
       <EmptyState
-        preset="no-result"
         title={t('library.skill_marketplace.no_results_title')}
         description={t('library.skill_marketplace.no_results_description')}
         className="min-h-0 flex-1"
