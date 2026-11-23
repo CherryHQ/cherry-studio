@@ -660,6 +660,57 @@ describe('AppUpdaterService', () => {
       )
     })
 
+    it('installs only the artifact the dialog confirmed, not one a later channel downloaded', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const release = (version: string) => ({
+        version,
+        files: [],
+        path: 'app.zip',
+        sha512: 'x',
+        releaseDate: '2026-01-01'
+      })
+      const checked = (version: string) => ({
+        isUpdateAvailable: true,
+        updateInfo: release(version),
+        cancellationToken: { cancel: vi.fn() }
+      })
+      vi.mocked(autoUpdater.downloadUpdate).mockResolvedValue([])
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce(checked('1.3.0-beta.1') as never)
+      await appUpdater.checkForUpdates()
+      listeners.get('update-downloaded')?.(release('1.3.0-beta.1'))
+
+      appUpdater.cancelDownload()
+      expect(() => appUpdater.quitAndInstall('1.3.0-beta.1')).toThrow(
+        expect.objectContaining({ code: 'VALIDATION_FAILED' })
+      )
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.RC)
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce(checked('1.3.0-rc.1') as never)
+      await appUpdater.checkForUpdates()
+      listeners.get('update-downloaded')?.(release('1.3.0-rc.1'))
+
+      expect(() => appUpdater.quitAndInstall('1.3.0-beta.1')).toThrow(
+        expect.objectContaining({ code: 'VALIDATION_FAILED' })
+      )
+      expect(application.markQuitting).not.toHaveBeenCalled()
+
+      appUpdater.quitAndInstall('1.3.0-rc.1')
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
+    })
+
     it('fetches and validates release history through the managed release service', async () => {
       vi.mocked(regionService.getCountry).mockResolvedValue('CN')
       const releaseNotes = '<!--LANG:en-->Remote notes<!--LANG:zh-CN-->远端说明<!--LANG:END-->'

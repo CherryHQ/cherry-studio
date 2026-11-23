@@ -42,7 +42,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
     setIsInstalling(true)
     setInstallError(null)
     try {
-      await ipcApi.request('app.updater.quit_and_install')
+      await ipcApi.request('app.updater.quit_and_install', { version: releaseInfo?.version ?? '' })
       resolve({})
     } catch (error) {
       logger.error('Failed to install the downloaded update', error as Error)

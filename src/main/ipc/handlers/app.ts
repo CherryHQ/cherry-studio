@@ -91,7 +91,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
       technicalDetail
     })
   },
-  'app.updater.quit_and_install': async () => {
-    application.get('AppUpdaterService').quitAndInstall()
+  'app.updater.quit_and_install': async ({ version }) => {
+    application.get('AppUpdaterService').quitAndInstall(version)
   }
 }

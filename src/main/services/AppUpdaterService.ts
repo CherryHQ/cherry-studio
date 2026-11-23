@@ -155,6 +155,8 @@ export class AppUpdaterService extends BaseService {
   private stagedAvailable: UpdateInfo | null = null
   private stagedDownloaded: UpdateInfo | null = null
   private stagedProgress: ProgressInfo | null = null
+  // electron-updater installs whatever it cached last, so installation names the version it confirmed.
+  private downloadedVersion: string | null = null
   // electron-updater returns its in-flight check promise. The next check waits
   // until that promise settles, then configures and calls checkForUpdates again.
   private updateCheckQueue: Promise<void> = Promise.resolve()
@@ -308,6 +310,7 @@ export class AppUpdaterService extends BaseService {
 
   private announceDownloaded(info: UpdateInfo): void {
     if (!this.releaseIsCurrent(info)) return
+    this.downloadedVersion = info.version
     const processedReleaseInfo = this.processReleaseInfo(info)
     application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.downloaded', processedReleaseInfo)
     logger.info('update downloaded', processedReleaseInfo)
@@ -533,6 +536,7 @@ export class AppUpdaterService extends BaseService {
 
   public cancelDownload() {
     this.suppressUpdaterEvents()
+    this.downloadedVersion = null
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
     if (autoUpdater.autoDownload) {
@@ -665,7 +669,11 @@ export class AppUpdaterService extends BaseService {
     return Math.round(CHECK_INTERVAL_MS * (1 + (Math.random() * 2 - 1) * CHECK_JITTER_RATIO))
   }
 
-  public quitAndInstall() {
+  /** @param version the release the install confirmation showed */
+  public quitAndInstall(version: string) {
+    if (version !== this.downloadedVersion) {
+      throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'The confirmed update is no longer the downloaded one')
+    }
     application.markQuitting()
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
   }

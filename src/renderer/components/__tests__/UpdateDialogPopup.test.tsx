@@ -38,6 +38,24 @@ afterEach(() => {
 })
 
 describe('UpdateDialogPopup', () => {
+  it('names the release it shows when asking main to install', async () => {
+    const user = userEvent.setup()
+    mocks.request.mockResolvedValue({
+      fromVersion: '2.0.0',
+      toVersion: '9.9.9',
+      historyStatus: 'unavailable',
+      releases: []
+    })
+    render(<PopupHost />)
+    act(() => {
+      void UpdateDialogPopup.show({ releaseInfo })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'update.install' }))
+
+    expect(installCalls()).toEqual([['app.updater.quit_and_install', { version: '9.9.9' }]])
+  })
+
   it('keeps a rejected install in the dialog and retries only when the user asks again', async () => {
     const user = userEvent.setup()
     mocks.request.mockImplementation(async (route: string) => {

@@ -123,7 +123,8 @@ export const appRequestSchemas = {
       releases: z.array(z.object({ version: z.string(), releaseNotes: z.string() }))
     })
   }),
-  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() }),
+  /** Installs only when `version` is still the downloaded artifact; a retired or replaced one is rejected. */
+  'app.updater.quit_and_install': defineRoute({ input: z.object({ version: z.string() }), output: z.void() }),
   'app.error.handoff': defineRoute({ input: appErrorContextSchema, output: z.void() }),
   'app.error.degraded': defineRoute({ input: appErrorContextSchema, output: z.void() })
 }
