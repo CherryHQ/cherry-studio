@@ -45,14 +45,25 @@ export class SkillInstaller {
   }
 
   /** Publish verified files while keeping the prior directory available for rollback. */
-  async prepareInstall(sourceDir: string, destPath: string): Promise<PreparedSkillInstall> {
+  async prepareInstall(
+    sourceDir: string,
+    destPath: string,
+    baselineHash?: string | null
+  ): Promise<PreparedSkillInstall> {
     if (path.resolve(sourceDir) === path.resolve(destPath)) {
       logger.debug('Source equals destination, skipping copy', { destPath })
       return { commit: async () => undefined, rollback: async () => undefined }
     }
 
     const sourceHash = await this.computeDirectoryHash(sourceDir)
-    await this.recoverInterruptedInstall(destPath)
+    if (baselineHash) {
+      // Baseline-aware recovery keeps a committed replacement that already matches
+      // the persisted hash instead of restoring an obsolete backup over it. The
+      // generic fallback would resurrect the old tree and break the next update.
+      await this.recoverInterruptedInstallWithBaseline(destPath, baselineHash)
+    } else {
+      await this.recoverInterruptedInstall(destPath)
+    }
     await this.removeCommittedCleanup(destPath)
 
     const backupPath = this.getBackupPath(destPath)
@@ -128,6 +139,19 @@ export class SkillInstaller {
       return
     }
 
+    // Never restore an incomplete backup over a complete replacement. A partial
+    // `.bak` cleanup (e.g. SKILL.md deleted before the sweep) must not delete the
+    // valid destination; drop the fragment instead and keep the installed tree.
+    const backupDescriptor = await findSkillMdPath(backupPath)
+    if (!backupDescriptor) {
+      logger.warn('Ignoring incomplete skill backup without a descriptor; preserving installed tree', {
+        destPath,
+        backupPath
+      })
+      await this.safeRemoveDirectory(backupPath, 'incomplete skill backup')
+      return
+    }
+
     if (await pathExists(destPath)) {
       await this.safeRemoveDirectory(destPath, 'uncommitted skill folder')
     }
@@ -183,13 +207,21 @@ export class SkillInstaller {
         try {
           await fs.promises.rename(backupPath, cleanupPath)
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-            logger.warn('Failed to stage committed backup for cleanup; removing in place', {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            // Backup vanished between the existence check and the rename: nothing
+            // obsolete remains, fall through to delete any staged cleanup.
+          } else {
+            // Keep the obsolete backup intact when staging fails. Deleting it in
+            // place could leave a partial `.bak` (e.g. SKILL.md removed before
+            // failure) that the generic sweep would restore over the valid
+            // baseline-matching replacement. Preserve the replacement and retry
+            // staging on the next startup; the baseline-aware sweep runs before
+            // the generic one so the good tree survives.
+            logger.warn('Failed to stage committed backup for cleanup; preserving replacement for retry', {
               destPath,
               backupPath,
               error: error instanceof Error ? error.message : String(error)
             })
-            await this.safeRemoveDirectory(backupPath, 'committed skill backup')
             logger.info('Recovered interrupted skill install by keeping matching replacement', { destPath })
             return
           }
@@ -233,7 +265,10 @@ export class SkillInstaller {
   }
 
   /** Restore every interrupted publish before reconcile considers pruning. */
-  async recoverInterruptedInstalls(storageRoot: string): Promise<void> {
+  async recoverInterruptedInstalls(
+    storageRoot: string,
+    options: { skipFolderNames?: ReadonlySet<string> } = {}
+  ): Promise<void> {
     let entries: fs.Dirent[]
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
@@ -246,6 +281,10 @@ export class SkillInstaller {
       if (!entry.isDirectory()) continue
       const backupMatch = entry.name.match(/^\.(.+)\.bak$/)
       if (backupMatch?.[1]) {
+        // Baseline-aware recovery already handled catalogued skills before this
+        // generic sweep. Skipping them preserves a baseline-matching replacement
+        // when obsolete-backup staging failed and left the `.bak` behind for retry.
+        if (options.skipFolderNames?.has(backupMatch[1])) continue
         await this.recoverInterruptedInstall(path.join(storageRoot, backupMatch[1]))
         continue
       }
@@ -279,6 +318,68 @@ export class SkillInstaller {
     options: { ignoredRelativePaths?: readonly string[] } = {}
   ): Promise<string> {
     return `${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}${await this.computeDirectoryHash(skillDir, options)}`
+  }
+
+  /**
+   * Compute the pre-executability, pre-canonicalization baseline for skills installed
+   * before mode bits entered the fingerprint. The released format sorted by raw name,
+   * hashed the on-disk relative path (so `skill.md` stayed lowercase) and ignored
+   * POSIX mode entirely. Non-executable skills hash identically under both formats;
+   * executable helpers differ, so an untouched legacy install reports a false
+   * `localChanges` unless the old fingerprint is consulted. Used only to decide
+   * whether the managed tree is truly edited — never persisted as a new baseline.
+   */
+  async computeLegacyContentHash(
+    skillDir: string,
+    options: { ignoredRelativePaths?: readonly string[] } = {}
+  ): Promise<string> {
+    return `${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}${await this.computeLegacyDirectoryHash(skillDir, options)}`
+  }
+
+  async computeLegacyDirectoryHash(
+    skillDir: string,
+    options: { ignoredRelativePaths?: readonly string[] } = {}
+  ): Promise<string> {
+    const skillMdPath = await findSkillMdPath(skillDir)
+    if (!skillMdPath) {
+      throw new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', `SKILL.md not found in ${skillDir}`)
+    }
+
+    const hash = createHash('sha256')
+    const ignored = new Set(options.ignoredRelativePaths ?? [])
+    await this.updateLegacyDirectoryHash(hash, skillDir, '', ignored)
+    return hash.digest('hex')
+  }
+
+  private async updateLegacyDirectoryHash(
+    hash: ReturnType<typeof createHash>,
+    directory: string,
+    relativeDirectory: string,
+    ignored: ReadonlySet<string>
+  ): Promise<void> {
+    const entries = await fs.promises.readdir(directory, { withFileTypes: true })
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+
+    for (const entry of entries) {
+      const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name
+      if (ignored.has(relativePath)) continue
+
+      const fullPath = path.join(directory, entry.name)
+      const stats = await fs.promises.lstat(fullPath)
+      if (stats.isSymbolicLink()) continue
+
+      if (stats.isDirectory()) {
+        hash.update(`D:${Buffer.byteLength(relativePath)}:`).update(relativePath)
+        await this.updateLegacyDirectoryHash(hash, fullPath, relativePath, ignored)
+      } else if (stats.isFile()) {
+        const content = await fs.promises.readFile(fullPath)
+        hash
+          .update(`F:${Buffer.byteLength(relativePath)}:`)
+          .update(relativePath)
+          .update(`:${content.byteLength}:`)
+          .update(content)
+      }
+    }
   }
 
   /**

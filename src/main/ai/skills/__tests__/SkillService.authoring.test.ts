@@ -887,4 +887,105 @@ describe('SkillService authoring and remote updates', () => {
     expect(overwritten).toMatchObject({ version: '2.0.0' })
     expect((await fs.promises.stat(path.join(installedDir, 'scripts', 'run.sh'))).mode & 0o111).toBe(0)
   })
+
+  it.skipIf(isWin)(
+    'applies a pending update for an untouched legacy executable baseline without overwrite',
+    async () => {
+      const originDir = path.join(root, 'origin', 'writer')
+      await writeSkill(originDir, { supportingContent: 'echo baseline\n' })
+      const helperPath = path.join(originDir, 'scripts', 'run.sh')
+      await fs.promises.chmod(helperPath, 0o755)
+      const canonicalOrigin = await fs.promises.realpath(originDir)
+      const installedDir = path.join(skillsRoot, 'writer')
+      await fs.promises.cp(canonicalOrigin, installedDir, { recursive: true })
+      // Seed the pre-upgrade (no mode bits) baseline: the managed tree is untouched
+      // but the current fingerprint differs due to the format migration alone.
+      const legacyBaseline = await installer.computeLegacyContentHash(installedDir)
+      const currentFingerprint = await installer.computeContentHash(installedDir)
+      expect(currentFingerprint).not.toBe(legacyBaseline)
+      await seedSkill(SKILL_ID, 'writer', {
+        source: 'system',
+        sourceUrl: pathToFileURL(canonicalOrigin).href,
+        contentHash: legacyBaseline
+      })
+
+      await writeSkill(originDir, { version: '2.0.0', supportingContent: 'echo remote\n' })
+      await fs.promises.chmod(path.join(originDir, 'scripts', 'run.sh'), 0o755)
+      const service = new SkillService()
+
+      const check = await service.checkRemoteUpdate(SKILL_ID)
+      expect(check).toMatchObject({ state: 'available', localChanges: false })
+      if (check.state !== 'available') throw new Error('Expected an available update for legacy baseline')
+
+      const updated = await service.applyRemoteUpdate({
+        skillId: SKILL_ID,
+        revision: check.revision,
+        overwriteLocalChanges: false
+      })
+      expect(updated).toMatchObject({ id: SKILL_ID, version: '2.0.0' })
+      await expect(fs.promises.readFile(path.join(installedDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+        'echo remote\n'
+      )
+    }
+  )
+
+  it('preserves a baseline-matching replacement when obsolete-backup staging fails', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old')
+    const newDir = path.join(root, 'new')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const newHash = await installer.computeContentHash(newDir)
+
+    const originalRename = fs.promises.rename
+    const renameSpy = vi.spyOn(fs.promises, 'rename').mockImplementation(async (...args: unknown[]) => {
+      const [from, to] = args as [string, string]
+      if (from === backupPath && to === path.join(skillsRoot, '.writer.cleanup')) {
+        throw Object.assign(new Error('staging failed'), { code: 'EACCES' })
+      }
+      return (originalRename as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
+    } finally {
+      renameSpy.mockRestore()
+    }
+
+    // The good replacement is preserved and the obsolete backup is left intact for retry.
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo new\n')
+    await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
+
+    // The baseline-aware sweep runs before the generic one: skipping catalogued folders
+    // keeps the good tree even though the obsolete `.bak` is still present.
+    await installer.recoverInterruptedInstalls(skillsRoot, { skipFolderNames: new Set(['writer']) })
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo new\n')
+    await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
+
+    // Retry without the fault stages the obsolete backup and cleans it up.
+    await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo new\n')
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('preserves the installed tree when the generic backup is incomplete', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const goodDir = path.join(root, 'good')
+    await writeSkill(goodDir, { supportingContent: 'echo good\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(goodDir, destPath, { recursive: true })
+    await fs.promises.cp(goodDir, backupPath, { recursive: true })
+    await fs.promises.rm(path.join(backupPath, 'SKILL.md'))
+
+    await installer.recoverInterruptedInstall(destPath)
+
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo good\n')
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
 })

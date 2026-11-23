@@ -648,7 +648,7 @@ export class SkillService {
       const metadata = await parseSkillMetadata(snapshot.snapshotDir, path.basename(canonicalPath), 'skills')
       const contentHash = await this.installer.computeContentHash(snapshot.snapshotDir)
       const destPath = this.getSkillStoragePath(skill.folderName)
-      const prepared = await this.installer.prepareInstall(snapshot.snapshotDir, destPath)
+      const prepared = await this.installer.prepareInstall(snapshot.snapshotDir, destPath, skill.contentHash)
       let databaseUpdated = false
       try {
         await this.linkMirror(skill.folderName, { throwOnError: true })
@@ -1350,8 +1350,10 @@ export class SkillService {
         // a new tree matching a new baseline completes the publish, an old backup matching
         // an old baseline rolls back. The generic sweep below only handles orphaned markers
         // without a catalog row.
+        let knownFolderNames = new Set<string>()
         try {
           const all = agentGlobalSkillService.listAll()
+          knownFolderNames = new Set(all.map((entry) => entry.folderName))
           for (const entry of all) {
             try {
               await this.installer.recoverInterruptedInstallWithBaseline(
@@ -1375,7 +1377,11 @@ export class SkillService {
             error: error instanceof Error ? error.message : String(error)
           })
         }
-        await this.installer.recoverInterruptedInstalls(storageRoot)
+        // Skip catalogued folders here: baseline-aware recovery already decided whether
+        // their `.bak` is obsolete (keep the baseline-matching replacement for retry)
+        // or restorable. Letting the generic sweep reprocess them would restore an
+        // obsolete backup over a good replacement when staging failed.
+        await this.installer.recoverInterruptedInstalls(storageRoot, { skipFolderNames: knownFolderNames })
         try {
           await this.ensureSkillPluginManifest()
         } catch (error) {
@@ -1490,7 +1496,7 @@ export class SkillService {
         }
         return { state: 'up_to_date', localChanges: false, remoteVersion: metadata.version ?? null }
       }
-      const localChanges = currentHash !== skill.contentHash
+      const localChanges = await this.hasManagedLocalChanges(skill.folderName, currentHash, skill.contentHash)
       return {
         state: 'available',
         localChanges,
@@ -1506,6 +1512,35 @@ export class SkillService {
     } finally {
       if (fetched.tempDir) await safeRemoveDirectory(fetched.tempDir)
     }
+  }
+
+  /**
+   * Decide whether the managed tree is truly edited. A pre-executability baseline
+   * (no mode bits, raw sort, on-disk descriptor casing) differs from the current
+   * fingerprint even when the user changed nothing, so an untouched legacy install
+   * with a pending upstream update would otherwise report a false `localChanges`
+   * and require an explicit overwrite. Consulting the legacy fingerprint turns that
+   * one-time format migration into a clean update; after the update the baseline
+   * is the new format and later mode edits are protected again. A managed mode-only
+   * edit on a legacy baseline is indistinguishable from untouched (the old format
+   * ignored modes) and is treated as clean for this single migration.
+   */
+  private async hasManagedLocalChanges(
+    folderName: string,
+    currentHash: string,
+    baselineHash: string
+  ): Promise<boolean> {
+    if (currentHash === baselineHash) return false
+    try {
+      const legacyCurrentHash = await this.installer.computeLegacyContentHash(this.getSkillStoragePath(folderName))
+      if (legacyCurrentHash === baselineHash) return false
+    } catch (error) {
+      logger.warn('Failed to compute legacy skill baseline for local-change check', {
+        folderName,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+    return true
   }
 
   async applyRemoteUpdate(options: {
@@ -1551,7 +1586,11 @@ export class SkillService {
             throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
           }
 
-          const hasLocalChanges = currentHash !== currentSkill.contentHash
+          const hasLocalChanges = await this.hasManagedLocalChanges(
+            currentSkill.folderName,
+            currentHash,
+            currentSkill.contentHash
+          )
           if (hasLocalChanges && !options.overwriteLocalChanges) {
             throw new SkillRemoteUpdateError(
               skillErrorCodes.REMOTE_LOCAL_CHANGES,
@@ -1559,7 +1598,7 @@ export class SkillService {
             )
           }
 
-          const prepared = await this.installer.prepareInstall(fetched.skillDir, destination)
+          const prepared = await this.installer.prepareInstall(fetched.skillDir, destination, currentSkill.contentHash)
           let databaseUpdated = false
           try {
             await this.linkMirror(currentSkill.folderName, { throwOnError: true })
