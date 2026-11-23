@@ -48,7 +48,7 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
 }))
 vi.mock('@renderer/hooks/useSkillLauncher', () => ({ useSkillLauncher: () => mocks.launchSkill }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
-vi.mock('@renderer/components/resourceCatalog/catalog/SkillSourceBadge', () => ({
+vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   SkillSourceBadge: ({ source, sourceUrl }: { source: string; sourceUrl?: string | null }) => (
     <span data-source-url={sourceUrl ?? ''} data-testid="source-badge">
       {source}
