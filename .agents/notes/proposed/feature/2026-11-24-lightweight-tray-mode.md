@@ -25,7 +25,7 @@ Force destruction skips unload-based persistence. Moving all drafts to shared ca
 ## Acceptance criteria
 
 - AC1 — The default remains hide-to-tray; opt-in idle close releases Main only with an available tray, and busy close retains it (verification: unit)
-- AC2 — Closing the last window with an active tray keeps the process alive; without a tray it still quits (verification: unit)
+- AC2 — On non-macOS, closing the last window with an active tray keeps the process alive and without a tray it still quits; macOS retains its standard window-all-closed lifecycle (verification: unit)
 - AC3 — Main's composer drafts survive renderer recreation, preserve their expiration, and remain isolated from detached-window drafts (verification: renderer)
 - AC4 — Reopening recreates one Main with remembered geometry and tabs; repeat close/open works (verification: Electron)
 - AC5 — Settings explain the reload cost and busy fallback in all supported locales (verification: scoped formatting and locale checks)

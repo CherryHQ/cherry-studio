@@ -25,7 +25,7 @@ Status: proposed
 ## 验收条件
 
 - AC1 — 默认仍隐藏到托盘；开启后仅在托盘可用且空闲时释放主窗口，忙碌时保留窗口 (verification: unit)
-- AC2 — 托盘激活时关闭最后一个窗口保持主进程存活；没有托盘时仍退出 (verification: unit)
+- AC2 — 非 macOS 平台托盘激活时关闭最后一个窗口保持主进程存活，没有托盘时仍退出；macOS 保持原有的窗口全关闭生命周期语义 (verification: unit)
 - AC3 — 主窗口草稿在渲染进程重建后恢复，保持原过期时间，并与独立窗口草稿隔离 (verification: renderer)
 - AC4 — 唤起时仅重建一个主窗口，恢复位置、尺寸与标签页，可重复关闭和打开 (verification: Electron)
 - AC5 — 所有支持的语言均在设置中说明重载成本及忙碌回退 (verification: scoped formatting and locale checks)

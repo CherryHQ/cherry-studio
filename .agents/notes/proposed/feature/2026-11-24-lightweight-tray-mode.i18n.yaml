@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-24-lightweight-tray-mode.md
-2026-11-24-lightweight-tray-mode.md: 19cbb6326ab90fa99b8fc177e4b7675b57081e6f
-2026-11-24-lightweight-tray-mode.zh.md: 67cd6a651dacc8c0e97a9ff6fdc07263ad4ae8c1
+2026-11-24-lightweight-tray-mode.md: 982609b084bd934e323dd6a4a9fd09f2e33760d7
+2026-11-24-lightweight-tray-mode.zh.md: e8d21302c50167cd5948fd445fa828768f9a4ee8
