@@ -661,6 +661,40 @@ describe('AppUpdaterService', () => {
       )
     })
 
+    it('keeps an auto-download failure terminal when it fires before the check returns', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const ipc = application.get('IpcApiService')
+      const release = { version: '1.3.0', files: [], path: 'app.dmg', sha512: 'x', releaseDate: '2026-01-01' }
+      autoUpdater.autoDownload = true
+      // A macOS manifest without a ZIP rejects the auto download before checkForUpdates resolves.
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+        listeners.get('update-available')?.(release)
+        listeners.get('error')?.(new Error('ZIP file not provided'))
+        return {
+          isUpdateAvailable: true,
+          updateInfo: release,
+          cancellationToken: { cancel: vi.fn() },
+          downloadPromise: Promise.reject(new Error('ZIP file not provided'))
+        } as never
+      })
+
+      await appUpdater.checkForUpdates()
+
+      const events = vi.mocked(ipc.broadcastToType).mock.calls.map(([, event]) => event)
+      expect(events).toContain('app.updater.error')
+      expect(events.slice(events.indexOf('app.updater.error'))).not.toContain('app.updater.available')
+    })
+
     it('installs only the artifact the dialog confirmed, not one a later channel downloaded', async () => {
       const listeners = new Map<string, (...args: unknown[]) => void>()
       vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
