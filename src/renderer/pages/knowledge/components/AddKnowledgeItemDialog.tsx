@@ -16,6 +16,7 @@ import {
 } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeFilePreflight } from '@shared/data/presets/knowledgeFormats'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
@@ -311,7 +312,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     const results = await ipcApi.request('knowledge.preflight_files', {
       baseId: selectedBaseId,
-      paths: [directoryPath]
+      paths: [AbsoluteFilePathSchema.parse(directoryPath)]
     })
     if (session !== sessionRef.current) return []
     const proceed = await new Promise<boolean>((resolve) => {
