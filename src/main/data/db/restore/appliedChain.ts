@@ -18,11 +18,15 @@ export interface AppliedMigration {
  * actually applied. The gate prefix-compares this sequence against the
  * bundled one; a fork (A B′ C vs A B C) differs item-wise even when tips match.
  */
-export function readAppliedChain(sqlite: Database.Database): AppliedMigration[] {
+export function readAppliedChain(
+  sqlite: Database.Database,
+  { allowMissing = false }: { allowMissing?: boolean } = {}
+): AppliedMigration[] {
   const table = sqlite
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '__drizzle_migrations'")
     .get()
   if (!table) {
+    if (allowMissing) return []
     throw new Error('readAppliedChain: no __drizzle_migrations table — an unmigrated database cannot be journaled')
   }
   const rows = sqlite.prepare('SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at').all() as Array<{

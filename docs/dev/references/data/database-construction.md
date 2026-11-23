@@ -20,10 +20,11 @@ How the SQLite database is **built at boot and evolved over time**. Scope: drizz
 | # | Step | Notes |
 |---|---|---|
 | 1 | `ensureDatabaseIntegrity()` (constructor) | Deletes a 0-byte `.db` and orphaned `-wal`/`-shm` sidecars to avoid `SQLITE_IOERR_SHORT_READ`. Opening the DB can delete files. |
-| 2 | `configurePragmas()` | `journal_mode=WAL` via `db.run()` (persisted in the file, once); `synchronous=NORMAL` + `foreign_keys=ON` set once on the single persistent connection (see below). |
-| 3 | `applyMigrations()`: `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
-| 4 | `applyMigrations()`: custom SQL replay | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
-| 5 | `SeedRunner.runAll(seeders)` | Runs on the just-migrated schema; a schema change a seeder relies on must land in the migration first. See [database-seeding-guide.md](./database-seeding-guide.md). |
+| 2 | Check the applied migration timestamp | If it is ahead of the latest bundled migration, startup exits with an upgrade prompt before configuring WAL or writing schema data. |
+| 3 | `configurePragmas()` | `journal_mode=WAL` via `db.run()` (persisted in the file, once); `synchronous=NORMAL` + `foreign_keys=ON` set once on the single persistent connection (see below). |
+| 4 | `applyMigrations()`: `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
+| 5 | `applyMigrations()`: custom SQL replay | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
+| 6 | `SeedRunner.runAll(seeders)` | Runs on the just-migrated schema; a schema change a seeder relies on must land in the migration first. See [database-seeding-guide.md](./database-seeding-guide.md). |
 
 **Single persistent connection — PRAGMAs set once.** better-sqlite3 keeps **one connection** open for the whole process, so the per-connection PRAGMAs (`synchronous=NORMAL`, `foreign_keys=ON`) are applied a single time in `configurePragmas()` and stay in effect — there is no transaction-boundary reconnect that could reset them, and no per-statement replay machinery is needed. `WAL` is also set once and persisted in the file.
 

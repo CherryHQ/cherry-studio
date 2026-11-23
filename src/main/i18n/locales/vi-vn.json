@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "Đặt lại và khởi động lại",
   "dialog.data_reset.message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở tri thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
   "dialog.data_reset.title": "Đặt lại dữ liệu ứng dụng",
+  "dialog.database_upgrade_required": "Thư mục dữ liệu này đã được sử dụng bởi một phiên bản Cherry Studio mới hơn. Hãy cập nhật Cherry Studio để tiếp tục.",
   "dialog.diagnostic_bundle.title": "Lưu gói chẩn đoán",
   "dialog.diagnostic_bundle.zip_filter": "Tệp nén ZIP",
   "dialog.external_link.message": "Mở liên kết này trong ứng dụng bên ngoài?",

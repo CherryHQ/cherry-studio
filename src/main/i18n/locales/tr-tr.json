@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "Sıfırla ve Yeniden Başlat",
   "dialog.data_reset.message": "Bu işlem sohbetleri, asistanları, bilgi tabanlarını, dosyaları ve ayarları silip uygulamayı yeniden başlatacaktır. Bu işlem geri alınamaz. Devam edilsin mi?",
   "dialog.data_reset.title": "Uygulama Verilerini Sıfırla",
+  "dialog.database_upgrade_required": "Bu veri dizini daha yeni bir Cherry Studio sürümü tarafından kullanılmış. Devam etmek için Cherry Studio’yu güncelleyin.",
   "dialog.diagnostic_bundle.title": "Tanılama paketini kaydet",
   "dialog.diagnostic_bundle.zip_filter": "ZIP arşivi",
   "dialog.external_link.message": "Bu bağlantı harici bir uygulamada açılsın mı?",

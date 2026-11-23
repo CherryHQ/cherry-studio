@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "重置并重启",
   "dialog.data_reset.message": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
   "dialog.data_reset.title": "重置应用数据",
+  "dialog.database_upgrade_required": "此数据目录已被较新版本的 Cherry Studio 使用。请更新 Cherry Studio 后继续。",
   "dialog.diagnostic_bundle.title": "保存诊断包",
   "dialog.diagnostic_bundle.zip_filter": "ZIP 压缩包",
   "dialog.external_link.message": "是否在外部应用中打开此链接？",

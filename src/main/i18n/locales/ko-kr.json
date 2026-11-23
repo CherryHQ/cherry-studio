@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "초기화 후 다시 시작",
   "dialog.data_reset.message": "채팅, 어시스턴트, 지식 베이스, 파일 및 설정을 모두 삭제하고 앱을 다시 시작합니다. 이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?",
   "dialog.data_reset.title": "앱 데이터 초기화",
+  "dialog.database_upgrade_required": "이 데이터 디렉터리는 더 최신 버전의 Cherry Studio에서 사용되었습니다. 계속하려면 Cherry Studio를 업데이트하세요.",
   "dialog.diagnostic_bundle.title": "진단 번들 저장",
   "dialog.diagnostic_bundle.zip_filter": "ZIP 압축 파일",
   "dialog.external_link.message": "외부 애플리케이션에서 이 링크를 여시겠습니까?",

@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "Сбросить и перезапустить",
   "dialog.data_reset.message": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",
   "dialog.data_reset.title": "Сброс данных приложения",
+  "dialog.database_upgrade_required": "Этот каталог данных использовался более новой версией Cherry Studio. Чтобы продолжить, обновите Cherry Studio.",
   "dialog.diagnostic_bundle.title": "Сохранение диагностического пакета",
   "dialog.diagnostic_bundle.zip_filter": "ZIP-архив",
   "dialog.external_link.message": "Открыть эту ссылку во внешнем приложении?",

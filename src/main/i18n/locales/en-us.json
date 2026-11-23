@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "Reset and Restart",
   "dialog.data_reset.message": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
   "dialog.data_reset.title": "Reset App Data",
+  "dialog.database_upgrade_required": "This data directory was used by a newer version of Cherry Studio. Update Cherry Studio to continue.",
   "dialog.diagnostic_bundle.title": "Save diagnostic bundle",
   "dialog.diagnostic_bundle.zip_filter": "ZIP archive",
   "dialog.external_link.message": "Open this link in an external application?",

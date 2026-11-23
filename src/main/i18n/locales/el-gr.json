@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "Επαναφορά και επανεκκίνηση",
   "dialog.data_reset.message": "Θα διαγραφούν οι συνομιλίες, οι βοηθοί, οι βάσεις γνώσεων, τα αρχεία και οι ρυθμίσεις και, στη συνέχεια, η εφαρμογή θα επανεκκινηθεί. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί. Θέλετε να συνεχίσετε;",
   "dialog.data_reset.title": "Επαναφορά δεδομένων εφαρμογής",
+  "dialog.database_upgrade_required": "Αυτός ο κατάλογος δεδομένων χρησιμοποιήθηκε από νεότερη έκδοση του Cherry Studio. Ενημερώστε το Cherry Studio για να συνεχίσετε.",
   "dialog.diagnostic_bundle.title": "Αποθήκευση πακέτου διαγνωστικών",
   "dialog.diagnostic_bundle.zip_filter": "Αρχείο ZIP",
   "dialog.external_link.message": "Άνοιγμα αυτού του συνδέσμου σε εξωτερική εφαρμογή;",

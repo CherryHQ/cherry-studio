@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "Zresetuj i uruchom ponownie",
   "dialog.data_reset.message": "Spowoduje to usunięcie czatów, asystentów, baz wiedzy, plików i ustawień, a następnie ponowne uruchomienie aplikacji. Tej operacji nie można cofnąć. Kontynuować?",
   "dialog.data_reset.title": "Zresetuj dane aplikacji",
+  "dialog.database_upgrade_required": "Ten katalog danych był używany przez nowszą wersję Cherry Studio. Zaktualizuj Cherry Studio, aby kontynuować.",
   "dialog.diagnostic_bundle.title": "Zapisz pakiet diagnostyczny",
   "dialog.diagnostic_bundle.zip_filter": "Archiwum ZIP",
   "dialog.external_link.message": "Otworzyć ten link w zewnętrznej aplikacji?",

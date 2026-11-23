@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "Repor e reiniciar",
   "dialog.data_reset.message": "Esta ação irá apagar conversas, assistentes, bases de conhecimento, ficheiros e definições e, em seguida, reiniciar a aplicação. Esta ação não pode ser anulada. Pretende continuar?",
   "dialog.data_reset.title": "Repor os dados da aplicação",
+  "dialog.database_upgrade_required": "Este diretório de dados foi utilizado por uma versão mais recente do Cherry Studio. Atualize o Cherry Studio para continuar.",
   "dialog.diagnostic_bundle.title": "Guardar pacote de diagnóstico",
   "dialog.diagnostic_bundle.zip_filter": "Ficheiro ZIP",
   "dialog.external_link.message": "Abrir esta ligação numa aplicação externa?",

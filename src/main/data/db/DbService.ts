@@ -14,6 +14,7 @@ import { logFailure } from '@main/core/logger/logFailure'
 import { classifyDatabaseFailure } from '@main/data/failureFacts'
 
 import { applyMigrations } from './applyMigrations'
+import { checkDatabaseVersion } from './checkDatabaseVersion'
 import { checkpointTruncateAssert } from './restore/checkpoint'
 import { snapshotTo } from './restore/snapshot'
 import { seeders } from './seeding/seederRegistry'
@@ -146,6 +147,7 @@ export class DbService extends BaseService {
    * Lifecycle: Initialize database with WAL mode, run migrations and seeds
    */
   protected onInit(): void {
+    checkDatabaseVersion(this.sqlite, application.getPath('app.database.migrations'))
     this.configurePragmas()
     this.migrateDb()
     new SeedRunner(this.db).runAll(seeders)

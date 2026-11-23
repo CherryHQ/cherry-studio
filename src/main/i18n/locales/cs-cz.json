@@ -144,6 +144,7 @@
   "dialog.data_reset.confirm": "Resetovat a restartovat",
   "dialog.data_reset.message": "Tato akce smaže chaty, asistenty, znalostní báze, soubory a nastavení a poté restartuje aplikaci. Tuto akci nelze vrátit zpět. Chcete pokračovat?",
   "dialog.data_reset.title": "Resetovat data aplikace",
+  "dialog.database_upgrade_required": "Tento datový adresář používala novější verze Cherry Studio. Chcete-li pokračovat, aktualizujte Cherry Studio.",
   "dialog.diagnostic_bundle.title": "Uložit diagnostický balíček",
   "dialog.diagnostic_bundle.zip_filter": "Archiv ZIP",
   "dialog.external_link.message": "Otevřít tento odkaz v externí aplikaci?",
