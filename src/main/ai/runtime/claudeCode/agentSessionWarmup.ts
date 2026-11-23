@@ -48,6 +48,7 @@ import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { taskCompactionPercent } from '../taskCompaction'
 import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
@@ -125,6 +126,7 @@ interface ConnectionMaterializationFacts {
   mcp: unknown[]
   skills: string[]
   notificationContext: AgentNotificationContext
+  compactionPercent?: number
   contextWindow: number | null
   maxOutputTokens: number | null
   fastMode: boolean
@@ -313,7 +315,7 @@ export async function deriveConnectionConfig(
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
-  const session = agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   if (!session?.agentId) return unroutable
   const agent = agentService.getAgent(session.agentId)
   if (!agent) return unroutable
@@ -430,6 +432,7 @@ async function deriveConnectionConfigFromSnapshot(
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
+    compactionPercent: materialized ? materialized.compactionPercent : taskCompactionPercent(session),
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName:
       materialized?.promptModelName !== undefined
@@ -517,7 +520,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
    *  default while ignoring session overrides. */
   headless = false
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
-  const session = agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   if (!session?.agentId) return undefined
 
   const agent = agentService.getAgent(session.agentId)
@@ -536,6 +539,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // Freeze the model metadata that configures this subprocess. Re-reading it after async route,
   // settings, and skill materialization can otherwise make the baseline describe a different
   // compaction window from the one actually passed to Claude Code.
+  const compactionPercent = taskCompactionPercent(session)
   const contextWindow = model.contextWindow
   const maxOutputTokens = model.maxOutputTokens
   const nativeFastMode =
@@ -577,6 +581,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         contextWindow,
+        compactionPercent,
         maxOutputTokens,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
@@ -611,6 +616,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
       notificationContext,
+      compactionPercent,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
       fastMode: route.branch === 'gateway' ? fastMode : nativeFastMode,

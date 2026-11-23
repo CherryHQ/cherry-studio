@@ -59,10 +59,13 @@ it('reuses its healthy worker, rejects unmatched prompts, and releases the owned
   await stopMockProvider(paths)
   expect(isAlive(record.pid)).toBe(false)
   expect(findListeningPid(record.platform, record.port)).toBeUndefined()
-  expect(JSON.parse(readFileSync(join(paths.logs, 'aimock-summary.json'), 'utf8'))).toMatchObject({
+  const summary = readFileSync(join(paths.logs, 'aimock-summary.json'), 'utf8')
+  expect(JSON.parse(summary)).toMatchObject({
     requests: 1,
-    unmatched: 1
+    unmatched: 1,
+    unmatchedRequests: [{ time: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/), status: 503, matchedFixture: false }]
   })
+  expect(summary).not.toContain('UNMATCHED_MARKER_987')
   await stopMockProvider(paths)
 })
 

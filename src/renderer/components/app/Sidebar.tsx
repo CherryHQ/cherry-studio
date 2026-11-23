@@ -1,4 +1,4 @@
-import { arrayMove } from '@dnd-kit/sortable'
+import { arrayMove } from '@dnd-kit/helpers'
 import { CircleOff, LoaderCircle, Settings, WifiOff } from 'lucide-react'
 import type { ReactElement, Ref } from 'react'
 import {
