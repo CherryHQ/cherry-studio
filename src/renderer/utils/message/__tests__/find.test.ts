@@ -293,6 +293,39 @@ describe('getWebSourcesMarkdown', () => {
     }
   })
 
+  it('bounds unfinished comments to their parsed container', () => {
+    const text = '> <!-- unfinished\n\nVisible claim [cite:1].\n\n<!-- later -->'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.content.match(/<!-- later -->/g)).toHaveLength(1)
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('protects each same-line comment but not a visible suffix', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text: '<!-- first --> <!-- [cite:1] -->' }
+    ] as MessageExportView['parts'])
+    expect(getCitedWebSources(message)).toEqual([])
+    message.parts[1] = { type: 'text', text: '<!-- first --> <!-- second --> Visible [cite:1].' }
+    expect(getCitedWebSources(message)).toHaveLength(1)
+  })
+
+  it('accepts escaped-looking backticks as closers inside a fallback literal', () => {
+    const text = '    `literal [cite:1]\\`\n\nReal claim [cite:2].'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://second.com', title: 'Second' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.content).toContain('`literal [cite:1]\\`')
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Second](https://second.com)')
+  })
+
   it('collects copy eligibility after duplicate collapse changes Markdown boundaries', () => {
     const message = createExportView([
       { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },

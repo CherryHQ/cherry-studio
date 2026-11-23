@@ -81,18 +81,27 @@ export function findMarkdownCodeRanges(content: string, protectAllCodeBlocks = f
     ) {
       const { start, end } = node.position
       if (start.offset !== undefined && end.offset !== undefined) {
-        const commentEnd = node.type === 'html' ? content.indexOf('-->', start.offset + 4) : -1
-        const range = { start: start.offset, end: commentEnd >= 0 ? commentEnd + 3 : end.offset }
+        if (node.type === 'html') {
+          const raw = content.slice(start.offset, end.offset)
+          for (const comment of raw.matchAll(/<!--[\s\S]*?(?:-->|$)/g)) {
+            const range = { start: start.offset + comment.index, end: start.offset + comment.index + comment[0].length }
+            ranges.push(range)
+            allCodeRanges.push(range)
+          }
+          continue
+        }
+        const range = { start: start.offset, end: end.offset }
         allCodeRanges.push(range)
         if (node.type !== 'code' || isCitationOpaqueCode(node, content, start.offset, end.offset)) ranges.push(range)
         else {
           // The stray-indentation fallback remains prose, but its backtick literals are opaque.
           const raw = content.slice(start.offset, end.offset)
-          const runs = [...raw.matchAll(/`+/g)].filter((run) => {
+          const runs = [...raw.matchAll(/`+/g)]
+          const escapedOpener = (index: number) => {
             let slashes = 0
-            for (let j = run.index - 1; j >= 0 && raw[j] === '\\'; j--) slashes++
-            return slashes % 2 === 0
-          })
+            for (let j = runs[index].index - 1; j >= 0 && raw[j] === '\\'; j--) slashes++
+            return slashes % 2 !== 0
+          }
           // Build next-equal-run links once. Never rescan the prefix for each opener.
           const next = new Map<number, number>()
           const matching = new Map<number, number>()
@@ -102,6 +111,7 @@ export function findMarkdownCodeRanges(content: string, protectAllCodeBlocks = f
             next.set(runs[i][0].length, i)
           }
           for (let i = 0; i < runs.length; i++) {
+            if (escapedOpener(i)) continue
             const close = matching.get(i)
             if (close === undefined) continue
             ranges.push({
