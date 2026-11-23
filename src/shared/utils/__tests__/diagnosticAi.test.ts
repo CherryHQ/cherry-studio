@@ -12,6 +12,8 @@ const bundleInput = {
   includeTraces: false,
   range: '24h' as const
 }
+// Uploads choose chat history per conversation (`chatTopicId`), not with the export-wide flag.
+const uploadInput = { includeLogs: false, includeTraces: false, range: '24h' as const }
 
 describe('diagnosticAiDiagnosisSchema', () => {
   it('accepts a diagnosis without model or run metadata and rejects extra payloads', () => {
@@ -57,7 +59,7 @@ describe('diagnosticAiDiagnosisSchema', () => {
     ).toBe(true)
     expect(
       diagnosticsRequestSchemas['diagnostics.bundle.upload'].input.safeParse({
-        ...bundleInput,
+        ...uploadInput,
         description: 'The app froze.',
         aiDiagnosis: diagnosis
       }).success
@@ -144,7 +146,7 @@ describe('projectDiagnosticAiDiagnosis', () => {
     expect(diagnosticAiDiagnosisSchema.safeParse(projected).success).toBe(true)
     expect(
       diagnosticsRequestSchemas['diagnostics.bundle.upload'].input.safeParse({
-        ...bundleInput,
+        ...uploadInput,
         description: 'The app froze.',
         aiDiagnosis: projected
       }).success
