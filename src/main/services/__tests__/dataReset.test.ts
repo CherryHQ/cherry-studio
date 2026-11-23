@@ -14,6 +14,7 @@ const REGISTRY_OVERRIDE = `${USER_DATA}/Runtime/provider-registry-override`
 let applicationMock: ReturnType<typeof createMockApplication>
 const showMessageBoxMock = vi.fn()
 const showErrorBoxMock = vi.fn()
+const writeTextMock = vi.fn()
 const appendFileSyncMock = vi.fn()
 const rmSyncMock = vi.fn()
 const readdirSyncMock = vi.fn()
@@ -150,8 +151,10 @@ function stubElectron() {
   vi.doMock('electron', () => ({
     __esModule: true,
     app: { isPackaged: false, isReady: () => true, getLocale: () => 'en-US' },
+    clipboard: { writeText: writeTextMock },
     dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
-    session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
+    session: { defaultSession, fromPartition: vi.fn(() => webviewSession) },
+    shell: { openExternal: vi.fn() }
   }))
 }
 
@@ -630,6 +633,44 @@ describe('runDataReset', () => {
     markReady()
     await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledOnce())
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'a path mismatch',
+      setup: () => {
+        stubAll(pendingMarker({ canonicalPath: '/mock/old-target' }))
+        realpathNativeMock.mockImplementation(() => '/mock/new-target')
+      },
+      cause: ['/mock/old-target', '/mock/new-target']
+    },
+    {
+      name: 'an unrecordable attempt count',
+      setup: () => {
+        stubAll(pendingMarker())
+        fsCtl.failWrite = true
+      },
+      cause: ['EROFS']
+    },
+    {
+      name: 'a terminal wipe failure',
+      setup: () => {
+        stubAll(pendingMarker({ attempts: 1 }))
+        rmSyncMock.mockImplementation((target: string) => {
+          if (String(target).endsWith('/Data')) throw new Error('EBUSY: resource busy')
+        })
+      },
+      cause: [`${USER_DATA}/Data`]
+    }
+  ])('copies the cause of $name, not the warning text', async ({ setup, cause }) => {
+    setup()
+    showMessageBoxMock.mockResolvedValueOnce({ response: 1 }).mockResolvedValue({ response: 0 })
+
+    await runReset()
+
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(2))
+    const copied = String(writeTextMock.mock.calls[0]?.[0])
+    for (const text of cause) expect(copied).toContain(text)
   })
 
   it('abandons a marker that already reached the attempt cap without another pass', async () => {
