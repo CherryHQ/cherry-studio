@@ -1,5 +1,5 @@
 import { ArrowLeft, Copy, FileUp, RefreshCw, Sparkles } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
@@ -567,10 +567,10 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
   const shownError = technicalError(error, errorContext)
-  // The shared notice can be hours old; this dialog shows only results of checks made after it opened.
-  useLayoutEffect(() => {
-    appUpdateCheckService.setUpdateNotice(null)
-  }, [])
+  // The shared notice can be hours old and still belong to About; hide it here until a new result replaces it.
+  const [noticeAtOpen, setNoticeAtOpen] = useState(noticeKey)
+  if (noticeAtOpen !== null && noticeKey !== noticeAtOpen) setNoticeAtOpen(null)
+  const shownNoticeKey = noticeKey === noticeAtOpen ? null : noticeKey
   const [availableVersion, setAvailableVersion] = useState<string | null>(null)
   const [autoUpdatePreference] = usePreference('app.dist.auto_update.enabled')
   // The hook reports the default (on) until the stored value loads; never query on that guess.
@@ -692,7 +692,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </DialogHeader>
       <ErrorUpdateBanner
         appUpdateState={appUpdateState}
-        noticeKey={noticeKey}
+        noticeKey={shownNoticeKey}
         onRetry={checkForUpdate}
         availableVersion={availableVersion}
         onUpdate={checkForUpdate}

@@ -1243,6 +1243,15 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
   })
 
+  it('leaves the notice another surface shows untouched when this dialog opens', () => {
+    appUpdateCheckService.setUpdateNotice('settings.about.updateNotPublished')
+
+    renderErrorDetailContent({ error: providerError })
+
+    expect(screen.queryByRole('button', { name: 'Open download page' })).not.toBeInTheDocument()
+    expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateNotPublished')
+  })
+
   it('keeps check-again and opens the official releases page only when a failed manual check asks for it', async () => {
     const user = userEvent.setup()
     let meta = document.querySelector('meta[name="logger-window-source"]')
