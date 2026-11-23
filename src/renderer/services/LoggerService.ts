@@ -3,6 +3,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { ErrorObservation } from '@shared/types/errorReporting'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
+import { getLogError, sanitizeLogValue, toSafeError } from '@shared/utils/logSerialization'
+import { REDACTED } from '@shared/utils/redaction'
 
 // check if the current process is a worker
 const IS_WORKER = typeof window === 'undefined'
@@ -24,6 +26,38 @@ const MAIN_LOG_LEVEL = LEVEL.WARN
 // `<meta name="logger-window-source" content="...">`. Keep this attribute name
 // in sync with those HTML files (see src/renderer/windows/README.md).
 const WINDOW_SOURCE_META_NAME = 'logger-window-source'
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Diagnostic slots may contain arbitrary rejections; only the projected output is sent over IPC.
+function serializeLogDatum(value: unknown) {
+  try {
+    if (value === undefined) return undefined
+
+    if (value instanceof Error) {
+      const safe = toSafeError(value)
+      const serialized = { name: safe.name, errorMessage: safe.message, stack: safe.stack, code: safe.code }
+
+      if (safe.reportingHandled) Object.assign(serialized, { reportingHandled: true })
+
+      return serialized
+    }
+
+    return sanitizeLogValue(value)
+  } catch {
+    return REDACTED
+  }
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The force-send marker is read from raw diagnostic metadata; an unreadable property must not interrupt logging.
+function forceMainLog(value: unknown): boolean {
+  try {
+    if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return false
+
+    // oxlint-disable-next-line anti-slop/no-reflect-get -- Preserve virtual Proxy getters without requiring a separate has trap; the surrounding catch handles unreadable markers.
+    return Reflect.get(value, 'logToMain') === true
+  } catch {
+    return false
+  }
+}
 
 /**
  * Read the window source declared by the `<meta name="logger-window-source">` tag.
@@ -131,7 +165,11 @@ export class LoggerService {
 
     // Copy all properties from the base logger
     newLogger.module = module
-    newLogger.context = { ...this.context, ...context }
+    try {
+      newLogger.context = { ...this.context, ...context }
+    } catch {
+      newLogger.context = this.context
+    }
 
     return newLogger
   }
@@ -146,7 +184,8 @@ export class LoggerService {
    * @param message - The log message
    * @param data - Additional data to log
    */
-  private processLog(level: LogLevel, message: string, data: any[]): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Console and observers keep raw diagnostics; only independently projected values cross IPC.
+  private processLog(level: LogLevel, message: string, data: unknown[]): void {
     // Precedence: explicit initWindowSource() > <meta>-derived source > UNKNOWN fallback.
     let windowSource = this.window || this.derivedWindow
 
@@ -197,17 +236,13 @@ export class LoggerService {
     }
 
     // if the last data is an object with logToMain: true, force log to main
-    const forceLogToMain = data.length > 0 && data[data.length - 1]?.logToMain === true
+    const forceLogToMain = data.length > 0 && forceMainLog(data[data.length - 1])
 
     if (currentLevel >= LEVEL_MAP[this.logToMainLevel] || forceLogToMain) {
       const source: LogSourceWithContext = {
         process: 'renderer',
         window: windowSource,
         module: this.module
-      }
-
-      if (Object.keys(this.context).length > 0) {
-        source.context = this.context
       }
 
       // remove the last item if it is an object with logToMain: true
@@ -217,29 +252,45 @@ export class LoggerService {
 
       // In renderer process, forward the log to main via the App_LogToMain channel
       if (!IS_WORKER) {
-        // Structured clone drops custom Error fields such as cancellation names and codes.
-        const serializedData = data.map((item) => {
-          if (!(item instanceof Error)) return item
-          const serialized = { name: item.name, errorMessage: item.message, stack: item.stack }
+        const context = sanitizeLogValue(this.context)
 
-          if ('reportingHandled' in item && item.reportingHandled === true)
-            Object.assign(serialized, { reportingHandled: true })
+        if (
+          context !== null &&
+          typeof context === 'object' &&
+          !Array.isArray(context) &&
+          Object.keys(context).length > 0
+        ) {
+          source.context = context
+        }
 
-          return Object.assign(serialized, {
-            code: 'code' in item && typeof item.code === 'string' ? item.code : undefined
-          })
-        })
+        const originalError = level === LEVEL.ERROR ? getLogError(data[0]) : undefined
+        const serializedData = data.map(serializeLogDatum)
 
-        void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, serializedData)
+        try {
+          void window.electron.ipcRenderer
+            .invoke(IpcChannel.App_LogToMain, source, level, message, serializedData)
+            .catch(() => undefined)
+        } catch {
+          // A logging transport failure must not replace the application's error or prevent its observer from running.
+        }
 
         if (level === LEVEL.ERROR) {
           try {
+            const first = serializedData[0]
+            const isObject = first !== null && typeof first === 'object'
+
+            const entry = {
+              ...source,
+              level,
+              data: first === undefined || isObject ? serializedData.slice(1) : serializedData
+            }
+
             this.errorReporter?.({
-              error: data[0] instanceof Error ? data[0] : undefined,
-              entry: { ...serializedData[0], ...source, level, data: serializedData.slice(1) }
+              error: originalError,
+              entry: isObject ? { ...first, ...entry } : entry
             })
           } catch (error) {
-            this.warn('Failed to report logged error', error instanceof Error ? error : { error })
+            this.warn('Failed to report logged error', error)
           }
         }
       } else {
@@ -251,14 +302,16 @@ export class LoggerService {
   /**
    * Log error message
    */
-  public error(message: string, ...data: LogContextData): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Caught values may be arbitrary; the renderer owns safe IPC projection while preserving original Error identity locally.
+  public error(message: string, ...data: [diagnostic?: unknown, ...metadata: LogContextData]): void {
     this.processLog(LEVEL.ERROR, message, data)
   }
 
   /**
    * Log warning message
    */
-  public warn(message: string, ...data: LogContextData): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Caught values may be arbitrary; the renderer owns safe IPC projection while preserving original Error identity locally.
+  public warn(message: string, ...data: [diagnostic?: unknown, ...metadata: LogContextData]): void {
     this.processLog(LEVEL.WARN, message, data)
   }
 

@@ -14,8 +14,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { ErrorObservation } from '@shared/types/errorReporting'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
-import type { Serializable } from '@shared/types/serializable'
-import { REDACTED, redactSecretText } from '@shared/utils/redaction'
+import { getLogError, sanitizeLogValue, toSafeError } from '@shared/utils/logSerialization'
+import { REDACTED } from '@shared/utils/redaction'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',
@@ -46,89 +46,6 @@ const SYSTEM_INFO = {
 }
 
 const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
-
-// Mirrors the shared-ai safe message length without importing AI logic:
-// winston concatenates fileMessage and entry.message, so this counts twice.
-const MAX_ERROR_MESSAGE_CHARS = 500
-const MAX_ERROR_STACK_CHARS = 4000
-const MAX_SAFE_ERROR_TAG_CHARS = 100
-const MAX_NESTED_SANITIZE_DEPTH = 5
-
-type SafeLogError = Pick<Error, 'name' | 'message' | 'stack'> & {
-  reportingHandled?: true
-  code?: string
-  statusCode?: number
-  status?: number
-  reason?: string
-  isRetryable?: boolean
-}
-
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error instances can carry overwritten message values; coerce and redact only within toSafeError's guarded serialization.
-function safeErrorText(value: unknown): string {
-  const redacted = redactSecretText(String(value ?? ''))
-
-  return redacted.length > MAX_ERROR_MESSAGE_CHARS ? `${redacted.slice(0, MAX_ERROR_MESSAGE_CHARS)}…` : redacted
-}
-
-function toSafeError(error: Error): SafeLogError {
-  try {
-    const safe: SafeLogError = {
-      name: redactSecretText(String(error.name ?? 'Error')).slice(0, MAX_SAFE_ERROR_TAG_CHARS),
-      message: safeErrorText(error.message)
-    }
-
-    if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
-
-    if ('reportingHandled' in error && error.reportingHandled === true) safe.reportingHandled = true
-
-    if ('code' in error && typeof error.code === 'string' && error.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
-      safe.code = redactSecretText(error.code)
-    }
-
-    if ('statusCode' in error && typeof error.statusCode === 'number') safe.statusCode = error.statusCode
-
-    if ('status' in error && typeof error.status === 'number') safe.status = error.status
-
-    if ('reason' in error && typeof error.reason === 'string' && error.reason.length <= MAX_SAFE_ERROR_TAG_CHARS) {
-      safe.reason = redactSecretText(error.reason)
-    }
-
-    if ('isRetryable' in error && typeof error.isRetryable === 'boolean') safe.isRetryable = error.isRetryable
-
-    return safe
-  } catch {
-    return { name: 'Error', message: REDACTED }
-  }
-}
-
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Main callers and renderer logs supply arbitrary metadata; bound recursive traversal and redact unsupported or unreadable values before file output.
-function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<object>()): Serializable {
-  try {
-    if (value instanceof Error) return toSafeError(value)
-
-    if (value == null) return null
-
-    if (typeof value === 'string' || typeof value === 'boolean') return value
-
-    if (typeof value === 'number') return Number.isFinite(value) ? value : null
-
-    if (typeof value !== 'object') return REDACTED
-
-    if (seen.has(value)) return '[Circular]'
-
-    if (depth >= MAX_NESTED_SANITIZE_DEPTH) return '[Truncated]'
-    seen.add(value)
-
-    if (Array.isArray(value)) return value.map((item) => sanitizeLogValue(item, depth + 1, seen))
-    const out: Record<string, Serializable> = {}
-
-    for (const [key, nested] of Object.entries(value)) out[key] = sanitizeLogValue(nested, depth + 1, seen)
-
-    return out
-  } catch {
-    return REDACTED
-  }
-}
 
 /**
  * CS_DIAGNOSTICS makes a packaged build behave like dev for logging: the verbose file
@@ -354,29 +271,33 @@ export class LoggerService {
       }
     }
 
-    // Winston merges only the first splat object; collapse caller data and source into one entry.
+    // Collapse caller data and source into one envelope before passing it to Winston.
     // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- This Winston envelope combines sanitized fields with raw positional values; observers validate the fields they consume.
     const entry: Record<string, unknown> = {}
     const rest: unknown[] = []
     let fileMessage = message
 
     const [first, ...others] = meta
+    const originalError = getLogError(first)
 
-    if (first instanceof Error) {
+    if (originalError) {
       // Bounded name/message/stack plus small diagnostic tags only: custom
       // enumerable props (e.g. AI SDK requestBodyValues) never reach disk (#20363).
-      Object.assign(entry, toSafeError(first))
+      Object.assign(entry, toSafeError(originalError))
       entry.errorMessage = entry.message
       fileMessage = `${message} ${String(entry.message)}`
     } else if (first !== null && typeof first === 'object') {
       const sanitized = sanitizeLogValue(first)
 
-      if (sanitized !== null && typeof sanitized === 'object') Object.assign(entry, sanitized)
-      else rest.push(sanitized)
+      if (sanitized !== null && typeof sanitized === 'object') {
+        for (const [key, value] of Object.entries(sanitized)) {
+          Object.defineProperty(entry, key, { value, enumerable: true, configurable: true, writable: true })
+        }
+      } else rest.push(sanitized)
 
       if (typeof entry.errorMessage === 'string') fileMessage = `${message} ${entry.errorMessage}`
     } else if (first !== undefined) {
-      rest.push(first)
+      rest.push(sanitizeLogValue(first))
     }
 
     for (const item of others) {
@@ -417,7 +338,21 @@ export class LoggerService {
       entry.appver = APP_VERSION
     }
 
-    this.logger.log(level, fileMessage, entry)
+    let metadataMessage = ''
+    if (entry.message) {
+      try {
+        metadataMessage = ` ${String(entry.message)}`
+      } catch {
+        metadataMessage = ` ${REDACTED}`
+      }
+    }
+
+    // Winston's splat overload copies metadata with Object.assign, which consumes an own __proto__ field.
+    this.logger.log({
+      ...entry,
+      level,
+      message: `${fileMessage}${metadataMessage}`
+    })
 
     if (
       source.process === 'main' &&
@@ -429,7 +364,7 @@ export class LoggerService {
         this.reporting.active = true
 
         try {
-          this.reporting.observer?.({ error: first instanceof Error ? first : undefined, entry: { ...entry, level } })
+          this.reporting.observer?.({ error: originalError, entry: { ...entry, level } })
         } catch {
           // Error observation must never interrupt local logging or the caller.
         } finally {

@@ -17,6 +17,7 @@ sources:
   - src/main/services/errorReporting/ErrorReportingService.ts
   - src/renderer/services/sentry.ts
   - src/shared/utils/sentry.ts
+  - src/shared/utils/logSerialization.ts
   - src/main/ai/errorReporting.ts
   - src/main/ai/runtime/aiSdk/failureFacts.ts
   - src/main/ai/utils/customFetch.ts
@@ -255,9 +256,10 @@ In your code, you can call `logger` at any time to record logs. The supported le
 For the meaning of each level, please refer to the subsequent sections.
 
 Logging methods take a string message followed by optional values. Main-process
-`error` and `warn` accept arbitrary thrown values directly; native `Error` instances
-retain their identity for report deduplication. Renderer logging and the other
-levels accept `Error` or object context values (using `logger.LEVEL` as an example):
+`error` and `warn`, and the first diagnostic argument of their renderer counterparts,
+accept arbitrary thrown values directly. Native `Error` instances retain their
+identity for report deduplication. Other arguments and levels accept `Error` or
+object context values (using `logger.LEVEL` as an example):
 
 ```typescript
 logger.LEVEL(message)
@@ -267,17 +269,27 @@ logger.LEVEL(message, error, CONTEXT)
 logger.LEVEL(message, CONTEXT, MORE_CONTEXT)
 ```
 
-| Parameter | Type     | Description                                                                                                                                                                                                                                                                                                                   |
-| --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `message` | `string` | Required. This is the core field of the log, containing the main content to be recorded.                                                                                                                                                                                                                                      |
-| `CONTEXT` | `object` | Optional. Additional information to be recorded in the log file. It is recommended to use the `{ key: value, ...}` format.                                                                                                                                                                                                    |
-| `error`   | `Error` or main-process `unknown` | Optional. Main-process `error`/`warn` accept the original caught value. Renderer callers narrow untyped values to an `Error` or object context before logging. Native error stack traces use the existing bounded error projection. |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | `string` | Required message describing the operation. |
+| `CONTEXT` | `object` | Optional structured information recorded in the log file. |
+| `error` | `unknown` | Original caught value. The renderer projects it before IPC and retains the original Error for console output and error observers. |
 
 Inside structured context written to JSON file logs, `undefined` and non-finite
 numbers become `null`; `bigint`, function, and symbol values become `<redacted>`.
 Circular references and excessive nesting use `[Circular]` and `[Truncated]` placeholders.
 Unreadable error fields or context values, including throwing getters, are replaced
 with redacted placeholders so JSON file logging can retain the operation record.
+
+Renderer data and source context are projected independently before IPC. Top-level
+Errors retain the existing `name/errorMessage/stack/code` wire fields and optional
+reporting-ownership marker; their text is redacted and bounded. Ordinary metadata
+strings are retained. Error objects share the same five-level nesting limit as
+other objects, and repeated projection preserves the result. Literal
+prototype-named keys remain own data properties through file output.
+
+IPC send failures do not replace the original operation failure or block the
+renderer Error observer. Logs are not retried through the same logger.
 
 #### Recording non-`object` type context information
 

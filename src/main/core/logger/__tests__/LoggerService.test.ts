@@ -79,6 +79,48 @@ describe('LoggerService file output', () => {
     })
   })
 
+  it('retains own prototype-named metadata fields in the final file record', async () => {
+    const { loggerService, readLine } = await loadLogger()
+    const metadata = JSON.parse('{"__proto__":{"enabled":true},"constructor":"label","keep":"visible"}')
+    loggerService.withContext('MetadataTest').warn('literal %s message', metadata)
+
+    const line = await readLine()
+    expect(Object.hasOwn(line, '__proto__')).toBe(true)
+    expect(line).toMatchObject({
+      ['__proto__']: { enabled: true },
+      constructor: 'label',
+      keep: 'visible',
+      message: 'literal %s message',
+      process: 'main',
+      module: 'MetadataTest'
+    })
+    expect(Object.getPrototypeOf(line)).toBe(Object.prototype)
+  })
+
+  it('projects arbitrary first diagnostics without suppressing error observation', async () => {
+    const { loggerService, readLine } = await loadLogger()
+    const observer = vi.fn()
+    loggerService.setErrorReporter(observer)
+    const { proxy, revoke } = Proxy.revocable({}, {})
+    revoke()
+    loggerService.error('revoked proxy', proxy)
+    loggerService.error('big integer', 1n)
+    loggerService.error('function', () => 'private')
+
+    expect(await readLine(0)).toMatchObject({ message: 'revoked proxy', data: ['<redacted>'] })
+    expect(await readLine(1)).toMatchObject({ message: 'big integer', data: ['<redacted>'] })
+    expect(await readLine(2)).toMatchObject({ message: 'function', data: ['<redacted>'] })
+    expect(observer.mock.calls.map(([observation]) => observation.error)).toEqual([undefined, undefined, undefined])
+    expect(observer.mock.calls[0][0].entry.data).toEqual(['<redacted>'])
+  })
+
+  it('retains the operation when projected metadata has a non-coercible message', async () => {
+    const { loggerService, readLine } = await loadLogger()
+    loggerService.warn('operation', { message: { toString: () => 'private' } })
+
+    expect(await readLine()).toMatchObject({ message: 'operation <redacted>', process: 'main', level: 'warn' })
+  })
+
   it('keeps module/process when the call carries data arguments', async () => {
     const { loggerService, lines, readLine } = await loadLogger()
     const error = Object.assign(new Error('io fail'), { code: 'EFAKE' })
