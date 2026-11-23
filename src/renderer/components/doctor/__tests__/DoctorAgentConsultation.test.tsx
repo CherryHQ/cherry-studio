@@ -216,6 +216,48 @@ describe('DoctorAgentConsultation', () => {
     expect(screen.getByText('upstream said: teapot overflow 418x')).toBeInTheDocument()
   })
 
+  it('masks a credential echoed in an unclassified check failure before Details shows it', async () => {
+    const user = userEvent.setup()
+    mocks.checkDoctorAgentModel.mockRejectedValueOnce(
+      new TypeError('Headers.set: "Bearer sk-synthetic-secret-0123456789\n" is an invalid header value.')
+    )
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+
+    expect(screen.getByText(/invalid header value/)).toHaveTextContent('Bearer <redacted>')
+    expect(document.body).not.toHaveTextContent('sk-synthetic-secret-0123456789')
+  })
+
+  it('bounds an oversized unclassified check failure instead of rendering it whole', async () => {
+    const user = userEvent.setup()
+    mocks.checkDoctorAgentModel.mockRejectedValueOnce(new Error('z'.repeat(5000)))
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+
+    expect(screen.getByText(/^z+…$/).textContent.length).toBeLessThanOrEqual(501)
+  })
+
+  it('exposes whether the Details explanation is open on the Details button', async () => {
+    const user = userEvent.setup()
+    mocks.checkDoctorAgentModel.mockRejectedValueOnce(new Error('upstream said: teapot overflow 418x'))
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
+    const details = await screen.findByRole('button', { name: /common\.detail/ })
+    expect(details).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(details)
+    expect(details).toHaveAttribute('aria-expanded', 'true')
+    await user.click(details)
+    expect(details).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('retries a failed check and starts immediately after it passes', async () => {
     const user = userEvent.setup()
     mocks.checkDoctorAgentModel
