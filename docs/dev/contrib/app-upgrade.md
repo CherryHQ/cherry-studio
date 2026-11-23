@@ -53,7 +53,7 @@ Before each update check, the client preserves existing updater headers and sets
 
 The selected electron-updater channel determines which edition-specific manifest the client requests; no separate release-channel header is sent.
 
-Update checks run independently of account session recovery. The CN macOS compatibility package uses the CN stable feed with `X-Desktop-Update-Bridge: cn-macos`, preserving the stored preview-channel preference. Releases selects a newer compatible target from the legacy and unified feeds.
+Update checks run independently of account session recovery. The CN macOS compatibility package uses the CN stable feed with `X-Desktop-Update-Bridge: cn-macos`, preserving the stored preview-channel preference. Releases selects a newer compatible target.
 
 ## Differential Downloads
 

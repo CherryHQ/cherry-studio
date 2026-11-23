@@ -14,7 +14,7 @@ vi.mock('@data/migration/legacyUpgrade', async (importOriginal) => ({
   findLegacyUpgradeProfile: vi.fn()
 }))
 
-vi.mock('@main/utils/appEdition', () => ({ getPackageEdition: () => 'global' }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
 vi.mock('@data/migration/legacyUpgradeWindow', () => ({ showLegacyUpgradeWindow: vi.fn() }))
 vi.mock('@main/data/bootConfig', () => ({ bootConfigService: { get: vi.fn(), set: vi.fn(), persist: vi.fn() } }))

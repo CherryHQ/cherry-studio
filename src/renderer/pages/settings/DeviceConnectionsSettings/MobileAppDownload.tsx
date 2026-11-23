@@ -8,11 +8,11 @@ import androidLogo from '@renderer/assets/images/deviceConnections/android.svg'
 import googlePlayLogo from '@renderer/assets/images/deviceConnections/google-play.png'
 import iosLogo from '@renderer/assets/images/deviceConnections/ios.svg'
 import { ipcApi } from '@renderer/ipc'
-import { useAppEdition } from '@renderer/utils/appEdition'
+import { getAppEdition } from '@renderer/utils/appEdition'
 
 export function MobileAppDownload() {
   const { t } = useTranslation()
-  const edition = useAppEdition()
+  const edition = getAppEdition()
   const [platform, setPlatform] = useState('ios')
   const {
     data: androidUrl,

@@ -65,8 +65,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 vi.mock('@renderer/utils/appEdition', () => ({
-  getAppEdition: () => cloudMocks.appEdition,
-  useAppEdition: () => cloudMocks.appEdition
+  getAppEdition: () => cloudMocks.appEdition
 }))
 
 vi.mock('@renderer/ipc', () => {

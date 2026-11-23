@@ -8,7 +8,7 @@ import { app, dialog, nativeImage, nativeTheme, screen, session, shell } from 'e
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
-import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
@@ -48,7 +48,6 @@ const MAIN_TITLE_BAR_HEIGHT = 44
 
 @Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['DesktopRegionService'])
 export class MainWindowService extends BaseService {
   private readonly _onMainWindowCreated: Emitter<BrowserWindow>
   public readonly onMainWindowCreated: Event<BrowserWindow>

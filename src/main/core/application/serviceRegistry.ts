@@ -57,7 +57,6 @@ import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { ConversationNotificationService } from '@main/services/ConversationNotificationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
-import { DesktopRegionService } from '@main/services/DesktopRegionService'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
 import { ErrorReportingService } from '@main/services/errorReporting'
 import {
@@ -146,7 +145,6 @@ export const services = {
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
-  DesktopRegionService,
   CherryCloudService,
   CherryCloudNotificationService,
   DeepSeekHarnessService,

@@ -32,12 +32,11 @@ Logs report cache verification, transfer, asset verification, and extraction/ins
 intervals. Temporary files may be evicted by the OS.
 
 
-## Desktop region compatibility packages
+## CN macOS Electron bridge
 
 Build the compatibility package from a stable source version above the last
-legacy version and below the unified target. Set
-`CHERRY_REGION_BRIDGE_EDITION` to the original edition and use
-`--config electron-builder.region-bridge.config.cjs`. Finish packaging before
+legacy version and below the unified target. Use
+`--config electron-builder.region-bridge.config.cjs` for CN macOS. Finish packaging before
 publishing its manifests.
 
 For the CN macOS compatibility package, build the matching Electron

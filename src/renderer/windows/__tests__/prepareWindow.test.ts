@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { preferenceService } from '@data/PreferenceService'
-import { getAppEdition } from '@renderer/utils/appEdition'
 
 import { prepareWindow } from '../prepareWindow'
 
@@ -17,24 +16,6 @@ vi.mock('@renderer/services/sentry', () => ({ initSentry: initSentryMock }))
 describe('prepareWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('uses the latest main-process region when it changes during renderer startup', async () => {
-    let replyWithSnapshot!: (result: { ok: true; data: 'global' }) => void
-    vi.mocked(window.api.ipcApi.request).mockImplementationOnce(
-      () => new Promise((resolve) => (replyWithSnapshot = resolve))
-    )
-
-    const pending = prepareWindow({ preference: 'all' })
-    const onRegionChanged = vi
-      .mocked(window.api.ipcApi.on)
-      .mock.calls.find(([event]) => event === 'app.edition_changed')?.[1]
-    expect(onRegionChanged).toBeDefined()
-    onRegionChanged?.('cn')
-    replyWithSnapshot({ ok: true, data: 'global' })
-    await pending
-
-    expect(getAppEdition()).toBe('cn')
   })
 
   it("warms the full preference cache and initializes i18n for preference: 'all'", async () => {

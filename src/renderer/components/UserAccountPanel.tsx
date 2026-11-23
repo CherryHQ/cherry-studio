@@ -22,7 +22,7 @@ import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAcco
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { useAppEdition } from '@renderer/utils/appEdition'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { formatQuotaPercent, getLowestRemainingPercent } from '@renderer/utils/cherryCloudQuota'
 import { isEmoji } from '@renderer/utils/naming'
 
@@ -50,7 +50,7 @@ export function UserAccountPanel({
     isCancellingLogin,
     isAuthorizing
   } = useCherryAccountSession()
-  const isGlobalEdition = useAppEdition() === 'global'
+  const isGlobalEdition = getAppEdition() === 'global'
   const showSubscribeDot = useCherryCloudSubscribeReminder()
   const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
 

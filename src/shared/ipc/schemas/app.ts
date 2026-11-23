@@ -1,7 +1,6 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import * as z from 'zod'
 
-import { APP_EDITIONS, type AppEdition } from '../../types/appEdition'
 import {
   CACHE_CLEANUP_GROUPS,
   CACHE_CLEANUP_RESULT_STATUSES,
@@ -33,7 +32,6 @@ const cacheCleanupGroupsInputSchema = z
   })
 
 export const appRequestSchemas = {
-  'app.edition.get': defineRoute({ input: z.void(), output: z.enum(APP_EDITIONS) }),
   'app.mobile.get_android_download_url': defineRoute({ input: z.void(), output: z.url() }),
   'app.get_info': defineRoute({
     input: z.void(),
@@ -125,7 +123,6 @@ export type AppUpdaterNotAvailablePayload = {
 export type AppEventSchemas = {
   'app.updater.error': Error
   'app.updater.available': UpdateInfo
-  'app.edition_changed': AppEdition
   'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo

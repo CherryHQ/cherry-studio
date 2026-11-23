@@ -19,7 +19,7 @@ import SendMessageButton from '@renderer/components/SendMessageButton'
 import { useTabInputFocus } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
-import { useAppEdition } from '@renderer/utils/appEdition'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import {
   getComposerShortcutLabel,
   matchesComposerShortcut,
@@ -71,8 +71,7 @@ function cloneTransfer(source: DataTransfer | null): DataTransfer | undefined {
 
 function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const { t } = useTranslation()
-  const edition = useAppEdition()
-  const showAiDisclaimer = props.showAiDisclaimer && edition === 'cn'
+  const showAiDisclaimer = props.showAiDisclaimer && getAppEdition() === 'cn'
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const selectionRef = useRef({ start: props.text.length, end: props.text.length })
   const intentRef = useRef<ComposerDeferredIntent>({})
