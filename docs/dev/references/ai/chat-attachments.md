@@ -196,13 +196,16 @@ existing path.
 the ASR, Vision, OCR, and execution-budget configuration. A repeated turn does
 not duplicate preprocessing, and configuration changes invalidate the cache.
 The local stages (transcript, frame plan, per-frame OCR text) are also cached by
-file content (size plus the first and last MiB), so the stored copy a send
-analyzes reuses work done on the picked file. A frame whose OCR fails is retried
+file content (a full-file XXH3 hash, cached per file version), so the stored
+copy a send analyzes reuses work done on the picked file, and two files that
+differ anywhere never share results. A frame whose OCR fails is retried
 once and otherwise left for the next run; text already read is kept.
 
 Attaching audio or video in the chat composer starts that local pass through
-`file_processing.media.prepare` (no vision calls) and shows a spinner on the
-file card. A send waits for a running pass and then adds only the vision calls.
+`file_processing.media.prepare` and shows a spinner on the file card. That pass
+stays on the device: it makes no vision calls and runs OCR only with a builtin
+processor, leaving a remote OCR processor to the send. A send waits for a
+running pass and then adds the vision calls and any remote OCR.
 While a turn's attachments are analyzed, before the model stream opens, the
 stage is published to the shared cache key `message.media_analysis.<messageId>`,
 and the reply placeholder shows it.
