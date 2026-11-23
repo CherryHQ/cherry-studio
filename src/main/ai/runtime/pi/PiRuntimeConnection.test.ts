@@ -42,6 +42,7 @@ import {
   tempDir
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, subagentCall, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
+import type * as AgentPromptModule from '../agentPrompt'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
@@ -265,7 +266,7 @@ describe('desktop Pi root connection', () => {
   }
 
   it('delivers a saved edited handoff as system context when the next model resumes native history', async () => {
-    const { buildAgentRuntimePrompt } = await vi.importActual<typeof import('../agentPrompt')>('../agentPrompt')
+    const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPromptModule>('../agentPrompt')
     mocks.prompt.mockImplementation(buildAgentRuntimePrompt)
     const first = await connect()
     await first.connection.send({ message: message('Original task context: export.ts') })

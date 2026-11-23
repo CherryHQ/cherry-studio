@@ -44,7 +44,7 @@ describe('model-switch handoff persistence and generation', () => {
           providerId: 'fixture',
           modelId: name,
           name,
-          capabilities: ['chat'],
+          capabilities: [],
           supportsStreaming: true,
           orderKey: name
         })
