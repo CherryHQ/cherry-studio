@@ -209,7 +209,6 @@ export function WorkspaceSelector({
   const workspaceListContent = isLoading ? null : filteredWorkspaces.length === 0 ? (
     <EmptyState
       compact
-      preset="no-result"
       description={t('agent.session.workspace_selector.empty_text')}
       className="min-h-full px-3 py-4"
     />
@@ -256,12 +255,13 @@ export function WorkspaceSelector({
 
           return (
             <ScrollArea
+              contentProps={{ className: 'px-1 py-1' }}
               viewportProps={{
                 ref: listRef,
                 id: listboxId,
                 role: 'listbox',
                 tabIndex: -1,
-                className: 'px-1 py-1 outline-none'
+                className: 'outline-none'
               }}
               className="min-h-0 flex-1"
               style={{ height: listHeight }}>

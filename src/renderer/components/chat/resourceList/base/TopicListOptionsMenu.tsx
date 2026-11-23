@@ -1,7 +1,7 @@
-import { Bot, Clock, History } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Bot, History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
@@ -10,10 +10,6 @@ const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
 const TOPIC_DISPLAY_LABEL_KEYS: Record<TopicDisplayMode, string> = {
   assistant: 'chat.topics.display.assistant',
   time: 'chat.topics.display.time'
-}
-const TOPIC_DISPLAY_ICONS: Record<TopicDisplayMode, ReactNode> = {
-  assistant: <Bot size={16} />,
-  time: <Clock size={16} />
 }
 
 type TopicListOptionsMenuProps = {
@@ -36,14 +32,18 @@ export function TopicListOptionsMenu({
   sectionIds
 }: TopicListOptionsMenuProps) {
   const { t } = useTranslation()
+  const [sort, setSort] = usePreference('chat.topics.sort')
 
   return (
     <ConversationListOptionsMenu
+      sort={sort}
+      onSortChange={(next) => {
+        void setSort(next)
+      }}
       title={t('chat.topics.display.title')}
       mode={mode}
       onChange={onChange}
       options={TOPIC_DISPLAY_OPTIONS.map((option) => ({
-        icon: TOPIC_DISPLAY_ICONS[option],
         label: t(TOPIC_DISPLAY_LABEL_KEYS[option]),
         value: option
       }))}

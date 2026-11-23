@@ -40,14 +40,13 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
 
   // External retargets update tab.url before an async route can replace the outgoing page.
   // Cover that interval so teardown effects cannot repaint stale page loading UI.
-  const [resolvedHref, setResolvedHref] = useState(tab.url)
-  const transitionUrl = tab.url !== resolvedHref ? tab.url : null
+  const [transitionUrl, setTransitionUrl] = useState<string | null>(null)
 
   // Sync internal navigation back to tab state
   useEffect(() => {
     return router.subscribe('onResolved', ({ toLocation }) => {
       const nextHref = toLocation.href
-      setResolvedHref(nextHref)
+      setTransitionUrl(null)
       if (nextHref !== tab.url) {
         onUrlChange(nextHref)
       }
@@ -58,6 +57,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   useEffect(() => {
     const currentHref = router.state.location.href
     if (tab.url !== currentHref) {
+      setTransitionUrl(tab.url)
       // Parse the query separately because search validation can lose parameters
       // when the query is passed inside `to`.
       const [pathname, search] = tab.url.split('?')

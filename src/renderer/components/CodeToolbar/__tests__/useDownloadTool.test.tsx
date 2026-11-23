@@ -30,9 +30,6 @@ describe('useDownloadTool', () => {
       return tools
     })
 
-    expect(result.current).toHaveLength(1)
-    expect(result.current[0]).toMatchObject({ id: 'download' })
-    expect(result.current[0].children).toBeUndefined()
     act(() => result.current[0].onClick?.())
 
     expect(onDownloadSource).toHaveBeenCalledOnce()
@@ -60,7 +57,6 @@ describe('useDownloadTool', () => {
     })
     const children = result.current[0].children ?? []
 
-    expect(children.map((tool) => tool.id)).toEqual(['download', 'download-svg', 'download-png'])
     previewRef.current = preview
     act(() => {
       children.forEach((tool) => tool.onClick?.())

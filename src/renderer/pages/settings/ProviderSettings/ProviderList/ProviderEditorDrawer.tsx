@@ -403,6 +403,7 @@ export default function ProviderEditorDrawer({
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,
         authConfig: emptyAuthConfigFor(source.authType),
+        // oxlint-disable-next-line no-restricted-globals -- Duplicate nested billing settings once without sharing the source provider config.
         ...(source.settings?.billing ? { billing: structuredClone(source.settings.billing) } : {}),
         ...logoField
       }
@@ -678,7 +679,8 @@ export default function ProviderEditorDrawer({
           <DialogTitle className="text-base leading-5">{title}</DialogTitle>
         </DialogHeader>
         <ScrollArea
-          viewportProps={{ 'data-testid': 'provider-editor-scrollbar', className: 'px-6 py-2' }}
+          contentProps={{ className: 'px-6 py-2' }}
+          viewportProps={{ 'data-testid': 'provider-editor-scrollbar' }}
           className="min-h-0">
           {formContent}
         </ScrollArea>

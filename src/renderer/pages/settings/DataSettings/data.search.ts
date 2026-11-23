@@ -134,6 +134,12 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.import_settings.title'
   },
   {
+    anchorId: 'import-deepseek',
+    titleKey: 'agent.import.title',
+    panel: 'import_settings',
+    groupKey: 'settings.data.import_settings.title'
+  },
+  {
     anchorId: 'export-image',
     titleKey: 'settings.data.export_menu.image',
     panel: 'export_menu',

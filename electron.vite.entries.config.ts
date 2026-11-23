@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 
-import { mainExternalModules, mainResolveAlias } from './electron.vite.config'
+import { mainExternalModules, mainResolveAlias, sentrySourceMapPlugins } from './electron.vite.config'
 import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
 
 /**
@@ -16,7 +16,10 @@ import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
  */
 export default {
   main: {
-    plugins: [hermeticEntryGuardPlugin()],
+    plugins: [
+      hermeticEntryGuardPlugin(),
+      ...(process.env.CHERRY_RELEASE_JS_ONLY === 'true' ? sentrySourceMapPlugins('utility-process') : [])
+    ],
     resolve: { alias: mainResolveAlias },
     build: {
       externalizeDeps: { include: mainExternalModules },

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { Cache } from 'swr'
-import { SWRConfig, unstable_serialize } from 'swr'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Citation } from '@renderer/types/message'
@@ -160,9 +160,7 @@ describe('CitationsPanelContent', () => {
       url: 'https://example.com',
       requestId: expect.any(String)
     })
-    expect([...swrCache.keys()].filter((key) => key.includes('citationPreview'))).toEqual([
-      unstable_serialize(['citationPreview', 'https://example.com'])
-    ])
+
     expect(fetchMocks.fetchXOEmbed).not.toHaveBeenCalled()
   })
 

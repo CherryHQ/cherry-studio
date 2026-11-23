@@ -13,6 +13,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import type { WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,6 +26,7 @@ import type * as lifecycleModule from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { TreeMutationPushPayload } from '@shared/utils/file'
 
+import { FileObservationService } from '../../observation/FileObservationService'
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
 
 const ripgrepAvailable = tryTestRipgrepPath() !== null
@@ -101,16 +103,20 @@ const owned = (sender: ReturnType<typeof makeSender>) => ({ windowId: sender.win
 describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager integration', () => {
   let tmp: string
   let registry: DirectoryTreeManager
+  let observations: FileObservationService
 
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-tree-registry-'))
     BaseService.resetInstances()
+    observations = new FileObservationService()
+    MockApplicationUtils.setService('FileObservationService', observations)
     registry = new DirectoryTreeManager()
     await registry._doInit()
   })
 
   afterEach(async () => {
     await registry.disposeAll()
+    await observations._doStop()
     await rm(tmp, { recursive: true, force: true })
     vi.restoreAllMocks()
   })

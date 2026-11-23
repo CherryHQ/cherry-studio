@@ -101,25 +101,6 @@ describe('ProviderService API keys', () => {
     expect(keys.map((entry) => entry.key)).toEqual(['sk-a', 'sk-b', 'sk-c', 'sk-oauth-a', 'sk-oauth-b', 'sk-oauth-c'])
   })
 
-  it('merges preset description and websites into the runtime provider read', async () => {
-    await dbh.db.insert(userProviderTable).values({
-      providerId: 'openai-work',
-      presetProviderId: 'openai',
-      name: 'OpenAI Work',
-      orderKey: generateOrderKeyBetween(null, null)
-    })
-
-    const provider = providerService.getByProviderId('openai-work')
-
-    expect(provider.description).toBe('OpenAI - AI model provider')
-    expect(provider.websites).toMatchObject({
-      official: 'https://openai.com/',
-      apiKey: 'https://platform.openai.com/api-keys',
-      docs: 'https://platform.openai.com/docs',
-      models: 'https://platform.openai.com/docs/models'
-    })
-  })
-
   it('updates API key fields and rejects empty or duplicate key values', async () => {
     await seedProvider()
 

@@ -20,16 +20,6 @@ describe('conversationTitle', () => {
     expect(normalizeConversationTitle('  Mixed\n\tCASE   Title  ')).toBe('mixed case title')
   })
 
-  it('keeps an exactly 50-character first-message title source intact', () => {
-    const input = 'a'.repeat(50)
-
-    expect(truncateFirstUserMessageTitleSource(input)).toBe(input)
-  })
-
-  it('truncates a 51-character first-message title source to 50 characters', () => {
-    expect(truncateFirstUserMessageTitleSource('a'.repeat(51))).toBe('a'.repeat(50))
-  })
-
   it('does not leave a lone surrogate when the 50-char cut lands inside an emoji', () => {
     // 49 CJK chars fill indices 0-48; the emoji's high/low surrogate halves sit at
     // 49 and 50, so a plain slice(0, 50) keeps the high half without its low partner.

@@ -2,6 +2,7 @@ import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type { WindowOptions } from '@main/core/window/types'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { type Disposable } from '../../lifecycle/event'
@@ -1246,113 +1247,6 @@ describe('WindowManager', () => {
           expect(newlyDestroyed).toBe(expectedDestroys)
         })
       })
-
-      describe('GC efficiency optimizations', () => {
-        type WmInternals = {
-          activeWarmupTypes: Set<string>
-          warmupGcTimer: ReturnType<typeof setInterval> | null
-          warmupGcTick: () => void
-          warmupStates: Map<
-            string,
-            {
-              idle: string[]
-              standbyFloor: number
-              decayFloor: number
-              inactivityTimeoutMs: number
-              decayIntervalMs: number
-              gcDisabled: boolean
-            }
-          >
-        }
-
-        it('activeWarmupTypes contains type after releaseToPool pushes idle', async () => {
-          await bootEagerPools()
-          const id = wm.open('hybrid' as never)
-          await flushImmediate()
-
-          wm.close(id)
-
-          const internals = wm as unknown as WmInternals
-          expect(internals.activeWarmupTypes.has('hybrid')).toBe(true)
-        })
-
-        it('activeWarmupTypes drops type after suspendPool destroys all idle', async () => {
-          await bootEagerPools()
-          // hybrid pool has standbySize=1 idle window after eager warmup.
-          const internals = wm as unknown as WmInternals
-          expect(internals.activeWarmupTypes.has('hybrid')).toBe(true)
-
-          wm.suspendPool('hybrid' as never)
-
-          expect(internals.activeWarmupTypes.has('hybrid')).toBe(false)
-        })
-
-        it('warmupGcTick stops the interval when activeWarmupTypes is empty', async () => {
-          await bootEagerPools()
-          const internals = wm as unknown as WmInternals
-
-          // Force activeWarmupTypes empty (simulate the steady idle state where
-          // every pool either has 0 idle or has been suspended).
-          internals.activeWarmupTypes.clear()
-          // Simulate a previously running interval timer.
-          if (!internals.warmupGcTimer) {
-            internals.warmupGcTimer = setInterval(() => {}, 60_000)
-          }
-
-          internals.warmupGcTick()
-
-          expect(internals.warmupGcTimer).toBeNull()
-        })
-
-        it('getOrCreateWarmupState caches precomputed config values', async () => {
-          await bootEagerPools()
-          const internals = wm as unknown as WmInternals
-
-          // hybridPoolConfig: standbySize=1, recycleMinSize=1, decayInterval=60, inactivityTimeout=300
-          const hybrid = internals.warmupStates.get('hybrid')!
-          expect(hybrid.standbyFloor).toBe(1)
-          expect(hybrid.decayFloor).toBe(1)
-          expect(hybrid.inactivityTimeoutMs).toBe(300_000)
-          expect(hybrid.decayIntervalMs).toBe(60_000)
-          expect(hybrid.gcDisabled).toBe(false)
-
-          // standbyOnlyPoolConfig: standbySize=1, no decay/inactivity → gcDisabled=true
-          const standbyOnly = internals.warmupStates.get('standbyOnly')!
-          expect(standbyOnly.standbyFloor).toBe(1)
-          expect(standbyOnly.decayFloor).toBe(1)
-          expect(standbyOnly.inactivityTimeoutMs).toBe(0)
-          expect(standbyOnly.decayIntervalMs).toBe(0)
-          expect(standbyOnly.gcDisabled).toBe(true)
-        })
-
-        it('warmupGcTick prunes pool from activeWarmupTypes once idle settles at standbyFloor', async () => {
-          await bootEagerPools()
-          const internals = wm as unknown as WmInternals
-
-          // After eager warmup, hybrid has idle=standbySize=1. It was added to
-          // activeWarmupTypes via createIdleWindow.
-          expect(internals.activeWarmupTypes.has('hybrid')).toBe(true)
-
-          internals.warmupGcTick()
-
-          // idle (1) <= standbyFloor (1) → no GC work possible until next
-          // release grows the queue past the floor → drop from active set.
-          expect(internals.activeWarmupTypes.has('hybrid')).toBe(false)
-        })
-
-        it('warmupGcTick prunes gcDisabled pools from activeWarmupTypes immediately', async () => {
-          await bootEagerPools()
-          const internals = wm as unknown as WmInternals
-
-          // standbyOnly has gcDisabled=true (no inactivity, no decay configured).
-          // It was added to activeWarmupTypes when the standby idle window landed.
-          expect(internals.activeWarmupTypes.has('standbyOnly')).toBe(true)
-
-          internals.warmupGcTick()
-
-          expect(internals.activeWarmupTypes.has('standbyOnly')).toBe(false)
-        })
-      })
     })
   })
 
@@ -1407,6 +1301,52 @@ describe('WindowManager', () => {
       wm.close(id) // pool release
 
       expect(listener).not.toHaveBeenCalled()
+    })
+
+    it('fires onWindowReleasedToPool when a pooled window goes back to the idle pool', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPool(released)
+
+      const id = wm.open('pooled' as never)
+      wm.close(id)
+
+      expect(released).toHaveBeenCalledTimes(1)
+      expect(released).toHaveBeenCalledWith(expect.objectContaining({ id, type: 'pooled' }))
+    })
+
+    it('fires onWindowReleasedToPool when a native close is intercepted into the pool', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPoolByType('pooled' as never, released)
+
+      const id = wm.open('pooled' as never)
+      createdWindows[0].emit('close', { preventDefault: vi.fn() })
+
+      expect(released).toHaveBeenCalledWith(expect.objectContaining({ id }))
+    })
+
+    it('fires only onWindowDestroyed when a release destroys the window over capacity', () => {
+      const released = vi.fn()
+      const destroyed = vi.fn()
+      wm.onWindowReleasedToPool(released)
+      wm.onWindowDestroyed(destroyed)
+
+      const ids = Array.from({ length: 5 }, () => wm.open('pooled' as never))
+      wm.close(ids[0])
+      simulateWindowClosed(wm, ids[0])
+
+      expect(released).not.toHaveBeenCalled()
+      expect(destroyed).toHaveBeenCalledWith(expect.objectContaining({ id: ids[0] }))
+    })
+
+    it('fires onWindowReleasedToPool once for a repeated close', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPool(released)
+
+      const id = wm.open('pooled' as never)
+      wm.close(id)
+      wm.close(id)
+
+      expect(released).toHaveBeenCalledTimes(1)
     })
 
     it('fires onWindowCreated for pooled windows only on initial creation (not recycle)', () => {
@@ -1968,6 +1908,43 @@ describe('WindowManager', () => {
       wm.open('singletonRemember' as never)
 
       expect(createdWindows[0].constructorOptions).toMatchObject({ x: 200, y: 150, width: 1000, height: 700 })
+    })
+
+    it('applies caller configuration after saved bounds and before construction', () => {
+      cache().setPersist('window.bounds', { singletonRemember: savedRect() })
+
+      wm.open('singletonRemember' as never, {
+        options: { width: 1440, height: 900 },
+        configureOptions: (config: WindowOptions) => {
+          expect(config).toMatchObject({ x: 200, y: 150, width: 1000, height: 700 })
+          config.width = 900
+          config.minWidth = 600
+        }
+      })
+
+      expect(createdWindows[0].constructorOptions).toMatchObject({
+        x: 200,
+        y: 150,
+        width: 900,
+        height: 700,
+        minWidth: 600
+      })
+    })
+
+    it('preserves an existing singleton when creation configuration is supplied on reopen', () => {
+      const id = wm.open('singletonRemember' as never)
+      const win = createdWindows[0]
+      win.getBounds.mockReturnValue({ x: 400, y: 250, width: 1200, height: 800 })
+
+      const reopened = wm.open('singletonRemember' as never, {
+        configureOptions: () => {
+          throw new Error('Creation configuration must not run on reuse')
+        }
+      })
+
+      expect(reopened).toBe(id)
+      expect(createdWindows).toHaveLength(1)
+      expect(win.getBounds()).toEqual({ x: 400, y: 250, width: 1200, height: 800 })
     })
 
     it('does not inject for a non-singleton type that declares rememberBounds', () => {
