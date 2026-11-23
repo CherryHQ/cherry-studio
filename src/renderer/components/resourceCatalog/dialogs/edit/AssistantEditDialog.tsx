@@ -228,6 +228,8 @@ function AssistantEditDialogContent({
   initialTab
 }: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
+  const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
+  const [globalCompressWindow] = usePreference('chat.context_settings.compress_window')
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -319,6 +321,16 @@ function AssistantEditDialogContent({
     const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)
     const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, savedResourceRef.current)
     if (!pending) return
+    const outgoingContext = pending.payload.settings?.contextSettings
+    if (pending.payload.settings && Object.hasOwn(pending.payload.settings, 'contextSettings')) {
+      const recent = outgoingContext?.maxMessages === undefined ? globalMaxMessages : outgoingContext.maxMessages
+      const total =
+        outgoingContext?.compressWindow === undefined ? globalCompressWindow : outgoingContext.compressWindow
+      if (!isValidCompressionWindow(recent, total)) {
+        form.setError('root', { message: t('settings.models.context_management.window_invalid') })
+        return
+      }
+    }
     const attemptedKey = JSON.stringify(submittedValues)
 
     // A close-triggered flush does not cancel the already scheduled debounce.

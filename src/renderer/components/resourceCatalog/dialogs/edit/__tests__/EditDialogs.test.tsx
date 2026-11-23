@@ -2233,6 +2233,57 @@ describe('edit dialogs', () => {
     })
   })
 
+  it('blocks an invalid queued A/B pair after a committed write advances the baseline during refresh', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const refresh = Promise.withResolvers<void>()
+    useMutationMock.mockImplementation((method: string, path: string) => {
+      if (method === 'PATCH' && path.startsWith('/assistants/'))
+        return {
+          trigger: async ({ body }: { body: unknown }, lifecycle?: { onCommitted?: (value: Assistant) => void }) => {
+            updateAssistantMock({ body })
+            const committed = {
+              ...original,
+              settings: { ...original.settings, contextSettings: { maxMessages: 3, compressWindow: 8 } }
+            }
+            lifecycle?.onCommitted?.(committed)
+            await refresh.promise
+            return committed
+          },
+          isLoading: false,
+          error: undefined
+        }
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
+    })
+    render(<AssistantEditDialog open resource={original} onOpenChange={vi.fn()} />)
+    selectTab('Model')
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '8')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    await user.clear(rounds)
+    await user.type(rounds, '6')
+    await user.tab()
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '7')
+    await user.tab()
+    await act(async () => refresh.resolve())
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('Set a positive whole-number recent limit A and a whole-number window B greater than A.')
+          .length
+      ).toBeGreaterThan(0)
+    )
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+    expect(rounds).toHaveValue('6')
+  })
+
   it('keeps a newer detail while an older unrelated PATCH is awaiting refresh', async () => {
     const user = userEvent.setup()
     const original = {
