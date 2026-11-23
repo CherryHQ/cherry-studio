@@ -235,13 +235,23 @@ const INTERACTIVE_SELECTOR = [
   'button',
   'a',
   'select',
+  'summary',
   'input[type="checkbox"]',
   'input[type="radio"]',
   'input[type="button"]',
   'input[type="submit"]',
-  ...['button', 'link', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'checkbox', 'switch', 'option'].map(
-    (role) => `[role="${role}"]`
-  )
+  ...[
+    'button',
+    'link',
+    'menuitem',
+    'menuitemcheckbox',
+    'menuitemradio',
+    'tab',
+    'checkbox',
+    'switch',
+    'option',
+    'radio'
+  ].map((role) => `[role="${role}"]`)
 ].join(', ')
 const CLICK_DEDUPE_MS = 500
 
@@ -254,8 +264,11 @@ function elementKind(element: Element): ClickElement {
     return role
   }
   if (role === 'option') return 'option'
+  // Same kind as a native radio input, which reports as 'input' below.
+  if (role === 'radio') return 'input'
   switch (element.tagName) {
     case 'BUTTON':
+    case 'SUMMARY':
       return 'button'
     case 'A':
       return 'link'
@@ -283,7 +296,15 @@ function uiTokenOf(element: Element): string {
   return part && UI_TOKEN.test(part) ? part : 'unlabeled'
 }
 
-/** Reports clicks on interactive controls by their static data-ui token, without reading any content. */
+// The static data-analytics name on the control or a wrapper it renders inside, never another control's.
+function analyticsNameOf(control: Element): string | undefined {
+  const named = control.closest('[data-analytics]')
+  if (!named || (named !== control && named.matches(INTERACTIVE_SELECTOR))) return undefined
+  const name = named.getAttribute('data-analytics') ?? ''
+  return UI_TOKEN.test(name) ? name : undefined
+}
+
+/** Reports clicks on interactive controls by their static analytics name or data-ui token, without reading any content. */
 export function installUiClickTracker(
   target: Document = document,
   report: (event: Extract<RendererAnalyticsEvent, { event: 'ui_clicked' }>) => void = trackProductEvent
@@ -292,8 +313,9 @@ export function installUiClickTracker(
   const record = (eventTarget: EventTarget | null, input: 'pointer' | 'keyboard') => {
     try {
       const control = eventTarget instanceof Element ? eventTarget.closest(INTERACTIVE_SELECTOR) : null
-      if (!control) return
-      const ui = uiTokenOf(control)
+      // Hidden form proxies (e.g. Radix Checkbox's input) echo the visible control's click.
+      if (!control || (control.tagName === 'INPUT' && control.getAttribute('aria-hidden') === 'true')) return
+      const ui = analyticsNameOf(control) ?? uiTokenOf(control)
       const now = Date.now()
       if (last && last.ui === ui && now - last.at < CLICK_DEDUPE_MS) return
       last = { ui, at: now }
@@ -303,11 +325,15 @@ export function installUiClickTracker(
     }
   }
   const onClick = (event: MouseEvent) => record(event.target, event.detail === 0 ? 'keyboard' : 'pointer')
-  // Listbox options (e.g. Radix Select) commit on Enter or Space without dispatching a click.
+  // Listbox options (e.g. Radix Select) commit on Enter or Space without a click; Space can also be typeahead
+  // input, so only a commit (the option selected or the list closed) counts.
   const onKeyDown = (event: KeyboardEvent) => {
-    if ((event.key === 'Enter' || event.key === ' ') && event.target instanceof Element) {
-      if (event.target.closest('[role="option"]')) record(event.target, 'keyboard')
-    }
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    const option = event.target instanceof Element ? event.target.closest('[role="option"]') : null
+    if (!option) return
+    setTimeout(() => {
+      if (!option.isConnected || option.getAttribute('aria-selected') === 'true') record(option, 'keyboard')
+    }, 0)
   }
   target.addEventListener('click', onClick, true)
   target.addEventListener('keydown', onKeyDown, true)

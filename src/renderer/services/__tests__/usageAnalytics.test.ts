@@ -273,21 +273,62 @@ describe('installUiClickTracker', () => {
     vi.useRealTimers()
   })
 
-  it('reports a listbox option chosen with the keyboard once, even if a click follows', () => {
+  it('reports a listbox option chosen with the keyboard once, never a Space typed into its typeahead', async () => {
     mount(`
       <div role="listbox" data-ui="settings.browser.start-page">
-        <div role="option" id="blank" tabindex="-1">Blank</div>
+        <div role="option" id="blank" tabindex="-1" aria-selected="false">Blank</div>
       </div>`)
     const option = document.querySelector('#blank')!
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-    option.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    // Typeahead: Space is search input and the selection stays as it was.
+    option.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+    await settle()
+    expect(clicks).toEqual([])
+
     option.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    expect(clicks).toHaveLength(1)
+    option.setAttribute('aria-selected', 'true')
+    await settle()
     click('#blank', 0)
 
     expect(clicks).toEqual([
       { event: 'ui_clicked', ui: 'settings.browser.start-page', page: 'other', element: 'option', input: 'keyboard' }
     ])
+  })
+
+  it('still reports a pointer-active filler button that is hidden from assistive tech', () => {
+    mount(`
+      <div data-ui="chat.resource-list.group-header">
+        <button aria-hidden="true" tabindex="-1" id="filler" data-analytics="chat.resource-list:toggle-group"></button>
+      </div>`)
+
+    click('#filler')
+
+    expect(clicks.map((event) => event.ui)).toEqual(['chat.resource-list:toggle-group'])
+  })
+
+  it('reports one event for a checkbox whose hidden form input echoes the click', () => {
+    mount(`
+      <div data-ui="feedback.diagnostic-upload">
+        <button role="checkbox" id="ack" data-analytics="feedback.diagnostic-upload:acknowledge"></button>
+        <input type="checkbox" aria-hidden="true" tabindex="-1" id="proxy" />
+      </div>`)
+
+    click('#ack')
+    click('#proxy')
+
+    expect(clicks.map((event) => event.ui)).toEqual(['feedback.diagnostic-upload:acknowledge'])
+  })
+
+  it('reports a native disclosure summary by its analytics name', () => {
+    mount(`
+      <details data-ui="browser-import.profile">
+        <summary data-analytics="browser-import.profile:options">Import options</summary>
+      </details>`)
+
+    click('summary')
+
+    expect(clicks).toEqual([expect.objectContaining({ ui: 'browser-import.profile:options', element: 'button' })])
   })
 
   it('reports the nearest role token rather than a part token or an outer one', () => {
@@ -319,7 +360,40 @@ describe('installUiClickTracker', () => {
     expect(clicks.map(({ ui }) => ui)).toEqual(['app.sidebar', 'part:button'])
   })
 
+  it('tells sibling controls of one component apart by their analytics names', () => {
+    mount(`
+      <div data-ui="chat.message-menu-bar">
+        <button id="copy" data-ui="part:button" data-analytics="chat.message-menu-bar:copy"><svg id="icon"></svg></button>
+        <button id="retry" data-ui="part:button" data-analytics="chat.message-menu-bar:retry">x</button>
+      </div>`)
+
+    click('#icon')
+    click('#retry')
+
+    expect(clicks.map(({ ui }) => ui)).toEqual(['chat.message-menu-bar:copy', 'chat.message-menu-bar:retry'])
+  })
+
+  it('falls back to the data-ui token when the analytics name is invalid or belongs to another control', () => {
+    mount(`
+      <div data-ui="chat.message"><button id="invalid" data-analytics="Chat Message:Person@Example.com">x</button></div>
+      <div role="button" data-analytics="chat.card:open" data-ui="chat.card"><button id="inner">x</button></div>`)
+
+    click('#invalid')
+    click('#inner')
+
+    expect(clicks.map(({ ui }) => ui)).toEqual(['chat.message', 'chat.card'])
+  })
+
+  it('names a control by an analytics name on a non-control wrapper it renders inside', () => {
+    mount('<span data-analytics="settings.general:theme"><button id="c">x</button></span>')
+
+    click('#c')
+
+    expect(clicks.map(({ ui }) => ui)).toEqual(['settings.general:theme'])
+  })
+
   it.each([
+    ['<div id="c" role="radio" data-ui="t9">x</div>', 'input'],
     ['<button id="c" data-ui="t1">x</button>', 'button'],
     ['<a id="c" data-ui="t2">x</a>', 'link'],
     ['<div id="c" role="menuitem" data-ui="t3">x</div>', 'menuitem'],

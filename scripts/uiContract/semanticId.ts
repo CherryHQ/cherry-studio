@@ -103,6 +103,11 @@ function componentOwner(component: string, sourceFile: string): string {
   return unique(words).slice(0, 4).join('-') || 'surface'
 }
 
+/** The `domain.component` prefix every inferred role of a component starts with. */
+export function componentSemanticBase(component: string, sourceFile: string): string {
+  return semanticBase(sourceDomain(sourceFile), componentOwner(component, sourceFile))
+}
+
 function semanticBase(domain: string, owner: string): string {
   const domainWords = identifierWords(domain)
   const ownerWords = identifierWords(owner)
@@ -143,9 +148,7 @@ export interface SemanticIdInput {
 }
 
 export function inferSemanticId(input: SemanticIdInput): string {
-  const domain = sourceDomain(input.sourceFile)
-  const owner = componentOwner(input.component, input.sourceFile)
-  const base = semanticBase(domain, owner)
+  const base = componentSemanticBase(input.component, input.sourceFile)
   const action = inferHandlerAction(input.handler)
   if (action && !input.isComponentRoot) return `${base}.action.${action}`
 
