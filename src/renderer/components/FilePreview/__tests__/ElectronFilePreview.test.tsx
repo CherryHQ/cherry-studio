@@ -40,6 +40,7 @@ vi.mock('@renderer/utils/file/safeOpen', () => ({
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 
 vi.mock('react-i18next', () => ({
+  I18nextProvider: ({ children }: { children: ReactNode }) => children,
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en-US' } })
 }))
 

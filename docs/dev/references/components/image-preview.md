@@ -41,7 +41,9 @@ source change
 `useDebouncedRender` owns the host ref, loading/error state, debounced trigger,
 cancel, and an optional `shouldRender` predicate. Rendering runs inside
 `React.startTransition`. Cancelling drops a pending debounce; it does not abort
-an asynchronous render that has already started.
+an asynchronous render that has already started. Only the latest started render
+updates the error and loading state, so an older request that settles later
+cannot report a failure over a newer result.
 
 ## SVG boundary
 
@@ -73,7 +75,12 @@ can operate on the same SVG. The Notes editor keeps zoom and pan in the
 expanded dialog, because an inline diagram scrolls with the note.
 
 A render failure covers the preview area with a neutral placeholder (a localized
-title and a Details link) instead of collapsing it, so the area keeps its size.
+title and a Details link). The area keeps its size while the previous render stays
+mounted, as with Mermaid. When the renderer clears the host before failing, as
+`renderSvgInShadowHost` does for input with no usable SVG, the placeholder fills
+only the minimum preview height. The layout isolates its stacking context, so a
+host toolbar drawn over the preview, such as the RichEditor code block header,
+stays clickable above the placeholder.
 The layout reports the failure through the optional `onErrorChange` prop.
 `CodeBlockView` uses it to drop its copy-image and image-download actions until
 a render succeeds.

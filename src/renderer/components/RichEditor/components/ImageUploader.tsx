@@ -17,7 +17,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toastAppError } from '@renderer/services/AppErrorDetailService'
-import { toast } from '@renderer/services/toast'
+import { toast, toastInlineError } from '@renderer/services/toast'
 
 const logger = loggerService.withContext('RichEditorImageUploader')
 
@@ -168,7 +168,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                 logger.error('Dropzone validation failed:', err)
                 const rejection = rejectionMessage(err)
                 if (rejection) {
-                  toast.error(rejection)
+                  toastInlineError(rejection)
                   return
                 }
                 toastAppError(t('richEditor.imageUploader.uploadError'), err, {

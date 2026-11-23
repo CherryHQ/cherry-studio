@@ -48,6 +48,17 @@ describe('presentProductionUnhandledRejection', () => {
     expect(presented[0]).toMatchObject({ source: 'main', operation: 'process.unhandledRejection', name: 'Error' })
   })
 
+  it('presents distinct faults that share a long prefix or are both plain objects', () => {
+    const { presentProductionUnhandledRejection: show } = telemetry
+    const prefix = 'x'.repeat(300)
+
+    expect(show(new Error(`${prefix} first`), 1_000)).toBe(true)
+    expect(show(new Error(`${prefix} second`), 1_001)).toBe(true)
+    expect(show({ code: 'EACCES' }, 1_002)).toBe(true)
+    expect(show({ code: 'ENOSPC' }, 1_003)).toBe(true)
+    expect(present).toHaveBeenCalledTimes(4)
+  })
+
   it('does not remember a fault the presenter did not accept', () => {
     present.mockReturnValueOnce(false)
 

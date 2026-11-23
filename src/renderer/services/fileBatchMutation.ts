@@ -4,7 +4,11 @@ import type { FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
-type FileBatchMutationOutcome = FileBatchMutationResult & { requestFailed: boolean; cause?: unknown }
+type FileBatchMutationOutcome = FileBatchMutationResult & {
+  requestFailed: boolean
+  /** Request rejection behind each failed ID of a rejected chunk; item-level failures have none. */
+  causeById: Map<FileEntryId, unknown>
+}
 type FileBatchMutationRoute =
   | 'file.batch_trash'
   | 'file.batch_remove_from_library'
@@ -19,7 +23,7 @@ export async function requestBatchedFileMutation(
   route: FileBatchMutationRoute,
   ids: readonly FileEntryId[]
 ): Promise<FileBatchMutationOutcome> {
-  if (ids.length === 0) return { succeeded: [], failed: [], requestFailed: false }
+  if (ids.length === 0) return { succeeded: [], failed: [], requestFailed: false, causeById: new Map() }
 
   const chunks: FileEntryId[][] = []
   for (let index = 0; index < ids.length; index += FILE_MUTATION_BATCH_SIZE) {
@@ -41,7 +45,7 @@ export async function requestBatchedFileMutation(
     })
   )
 
-  const outcome: FileBatchMutationOutcome = { succeeded: [], failed: [], requestFailed: false }
+  const outcome: FileBatchMutationOutcome = { succeeded: [], failed: [], requestFailed: false, causeById: new Map() }
   for (let index = 0; index < results.length; index += 1) {
     const settled = results[index]
     if (settled.status === 'fulfilled') {
@@ -51,7 +55,7 @@ export async function requestBatchedFileMutation(
     }
 
     outcome.requestFailed = true
-    outcome.cause ??= settled.reason
+    for (const id of chunks[index]) outcome.causeById.set(id, settled.reason)
     outcome.failed.push(...chunks[index].map((id) => ({ id, error: getErrorMessage(settled.reason) })))
   }
 

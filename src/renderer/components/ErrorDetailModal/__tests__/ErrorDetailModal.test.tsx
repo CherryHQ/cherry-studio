@@ -275,6 +275,7 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import type { DoctorScopeKey } from '@shared/types/doctor'
 import type { DoctorAgentIncident, DoctorAgentState } from '@shared/types/doctorAgent'
@@ -1243,6 +1244,15 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
   })
 
+  it('leaves the notice another surface shows untouched when this dialog opens', () => {
+    appUpdateCheckService.setUpdateNotice('settings.about.updateNotPublished')
+
+    renderErrorDetailContent({ error: providerError })
+
+    expect(screen.queryByRole('button', { name: 'Open download page' })).not.toBeInTheDocument()
+    expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateNotPublished')
+  })
+
   it('keeps check-again and opens the official releases page only when a failed manual check asks for it', async () => {
     const user = userEvent.setup()
     let meta = document.querySelector('meta[name="logger-window-source"]')
@@ -1475,6 +1485,28 @@ describe('ErrorDetailContent automatic update check', () => {
     expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Check Update' }))
     await waitFor(() => expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(1))
+  })
+
+  it('drops an offer from the previous channel as soon as the channel changes', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    const view = renderErrorDetailContent({ error: providerError })
+    expect(await screen.findByText(UPDATE_AVAILABLE)).toBeVisible()
+
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.RC)
+    answerQuery(() => new Promise(() => undefined))
+    view.rerender(
+      <Dialog open>
+        <DialogContent>
+          <ErrorDetailContent subject={{ kind: 'global' }} error={providerError} />
+        </DialogContent>
+      </Dialog>
+    )
+
+    await waitFor(() => expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(2))
+    expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Update now' })).not.toBeInTheDocument()
   })
 
   it('does not query the feed while an update is already downloading', () => {
