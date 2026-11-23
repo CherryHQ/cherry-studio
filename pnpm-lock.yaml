@@ -2030,10 +2030,16 @@ importers:
       js-base64:
         specifier: 3.7.7
         version: 3.7.7
+      mdast-util-from-markdown:
+        specifier: ^2.0.2
+        version: 2.0.2(supports-color@8.1.1)
       zod:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@types/mdast':
+        specifier: 4.0.4
+        version: 4.0.4
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))

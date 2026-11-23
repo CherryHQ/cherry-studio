@@ -1,3 +1,4 @@
+import { fromMarkdown } from 'mdast-util-from-markdown'
 import * as z from 'zod'
 
 import { MemoryError } from './files'
@@ -73,6 +74,30 @@ export function memoryFactText(line: string): string {
   }
 }
 
+/** Keep continuation lines attached to their Markdown item. */
+export function memoryItems(text: string): string[] {
+  const boundaries = new Set<number>()
+  for (const node of fromMarkdown(text).children) {
+    for (const block of node.type === 'list' ? node.children : [node]) {
+      const start = block.position?.start.offset,
+        end = block.position?.end.offset
+      if (start !== undefined && text[start - 1] === '\n') boundaries.add(start - 1)
+      if (end !== undefined) {
+        const next = text[end] === '\r' ? end + 1 : end
+        if (text[next] === '\n') boundaries.add(next)
+      }
+    }
+  }
+  const parts: string[] = []
+  let start = 0
+  for (const offset of [...boundaries].sort((a, b) => a - b)) {
+    parts.push(text.slice(start, offset))
+    start = offset + 1
+  }
+  parts.push(text.slice(start))
+  return parts
+}
+
 export function matchesMemoryQuote(line: string, quote: string): boolean {
   const fact = memoryFactText(line)
   return line.trim() === quote || fact === quote || fact === memoryFactText(quote)
@@ -94,8 +119,7 @@ export function reviseMemory(
     for (let index = 0; index < parts.length; index++) {
       const part = parts[index]
       if (typeof part !== 'string') continue
-      parts[index] = part
-        .split('\n')
+      parts[index] = memoryItems(part)
         .map((line) => {
           if (!matchesMemoryQuote(line, revision.quote)) return line
           replacedText = memoryFactText(line)
@@ -258,9 +282,8 @@ export function memoryModelView(
   return parts
     .map((part) => {
       if (typeof part === 'string')
-        return purpose === 'current'
-          ? part
-              .split('\n')
+        return purpose === 'current' && retiredFacts.size
+          ? memoryItems(part)
               .filter((line) => !retiredFacts.has(memoryFactText(line)))
               .join('\n')
           : part
