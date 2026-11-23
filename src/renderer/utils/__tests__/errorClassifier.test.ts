@@ -68,7 +68,6 @@ describe('classifyError', () => {
 
   it('reads partial attempts through their original array iterator without inspecting unrelated fields', () => {
     const reads: string[] = []
-    let iteratorOwner: object | undefined
     const attempt = {
       statusCode: 401,
       get stack() {
@@ -81,7 +80,7 @@ describe('classifyError', () => {
         reads.push('iterator')
 
         return function* (this: object) {
-          iteratorOwner = this
+          expect(this).toBe(attempts)
           yield attempt
         }
       }
@@ -109,7 +108,6 @@ describe('classifyError', () => {
       i18nKey: 'error.diagnosis.auth',
       navTarget: '/settings/provider?id=provider-key'
     })
-    expect(iteratorOwner).toBe(attempts)
     expect(reads).toEqual(['lastError', 'lastError', 'lastError', 'errors', 'iterator'])
   })
 
