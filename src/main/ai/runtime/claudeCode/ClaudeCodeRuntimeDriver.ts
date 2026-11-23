@@ -1264,19 +1264,20 @@ export function trackPlacedImageInput(
  * `requesting` signal). Only placed inputs share the native response that
  * failed.
  *
- * - Limit failures: the oldest placed over-limit entry wins and is retired;
+ * - Limit failures: the oldest placed over-limit entry wins;
  *   unplaced steers are never reported as sent. When no placement has been
  *   observed yet (e.g. the result arrives before the membership batch), fall
  *   back to oldest-first over-limit attribution so an ordinary two-image
  *   follow-up still yields typed detail. When the oldest placed entry cannot
  *   explain the failure (text-only `0` or within-limit images that may have
  *   grown via tools after submission), the actual sent count is unknown —
- *   retire that settled input but return `undefined` so the caller keeps the
+ *   retire all settled inputs and return `undefined` so the caller keeps the
  *   provider's own limit text while preserving unplaced steers.
- * - Unrelated failures (no parsed limit): settle the oldest placed entry
+ * - Unrelated failures (no parsed limit): settle placed entries response-scoped
  *   (FIFO among placed, matching turn-complete), preserving unplaced steers
  *   for the next limit failure. With no placement observed, falls back to the
- *   oldest submission.
+ *   oldest submission. A terminal result settles every placed input sharing
+ *   that response, so retire all placed entries and preserve unplaced inputs.
  *
  * Mutates `pending` and `placed` in place.
  */
@@ -1319,32 +1320,28 @@ export function consumePlacedImageCount(
       }
       return undefined
     }
-    const first = placedInOrder[0]
-    if (first.count > limit) {
-      const index = pending.findIndex((entry) => entry.inputId === first.inputId)
-      const [removed] = pending.splice(index, 1)
-      placed.delete(first.inputId)
-      return removed.count
+    const overLimit = placedInOrder.find((entry) => entry.count > limit)
+    const result = overLimit?.count
+    const settledIds = new Set(placedInOrder.map((entry) => entry.inputId))
+    for (let i = pending.length - 1; i >= 0; i--) {
+      if (settledIds.has(pending[i].inputId)) pending.splice(i, 1)
     }
-    // Oldest placed cannot explain the cap (text-only that grew via tools, or
-    // within-limit images that grew): actual sent count unknown. Retire the
-    // settled input so a stale count is not reused, but preserve the queue
-    // (notably any unplaced steer's count) and return undefined so the caller
-    // keeps the provider's limit text.
-    const index = pending.findIndex((entry) => entry.inputId === first.inputId)
-    if (index !== -1) pending.splice(index, 1)
-    placed.delete(first.inputId)
-    return undefined
+    for (const id of settledIds) placed.delete(id)
+    return result
   }
-  const placedIndex = pending.findIndex((entry) => placed.has(entry.inputId))
-  if (placedIndex === -1) {
+  const placedEntries = pending.filter((entry) => placed.has(entry.inputId))
+  if (placedEntries.length === 0) {
     const [entry] = pending.splice(0, 1)
     if (entry) placed.delete(entry.inputId)
     return entry?.count
   }
-  const [entry] = pending.splice(placedIndex, 1)
-  placed.delete(entry.inputId)
-  return entry.count
+  const oldest = placedEntries[0].count
+  const settledIds = new Set(placedEntries.map((entry) => entry.inputId))
+  for (let i = pending.length - 1; i >= 0; i--) {
+    if (settledIds.has(pending[i].inputId)) pending.splice(i, 1)
+  }
+  for (const id of settledIds) placed.delete(id)
+  return oldest
 }
 
 /**

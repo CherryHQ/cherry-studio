@@ -25,7 +25,7 @@ Status: implemented
 
 ## 影响
 
-默认行为不变：没有声明上限时，Pi/Durable 按用户顺序转发全部附件图片，Claude 转发全部受支持图片（原生路由可能将托管图片排在前面）。只有在声明了上限或上游拒绝指明上限时才关闭发送。发送前校验在 DB 写入之前执行（编辑路由在事务内复查；编辑初检只查新分片，事务内查保留前缀），超限轮次不会留下孤立用户消息、待定助手消息或远端预留；无上限空闲发送跳过历史扫描（零路径读取）；远端将类型化上限映射为 rejected/CONFLICT；结果边界使用已发送措辞（`sent: true`，`error.agent_image_limit_exceeded_after_send`，仅 Claude）表明请求已经发出，FIFO 结算保留未放置 steer。非视觉模型的回退行为不受影响；绘画页 `maxInputImages` 仍是独立的图片生成配置。渲染层与主进程共用同一 `AGENT_IMAGE_EXTS` 计数定义（共享 `imageExts` 外加 AVIF/HEIC/HEIF/TIFF 与 JPEG 别名 `.jpe`/`.jfif`），两侧在创建托管副本前计数一致；Claude composer 门控进一步只计原生块候选（无 MIME 时 TIFF/AVIF/HEIC/BMP 同样不计数，未知扩展延后到物化）；共享路由表保持不变，因此非视觉 AVIF/HEIC 仍走本地路径回退，不会误入 OCR。手动 `/compact` 与驱动的连接后提示谓词一致（含投递前缀时按普通轮次拦截）。
+默认行为不变：没有声明上限时，Pi/Durable 按用户顺序转发全部附件图片，Claude 转发全部受支持图片（原生路由可能将托管图片排在前面）。只有在声明了上限或上游拒绝指明上限时才关闭发送。发送前校验在 DB 写入之前执行（编辑路由在事务内复查；编辑初检只查新分片，事务内查保留前缀），超限轮次不会留下孤立用户消息、待定助手消息或远端预留；无上限空闲发送跳过历史扫描（零路径读取）；远端将类型化上限映射为 rejected/CONFLICT；结果边界使用已发送措辞（`sent: true`，`error.agent_image_limit_exceeded_after_send`，仅 Claude）表明请求已经发出，响应级结算保留未放置 steer（终端结果移除共享该响应的全部已放置输入；inv_7da5162d4369af21）。非视觉模型的回退行为不受影响；绘画页 `maxInputImages` 仍是独立的图片生成配置。渲染层与主进程共用同一 `AGENT_IMAGE_EXTS` 计数定义（共享 `imageExts` 外加 AVIF/HEIC/HEIF/TIFF 与 JPEG 别名 `.jpe`/`.jfif`），两侧在创建托管副本前计数一致；Claude composer 门控进一步只计原生块候选（无 MIME 时 TIFF/AVIF/HEIC/BMP 同样不计数，未知扩展延后到物化）；共享路由表保持不变，因此非视觉 AVIF/HEIC 仍走本地路径回退，不会误入 OCR。手动 `/compact` 与驱动的连接后提示谓词一致（含投递前缀时按普通轮次拦截）。
 
 ## 验证
 
@@ -54,4 +54,5 @@ Status: implemented
 - Regression — `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`：`consumePlacedImageCount` 按原生放置成员（含 follow-up `placed` 事实）结算（已放置 2 上报并保留未放置 5；已放置 0/1 增长时移除已结算输入、保留 steer 并沿用提供商原文；无成员的双图 follow-up 回退为类型化明细；无关失败结算最早已放置；inv_848be20f7e82a473，inv_5330d70c89ab369d）。
 - Regression — `src/shared/ai/__tests__/agentImageLimits.test.ts` + `AgentComposer.test.tsx`：无 MIME 的 PNG + `.jpe` 计为 2，建托管副本前拦截且零 `createInternalEntry` 调用（inv_cd0875c7798b05bd）。
 - Regression — src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts：已放置成员在 outcome 后仍保留直到 result 结算（trackPlacedImageInput 永不在 outcome 删除；纯文本已放置增长自行结算、保留未放置 steer、沿用提供商原文；inv_2f01ac39775e379b）
+- Regression — `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`：响应级结算移除共享失败响应的全部已放置输入并保留未放置输入，共享纯文本 prompt + steer 失败后不留下陈旧零值压制下一次图片上限明细（inv_7da5162d4369af21）
 - Regression — 全部改动文件 `npx oxlint --deny-warnings`；node 与 web 工程 `tsrs --noEmit`；`npx tsx scripts/i18n-check.ts`（125,158 条翻译 + 全部 18 主目录的 `channel.agent_image_limit_exceeded(_after_send)` 新键）。

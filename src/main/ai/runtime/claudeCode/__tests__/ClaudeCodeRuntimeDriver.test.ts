@@ -920,4 +920,39 @@ describe('Claude image-limit result boundary (#20030)', () => {
       normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, count)
     ).toBeUndefined()
   })
+
+  it('retires every placed input sharing a failed response so no stale zero suppresses the next limit (inv_7da5162d4369af21)', async () => {
+    const { trackPlacedImageInput, consumePlacedImageCount, normalizeResultImageLimitFailure } =
+      await import('../ClaudeCodeRuntimeDriver')
+    const pending = [
+      { inputId: 'prompt', count: 0 },
+      { inputId: 'steer', count: 0 }
+    ]
+    const placed = new Set<string>()
+    trackPlacedImageInput(placed, 'prompt', { facts: ['placed'] })
+    trackPlacedImageInput(placed, 'steer', { facts: ['placed'] })
+    trackPlacedImageInput(placed, 'prompt', { facts: ['placed'], outcome: 'failed' })
+    trackPlacedImageInput(placed, 'steer', { facts: ['placed'], outcome: 'failed' })
+    expect(placed.has('prompt')).toBe(true)
+    expect(placed.has('steer')).toBe(true)
+
+    const settled = consumePlacedImageCount(pending, placed, new Error('boom'))
+    expect(settled).toBe(0)
+    expect(pending).toEqual([])
+    expect(placed.size).toBe(0)
+
+    const next = [{ inputId: 'next', count: 2 }]
+    const nextPlaced = new Set(['next'])
+    const nextCount = consumePlacedImageCount(
+      next,
+      nextPlaced,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    expect(nextCount).toBe(2)
+    expect(next).toEqual([])
+    expect(nextPlaced.size).toBe(0)
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, nextCount)
+    ).toMatchObject({ limit: 1, count: 2, sent: true })
+  })
 })
