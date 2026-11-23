@@ -230,6 +230,13 @@ File writes use the primitives in `src/main/utils/file/fs.ts`:
 Keeping the temporary file beside the target avoids a cross-filesystem rename. Aborting or
 destroying an `AtomicWriteStream` removes the temporary file; only `.end()` enters the commit path.
 
+The prepared-write callback must resolve before the stream emits `finish`. A callback rejection or
+download-body failure crosses the Node stream boundary as an `Error`, even when the rejection value
+is `null`, `undefined`, or another falsy value. Existing Errors retain their identity; other values
+are wrapped with their original cause. This prevents a failed write from reporting success and a
+failed download from remaining pending. Failures before commit preserve the existing target and
+clean up the temporary file.
+
 For internal entries, FileManager first marks content metadata pending, commits the prepared bytes,
 then stores the prepared size/hash. If bytes commit but DB finalization fails, the hash remains null
 as a durable recovery marker and `ContentCommittedMetadataPendingError` tells callers to refresh,

@@ -29,7 +29,7 @@ import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { getErrorCode, getErrorMessage } from '@main/utils/error'
+import { getErrorCode, getErrorMessage, toError } from '@main/utils/error'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { danglingCache } from './danglingCache'
@@ -144,26 +144,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Chokidar's error event forwards unknown failures; preserve native Errors and normalize other values for the public WatcherEvent contract.
   private handleError(err: unknown): void {
-    let error: Error
-
-    try {
-      if (err instanceof Error) {
-        error = err
-      } else {
-        const message =
-          err !== null && (typeof err === 'object' || typeof err === 'function')
-            ? Reflect.get(err, 'message') // oxlint-disable-line anti-slop/no-reflect-get -- Preserve message-based recovery for plain objects and virtual Proxy fields.
-            : undefined
-
-        error = new Error(
-          typeof message === 'string' ? message : getErrorMessage(err, 'Unknown filesystem watcher error'),
-          { cause: err }
-        )
-      }
-    } catch {
-      error = new Error('Unreadable filesystem watcher error', { cause: err })
-    }
-
+    const error = toError(err, 'Unknown filesystem watcher error')
     const code = getErrorCode(err)
     const message = getErrorMessage(error, 'Unknown filesystem watcher error')
 

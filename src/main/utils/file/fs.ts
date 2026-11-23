@@ -49,7 +49,7 @@ import { finished, pipeline } from 'node:stream/promises'
 import mime from 'mime'
 
 import { loggerService } from '@logger'
-import { getErrorCode } from '@main/utils/error'
+import { getErrorCode, toError } from '@main/utils/error'
 import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -604,7 +604,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
         // leak the tmp blob under EACCES/EBUSY/EPERM until orphanSweep
         // collects it >5min later (or never, if persistent).
         await bestEffortUnlinkTmp(this.tmp)
-        callback(err as Error)
+        callback(toError(err, 'Atomic file write failed'))
       }
     })
   }
@@ -981,7 +981,7 @@ export async function prepareAtomicDownload(url: string, dest: AbsoluteFilePath)
           }
         }
       } catch (err) {
-        writer.destroy(err as Error)
+        writer.destroy(toError(err, 'File download failed'))
       }
     }
 
@@ -1013,6 +1013,7 @@ export async function hashWithSize(
   if (signal) addAbortSignal(signal, stream)
 
   for await (const chunk of stream) {
+    // SAFETY: This private fs ReadStream uses default binary mode, is never exposed, and never receives setEncoding().
     const bytes = chunk as Buffer
     hasher.update(bytes)
     size += bytes.byteLength

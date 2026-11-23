@@ -13,6 +13,7 @@ import {
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { finished } from 'node:stream/promises'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -929,6 +930,55 @@ describe('download', () => {
   })
 })
 
+describe('download stream failures', () => {
+  let tmp: string
+
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-download-failure-'))
+  })
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it.each([
+    { label: 'undefined', reason: undefined },
+    { label: 'null', reason: null },
+    { label: 'false', reason: false },
+    { label: 'zero', reason: 0 },
+    { label: 'empty string', reason: '' },
+    { label: 'string', reason: 'connection failed' },
+    { label: 'Error', reason: new Error('connection failed') }
+  ])('rejects a body failure of $label and preserves the existing file', async ({ reason }) => {
+    const target = path.join(tmp, 'existing.bin') as AbsoluteFilePath
+    await writeFile(target, 'original')
+    let sent = false
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (!sent) {
+          sent = true
+          controller.enqueue(Uint8Array.from([0x00, 0xff, 0x42]))
+        } else {
+          controller.error(reason)
+        }
+      }
+    })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(body))
+
+    const download = fsDownload('https://downloads.invalid/file.bin', target)
+
+    if (reason instanceof Error) {
+      await expect(download).rejects.toBe(reason)
+    } else {
+      await expect(download).rejects.toMatchObject({ cause: reason })
+    }
+
+    expect(await readFile(target, 'utf-8')).toBe('original')
+    expect((await readdir(tmp)).filter((entry) => entry.includes('.tmp-'))).toEqual([])
+  })
+})
+
 describe('createAtomicWriteStream', () => {
   let tmp: string
   beforeEach(async () => {
@@ -936,6 +986,39 @@ describe('createAtomicWriteStream', () => {
   })
   afterEach(async () => {
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it.each([undefined, null, false, 0, ''])(
+    'rejects instead of finishing when onPrepared rejects %s',
+    async (reason) => {
+      const target = path.join(tmp, 'existing.txt') as AbsoluteFilePath
+      await writeFile(target, 'original')
+      const stream = createPreparedAtomicWriteStream(target, async () => {
+        throw reason
+      })
+      const settlement = finished(stream)
+      const failure = expect(settlement).rejects.toMatchObject({ cause: reason })
+      stream.end('replacement')
+
+      await failure
+      expect(await readFile(target, 'utf-8')).toBe('original')
+      expect((await readdir(tmp)).filter((entry) => entry.includes('.tmp-'))).toEqual([])
+    }
+  )
+
+  it('preserves an Error rejected by onPrepared and cleans up without replacing the target', async () => {
+    const target = path.join(tmp, 'existing.txt') as AbsoluteFilePath
+    await writeFile(target, 'original')
+    const error = new Error('commit rejected')
+    const stream = createPreparedAtomicWriteStream(target, async () => {
+      throw error
+    })
+    const failure = expect(finished(stream)).rejects.toBe(error)
+    stream.end('replacement')
+
+    await failure
+    expect(await readFile(target, 'utf-8')).toBe('original')
+    expect((await readdir(tmp)).filter((entry) => entry.includes('.tmp-'))).toEqual([])
   })
 
   it('commits target on .end() and leaves no tmp residue', async () => {

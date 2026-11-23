@@ -1,6 +1,8 @@
+import { runInNewContext } from 'node:vm'
+
 import { describe, expect, it } from 'vitest'
 
-import { getErrorCode, getErrorMessage } from '../error'
+import { getErrorCode, getErrorMessage, toError } from '../error'
 
 describe('getErrorMessage', () => {
   it.each([
@@ -84,5 +86,67 @@ describe('getErrorCode', () => {
 
     expect(getErrorCode(error)).toBeUndefined()
     expect(getErrorCode(revoked.proxy)).toBeUndefined()
+  })
+})
+
+describe('toError', () => {
+  it('preserves native, domain and cross-realm Error identity without inspecting the message', () => {
+    class FileCommitError extends Error {}
+    const error = Object.defineProperty(new Error('failed'), 'message', {
+      get() {
+        throw new Error('unreadable message')
+      }
+    })
+    const domainError = new FileCommitError('commit failed')
+    const foreignError = runInNewContext('new Error("cross-realm failure")')
+
+    expect(toError(error, 'Failed')).toBe(error)
+    expect(toError(domainError, 'Failed')).toBe(domainError)
+    expect(toError(foreignError, 'Failed')).toBe(foreignError)
+  })
+
+  it.each([
+    { value: undefined, message: 'undefined' },
+    { value: null, message: 'null' },
+    { value: false, message: 'false' },
+    { value: 0, message: '0' },
+    { value: '', message: '' },
+    { value: 'failed', message: 'failed' },
+    { value: Symbol('reason'), message: 'Symbol(reason)' }
+  ])('converts $message into an Error while retaining the original cause', ({ value, message }) => {
+    const error = toError(value, 'Failed')
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toBe(message)
+    expect(Object.hasOwn(error, 'cause')).toBe(true)
+    expect(error.cause).toBe(value)
+  })
+
+  it('reads a virtual message once while retaining the original failure', () => {
+    let reads = 0
+    const value = new Proxy({}, { get: (_target, key) => (key === 'message' ? `failure ${++reads}` : undefined) })
+    const error = toError(value, 'Failed')
+
+    expect(error.message).toBe('failure 1')
+    expect(error.cause).toBe(value)
+  })
+
+  it('uses the fallback without losing unreadable failure values', () => {
+    const getter = {
+      get message() {
+        throw new Error('unreadable message')
+      }
+    }
+    const revoked = Proxy.revocable({}, {})
+    revoked.revoke()
+    const unprintable = { toString: null, valueOf: null }
+
+    for (const value of [getter, revoked.proxy, unprintable]) {
+      const error = toError(value, 'File operation failed')
+
+      expect(error).toBeInstanceOf(Error)
+      expect(error.message).toBe('File operation failed')
+      expect(error.cause).toBe(value)
+    }
   })
 })

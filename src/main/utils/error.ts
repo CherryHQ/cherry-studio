@@ -25,3 +25,19 @@ export function getErrorCode(error: unknown): string | undefined {
     return undefined
   }
 }
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Node stream failure callbacks require a truthy Error; arbitrary rejection values must retain their cause instead of being interpreted as success.
+export function toError(error: unknown, fallback: string): Error {
+  try {
+    if (Error.isError(error)) return error
+
+    const message =
+      error !== null && (typeof error === 'object' || typeof error === 'function')
+        ? Reflect.get(error, 'message') // oxlint-disable-line anti-slop/no-reflect-get -- Preserve readable message fields on non-Error failures, including virtual Proxy fields.
+        : undefined
+
+    return new Error(typeof message === 'string' ? message : getErrorMessage(error, fallback), { cause: error })
+  } catch {
+    return new Error(fallback, { cause: error })
+  }
+}
