@@ -76,6 +76,7 @@
     "download:binaries": "node scripts/download-binaries.js",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
+    "gen:preference-analytics-catalog": "tsx scripts/generate-preference-analytics-catalog.ts",
     "gen:system-provider-ids": "tsx scripts/generate-system-provider-ids.ts",
     "i18n:check": "dotenv -e .env -- tsx scripts/i18n-check.ts",
     "i18n:extract": "i18next-cli extract",

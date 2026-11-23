@@ -3,14 +3,22 @@ import type { PostHog } from 'posthog-node'
 
 import { application } from '@application'
 import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
+import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { STORED_FILE_REF_PREFIX } from '@shared/data/types/file'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { BEHAVIOR_ANALYTICS_EVENTS, type ProductAnalyticsEvent } from '@shared/ipc/schemas/analytics'
+import { analyticsModelSource } from '@shared/utils/analyticsModelSource'
 import { APP_NAME } from '@shared/utils/constants'
+
+import { PREFERENCE_ANALYTICS_CATALOG } from './analyticsPreferenceCatalog.gen'
 
 const logger = loggerService.withContext('AnalyticsService')
 
@@ -22,6 +30,24 @@ const MAX_PENDING_PRODUCT_EVENTS = 200
 const ANONYMOUS_ID_KEY = 'analytics.anonymous_id'
 const DEVICE_EVENTS: ReadonlySet<string> = new Set(['app_opened'])
 const SETTING_CHANGE_COALESCE_MS = 2_000
+const SNAPSHOT_CHECK_INTERVAL_MS = 60 * 60_000
+const USER_AVATAR_KEY = 'app.user.avatar'
+
+const VOICE_MODEL_SETTING_KEYS: ReadonlySet<string> = new Set([
+  'feature.voice.recognition.model_id',
+  'feature.voice.speech.model_id'
+])
+
+// '' picks a model automatically and 'off' disables recognition; local voice models run on the device.
+function voiceModelSource(value: unknown): string {
+  if (!value) return 'automatic'
+  if (value === 'off') return 'off'
+  if (typeof value !== 'string' || !value.includes('::')) return 'none'
+  const { providerId } = parseUniqueModelId(value as UniqueModelId)
+  return providerId === 'local-voice' ? 'local' : analyticsModelSource(providerId)
+}
+
+type SettingsSnapshotEvent = Extract<ProductAnalyticsEvent, { event: 'settings_snapshot' }>
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
 function resolvePostHogKey(): string {
@@ -40,6 +66,45 @@ function isProductTestTraffic(): boolean {
 }
 
 const behaviorEvents: ReadonlySet<string> = new Set(BEHAVIOR_ANALYTICS_EVENTS)
+const behaviorEventsEnabled = () => import.meta.env.MAIN_VITE_ANALYTICS_BEHAVIOR_EVENTS === 'true'
+
+/** Booleans, finite numbers, and catalogued fixed options; free text and uncatalogued keys report nothing. */
+function reportableSettingValue(key: string, value: unknown): boolean | number | string | undefined {
+  const kind = PREFERENCE_ANALYTICS_CATALOG[key]
+  if (kind === 'bool') return typeof value === 'boolean' ? value : undefined
+  if (kind === 'num') return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  if (Array.isArray(kind)) return typeof value === 'string' && kind.includes(value) ? value : undefined
+  return undefined
+}
+
+// Free-text settings report only whether they differ from the default; the avatar reports its kind.
+function settingsSnapshot(read: (key: UnifiedPreferenceKeyType) => unknown): SettingsSnapshotEvent {
+  const event: SettingsSnapshotEvent = { event: 'settings_snapshot' }
+  const defaults: Record<string, unknown> = DefaultPreferences.default
+  for (const [key, kind] of Object.entries(PREFERENCE_ANALYTICS_CATALOG)) {
+    const value = read(key as UnifiedPreferenceKeyType)
+    if (key === USER_AVATAR_KEY) {
+      event[`setting:${key}`] = !value
+        ? 'default'
+        : String(value).startsWith(STORED_FILE_REF_PREFIX)
+          ? 'image'
+          : 'emoji'
+    } else if (VOICE_MODEL_SETTING_KEYS.has(key)) {
+      event[`setting:${key}`] = voiceModelSource(value)
+    } else if (kind === 'text') {
+      event[`setting:${key}`] = (value ?? '') !== (defaults[key] ?? '')
+    } else {
+      const reportable = reportableSettingValue(key, value)
+      if (reportable !== undefined) event[`setting:${key}`] = reportable
+    }
+  }
+  return event
+}
+
+function localDay(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
 
 // Distinct name so the SDK retry classifier treats it as non-retriable.
 class ConsentRevokedError extends Error {
@@ -130,6 +195,7 @@ export class AnalyticsService extends BaseService implements Activatable {
       })
     )
     this.registerDisposable(() => this.clearPendingSettingChanges())
+    this.registerInterval(() => this.reportDailySnapshots(), SNAPSHOT_CHECK_INTERVAL_MS)
   }
 
   protected async onReady() {
@@ -200,6 +266,7 @@ export class AnalyticsService extends BaseService implements Activatable {
     for (const { event, accountId, at } of this.pendingProductEvents.splice(0)) {
       this.captureProductEvent(event, accountId, at)
     }
+    this.reportDailySnapshots()
 
     logger.info('Analytics service activated')
   }
@@ -252,13 +319,29 @@ export class AnalyticsService extends BaseService implements Activatable {
   /** Captures a catalogued product event anonymously; events raised before start-up are replayed. */
   public trackProductEvent(event: ProductAnalyticsEvent): void {
     if (!this.desiredEnabled) return
-    if (behaviorEvents.has(event.event) && import.meta.env.MAIN_VITE_ANALYTICS_BEHAVIOR_EVENTS !== 'true') return
+    if (behaviorEvents.has(event.event) && !behaviorEventsEnabled()) return
     if (this.productEventsReady) {
       this.captureProductEvent(event)
       return
     }
     if (this.pendingProductEvents.length >= MAX_PENDING_PRODUCT_EVENTS) this.pendingProductEvents.shift()
     this.pendingProductEvents.push({ event, accountId: this.productAccountId, at: new Date() })
+  }
+
+  // Settings and branch counts as they stand, once per local day while product events are flowing.
+  private reportDailySnapshots(): void {
+    if (!this.productEventsReady || !behaviorEventsEnabled()) return
+    const cache = application.get('CacheService')
+    const today = localDay(new Date())
+    if (cache.getPersist('analytics.snapshot.last_day') === today) return
+    cache.setPersist('analytics.snapshot.last_day', today)
+    const preferenceService = application.get('PreferenceService')
+    this.trackProductEvent(settingsSnapshot((key) => preferenceService.get(key)))
+    try {
+      this.trackProductEvent({ event: 'chat_branch_snapshot', ...messageService.countTopicBranches() })
+    } catch (error) {
+      logger.warn('Branch snapshot skipped', error as Error)
+    }
   }
 
   // Rapid edits of one setting (sliders, typing) report once with the last value; text values stay out.
@@ -270,8 +353,7 @@ export class AnalyticsService extends BaseService implements Activatable {
     const timer = setTimeout(() => {
       const latest = this.pendingSettingChanges.get(key)?.value
       this.pendingSettingChanges.delete(key)
-      const value =
-        typeof latest === 'boolean' || (typeof latest === 'number' && Number.isFinite(latest)) ? latest : undefined
+      const value = reportableSettingValue(key, latest)
       this.trackProductEvent({ event: 'setting_changed', key, ...(value !== undefined && { value }) })
     }, SETTING_CHANGE_COALESCE_MS)
     timer.unref?.()
