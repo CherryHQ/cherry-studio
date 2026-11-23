@@ -116,6 +116,7 @@ async function startManualCheck() {
     route === 'app.get_info' ? { isPortable: false } : undefined
   )
   await act(() => appUpdateCheckService.runAppUpdateCheck(idle, vi.fn()))
+  emit('app.updater.check_started', { manual: true })
 }
 
 function emit<E extends keyof AppEventSchemas>(event: E, payload: AppEventSchemas[E]) {
@@ -188,10 +189,12 @@ describe('useAppUpdateHandler', () => {
     )
     renderHook(() => useAppUpdateHandler())
     await appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
+    emit('app.updater.check_started', { manual: true })
     emit('app.updater.available', releaseInfo)
     emit('app.updater.downloaded', releaseInfo)
     await waitFor(() => expect(mocks.updateDialogShow).toHaveBeenCalledTimes(1))
 
+    emit('app.updater.check_started', { manual: false })
     emit('app.updater.available', { ...releaseInfo, version: '2.2.0' })
     emit('app.updater.downloaded', { ...releaseInfo, version: '2.2.0' })
     await act(async () => {
@@ -401,6 +404,7 @@ describe('useAppUpdateHandler', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
+    emit('app.updater.check_started', { manual: true })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(UPDATE_CHECK_EVENT_WAIT_MS)
     })
@@ -456,6 +460,7 @@ describe('useAppUpdateHandler', () => {
     })
     expect(appUpdateCheckService.isManualUpdateCheck()).toBe(true)
 
+    emit('app.updater.check_started', { manual: true })
     emit('app.updater.downloaded', releaseInfo)
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)

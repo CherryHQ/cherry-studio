@@ -104,6 +104,8 @@ describe('AppUpdaterService — update-not-available feed target', () => {
   // Updater events only count inside a check, so emit from within one.
   async function emitNotAvailable(info: UpdateInfo) {
     vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+      // Assert this check's outcome, not the check-started notice before it.
+      vi.mocked(application.get('IpcApiService').broadcastToType).mockClear()
       onUpdateNotAvailable?.(info)
       return { isUpdateAvailable: false, updateInfo: info } as never
     })

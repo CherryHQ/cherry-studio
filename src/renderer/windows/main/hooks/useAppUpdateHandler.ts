@@ -41,6 +41,12 @@ export function useAppUpdateHandler() {
 
   // The service owns manual intent; it is set synchronously on click and ends with the check.
   const manual = () => appUpdateCheckService.isManualUpdateCheck()
+  // Another check's events update shared state only; the click's own check answers it.
+  const otherCheck = () => appUpdateCheckService.isOtherCheckEvent()
+
+  useIpcOn('app.updater.check_started', (payload) => {
+    appUpdateCheckService.noteMainCheckStarted(payload.manual)
+  })
 
   useIpcOn('app.updater.run_check', () => {
     void appUpdateCheckService.runAppUpdateCheck(appUpdateState, updateAppUpdateState).catch(() => {
@@ -61,7 +67,7 @@ export function useAppUpdateHandler() {
   })
 
   useIpcOn('app.updater.not_available', (payload) => {
-    if (!appUpdateCheckService.isActiveUpdateSession()) return
+    if (!appUpdateCheckService.isActiveUpdateSession() || otherCheck()) return
     const wasManual = manual()
     appUpdateCheckService.endManualUpdateCheck()
     updateAppUpdateState({ checking: false, lastErrorKey: null })
@@ -78,7 +84,7 @@ export function useAppUpdateHandler() {
 
   useIpcOn('app.updater.available', (releaseInfo) => {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
-    appUpdateCheckService.markUpdateDownloading(releaseInfo)
+    if (!otherCheck()) appUpdateCheckService.markUpdateDownloading(releaseInfo)
     // Readiness belongs to the artifact that emitted `downloaded`; this release has not.
     updateAppUpdateState({
       checking: false,
@@ -92,7 +98,7 @@ export function useAppUpdateHandler() {
 
   useIpcOn('app.updater.download_progress', (progress) => {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
-    appUpdateCheckService.markUpdateProgress()
+    if (!otherCheck()) appUpdateCheckService.markUpdateProgress()
     updateAppUpdateState({
       downloading: progress.percent < 100,
       downloadProgress: progress.percent
@@ -101,8 +107,9 @@ export function useAppUpdateHandler() {
 
   useIpcOn('app.updater.downloaded', (releaseInfo) => {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
-    const wasManual = manual()
-    appUpdateCheckService.markUpdateDownloaded(releaseInfo)
+    const fromOtherCheck = otherCheck()
+    const wasManual = !fromOtherCheck && manual()
+    if (!fromOtherCheck) appUpdateCheckService.markUpdateDownloaded(releaseInfo)
     updateAppUpdateState({
       downloading: false,
       info: releaseInfo,
@@ -118,6 +125,10 @@ export function useAppUpdateHandler() {
 
   useIpcOn('app.updater.error', (error) => {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
+    if (otherCheck()) {
+      updateAppUpdateState({ checking: true, downloading: false, downloadProgress: 0 })
+      return
+    }
     const wasManual = manual()
     appUpdateCheckService.endManualUpdateCheck()
     updateAppUpdateState({

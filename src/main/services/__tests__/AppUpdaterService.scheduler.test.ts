@@ -278,6 +278,33 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
     expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(3)
   })
 
+  it('tells the main window that a click queued behind a scheduled check starts only when its own check does', async () => {
+    let finishScheduled: (value: null) => void = () => undefined
+    vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishScheduled = resolve
+        })
+    )
+    const startedChecks = () =>
+      vi
+        .mocked(defaultServiceInstances.IpcApiService.broadcastToType)
+        .mock.calls.filter(([, event]) => event === 'app.updater.check_started')
+        .map(([, , payload]) => payload)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await appUpdater._doAllReady()
+    await vi.advanceTimersByTimeAsync(INITIAL_DELAY)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+
+    const manualCheck = appUpdater.checkForUpdates()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(startedChecks()).toEqual([{ manual: false }])
+
+    finishScheduled(null)
+    await manualCheck
+    expect(startedChecks()).toEqual([{ manual: false }, { manual: true }])
+  })
+
   it('does not schedule when the app is not packaged', async () => {
     setPackaged(false)
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

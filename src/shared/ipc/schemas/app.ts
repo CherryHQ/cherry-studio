@@ -141,6 +141,8 @@ export type AppUpdaterNotAvailablePayload = {
 }
 
 export type AppEventSchemas = {
+  /** Precedes the events of each configured check; `manual` marks the check a click requested. */
+  'app.updater.check_started': { manual: boolean }
   'app.updater.error': Error
   'app.updater.available': UpdateInfo
   'app.updater.not_available': AppUpdaterNotAvailablePayload

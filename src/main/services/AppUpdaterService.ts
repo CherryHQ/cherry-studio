@@ -558,8 +558,8 @@ export class AppUpdaterService extends BaseService {
    * event-driven contract: errors reach the renderer via the `UpdateError`
    * broadcast (see `registerAutoUpdaterListeners`), not the return value.
    */
-  private performUpdateCheck() {
-    const run = this.updateCheckQueue.then(() => this.runConfiguredUpdateCheck())
+  private performUpdateCheck(manual: boolean) {
+    const run = this.updateCheckQueue.then(() => this.runConfiguredUpdateCheck(manual))
     this.updateCheckQueue = run.then(
       () => undefined,
       () => undefined
@@ -567,7 +567,7 @@ export class AppUpdaterService extends BaseService {
     return run
   }
 
-  private async runConfiguredUpdateCheck() {
+  private async runConfiguredUpdateCheck(manual: boolean) {
     void application.get('AnalyticsService').trackAppUpdate()
 
     if (this.isPortable()) {
@@ -579,6 +579,8 @@ export class AppUpdaterService extends BaseService {
 
     await this.pendingDownload
     const generation = this.beginConfiguredCheck()
+    // A click can queue behind a scheduled check; only its own check may answer it.
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.check_started', { manual })
     await this.configureUpdaterForCheck()
     if (!this.checkStillCurrent(generation)) {
       return { currentVersion: autoUpdater.currentVersion, updateInfo: null }
@@ -620,7 +622,7 @@ export class AppUpdaterService extends BaseService {
 
   public async checkForUpdates() {
     try {
-      return await this.performUpdateCheck()
+      return await this.performUpdateCheck(true)
     } catch (error) {
       logFailure(logger, 'Failed to check for update:', error, 'update.check', classifyUpdateFailure(error))
       return {
@@ -653,7 +655,7 @@ export class AppUpdaterService extends BaseService {
       // backoff — the manual download trigger is fire-and-forget and surfaces
       // its own errors via the `UpdateError` event.
       if (application.get('PreferenceService').get('app.dist.auto_update.enabled')) {
-        await this.performUpdateCheck()
+        await this.performUpdateCheck(false)
       }
       this.updateCheckFailures = 0
       this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())

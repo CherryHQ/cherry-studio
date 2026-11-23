@@ -30,6 +30,8 @@ export interface UpdateDialog {
 
 class AppUpdateCheckService {
   private manualCheckActive = false
+  /** Whether main's current check is one a click requested, from `app.updater.check_started`. */
+  private mainCheckIsManual = false
   private checkInFlight = false
   private phase: UpdatePhase = 'idle'
   private latestInfo: UpdateInfo | null = null
@@ -59,6 +61,15 @@ class AppUpdateCheckService {
 
   isManualUpdateCheck(): boolean {
     return this.manualCheckActive
+  }
+
+  noteMainCheckStarted(manual: boolean): void {
+    this.mainCheckIsManual = manual
+  }
+
+  /** A click still waits in main's queue while another check emits; that check must not answer it. */
+  isOtherCheckEvent(): boolean {
+    return this.manualCheckActive && !this.mainCheckIsManual
   }
 
   /** Channel switches bump the session so an in-flight old release cannot reopen. */

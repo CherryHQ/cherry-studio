@@ -462,6 +462,7 @@ describe('AppUpdaterService', () => {
 
       const firstCheck = appUpdater.checkForUpdates()
       await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1))
+      vi.mocked(ipc.broadcastToType).mockClear()
       appUpdater.cancelDownload()
       MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', false)
       MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.LATEST)
