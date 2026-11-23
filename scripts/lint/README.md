@@ -19,8 +19,13 @@ because this repository does not use Effect.
 substring ban rejects legitimate geometry, schema and persisted contract names;
 restricting only bare `Shape` declarations would still enforce a naming preference
 without establishing a better type contract. Keep the upstream implementation
-available without a local fork. The enforcement target is the other 17 generic
-rules and the native companion.
+available without a local fork.
+
+`no-runtime-typeof` is also deliberately disabled. It rejects primitive checks
+inside existing boundary decoders and Zod custom validators without identifying
+where validation belongs. Preserve those checks and the upstream source; adding
+duplicate parsers or broad suppressions would not improve their contracts. The
+enforcement target is the other 16 generic rules and the native companion.
 
 Unconfigured rules are pending migration, not proof that their source is clean.
 Each rule-specific stack layer clears that rule's findings, verifies affected

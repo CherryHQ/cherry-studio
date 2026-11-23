@@ -136,6 +136,7 @@ describe('available generic anti-slop rules', () => {
     'export const values = ["first", "second"] as const',
     'import { z } from "zod";\n\nexport const userSchema = z.object({ name: z.string() })',
     'export function read(value: { name: string }) { return value.name }',
+    'export function read(value: string | number) { return typeof value === "string" }',
     'export const available = typeof document !== "undefined"'
   ])('accepts supported code: %s', (source) => {
     const result = lint(source)

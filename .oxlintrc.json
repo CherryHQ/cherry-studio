@@ -169,6 +169,7 @@
     "anti-slop/no-module-mocking": "error",
     "anti-slop/no-known-value-widening": "error",
     "anti-slop/require-readable-spacing": "error",
+    "anti-slop/no-runtime-typeof": "off",
     "anti-slop/no-shape-in-symbol-names": "off",
     "no-array-constructor": "off",
     "no-caller": "error",
