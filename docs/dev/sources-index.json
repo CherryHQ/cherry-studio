@@ -399,7 +399,7 @@
     },
     {
       "path": "docs/dev/references/knowledge/experiment/knowledge-technical-design.md",
-      "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query"]
+      "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore","src/main/features/knowledge/query"]
     },
     {
       "path": "docs/dev/references/knowledge/knowledge-service.md",

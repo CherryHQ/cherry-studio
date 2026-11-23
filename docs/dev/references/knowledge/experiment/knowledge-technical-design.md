@@ -2,7 +2,7 @@
 description: Current Knowledge storage and retrieval implementation - raw files, per-base index schema, invariants, and migration validation
 sources:
   - src/main/features/knowledge/pathStorage.ts
-  - src/main/features/knowledge/pipeline/vectorstore/indexStore
+  - src/main/features/knowledge/pipeline/vectorstore
   - src/main/features/knowledge/query
   - src/main/data/db/schemas/knowledge.ts
 ---
