@@ -70,6 +70,15 @@ export async function persistProviderModels({
 }
 
 /**
+ * Every credential literal a provider request carries: the API keys plus the custom header values
+ * (`extraHeaders` may still hold non-string values migrated from v1).
+ */
+export function providerRequestSecrets(apiKeys: Iterable<string>, extraHeaders: object | undefined): string[] {
+  const headerValues = Object.values(extraHeaders ?? {}).filter((value): value is string => typeof value === 'string')
+  return [...apiKeys, ...headerValues].map((secret) => secret.trim()).filter(Boolean)
+}
+
+/**
  * `diagnostic` is the serialized failure with every known key literal masked;
  * hand it, never the raw error, to error detail surfaces.
  */

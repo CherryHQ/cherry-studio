@@ -26,6 +26,7 @@ import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import type { ModelCheckKeySelection } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import { providerRequestSecrets } from '@renderer/pages/settings/ProviderSettings/utils/providerModelSetup'
 import { contextFromUnknown } from '@renderer/services/AppErrorContextService'
 import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import { maskApiKey } from '@renderer/utils/api'
@@ -349,8 +350,11 @@ export default function ModelCheckDialog() {
       }
     }
     const imageOnly = selectedModel ? isNonChatModel(selectedModel) : false
-    // Providers may echo a key that has no recognizable prefix, so mask every configured key literally.
-    const keys = health.apiKeyEntries.map((entry) => entry.key.trim()).filter(Boolean)
+    // Providers may echo a credential that has no recognizable prefix, so mask every configured one literally.
+    const keys = providerRequestSecrets(
+      health.apiKeyEntries.map((entry) => entry.key),
+      health.extraHeaders
+    )
     const redactedError = redactSecretLiterals(singleError, keys)
     let errorContext = checkFaults.current.get(singleError)
     if (!errorContext) {

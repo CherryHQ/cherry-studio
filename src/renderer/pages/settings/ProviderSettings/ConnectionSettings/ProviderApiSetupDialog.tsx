@@ -37,7 +37,11 @@ import {
 import { ProviderHelpLink, providerListClasses } from '../primitives/ProviderSettingsPrimitives'
 import DoubaoSetupGuide from '../ProviderSpecific/DoubaoSetupGuide'
 import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
-import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/providerModelSetup'
+import {
+  getProviderSetupErrorDetails,
+  persistProviderModels,
+  providerRequestSecrets
+} from '../utils/providerModelSetup'
 
 const VERIFICATION_STEP_FEEDBACK_DURATION_MS = 400
 
@@ -191,12 +195,13 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     (kind: SetupErrorKind, fallbackKey: string, cause: unknown): SetupError => {
       const storedKeys = apiKeysData?.keys
       const canSafelyShowDiagnostic = apiKey.trim().length > 0 || storedKeys !== undefined
-      const details = getProviderSetupErrorDetails(cause, [
-        ...parseProviderApiKeys(apiKey),
-        ...storedApiKeyEntries.map((entry) => entry.key),
-        // Requests also send the custom headers; v1-migrated values may not be strings.
-        ...Object.values(extraHeaders ?? {}).filter((value) => typeof value === 'string')
-      ])
+      const details = getProviderSetupErrorDetails(
+        cause,
+        providerRequestSecrets(
+          [...parseProviderApiKeys(apiKey), ...storedApiKeyEntries.map((entry) => entry.key)],
+          extraHeaders
+        )
+      )
       return {
         kind,
         message: t(details.i18nKey ?? fallbackKey),

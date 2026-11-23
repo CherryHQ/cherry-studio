@@ -33,6 +33,7 @@ const health = {
   modelCheckOpen: true,
   models: [imageModel, chatModel],
   apiKeyEntries: [{ id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true }],
+  extraHeaders: undefined as Record<string, string> | undefined,
   canSelectApiKey: true,
   requiresApiKey: true,
   isSingleModelChecking: false,
@@ -67,6 +68,7 @@ describe('ModelCheckDialog', () => {
     health.modelCheckOpen = true
     health.models = [imageModel, chatModel]
     health.apiKeyEntries = [{ id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true }]
+    health.extraHeaders = undefined
     health.canSelectApiKey = true
     health.requiresApiKey = true
     health.isSingleModelChecking = false
@@ -320,6 +322,38 @@ describe('ModelCheckDialog', () => {
     expect(JSON.stringify(shown)).not.toContain(secret)
     expect(shown.errorContext.responseBody).toContain('Unauthorized key')
     expect(shown.error.responseBody).toContain('Unauthorized key')
+  })
+
+  // Checks also send the provider's custom headers, so an echoed header value is a credential too.
+  it('masks an echoed custom header value before showing the failure detail', async () => {
+    const user = userEvent.setup()
+    const headerToken = 'hdr-Hd83kLq0ZpW1'
+    health.extraHeaders = { 'X-Gateway-Token': headerToken }
+    const error = {
+      name: 'Error',
+      message: `Unauthorized gateway token ${headerToken}`,
+      stack: null,
+      statusCode: 401,
+      responseBody: `{"error":{"message":"token ${headerToken} rejected"}}`
+    }
+    const entry = health.apiKeyEntries[0]
+    health.singleModelResult = {
+      kind: 'failed',
+      model: chatModel,
+      status: HealthStatus.FAILED,
+      keyResults: [
+        { kind: 'failed', status: HealthStatus.FAILED, checking: false, credential: { kind: 'api-key', entry }, error }
+      ],
+      checking: false,
+      error
+    }
+
+    render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+
+    const report = JSON.stringify(showErrorDetailPopup.mock.calls[0]?.[0])
+    expect(report).not.toContain(headerToken)
+    expect(report).toContain('Unauthorized gateway token')
   })
 
   it('gives an identical failure from a retry started outside the dialog its own occurrence', async () => {
