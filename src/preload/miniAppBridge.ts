@@ -129,6 +129,7 @@ const gateFetch = (raw: { url?: unknown; method?: unknown; headers?: unknown; bo
   assertPayloadSize(url ?? '', MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
 
   const rawHeaders = params.headers ?? {}
+
   const headers =
     Object.keys(rawHeaders).length <= MINI_APP_GUEST_LIMITS.fetchHeaderCount ? Object.entries(rawHeaders) : undefined
 
