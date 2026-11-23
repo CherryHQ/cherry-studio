@@ -61,9 +61,8 @@ export class AgentSessionForkService {
       sql<unknown>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith((value: string): unknown =>
         JSON.parse(value)
       )
-    return application
-      .get('DbService')
-      .getDb()
+    const db = application.get('DbService').getDb()
+    const boundaries = db
       .select({
         id: agentSessionMessageTable.id,
         role: agentSessionMessageTable.role,
@@ -76,6 +75,30 @@ export class AgentSessionForkService {
       .leftJoin(parent, and(eq(parent.sessionId, sessionId), eq(parent.id, agentSessionMessageTable.parentId)))
       .where(and(eq(agentSessionMessageTable.sessionId, sessionId), inArray(agentSessionMessageTable.id, messageIds)))
       .all()
+    return boundaries.map((boundary) => {
+      let parentBoundary = boundary.parent
+      const visited = new Set<string>()
+      while (parentBoundary?.role === 'system' && !visited.has(parentBoundary.id)) {
+        visited.add(parentBoundary.id)
+        const row = db
+          .select()
+          .from(agentSessionMessageTable)
+          .where(
+            and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.id, parentBoundary.id))
+          )
+          .get()
+        if (!row?.data.modelSwitchHandoff || !row.parentId) break
+        const previous = db
+          .select()
+          .from(agentSessionMessageTable)
+          .where(and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.id, row.parentId)))
+          .get()
+        parentBoundary = previous
+          ? { id: previous.id, role: previous.role, status: previous.status, anchor: previous.data.runtimeAnchor }
+          : null
+      }
+      return { ...boundary, parent: parentBoundary }
+    })
   }
 
   private readTx(tx: DbOrTx, sourceSessionId: string, messageId: string, excludedIds: readonly string[]) {

@@ -147,14 +147,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.branchHead
     )
     await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.branchHead
     )
     const { agent, session } = initialSnapshot
     const workspacePath = session.workspace?.path
@@ -183,6 +185,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     })
     const prompt = await buildAgentRuntimePrompt({
       sessionId: this.input.sessionId,
+      branchHead: this.input.branchHead,
       workspacePath,
       agentDataPath,
       agent,
@@ -245,7 +248,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.branchHead
     )
     if (finalSnapshot.signature !== initialSnapshot.signature)
       throw new Error('Pi configuration changed during startup')
@@ -911,7 +915,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.input.sessionId,
         this.input.agentId,
         input.modelId,
-        input.knowledgeBaseIds
+        input.knowledgeBaseIds,
+        this.input.branchHead
       )
     } catch (error) {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'

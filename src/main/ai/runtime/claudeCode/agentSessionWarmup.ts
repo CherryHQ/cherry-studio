@@ -518,7 +518,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
   /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
    *  default while ignoring session overrides. */
-  headless = false
+  headless = false,
+  branchHead?: string | null
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   if (!session?.agentId) return undefined
@@ -581,6 +582,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         contextWindow,
+        branchHead,
         compactionPercent,
         maxOutputTokens,
         lastAgentSessionId: resumeSessionId,

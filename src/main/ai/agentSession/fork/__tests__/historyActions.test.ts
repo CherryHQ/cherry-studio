@@ -70,6 +70,30 @@ function answer(checkpoint?: unknown) {
   })
 }
 
+it('resolves edit eligibility through saved handoffs without hiding them from product history', async () => {
+  user('First')
+  answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' })
+  const handoff = messages.saveMessage({
+    sessionId,
+    message: {
+      role: 'system',
+      status: 'success',
+      data: {
+        parts: [{ type: 'text', text: 'Reviewed handoff' }],
+        modelSwitchHandoff: {
+          previousModel: 'fixture::old',
+          nextModel: 'fixture::new',
+          sourceHead: 'source'
+        }
+      }
+    }
+  })
+  const next = user('Next')
+  expect(runtime.getHistoryActions(sessionId, [next.id]).get(next.id)?.edit).toBeNull()
+  await expect(runtime.getEditTarget(sessionId, next.id)).resolves.toMatchObject({ messageId: next.id })
+  expect(messages.listSessionMessages(sessionId).items.some((row) => row.id === handoff.id)).toBe(true)
+})
+
 it('offers native-backed boundaries and lets edit preparation use a predecessor outside the requested page', async () => {
   const first = user('First')
   const completed = answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' })

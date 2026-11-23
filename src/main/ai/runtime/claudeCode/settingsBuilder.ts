@@ -130,6 +130,7 @@ export function registerMcpSessionCatalogSync(
 // ── Input types ─────────────────────────────────────────────────────
 
 export interface ClaudeCodeSessionOptions {
+  branchHead?: string | null
   compactionPercent?: number
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
@@ -256,7 +257,8 @@ export async function buildClaudeCodeSessionSettings(
     disallowedTools,
     options?.effectiveLanguage,
     options?.promptModelName,
-    session.id
+    session.id,
+    options?.branchHead
   )
 
   // 6. MCP servers (session + built-in)
@@ -752,7 +754,8 @@ export async function buildSystemPrompt(
   effectiveLanguage?: string | null,
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
   promptModelName?: string | null,
-  sessionId?: string
+  sessionId?: string,
+  branchHead?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -770,6 +773,7 @@ export async function buildSystemPrompt(
   ].join('\n')
   const prompt = await buildAgentRuntimePrompt({
     sessionId,
+    branchHead,
     workspacePath: cwd,
     agentDataPath,
     agent,

@@ -8,3 +8,5 @@ export { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 export { readClaudeTranscriptEvidence } from './transcriptEvidence'
 export type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'
 export { claudeWorkspaceRelocation } from './workspaceRelocation'
+
+export { buildEnvironment, resolveClaudeExecutablePath } from './environment'

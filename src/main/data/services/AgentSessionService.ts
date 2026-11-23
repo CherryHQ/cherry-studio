@@ -988,15 +988,16 @@ export class AgentSessionService {
     return { previousModel, sourceHead, sourceVersion, messages }
   }
 
-  getModelSwitchHandoff(id: string): string | undefined {
+  getModelSwitchHandoff(id: string, branchHead?: string | null): string | undefined {
     const db = application.get('DbService').getDb()
     const session = db
       .select({ head: sessionsTable.activeNodeId })
       .from(sessionsTable)
       .where(eq(sessionsTable.id, id))
       .get()
-    if (!session?.head) return undefined
-    const rows = readAgentSessionPath(db, id, session.head)
+    const head = branchHead === undefined ? session?.head : branchHead
+    if (!head) return undefined
+    const rows = readAgentSessionPath(db, id, head)
     const row = rows.findLast((message) => message.role === 'system' && message.data.modelSwitchHandoff)
     return row?.data.parts?.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
   }

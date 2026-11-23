@@ -118,8 +118,11 @@ export class AgentSessionForkOperations {
     let nativeContextId: string | undefined
     let resources: AgentSessionForkResources | undefined
     try {
-      if (prefix.length) {
-        const row = prefix.at(-1)!
+      // Handoffs remain in the product prefix, but native history ends at the preceding checkpoint.
+      const nativePrefix = [...prefix]
+      while (nativePrefix.at(-1)?.role === 'system' && nativePrefix.at(-1)?.data.modelSwitchHandoff) nativePrefix.pop()
+      if (nativePrefix.length) {
+        const row = nativePrefix.at(-1)!
         const boundary = resolveForkBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
         if (boundary.reason) throw new AgentSessionEditError('checkpoint_unsupported')
         const { anchor } = boundary

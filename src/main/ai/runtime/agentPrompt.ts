@@ -35,6 +35,7 @@ export interface AgentRuntimePrompt {
 
 export interface BuildAgentRuntimePromptOptions {
   sessionId?: string
+  branchHead?: string | null
   workspacePath: string
   agentDataPath: string
   agent: AgentEntity
@@ -53,6 +54,7 @@ const promptBuilder = new PromptBuilder()
 /** Materialize Cherry-owned prompt policy once; runtime adapters only map base/append into their SDK. */
 export async function buildAgentRuntimePrompt({
   sessionId,
+  branchHead,
   workspacePath,
   agentDataPath,
   agent,
@@ -95,7 +97,7 @@ export async function buildAgentRuntimePrompt({
     parts.base.kind === 'custom' ? customBaseContext : undefined,
     citationsGuidance,
     mcpInstructions,
-    sessionId ? agentSessionService.getModelSwitchHandoff(sessionId) : undefined,
+    sessionId ? agentSessionService.getModelSwitchHandoff(sessionId, branchHead) : undefined,
     getLanguageInstruction(agent, effectiveLanguage)
   ]
     .filter(Boolean)

@@ -10,8 +10,20 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { generateModelSwitchHandoff } from '@main/ai/agents/modelSwitchHandoff'
 import type { UniqueModelId } from '@shared/data/types/model'
+
+const native = vi.hoisted(() => ({
+  query: vi.fn(),
+  buildEnvironment: vi.fn(async () => ({ CLAUDE_CONFIG_DIR: '/native-login' }))
+}))
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: native.query }))
+vi.mock('@main/ai/runtime/claudeCode', () => ({
+  buildEnvironment: native.buildEnvironment,
+  resolveClaudeExecutablePath: () => '/native-claude'
+}))
 
 const previousModel = 'fixture::old' as UniqueModelId
 const nextModel = 'fixture::new' as UniqueModelId
@@ -32,7 +44,12 @@ describe('model-switch handoff persistence and generation', () => {
 
   beforeEach(() => {
     MockApplicationUtils.setService('AgentSessionRuntimeService', { isSessionBusy: busy })
-    MockApplicationUtils.setService('AiService', { runTextRequest: generate })
+    MockApplicationUtils.setService('AiService', {
+      runTextRequest: generate,
+      runWithAbort: async (_id: string, operation: (signal: AbortSignal) => unknown) =>
+        operation(new AbortController().signal)
+    })
+    native.query.mockReset()
     busy.mockReturnValue(false)
     generate.mockReset().mockResolvedValue({ text: JSON.stringify(generated) })
     dbh.db.insert(userProviderTable).values({ providerId: 'fixture', name: 'Fixture', orderKey: 'p0' }).run()
@@ -106,6 +123,8 @@ describe('model-switch handoff persistence and generation', () => {
       }
     })
     expect(agentSessionService.getModelSwitchHandoff(sessionId)).toBe(input.text)
+    expect(agentSessionService.getModelSwitchHandoff(sessionId, input.sourceHead)).toBeUndefined()
+    expect(agentSessionService.getModelSwitchHandoff(sessionId, null)).toBeUndefined()
     expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-original')
   })
 
@@ -168,6 +187,40 @@ describe('model-switch handoff persistence and generation', () => {
     expect(request[1].prompt).toContain('Parser finished. Tests remain.')
     expect(agentSessionService.getById(sessionId).model).toBeNull()
     expect(rows()).toEqual(before)
+  })
+
+  it('uses CLI login without API keys for subscription-only handoff generation', async () => {
+    vi.spyOn(providerService, 'getByProviderId').mockReturnValue({ authMethods: ['external-cli'] } as never)
+    const close = vi.fn()
+    native.query.mockReturnValue(
+      Object.assign(
+        (async function* () {
+          yield { type: 'result', subtype: 'success', result: JSON.stringify(generated) }
+        })(),
+        { close }
+      )
+    )
+    const result = await generateModelSwitchHandoff(sessionId, 'native-preview')
+    expect(result.text).toContain('Finish the export')
+    expect(generate).not.toHaveBeenCalled()
+    expect(native.query).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          env: { CLAUDE_CONFIG_DIR: '/native-login' },
+          tools: [],
+          mcpServers: {},
+          persistSession: false
+        })
+      })
+    )
+    expect(close).toHaveBeenCalled()
+  })
+
+  it('rejects oversized stored history before any dispatch instead of retrying it unbounded', async () => {
+    vi.spyOn(modelService, 'getByKey').mockReturnValue({ contextWindow: 100, maxOutputTokens: 50 } as never)
+    await expect(generateModelSwitchHandoff(sessionId, 'over-budget')).rejects.toThrow(/safe handoff input budget/)
+    expect(generate).not.toHaveBeenCalled()
+    expect(native.query).not.toHaveBeenCalled()
   })
 
   it('rejects an incomplete generated structure and a changed source during generation without saving', async () => {

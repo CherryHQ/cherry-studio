@@ -845,7 +845,7 @@ export class AiService extends BaseService {
   // ── Request-scoped cancellation ──
 
   /** Run `operation` under a registry entry keyed by the renderer-supplied `requestId`. */
-  private async runWithAbort<T>(requestId: string, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  async runWithAbort<T>(requestId: string, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
     const controller = new AbortController()
     this.requests.set(requestId, controller)
     try {

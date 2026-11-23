@@ -364,9 +364,10 @@ describe('buildClaudeCodeSessionSettings', () => {
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
-      {} as never
+      {} as never,
+      { branchHead: 'branch-a' }
     )
-    expect(mocks.getModelSwitchHandoff).toHaveBeenCalledWith('session-1')
+    expect(mocks.getModelSwitchHandoff).toHaveBeenCalledWith('session-1', 'branch-a')
     expect(systemPromptText(settings.systemPrompt)).toContain('Edited handoff: test export.ts before release.')
     expect(settings.systemPrompt).toMatchObject({ snapshot: false })
   })

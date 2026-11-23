@@ -224,10 +224,23 @@ describe('Agent fork publication', () => {
   })
 
   // Editing must never append the replacement to the old native prompt or partially delete a turn.
-  it.each(['commit', 'first message', 'history changed', 'close failed', 'write failed'] as const)(
+  it.each(['commit', 'handoff', 'first message', 'history changed', 'close failed', 'write failed'] as const)(
     'edits a native prefix: %s',
     async (outcome) => {
       if (outcome === 'first message') agentSessionMessageService.deleteSessionMessage(sessionId, messageId)
+      let handoffId: string | undefined
+      if (outcome === 'handoff')
+        handoffId = agentSessionMessageService.saveMessage({
+          sessionId,
+          message: {
+            role: 'system',
+            status: 'success',
+            data: {
+              parts: [{ type: 'text', text: 'Reviewed handoff' }],
+              modelSwitchHandoff: { previousModel: 'fixture::old', nextModel: 'fixture::new', sourceHead: messageId }
+            }
+          }
+        }).id
       const tail = agentSessionMessageService.saveMessages({
         sessionId,
         messages: [
@@ -270,10 +283,12 @@ describe('Agent fork publication', () => {
           return saved[0].id
         }
       )
-      if (outcome === 'commit' || outcome === 'first message') {
+      if (outcome === 'commit' || outcome === 'handoff' || outcome === 'first message') {
         const newId = await operation
         const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
-        expect(rows.map((row) => row.id)).toEqual(outcome === 'commit' ? [messageId, newId] : [newId])
+        expect(rows.map((row) => row.id)).toEqual(
+          outcome === 'commit' ? [messageId, newId] : outcome === 'handoff' ? [messageId, handoffId, newId] : [newId]
+        )
         expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
         if (outcome === 'commit') {
           expect(agentSessionMessageService.getNativeSessionId(sessionId)).toBe('native-child')
@@ -284,14 +299,15 @@ describe('Agent fork publication', () => {
               runtimeAnchor: { checkpoint: expect.objectContaining({ runtimeSessionId: 'native-child' }) }
             })
           ])
-        } else expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
+        } else if (outcome === 'first message')
+          expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
         expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
-          outcome === 'commit' ? 'native-child' : null
+          outcome === 'commit' || outcome === 'handoff' ? 'native-child' : null
         )
         expect(agentSessionService.getById(sessionId).workspace.path).toBe(directory)
         await new AgentSessionForkOperations().recover()
-        if (outcome === 'commit') {
+        if (outcome === 'commit' || outcome === 'handoff') {
           expect(rows[0].data.parts).toEqual([{ type: 'text', text: 'Preserved answer' }])
           expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
         } else {
@@ -308,7 +324,7 @@ describe('Agent fork publication', () => {
         for (const row of tail) expect(() => agentSessionMessageService.getSessionMessage(sessionId, row.id)).toThrow()
         expect(rows.at(-1)?.siblings).toEqual([newId])
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
-          outcome === 'commit' ? 'native-child' : null
+          outcome === 'commit' || outcome === 'handoff' ? 'native-child' : null
         )
       } else {
         await expect(operation).rejects.toThrow()
