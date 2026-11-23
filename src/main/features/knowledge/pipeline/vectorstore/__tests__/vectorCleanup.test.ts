@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 const {
@@ -176,15 +177,31 @@ describe('reclaimKnowledgeIndexSpace', () => {
     ]
   ])('keeps open and reclaim failures best-effort for %s', async (_label, makeFailure) => {
     const failure = makeFailure()
+    const service = application.get('KnowledgeVectorStoreService')
 
-    for (const operation of [getIndexStoreIfExistsMock, reclaimSpaceMock]) {
-      operation.mockImplementationOnce(() => {
-        throw failure
-      })
+    // Vitest's mock catch inspects thrown values; plain throwing functions preserve revoked proxies.
+    for (const phase of ['open', 'reclaim']) {
+      const getStore = service.getIndexStoreIfExists
 
-      await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
-      expect(loggerWarnMock.mock.calls.at(-1)?.[1]).toBe(failure)
-      expect(loggerErrorMock).not.toHaveBeenCalled()
+      try {
+        if (phase === 'open') {
+          service.getIndexStoreIfExists = () => {
+            throw failure
+          }
+        } else {
+          getIndexStoreIfExistsMock.mockReturnValueOnce({
+            reclaimSpace: () => {
+              throw failure
+            }
+          })
+        }
+
+        await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
+        expect(Object.is(loggerWarnMock.mock.calls.at(-1)?.[1], failure)).toBe(true)
+        expect(loggerErrorMock).not.toHaveBeenCalled()
+      } finally {
+        service.getIndexStoreIfExists = getStore
+      }
     }
   })
 })
