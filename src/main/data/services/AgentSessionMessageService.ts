@@ -1091,11 +1091,13 @@ export class AgentSessionMessageService {
   listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
+    sessionId,
     cursor: rawCursor,
     limit
   }: {
     fromMs: number
     toMs: number
+    sessionId?: string
     cursor?: string
     limit: number
   }): CursorPaginationResponse<AgentSessionMessageRangeMetadata> {
@@ -1121,6 +1123,7 @@ export class AgentSessionMessageService {
           gte(sessionMessagesTable.createdAt, fromMs),
           lte(sessionMessagesTable.createdAt, toMs),
           isNull(sessionTable.deletedAt),
+          sessionId === undefined ? undefined : eq(sessionMessagesTable.sessionId, sessionId),
           cursor ? ordering.where(cursor) : undefined
         )
       )

@@ -41,6 +41,7 @@ for (const variant of ['Chat', 'Work Agent'] as const) {
           language: UnifiedPreferenceType['app.language']
           onboarding: UnifiedPreferenceType['app.onboarding.provider_setup.status']
           naming: boolean
+          suggestions: boolean
         }
       | undefined
     let captured = false
@@ -48,12 +49,11 @@ for (const variant of ['Chat', 'Work Agent'] as const) {
     const screenshot = async (filename: string) => {
       const output = testInfo.outputPath(filename)
       await page.screenshot({ path: output })
-      const evidence = path.resolve(
-        process.env.TASKS ?? path.join(process.cwd(), '../.tasks/issue-21855'),
-        'round-1/evidence'
-      )
-      await mkdir(evidence, { recursive: true })
-      await copyFile(output, path.join(evidence, `${suffix}-${filename}`))
+      if (process.env.TASKS) {
+        const evidence = path.resolve(process.env.TASKS, 'round-1/evidence')
+        await mkdir(evidence, { recursive: true })
+        await copyFile(output, path.join(evidence, `${suffix}-${filename}`))
+      }
       await testInfo.attach(filename, { path: output, contentType: 'image/png' })
       captured = true
     }
@@ -79,7 +79,8 @@ for (const variant of ['Chat', 'Work Agent'] as const) {
       previous = await page.evaluate(async () => ({
         language: await window.api.preference.get('app.language'),
         onboarding: await window.api.preference.get('app.onboarding.provider_setup.status'),
-        naming: await window.api.preference.get('topic.naming.enabled')
+        naming: await window.api.preference.get('topic.naming.enabled'),
+        suggestions: await window.api.preference.get('agent.input.suggestions.enabled')
       }))
       const languageSelect = page.locator('[data-onboarding-language-select]')
       await expect(uiLocator(page, 'chat.composer').or(languageSelect).filter({ visible: true }).first()).toBeVisible()
@@ -92,6 +93,7 @@ for (const variant of ['Chat', 'Work Agent'] as const) {
         await window.api.preference.set('app.language', 'en-US')
         await window.api.preference.set('app.onboarding.provider_setup.status', 'skipped')
         await window.api.preference.set('topic.naming.enabled', false)
+        await window.api.preference.set('agent.input.suggestions.enabled', false)
       })
       await selectSidebarApp(page, 'Chat')
       const responses = await page.evaluate(
@@ -319,6 +321,7 @@ for (const variant of ['Chat', 'Work Agent'] as const) {
                 await window.api.preference.set('app.language', values.language)
                 await window.api.preference.set('app.onboarding.provider_setup.status', values.onboarding)
                 await window.api.preference.set('topic.naming.enabled', values.naming)
+                await window.api.preference.set('agent.input.suggestions.enabled', values.suggestions)
               }, previous)
           } finally {
             for (const request of controllers) request.disconnect()

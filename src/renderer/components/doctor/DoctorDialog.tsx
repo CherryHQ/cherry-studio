@@ -35,6 +35,7 @@ const PANEL_TITLE_KEYS = {
 export interface DoctorDialogParams {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
+  readonly chatTopicId?: string
   readonly initialRunTier?: DoctorRunTier
   /** The same fault snapshot the error detail was opened with. Report and export carry it through. */
   readonly errorContext?: AppErrorContext
@@ -47,6 +48,7 @@ type DoctorDialogProps = DoctorDialogParams & PopupInjectedProps<Record<string, 
 export function DoctorDialog({
   aiDiagnosis,
   errorContext,
+  chatTopicId,
   initialDescription,
   initialPanel,
   initialRunTier,
@@ -197,6 +199,7 @@ export function DoctorDialog({
           <DiagnosticUploadPanel
             ref={reportPanelRef}
             aiDiagnosis={panelDiagnosis}
+            chatTopicId={chatTopicId}
             description={controller.session.descriptionDraft}
             errorContext={errorContext}
             onBusyChange={setReportBusy}
