@@ -100,8 +100,6 @@ always, plus every linguist-recognized code extension and the `customTextExts`
 additions (dotfiles, config, log, and domain formats such as `.conf`,
 `.config`, `.yaml`, `.toml`, `.ini`) — and known `audioExts` and `videoExts`.
 Chat accepts those known audio and video files on text-only and mixed models.
-On Linux it leaves out `.aif` and `.aiff`: the pinned Linux FFmpeg build has no
-AIFF demuxer, so the analysis fallback could not read them.
 Routing is native-first when the model and resolved endpoint can take the
 modality; otherwise the turn inlines capped text from `MediaAnalysisService`.
 `.webm` is classified by the media layer. Chat probes its bytes before choosing

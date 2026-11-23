@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 
 import { anyFileExt } from '@renderer/utils/file'
-import { isLinux } from '@renderer/utils/platform'
 import type { Model } from '@shared/data/types/model'
 import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
@@ -17,11 +16,7 @@ interface ComposerFileCapabilitiesArgs {
   fallbackModel: Model | undefined
 }
 
-// The pinned Linux FFmpeg (ffmpeg-lgpl r1) has no AIFF demuxer, so Chat could not analyze these there.
-const LINUX_UNREADABLE_MEDIA_EXTS = new Set(['.aif', '.aiff'])
-const CHAT_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts].filter(
-  (ext) => !(isLinux && LINUX_UNREADABLE_MEDIA_EXTS.has(ext))
-)
+const CHAT_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
 const ALL_FILE_EXTS = [...CHAT_FILE_EXTS, ...archiveExts]
 
 function isMultiModelArgs(
