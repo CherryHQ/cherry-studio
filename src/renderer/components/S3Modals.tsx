@@ -258,6 +258,7 @@ export function S3RestoreModal({
             disabled={loadingFiles}
             searchable
             filterOption={(option, search) => option.label.toLowerCase().includes(search.toLowerCase())}
+            emptyText={t('common.no_results')}
           />
           {loadingFiles && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
