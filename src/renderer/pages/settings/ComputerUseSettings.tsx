@@ -131,11 +131,11 @@ export function ComputerUseSettings() {
                 aria-describedby="computer-use-global-input-help"
                 onCheckedChange={async (value) => {
                   setSaving(true)
-                  setSaveError(false)
+                  setSaveError(null)
                   try {
                     await setGlobalInput(value)
                   } catch (cause) {
-                    setSaveError(true)
+                    setSaveError(cause)
                     logger.warn('Failed to change the global input setting', cause as Error)
                   } finally {
                     setSaving(false)
@@ -224,12 +224,12 @@ export function ComputerUseSettings() {
               disabled={saving}
               onClick={async () => {
                 setSaving(true)
-                setSaveError(false)
+                setSaveError(null)
                 try {
                   await ipcApi.request('computer_use.revoke_approval', { identity })
                 } catch (error) {
                   logger.warn('Failed to revoke application approval', error as Error)
-                  setSaveError(true)
+                  setSaveError(error)
                 } finally {
                   setSaving(false)
                 }
