@@ -1,6 +1,8 @@
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { getConfiguredEndpointTypes } from './endpoint'
+
 const PRIMARY_CHAT_ENDPOINT_PRIORITY: EndpointType[] = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ENDPOINT_TYPE.OPENAI_RESPONSES,
@@ -32,7 +34,7 @@ function resolvePrimaryEndpoint(provider: Provider | undefined): EndpointType {
   }
 
   // Providers without chat endpoints need their host stored on an endpoint they actually use.
-  const declared = Object.keys(provider?.endpointConfigs ?? {}) as EndpointType[]
+  const declared = getConfiguredEndpointTypes(provider?.endpointConfigs)
 
   if (declared.length > 0) {
     return declared[0]

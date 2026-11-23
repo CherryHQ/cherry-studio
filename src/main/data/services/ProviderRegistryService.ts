@@ -71,6 +71,7 @@ import {
   RuntimeModelPricingSchema
 } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import { getConfiguredEndpointTypes } from '@shared/utils/endpoint'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
@@ -939,50 +940,46 @@ class ProviderRegistryService {
     providerId: string,
     presetProviderId?: string | null
   ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    let presetConfigs: Partial<Record<EndpointType, EndpointConfig>> | null = null
+
     try {
       // Provider rows already supply their preset identity; reading them again
       // here would recurse through rowToRuntimeProvider.
       const preset = this.resolveProviderPreset(providerId, presetProviderId)
 
-      const presetConfigs = preset
-        ? (buildPersistedEndpointConfigs(preset.endpointConfigs) as Partial<
-            Record<EndpointType, EndpointConfig>
-          > | null)
-        : null
-
-      if (!rowConfigs && !presetConfigs) return null
-
-      const keys = new Set([...Object.keys(presetConfigs ?? {}), ...Object.keys(rowConfigs ?? {})]) as Set<EndpointType>
-      const merged: Partial<Record<EndpointType, EndpointConfig>> = {}
-
-      for (const ep of keys) {
-        const presetConfig = presetConfigs?.[ep]
-        const rowConfig = rowConfigs?.[ep]
-
-        if (!presetConfig && !rowConfig) continue
-
-        const config: EndpointConfig = {
-          adapterFamily: presetConfig?.adapterFamily ?? rowConfig?.adapterFamily ?? inferAdapterFamily(ep)
-        }
-
-        const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
-
-        if (baseUrl !== undefined) config.baseUrl = baseUrl
-
-        if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
-        // Dialect merges per key: the row states only the deviations the user found.
-        const dialect = { ...presetConfig?.dialect, ...rowConfig?.dialect }
-
-        if (Object.keys(dialect).length > 0) config.dialect = dialect
-        merged[ep] = config
-      }
-
-      return Object.keys(merged).length > 0 ? merged : null
+      presetConfigs = preset ? buildPersistedEndpointConfigs(preset.endpointConfigs) : null
     } catch (error) {
       logger.warn('Failed to merge registry endpoint configs', { providerId, presetProviderId, error })
-
-      return rowConfigs ?? null
     }
+
+    if (!rowConfigs && !presetConfigs) return null
+
+    const keys = new Set([...getConfiguredEndpointTypes(presetConfigs), ...getConfiguredEndpointTypes(rowConfigs)])
+    const merged: Partial<Record<EndpointType, EndpointConfig>> = {}
+
+    for (const ep of keys) {
+      const presetConfig = presetConfigs?.[ep]
+      const rowConfig = rowConfigs?.[ep]
+
+      if (!presetConfig && !rowConfig) continue
+
+      const config: EndpointConfig = {
+        adapterFamily: presetConfig?.adapterFamily ?? rowConfig?.adapterFamily ?? inferAdapterFamily(ep)
+      }
+
+      const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
+
+      if (baseUrl !== undefined) config.baseUrl = baseUrl
+
+      if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
+      // Dialect merges per key: the row states only the deviations the user found.
+      const dialect = { ...presetConfig?.dialect, ...rowConfig?.dialect }
+
+      if (Object.keys(dialect).length > 0) config.dialect = dialect
+      merged[ep] = config
+    }
+
+    return Object.keys(merged).length > 0 ? merged : null
   }
 
   /**

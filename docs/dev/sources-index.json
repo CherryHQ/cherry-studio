@@ -491,7 +491,7 @@
     },
     {
       "path": "docs/dev/references/provider-model/provider-registry.md",
-      "sources": ["packages/provider-registry","src/main/data/db/seeding","src/main/data/services/ModelService.ts","src/main/data/services/ProviderRegistryService.ts","src/main/services/CherryInModelSyncService.ts"]
+      "sources": ["packages/provider-registry","src/main/data/db/seeding","src/main/data/services/ModelService.ts","src/main/data/services/ProviderRegistryService.ts","src/main/data/services/ProviderService.ts","src/main/services/CherryInModelSyncService.ts","src/shared/utils/endpoint.ts","src/shared/utils/providerTopology.ts"]
     },
     {
       "path": "docs/dev/references/provider-model/README.md",

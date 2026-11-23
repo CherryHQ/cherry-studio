@@ -1,16 +1,16 @@
-// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
-import '@data/services/ProviderRegistryService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { getProviderHostTopology } from '@shared/utils/providerTopology'
 
-// Stub the registry loader so the preset lookup returns a minimal CherryIN row
-// (its anthropic / gemini / OpenAI endpoints tagged `cherryin`) without
-// reading the shipped providers.json, whose path is mocked away in the harness.
+// Keep projection tests independent of shipped registry files.
+// The fixtures cover inherited CherryIN routing and a preset default endpoint.
 vi.mock('@cherrystudio/provider-registry/node', () => {
   class RegistryLoader {
     loadProviders() {
@@ -22,6 +22,13 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'openai-responses': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
+          }
+        },
+        {
+          id: 'endpoint-default-preset',
+          defaultChatEndpoint: 'openai-responses',
+          endpointConfigs: {
+            'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://responses.default.example' }
           }
         }
       ]
@@ -44,6 +51,105 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 
 describe('ProviderService.update — endpoint config overrides', () => {
   const dbh = setupTestDatabase()
+
+  it('ignores unsupported persisted endpoints and defaults without rewriting the stored row', () => {
+    const rawConfigs = {
+      'future-chat-endpoint': { baseUrl: 'https://future.example' },
+      [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example', adapterFamily: 'openai' },
+      [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://embeddings.example', adapterFamily: 'openai' }
+    }
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'future-endpoint-config',
+        name: 'Future Endpoint Config',
+        endpointConfigs: rawConfigs,
+        defaultChatEndpoint: 'future-chat-endpoint' as never,
+        orderKey: 'a0'
+      })
+      .run()
+
+    const runtime = providerService.getByProviderId('future-endpoint-config')
+
+    expect(Object.keys(runtime.endpointConfigs ?? {})).toEqual([
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+    ])
+    expect(runtime.defaultChatEndpoint).toBeUndefined()
+    expect(getProviderHostTopology(runtime)).toMatchObject({
+      primaryEndpoint: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      primaryBaseUrl: 'https://images.example'
+    })
+
+    const stored = dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, 'future-endpoint-config'))
+      .get()
+    expect(stored?.endpointConfigs).toEqual(rawConfigs)
+    expect(stored?.defaultChatEndpoint).toBe('future-chat-endpoint')
+  })
+
+  it('uses the registry default when the persisted default endpoint is unsupported', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'future-default-endpoint',
+        presetProviderId: 'endpoint-default-preset',
+        name: 'Future Default Endpoint',
+        defaultChatEndpoint: 'future-chat-endpoint' as never,
+        orderKey: 'a0'
+      })
+      .run()
+
+    const runtime = providerService.getByProviderId('future-default-endpoint')
+
+    expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(getProviderHostTopology(runtime).primaryBaseUrl).toBe('https://responses.default.example')
+  })
+
+  it('keeps projecting supported row fields when registry lookup fails', () => {
+    const rawConfigs = {
+      'future-chat-endpoint': { baseUrl: 'https://future.example' },
+      [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+        baseUrl: 'https://images.example',
+        adapterFamily: 'legacy-relay',
+        reasoningFormatType: 'private-legacy-field'
+      }
+    }
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'registry-fallback-endpoint',
+        presetProviderId: 'endpoint-default-preset',
+        name: 'Registry Fallback',
+        endpointConfigs: rawConfigs,
+        orderKey: 'a0'
+      })
+      .run()
+    const stored = dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, 'registry-fallback-endpoint'))
+      .get()
+    const lookup = vi.spyOn(RegistryLoader.prototype, 'loadProviders').mockImplementationOnce(() => {
+      throw new Error('registry unavailable')
+    })
+
+    try {
+      const projected = providerRegistryService.mergeEndpointConfigs(
+        stored?.endpointConfigs,
+        'registry-fallback-endpoint',
+        stored?.presetProviderId
+      )
+
+      expect(projected).toEqual({
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example', adapterFamily: 'legacy-relay' }
+      })
+    } finally {
+      lookup.mockRestore()
+    }
+  })
 
   it('strips legacy reasoningFormatType from persisted endpoint configs on read', async () => {
     await dbh.db.insert(userProviderTable).values({

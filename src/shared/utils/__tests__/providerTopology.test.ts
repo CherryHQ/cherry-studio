@@ -33,6 +33,18 @@ describe('getProviderHostTopology', () => {
     expect(topology.primaryEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
 
+  it('keeps the configured order when selecting between non-chat endpoints', () => {
+    const topology = getProviderHostTopology(
+      provider({
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://embeddings.example' }
+      })
+    )
+
+    expect(topology.primaryEndpoint).toBe(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)
+    expect(topology.primaryBaseUrl).toBe('https://images.example')
+  })
+
   it('still falls back to the chat endpoint when the provider declares none', () => {
     const topology = getProviderHostTopology(provider({}))
 

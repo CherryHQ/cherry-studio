@@ -3,6 +3,9 @@ description: How preset provider and model registry data is loaded, normalized, 
 sources:
   - packages/provider-registry
   - src/main/data/services/ProviderRegistryService.ts
+  - src/main/data/services/ProviderService.ts
+  - src/shared/utils/endpoint.ts
+  - src/shared/utils/providerTopology.ts
   - src/main/services/CherryInModelSyncService.ts
   - src/main/data/services/ModelService.ts
   - src/main/data/db/seeding
@@ -61,6 +64,14 @@ the seeder remains insert-only: an existing provider row is skipped. This is
 safe because registry-owned connection config is not seeded into the row; it is
 resolved from the current registry on every read. The row contains identity,
 the user-owned display name, and any required auth shell.
+
+Runtime endpoint reads accept only keys in the current `ENDPOINT_TYPE` catalog,
+preserving preset order followed by additional row keys. An unsupported stored
+default endpoint falls back to the registry default. If registry loading fails,
+supported row fields still pass through the connection projection; base URLs,
+legacy adapter-family hints and dialect overrides remain available. These reads
+do not rewrite stored keys or defaults and do not validate every configuration
+field's value.
 
 Canonical preset providers cannot be deleted by users. Most have
 `providerId === presetProviderId`; aliases/grouped presets are also protected

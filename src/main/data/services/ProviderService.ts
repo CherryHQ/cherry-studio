@@ -46,6 +46,7 @@ import type {
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { ProviderBillingSchema } from '@shared/data/types/providerBilling'
 import { maskApiKey } from '@shared/utils/api'
+import { findEndpointType } from '@shared/utils/endpoint'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 
 import { isRetiredProvider } from '../retiredProviders'
@@ -125,7 +126,7 @@ function rowToReasoningProviderContext(
     endpointConfigs:
       providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
       undefined,
-    defaultChatEndpoint: row.defaultChatEndpoint ?? metadata.defaultChatEndpoint
+    defaultChatEndpoint: findEndpointType(row.defaultChatEndpoint) ?? metadata.defaultChatEndpoint
   }
 }
 
@@ -368,7 +369,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
     endpointConfigs:
       providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
       undefined,
-    defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
+    defaultChatEndpoint: findEndpointType(row.defaultChatEndpoint) ?? presetMetadata.defaultChatEndpoint,
     modelListSource: presetMetadata.modelListSource,
     supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
     authMethods: presetMetadata.authMethods,
