@@ -6,66 +6,65 @@ English | [中文](2026-10-21-mcp-skills-client.zh.md)
 
 ## Problem
 
-Cherry connects to MCP servers, but its connection boundary has no Skills extension operations. The builtin `skills` server searches marketplaces and installs local skills; it does not consume remote skill manifests. Claude Code discovers local skill directories through a whitelist, and Pi receives local `additionalSkillPaths`. Copying remote content into those directories would erase its origin and load files before they are needed.
+Cherry connects to MCP servers but cannot discover and read their Skills extension workflows. Copying remote files into local skill directories erases their origin and fetches attachments before they are needed. Treating a read as lasting activation adds session state and approval policy unrelated to fetching instructions.
 
-This proposal adds client consumption of `io.modelcontextprotocol/skills` to the two registered Agent runtimes, Claude Code and Pi. Serving Cherry skills to external clients, marketplace installation changes, and Assistant chat integration are outside this proposal.
+This proposal consumes `io.modelcontextprotocol/skills` in Claude Code and Pi through the existing builtin skills server. Serving local skills to external clients, marketplace installation changes, and Assistant chat are outside scope.
 
 ## Proposal
 
 ### Protocol boundary
 
-Use the [stable upstream specification](https://github.com/modelcontextprotocol/ext-skills/blob/c1aa87e4c381c82b99aa37471d0eae4ab50f9985/specification/stable/skills.mdx), targeting base protocol `2026-07-28`. Inspect advertised capabilities before sending extension methods; legacy or non-advertising servers retain their existing tools, prompts, and resources behavior.
+Use the [stable upstream specification](https://github.com/modelcontextprotocol/ext-skills/blob/c1aa87e4c381c82b99aa37471d0eae4ab50f9985/specification/stable/skills.mdx), targeting protocol `2026-07-28`. Use the official SDK `SkillsClient` capability detection and direct lookup, plus core schemas and limits. Retain host pagination because the SDK's full-list helper silently returns partial results on repeated cursors. Legacy and non-advertising servers retain their ordinary behavior without extension calls.
 
-The installed `@modelcontextprotocol/client@2.3.0` and the inspected npm `2.3.1` exports lack the documented dedicated Skills entry point. The installed SDK does expose `request(request, resultSchema, options)` for extension methods. Use that public API inside `ClientMcpConnection`, with narrow schemas for `skills/list`, `skills/get`, and optional `resources/directory/read`. Keep transport, metadata, cancellation, authentication, and era negotiation in the existing SDK path. Do not patch SDK internals or start another connection. Prefer the dedicated upstream API once an installable version provides equivalent behavior; that substitution is not a prerequisite for this proposal.
-
-Follow pagination to completion without assuming the result enumerates every skill the server serves. Support direct lookup by URI on a selected server, including a URI from server instructions. Preserve unknown frontmatter fields. Validate manifests, root/name relationships, duplicate resources, and resource containment before admitting entries. Accept the specified boundary of 512 files and 16 MiB per skill. Decline `resources: "dynamic"` with a visible explanation in this first implementation.
+Validate manifests, names, URI roots, resource containment and uniqueness, accepting the specified 512-file and 16-MiB boundaries. Preserve unknown frontmatter fields. Decline `resources: "dynamic"` with a visible explanation. Listing need not enumerate every skill: known URIs remain directly addressable.
 
 ### Ownership and user flow
 
-`McpRuntimeService` owns connection access and invalidation. `McpCatalogService` projects remote skill metadata. A lifecycle-managed owner under `src/main/ai/skills/` owns verified reads, per-session approvals, and held manifests. SDK objects remain private to `connections/`; renderer commands use IpcApi. This version adds no SQLite table or persisted remote-skill installation record.
+The existing `McpRuntimeService` owns connections, cancellation, timeouts and configuration validation; `McpCatalogService` exposes metadata. The builtin skills server owns request-scoped loading and file verification. There is no separate Skill service, session activation map, version pin, verified-content cache, approval receipt, provenance record or retained-history scan. Session identity is only ordinary tool-call context for the existing MCP interaction host.
 
-Discover metadata only from active MCP servers selected for the Agent. Present remote skills in the existing Agent skill selection surface, labeled with the Cherry-assigned server label and distinguishing URI path. Identity is always `(serverId, skillUri)`, never a name alone. Local skills and same-named remote entries remain separate choices. Selection requests use in the current session; it does not install the skill or authorize execution.
+The composer lists metadata from active servers selected for the Agent and labels remote entries with server and URI. Identity is `(serverId, skillUri)`; local skills, duplicate names and identical URIs on different servers remain separate. Selection inserts a usage request without fetching files or installing anything.
 
-The model receives names, descriptions, and origin labels, plus a shared host-owned interface to load a skill, list its directory, and read a supporting file. Claude Code and Pi adapt that interface without adding remote directories to their native local-skill loaders. Route catalog and content failures back to the user and model with their originating server; a failed listing is not a successful empty catalog.
+Expose `list_mcp_skills`, `load_mcp_skill`, and `read_mcp_skill_file`. The initial prompt need not enumerate skills. Loading fetches the current manifest and verified `SKILL.md` together, including the complete file inventory. Supporting files are fetched only on demand. A file read accepts server, skill and resource URIs, fetches the current manifest, and needs no previous load. Repeated calls observe the current remote data rather than a session-held version.
 
-### Loading, consent, and reads
+### Integrity and ordinary tool policy
 
-On load, obtain explicit per-skill consent showing the server, skill, and whether the user permits local execution directed by that skill. Bind the decision to the complete manifest; a load-only choice never grants execution. Existing tool and filesystem restrictions still apply after consent, including when the session uses Full Access. Nested skills require their own load and consent. Ignore remote frontmatter that would grant permissions or install hooks.
+Fetch every file through its originating MCP connection, never through direct HTTP or filesystem access. Validate containment and manifest membership before requesting bytes. Require exactly the requested resource, matching byte length and SHA-256; entry-file YAML must equal all advertised frontmatter fields. Each call verifies against the manifest obtained by that call. No generic-resource interception or cross-call invalidation is needed.
 
-Only after load consent fetch `SKILL.md` through `resources/read`, verify raw byte length and SHA-256, and compare parsed YAML frontmatter with the manifest. Return verified content with its origin as ordinary model context. Merely previewing or generically reading a resource never activates it. Reject malformed or unverifiable content before it enters the loading path.
+Use the existing tool policies and approval cards. Listing retains read-only policy. Loading and file reads use the server-owned reading permission, defaulting to required approval with automatic pass in Full Access. Remote frontmatter cannot install hooks or grant permissions. Loading instructions does not change subsequent execution, cron, delegation, local-skill or cross-origin resource policies. Nested `SKILL.md` files are ordinary Markdown. No post-load approval rules or invalidation listeners are added to Claude Code or Pi.
 
-Keep a held manifest for as long as loaded instructions may remain in context; conservatively use the session lifetime. Fetch supporting files only when read, verifying against that same manifest. Resolve relative paths from the loaded skill's own root and reject escapes. Route reads through the originating server even for HTTPS or file-shaped resource URIs; never fetch those URIs directly. Directory results cannot extend the held manifest. Derive directories from the manifest when the optional directory method is unavailable.
+This deliberately omits the extension's acting-window activation and special execution/cross-origin approval model. It provides dynamic, verified text and attachment retrieval through normal tools rather than full host-policy compliance. Historical tool results remain ordinary conversation history; a fresh read does not rewrite earlier model context. Concurrent calls can return different valid versions, and changes discovered by one call do not revoke another call's results or approvals.
 
-Use a per-session memory cache initially, bounded by the manifest limits for each skill. Do not create files in any filesystem-skill discovery path. Generic resource reads triggered while remote skills are active must enforce origin boundaries too; a cross-origin read requires per-call consent identifying both servers. A single-origin load cannot authorize another origin through a generic tool.
+### Server-owned reading permissions
 
-If files or a refreshed manifest change, invalidate consent and stop further reads or execution under the old approval. Show the changed skill and request consent for the replacement. Do not mix replacement content into context still acting on the old entry: start a fresh runtime context before loading the replacement. Disabling or removing a server, changing its connection/authentication configuration, or deselecting it cancels pending work and prevents late results from repopulating the catalog or granting consent. A session restore or fork carries origin and manifest facts but no reusable consent; require fresh consent before continuing with those instructions. A session without a consent-capable UI fails closed for loading and execution, while unrelated capabilities continue to work.
+MCP Server settings expose a permission level for each Skill URI: `auto`, `prompt`, or `disabled`. Missing entries default to `prompt`. Both loading and supporting-file reads follow that level through the existing runtime approval paths. Full Access skips prompts; explicit disablement remains effective. Disabled entries are omitted from normal discovery but remain manageable in the server settings catalog. Store only this user configuration on the MCP server, with no activation state or changes to later execution permissions.
 
 ### Delivery and verification
 
-After exact-head Spec approval, deliver a protocol/host layer followed by runtime and UI integration. The feature is complete only after both layers pass the acceptance criteria. Put the controllable MCP fixture under `tests/helpers/` so focused integration tests and Electron tests share it. Use real client/server exchanges and scripted model turns to establish user-visible behavior without relying on provider output. Run only explicit affected test files locally; CI owns broader coverage.
+The user explicitly authorized removing the activation model and waived the Spec approval gate. Update this existing proposal rather than introducing another owner. Use the shared real MCP fixture for protocol and host tests; run explicit affected test files locally. Electron and live-provider acceptance remain distinct from unit, build and CI results.
 
 ## Alternatives considered
 
-- Treat remote skills as ordinary resources: preserves reading but omits activation, manifest verification, and origin-bound consent.
-- Download into the local skill library: conflicts with lazy retrieval and makes remote instructions indistinguishable from trusted local discovery.
-- Wait for the dedicated SDK export: avoids local wire schemas but blocks an extension already supported by the SDK's public request API. Keep the adapter narrow and replaceable.
-- Persist approvals and skill content immediately: adds storage, migration, and restart trust contracts without being necessary for initial use. Start with session-scoped state and explicit restore handling.
+- Session activation with pinned manifests and verified-content caches: adds state, invalidation, cross-tool execution classification and approval receipts for what is intended as dynamic text retrieval. Remove it rather than moving the same machinery into another owner.
+- Persist activation or reconstruct it from message history: adds storage and restart trust contracts; earlier tool results remain ordinary history.
+- Download into local skill directories: breaks lazy retrieval and loses remote origin.
+- Replace every host check with SDK helpers: reuse official queries and schemas, but retain fail-closed pagination and existing byte/frontmatter checks at the tool boundary. SDK reads fetch independently and do not verify an already obtained resource response.
+- Add `resources/directory/read`: the complete static manifest already supplies the file inventory; no current product flow needs another directory API.
 
 ## Acceptance criteria
 
-- AC1 — Advertising servers support paginated discovery and direct URI lookup through the existing connection; non-advertising and legacy servers receive no extension calls and retain existing functionality. (verification: unit)
-- AC2 — Discovery and consent fetch no skill files; an approved load fetches only `SKILL.md`, and supporting files are fetched only when requested, including manifest-derived directories without `directoryRead`. (verification: unit)
-- AC3 — Two servers with the same URI, duplicate names within a server, and a same-named local skill stay independently addressable and visibly attributed; no choice silently shadows another. (verification: renderer)
-- AC4 — Invalid manifests, root escapes, unlisted files, byte-length or digest mismatches, and frontmatter mismatches never become loaded content; valid 512-file and 16-MiB boundary manifests work, and dynamic entries report why they cannot load. (verification: unit)
-- AC5 — Consent is per skill and manifest, nested activation requires fresh consent, load-only consent blocks local execution even in Full Access, and remote permission fields cannot widen access. (verification: unit)
-- AC6 — Supporting and generic resource reads enforce origin; cross-origin access requires explicit per-call consent, and direct HTTP/filesystem fetching cannot bypass the originating MCP connection. (verification: unit)
-- AC7 — Manifest replacement, cancellation, server disable/removal/reconfiguration, and session close reject late results and stale consent; restore/fork requires renewed consent and replacement loading uses a fresh context. (verification: unit)
-- AC8 — In both Claude Code and Pi, a real MCP fixture and scripted model complete discovery, consent, skill loading, supporting-file reading, and a task whose result depends on the skill; rejection prevents loading. (verification: Electron)
-- AC9 — Existing local skill activation and MCP tool/resource use remain functional; an unavailable remote skill is surfaced without blocking unrelated servers, and a session without interactive consent cannot silently load it. (verification: Electron)
-- AC10 — The bilingual Spec, affected reference documentation, and localized UI text match delivered behavior; focused check results are recorded separately from CI and provider acceptance. (verification: docs gate)
+- AC1 — Advertising servers support paginated discovery and direct lookup; legacy and non-advertising servers receive no extension calls. (verification: unit)
+- AC2 — Discovery and loading approval fetch no files; loading reads only `SKILL.md`, and supporting files are fetched only when requested. (verification: unit)
+- AC3 — Duplicate names, identical URIs on different servers, and same-named local skills remain independently addressable and visibly attributed. (verification: renderer)
+- AC4 — Invalid manifests, root escapes, unlisted files, wrong resource responses, digest/size and frontmatter mismatches return errors; valid boundary manifests work and dynamic entries explain their limitation. (verification: unit)
+- AC5 — Loading uses ordinary tool approval, including Full Access; loading and reading never grant permissions or add Skill-specific approval to later tools. (verification: unit)
+- AC6 — Each file read uses its explicitly selected originating server and verifies the current manifest through the existing MCP connection, without requiring earlier loading. (verification: unit)
+- AC7 — Repeated calls retrieve updated manifests and content without reopening or reloading; ordinary request cancellation and server-selection checks still reject invalid calls, with no cross-call activation state. (verification: unit)
+- AC8 — A real MCP fixture and scripted model complete discovery, loading approval and lazy supporting-file reads in both runtimes; declining load fetches no files and Full Access skips the loading prompt. (verification: Electron)
+- AC9 — Existing local skills and MCP tools/resources remain functional, and an unavailable origin is reported separately from a successful empty catalog. (verification: Electron)
+- AC10 — The bilingual proposal and affected references describe the chosen request-scoped behavior and its limitations, with verification boundaries recorded accurately. (verification: docs gate)
+- AC11 — No Skill-specific session lifecycle, cached activation, execution-tool classification, approval receipt or generic-resource interceptor remains in the host or runtime adapters. (verification: unit)
+- AC12 — A Skill permission saved in MCP Server settings survives reload, independently controls that URI in Claude Code and Pi, filters disabled entries from normal discovery, and never changes another Skill or later execution policy. Full Access skips prompts while respecting explicit disablement. (verification: unit | renderer | Electron)
 
 ## Risks
 
-Runtime adapters can bypass a host policy if native tools are not routed through the same approval boundary. The implementation must verify actual Claude Code and Pi tool execution, not just the protocol helper. If either runtime cannot enforce the boundary through its supported APIs, improve that runtime integration before enabling remote skills there; do not silently downgrade the contract.
-
-Session-wide held manifests deliberately overestimate how long instructions remain in context. Renewed consent on restart and a fresh context on replacement add friction, but avoid pretending that already-injected instructions have been removed. Dynamic skills and Assistant chat remain explicit capability gaps rather than claims of universal support.
+Remote instructions are untrusted tool-result context. Ordinary tool policy remains the only execution approval boundary, and this scope does not implement the extension's special acting-window guarantees. Callers can mix versions across separate reads; a later read does not retract earlier instructions. Dynamic manifests and Assistant chat remain unsupported.

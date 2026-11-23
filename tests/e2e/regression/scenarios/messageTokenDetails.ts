@@ -219,7 +219,8 @@ export async function messageTokenDetails(app: RegressionApp, page: Page, testIn
     await expect(row).toHaveCount(1)
     const cells = row.getByRole('cell')
     await expect(cells.nth(3)).toHaveText('160')
-    await expect(cells.nth(4)).toHaveText('$0.0020')
+    await expect(cells.nth(4).getByText('Estimated', { exact: true })).toBeVisible()
+    await expect(cells.nth(4).getByText('$0.0020', { exact: true })).toBeVisible()
     await expect(cells.nth(5)).toHaveText(ttft)
     const usageSpeed = Number((await cells.nth(6).innerText()).replace(/ tok\/s$/, '').replaceAll(',', ''))
     // Message TPS rounds to one decimal; Usage rounds the same measured rate to an integer.

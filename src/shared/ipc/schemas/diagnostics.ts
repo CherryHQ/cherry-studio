@@ -46,7 +46,10 @@ const diagnosticDescriptionSchema = z
   .pipe(z.string().min(1))
   .refine((value) => diagnosticDescriptionByteLength(value) <= DIAGNOSTIC_DESCRIPTION_MAX_BYTES)
 
-const diagnosticUploadInputSchema = diagnosticBundleInputSchema.extend({ description: diagnosticDescriptionSchema })
+const diagnosticUploadInputSchema = diagnosticBundleInputSchema.omit({ includeChatRecords: true }).extend({
+  description: diagnosticDescriptionSchema,
+  chatTopicId: z.string().min(1).optional()
+})
 
 const nonblankStringSchema = z.string().refine((value) => value.trim().length > 0)
 
