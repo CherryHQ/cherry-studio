@@ -867,8 +867,8 @@ export class Application {
         // missing permissions, etc.). Caller may still need the path
         // for error reporting or read-only checks.
         logger.warn(
-          `application.getPath: mkdir failed for key '${key}' at '${dirToEnsure}'. ` +
-            `Returning path anyway. Error: ${(err as Error).message}`
+          `application.getPath: mkdir failed for key '${key}' at '${dirToEnsure}'. Returning path anyway.`,
+          err
         )
       }
 

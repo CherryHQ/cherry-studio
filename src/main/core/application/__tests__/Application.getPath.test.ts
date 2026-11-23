@@ -179,22 +179,24 @@ describe('Application.getPath', () => {
       expect(fs.mkdirSync).toHaveBeenCalledWith(resolvePath('/mock/home/.cherrystudio/bin'), { recursive: true })
     })
 
-    it('returns the path even when mkdir throws, and caches the failed attempt', () => {
-      const err = new Error('EACCES: read-only filesystem')
-      vi.mocked(fs.mkdirSync).mockImplementationOnce(() => {
-        throw err
-      })
+    it.each([new Error('EACCES: read-only filesystem'), null, undefined, 'unavailable'])(
+      'returns the path and caches a failed mkdir attempt: %s',
+      (failure) => {
+        vi.mocked(fs.mkdirSync).mockImplementationOnce(() => {
+          throw failure
+        })
 
-      const result1 = app.getPath('feature.files.data')
-      expect(result1).toBe(resolvePath('/mock/userData/Data/Files'))
-      expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
+        const result1 = app.getPath('feature.files.data')
+        expect(result1).toBe(resolvePath('/mock/userData/Data/Files'))
+        expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
 
-      // Failure is cached the same as success — no retry on the next call.
-      // This prevents a retry-storm if the FS is unhealthy.
-      const result2 = app.getPath('feature.files.data')
-      expect(result2).toBe(resolvePath('/mock/userData/Data/Files'))
-      expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-    })
+        // Failure is cached the same as success — no retry on the next call.
+        // This prevents a retry-storm if the FS is unhealthy.
+        const result2 = app.getPath('feature.files.data')
+        expect(result2).toBe(resolvePath('/mock/userData/Data/Files'))
+        expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
+      }
+    )
 
     it('does not run mkdir twice when filename is supplied', () => {
       app.getPath('feature.files.data', 'avatar.png')
