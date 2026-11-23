@@ -1692,7 +1692,6 @@
   "error.notice.server.title": "Poskytovatel je dočasně nedostupný",
   "error.notice.stream.info": "Během přijímání odpovědi se připojení přerušilo. Zkontrolujte stabilitu sítě a zkuste to znovu.",
   "error.notice.stream.title": "Odpověď byla přerušena",
-  "error.notice.switch_to_subscription_model": "Použít model z předplatného",
   "error.notice.unknown.original": "Původní zpráva: {{message}}",
   "error.notice.unknown.summarizing": "Zjišťuje se, co se pokazilo…",
   "error.ocr_detail_empty": "OCR proběhlo, ale v obrázku nenašlo žádný čitelný text. Pokud obrázek text obsahuje, zkontrolujte nastavený procesor OCR (např. jazyková nastavení) v Nastavení → Zpracování souborů, nebo přepněte procesor.",

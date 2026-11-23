@@ -447,8 +447,6 @@ export interface MessageListActions {
   abortMessageTranslation?: (messageId: string) => void | Promise<void>
   removeMessageTranslation?: (messageId: string) => void | Promise<void>
   renderRegenerateModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
-  /** Regenerates with a model from the user's current paid subscription; absent without one and in image captures. */
-  renderSubscriptionModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleSelectAllMessages?: (checked: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void

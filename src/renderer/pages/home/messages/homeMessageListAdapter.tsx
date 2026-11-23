@@ -24,7 +24,6 @@ import {
   type MessageListRuntime,
   type MessageListSelectAllPagination,
   type MessageListState,
-  type MessageModelPickerRenderOptions,
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
@@ -37,7 +36,6 @@ import { getMessageListItemModel, toMessageListItem } from '@renderer/components
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
-import { useHasCurrentPaidPlan } from '@renderer/hooks/cherryCloud/useHasCurrentPaidPlan'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
@@ -54,7 +52,6 @@ import { createComposerRichClipboardContentFromParts } from '@renderer/utils/mes
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -751,8 +748,8 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
-  const renderModelPicker = useCallback(
-    ({ message, messageParts, trigger, onOpenChange }: MessageModelPickerRenderOptions, subscriptionOnly: boolean) => {
+  const renderRegenerateModelPicker = useCallback<NonNullable<MessageListActions['renderRegenerateModelPicker']>>(
+    ({ message, messageParts, trigger, onOpenChange }) => {
       const messageModel = getMessageListItemModel(message)
       const currentMentionModel = messageModel
         ? ({
@@ -764,7 +761,6 @@ export function useHomeMessageListProviderValue({
         : undefined
 
       const mentionModelFilter: ModelSelectorFilter = (model) => {
-        if (subscriptionOnly && model.providerId !== CHERRY_CLOUD_PROVIDER_ID) return false
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false
@@ -790,8 +786,6 @@ export function useHomeMessageListProviderValue({
             !messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/')) ||
             Boolean(offer.capabilities?.includes('image-recognition'))
           }
-          // Locked, sign-in and subscribe rows start their own flows instead of regenerating the reply.
-          showSubscriptionOffers={!subscriptionOnly}
           onSelect={onSelectMentionModel}
           trigger={trigger}
           onOpenChange={onOpenChange}
@@ -799,15 +793,6 @@ export function useHomeMessageListProviderValue({
       )
     },
     [regenerateMessageUsingModel, t]
-  )
-  const renderRegenerateModelPicker = useCallback<NonNullable<MessageListActions['renderRegenerateModelPicker']>>(
-    (options) => renderModelPicker(options, false),
-    [renderModelPicker]
-  )
-  const hasCurrentPaidPlan = useHasCurrentPaidPlan(normalInteractionsEnabled)
-  const renderSubscriptionModelPicker = useCallback<NonNullable<MessageListActions['renderSubscriptionModelPicker']>>(
-    (options) => renderModelPicker(options, true),
-    [renderModelPicker]
   )
 
   const state = useMemo<MessageListState>(
@@ -899,8 +884,7 @@ export function useHomeMessageListProviderValue({
       translateMessage,
       abortMessageTranslation,
       removeMessageTranslation,
-      renderRegenerateModelPicker,
-      renderSubscriptionModelPicker: hasCurrentPaidPlan ? renderSubscriptionModelPicker : undefined
+      renderRegenerateModelPicker
     }),
     [
       abortTool,
@@ -931,8 +915,6 @@ export function useHomeMessageListProviderValue({
       requestTranslationLanguages,
       retryTranslationLanguages,
       renderRegenerateModelPicker,
-      hasCurrentPaidPlan,
-      renderSubscriptionModelPicker,
       removeMessageErrorPart,
       saveCodeBlock,
       setActiveBranch,

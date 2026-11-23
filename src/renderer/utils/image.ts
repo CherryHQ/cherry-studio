@@ -50,10 +50,6 @@ async function prepareCaptureContents(root: HTMLElement): Promise<() => Promise<
 
 /** Marks interactive HTML artifact subtrees; both export paths omit them (shared policy selector). */
 const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
-/** Marks live-only UI an exported image must not show, e.g. entries that reveal the exporting account's plan. */
-export const IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE = 'data-image-capture-excluded'
-const isExcludedFromCapture = (node: Element) =>
-  node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE) || node.hasAttribute(IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE)
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
@@ -95,7 +91,7 @@ const INLINE_SWAP_SETTLE_TIMEOUT_MS = 2_000
 const isVisibleInCapture = (image: HTMLImageElement, root: HTMLElement): boolean => {
   for (let node: Element | null = image; node; node = node.parentElement) {
     if (node === root) return true
-    if (isExcludedFromCapture(node)) return false
+    if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) return false
     if (
       node instanceof HTMLElement &&
       (node.style.display === 'none' || window.getComputedStyle(node).display === 'none')
@@ -383,8 +379,8 @@ async function captureScrollableElement(el: HTMLElement | null, backdropVariable
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
-          // Interactive HTML artifacts and live-only UI are intentionally omitted from image exports.
-          if (isExcludedFromCapture(node)) {
+          // Interactive HTML artifacts are intentionally omitted from image exports.
+          if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) {
             return false
           }
           if (node.style.display === 'none') {

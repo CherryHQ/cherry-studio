@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import type { SerializedError } from '@renderer/types/error'
-import { IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE } from '@renderer/utils/image'
 
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -1104,80 +1103,5 @@ required service tier.`
 
     await user.click(screen.getByRole('button', { name: enUS['common.retry'] }))
     expect(regenerateMessage).toHaveBeenCalledWith('message-1')
-  })
-  describe('subscription model entry', () => {
-    const SWITCH_LABEL = enUS['error.notice.switch_to_subscription_model']
-    const rateLimit = { name: 'AI_APICallError', message: 'Too Many Requests', stack: null, statusCode: 429 }
-    const renderSubscriptionModelPicker: NonNullable<MessageListActions['renderSubscriptionModelPicker']> = ({
-      trigger
-    }) => <div data-testid="subscription-model-picker">{trigger}</div>
-
-    beforeEach(() => {
-      mocks.translations = new Map(Object.entries(enUS))
-    })
-
-    it('offers subscription models beside the settings action without opening the detail', async () => {
-      const user = userEvent.setup()
-      const openErrorDetail = vi.fn()
-      mocks.actions = { navigateErrorTarget: vi.fn(), openErrorDetail, renderSubscriptionModelPicker }
-
-      render(<ErrorBlock partId="message-1-part-0" error={rateLimit} message={message} />)
-
-      const entry = screen.getByRole('button', { name: SWITCH_LABEL })
-      expect(screen.getByTestId('subscription-model-picker')).toContainElement(entry)
-      expect(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL })).toBeInTheDocument()
-      // Image exports drop marked subtrees, so a shared capture never shows the paid-only entry.
-      expect(entry.closest(`[${IMAGE_CAPTURE_EXCLUDED_ATTRIBUTE}]`)).not.toBeNull()
-      await user.click(entry)
-      expect(openErrorDetail).not.toHaveBeenCalled()
-    })
-
-    it.each([
-      {
-        case: 'the failing model is already a subscription model',
-        error: rateLimit,
-        model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
-      },
-      {
-        case: 'the request itself is too large',
-        error: { name: 'APICallError', message: '413 Request Entity Too Large', stack: null, statusCode: 413 },
-        model: message.model
-      }
-    ])('does not offer subscription models when $case', ({ error, model }) => {
-      mocks.actions = { renderSubscriptionModelPicker }
-
-      render(<ErrorBlock partId="message-1-part-0" error={error} message={{ ...message, model }} />)
-
-      expect(screen.queryByRole('button', { name: SWITCH_LABEL })).toBeNull()
-    })
-
-    it('adds no IPC listeners per card, whether or not the card offers subscription models', () => {
-      const on = vi.spyOn(window.api.ipcApi, 'on')
-      mocks.actions = { renderSubscriptionModelPicker }
-
-      render(
-        <>
-          <ErrorBlock partId="message-1-part-0" error={rateLimit} message={message} />
-          <ErrorBlock partId="message-1-part-1" error={rateLimit} message={{ ...message, id: 'message-2' }} />
-          <ErrorBlock
-            partId="message-1-part-2"
-            error={{ name: 'APICallError', message: '413 Request Entity Too Large', stack: null, statusCode: 413 }}
-            message={{ ...message, id: 'message-3' }}
-          />
-        </>
-      )
-
-      expect(screen.getAllByRole('button', { name: SWITCH_LABEL })).toHaveLength(2)
-      expect(on).not.toHaveBeenCalled()
-    })
-
-    it('does not offer subscription models when the surface provides no subscription picker', () => {
-      mocks.actions = { renderRegenerateModelPicker: ({ trigger }) => <>{trigger}</> }
-
-      render(<ErrorBlock partId="message-1-part-0" error={rateLimit} message={message} />)
-
-      expect(screen.getByText(enUS['error.notice.rate_limit.title'])).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: SWITCH_LABEL })).toBeNull()
-    })
   })
 })

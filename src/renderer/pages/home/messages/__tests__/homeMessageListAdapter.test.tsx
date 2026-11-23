@@ -125,11 +125,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
-const paidPlanMock = vi.hoisted(() => ({ current: false }))
-vi.mock('@renderer/hooks/cherryCloud/useHasCurrentPaidPlan', () => ({
-  useHasCurrentPaidPlan: (enabled = true) => enabled && paidPlanMock.current
-}))
-
 vi.mock('@renderer/components/chat/editing/MessageEditingContext', () => ({
   useMessageEditing: () => messageEditingMock
 }))
@@ -336,7 +331,6 @@ function MessageListAdapterHarness({
 
 describe('useHomeMessageListProviderValue topic image actions', () => {
   beforeEach(() => {
-    paidPlanMock.current = false
     vi.clearAllMocks()
     chatWriteMock.canStartNewContext = true
     messageEditingMock.editingMessageId = null
@@ -463,46 +457,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     const filter = modelSelectorMock.props.at(-1)?.filter
     expect(filter?.({ capabilities: [capability] })).toBe(false)
     expect(filter?.({ capabilities: [] })).toBe(true)
-  })
-
-  it('offers a subscription-only model picker while the account has a current paid plan', () => {
-    paidPlanMock.current = true
-    let value: MessageListProviderValue | undefined
-    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
-
-    render(
-      <>
-        {value?.actions.renderSubscriptionModelPicker?.({
-          message: { id: 'message-a' } as any,
-          messageParts: [],
-          trigger: <button type="button">pick model</button>
-        })}
-      </>
-    )
-
-    const props = modelSelectorMock.props.at(-1)
-    expect(props?.filter?.({ providerId: 'openai', capabilities: [] })).toBe(false)
-    expect(props?.filter?.({ providerId: 'cherryai-subscription', capabilities: [] })).toBe(true)
-    // Locked AMD, sign-in and subscribe rows would start their own flows instead of regenerating.
-    expect(props?.showSubscriptionOffers).toBe(false)
-  })
-
-  it.each([
-    { case: 'the account has no current paid plan', paid: false, imageActionConsumer: undefined },
-    { case: 'the list is an image capture', paid: true, imageActionConsumer: 'capture' as const }
-  ])('withholds the subscription model picker when $case', ({ paid, imageActionConsumer }) => {
-    paidPlanMock.current = paid
-    let value: MessageListProviderValue | undefined
-    render(
-      <MessageListAdapterHarness
-        imageActionConsumer={imageActionConsumer}
-        topic={createTopic('topic-a')}
-        onValue={(nextValue) => (value = nextValue)}
-      />
-    )
-
-    expect(value?.actions.renderRegenerateModelPicker).toBeDefined()
-    expect(value?.actions.renderSubscriptionModelPicker).toBeUndefined()
   })
 
   it('capture consumer consumes pending topic image requests without binding visible image events', async () => {
