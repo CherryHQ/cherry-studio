@@ -176,7 +176,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.provider.model.list': (request) =>
     exposeAiError('ai.provider.model.list', () => application.get('AiService').listModels(request)),
   'ai.provider.model.refresh_metadata': ({ providerId, modelId }) => refreshCustomModelMetadata(providerId, modelId),
-  'ai.provider.model.reset_metadata': ({ providerId, modelId, field }) =>
+  'ai.provider.model.reset_metadata': async ({ providerId, modelId, field }) =>
     resetCustomModelMetadata(providerId, modelId, field),
   'ai.provider.model.check': (request) =>
     exposeAiError('ai.provider.model.check', () => application.get('AiService').checkModel(request)),
