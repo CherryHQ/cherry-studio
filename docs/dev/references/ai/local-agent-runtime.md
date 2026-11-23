@@ -213,8 +213,11 @@ ACP; it follows its CLI profile. Native and Cherry gateway model selections writ
 each preset's registered configuration files while preserving existing user credentials.
 
 Snow's recovery acknowledgment does not guarantee context recall after a process restart.
-ZCode requires a working native backend; a successful lazy session creation does not
-prove that its backend or credentials can serve a prompt.
+ZCode requires a working native backend; launch preflight checks `ZCODE_BIN`, `zcode`, and
+desktop `zcode.cjs` bundle paths (unless an explicit executable override is configured)
+and fails upfront with `LOCAL_AGENT_HOST_REQUIRED` when no host binary is found. When a
+host binary is present, a successful lazy session creation still does not prove that its
+backend or credentials can serve a prompt.
 
 Icon artwork is sourced from [Magpie](https://github.com/yetone/magpie/tree/63ad2b7c76ef57a02d3ca025a760a9d610ae5b74/internal/gui/assets/icons).
 Protocol implementations: [omp](https://github.com/can1357/oh-my-pi),
@@ -253,7 +256,9 @@ installations use the official data-preserving Hermes uninstaller.
 Kiro and Trae use their official installers on supported platforms; Vibe uses
 `uv tool install mistral-vibe`, avoiding unsupported registry archive entries.
 Pi installation manages the native `pi` CLI; its ACP adapter ships with Cherry.
-Install and reuse check separate native CLI dependencies: Amp requires `amp`, and Antigravity's terminal entry requires `agy`. Existing system
+Install, reuse, and launch preflight check separate native CLI dependencies: Amp requires `amp`
+(protocol launches without an explicit executable override fail upfront with
+`LOCAL_AGENT_HOST_REQUIRED` when `amp` is missing), and Antigravity's terminal entry requires `agy`. Existing system
 or Agent Services installations are reused; missing CLIs use the shared system installer.
 An adapter alone does not satisfy these installation checks. Dependency failures
 prevent an installation-success result. Adapter and terminal launches include the

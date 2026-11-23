@@ -213,6 +213,8 @@
   "file_processing.errors.pdf_page_limit_exceeded": "Ten plik PDF przekracza limit {{maxPages}} stron dla bieżącej usługi analizy dokumentów. Podziel plik PDF ręcznie, a następnie dodaj go ponownie.",
   "knowledge.source.invalid_url": "Wprowadź prawidłowy adres URL rozpoczynający się od http:// lub https://.",
   "local_agent.configuration_required": "Skonfiguruj model i klucz API w terminalu agenta, a następnie spróbuj ponownie.",
+  "local_agent.host_required": "{{agent}} wymaga zainstalowania {{host}} i dostępności w PATH.",
+  "local_agent.host_required_with_env": "{{agent}} wymaga zainstalowania {{host}} (lub skonfigurowania przez {{envVar}}).",
   "local_agent.model_unavailable": "Wybrany model „{{model}}” nie jest już dostępny. Wybierz inny model w Usługach agentów.",
   "local_agent.runtime_required": "Wymagane jest środowisko {{runtime}} {{version}} lub nowsze.",
   "notification.action_required.agent": "Agent wymaga Twojej reakcji",

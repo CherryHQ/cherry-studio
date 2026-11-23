@@ -170,6 +170,28 @@ export function getProviderAuthenticationFailure(error?: SerializedError): { pro
   return terminal ? getProviderAuthenticationFailure(terminal) : null
 }
 
+function isLocalAgentHostRequiredError(error: SerializedError): boolean {
+  if ((error as Record<string, unknown>).code === 'LOCAL_AGENT_HOST_REQUIRED') return true
+  const cause = (error as Record<string, unknown>).cause
+  if (
+    cause &&
+    typeof cause === 'object' &&
+    !Array.isArray(cause) &&
+    isLocalAgentHostRequiredError(cause as SerializedError)
+  ) {
+    return true
+  }
+  if (unwrapNestedErrors(error).some((nested) => isLocalAgentHostRequiredError(nested))) {
+    return true
+  }
+  const message = (error.message ?? '').trim()
+  return (
+    /^(?:(?:IpcError|Error):\s*)*[\w .-]+\s+requires\s+(?:ZCode Desktop \/ zcode CLI|amp CLI)\s+to be installed\b/i.test(
+      message
+    ) || /^(?:(?:IpcError|Error):\s*)*[\w .-]+\s+需要先安装\s+(?:ZCode Desktop \/ zcode CLI|amp CLI)/i.test(message)
+  )
+}
+
 function isLocalAgentAuthenticationMessage(error: SerializedError): boolean {
   const message = (error.message ?? '').trim()
   if (!message) return false
@@ -204,6 +226,14 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
       category: 'model',
       i18nKey: 'error.diagnosis.codex_model_unsupported',
       navTarget: '/settings/local-agents?id=codex'
+    }
+  }
+
+  if (!providerId && getErrorHttpStatus(error) === undefined && isLocalAgentHostRequiredError(error)) {
+    return {
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.local_agent_host_required',
+      navTarget: '/settings/provider'
     }
   }
 

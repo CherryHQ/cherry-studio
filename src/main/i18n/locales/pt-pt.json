@@ -213,6 +213,8 @@
   "file_processing.errors.pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas do serviço atual de análise de documentos. Divida o PDF manualmente e adicione-o novamente.",
   "knowledge.source.invalid_url": "Introduza um URL válido que comece por http:// ou https://.",
   "local_agent.configuration_required": "Configure um modelo e uma chave API no terminal do agente e tente novamente.",
+  "local_agent.host_required": "{{agent}} requer que {{host}} esteja instalado e disponível no PATH.",
+  "local_agent.host_required_with_env": "{{agent}} requer que {{host}} esteja instalado (ou configurado através de {{envVar}}).",
   "local_agent.model_unavailable": "O modelo selecionado «{{model}}» já não está disponível. Escolha outro modelo nos Serviços de agentes.",
   "local_agent.runtime_required": "É necessário {{runtime}} {{version}} ou posterior.",
   "notification.action_required.agent": "O agente precisa da sua intervenção",

@@ -222,6 +222,29 @@ required service tier.`
     ).toMatchObject({ category: 'auth', i18nKey: 'error.diagnosis.auth' })
   })
 
+  it('routes LOCAL_AGENT_HOST_REQUIRED errors (top-level or nested) to local_agent_host_required', () => {
+    expect(
+      classifyError(
+        makeError({
+          code: 'LOCAL_AGENT_HOST_REQUIRED',
+          message: 'ZCode requires ZCode Desktop / zcode CLI to be installed (or configured via ZCODE_BIN).'
+        })
+      )
+    ).toEqual({
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.local_agent_host_required',
+      navTarget: '/settings/provider'
+    })
+
+    expect(
+      classifyError(makeCopiedRetry('Agent host missing', [makeError({ code: 'LOCAL_AGENT_HOST_REQUIRED' })]))
+    ).toEqual({
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.local_agent_host_required',
+      navTarget: '/settings/provider'
+    })
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')

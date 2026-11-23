@@ -76,6 +76,11 @@ describe('local agent installation resolution', () => {
     await writeFile(entry, '', { mode: 0o755 })
     inventory.snapshots[name] = { name, availability: { source: 'mise', path: path.join(directory, 'shims', name) } }
     inventory.snapshots.node = { name: 'node', availability: { source: 'system', path: '/runtime/node' } }
+    if (preset.id === 'zcode') {
+      inventory.snapshots.zcode = { name: 'zcode', availability: { source: 'system', path: '/runtime/zcode' } }
+    } else if (preset.id === 'amp-acp') {
+      inventory.snapshots.amp = { name: 'amp', availability: { source: 'system', path: '/runtime/amp' } }
+    }
     expect((await detectLocalAgents()).find((agent) => agent.presetId === preset.id)?.path).toBe(entry)
     const launch = await resolveLocalAgentLaunch({ ...config, presetId: preset.id, protocol: preset.protocol })
     expect(preset.id === 'pi-acp' ? launch.env.PI_ACP_PI_COMMAND : launch.executable).toBe(entry)
@@ -268,6 +273,12 @@ agent_servers:
       name: executable,
       availability: { source: 'system', path: `/user/bin/${executable}` }
     }
+    if (presetId === 'zcode') {
+      inventory.snapshots.zcode = {
+        name: 'zcode',
+        availability: { source: 'system', path: '/user/bin/zcode' }
+      }
+    }
     await openLocalAgentTerminal({ ...config, protocol: 'acp', presetId, enabled: false, args: ['--acp'] })
     expect(inventory.openTerminal).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -285,6 +296,12 @@ agent_servers:
     inventory.snapshots[executable] = {
       name: executable,
       availability: { source: 'system', path: `/user/bin/${executable}` }
+    }
+    if (presetId === 'zcode') {
+      inventory.snapshots.zcode = {
+        name: 'zcode',
+        availability: { source: 'system', path: '/user/bin/zcode' }
+      }
     }
     const launch = await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId })
     expect(launch).toMatchObject({ executable: `/user/bin/${executable}`, args: [...args] })
@@ -453,6 +470,12 @@ agent_servers:
     inventory.snapshots[executable] = {
       name: executable,
       availability: { source: 'system', path: `/user/bin/${executable}` }
+    }
+    if (presetId === 'amp-acp') {
+      inventory.snapshots.amp = {
+        name: 'amp',
+        availability: { source: 'system', path: '/user/bin/amp' }
+      }
     }
     const launch = await resolveLocalAgentLaunch({ ...config, presetId, protocol: 'acp' })
     expect(launch.executable).toBe(`/user/bin/${executable}`)
@@ -678,5 +701,82 @@ agent_servers:
     })
     expect(gooseUnmanagedLaunch.nativeModel).toBeUndefined()
     expect(gooseUnmanagedLaunch.env.ANTHROPIC_API_KEY).toBeUndefined()
+  })
+
+  it('requires ZCode host (zcode CLI, desktop bundle, or ZCODE_BIN) when launching zcode-acp', async () => {
+    inventory.snapshots['zcode-acp'] = {
+      name: 'zcode-acp',
+      availability: { source: 'system', path: '/user/bin/zcode-acp' }
+    }
+    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'zcode', protocol: 'acp' })).rejects.toMatchObject({
+      code: 'LOCAL_AGENT_HOST_REQUIRED'
+    })
+
+    // ZCODE_BIN pointing to a real file unblocks launch even without PATH zcode
+    const customBin = path.join(directory, 'custom-zcode.cjs')
+    await writeFile(customBin, '#!/usr/bin/env node\n')
+    const viaEnv = await resolveLocalAgentLaunch({
+      ...config,
+      presetId: 'zcode',
+      protocol: 'acp',
+      env: { ZCODE_BIN: customBin }
+    })
+    expect(viaEnv.env.ZCODE_BIN).toBe(customBin)
+
+    // Non-existent ZCODE_BIN still fails instead of letting zcode-acp crash later
+    await expect(
+      resolveLocalAgentLaunch({
+        ...config,
+        presetId: 'zcode',
+        protocol: 'acp',
+        env: { ZCODE_BIN: path.join(directory, 'missing-zcode.cjs') }
+      })
+    ).rejects.toMatchObject({
+      code: 'LOCAL_AGENT_HOST_REQUIRED'
+    })
+
+    // POSIX bundled desktop zcode.cjs under ~/Applications/ZCode.app
+    inventory.isWin = false
+    const macBundle = path.join(
+      directory,
+      'sys.home',
+      'Applications',
+      'ZCode.app',
+      'Contents',
+      'Resources',
+      'glm',
+      'zcode.cjs'
+    )
+    await mkdir(path.dirname(macBundle), { recursive: true })
+    await writeFile(macBundle, '// zcode\n')
+    const viaMacBundle = await resolveLocalAgentLaunch({ ...config, presetId: 'zcode', protocol: 'acp' })
+    expect(viaMacBundle.executable).toBe('/user/bin/zcode-acp')
+
+    // Windows bundled desktop zcode.cjs under LOCALAPPDATA/Programs/ZCode
+    inventory.isWin = true
+    const winBundle = path.join(directory, 'localappdata', 'Programs', 'ZCode', 'resources', 'glm', 'zcode.cjs')
+    await mkdir(path.dirname(winBundle), { recursive: true })
+    await writeFile(winBundle, '// zcode\n')
+    const viaWinBundle = await resolveLocalAgentLaunch({
+      ...config,
+      presetId: 'zcode',
+      protocol: 'acp',
+      env: { LOCALAPPDATA: path.join(directory, 'localappdata') }
+    })
+    expect(viaWinBundle.executable).toBe('/user/bin/zcode-acp')
+  })
+
+  it('requires amp CLI when launching amp-acp bridge without an executable override', async () => {
+    inventory.snapshots['amp-acp'] = {
+      name: 'amp-acp',
+      availability: { source: 'system', path: '/user/bin/amp-acp' }
+    }
+    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp', protocol: 'acp' })).rejects.toMatchObject({
+      code: 'LOCAL_AGENT_HOST_REQUIRED'
+    })
+
+    inventory.snapshots.amp = { name: 'amp', availability: { source: 'system', path: '/user/bin/amp' } }
+    const launched = await resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp', protocol: 'acp' })
+    expect(launched.executable).toBe('/user/bin/amp-acp')
   })
 })

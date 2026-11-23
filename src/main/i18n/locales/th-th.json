@@ -213,6 +213,8 @@
   "file_processing.errors.pdf_page_limit_exceeded": "PDF นี้เกินขีดจำกัด {{maxPages}} หน้าสำหรับบริการประมวลผลเอกสารปัจจุบัน โปรดแบ่ง PDF ด้วยตนเองแล้วเพิ่มใหม่อีกครั้ง",
   "knowledge.source.invalid_url": "ป้อน URL ที่ถูกต้องซึ่งขึ้นต้นด้วย http:// หรือ https://",
   "local_agent.configuration_required": "ตั้งค่าโมเดลและคีย์ API ในเทอร์มินัลของเอเจนต์ แล้วลองอีกครั้ง",
+  "local_agent.host_required": "{{agent}} จำเป็นต้องติดตั้ง {{host}} และให้พร้อมใช้งานใน PATH",
+  "local_agent.host_required_with_env": "{{agent}} จำเป็นต้องติดตั้ง {{host}} (หรือกำหนดค่าผ่านตัวแปร {{envVar}})",
   "local_agent.model_unavailable": "โมเดล “{{model}}” ที่เลือกไม่พร้อมใช้งานแล้ว โปรดเลือกโมเดลอื่นในบริการเอเจนต์",
   "local_agent.runtime_required": "ต้องใช้ {{runtime}} {{version}} หรือใหม่กว่า",
   "notification.action_required.agent": "เอเจนต์ต้องการข้อมูลจากคุณ",

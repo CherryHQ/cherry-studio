@@ -213,6 +213,8 @@
   "file_processing.errors.pdf_page_limit_exceeded": "Tento PDF překračuje limit {{maxPages}} stran aktuální služby pro zpracování dokumentů. PDF ručně rozdělte a přidejte jej znovu.",
   "knowledge.source.invalid_url": "Zadejte platnou URL začínající na http:// nebo https://.",
   "local_agent.configuration_required": "Nakonfigurujte model a klíč API v terminálu agenta a zkuste to znovu.",
+  "local_agent.host_required": "{{agent}} vyžaduje instalaci {{host}} a jeho dostupnost v PATH.",
+  "local_agent.host_required_with_env": "{{agent}} vyžaduje instalaci {{host}} (nebo nastavení přes proměnnou prostředí {{envVar}}).",
   "local_agent.model_unavailable": "Vybraný model „{{model}}“ již není k dispozici. Vyberte jiný model ve Službách agentů.",
   "local_agent.runtime_required": "Vyžaduje se {{runtime}} {{version}} nebo novější.",
   "notification.action_required.agent": "Agent potřebuje vaši odpověď",

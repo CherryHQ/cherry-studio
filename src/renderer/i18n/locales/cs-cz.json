@@ -1564,6 +1564,7 @@
   "error.diagnosis.go_to_settings": "Přejít do Nastavení",
   "error.diagnosis.knowledge": "Vektorizace znalostní báze se nezdařila",
   "error.diagnosis.local_agent_auth": "Místní agent vyžaduje přihlášení nebo konfiguraci ověření. Přihlaste se přes CLI nebo zkontrolujte nastavení ve Službách agentů a zkuste to znovu.",
+  "error.diagnosis.local_agent_host_required": "Požadovaná hostitelská aplikace nebo CLI místního agenta není nainstalována. Nainstalujte ji a zkuste to znovu.",
   "error.diagnosis.mcp": "Připojení k serveru MCP se nezdařilo, zkontrolujte, zda služba běží",
   "error.diagnosis.model": "Model nebyl nalezen nebo k němu nemáte přístup",
   "error.diagnosis.model_conflict": "Model pro diagnostiku je stejný jako model, který selhal",

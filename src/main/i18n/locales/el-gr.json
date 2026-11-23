@@ -213,6 +213,8 @@
   "file_processing.errors.pdf_page_limit_exceeded": "Αυτό το PDF υπερβαίνει το όριο των {{maxPages}} σελίδων για την τρέχουσα υπηρεσία ανάλυσης εγγράφων. Χωρίστε το PDF χειροκίνητα και έπειτα προσθέστε το ξανά.",
   "knowledge.source.invalid_url": "Εισαγάγετε μια έγκυρη διεύθυνση URL που ξεκινά με http:// ή https://.",
   "local_agent.configuration_required": "Ρυθμίστε ένα μοντέλο και ένα κλειδί API στο τερματικό του πράκτορα και δοκιμάστε ξανά.",
+  "local_agent.host_required": "Το {{agent}} απαιτεί να είναι εγκατεστημένο το {{host}} και διαθέσιμο στο PATH.",
+  "local_agent.host_required_with_env": "Το {{agent}} απαιτεί να είναι εγκατεστημένο το {{host}} (ή να έχει οριστεί μέσω {{envVar}}).",
   "local_agent.model_unavailable": "Το επιλεγμένο μοντέλο «{{model}}» δεν είναι πλέον διαθέσιμο. Επιλέξτε άλλο μοντέλο στις Υπηρεσίες πρακτόρων.",
   "local_agent.runtime_required": "Απαιτείται {{runtime}} {{version}} ή νεότερο.",
   "notification.action_required.agent": "Ο Agent χρειάζεται τη συμβολή σας",

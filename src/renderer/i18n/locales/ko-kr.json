@@ -1564,6 +1564,7 @@
   "error.diagnosis.go_to_settings": "설정으로 이동",
   "error.diagnosis.knowledge": "지식 베이스 벡터화 실패",
   "error.diagnosis.local_agent_auth": "로컬 에이전트에 로그인 또는 인증 설정이 필요합니다. CLI에서 로그인하거나 에이전트 서비스 설정을 확인한 후 다시 시도하세요.",
+  "error.diagnosis.local_agent_host_required": "로컬 에이전트에 필요한 호스트 앱 또는 CLI가 설치되어 있지 않습니다. 설치한 후 다시 시도하세요.",
   "error.diagnosis.mcp": "MCP 서버 연결에 실패했습니다. 서비스가 실행 중인지 확인하세요",
   "error.diagnosis.model": "모델을 찾을 수 없거나 접근 권한이 없습니다",
   "error.diagnosis.model_conflict": "진단 모델이 오류가 발생한 모델과 같습니다",

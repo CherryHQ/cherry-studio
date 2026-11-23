@@ -213,6 +213,8 @@
   "file_processing.errors.pdf_page_limit_exceeded": "This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again.",
   "knowledge.source.invalid_url": "Enter a valid URL starting with http:// or https://.",
   "local_agent.configuration_required": "Configure a model and API key in the agent terminal, then try again.",
+  "local_agent.host_required": "{{agent}} requires {{host}} to be installed and available on PATH.",
+  "local_agent.host_required_with_env": "{{agent}} requires {{host}} to be installed (or configured via {{envVar}}).",
   "local_agent.model_unavailable": "The selected model “{{model}}” is no longer available. Choose another model in Agent Services.",
   "local_agent.runtime_required": "{{runtime}} {{version}} or newer is required.",
   "notification.action_required.agent": "Agent needs your input",

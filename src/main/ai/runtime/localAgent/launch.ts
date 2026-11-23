@@ -7,6 +7,7 @@ import { lt, valid } from 'semver'
 import { parseDocument } from 'yaml'
 
 import { application } from '@application'
+import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv, mergePathPrefixes } from '@main/utils/binaryEnv'
@@ -289,6 +290,57 @@ async function injectPresetConfigEnv(
   return undefined
 }
 
+async function isRegularFile(targetPath: string): Promise<boolean> {
+  return fs.stat(targetPath).then(
+    (stats) => stats.isFile(),
+    () => false
+  )
+}
+
+async function resolveZcodeHostBinary(
+  env: Record<string, string>,
+  snapshots: Record<string, BinaryToolSnapshot>
+): Promise<string | undefined> {
+  const zcodeBin = env.ZCODE_BIN?.trim()
+  if (zcodeBin) {
+    if (path.isAbsolute(zcodeBin) || zcodeBin.includes('/') || zcodeBin.includes('\\')) {
+      return (await isRegularFile(zcodeBin)) ? zcodeBin : undefined
+    }
+    return (await findExecutableInEnv(zcodeBin, { env })) ?? undefined
+  }
+
+  const snapshot = await selectAvailableInstallation({ executable: 'zcode' }, snapshots)
+  if (snapshot.source !== 'none') return snapshot.path
+
+  const onPath = await findExecutableInEnv('zcode', { env })
+  if (onPath) return onPath
+
+  const home = application.getPath('sys.home')
+  const candidates = isWin
+    ? [
+        path.join(
+          env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'),
+          'Programs',
+          'ZCode',
+          'resources',
+          'glm',
+          'zcode.cjs'
+        ),
+        path.join(env.ProgramFiles || 'C:\\Program Files', 'ZCode', 'resources', 'glm', 'zcode.cjs')
+      ]
+    : [
+        '/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs',
+        path.join(home, 'Applications', 'ZCode.app', 'Contents', 'Resources', 'glm', 'zcode.cjs'),
+        '/opt/ZCode/resources/glm/zcode.cjs',
+        '/usr/share/zcode/resources/glm/zcode.cjs'
+      ]
+
+  for (const candidate of candidates) {
+    if (await isRegularFile(candidate)) return candidate
+  }
+  return undefined
+}
+
 export async function resolveLocalAgentLaunch(
   config: LocalAgentConfiguration,
   signal?: AbortSignal,
@@ -335,7 +387,10 @@ export async function resolveLocalAgentLaunch(
   }
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
-  const dependencies = !terminal && definition?.terminalExecutable ? [definition.terminalExecutable] : []
+  const dependencies = [
+    ...(!terminal && definition?.terminalExecutable ? [definition.terminalExecutable] : []),
+    ...(config.presetId === 'zcode' && !config.executableOverride ? ['zcode'] : [])
+  ]
   const dependencySnapshots = dependencies.length
     ? await application.get('BinaryManager').getToolSnapshots(dependencies)
     : {}
@@ -403,6 +458,36 @@ export async function resolveLocalAgentLaunch(
       if (!(key in childEnv) && !(key.toLowerCase() in childEnv) && proxy && /^https?:\/\//i.test(proxy)) {
         childEnv[key] = proxy
       }
+    }
+  }
+  if (config.presetId === 'zcode' && !config.executableOverride) {
+    const zcodeHost = await resolveZcodeHostBinary(childEnv, dependencySnapshots)
+    if (!zcodeHost) {
+      throw Object.assign(
+        new Error(
+          t('local_agent.host_required_with_env', {
+            agent: definition?.name ?? 'ZCode',
+            host: 'ZCode Desktop / zcode CLI',
+            envVar: 'ZCODE_BIN'
+          })
+        ),
+        { code: 'LOCAL_AGENT_HOST_REQUIRED' }
+      )
+    }
+  }
+  if (config.presetId === 'amp-acp' && !terminal && !config.executableOverride) {
+    const ampDep = await selectAvailableInstallation({ executable: 'amp' }, dependencySnapshots)
+    const ampAvailable = ampDep.source !== 'none' || Boolean(await findExecutableInEnv('amp', { env: childEnv }))
+    if (!ampAvailable) {
+      throw Object.assign(
+        new Error(
+          t('local_agent.host_required', {
+            agent: definition?.name ?? 'Amp',
+            host: 'amp CLI'
+          })
+        ),
+        { code: 'LOCAL_AGENT_HOST_REQUIRED' }
+      )
     }
   }
   return {

@@ -213,6 +213,8 @@
   "file_processing.errors.pdf_page_limit_exceeded": "该 PDF 超过当前文档解析服务的 {{maxPages}} 页上限，请手动拆分 PDF 后重新添加。",
   "knowledge.source.invalid_url": "请输入以 http:// 或 https:// 开头的有效 URL。",
   "local_agent.configuration_required": "请先在智能体终端中配置模型和 API 密钥，然后重试。",
+  "local_agent.host_required": "{{agent}} 需要先安装 {{host}} 并确保其在 PATH 中可用。",
+  "local_agent.host_required_with_env": "{{agent}} 需要先安装 {{host}}（或通过 {{envVar}} 环境变量指定路径）。",
   "local_agent.model_unavailable": "所选模型“{{model}}”已不可用，请在智能体服务中重新选择模型。",
   "local_agent.runtime_required": "需要 {{runtime}} {{version}} 或更高版本。",
   "notification.action_required.agent": "智能体任务需要你的响应",

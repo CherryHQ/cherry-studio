@@ -1564,6 +1564,7 @@
   "error.diagnosis.go_to_settings": "前往设置",
   "error.diagnosis.knowledge": "知识库向量化失败",
   "error.diagnosis.local_agent_auth": "本地智能体需要登录或认证配置，请先在终端完成 CLI 登录或在智能体服务设置中检查后重试。",
+  "error.diagnosis.local_agent_host_required": "未检测到该本地智能体依赖的主程序或 CLI，请先安装后重试。",
   "error.diagnosis.mcp": "MCP 服务连接失败，请检查服务是否已启动",
   "error.diagnosis.model": "模型不存在，或你无权访问该模型",
   "error.diagnosis.model_conflict": "诊断模型与出错模型相同，无法进行诊断",

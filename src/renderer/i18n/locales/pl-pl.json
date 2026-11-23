@@ -1584,6 +1584,7 @@
   "error.diagnosis.go_to_settings": "Przejdź do Ustawień",
   "error.diagnosis.knowledge": "Wektoryzacja bazy wiedzy nie powiodła się",
   "error.diagnosis.local_agent_auth": "Lokalny agent wymaga zalogowania lub konfiguracji uwierzytelniania. Zaloguj się przez CLI lub sprawdź ustawienia w Usługach agentów i spróbuj ponownie.",
+  "error.diagnosis.local_agent_host_required": "Wymagana aplikacja hosta lub CLI lokalnego agenta nie jest zainstalowana. Zainstaluj ją i spróbuj ponownie.",
   "error.diagnosis.mcp": "Połączenie z serwerem MCP nie powiodło się, sprawdź, czy usługa działa",
   "error.diagnosis.model": "Nie znaleziono modelu lub nie masz do niego dostępu",
   "error.diagnosis.model_conflict": "Model używany do diagnozy jest taki sam jak model powodujący błąd",

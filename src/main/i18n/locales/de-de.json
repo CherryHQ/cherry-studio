@@ -213,6 +213,8 @@
   "file_processing.errors.pdf_page_limit_exceeded": "Diese PDF überschreitet die Begrenzung von {{maxPages}} Seiten für den aktuellen Dienst zur Dokumentverarbeitung. Teilen Sie die PDF manuell und fügen Sie sie dann erneut hinzu.",
   "knowledge.source.invalid_url": "Geben Sie eine gültige URL ein, die mit http:// oder https:// beginnt.",
   "local_agent.configuration_required": "Konfigurieren Sie im Agent-Terminal ein Modell und einen API-Schlüssel und versuchen Sie es erneut.",
+  "local_agent.host_required": "Für {{agent}} muss {{host}} installiert und in PATH verfügbar sein.",
+  "local_agent.host_required_with_env": "Für {{agent}} muss {{host}} installiert sein (oder über {{envVar}} konfiguriert werden).",
   "local_agent.model_unavailable": "Das gewählte Modell „{{model}}“ ist nicht mehr verfügbar. Wählen Sie in den Agent-Diensten ein anderes Modell.",
   "local_agent.runtime_required": "{{runtime}} {{version}} oder neuer ist erforderlich.",
   "notification.action_required.agent": "Agent benötigt Ihre Eingabe",

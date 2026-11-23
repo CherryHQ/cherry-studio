@@ -1564,6 +1564,7 @@
   "error.diagnosis.go_to_settings": "設定へ移動",
   "error.diagnosis.knowledge": "ナレッジベースのベクトル化に失敗しました",
   "error.diagnosis.local_agent_auth": "ローカルエージェントにはサインインまたは認証設定が必要です。CLI でサインインするか、エージェントサービス設定を確認して再試行してください。",
+  "error.diagnosis.local_agent_host_required": "ローカルエージェントに必要なホストアプリまたは CLI がインストールされていません。インストールしてから再試行してください。",
   "error.diagnosis.mcp": "MCP サーバーへの接続に失敗しました。サービスが実行中か確認してください",
   "error.diagnosis.model": "モデルが見つからないか、アクセス権がありません",
   "error.diagnosis.model_conflict": "診断モデルとエラーモデルが同一のため、診断できません",

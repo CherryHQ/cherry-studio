@@ -1564,6 +1564,7 @@
   "error.diagnosis.go_to_settings": "Mergi la setări",
   "error.diagnosis.knowledge": "Vectorizarea bazei de cunoștințe a eșuat",
   "error.diagnosis.local_agent_auth": "Agentul local necesită autentificare sau configurarea accesului. Conectați-vă prin CLI sau verificați setările în Servicii pentru agenți și încercați din nou.",
+  "error.diagnosis.local_agent_host_required": "Aplicația gazdă sau CLI necesară pentru agentul local nu este instalată. Instalați-o și încercați din nou.",
   "error.diagnosis.mcp": "Conectarea la serverul MCP a eșuat; verifică dacă serviciul rulează",
   "error.diagnosis.model": "Model negăsit sau fără acces",
   "error.diagnosis.model_conflict": "Modelul de diagnostic este identic cu modelul cu eroare",
