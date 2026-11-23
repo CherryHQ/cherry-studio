@@ -226,10 +226,11 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // moonshot
   { pattern: '^kimi-k3[.-]1-pro(?:-highspeed)?$', effort: ['low', 'high', 'max'], toggle: false },
   { pattern: '^kimi-k2[.-]7-code', toggle: false },
+  { pattern: '^kimi-k2[.-]8-preview$', effort: ['low', 'high', 'max'] },
   { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
   { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
   { pattern: '^kimi-k2[.-][5-9]\\d*', toggle: true },
-  { pattern: 'kimi-k2[.-][5-9]\\d*', budget: { min: 0, max: 30720 }, template: true },
+  { pattern: 'kimi-k2[.-][5-9]\\d*(?!-preview)', budget: { min: 0, max: 30720 }, template: true },
   { pattern: '^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2[.-][5-9]\\d*|[3-9]\\d*(?:[.-]\\d+)?)(?:-[\\w-]+)?$' },
   // nvidia
   { pattern: '(?:llama-3-1-)?nemotron-(?:\\d+(?:-\\d+)*-)?(?:nano|super|ultra|lightning)' },
