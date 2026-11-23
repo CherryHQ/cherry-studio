@@ -194,7 +194,10 @@ describe('AMD free models', () => {
       expect(screen.queryByText('gpt-4')).not.toBeInTheDocument()
 
       await userEvent.click(screen.getByText('AMD Qwen'))
-      expect(request).toHaveBeenCalledWith('cherry_cloud.amd_entry.open', { modelId: 'amd/qwen' })
+      expect(request).toHaveBeenCalledWith('cherry_cloud.amd_entry.open', {
+        modelId: 'amd/qwen',
+        flowId: expect.any(String)
+      })
       rerender(selector())
       await userEvent.click(await screen.findByText('Free Model'))
       expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
