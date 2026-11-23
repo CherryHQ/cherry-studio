@@ -261,7 +261,7 @@ type InfiniteQueryKey = [string, { limit: number; cursor?: unknown }]
 
 type InfiniteQueryKeyGetter = (
   pageIndex: number,
-  previousPageData: CursorPaginationResponse<unknown> | null
+  previousPageData: Pick<CursorPaginationResponse<unknown>, 'nextCursor'> | null
 ) => InfiniteQueryKey | null
 
 function createInfiniteQueryKeyGetter<TQuery extends object>(
@@ -363,10 +363,14 @@ export function useQuery<TPath extends ApiPath>(
   const resolvedPath = isEnabled ? resolveTemplate(path, options?.params) : null
   const key = isEnabled && resolvedPath ? buildSWRKey(resolvedPath, options?.query) : null
 
-  const { data, error, isLoading, isValidating, mutate } = useSWR<ResponseForPath<TPath, 'GET'>>(key, getFetcher, {
-    ...DEFAULT_SWR_OPTIONS,
-    ...options?.swrOptions
-  })
+  const { data, error, isLoading, isValidating, mutate } = useSWR<ResponseForPath<TPath, 'GET'>, Error>(
+    key,
+    getFetcher,
+    {
+      ...DEFAULT_SWR_OPTIONS,
+      ...options?.swrOptions
+    }
+  )
 
   const refetch = useCallback(() => mutate(), [mutate])
 
@@ -374,7 +378,7 @@ export function useQuery<TPath extends ApiPath>(
     data,
     isLoading,
     isRefreshing: isValidating,
-    error: error as Error | undefined,
+    error,
     refetch,
     mutate
   }
@@ -509,10 +513,12 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
     trigger: swrTrigger,
     isMutating,
     error
-    // SWR's MutationFetcher generic over TPath + ExtraArg doesn't infer cleanly
-    // here (our ExtraArg shape mixes schema-derived body/query types), so we
-    // widen the key to `string` for SWR while keeping TPath precision elsewhere.
-  } = useSWRMutation(path as string, fetcher, {
+  } = useSWRMutation<
+    ResponseForPath<TPath, TMethod>,
+    Error,
+    string,
+    { request: Promise<ResponseForPath<TPath, TMethod>> }
+  >(path, fetcher, {
     populateCache: false,
     revalidate: false,
     ...options?.swrOptions
@@ -528,6 +534,8 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
       // Capture args in this call's closure so concurrent triggers don't clobber
       // each other's refresh context (refs would race on overlapping awaits).
       const capturedArgs = data
+
+      // SAFETY: TriggerArgs supplies this method's template params; the resolver only substitutes their string values.
       const paramsRecord = capturedArgs?.params as Record<string, string | number> | undefined
       const resolvedPath = resolveTemplate(path, paramsRecord)
       const hasOptimisticData = opts?.optimisticData !== undefined
@@ -559,9 +567,10 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
       }
 
       try {
+        // SAFETY: Resolution substitutes this trigger's params; method, body, query and response keep the same endpoint owner.
         const request = apiFetcher(resolvedPath as ConcreteApiPaths, {
-          body: capturedArgs?.body as BodyForPath<ConcreteApiPaths, TMethod>,
-          query: capturedArgs?.query as QueryParamsForPath<ConcreteApiPaths, TMethod>
+          body: capturedArgs?.body,
+          query: capturedArgs?.query
         }) as Promise<ResponseForPath<TPath, TMethod>>
 
         const [requestOutcome] = await Promise.allSettled([request, swrTrigger({ request })])
@@ -616,6 +625,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         }
 
         try {
+          // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Preserve the legacy callback's raw rejection; SWR side-effect failures are not guaranteed Error instances.
           opts?.onError?.(err as Error)
         } catch (callbackErr) {
           logger.warn(`onError callback failed while handling ${method} ${String(path)}`, {
@@ -775,6 +785,7 @@ export function useReadCache() {
 
       const entry = cache.get(serialized)
 
+      // SAFETY: SWR erases per-key data types; callers own TResponse and must use the writer's path, query and limit.
       return entry?.data as TResponse | undefined
     },
     [cache]
@@ -913,21 +924,23 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     >
   }
 
-  const swrResult = useSWRInfinite(getKey, infiniteFetcher, swrOptions)
+  const swrResult = useSWRInfinite<ResponseForPath<TPath, 'GET'>, Error, typeof getKey>(
+    getKey,
+    infiniteFetcher,
+    swrOptions
+  )
 
   const { error, isLoading, isValidating, mutate, setSize } = swrResult
 
   // Stabilize `pages` reference: when SWR's `data` is unchanged across rerenders
   // the consumer gets `===` equality, which is required for `useInfiniteFlatItems`
   // and other downstream `useMemo`s to skip recomputation.
-  const pages = useMemo<ResponseForPath<TPath, 'GET'>[]>(
-    () => (swrResult.data as ResponseForPath<TPath, 'GET'>[] | undefined) ?? [],
-    [swrResult.data]
-  )
+  const pages = useMemo<ResponseForPath<TPath, 'GET'>[]>(() => swrResult.data ?? [], [swrResult.data])
 
   const hasNext = useMemo(() => {
     if (!pages.length) return false
-    const last = pages[pages.length - 1] as CursorPaginationResponse<unknown>
+    // SAFETY: CursorPaginatedPath selects a cursor response; only its nextCursor projection is consumed here.
+    const last = pages[pages.length - 1] as Pick<CursorPaginationResponse<unknown>, 'nextCursor'>
 
     return !!last.nextCursor
   }, [pages])
@@ -944,12 +957,12 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     pages,
     isLoading,
     isRefreshing: isValidating,
-    error: error as Error | undefined,
+    error,
     hasNext,
     loadNext,
     refresh,
     reset,
-    mutate: mutate as SWRInfiniteKeyedMutator<ResponseForPath<TPath, 'GET'>[]>
+    mutate
   }
 }
 
@@ -986,7 +999,7 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
 
         if (!cachedPages) return entries
 
-        let previousPage: CursorPaginationResponse<unknown> | null = null
+        let previousPage: Pick<CursorPaginationResponse<unknown>, 'nextCursor'> | null = null
 
         for (let index = 0; index < cachedPages.length; index++) {
           const page = cachedPages[index]
@@ -994,7 +1007,8 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
 
           if (!key) break
           entries.push({ key, page, serializedKey: unstable_serialize(key) })
-          previousPage = page as CursorPaginationResponse<unknown>
+          // SAFETY: CursorPaginatedPath selects a cursor response; only its nextCursor projection is consumed here.
+          previousPage = page as Pick<CursorPaginationResponse<unknown>, 'nextCursor'>
         }
 
         return entries
@@ -1005,26 +1019,22 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
       let committedPages: Page[] | undefined
       let previousPages: Page[] | undefined
 
-      const pages = (await mutate(
-        infiniteCacheKey,
-        value as never,
-        {
-          revalidate: false,
-          populateCache: (nextPages: Page[] | undefined, currentPages: Page[] | undefined) => {
-            didCommit = true
+      const pages = await mutate<Page[] | undefined, Page[] | undefined>(infiniteCacheKey, value, {
+        revalidate: false,
+        populateCache: (nextPages: Page[] | undefined, currentPages: Page[] | undefined) => {
+          didCommit = true
 
-            if (nextPages === currentPages) return currentPages
-            didChange = true
-            previousPages = currentPages
-            committedPages = nextPages ?? []
-            // SWR Infinite stores its loaded page count beside the aggregate data.
-            const nextState = { ...cache.get(infiniteCacheKey), _l: Math.max(committedPages.length, 1) }
-            cache.set(infiniteCacheKey, nextState)
+          if (nextPages === currentPages) return currentPages
+          didChange = true
+          previousPages = currentPages
+          committedPages = nextPages ?? []
+          // SWR Infinite stores its loaded page count beside the aggregate data.
+          const nextState = { ...cache.get(infiniteCacheKey), _l: Math.max(committedPages.length, 1) }
+          cache.set(infiniteCacheKey, nextState)
 
-            return committedPages
-          }
-        } as never
-      )) as ResponseForPath<TPath, 'GET'>[] | undefined
+          return committedPages
+        }
+      })
 
       if (!didCommit || !didChange) return pages
       // SWR returns superseded async values without committing them; only mirror the committed aggregate.
@@ -1118,8 +1128,9 @@ export function useInfiniteFlatItems<P extends CursorPaginationResponse<any>>(
   const reversePages = options?.reversePages
   const reverseItems = options?.reverseItems
 
+  // SAFETY: Each page contributes its own items; reversing copies arrays and preserves every item reference.
   return useMemo(() => {
-    if (!pages) return [] as unknown[]
+    if (!pages) return []
     const orderedPages = reversePages ? pages.slice().reverse() : pages
     const flattenPage = (page: P) => (reverseItems ? [...page.items].reverse() : page.items)
 
@@ -1217,11 +1228,8 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     queryOptions as typeof queryOptions & ParamsOption<TPath, 'GET'>
   )
 
-  // The `OffsetPaginatedPath` guard ensures `ResponseForPath<TPath, 'GET'>` is
-  // an `OffsetPaginationResponse<…>` shape; we still cast through the assigned
-  // alias to recover item-type precision (TS won't unwrap generic constraints
-  // for property access alone).
-  const paginatedData = data as OffsetPaginationResponse<InferPaginatedItem<TPath>> | undefined
+  // SAFETY: OffsetPaginatedPath selects items and total; this restores their generic projection without transforming data.
+  const paginatedData = data as Pick<OffsetPaginationResponse<InferPaginatedItem<TPath>>, 'items' | 'total'> | undefined
   const items = paginatedData?.items ?? EMPTY_ITEMS
   const total = paginatedData?.total || 0
   const totalPages = Math.ceil(total / limit)
@@ -1290,29 +1298,33 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
       query?: QueryParamsForPath<TPath, TMethod>
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
-    // SAFETY: The captured method owns the options; TS cannot narrow generic TMethod in these branches.
     const query = options?.query
 
     switch (method) {
       case 'GET':
+        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
         return dataApiService.get(path, {
           query: query as QueryParamsForPath<TPath, 'GET'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'POST':
+        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
         return dataApiService.post(path, {
           body: options?.body as BodyForPath<TPath, 'POST'>,
           query: query as QueryParamsForPath<TPath, 'POST'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PUT':
+        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
         return dataApiService.put(path, {
           body: (options?.body || {}) as BodyForPath<TPath, 'PUT'>,
           query: query as QueryParamsForPath<TPath, 'PUT'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'DELETE':
+        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
         return dataApiService.delete(path, {
           query: query as QueryParamsForPath<TPath, 'DELETE'> | undefined
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PATCH':
+        // SAFETY: The captured method selects this service entry; TypeScript cannot narrow generic TMethod.
         return dataApiService.patch(path, {
           body: options?.body as BodyForPath<TPath, 'PATCH'>,
           query: query as QueryParamsForPath<TPath, 'PATCH'> | undefined
@@ -1478,6 +1490,7 @@ function extractInfinitePath(key: string): string | undefined {
 
     if (ch === 0x22 /* '"' */) {
       try {
+        // SAFETY: The scanner slices exactly one quoted JSON literal; successful parsing therefore yields a string.
         return JSON.parse(key.slice(pathStart - 1, i + 1)) as string
       } catch {
         return undefined
