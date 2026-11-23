@@ -1,4 +1,5 @@
 import type { UpdateInfo } from 'builder-util-runtime'
+import * as z from 'zod'
 
 import type { DoctorState } from '@shared/types/doctor'
 import type { DoctorAgentState } from '@shared/types/doctorAgent'
@@ -213,27 +214,26 @@ export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
 
 export type CacheAgentSessionTurnOrigin = AutonomousTurnOrigin | null
 
+const windowRectangleSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number().positive(),
+  height: z.number().positive()
+})
+
+export const WindowBoundsStateSchema = windowRectangleSchema.extend({
+  /** Restored by the consumer on its own show schedule, not by WindowManager. */
+  isMaximized: z.boolean(),
+  /** Keeps restoration on the saved display, clamping when its work area changed. */
+  displayBounds: windowRectangleSchema
+})
+
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.
- *
- * Stored in the main-process persist cache under `window.bounds`, keyed by
- * WindowType. Captured from `getNormalBounds()` (the pre-maximize rect) plus the
- * maximized flag, so a maximized window restores to maximized while un-maximizing
- * returns to the saved normal size.
+ * Stored under `window.bounds`, keyed by WindowType. Normal bounds preserve
+ * the restore size while the maximized flag preserves the shown state.
  */
-export type WindowBoundsState = {
-  x: number
-  y: number
-  width: number
-  height: number
-  /** Whether the window was maximized at capture time. Restored by the consumer
-   *  (e.g. MainWindowService) on its own show schedule, not by WindowManager. */
-  isMaximized: boolean
-  /** Bounds of the display the window was last on — used at restore to put the
-   *  window back onto the same display (clamping into it if the saved rect no
-   *  longer fits), instead of resetting to the primary display. */
-  displayBounds: { x: number; y: number; width: number; height: number }
-}
+export type WindowBoundsState = z.infer<typeof WindowBoundsStateSchema>
 
 /**
  * Why a mini app's tile carries a dot. Derived by main, identical in every window; an

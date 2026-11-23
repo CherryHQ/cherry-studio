@@ -17,6 +17,9 @@ import type { IpcMain, IpcMainEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
+import type { MainPersistCacheKey, MainPersistCacheSchema } from '@shared/data/cache/cacheSchemas'
+import type { MarketplaceSkillDetail, SkillSubscriptionSnapshot } from '@shared/types/skillMarketplace'
 
 // Undo the global mock from main.setup.ts — we want the REAL CacheService.
 vi.unmock('@main/data/CacheService')
@@ -52,6 +55,90 @@ vi.mock('@main/core/lifecycle', () => ({
 }))
 
 const PROBE = 'internal.persist_probe' as const
+
+const subscriptionSkill: MarketplaceSkillDetail = {
+  id: 'feed:root',
+  name: { en: 'Root skill', zh: null },
+  description: { en: '', zh: null },
+  longDescription: { en: '', zh: null },
+  domain: 'Other',
+  author: '',
+  version: '',
+  tags: [],
+  githubRepoUrl: null,
+  sourceUrl: 'https://github.com/example/skills',
+  icon: null,
+  packageName: null,
+  packageSize: null,
+  hasPackage: true,
+  downloadUrl: null,
+  downloads: null,
+  releaseDate: '',
+  subscription: { sourceId: 'feed', kind: 'github', url: 'https://github.com/example/skills' },
+  members: [{ path: '', name: 'Root skill' }],
+  membersKnown: true,
+  isCollection: false
+}
+
+const subscriptionSnapshot: SkillSubscriptionSnapshot = {
+  source: { id: 'feed', url: 'https://example.com/feed.json', name: '', kind: 'json', createdAt: 0 },
+  items: [
+    subscriptionSkill,
+    {
+      ...subscriptionSkill,
+      id: 'feed:zip',
+      subscription: { sourceId: 'feed', kind: 'zip', url: 'https://example.com/skills.zip' },
+      downloadUrl: 'https://example.com/skills.zip',
+      members: [],
+      membersKnown: false
+    }
+  ],
+  fetchedAt: 123.5,
+  skipped: 0
+}
+
+const persistedValues: MainPersistCacheSchema = {
+  'skill.subscription.catalogs': { feed: subscriptionSnapshot },
+  'skill.marketplace.members': { root: [{ path: '', name: 'Root skill' }], empty: [] },
+  'browser.favicons': Object.fromEntries([
+    ['https://example.com', 'data:image/svg+xml,<svg/>'],
+    ['__proto__', 'literal key'],
+    ['constructor', 'another literal key']
+  ]),
+  'backup.auto_sync.last_attempt_times': { webdav: 123.5, s3: null, local: -1, nutstore: 0 },
+  'cherry_cloud.notification_cursors': { account: 'opaque:cursor/123' },
+  'cherryin.models.last_attempt_at': 123.5,
+  'internal.persist_probe': -0.5,
+  'window.bounds': {
+    'custom-window': {
+      x: -100.5,
+      y: -20.25,
+      width: 800.5,
+      height: 600.5,
+      isMaximized: true,
+      displayBounds: { x: -1920, y: 0, width: 1920, height: 1080 }
+    }
+  }
+}
+
+const invalidPersistValues: Array<[MainPersistCacheKey, unknown]> = [
+  [
+    'skill.subscription.catalogs',
+    { feed: { ...subscriptionSnapshot, items: [{ ...subscriptionSkill, downloads: 'many' }] } }
+  ],
+  ['skill.marketplace.members', { root: [{ path: 42, name: 'Root skill' }] }],
+  ['browser.favicons', Object.fromEntries([['__proto__', false]])],
+  ['backup.auto_sync.last_attempt_times', { webdav: null, s3: null, local: null }],
+  [
+    'backup.auto_sync.last_attempt_times',
+    { ...persistedValues['backup.auto_sync.last_attempt_times'], webdav: 'tomorrow' }
+  ],
+  ['cherry_cloud.notification_cursors', { account: '' }],
+  ['cherryin.models.last_attempt_at', 'yesterday'],
+  ['internal.persist_probe', null],
+  ['window.bounds', { main: { x: 0, y: 0, width: 800, height: 600, isMaximized: false } }],
+  ['window.bounds', { main: { ...persistedValues['window.bounds']['custom-window'], width: 0 } }]
+]
 
 describe('CacheService persist tier', () => {
   let service: any
@@ -123,6 +210,58 @@ describe('CacheService persist tier', () => {
     fs.writeFileSync(cacheFile, JSON.stringify({ [PROBE]: 99 }), 'utf-8')
     await initService()
     expect(service.getPersist(PROBE)).toBe(99)
+  })
+
+  it('reloads all supported domains without rejecting valid subscription or geometry values', async () => {
+    fs.writeFileSync(cacheFile, JSON.stringify(persistedValues), 'utf-8')
+    await initService()
+
+    for (const [key, value] of Object.entries(persistedValues)) {
+      expect(service.getPersist(key)).toEqual(value)
+    }
+    const favicons = service.getPersist('browser.favicons')
+    expect(Object.hasOwn(favicons, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(favicons)).toBe(Object.prototype)
+    service.flushPersistForBackup()
+    await service.onStop()
+    await initService()
+
+    expect(service.getPersist('skill.subscription.catalogs')).toEqual(persistedValues['skill.subscription.catalogs'])
+    expect(service.getPersist('window.bounds')).toEqual(persistedValues['window.bounds'])
+    expect(service.getPersist('browser.favicons')).toEqual(persistedValues['browser.favicons'])
+  })
+
+  it.each(invalidPersistValues)('falls back only for the invalid persisted key %s', async (key, value) => {
+    fs.writeFileSync(cacheFile, JSON.stringify({ ...persistedValues, [key]: value }), 'utf-8')
+    await initService()
+
+    for (const candidate of Object.keys(persistedValues) as MainPersistCacheKey[]) {
+      expect(service.getPersist(candidate)).toEqual(
+        candidate === key ? DefaultMainPersistCache[candidate] : persistedValues[candidate]
+      )
+    }
+    service.flushPersistForBackup()
+    const repaired = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))
+    expect(repaired).toEqual({ ...persistedValues, [key]: DefaultMainPersistCache[key] })
+  })
+
+  it.each([{ value: null }, { value: [['origin', 'value']] }, { value: 'text' }])(
+    'does not convert a non-object dictionary into a favicon record ($value)',
+    async ({ value }) => {
+      fs.writeFileSync(cacheFile, JSON.stringify({ [PROBE]: 7, 'browser.favicons': value }), 'utf-8')
+      await initService()
+
+      expect(service.getPersist('browser.favicons')).toEqual({})
+      expect(service.getPersist(PROBE)).toBe(7)
+    }
+  )
+
+  it('rejects finite-range overflow without discarding another valid numeric key', async () => {
+    fs.writeFileSync(cacheFile, '{"internal.persist_probe":1e999,"cherryin.models.last_attempt_at":7}', 'utf-8')
+    await initService()
+
+    expect(service.getPersist(PROBE)).toBe(0)
+    expect(service.getPersist('cherryin.models.last_attempt_at')).toBe(7)
   })
 
   it('falls back to defaults on a corrupt file without throwing', async () => {

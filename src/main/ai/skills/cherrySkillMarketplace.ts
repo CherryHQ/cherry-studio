@@ -11,6 +11,7 @@ import { fetchRemoteFile } from '@main/utils/remoteFetch'
 import {
   CherrySkillDetailSchema,
   CherrySkillPageSchema,
+  MarketplaceSkillMemberSchema,
   type CherrySkill,
   type MarketplaceSkillDetail,
   type MarketplaceSkillPage
@@ -70,10 +71,7 @@ async function readMarketplaceJson<TResult>(response: Response, schema: z.ZodTyp
 function summarizeSkill(skill: CherrySkill) {
   const cached = application.get('CacheService').getPersist('skill.marketplace.members')
 
-  const members = z
-    .array(z.object({ path: z.string(), name: z.string() }))
-    .nonempty()
-    .safeParse(cached?.[skill.id])
+  const members = z.array(MarketplaceSkillMemberSchema).nonempty().safeParse(cached?.[skill.id])
 
   return summarizeMarketplaceSkill(skill, members.success ? members.data : undefined)
 }

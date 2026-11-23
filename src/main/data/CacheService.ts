@@ -19,7 +19,6 @@
 
 import fs from 'node:fs'
 
-import type { JSONValue } from '@ai-sdk/provider'
 import { BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -39,6 +38,8 @@ import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
+
+import { mainPersistCacheSchema } from './persistCacheSchemas'
 
 const logger = loggerService.withContext('CacheService')
 
@@ -200,7 +201,7 @@ export class CacheService extends BaseService {
   private readonly GC_INTERVAL_MS = 10 * 60 * 1000
 
   // Persist cache (main-authoritative, JSON-backed; independent from renderer persist)
-  private persistCache = new Map<string, unknown>()
+  private persistCache = new Map<MainPersistCacheKey, MainPersistCacheSchema[MainPersistCacheKey]>()
   private persistSaveTimer: ReturnType<typeof setTimeout> | null = null
   private persistFilePath = ''
   private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
@@ -328,7 +329,7 @@ export class CacheService extends BaseService {
       return undefined
     }
 
-    return entry.value as T
+    return entry.value
   }
 
   /**
@@ -431,7 +432,7 @@ export class CacheService extends BaseService {
       return undefined
     }
 
-    return entry.value as InferSharedCacheValue<K>
+    return entry.value
   }
 
   /**
@@ -553,7 +554,7 @@ export class CacheService extends BaseService {
     callback: (newValue: T | undefined, oldValue: T | undefined) => void
   ): () => void {
     return this.internalNotifier.subscribe(key, (newValue, oldValue) => {
-      callback(newValue as T | undefined, oldValue as T | undefined)
+      callback(newValue, oldValue)
     })
   }
 
@@ -581,11 +582,8 @@ export class CacheService extends BaseService {
     ) => void
   ): () => void {
     return this.sharedNotifier.subscribe(key, (newValue, oldValue, concreteKey) => {
-      callback(
-        newValue as InferSharedCacheValue<K> | undefined,
-        oldValue as InferSharedCacheValue<K> | undefined,
-        concreteKey as ProcessKey<K & string>
-      )
+      // SAFETY: CacheNotifier dispatches only when this exact key or its anchored template regex matches the concrete key.
+      callback(newValue, oldValue, concreteKey as ProcessKey<K & string>)
     })
   }
 
@@ -643,6 +641,7 @@ export class CacheService extends BaseService {
    */
   getPersist<K extends MainPersistCacheKey>(key: K): MainPersistCacheSchema[K] {
     if (this.persistCache.has(key)) {
+      // SAFETY: Disk entries pass the schema selected by their key; defaults and typed main-process writes preserve that pairing in this private map.
       return this.persistCache.get(key) as MainPersistCacheSchema[K]
     }
 
@@ -714,7 +713,7 @@ export class CacheService extends BaseService {
     callback: (newValue: MainPersistCacheSchema[K], oldValue: MainPersistCacheSchema[K]) => void
   ): () => void {
     return this.persistNotifier.subscribe(key, (newValue, oldValue) => {
-      callback(newValue as MainPersistCacheSchema[K], oldValue as MainPersistCacheSchema[K])
+      callback(newValue, oldValue)
     })
   }
 
@@ -725,23 +724,26 @@ export class CacheService extends BaseService {
   private loadPersist(): void {
     this.persistCache.clear()
 
-    for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
+    const keys = mainPersistCacheSchema.keyof().options
+
+    for (const key of keys) {
       this.persistCache.set(key, DefaultMainPersistCache[key])
     }
 
     try {
       if (!fs.existsSync(this.persistFilePath)) return
 
-      const parsed: JSONValue = JSON.parse(fs.readFileSync(this.persistFilePath, 'utf-8'))
+      const parsed: unknown = JSON.parse(fs.readFileSync(this.persistFilePath, 'utf-8'))
 
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        // Adopt known schema keys only — unknown/stale keys are pruned so the
-        // "fixed keys only" contract holds and renamed keys don't linger on disk.
-        const record = parsed
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const record = new Map<string, unknown>(Object.entries(parsed))
 
-        for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
-          if (key in record) {
-            this.persistCache.set(key, record[key])
+        for (const key of keys) {
+          if (!record.has(key)) continue
+          const value = mainPersistCacheSchema.shape[key].safeParse(record.get(key))
+
+          if (value.success) {
+            this.persistCache.set(key, value.data)
           }
         }
       }
@@ -773,12 +775,7 @@ export class CacheService extends BaseService {
     const tempPath = `${this.persistFilePath}.tmp`
 
     try {
-      // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Persist values include unvalidated disk entries; JSON.stringify owns their conversion, omission and backup failure behavior.
-      const snapshot: Record<string, unknown> = {}
-
-      for (const [key, value] of this.persistCache.entries()) {
-        snapshot[key] = value
-      }
+      const snapshot = Object.fromEntries(this.persistCache)
 
       const content = JSON.stringify(snapshot, null, 2)
       fs.writeFileSync(tempPath, content, 'utf-8')

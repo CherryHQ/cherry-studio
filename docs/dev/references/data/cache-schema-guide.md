@@ -1,6 +1,7 @@
 ---
 description: Adding fixed and template cache keys to the cache schemas - naming rules and fixed/template/casual selection
 sources:
+  - src/main/data/persistCacheSchemas.ts
   - src/shared/data/cache/cacheSchemas.ts
   - src/shared/data/cache/cacheValueTypes.ts
 ---
@@ -105,7 +106,8 @@ The placeholder name is documentation-only. `${topicId}` and `${id}` compile to 
 ## Shared and Persist Variants
 
 - Shared: add to `SharedCacheSchema` / `DefaultSharedCache`. Fixed and template both supported.
-- Persist: add to `RendererPersistCacheSchema` / `DefaultRendererPersistCache`. **Fixed keys only.** Persist values survive restart via localStorage — keep them small and typed.
+- Renderer persist: add to `RendererPersistCacheSchema` / `DefaultRendererPersistCache`. **Fixed keys only.** Values survive restart via localStorage.
+- Main persist: add to `MainPersistCacheSchema` / `DefaultMainPersistCache` and add the corresponding parser to `mainPersistCacheSchema` in `src/main/data/persistCacheSchemas.ts`. Reuse the domain's runtime schema and derive complex value types from it. The parser table checks every registered key and its output type at compile time. Invalid file values fall back per key; a bad dictionary value resets that whole key, not individual entries. Keep both persist tiers small and regenerable.
 
 ## Validation
 

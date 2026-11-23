@@ -37,17 +37,25 @@ export const CherrySkillPageSchema = z.object({
 
 export type CherrySkill = z.infer<typeof CherrySkillSchema>
 
-export type MarketplaceSkillMember = { path: string; name: string }
+export const MarketplaceSkillMemberSchema = z.object({ path: z.string(), name: z.string() })
 
-export type MarketplaceSkill = Omit<CherrySkill, 'downloads'> & {
-  downloads: number | null
-  subscription?: { sourceId: string; kind: 'github' | 'zip'; url: string }
-  members: MarketplaceSkillMember[]
-  membersKnown: boolean
-  isCollection: boolean
-}
+export type MarketplaceSkillMember = z.infer<typeof MarketplaceSkillMemberSchema>
 
-export type MarketplaceSkillDetail = MarketplaceSkill & Pick<z.infer<typeof CherrySkillDetailSchema>, 'longDescription'>
+const MarketplaceSkillSchema = CherrySkillSchema.extend({
+  downloads: CherrySkillSchema.shape.downloads.nullable(),
+  subscription: z.object({ sourceId: z.string(), kind: z.enum(['github', 'zip']), url: z.string() }).optional(),
+  members: z.array(MarketplaceSkillMemberSchema),
+  membersKnown: z.boolean(),
+  isCollection: z.boolean()
+})
+
+export type MarketplaceSkill = z.infer<typeof MarketplaceSkillSchema>
+
+export const MarketplaceSkillDetailSchema = MarketplaceSkillSchema.extend({
+  longDescription: CherrySkillDetailSchema.shape.longDescription
+})
+
+export type MarketplaceSkillDetail = z.infer<typeof MarketplaceSkillDetailSchema>
 
 export type MarketplaceSkillPage = {
   items: MarketplaceSkill[]
@@ -61,17 +69,21 @@ export type MarketplaceInstallResult = {
   failed: Array<{ path: string; name: string; error: string }>
 }
 
-export type SkillSubscriptionSource = {
-  id: string
-  url: string
-  name: string
-  kind: 'github' | 'rss' | 'json'
-  createdAt: number
-}
+const SkillSubscriptionSourceSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  name: z.string(),
+  kind: z.enum(['github', 'rss', 'json']),
+  createdAt: z.number()
+})
 
-export type SkillSubscriptionSnapshot = {
-  source: SkillSubscriptionSource
-  items: MarketplaceSkillDetail[]
-  fetchedAt: number
-  skipped: number
-}
+export type SkillSubscriptionSource = z.infer<typeof SkillSubscriptionSourceSchema>
+
+export const SkillSubscriptionSnapshotSchema = z.object({
+  source: SkillSubscriptionSourceSchema,
+  items: z.array(MarketplaceSkillDetailSchema),
+  fetchedAt: z.number(),
+  skipped: z.number().int().nonnegative()
+})
+
+export type SkillSubscriptionSnapshot = z.infer<typeof SkillSubscriptionSnapshotSchema>

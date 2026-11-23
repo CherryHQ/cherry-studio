@@ -247,11 +247,11 @@
     },
     {
       "path": "docs/dev/references/data/cache-overview.md",
-      "sources": ["src/main/data/CacheService.ts","src/renderer/data/CacheService.ts","src/renderer/data/hooks/useCache.ts","src/shared/data/cache"]
+      "sources": ["src/main/data/CacheService.ts","src/main/data/persistCacheSchemas.ts","src/renderer/data/CacheService.ts","src/renderer/data/hooks/useCache.ts","src/shared/data/cache"]
     },
     {
       "path": "docs/dev/references/data/cache-schema-guide.md",
-      "sources": ["src/shared/data/cache/cacheSchemas.ts","src/shared/data/cache/cacheValueTypes.ts"]
+      "sources": ["src/main/data/persistCacheSchemas.ts","src/shared/data/cache/cacheSchemas.ts","src/shared/data/cache/cacheValueTypes.ts"]
     },
     {
       "path": "docs/dev/references/data/cache-usage.md",
