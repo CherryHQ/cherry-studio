@@ -21,6 +21,7 @@ import { openRequestPath } from '@main/services/file'
 import { fitMainWindowBounds, resolveMainWindowOptions } from '@main/services/mainWindowBounds'
 import {
   deliverToReadyMain,
+  flushMainRendererFault,
   openTabInMainWindow,
   queueMainRendererFault,
   resetMainRendererTabAttachDelivery
@@ -378,6 +379,7 @@ export class MainWindowService extends BaseService {
         void this.exitAfterRepeatedRendererCrash(details)
       }
     })
+    mainWindow.webContents.on('did-stop-loading', flushMainRendererFault)
   }
 
   private async exitAfterRepeatedRendererCrash(details: Electron.RenderProcessGoneDetails): Promise<void> {
