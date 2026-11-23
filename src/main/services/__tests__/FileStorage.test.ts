@@ -52,6 +52,18 @@ describe('FileStorage', () => {
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
     })
 
+    it.each([
+      { rejection: new Error('dialog failed'), message: 'dialog failed' },
+      { rejection: 'dialog failed', message: 'dialog failed' },
+      { rejection: null, message: 'null' }
+    ])('keeps a readable string rejection for $rejection', async ({ rejection, message }) => {
+      vi.mocked(dialog.showSaveDialog).mockRejectedValueOnce(rejection)
+
+      await expect(fileStorage.save(event, 'note.md', 'content')).rejects.toBe(
+        `An error occurred saving the file: ${message}`
+      )
+    })
+
     it('parents the save dialog to the caller window, keeping a Unicode file name', async () => {
       const ownerWindow = { isDestroyed: () => false } as Electron.BrowserWindow
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
@@ -103,6 +115,52 @@ describe('FileStorage', () => {
         expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('你好世界')
       } finally {
         fs.rmSync(tmpFile, { force: true })
+      }
+    })
+  })
+
+  describe('mkdir', () => {
+    it.each([
+      { rejection: new Error('permission denied'), message: 'permission denied' },
+      { rejection: 'permission denied', message: 'permission denied' },
+      { rejection: null, message: 'null' }
+    ])(
+      'reports the directory failure without assuming an Error instance: $rejection',
+      async ({ rejection, message }) => {
+        const directory = path.join(os.tmpdir(), `filestorage-mkdir-${uniqueId()}`)
+        vi.spyOn(fs.promises, 'mkdir').mockRejectedValueOnce(rejection)
+
+        await expect(fileStorage.mkdir(event, directory)).rejects.toThrow(
+          `Failed to create directory: ${directory}. Error: ${message}`
+        )
+      }
+    )
+  })
+
+  describe('batchUploadMarkdownFiles', () => {
+    it('continues after a non-Error folder failure and counts the affected file once', async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'filestorage-upload-'))
+      const target = path.join(root, 'export')
+      const blocked = path.join(root, 'blocked', 'blocked.md')
+      const good = path.join(root, 'good', 'good.md')
+      fs.mkdirSync(path.dirname(blocked))
+      fs.mkdirSync(path.dirname(good))
+      fs.writeFileSync(blocked, 'blocked content')
+      fs.writeFileSync(good, 'exported content')
+      const mkdir = fs.promises.mkdir.bind(fs.promises)
+      vi.spyOn(fs.promises, 'mkdir').mockImplementation(async (directory, options) => {
+        if (path.basename(String(directory)) === 'blocked') throw null
+        return mkdir(directory, options)
+      })
+
+      try {
+        const result = await fileStorage.batchUploadMarkdownFiles(event, [blocked, good, 'ignored.txt'], target)
+
+        expect(result).toMatchObject({ fileCount: 1, failedFiles: 1, skippedFiles: 1 })
+        const exported = fs.readdirSync(target, { recursive: true }).filter((name) => name.endsWith('.md'))
+        expect(exported.map((name) => fs.readFileSync(path.join(target, name), 'utf-8'))).toEqual(['exported content'])
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true })
       }
     })
   })

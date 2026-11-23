@@ -21,12 +21,13 @@ import { v4 as uuidv4 } from 'uuid'
  * Electron dialog, with no validation layer of its own. Introducing
  * `AbsoluteFilePathSchema.parse()` would add new throw sites to a module that is
  * already `@deprecated` and slated for deletion, changing v1 behavior instead of
- * migrating it. The casts only feed `getFileType` (extension reads). */
+ * migrating it. The casts only feed `getFileType` (extension/content classification). */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation } from '@main/services/file'
 import { validateNotesDirectory as validateNotesDirectoryPath } from '@main/services/notesDirectory'
+import { getErrorMessage } from '@main/utils/error'
 import { getFileType } from '@main/utils/file'
 import { extractLegacyDocText } from '@main/utils/legacyDoc'
 import { checkName, getName, readTextFileWithAutoEncoding, sanitizeFilename } from '@main/utils/legacyFile'
@@ -126,6 +127,7 @@ class FileStorage {
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
       const ext = path.extname(filePath)
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy dialog paths bypass absolute-path branding; classification preserves the existing raw-path contract.
       const fileType = await getFileType(filePath as AbsoluteFilePath)
 
       return {
@@ -150,6 +152,7 @@ class FileStorage {
     }
 
     const stats = fs.statSync(filePath)
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy IPC accepts existing relative paths; enforcing absolute-path branding here would change that contract.
     const fileType = await getFileType(filePath as AbsoluteFilePath)
 
     return {
@@ -429,7 +432,7 @@ class FileStorage {
       return dirPath
     } catch (error) {
       logger.error('Failed to create directory:', error)
-      throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
+      throw new Error(`Failed to create directory: ${dirPath}. Error: ${getErrorMessage(error, 'Unknown error')}`)
     }
   }
 
@@ -508,10 +511,10 @@ class FileStorage {
       writeFileSync(result.filePath, content, { encoding: 'utf-8' })
 
       return result.filePath
-    } catch (err: any) {
+    } catch (err) {
       logger.error('[IPC - Error] An error occurred saving the file:', err)
 
-      return Promise.reject('An error occurred saving the file: ' + err?.message)
+      return Promise.reject('An error occurred saving the file: ' + getErrorMessage(err, 'Unknown error'))
     }
   }
 
@@ -652,7 +655,10 @@ class FileStorage {
             await fs.promises.mkdir(folder, { recursive: true })
           }
         } catch (error) {
-          logger.debug('Folder already exists or creation failed', { folder, error: (error as Error).message })
+          logger.debug('Folder already exists or creation failed', {
+            folder,
+            error: getErrorMessage(error, 'Unknown error')
+          })
         }
       }
 
