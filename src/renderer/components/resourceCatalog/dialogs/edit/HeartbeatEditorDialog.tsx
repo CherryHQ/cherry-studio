@@ -103,6 +103,7 @@ export function HeartbeatEditorDialog({
     setBusy(true)
     setFault(null)
     setRunNotice(null)
+    let operation: HeartbeatFault['operation'] = 'heartbeat.save'
     try {
       if (dirty) {
         const saved = await ipcApi.request('ai.agent.heartbeat.write', { agentId, ...document, content })
@@ -110,6 +111,7 @@ export function HeartbeatEditorDialog({
         setContent(hasHeartbeatTasks(saved.content) ? saved.content : '')
       }
       if (run) {
+        operation = 'heartbeat.run'
         const outcome = await ipcApi.request('ai.agent.heartbeat.run', { agentId })
         setRunNotice(outcome)
         void refetch()
@@ -125,7 +127,7 @@ export function HeartbeatEditorDialog({
             ? 'agent.heartbeat.conflict'
             : 'agent.heartbeat.action_failed'
         ),
-        operation: run ? 'heartbeat.run' : 'heartbeat.save'
+        operation
       })
     } finally {
       setBusy(false)

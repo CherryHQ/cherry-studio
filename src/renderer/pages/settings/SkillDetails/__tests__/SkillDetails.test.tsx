@@ -431,4 +431,32 @@ describe('SkillDetails', () => {
     )
     expect(mocks.flushBrowser).toHaveBeenCalledTimes(2)
   })
+  it('labels an editor flush failure before a remote check as the flush, not the check', async () => {
+    const user = userEvent.setup()
+    mocks.query = {
+      data: createSkill({
+        source: 'marketplace',
+        sourceUrl: 'https://skills.sh/owner/repo/writer',
+        contentHash: `directory-sha256:${'a'.repeat(64)}`
+      }),
+      error: undefined,
+      isLoading: false
+    }
+    mocks.flushBrowser.mockRejectedValueOnce(new Error('disk full'))
+    render(<SkillDetails skillId="skill-1" />)
+
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(screen.getByRole('menuitem', { name: 'settings.skills.remote.check' }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ operation: 'skill.files.flush', message: 'disk full' })
+          })
+        })
+      )
+    )
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('skill.remote.check', expect.anything())
+  })
 })

@@ -94,7 +94,7 @@ describe('HeartbeatEditorDialog', () => {
           error: cause,
           message: en['agent.heartbeat.conflict'],
           source: 'agent.heartbeat',
-          operation: 'heartbeat.run',
+          operation: 'heartbeat.save',
           recordId: 'a1'
         })
       )

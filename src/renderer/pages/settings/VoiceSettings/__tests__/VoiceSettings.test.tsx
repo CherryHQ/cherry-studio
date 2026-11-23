@@ -1603,6 +1603,23 @@ describe('VoiceSettings', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('labels a chat playback failure shown beside the preview controls as playback', async () => {
+    await renderPreviewTest()
+    act(() =>
+      publishSpeech({
+        phase: 'failed',
+        sourceLabel: 'message',
+        progress: { completed: 0, total: 1 },
+        error: 'operation_failed'
+      })
+    )
+
+    const playbackTest = within(screen.getByRole('group', { name: 'Preview voice' }))
+    expect(await playbackTest.findByRole('alert')).toBeInTheDocument()
+    const detail = await openedVoiceDetail(playbackTest.getByRole('button', { name: i18n.t('common.detail') }))
+    expect(detail?.context.operation).toBe('voice.speech.playback')
+  })
+
   it('reports a preview stop cleanup failure once beside the preview controls', async () => {
     voice.speech = { phase: 'generating', sourceLabel: 'preview', progress: { completed: 0, total: 1 } }
     voice.speechStop.mockImplementationOnce(async () => {

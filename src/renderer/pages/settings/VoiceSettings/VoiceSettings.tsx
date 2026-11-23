@@ -814,6 +814,11 @@ function VoiceSettings() {
   const speechBusy = previewLoading || ['generating', 'ready', 'playing', 'paused'].includes(speech.phase)
   const speechError = previewFailure?.snapshot === speech ? previewFailure.reason : speech.error
   const speechDetail = previewFailure?.snapshot === speech ? previewFailure.cause : speech.error
+  // Playback is shared with chat read-aloud, whose failures also surface here.
+  const speechOperation =
+    previewFailure?.snapshot === speech || speech.sourceLabel === 'preview'
+      ? 'voice.speech.preview'
+      : 'voice.speech.playback'
   const microphoneDetail = microphoneError
     ? (microphoneTestFailure ?? microphoneError)
     : (microphoneListFailure ?? 'operation_failed')
@@ -1396,7 +1401,7 @@ function VoiceSettings() {
               error={speechDetail}
               id="voice-speech-error"
               message={t(errorKey(speechError))}
-              operation="voice.speech.preview"
+              operation={speechOperation}
             />
           ) : null}
         </div>
