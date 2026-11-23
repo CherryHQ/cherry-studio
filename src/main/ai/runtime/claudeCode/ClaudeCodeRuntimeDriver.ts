@@ -651,13 +651,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             // the `placed` fact (see owner `requesting` membership). Track it
             // here so a two-PNG follow-up failure attributes to its own count
             // instead of falling back to a generic error.
-            const placedId = messageId ?? input.inputId
-            if (placedId && input.facts.includes('placed')) {
-              if (input.outcome) this.placedImageInputIds.delete(placedId)
-              else this.placedImageInputIds.add(placedId)
-            } else if (placedId && input.outcome) {
-              this.placedImageInputIds.delete(placedId)
-            }
+            // Outcomes precede the terminal result batch, so membership must
+            // survive until result handling retires the settled input: deleting
+            // on outcome would drop a text-only placed request that grew via
+            // tools before its `result` failure arrives, letting the fallback
+            // consume an unplaced steer's count and report it as sent.
+            trackPlacedImageInput(this.placedImageInputIds, messageId ?? input.inputId, input)
           }
         }
         const snapshot = batch.events.some((event) => event.type === 'snapshot')
@@ -1236,6 +1235,25 @@ export function consumePendingImageCount(pending: number[], failure: unknown): n
     return undefined
   }
   return pending.shift()
+}
+
+/**
+ * Track native placement for image attribution (#20030).
+ * Adds the input when its facts include `placed` and never removes on
+ * outcome: input outcomes precede the terminal result batch, so membership
+ * must survive until `consumePlacedImageCount` (failure) or turn-complete
+ * (success) retires the settled input. Removing on outcome would drop a
+ * text-only placed request that grew via tools past the provider cap before
+ * its `result` failure arrives, letting the no-placement fallback consume an
+ * unplaced steer's count and misreport it as sent.
+ * Exported for regression coverage of the outcome-before-result sequence.
+ */
+export function trackPlacedImageInput(
+  placed: Set<string>,
+  placedId: string | undefined,
+  input: { facts: readonly string[]; outcome?: unknown }
+): void {
+  if (placedId && input.facts.includes('placed')) placed.add(placedId)
 }
 
 /**

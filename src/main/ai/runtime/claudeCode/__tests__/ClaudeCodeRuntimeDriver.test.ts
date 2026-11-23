@@ -879,4 +879,45 @@ describe('Claude image-limit result boundary (#20030)', () => {
       normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, count)
     ).toBeUndefined()
   })
+
+  it('keeps placed membership through outcome so a grown text request cannot misattribute to a queued steer (inv_2f01ac39775e379b)', async () => {
+    // Outcome-before-result sequence (README: input outcomes precede the
+    // terminal result batch): a text-only placed request grows via tools past
+    // a one-image cap while a five-image steer stays queued unplaced. The
+    // outcome batch must not clear placement before the result failure
+    // arrives, otherwise the no-placement fallback consumes the steer's five
+    // and reports it as sent.
+    const { trackPlacedImageInput, consumePlacedImageCount, normalizeResultImageLimitFailure } =
+      await import('../ClaudeCodeRuntimeDriver')
+    const pending = [
+      { inputId: 'a', count: 0 },
+      { inputId: 'b', count: 5 }
+    ]
+    const placed = new Set<string>()
+    // `requesting` membership places the text-only follow-up.
+    trackPlacedImageInput(placed, 'a', { facts: ['placed'] })
+    expect(placed.has('a')).toBe(true)
+    // Outcome arrives before the terminal result batch: membership survives
+    // (old code deleted here, causing the fallback to consume the steer's 5).
+    trackPlacedImageInput(placed, 'a', { facts: ['placed'], outcome: 'failed' })
+    expect(placed.has('a')).toBe(true)
+    // Non-placed inputs never join membership, even with an outcome.
+    trackPlacedImageInput(placed, 'b', { facts: ['accepted'], outcome: 'completed' })
+    expect(placed.has('b')).toBe(false)
+
+    const count = consumePlacedImageCount(
+      pending,
+      placed,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    // Retires the settled placed input, keeps the provider text (unknown exact
+    // count after tool growth), and preserves the unplaced steer.
+    expect(count).toBeUndefined()
+    expect(pending).toEqual([{ inputId: 'b', count: 5 }])
+    expect(placed.has('a')).toBe(false)
+    expect(placed.has('b')).toBe(false)
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, count)
+    ).toBeUndefined()
+  })
 })
