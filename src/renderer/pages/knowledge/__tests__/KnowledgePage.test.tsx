@@ -2022,7 +2022,18 @@ describe('KnowledgePage', () => {
       })
       let firstAdd = true
       const request = vi.mocked(window.api.ipcApi.request)
-      request.mockImplementation(async (route) => {
+      request.mockImplementation(async (route, input) => {
+        if (route === 'knowledge.preflight_files') {
+          const { paths } = input as { paths: string[] }
+          return {
+            ok: true,
+            data: paths.map((path) => ({
+              path: path.endsWith('.md') ? path : `${path}/document.md`,
+              processor: 'text',
+              reason: 'ok'
+            }))
+          }
+        }
         if (route === 'file.get_metadata') {
           return {
             ok: true,
@@ -2057,6 +2068,9 @@ describe('KnowledgePage', () => {
         { type: 'file', data: { source: '/host/plain.md', path: '/host/plain.md' } },
         { type: 'directory', data: { source: '/host/FolderDropFixture' } }
       ]
+      expect(request.mock.calls.filter(([route]) => route === 'knowledge.add_items')).toEqual([])
+      await user.click(await screen.findByRole('button', { name: /knowledge\.preflight\.continue|导入可用文件/ }))
+      await user.click(await screen.findByRole('button', { name: /knowledge\.preflight\.continue|导入可用文件/ }))
       await waitFor(() =>
         expect(request).toHaveBeenCalledWith('knowledge.add_items', {
           baseId: 'base-1',
@@ -2071,6 +2085,7 @@ describe('KnowledgePage', () => {
       }
 
       await user.click(screen.getByRole('button', { name: '目录' }))
+      await user.click(await screen.findByRole('button', { name: /knowledge\.preflight\.continue|导入可用文件/ }))
 
       await waitFor(() =>
         expect(request.mock.calls.filter(([route]) => route === 'knowledge.add_items')).toEqual([
