@@ -6,6 +6,12 @@
 
 - Change the package license from AGPL-3.0-only to MIT.
 
+## 0.5.2
+
+### Patch Changes
+
+- [#25166](https://github.com/CherryHQ/cherry-studio/pull/25166) [`2335254`](https://github.com/CherryHQ/cherry-studio/commit/2335254bf59c5f34a611511238640b2351b90d43) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Bump fast-xml-parser to 5.12.1 for security fixes (Dependabot alerts 689, 687, 677, 678, 679).
+
 ## 0.5.1
 
 ### Patch Changes
