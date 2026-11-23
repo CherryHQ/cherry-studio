@@ -109,7 +109,7 @@ export class KnowledgeVectorStoreService extends BaseService {
         try {
           this.closeStoreInstance(store)
         } catch (error) {
-          logger.error('Failed to close knowledge index store', error as Error, { baseId })
+          logger.error('Failed to close knowledge index store', error, { baseId })
         }
       }
     } finally {

@@ -111,12 +111,11 @@ export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: Cli
     for (const snapshot of snapshots.slice().reverse()) {
       if (snapshot.existed) {
         await atomicWriteFile(snapshot.absPath, snapshot.previousContent, { mode: CLI_CONFIG_FILE_MODE }).catch(
-          (rollbackError) =>
-            logger.error(`Failed to roll back ${snapshot.absPath} after write failure`, rollbackError as Error)
+          (rollbackError) => logger.error(`Failed to roll back ${snapshot.absPath} after write failure`, rollbackError)
         )
       } else {
         await remove(snapshot.absPath).catch((rollbackError) =>
-          logger.error(`Failed to delete ${snapshot.absPath} during rollback`, rollbackError as Error)
+          logger.error(`Failed to delete ${snapshot.absPath} during rollback`, rollbackError)
         )
       }
     }

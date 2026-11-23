@@ -61,9 +61,9 @@ export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<v
     const code = (error as { code?: string }).code
 
     if (code === 'SQLITE_CORRUPT' || code === 'SQLITE_NOTADB') {
-      logger.error('Knowledge index appears corrupt during post-delete reclaim', error as Error, { baseId: base.id })
+      logger.error('Knowledge index appears corrupt during post-delete reclaim', error, { baseId: base.id })
     } else {
-      logger.warn('Failed to reclaim knowledge index space after delete', error as Error, { baseId: base.id })
+      logger.warn('Failed to reclaim knowledge index space after delete', error, { baseId: base.id })
     }
   }
 }

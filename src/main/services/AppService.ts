@@ -29,7 +29,7 @@ export class AppService extends BaseService {
       await this.setAppLaunchOnBoot(desired)
       this.appliedLaunchOnBoot = desired
     },
-    onError: (error) => logger.error('Failed to reconcile launch on boot:', error as Error)
+    onError: (error) => logger.error('Failed to reconcile launch on boot:', error)
   })
 
   protected onInit(): void {

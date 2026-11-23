@@ -52,7 +52,7 @@ function getAvailableProviders(): Provider[] {
   try {
     return providerService.list({ enabled: true })
   } catch (error) {
-    logger.error('Failed to list providers', error as Error)
+    logger.error('Failed to list providers', error)
 
     return []
   }
@@ -71,13 +71,13 @@ async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> 
       try {
         models.push(...modelService.list({ providerId: provider.id, enabled: true }))
       } catch (error) {
-        logger.error(`Failed to list models for provider ${provider.id}`, error as Error)
+        logger.error(`Failed to list models for provider ${provider.id}`, error)
       }
     }
 
     return models
   } catch (error) {
-    logger.error('Failed to list available models', error as Error)
+    logger.error('Failed to list available models', error)
 
     return []
   }
@@ -206,7 +206,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
 
     return { object: 'list', data: modelData }
   } catch (error) {
-    logger.error('Error getting models', error as Error)
+    logger.error('Error getting models', error)
 
     return { object: 'list', data: [] }
   }

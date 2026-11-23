@@ -309,7 +309,7 @@ export class DoctorAgentService extends BaseService {
     try {
       return agentService.updateAgent(agent.id, { model }) ?? undefined
     } catch (error) {
-      logger.warn('Could not assign the requested model to the doctor Agent', error as Error)
+      logger.warn('Could not assign the requested model to the doctor Agent', error)
 
       return undefined
     }

@@ -146,7 +146,7 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
       if (child.exitCode !== null || child.signalCode !== null) return
 
       if (force) throw error
-      logger.warn(`Failed to gracefully stop the managed ${label} process tree`, error as Error)
+      logger.warn(`Failed to gracefully stop the managed ${label} process tree`, error)
     })
 
     return

@@ -77,7 +77,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       const userName = application.get('PreferenceService').get('app.user.name') || 'Unknown Username'
       userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
     } catch (error) {
-      logger.error('Failed to resolve {{username}}', error as Error)
+      logger.error('Failed to resolve {{username}}', error)
       userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
     }
   }
@@ -86,7 +86,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
     try {
       userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, os.platform())
     } catch (error) {
-      logger.error('Failed to resolve {{system}}', error as Error)
+      logger.error('Failed to resolve {{system}}', error)
       userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
     }
   }
@@ -96,7 +96,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
       const language = application.get('PreferenceService').get('app.language') ?? 'Unknown System Language'
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
     } catch (error) {
-      logger.error('Failed to resolve {{language}}', error as Error)
+      logger.error('Failed to resolve {{language}}', error)
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
     }
   }
@@ -105,7 +105,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
     try {
       userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, os.arch())
     } catch (error) {
-      logger.error('Failed to resolve {{arch}}', error as Error)
+      logger.error('Failed to resolve {{arch}}', error)
       userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
     }
   }

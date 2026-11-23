@@ -428,7 +428,7 @@ export class ScreenshotOverlayService extends BaseService {
         if (error instanceof ScreenCapturePermissionError) {
           void this.showPermissionDialog()
         } else {
-          logger.error('Failed to start the screenshot session', error as Error)
+          logger.error('Failed to start the screenshot session', error)
           // The user pressed a shortcut and nothing happened; a log they never read
           // leaves "unsupported here" (Wayland, absent native binary) looking like a
           // broken app. The reason is included because it is the only clue they get.
@@ -555,7 +555,7 @@ export class ScreenshotOverlayService extends BaseService {
     } catch (error) {
       // Rethrown so the overlay shows its error state; logged here because the IPC
       // transport only serializes the error to the renderer, it never records it.
-      logger.error('Region OCR failed', error as Error)
+      logger.error('Region OCR failed', error)
       throw error
     }
   }
@@ -658,7 +658,7 @@ export class ScreenshotOverlayService extends BaseService {
       await clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes]) })])
       logger.info('Screenshot copied to the clipboard')
     } catch (error) {
-      logger.error('Failed to copy the screenshot to the clipboard', error as Error)
+      logger.error('Failed to copy the screenshot to the clipboard', error)
     }
   }
 
@@ -730,7 +730,7 @@ export class ScreenshotOverlayService extends BaseService {
         logger.info('Screenshot saved to file')
       } catch (error) {
         // Logged, not rethrown: a failed write must not skip the teardown below.
-        logger.error('Failed to save the screenshot', error as Error)
+        logger.error('Failed to save the screenshot', error)
       }
 
       this.dismiss()
@@ -936,7 +936,7 @@ export class ScreenshotOverlayService extends BaseService {
         listMonitors()
       } catch (error) {
         // A convenience, not a user action — startCapture() still guides the user itself.
-        logger.warn('Screen capture permission warm-up failed', error as Error)
+        logger.warn('Screen capture permission warm-up failed', error)
       }
     })
   }

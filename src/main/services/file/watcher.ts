@@ -155,7 +155,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
       oldWatcher.removeAllListeners()
       this.usingPolling = true
       this.fsw = this.createWatcher(true)
-      void oldWatcher.close().catch((closeErr) => logger.warn('Failed to close native watcher', closeErr as Error))
+      void oldWatcher.close().catch((closeErr) => logger.warn('Failed to close native watcher', closeErr))
 
       return
     }

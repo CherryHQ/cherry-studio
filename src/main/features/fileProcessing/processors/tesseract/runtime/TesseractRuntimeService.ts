@@ -150,7 +150,7 @@ export class TesseractRuntimeService extends BaseService {
 
     const abortHandler = () => {
       void this.invalidateWorker(worker).catch((error) => {
-        logger.warn('Failed to terminate Tesseract worker after task abort', error as Error)
+        logger.warn('Failed to terminate Tesseract worker after task abort', error)
       })
       rejectAbort(this.createAbortError(signal.reason))
     }
@@ -200,7 +200,7 @@ export class TesseractRuntimeService extends BaseService {
     try {
       await this.disposeWorker()
     } catch (error) {
-      logger.warn('Failed to terminate Tesseract worker during shutdown', error as Error)
+      logger.warn('Failed to terminate Tesseract worker during shutdown', error)
     }
   }
 

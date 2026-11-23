@@ -113,7 +113,7 @@ class RegionService {
       return country
     } catch (error) {
       signal?.throwIfAborted()
-      logger.error('Failed to get IP address information:', error as Error)
+      logger.error('Failed to get IP address information:', error)
       throw error
     }
   }

@@ -243,7 +243,7 @@ export async function authorizeTokenDanceApiKey(): Promise<string> {
     return apiKey
   } catch (error) {
     if (callbackResponse) failCallback(callbackResponse)
-    logger.error('TokenDance API key authorization failed', error as Error)
+    logger.error('TokenDance API key authorization failed', error)
     throw error
   } finally {
     await callbackServer.close()

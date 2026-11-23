@@ -103,7 +103,7 @@ export function getLegacyBridgeEligibility(profile: string) {
       )
     }
   } catch (error) {
-    logger.warn('Automatic bridge installation unavailable', error as Error)
+    logger.warn('Automatic bridge installation unavailable', error)
 
     return { prerequisite }
   }
@@ -245,7 +245,7 @@ export class LegacyBridgeInstaller {
       try {
         this.restoreProfile?.()
       } catch (restoreError) {
-        logger.error('Cannot restore profile mapping after installation failure', restoreError as Error)
+        logger.error('Cannot restore profile mapping after installation failure', restoreError)
       }
 
       this.restoreProfile = undefined

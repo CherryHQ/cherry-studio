@@ -373,7 +373,7 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
         // The journal is unwritable, but the FS already proves the commit —
         // and re-proves it to the probe on any later crash. Resume in memory
         // rather than escape to the shell, which cannot roll a commit back.
-        logger.error('Probe-detected commit marker could not be persisted — resuming in memory', error as Error)
+        logger.error('Probe-detected commit marker could not be persisted — resuming in memory', error)
         resumed = { ...journal, step: COMMIT_STEP }
       }
 
@@ -453,12 +453,12 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
       // is exactly the state the recoverPromoting probe re-derives if a
       // later crash intervenes.
       if (i === commitIndex && !fs.existsSync(ctx.workPath) && fs.existsSync(ctx.livePath)) {
-        logger.error('Commit rename landed but its durability tail failed — continuing in memory', error as Error)
+        logger.error('Commit rename landed but its durability tail failed — continuing in memory', error)
         current = { ...journal, step }
         continue
       }
 
-      logger.error(`Promotion step '${step}' failed`, error as Error)
+      logger.error(`Promotion step '${step}' failed`, error)
 
       if (i <= commitIndex) {
         rollbackPreCommit(ctx)
@@ -473,13 +473,13 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
       current = markStep(current, step)
     } catch (error) {
       if (i < commitIndex) {
-        logger.error(`Marker write for '${step}' failed before the commit point — rolling back`, error as Error)
+        logger.error(`Marker write for '${step}' failed before the commit point — rolling back`, error)
         rollbackPreCommit(ctx)
 
         return
       }
 
-      logger.error(`Marker write for '${step}' failed at/past the commit point — continuing in memory`, error as Error)
+      logger.error(`Marker write for '${step}' failed at/past the commit point — continuing in memory`, error)
       current = { ...journal, step }
     }
   }
@@ -648,7 +648,7 @@ function inverseManifest(ctx: PromotionContext): void {
     try {
       inverseEntry(ctx, entry)
     } catch (error) {
-      logger.error(`Manifest inverse failed for '${entry.livePath}' (${entry.kind}) — continuing`, error as Error)
+      logger.error(`Manifest inverse failed for '${entry.livePath}' (${entry.kind}) — continuing`, error)
     }
   }
 }
@@ -715,7 +715,7 @@ function quarantineCorruptJournal(error: string): void {
   try {
     fs.renameSync(journalPath, quarantined)
   } catch (renameError) {
-    logger.error('Failed to quarantine corrupt journal', renameError as Error)
+    logger.error('Failed to quarantine corrupt journal', renameError)
     fs.rmSync(journalPath, { force: true })
   }
 

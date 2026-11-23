@@ -130,7 +130,7 @@ export class CherryInOAuthService {
         return this.redactDiagnosticValue(text)
       }
     } catch (error) {
-      logger.warn('Failed to read CherryIN error response body for diagnostics:', error as Error)
+      logger.warn('Failed to read CherryIN error response body for diagnostics:', error)
 
       return null
     }
@@ -215,7 +215,7 @@ export class CherryInOAuthService {
       if (error instanceof z.ZodError) {
         logger.warn('Failed to parse CherryIN profile response:', error.issues)
       } else {
-        logger.warn('Failed to fetch CherryIN profile:', error as Error)
+        logger.warn('Failed to fetch CherryIN profile:', error)
       }
 
       return null
@@ -255,7 +255,7 @@ export class CherryInOAuthService {
         throw new CherryInOAuthServiceError('Invalid response format from server', error)
       }
 
-      logger.error('Failed to get balance:', error as Error)
+      logger.error('Failed to get balance:', error)
       const detail = error instanceof Error && error.message ? `: ${error.message}` : ''
       throw new CherryInOAuthServiceError(`Failed to get balance${detail}`, error)
     }
@@ -281,14 +281,14 @@ export class CherryInOAuthService {
           })
           logger.debug('Successfully revoked token on server')
         } catch (revokeError) {
-          logger.warn('Failed to revoke token on server:', revokeError as Error)
+          logger.warn('Failed to revoke token on server:', revokeError)
         }
       }
 
       await application.get('OAuthRuntimeService').logout(SystemProviderIds.cherryin)
       logger.debug('Successfully cleared CherryIN OAuth tokens from auth config')
     } catch (error) {
-      logger.error('Failed to logout:', error as Error)
+      logger.error('Failed to logout:', error)
       throw new CherryInOAuthServiceError('Failed to logout', error)
     }
   }

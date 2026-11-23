@@ -34,7 +34,7 @@ export async function recognizeScreenshotText(
       }
     } catch (error) {
       if (!application.get('LocalModelService').isDefaultModelReady('ocr')) throw error
-      logger.warn('System OCR failed; falling back to the local model', error as Error)
+      logger.warn('System OCR failed; falling back to the local model', error)
     }
   }
 

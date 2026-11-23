@@ -1256,10 +1256,10 @@ export class CherryCloudService extends BaseService {
           message,
           target: { kind: 'settings', tab: 'profile' }
         })
-        .catch((error) => logger.warn('Failed to report a Cherry Cloud sign-out', error as Error))
+        .catch((error) => logger.warn('Failed to report a Cherry Cloud sign-out', error))
     } catch (error) {
       // A sign-out found while restoring at startup can run before the notification service is up.
-      logger.warn('Failed to report a Cherry Cloud sign-out', error as Error)
+      logger.warn('Failed to report a Cherry Cloud sign-out', error)
     }
   }
 
@@ -1510,7 +1510,7 @@ export class CherryCloudService extends BaseService {
           ...causes
         })
       })
-      .catch((error) => logger.warn('Cherry Cloud account refresh after a quota refusal failed', error as Error))
+      .catch((error) => logger.warn('Cherry Cloud account refresh after a quota refusal failed', error))
       .finally(() => {
         if (this.quotaRefusalRefresh?.promise === promise) this.quotaRefusalRefresh = null
       })

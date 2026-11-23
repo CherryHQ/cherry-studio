@@ -67,7 +67,7 @@ export class RemoteAdvertisement {
         if (this.publisher === publisher) this.status('available')
       })
     } catch (error) {
-      logger.warn('Could not publish remote discovery', error as Error)
+      logger.warn('Could not publish remote discovery', error)
       this.stop()
       this.status('unavailable')
     }

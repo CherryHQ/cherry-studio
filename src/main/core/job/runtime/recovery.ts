@@ -47,7 +47,7 @@ export function abandonLeftovers(type: string, handler: JobHandler, leftoverJobI
     jobService.cancelByIds(ids, cancelledByRecovery)
     logger.info('Abandon recovery: cancelled leftovers', { type, count: ids.length })
   } catch (err) {
-    logger.error('Abandon recovery failed', err as Error, { type })
+    logger.error('Abandon recovery failed', err, { type })
   }
 }
 

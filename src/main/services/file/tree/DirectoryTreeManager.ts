@@ -404,7 +404,7 @@ export class DirectoryTreeManager extends BaseService {
       try {
         this.dispose(id)
       } catch (err) {
-        logger.error(`Failed to dispose tree ${id} during window teardown`, err as Error)
+        logger.error(`Failed to dispose tree ${id} during window teardown`, err)
       }
     }
   }
@@ -481,7 +481,7 @@ export class DirectoryTreeManager extends BaseService {
         // outlive `onStop` and surface as an orphan.
         if (this.disposed) {
           await Promise.resolve(builder.dispose()).catch((err) =>
-            logger.warn('builder.dispose after onStop failed', err as Error)
+            logger.warn('builder.dispose after onStop failed', err)
           )
           throw new DirectoryTreeStoppedError()
         }

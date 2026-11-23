@@ -66,7 +66,7 @@ export class ErrorReportingService extends BaseService {
         try {
           captureLoggedError(entry)
         } catch (error) {
-          logger.warn('Failed to capture error report', error as Error)
+          logger.warn('Failed to capture error report', error)
         }
       })
     )

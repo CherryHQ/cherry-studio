@@ -104,7 +104,7 @@ export class CodeCliService extends BaseService {
 
   protected override async onAllReady(): Promise<void> {
     await this.reconcileCliSkills().catch((error) => {
-      logger.error('Failed to reconcile Code CLI skills', error as Error)
+      logger.error('Failed to reconcile Code CLI skills', error)
     })
   }
 
@@ -283,7 +283,7 @@ export class CodeCliService extends BaseService {
       await this.getAvailableTerminals()
       logger.info('Terminal preloading completed')
     } catch (error) {
-      logger.warn('Terminal preloading failed:', error as Error)
+      logger.warn('Terminal preloading failed:', error)
     }
   }
 
@@ -450,7 +450,7 @@ export class CodeCliService extends BaseService {
 
       return availableTerminals
     } catch (error) {
-      logger.error('Error checking terminal availability:', error as Error)
+      logger.error('Error checking terminal availability:', error)
 
       // Return cached result if available, otherwise empty array
       return this.terminalsCache?.terminals || []
@@ -607,7 +607,7 @@ export class CodeCliService extends BaseService {
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error(`Failed to install ${cliTool}:`, error as Error)
+        logger.error(`Failed to install ${cliTool}:`, error)
 
         return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
@@ -766,7 +766,7 @@ export class CodeCliService extends BaseService {
         launchConfig = await prepareAntigravityLaunch(normal)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        logger.error('Failed to prepare Antigravity CLI launch', error as Error)
+        logger.error('Failed to prepare Antigravity CLI launch', error)
 
         return { success: false, message }
       }
@@ -1067,7 +1067,7 @@ export class CodeCliService extends BaseService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const failureMessage = `Failed to launch terminal: ${errorMessage}`
-      logger.error(failureMessage, error as Error)
+      logger.error(failureMessage, error)
 
       return {
         success: false,

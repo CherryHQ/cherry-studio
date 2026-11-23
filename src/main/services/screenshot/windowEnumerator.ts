@@ -99,7 +99,7 @@ export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
   try {
     backendPath = nativeCaptureBackendPath()
   } catch (error) {
-    logger.warn('Skipping snap targets: the native backend could not be resolved', error as Error)
+    logger.warn('Skipping snap targets: the native backend could not be resolved', error)
 
     return Promise.resolve([])
   }
@@ -155,7 +155,7 @@ export function listWindowsOffThread(): Promise<RawWindowInfo[]> {
       // Fires after a successful `message` too, where resolving again is a no-op.
       worker.on('exit', () => resolve([]))
     } catch (error) {
-      logger.warn('Skipping snap targets: the enumerator worker could not be spawned', error as Error)
+      logger.warn('Skipping snap targets: the enumerator worker could not be spawned', error)
       resolve([])
     }
   })

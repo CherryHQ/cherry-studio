@@ -67,7 +67,7 @@ export async function applyPackagedIcon(appId: string, installPath: string, mani
         return
       }
     } catch (error) {
-      logger.warn('Failed to apply packaged icon, falling back to default', error as Error)
+      logger.warn('Failed to apply packaged icon, falling back to default', error)
     }
   }
 

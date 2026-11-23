@@ -492,7 +492,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         })
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- File-processing completion or result-check scheduling can reject arbitrarily; log that failure without rejecting the already-admitted ingestion call.
         .catch((error: unknown) => {
-          logger.error('Failed to schedule the file-processing result check', error as Error, {
+          logger.error('Failed to schedule the file-processing result check', error, {
             baseId,
             itemId,
             fileProcessingTaskId: task.id
@@ -567,7 +567,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         logger.info('Recovered interrupted knowledge items', { count: failedCount })
       }
     } catch (error) {
-      logger.error('Failed to recover interrupted knowledge items', error as Error)
+      logger.error('Failed to recover interrupted knowledge items', error)
     }
   }
 
@@ -577,7 +577,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     try {
       deletingRootGroups = knowledgeItemService.getDeletingRootGroups()
     } catch (error) {
-      logger.error('Failed to scan deleting knowledge items for recovery', error as Error)
+      logger.error('Failed to scan deleting knowledge items for recovery', error)
 
       return
     }
@@ -605,7 +605,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
             }
           )
         } catch (error) {
-          logger.error('Failed to enqueue recovered knowledge delete cleanup', error as Error, {
+          logger.error('Failed to enqueue recovered knowledge delete cleanup', error, {
             baseId,
             rootItemIds: rootItemIdChunk
           })

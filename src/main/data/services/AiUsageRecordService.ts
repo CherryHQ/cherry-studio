@@ -1508,7 +1508,7 @@ export class AiUsageRecordService {
         ...messageReadModelEffects(result.target ? [result.target] : [])
       ])
     } catch (error) {
-      logger.error('associateInvocation failed', error as Error, { requestId, messageId })
+      logger.error('associateInvocation failed', error, { requestId, messageId })
     }
   }
 
@@ -1531,7 +1531,7 @@ export class AiUsageRecordService {
       ])
       this.invocationsRecorded.fire()
     } catch (err) {
-      logger.error('recordInvocations failed', err as Error, { requestIds: inputs.map((input) => input.requestId) })
+      logger.error('recordInvocations failed', err, { requestIds: inputs.map((input) => input.requestId) })
     }
   }
 
@@ -1545,7 +1545,7 @@ export class AiUsageRecordService {
 
       if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
-      logger.error('refreshMessageProjection failed', err as Error, ref)
+      logger.error('refreshMessageProjection failed', err, ref)
     }
   }
 

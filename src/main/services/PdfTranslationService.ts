@@ -402,13 +402,13 @@ export class PdfTranslationService extends BaseService {
       const cancelled = job.cancelled
 
       if (!cancelled) {
-        logger.error('Failed to persist translated PDF result', error as Error, { jobId: request.jobId })
+        logger.error('Failed to persist translated PDF result', error, { jobId: request.jobId })
       }
 
       if (translated) {
         const translatedId = translated.id
         await fileManager.permanentDelete(translatedId).catch((cleanupError) => {
-          logger.error(`Failed to delete orphaned translated PDF entry ${translatedId}`, cleanupError as Error)
+          logger.error(`Failed to delete orphaned translated PDF entry ${translatedId}`, cleanupError)
         })
       }
 

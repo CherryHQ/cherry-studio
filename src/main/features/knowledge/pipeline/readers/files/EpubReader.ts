@@ -37,7 +37,7 @@ export class EpubReader extends FileReader<Document<Metadata>> {
         )
       } catch (error) {
         failedChapterIds.push(chapter.id)
-        logger.error('Failed to read epub chapter', error as Error, {
+        logger.error('Failed to read epub chapter', error, {
           filename,
           chapterId: chapter.id
         })

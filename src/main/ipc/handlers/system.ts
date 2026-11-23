@@ -59,7 +59,7 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
 
       return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
     } catch (error) {
-      logger.error('Failed to get system fonts:', error as Error)
+      logger.error('Failed to get system fonts:', error)
 
       return []
     }

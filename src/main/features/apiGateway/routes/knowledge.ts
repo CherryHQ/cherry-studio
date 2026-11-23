@@ -114,7 +114,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
               error: undefined as string | undefined
             }
           } catch (error) {
-            logger.error(`Error searching knowledge base ${base.id}`, error as Error)
+            logger.error(`Error searching knowledge base ${base.id}`, error)
 
             return { base, results: [], error: (error as Error).message }
           }

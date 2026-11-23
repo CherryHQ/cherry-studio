@@ -29,7 +29,7 @@ export function loadNativeCaptureBackend(): typeof NodeScreenshotsModule {
     try {
       cached = require('node-screenshots') as typeof NodeScreenshotsModule
     } catch (error) {
-      logger.error('Failed to load the native screen capture backend', error as Error)
+      logger.error('Failed to load the native screen capture backend', error)
       throw new ScreenCaptureError('Screen capture backend is unavailable', { cause: error })
     }
   }
@@ -49,7 +49,7 @@ export function nativeCaptureBackendPath(): string {
   try {
     return require.resolve('node-screenshots')
   } catch (error) {
-    logger.error('Failed to resolve the native screen capture backend', error as Error)
+    logger.error('Failed to resolve the native screen capture backend', error)
     throw new ScreenCaptureError('Screen capture backend is unavailable', { cause: error })
   }
 }

@@ -738,7 +738,7 @@ export class WindowManager extends BaseService {
       try {
         managed.window.webContents.send(channel, ...args)
       } catch (error) {
-        logger.warn(`broadcast to window '${id}' failed on channel '${channel}'`, error as Error)
+        logger.warn(`broadcast to window '${id}' failed on channel '${channel}'`, error)
       }
     }
   }

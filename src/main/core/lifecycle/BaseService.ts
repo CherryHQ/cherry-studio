@@ -178,7 +178,7 @@ export abstract class BaseService {
         await callback()
       } catch (err) {
         const name = getServiceName(this.constructor as ServiceConstructor)
-        logger.error(`[${name}] registerInterval callback failed`, err as Error)
+        logger.error(`[${name}] registerInterval callback failed`, err)
       }
     }, intervalMs)
 

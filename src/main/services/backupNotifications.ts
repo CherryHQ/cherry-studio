@@ -35,9 +35,9 @@ export function publishBackupResult(
         },
         { source: 'backup' }
       )
-      .catch((error) => logger.warn('Failed to publish backup notification', error as Error))
+      .catch((error) => logger.warn('Failed to publish backup notification', error))
   } catch (error) {
-    logger.warn('Failed to publish backup notification', error as Error)
+    logger.warn('Failed to publish backup notification', error)
   }
 }
 

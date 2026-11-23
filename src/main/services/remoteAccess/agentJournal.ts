@@ -1121,7 +1121,7 @@ class RemoteAgentListener implements StreamListener {
       fn()
     } catch (error) {
       this.dispose()
-      logger.error('Remote journal projection failed', error as Error)
+      logger.error('Remote journal projection failed', error)
     }
   }
   isAlive(): boolean {

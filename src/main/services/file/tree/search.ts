@@ -223,7 +223,7 @@ async function searchDirectories(
       }
     }
   } catch (error) {
-    logger.warn(`Failed to search directories in: ${resolvedPath}`, error as Error)
+    logger.warn(`Failed to search directories in: ${resolvedPath}`, error)
 
     if (currentDepth === 0) throw error
   }
@@ -453,7 +453,7 @@ export async function listDirectory(
   const resolvedPath = path.resolve(dirPath)
 
   const stat = await fs.promises.stat(resolvedPath).catch((error) => {
-    logger.error(`Failed to access directory: ${resolvedPath}`, error as Error)
+    logger.error(`Failed to access directory: ${resolvedPath}`, error)
     throw error
   })
 

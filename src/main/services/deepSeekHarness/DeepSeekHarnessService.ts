@@ -200,7 +200,7 @@ export class DeepSeekHarnessService extends BaseService {
           }
 
           await this.stopOwnedProcessLocked().catch((stopError) => {
-            logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError as Error)
+            logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError)
           })
 
           if (receipt) await this.rollbackLaunchConfig(receipt)
@@ -234,7 +234,7 @@ export class DeepSeekHarnessService extends BaseService {
 
       if (!rolledBack) logger.warn('Skipped DeepSeek Harness config rollback because the files changed concurrently')
     } catch (error) {
-      logger.warn('Failed to roll back DeepSeek Harness config after launch failure', error as Error)
+      logger.warn('Failed to roll back DeepSeek Harness config after launch failure', error)
     }
   }
 

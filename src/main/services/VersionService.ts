@@ -138,7 +138,7 @@ class VersionService {
         timestamp
       }
     } catch (error) {
-      logger.warn(`Failed to parse version line: ${line}`, error as Error)
+      logger.warn(`Failed to parse version line: ${line}`, error)
 
       return null
     }
@@ -188,7 +188,7 @@ class VersionService {
         fs.closeSync(fd)
       }
     } catch (error) {
-      logger.error('Failed to read version log:', error as Error)
+      logger.error('Failed to read version log:', error)
 
       return []
     }
@@ -205,7 +205,7 @@ class VersionService {
       fs.appendFileSync(logPath, line + '\n', 'utf-8')
       logger.debug(`Version recorded: ${line}`)
     } catch (error) {
-      logger.error('Failed to append version log:', error as Error)
+      logger.error('Failed to append version log:', error)
     }
   }
 
@@ -251,7 +251,7 @@ class VersionService {
         logger.debug(`Version information not changed, skip recording`)
       }
     } catch (error) {
-      logger.error('Failed to record current version:', error as Error)
+      logger.error('Failed to record current version:', error)
     }
   }
 
@@ -282,7 +282,7 @@ class VersionService {
 
       return null
     } catch (error) {
-      logger.error('Failed to get previous version:', error as Error)
+      logger.error('Failed to get previous version:', error)
 
       return null
     }

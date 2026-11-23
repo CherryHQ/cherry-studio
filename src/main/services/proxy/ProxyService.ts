@@ -322,7 +322,7 @@ export class ProxyService extends BaseService {
         }
       } catch (error) {
         this.systemProxyReadFailed = true
-        logger.warn('Failed to read OS system proxy; applying bare system mode', error as Error)
+        logger.warn('Failed to read OS system proxy; applying bare system mode', error)
       }
     }
 

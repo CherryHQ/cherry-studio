@@ -186,7 +186,7 @@ export class ReadableContentService {
     try {
       await worker.terminate()
     } catch (error) {
-      logger.warn('Failed to terminate readable content worker', error as Error)
+      logger.warn('Failed to terminate readable content worker', error)
     }
   }
 }

@@ -33,7 +33,7 @@ async function installReactDevtools() {
     const name = await installExtension(REACT_DEVELOPER_TOOLS)
     logger.info(`Added Extension: ${name}`)
   } catch (error) {
-    logger.error('Failed to install React Developer Tools extension', error as Error)
+    logger.error('Failed to install React Developer Tools extension', error)
   }
 }
 
@@ -56,6 +56,6 @@ export async function installBundledDevtools(
     onInstalled?.({ id: extension.id, name: extension.name })
     logger.info(`Added Extension: ${extension.name}`)
   } catch (error) {
-    logger.error(`Failed to install ${displayName} DevTools extension`, error as Error)
+    logger.error(`Failed to install ${displayName} DevTools extension`, error)
   }
 }

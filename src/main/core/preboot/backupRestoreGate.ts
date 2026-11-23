@@ -70,12 +70,12 @@ export async function runBackupRestoreGate(isolatedSession = false): Promise<'ha
   try {
     await runRestorePromotion()
   } catch (error) {
-    logger.error('Restore promotion crashed unexpectedly — attempting last-resort recovery', error as Error)
+    logger.error('Restore promotion crashed unexpectedly — attempting last-resort recovery', error)
 
     try {
       markRestoreFailedAfterCrash()
     } catch (journalError) {
-      logger.error('Failed to mark the restore journal as failed', journalError as Error)
+      logger.error('Failed to mark the restore journal as failed', journalError)
     }
 
     if (isLiveDbStranded()) {

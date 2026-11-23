@@ -114,7 +114,7 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
     const code = (err as NodeJS.ErrnoException).code
 
     if (code !== 'ENOENT') {
-      logger.warn(`Could not read .gitignore under ${normalizedRoot} (${code ?? 'unknown'})`, err as Error)
+      logger.warn(`Could not read .gitignore under ${normalizedRoot} (${code ?? 'unknown'})`, err)
     }
   }
 
@@ -129,7 +129,7 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
     // `.git` is force-ignored last — user cannot un-ignore it.
     ig.add('.git')
   } catch (err) {
-    logger.warn(`Failed to parse .gitignore under ${normalizedRoot}`, err as Error)
+    logger.warn(`Failed to parse .gitignore under ${normalizedRoot}`, err)
 
     return null
   }

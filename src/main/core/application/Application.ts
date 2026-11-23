@@ -276,7 +276,7 @@ export class Application {
     try {
       bootConfigService.flush()
     } catch (e) {
-      logger.warn('bootConfig flush error:', e as Error)
+      logger.warn('bootConfig flush error:', e)
     }
 
     // Stop all lifecycle-managed services (reverse init order)
@@ -476,7 +476,7 @@ export class Application {
       try {
         await this.shutdown()
       } catch (error) {
-        logger.error('Error during shutdown:', error as Error)
+        logger.error('Error during shutdown:', error)
       } finally {
         clearTimeout(timer)
         app.exit(0)
@@ -489,7 +489,7 @@ export class Application {
       try {
         await this.shutdown()
       } catch (error) {
-        logger.error('Error during shutdown:', error as Error)
+        logger.error('Error during shutdown:', error)
       } finally {
         clearTimeout(timer)
         app.exit(0)
@@ -544,7 +544,7 @@ export class Application {
         } catch (error) {
           this.quitGuardsPending = false
           event.preventDefault()
-          logger.error('Failed to evaluate quit guards', error as Error)
+          logger.error('Failed to evaluate quit guards', error)
 
           return
         }
@@ -567,7 +567,7 @@ export class Application {
       }, SHUTDOWN_TIMEOUT_MS)
 
       this.shutdown()
-        .catch((err) => logger.error('Error during shutdown:', err as Error))
+        .catch((err) => logger.error('Error during shutdown:', err))
         .finally(() => {
           clearTimeout(timer)
           app.exit(0)
@@ -602,7 +602,7 @@ export class Application {
     try {
       allowed = await decision
     } catch (error) {
-      logger.error('Failed to evaluate quit guards', error as Error)
+      logger.error('Failed to evaluate quit guards', error)
     } finally {
       this.quitGuardsPending = false
     }

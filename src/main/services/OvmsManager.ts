@@ -111,7 +111,7 @@ export class OvmsManager extends BaseService {
 
       return { success: false, message: `Process ${pid} did not disappear within 5 seconds` }
     } catch (error) {
-      logger.error(`Failed to terminate process ${pid}:`, error as Error)
+      logger.error(`Failed to terminate process ${pid}:`, error)
 
       return { success: false, message: `Failed to terminate process ${pid}` }
     }

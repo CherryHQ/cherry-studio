@@ -1032,7 +1032,7 @@ class ProviderRegistryService {
         }
       }
 
-      logger.error('Failed to fetch provider for reasoning profile', error as Error)
+      logger.error('Failed to fetch provider for reasoning profile', error)
       throw error
     }
   }

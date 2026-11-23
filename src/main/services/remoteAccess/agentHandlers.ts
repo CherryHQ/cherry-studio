@@ -145,7 +145,7 @@ export function registerAgentMethods(
           error: { reason: 'TARGET_UNAVAILABLE', message: toExecutionFailure(serializeError(error)).message }
         }
       } else {
-        logger.error('Remote command failed before settling', error as Error)
+        logger.error('Remote command failed before settling', error)
         outcome = {
           status: 'interrupted',
           error: { reason: 'INTERNAL', message: 'Command failed before its outcome was known' }

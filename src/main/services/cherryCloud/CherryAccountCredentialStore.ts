@@ -52,7 +52,7 @@ export class CherryAccountCredentialStore {
       raw = readFileSync(filePath, 'utf8')
     } catch (error) {
       if (isMissingFileError(error)) return null
-      logger.warn('Failed to read Cherry account credentials', error as Error)
+      logger.warn('Failed to read Cherry account credentials', error)
 
       return null
     }
@@ -98,7 +98,7 @@ export class CherryAccountCredentialStore {
       unlinkSync(filePath)
     } catch (error) {
       if (!isMissingFileError(error))
-        logger.warn(`Failed to remove Cherry account credentials file ${path.basename(filePath)}`, error as Error)
+        logger.warn(`Failed to remove Cherry account credentials file ${path.basename(filePath)}`, error)
     }
   }
 }

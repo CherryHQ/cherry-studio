@@ -64,7 +64,7 @@ export async function requestScreenCapturePermission(): Promise<ScreenCapturePer
   } catch (error) {
     // Not installed (non-darwin) or failed to load — the caller still gets a
     // truthful status below and falls back to the System Settings deep link.
-    logger.warn('Screen capture permission module unavailable', error as Error)
+    logger.warn('Screen capture permission module unavailable', error)
   }
 
   // Re-read rather than trusting the call: the prompt is async from the app's

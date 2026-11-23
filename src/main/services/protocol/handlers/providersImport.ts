@@ -16,7 +16,7 @@ export function parseProvidersImportData(data: string) {
 
     return JSON.stringify(result)
   } catch (error) {
-    logger.error('parseProvidersImportData error:', error as Error)
+    logger.error('parseProvidersImportData error:', error)
 
     return null
   }

@@ -126,7 +126,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       await this.apiGateway.start().catch((error: unknown) => {
         const mapped = mapGatewayBindError(error, endpoint, 'public')
 
-        if (mapped !== error) logger.error('Public API gateway listen failed', error as Error)
+        if (mapped !== error) logger.error('Public API gateway listen failed', error)
         throw mapped
       })
       this.publishRunningState(true)
@@ -190,7 +190,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       cache.setShared('feature.api_gateway.running', running)
       cache.setShared('feature.api_gateway.lan_running', remoteReady)
     } catch (error) {
-      logger.warn('Failed to publish API gateway running state', error as Error)
+      logger.warn('Failed to publish API gateway running state', error)
     }
   }
 
@@ -445,7 +445,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     ).catch((error: unknown) => {
       const mapped = mapGatewayBindError(error, endpoint, 'internal')
 
-      if (mapped !== error) logger.error('Internal API gateway listen failed', error as Error)
+      if (mapped !== error) logger.error('Internal API gateway listen failed', error)
       throw mapped
     })
 

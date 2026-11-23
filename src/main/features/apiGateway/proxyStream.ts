@@ -531,7 +531,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       headers: { 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    logger.error('Error in message processing', error as Error, logContext)
+    logger.error('Error in message processing', error, logContext)
     onError?.(callbackError ?? error)
     throw error
   } finally {

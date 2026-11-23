@@ -74,6 +74,6 @@ export function notifyDataApiDataChange(effects: DataApiDataChangeEffect[]): voi
     application.get('WindowManager').broadcast(IpcChannel.DataApi_DataChanged, effects)
   } catch (error) {
     // Notification failure must never affect the already-committed write.
-    logger.warn('data change notification failed', error as Error)
+    logger.warn('data change notification failed', error)
   }
 }

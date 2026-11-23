@@ -53,7 +53,7 @@ export function validateNotesDirectory(dirPath: string): boolean {
 
     return true
   } catch (error) {
-    logger.error('Failed to validate notes directory:', error as Error)
+    logger.error('Failed to validate notes directory:', error)
 
     return false
   }

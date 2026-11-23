@@ -272,7 +272,7 @@ async function stageDataReset(): Promise<void> {
   try {
     await application.shutdown()
   } catch (error) {
-    logger.error('Error during shutdown before relaunch:', error as Error)
+    logger.error('Error during shutdown before relaunch:', error)
   } finally {
     clearTimeout(timer)
     application.relaunch()
@@ -416,7 +416,7 @@ export function runDataReset(): void {
     logger.info('Data reset completed — relaunching into a fresh state')
     application.relaunch()
   } catch (error) {
-    logger.error('Data reset failed — refusing to boot', error as Error)
+    logger.error('Data reset failed — refusing to boot', error)
     showDataResetError(
       'Data Reset Failed',
       'Cherry Studio could not safely complete a pending data reset. ' +

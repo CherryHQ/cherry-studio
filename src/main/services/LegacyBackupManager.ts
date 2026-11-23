@@ -249,7 +249,7 @@ class BackupManager {
         }
       }
     } catch (error) {
-      logger.warn('[cleanupStaleTempArtifacts] Failed to inspect backup temp directory', error as Error)
+      logger.warn('[cleanupStaleTempArtifacts] Failed to inspect backup temp directory', error)
     }
   }
 
@@ -340,7 +340,7 @@ class BackupManager {
 
       return null
     } catch (error) {
-      logger.error('Failed to clean up old backups', error as Error)
+      logger.error('Failed to clean up old backups', error)
 
       return error instanceof Error ? error : new Error(String(error))
     }
@@ -1239,7 +1239,7 @@ class BackupManager {
     } catch (error) {
       logger.warn(
         '[restoreDirect] Failed to read bundled migrations for downgrade check, allowing promotion gate to decide',
-        error as Error
+        error
       )
 
       return true
@@ -2133,7 +2133,7 @@ class BackupManager {
       // Sort by modified time, newest first
       return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
     } catch (error) {
-      logger.error('[BackupManager] List local backup files failed:', error as Error)
+      logger.error('[BackupManager] List local backup files failed:', error)
       throw error
     }
   }
@@ -2163,7 +2163,7 @@ class BackupManager {
 
       return true
     } catch (error) {
-      logger.error('[BackupManager] Delete local backup file failed:', error as Error)
+      logger.error('[BackupManager] Delete local backup file failed:', error)
       throw error
     }
   }

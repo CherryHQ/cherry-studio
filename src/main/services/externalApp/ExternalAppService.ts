@@ -166,7 +166,7 @@ export class ExternalAppService {
     try {
       return (await listNativeApplications(targetPath)).applications
     } catch (error) {
-      logger.warn('Failed to discover file associations', error as Error)
+      logger.warn('Failed to discover file associations', error)
 
       return []
     }
@@ -223,7 +223,7 @@ export class ExternalAppService {
         })
       }
     } catch (error) {
-      logger.warn('Failed to discover directory associations', error as Error)
+      logger.warn('Failed to discover directory associations', error)
 
       return null
     }
@@ -276,7 +276,7 @@ export class ExternalAppService {
         })
       }
     } catch (error) {
-      logger.warn('Failed to discover file associations', error as Error)
+      logger.warn('Failed to discover file associations', error)
     }
 
     return { pathKind: 'file', recommendedTargetId: SYSTEM_DEFAULT_TARGET_ID, targets }

@@ -66,7 +66,7 @@ class ObsidianVaultService {
         name: vault.name || path.basename(vault.path)
       }))
     } catch (error) {
-      logger.error('Failed to get Obsidian Vault:', error as Error)
+      logger.error('Failed to get Obsidian Vault:', error)
 
       return []
     }
@@ -103,7 +103,7 @@ class ObsidianVaultService {
 
       await this.traverseDirectory(vaultPath, '', results)
     } catch (error) {
-      logger.error('Failed to read Vault folder structure:', error as Error)
+      logger.error('Failed to read Vault folder structure:', error)
     }
 
     return results
@@ -128,7 +128,7 @@ class ObsidianVaultService {
       try {
         items = await fs.promises.readdir(dirPath, { withFileTypes: true })
       } catch (err) {
-        logger.error(`Failed to read directory ${dirPath}:`, err as Error)
+        logger.error(`Failed to read directory ${dirPath}:`, err)
 
         return
       }
@@ -154,7 +154,7 @@ class ObsidianVaultService {
         }
       }
     } catch (error) {
-      logger.error(`Failed to traverse directory ${dirPath}:`, error as Error)
+      logger.error(`Failed to traverse directory ${dirPath}:`, error)
     }
   }
 
@@ -177,7 +177,7 @@ class ObsidianVaultService {
 
       return await this.getVaultStructure(vault.path)
     } catch (error) {
-      logger.error('Failed to get Vault file structure:', error as Error)
+      logger.error('Failed to get Vault file structure:', error)
 
       return []
     }

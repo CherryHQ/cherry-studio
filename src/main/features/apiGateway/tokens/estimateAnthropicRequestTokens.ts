@@ -45,7 +45,7 @@ export async function estimateAnthropicRequestTokens(
   } catch (error) {
     // Block elements are only loosely validated (`z.unknown()`, `tools` untyped), so
     // conversion can throw on malformed blocks — degrade instead of surfacing a 500.
-    logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
+    logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error)
 
     return boundedBodyTokens(body, tokenxTokenizer)
   }
@@ -70,7 +70,7 @@ async function estimateConvertedRequest(
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
   } catch (error) {
-    logger.warn('model resolve failed, using anthropic/all-media fallback', error as Error)
+    logger.warn('model resolve failed, using anthropic/all-media fallback', error)
   }
 
   // Anthropic: prefer the provider's authoritative count; fall through to local on failure.

@@ -45,7 +45,7 @@ export async function estimateGeminiRequestTokens(
   try {
     return await estimateConvertedRequest(body, modelString, signal, internal)
   } catch (error) {
-    logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
+    logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error)
 
     return boundedBodyTokens(body, tokenxTokenizer)
   }
@@ -71,7 +71,7 @@ async function estimateConvertedRequest(
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
   } catch (error) {
-    logger.warn('model resolve failed, using google/all-media fallback', error as Error)
+    logger.warn('model resolve failed, using google/all-media fallback', error)
   }
 
   const toolResultCaps = resolveToolResultMediaCapabilities(caps, dialect)

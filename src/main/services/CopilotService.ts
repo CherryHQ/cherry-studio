@@ -159,7 +159,7 @@ class CopilotService {
         avatar: data.avatar_url
       }
     } catch (error) {
-      logger.error('Failed to get user information:', error as Error)
+      logger.error('Failed to get user information:', error)
       throw new CopilotServiceError('无法获取GitHub用户信息', error)
     }
   }
@@ -189,7 +189,7 @@ class CopilotService {
 
       return (await response.json()) as AuthResponse
     } catch (error) {
-      logger.error('Failed to get auth message:', error as Error)
+      logger.error('Failed to get auth message:', error)
       throw new CopilotServiceError('无法获取GitHub授权信息', error)
     }
   }
@@ -238,7 +238,7 @@ class CopilotService {
         const isLastAttempt = attempt === CONFIG.POLLING.MAX_ATTEMPTS - 1
 
         if (isLastAttempt) {
-          logger.error(`Token polling failed after ${CONFIG.POLLING.MAX_ATTEMPTS} attempts:`, error as Error)
+          logger.error(`Token polling failed after ${CONFIG.POLLING.MAX_ATTEMPTS} attempts:`, error)
         }
       }
     }
@@ -263,7 +263,7 @@ class CopilotService {
       // token file and forces the user through device authorization again.
       await atomicWriteFile(AbsoluteFilePathSchema.parse(this.tokenFilePath), encryptedToken, { mode: 0o600 })
     } catch (error) {
-      logger.error('Failed to save token:', error as Error)
+      logger.error('Failed to save token:', error)
       throw new CopilotServiceError('无法保存访问令牌', error)
     }
   }
@@ -292,7 +292,7 @@ class CopilotService {
 
       return (await response.json()) as CopilotTokenResponse
     } catch (error) {
-      logger.error('Failed to get Copilot token:', error as Error)
+      logger.error('Failed to get Copilot token:', error)
       throw new CopilotServiceError('无法获取Copilot令牌，请重新授权', error)
     }
   }
@@ -311,7 +311,7 @@ class CopilotService {
         logger.debug('Token file not found, nothing to delete')
       }
     } catch (error) {
-      logger.error('Failed to logout:', error as Error)
+      logger.error('Failed to logout:', error)
       throw new CopilotServiceError('无法完成退出登录操作', error)
     }
   }

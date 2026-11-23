@@ -61,13 +61,13 @@ export class KnowledgeBaseAdminService {
     try {
       await vectorStoreService.deleteStore(baseId)
     } catch (cleanupError) {
-      logger.warn('Failed to remove index store dir during createBase rollback', cleanupError as Error, { baseId })
+      logger.warn('Failed to remove index store dir during createBase rollback', cleanupError, { baseId })
     }
 
     try {
       knowledgeBaseService.delete(baseId)
     } catch (cleanupError) {
-      logger.warn('Failed to delete knowledge base row during createBase rollback', cleanupError as Error, { baseId })
+      logger.warn('Failed to delete knowledge base row during createBase rollback', cleanupError, { baseId })
     }
   }
 

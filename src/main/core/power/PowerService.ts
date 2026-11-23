@@ -209,7 +209,7 @@ export class PowerService extends BaseService {
         try {
           await handler()
         } catch (error) {
-          logger.error('Error executing shutdown handler', error as Error)
+          logger.error('Error executing shutdown handler', error)
         }
       }
     })()
@@ -307,7 +307,7 @@ export class PowerService extends BaseService {
 
       logger.info('Windows shutdown handler registered')
     } catch (error) {
-      logger.error('Failed to initialize Windows shutdown handler', error as Error)
+      logger.error('Failed to initialize Windows shutdown handler', error)
     }
   }
 
@@ -351,7 +351,7 @@ export class PowerService extends BaseService {
       // the blocker may not match intent right now — the machine could sleep while work is
       // running (start failed) or stay awake after work ends (stop failed). Not fatal: the
       // next preventSleep/dispose/preference change re-runs this convergence and can recover.
-      logger.warn('powerSaveBlocker state change failed; sleep prevention may be temporarily ineffective', err as Error)
+      logger.warn('powerSaveBlocker state change failed; sleep prevention may be temporarily ineffective', err)
     }
   }
 

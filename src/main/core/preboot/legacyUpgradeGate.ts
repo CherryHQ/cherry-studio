@@ -116,7 +116,7 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
       profile.path
     )
   } catch (error) {
-    logger.error('Cannot complete legacy upgrade check', error as Error)
+    logger.error('Cannot complete legacy upgrade check', error)
     await app.whenReady()
     const language = resolveSystemLanguage(app.getLocale())
     dialog.showErrorBox(

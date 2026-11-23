@@ -69,7 +69,7 @@ export class IpcAdapter implements Disposable {
 
         return response
       } catch (error) {
-        logger.error(`Data request failed: ${request.method} ${request.path}`, error as Error)
+        logger.error(`Data request failed: ${request.method} ${request.path}`, error)
 
         const apiError = toDataApiError(error, `${request.method} ${request.path}`)
 

@@ -113,7 +113,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
       notifyDataApiDataChange(REGISTRY_DATA_CHANGE_EFFECTS)
       logger.info(`registry update: applied ${staged.map((s) => `${s.file}@${s.version}`).join(', ')}`)
     } catch (error) {
-      logger.warn('registry update: cycle failed', error as Error)
+      logger.warn('registry update: cycle failed', error)
     }
   }
 
@@ -142,7 +142,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
 
         return await response.text()
       } catch (error) {
-        logger.warn(`registry update: fetch failed for ${name}, skipping cycle`, error as Error)
+        logger.warn(`registry update: fetch failed for ${name}, skipping cycle`, error)
 
         return null
       }
@@ -182,7 +182,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
       try {
         version = this.parseVersion(file, body)
       } catch (error) {
-        logger.warn(`registry update: ${file} failed validation, keeping current data`, error as Error)
+        logger.warn(`registry update: ${file} failed validation, keeping current data`, error)
 
         return null
       }

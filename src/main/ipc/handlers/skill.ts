@@ -73,7 +73,7 @@ async function toSkillResult<T>(
         targetPath: failure.targetPath
       })
     } else {
-      logger.error(failMessage, error as Error)
+      logger.error(failMessage, error)
     }
 
     return {

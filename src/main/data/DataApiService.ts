@@ -57,7 +57,7 @@ export class DataApiService extends BaseService {
 
       this.logSystemInfo()
     } catch (error) {
-      logger.error('Failed to initialize Data API system', error as Error)
+      logger.error('Failed to initialize Data API system', error)
       throw error
     }
   }

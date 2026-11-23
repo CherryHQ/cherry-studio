@@ -72,7 +72,7 @@ export class StorageMonitorService extends BaseService {
     } catch (error) {
       // A transient statfs failure must not flip the warning state; keep the
       // last-known health and simply retry on the next tick.
-      logger.error('Failed to read disk space via statfs', error as Error)
+      logger.error('Failed to read disk space via statfs', error)
     } finally {
       // Always keep a timer alive, even after a read error, so monitoring never
       // silently dies.

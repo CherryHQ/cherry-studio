@@ -29,7 +29,7 @@ function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
   try {
     return app.getPath(name)
   } catch (error) {
-    logger.warn(`Failed to resolve system path '${name}', using fallback '${fallback}'`, error as Error)
+    logger.warn(`Failed to resolve system path '${name}', using fallback '${fallback}'`, error)
 
     return fallback
   }

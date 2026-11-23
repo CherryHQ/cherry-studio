@@ -76,10 +76,10 @@ export class CommandService extends BaseService {
 
     try {
       void Promise.resolve(handler(window)).catch((error) => {
-        logger.error(`Command handler failed: ${command}`, error as Error)
+        logger.error(`Command handler failed: ${command}`, error)
       })
     } catch (error) {
-      logger.error(`Command handler failed: ${command}`, error as Error)
+      logger.error(`Command handler failed: ${command}`, error)
     }
   }
 

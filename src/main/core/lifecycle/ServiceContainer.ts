@@ -84,10 +84,7 @@ export class ServiceContainer {
           }
         } catch (error) {
           this.excluded.set(name, phase)
-          logger.warn(
-            `Service '${name}' excluded: condition '${condition.description}' threw during evaluation`,
-            error as Error
-          )
+          logger.warn(`Service '${name}' excluded: condition '${condition.description}' threw during evaluation`, error)
 
           return
         }

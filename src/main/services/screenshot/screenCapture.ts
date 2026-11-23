@@ -51,7 +51,7 @@ export async function captureAllMonitors(): Promise<Map<number, CaptureResult>> 
       } catch (error) {
         // Not a permission problem — the list was non-empty, so access was granted; blaming
         // permission would send the user to System Settings to fix an encoder fault.
-        logger.error(`Failed to capture monitor ${monitor.id()}`, error as Error)
+        logger.error(`Failed to capture monitor ${monitor.id()}`, error)
         throw new ScreenCaptureError(`Failed to capture display ${monitor.id()}`, { cause: error })
       }
     })
@@ -78,7 +78,7 @@ function getMonitorsOrThrow(): Monitor[] {
     if (error instanceof ScreenCaptureError) throw error
 
     if (getScreenCapturePermissionStatus() !== 'authorized') throw new ScreenCapturePermissionError()
-    logger.error('Failed to list monitors', error as Error)
+    logger.error('Failed to list monitors', error)
     throw new ScreenCaptureError('Failed to enumerate displays', { cause: error })
   }
 

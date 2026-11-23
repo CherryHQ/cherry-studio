@@ -35,7 +35,7 @@ export class LogRetentionService extends BaseService {
         logger.info('Removed log files past the retention window', { retentionDays, removed })
       }
     } catch (error) {
-      logger.error('Log retention sweep failed', error as Error)
+      logger.error('Log retention sweep failed', error)
     }
   }
 }

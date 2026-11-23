@@ -65,7 +65,7 @@ export async function tryRemoteAnthropicCount(
 
     return input_tokens
   } catch (error) {
-    logger.warn('remote count_tokens failed, falling back to local estimate', error as Error)
+    logger.warn('remote count_tokens failed, falling back to local estimate', error)
 
     return undefined
   }

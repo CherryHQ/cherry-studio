@@ -20,7 +20,7 @@ async function warnIfCleanupFails(action: () => Promise<void>, context: Persiste
   try {
     await action()
   } catch (error) {
-    logger.warn('File processing result persistence cleanup failed', error as Error, context)
+    logger.warn('File processing result persistence cleanup failed', error, context)
   }
 }
 

@@ -58,7 +58,7 @@ export default class S3Storage {
 
         return !isInWhiteList
       } catch (e) {
-        logger.warn(`[S3Storage] Failed to parse endpoint, fallback to Path-Style: ${endpoint}`, e as Error)
+        logger.warn(`[S3Storage] Failed to parse endpoint, fallback to Path-Style: ${endpoint}`, e)
 
         return true
       }

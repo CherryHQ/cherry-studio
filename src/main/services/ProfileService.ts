@@ -47,7 +47,7 @@ class ProfileService {
       await application.get('FileManager').deleteUnreferencedInternalEntry(previousId)
     } catch (error) {
       // No retry: a leftover manual entry surfaces in the manual-orphan report.
-      logger.error(`Failed to retire avatar file_entry ${previousId}`, error as Error)
+      logger.error(`Failed to retire avatar file_entry ${previousId}`, error)
     }
   }
 }

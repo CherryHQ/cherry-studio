@@ -46,7 +46,7 @@ export async function withCreatedImageEntry<T>(
     // with whatever broke bind) the file_entry + WebP are orphaned — log so the
     // orphan is traceable rather than silently voiding the no-orphan guarantee.
     await fileManager.permanentDelete(entry.id).catch((cleanupError) => {
-      logger.error(`Failed to delete orphaned file_entry ${entry.id} after bind failure`, cleanupError as Error)
+      logger.error(`Failed to delete orphaned file_entry ${entry.id} after bind failure`, cleanupError)
     })
     throw error
   }

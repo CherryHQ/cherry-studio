@@ -331,7 +331,7 @@ export class PrintService {
 
       return true
     } catch (error) {
-      logger.error('Failed to export printable document to PDF', error as Error)
+      logger.error('Failed to export printable document to PDF', error)
       throw error
     } finally {
       windowManager.close(windowId)
@@ -355,7 +355,7 @@ export class PrintService {
         })
       })
     } catch (error) {
-      logger.error('Failed to print printable document', error as Error)
+      logger.error('Failed to print printable document', error)
       throw error
     } finally {
       windowManager.close(windowId)

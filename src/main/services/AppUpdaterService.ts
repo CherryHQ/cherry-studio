@@ -247,7 +247,7 @@ export class AppUpdaterService extends BaseService {
 
       if (recorded) db.insert(appStateTable).values({ key, value: true }).onConflictDoNothing().run()
     } catch (error) {
-      logger.warn('Failed to publish release notification', error as Error)
+      logger.warn('Failed to publish release notification', error)
     } finally {
       this.pendingReleaseNotifications.delete(releaseInfo.version)
     }
@@ -371,7 +371,7 @@ export class AppUpdaterService extends BaseService {
 
       return parseReleaseHistory(source)
     } catch (error) {
-      logger.warn('Failed to fetch release history', error as Error)
+      logger.warn('Failed to fetch release history', error)
 
       return null
     }
@@ -427,7 +427,7 @@ export class AppUpdaterService extends BaseService {
 
       return { releaseNotes, version: result.updateInfo.version }
     } catch (error) {
-      logger.warn('Failed to fetch latest release notes', error as Error)
+      logger.warn('Failed to fetch latest release notes', error)
 
       return null
     }
@@ -613,7 +613,7 @@ export class AppUpdaterService extends BaseService {
           const language = getAppLanguage()
           processedInfo.releaseNotes = localizeReleaseNotes(releaseInfo.releaseNotes, language)
         } catch (error) {
-          logger.error('Failed to localize release notes', error as Error)
+          logger.error('Failed to localize release notes', error)
         }
       }
     }

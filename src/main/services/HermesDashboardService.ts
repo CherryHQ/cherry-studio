@@ -140,7 +140,7 @@ export class HermesDashboardService extends BaseService {
           return { success: true, url }
         } catch (error) {
           await this.stopOwnedProcessLocked().catch((stopError) => {
-            logger.warn('Failed to stop Hermes Dashboard after launch failure', stopError as Error)
+            logger.warn('Failed to stop Hermes Dashboard after launch failure', stopError)
           })
           this.updateStatus('error')
 

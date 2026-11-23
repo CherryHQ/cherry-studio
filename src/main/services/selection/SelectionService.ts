@@ -1528,7 +1528,7 @@ export class SelectionService extends BaseService implements Activatable {
 
         return true
       } catch (error) {
-        logger.error('Failed to write to clipboard on Linux:', error as Error)
+        logger.error('Failed to write to clipboard on Linux:', error)
 
         return false
       }

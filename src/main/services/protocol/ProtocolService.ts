@@ -205,7 +205,7 @@ export class ProtocolService extends BaseService {
           return
         case 'providers':
           handleProvidersProtocolUrl(urlObj).catch((error) =>
-            logger.error('Failed to handle providers protocol URL', error as Error)
+            logger.error('Failed to handle providers protocol URL', error)
           )
 
           return
@@ -238,7 +238,7 @@ export class ProtocolService extends BaseService {
         params: Object.fromEntries(params.entries())
       })
     } catch (error) {
-      logger.error('Failed to handle protocol URL', error as Error)
+      logger.error('Failed to handle protocol URL', error)
     }
   }
 
@@ -310,10 +310,10 @@ NoDisplay=true
         logger.debug(`update-desktop-database stdout: ${stdout}`)
         logger.debug('Desktop database updated successfully.')
       } catch (updateError) {
-        logger.error('Failed to update desktop database:', updateError as Error)
+        logger.error('Failed to update desktop database:', updateError)
       }
     } catch (error) {
-      logger.error('Failed to setup AppImage deep link:', error as Error)
+      logger.error('Failed to setup AppImage deep link:', error)
     }
   }
 }

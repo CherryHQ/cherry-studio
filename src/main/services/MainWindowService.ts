@@ -81,7 +81,7 @@ export class MainWindowService extends BaseService {
           listener(this.mainWindow)
         } catch (error) {
           // Keep replay semantics aligned with Emitter.fire(): one listener must not break service init.
-          logger.error('Failed to replay main window listener', error as Error)
+          logger.error('Failed to replay main window listener', error)
         }
       }
 
@@ -334,7 +334,7 @@ export class MainWindowService extends BaseService {
           session.defaultSession.setSpellCheckerLanguages(languages)
         }
       } catch (error) {
-        logger.error('Failed to apply spell check settings:', error as Error)
+        logger.error('Failed to apply spell check settings:', error)
       }
     }
 
@@ -1031,7 +1031,7 @@ export class MainWindowService extends BaseService {
         }, 100)
       }
     } catch (error) {
-      logger.error(`Failed to quote to ${quoteTarget}:`, error as Error)
+      logger.error(`Failed to quote to ${quoteTarget}:`, error)
     }
   }
 

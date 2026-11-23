@@ -205,7 +205,7 @@ export function showNativePopupMenu(
         callback: () => settle(undefined)
       })
     } catch (error) {
-      logger.error('Failed to show native command popup menu', error as Error)
+      logger.error('Failed to show native command popup menu', error)
       settle(undefined)
     }
   })

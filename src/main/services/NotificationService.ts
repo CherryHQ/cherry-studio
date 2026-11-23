@@ -214,7 +214,7 @@ export class NotificationService extends BaseService {
         void application
           .get('ConversationNavigationService')
           .focusOrOpen(notification.meta, resolveNotificationConversationName(notification.meta))
-          .catch((error) => logger.error('Failed to open conversation from notification', error as Error))
+          .catch((error) => logger.error('Failed to open conversation from notification', error))
 
         return
       }

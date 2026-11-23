@@ -178,7 +178,7 @@ export class MainNetworkDevtoolsService extends BaseService {
     try {
       await this.startWebSocketServer()
     } catch (error) {
-      logger.error('Failed to start Main Network DevTools websocket server', error as Error)
+      logger.error('Failed to start Main Network DevTools websocket server', error)
     }
   }
 

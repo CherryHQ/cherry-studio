@@ -705,7 +705,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.map.clear()
 
     if (watcher) {
-      this.watcherClosePromise = watcher.close().catch((err) => logger.error('Watcher close failed', err as Error))
+      this.watcherClosePromise = watcher.close().catch((err) => logger.error('Watcher close failed', err))
     }
   }
 
@@ -730,7 +730,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.map.clear()
 
     if (watcher) {
-      this.watcherClosePromise = watcher.close().catch((err) => logger.error('Watcher close failed', err as Error))
+      this.watcherClosePromise = watcher.close().catch((err) => logger.error('Watcher close failed', err))
       await this.watcherClosePromise
     }
   }
