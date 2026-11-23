@@ -530,9 +530,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
         <>
-          {runtimeError && tools.length === 0 ? (
+          {runtimeError ? (
             <ErrorNotice
               variant="inline"
+              className="mb-3"
               title={t('settings.mcp.runtimeStatus.unavailable', 'Server unavailable')}
               detail={
                 <ErrorDetailAction
@@ -544,7 +545,9 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                 />
               }
             />
-          ) : (
+          ) : null}
+          {/* Cached tools stay listed after a later runtime failure. */}
+          {!runtimeError || tools.length > 0 ? (
             <McpToolsSection
               tools={tools}
               server={server}
@@ -552,7 +555,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               onToggleTool={handleToggleTool}
               onToggleAutoApprove={handleToggleAutoApprove}
             />
-          )}
+          ) : null}
         </>
       )
     })

@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
 let currentServer: McpServer
 let currentSearch: { autoEnable?: 'true' }
 let currentRuntimeStatus: { state: string; lastError?: string }
+let cachedTools: unknown
 
 // Keep the real useMcpServerMutations so the delete tests exercise the actual
 // remove flow (IPC channel + cache invalidation), not a stand-in.
@@ -58,7 +59,7 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({ useSharedCacheValue: () => undefined }))
+vi.mock('@renderer/data/hooks/useCache', () => ({ useSharedCacheValue: () => cachedTools }))
 vi.mock('@renderer/data/hooks/useDataApi', async (importOriginal) => {
   const actual = await importOriginal<object>()
   return { ...actual, useInvalidateCache: () => mocks.invalidate }
@@ -125,6 +126,7 @@ describe('McpSettings', () => {
     }
     currentSearch = { autoEnable: 'true' }
     currentRuntimeStatus = { state: 'disabled', lastError: undefined }
+    cachedTools = undefined
     mocks.confirm.mockResolvedValue(false)
     mocks.invalidate.mockResolvedValue(undefined)
     mocks.updateMcpServer.mockResolvedValue(undefined)
@@ -431,6 +433,21 @@ describe('McpSettings', () => {
     expect(await screen.findByText('Server unavailable')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
     expect(screen.queryByText(/Connection closed by peer/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the runtime failure details reachable while previously loaded tools are cached', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: true }
+    currentRuntimeStatus = { state: 'error', lastError: 'MCP error -32000: Connection closed by peer' }
+    cachedTools = [{ id: 'server-a__search', name: 'search', serverId: 'server-a', inputSchema: {} }]
+    mocks.request.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools (1)' }))
+
+    expect(await screen.findByText('Server unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
   })
 
   it('does not report a committed delete as failed when the cache refresh rejects', async () => {
