@@ -94,9 +94,20 @@ describe('filesystem MCP preset root', () => {
     ).toContain('second match')
     await writeTool({ file_path: path.join(secondRoot, 'written.txt'), content: 'written' }, [firstRoot, secondRoot])
     await expect(fs.readFile(path.join(secondRoot, 'written.txt'), 'utf-8')).resolves.toBe('written')
+    const ripgrep = vi.spyOn(types, 'runRipgrep').mockImplementationOnce(async (args) => {
+      const searchRoot = args.at(-1)
+      const matches = searchRoot === secondRoot && args.includes('--glob=*.txt')
+      return {
+        ok: true,
+        stdout: matches ? path.join(secondRoot, 'second.txt') : '',
+        stderr: '',
+        exitCode: matches ? 0 : 1
+      }
+    })
     expect(toolText(await globTool({ pattern: '*.txt', path: secondRoot }, [firstRoot, secondRoot]))).toContain(
       'second.txt'
     )
+    ripgrep.mockRestore()
     expect(
       toolText(await callFsTool('grep', { pattern: 'second match', path: secondRoot }, [firstRoot, secondRoot]))
     ).toContain('second match')
