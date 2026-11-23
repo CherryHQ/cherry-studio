@@ -72,6 +72,12 @@ jobs:
           ref: ${{ steps.source.outputs.source_sha }}
           path: preview-source
 
+      - name: Verify unified preview support
+        if: inputs.unified_region
+        run: |
+          test -f preview-source/electron-builder.unified.config.cjs
+          test -f preview-source/src/main/services/DesktopRegionService.ts
+
       - name: Validate preview tool preparation interface
         shell: bash
         run: |
