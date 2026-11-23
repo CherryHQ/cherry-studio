@@ -37,7 +37,7 @@ Status: proposed
 - AC6 — 参考图发送给支持图片输入的目标；其他目标仅依据提示词生成，并在其列中显示提示（verification: unit, renderer）
 - AC7 — 从历史记录打开批次时，还原为一个分组条目和相同网格，每列显示其保存的参数（verification: renderer, Electron）
 - AC8 — 新增迁移添加可为空的 `batch_id` 列，并能在已有数据的数据库上向前迁移（verification: unit）
-- AC9 — 在标准桌面宽度下四列无需横向滚动即可完整显示；窗口变窄时改为横向滚动而非换行（verification: renderer, Electron）
+- AC9 — 在 1600 × 1000 CSS 像素的渲染视口、100% 缩放且导航、历史记录和参数面板均收起时，四列无需横向滚动即可完整显示。网格每列保留 308 CSS 像素，列间距为 16 CSS 像素，因此四列需要 1280 CSS 像素的网格可用宽度。低于该可用宽度时，保持列的最小宽度并横向滚动而非换行；在相同面板状态下，分别测试网格可用宽度为 1279 和 1280 CSS 像素的情况（verification: renderer, Electron）
 - AC10 — 本 Spec 及其中文配对文件通过文档门禁（verification: docs gate）
 
 ## Risks

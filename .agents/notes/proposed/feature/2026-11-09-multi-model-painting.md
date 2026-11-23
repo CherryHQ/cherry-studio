@@ -37,7 +37,7 @@ The history strip shows each `batch_id` group as one entry with its output thumb
 - AC6 — Reference images reach image-input targets; other targets generate from the prompt and show a notice in their column (verification: unit, renderer)
 - AC7 — Reopening a batch from history restores one grouped entry and the same grid, with each column's stored parameters (verification: renderer, Electron)
 - AC8 — The appended migration adds the nullable `batch_id` column and migrates forward on a populated database (verification: unit)
-- AC9 — Four columns fit without horizontal scrolling at a standard desktop width, and narrower windows scroll horizontally instead of wrapping (verification: renderer, Electron)
+- AC9 — At a 1600 × 1000 CSS-pixel renderer viewport, 100% zoom, and the navigation, history, and parameter panels collapsed, four columns fit without horizontal scrolling. The grid reserves 308 CSS pixels per column and 16 CSS pixels between columns, so four columns require 1280 CSS pixels of available grid width. Below that available width, keep the minimum column width and scroll horizontally instead of wrapping; test at 1279 and 1280 CSS pixels of available grid width with the same panel state (verification: renderer, Electron)
 - AC10 — The Spec note and its Chinese pair pass the docs gate (verification: docs gate)
 
 ## Risks
