@@ -162,7 +162,8 @@ describe('assistant-files MCP server', () => {
         attachments: [
           expect.objectContaining({ fileEntryId: 'entry-live', displayName: 'live.txt' }),
           expect.objectContaining({ fileEntryId: 'entry-legacy', displayName: 'legacy.txt' })
-        ]
+        ],
+        conversationId: 'session-1'
       },
       expect.any(AbortSignal)
     )

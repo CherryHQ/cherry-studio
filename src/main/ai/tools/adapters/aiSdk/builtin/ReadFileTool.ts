@@ -49,12 +49,13 @@ const MEDIA_READ_SNAPSHOT_TTL_MS = 30 * 60 * 1000
 async function readMediaAnalysis(
   entryId: string,
   offset: number | undefined,
-  chatModelId: UniqueModelId | undefined,
+  { chatModelId, conversationId }: Pick<ReadFileContext, 'chatModelId' | 'conversationId'>,
   signal?: AbortSignal
 ): Promise<string> {
   const cache = application.get('CacheService')
-  // Without a Video Vision model each chat model analyzes frames itself, so pages follow its own snapshot.
-  const key = `read-file:media:${entryId}:${chatModelId ?? ''}`
+  // Pages follow the snapshot of the conversation and chat model that read page one: a duplicated
+  // conversation keeps the entry id, and without a Vision Model each chat model describes frames itself.
+  const key = `read-file:media:${conversationId ?? ''}:${entryId}:${chatModelId ?? ''}`
   const snapshot = offset ? cache.get<unknown>(key) : undefined
   if (typeof snapshot === 'string') {
     signal?.throwIfAborted()
@@ -78,6 +79,8 @@ export interface ReadFileContext {
   attachments: ReadonlyArray<FileAttachmentRef>
   /** The chat model; analyzes video frames when no Video Vision model is selected, matching Chat's inline result. */
   chatModelId?: UniqueModelId
+  /** The topic or agent session reading the file; keeps its media paging snapshot separate. */
+  conversationId?: string
 }
 
 function isReadFileError(result: ReadFileResult): result is ReadFileError {
@@ -110,7 +113,7 @@ function paginate(text: string, offset = 0, limit = READ_FILE_PAGE_SIZE): ReadFi
 
 export async function readFile(
   input: ReadFileInput,
-  { attachments, chatModelId }: ReadFileContext,
+  { attachments, chatModelId, conversationId }: ReadFileContext,
   signal?: AbortSignal
 ): Promise<ReadFileResult> {
   // Resolve the model-facing handle to an internal entry id against the request's
@@ -130,7 +133,7 @@ export async function readFile(
 
     let text: string | null
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-      text = await readMediaAnalysis(entryId, input.offset, chatModelId, signal)
+      text = await readMediaAnalysis(entryId, input.offset, { chatModelId, conversationId }, signal)
     } else if (fileType === FILE_TYPE.IMAGE) {
       text = await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
     } else {
@@ -171,7 +174,7 @@ const readFileTool = tool({
     const { request } = getToolCallContext(options)
     return readFile(
       input,
-      { attachments: request.fileAttachments ?? [], chatModelId: request.model },
+      { attachments: request.fileAttachments ?? [], chatModelId: request.model, conversationId: request.topicId },
       request.abortSignal
     )
   },

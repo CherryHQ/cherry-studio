@@ -176,6 +176,22 @@ describe('readFile — extracted content', () => {
     expect(continued).toEqual({ text: '[00:10] beta', totalChars: 26 })
   })
 
+  it("keeps each conversation's media pages on its own first page", async () => {
+    getByIdMock.mockResolvedValue({ ext: 'mp4' })
+    mediaAnalysisMock.mockResolvedValueOnce('[00:00] alpha [00:10] beta').mockResolvedValueOnce('[00:00] other run')
+    // A duplicated conversation keeps the original's attachment entry id.
+    const inConversation = (conversationId: string) => ({ attachments: [att('clip.mp4')], conversationId })
+
+    await readFile(input({ filename: 'clip.mp4', limit: 14 }), inConversation('topic-original'))
+    await readFile(input({ filename: 'clip.mp4', limit: 14 }), inConversation('topic-copy'))
+    const continued = await readFile(
+      input({ filename: 'clip.mp4', offset: 14, limit: 14 }),
+      inConversation('topic-original')
+    )
+
+    expect(continued).toEqual({ text: '[00:10] beta', totalChars: 26 })
+  })
+
   it('rejects a media read cancelled while the analysis cleans up, without keeping its pages', async () => {
     const controller = new AbortController()
     getByIdMock.mockResolvedValue({ ext: 'mp4' })
