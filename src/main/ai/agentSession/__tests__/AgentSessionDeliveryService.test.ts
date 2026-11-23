@@ -147,6 +147,7 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
 
 const runtime = {
   getExecutionHead: () => undefined,
+  revokeSnapshotRounds: vi.fn(),
   cancelSessionForks: vi.fn().mockResolvedValue(undefined),
   recoverSessionForks: vi.fn().mockResolvedValue(undefined),
   listActiveWork: () => [],

@@ -114,6 +114,7 @@ const fake = vi.hoisted(() => {
     },
     runtime: {
       assertSessionWritable() {},
+      revokeSnapshotRounds: vi.fn(),
       async prepareBranch() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,

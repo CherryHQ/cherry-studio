@@ -463,7 +463,7 @@ class AgentWorkspaceStorageService {
     try {
       await this.recordTrustedRestore(workspace, record.operationId)
     } catch (error) {
-      logger.warn('Failed to record trusted workspace restore', error)
+      logger.warn('Failed to record trusted workspace restore', { workspace, error })
     }
     await storage.clearWorkspaceStorageRecord(workspace)
   }
