@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { anyFileExt } from '@renderer/utils/file'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
@@ -81,5 +81,24 @@ describe('useComposerFileCapabilities', () => {
       expect(getFileTypeByExt('.webm')).toBe(FILE_TYPE.VIDEO)
       expect(getFileTypeByExt('webm')).toBe(FILE_TYPE.VIDEO)
     })
+  })
+})
+
+describe('useComposerFileCapabilities on Linux', () => {
+  afterEach(() => {
+    vi.doUnmock('@renderer/utils/platform')
+    vi.resetModules()
+  })
+
+  it('leaves out AIFF, which the pinned Linux FFmpeg cannot read, and keeps other known audio', async () => {
+    vi.resetModules()
+    vi.doMock('@renderer/utils/platform', () => ({ isLinux: true }))
+    const { useComposerFileCapabilities: onLinux } = await import('../useComposerFileCapabilities')
+
+    const { result } = renderHook(() => onLinux({ models: [], fallbackModel: textModel('assistant') }))
+
+    expect(result.current.supportedExts).not.toContain('.aif')
+    expect(result.current.supportedExts).not.toContain('.aiff')
+    expect(result.current.supportedExts).toContain('.wav')
   })
 })
