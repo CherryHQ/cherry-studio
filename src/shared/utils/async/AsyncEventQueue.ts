@@ -22,16 +22,19 @@ export class AsyncEventQueue<T> implements AsyncIterable<T> {
     this.closed = true
 
     while (this.waiters.length > 0) {
-      this.waiters.shift()?.({ value: undefined as T, done: true })
+      this.waiters.shift()?.({ value: undefined, done: true })
     }
   }
 
   [Symbol.asyncIterator](): AsyncIterator<T> {
     return {
       next: () => {
-        if (this.items.length > 0) return Promise.resolve({ value: this.items.shift() as T, done: false })
+        if (this.items.length > 0) {
+          // SAFETY: The private queue is nonempty and shift runs synchronously; undefined remains a valid item when T includes it.
+          return Promise.resolve({ value: this.items.shift() as T, done: false })
+        }
 
-        if (this.closed) return Promise.resolve({ value: undefined as T, done: true })
+        if (this.closed) return Promise.resolve({ value: undefined, done: true })
 
         return new Promise<IteratorResult<T>>((resolve) => {
           this.waiters.push(resolve)

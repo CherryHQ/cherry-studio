@@ -36,11 +36,11 @@ export const DEFAULT_DEEPSEEK_HARNESS_SETTINGS: Readonly<DeepSeekHarnessSettings
 })
 
 export function isDeepSeekHarnessAgentPreset(value: unknown): value is DeepSeekHarnessAgentPreset {
-  return DEEPSEEK_HARNESS_AGENT_PRESETS.includes(value as DeepSeekHarnessAgentPreset)
+  return DEEPSEEK_HARNESS_AGENT_PRESETS.some((preset) => preset === value)
 }
 
 export function isDeepSeekHarnessPermissionMode(value: unknown): value is DeepSeekHarnessPermissionMode {
-  return DEEPSEEK_HARNESS_PERMISSION_MODES.includes(value as DeepSeekHarnessPermissionMode)
+  return DEEPSEEK_HARNESS_PERMISSION_MODES.some((mode) => mode === value)
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored CLI config is untyped; each supported field is validated independently before defaults are applied.

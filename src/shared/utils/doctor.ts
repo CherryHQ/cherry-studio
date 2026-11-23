@@ -61,7 +61,7 @@ export function isDoctorScopeKey(value: unknown): value is DoctorScopeKey {
 }
 
 export function doctorFixMeta<Id extends DoctorCheckId>(checkId: Id, fixId: DoctorFixId<Id>): DoctorFixMeta {
-  const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find((fix) => fix.id === fixId)
+  const meta = DOCTOR_CHECK_CATALOG[checkId].fixes.find((fix) => fix.id === fixId)
 
   if (!meta) throw new Error(`Check "${checkId}" declares no fix "${fixId}"`)
 
@@ -72,6 +72,7 @@ export function doctorFixMeta<Id extends DoctorCheckId>(checkId: Id, fixId: Doct
 export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
   if (typeof value !== 'object' || value === null) return false
 
+  // SAFETY: Only the object container is established here; each extracted field stays unknown until its check below.
   const { scope, runId, checkId, fixId, target } = value as {
     scope?: unknown
     runId?: unknown
@@ -87,11 +88,13 @@ export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
 
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- The raw IPC check ID must name a catalog entry before its fix definitions can be read.
   if (!isDoctorCheckId(checkId) || typeof fixId !== 'string') return false
-  const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find((fix) => fix.id === fixId)
+  const meta = DOCTOR_CHECK_CATALOG[checkId].fixes.find((fix) => fix.id === fixId)
 
   if (!meta) return false
 
-  return meta.targeted ? typeof target === 'string' && target.length > 0 : !Object.hasOwn(value, 'target')
+  return 'targeted' in meta && meta.targeted
+    ? typeof target === 'string' && target.length > 0
+    : !Object.hasOwn(value, 'target')
 }
 
 export const DOCTOR_BASICS_DATA_CLASS: Readonly<Record<keyof DoctorBasics, DoctorDataClass>> = {
@@ -190,8 +193,14 @@ export function projectDoctorReport(
 
   if (options.consentToSensitive && view !== 'copy') allowed.add('consent_required')
 
+  // SAFETY: Every required basics field is public in every view; filtering can remove only the optional userDataPath field.
   const basics = Object.fromEntries(
-    Object.entries(report.basics).filter(([key]) => allowed.has(DOCTOR_BASICS_DATA_CLASS[key as keyof DoctorBasics]))
+    Object.entries(report.basics).filter(([key]) => {
+      if (!Object.hasOwn(DOCTOR_BASICS_DATA_CLASS, key)) return false
+
+      // SAFETY: Own-key membership limits this entry key to the closed basics classification catalog.
+      return allowed.has(DOCTOR_BASICS_DATA_CLASS[key as keyof DoctorBasics])
+    })
   ) as DoctorBasics
 
   const results = report.results.map((result) => {

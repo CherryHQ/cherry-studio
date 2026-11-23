@@ -148,7 +148,9 @@ export function canManageProvider(provider: Provider): boolean {
 export const API_KEY_OAUTH_PROVIDER_IDS = ['302ai', 'aihubmix', 'ppio', 'aionly', 'tokendance'] as const
 
 export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
-  return (API_KEY_OAUTH_PROVIDER_IDS as readonly string[]).includes(provider.id)
+  const providerId = provider.id
+
+  return API_KEY_OAUTH_PROVIDER_IDS.some((id) => id === providerId)
 }
 
 /**
