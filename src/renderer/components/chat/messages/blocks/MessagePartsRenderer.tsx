@@ -14,7 +14,7 @@
  * - data-video parts with same filePath → video block row
  */
 
-import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { type FileUIPart, getToolName, isDataUIPart, isFileUIPart, isToolUIPart, type TextUIPart } from 'ai'
 import { Check, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useCallback, useMemo } from 'react'
@@ -47,11 +47,10 @@ import {
   convertReferencesToCitationReferences,
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
-import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { FileHandle } from '@shared/data/types/file'
-import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
+import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
 
 import MessageAttachments from '../frame/MessageAttachments'
@@ -218,9 +217,8 @@ function isImageFilePart(part: CherryMessagePart): boolean {
 /** Extract image URL from a file part. */
 function extractImageUrl(part: CherryMessagePart): string | undefined {
   if (part.type !== 'file' || !('url' in part)) return undefined
-  const filePart = part as { url?: string; mediaType?: string }
 
-  return filePart.url || undefined
+  return part.url || undefined
 }
 
 function toImageSource(part: CherryMessagePart): MessageImageSource | undefined {
@@ -237,12 +235,12 @@ export interface HoistedFileAttachment {
   ext: string
 }
 
-function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAttachment | undefined {
+function toFileAttachment(part: FileUIPart, key: string): HoistedFileAttachment | undefined {
   const handle = fileHandleFromPart(part)
 
   if (!handle) return undefined
 
-  const name = (part as { filename?: string }).filename ?? ''
+  const name = part.filename ?? ''
   const preview = readOnlyFileTokenPreviewFromPart(part)
   const previewPath = getPreviewPathFromFileUrl(preview?.url)
 
@@ -263,9 +261,7 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
 
 // Must agree with what the hoisting container actually renders, or a dropped entry
 // leaves no attachment at all.
-function isHoistableFilePart(part: CherryMessagePart, hoistNonImageFiles: boolean): boolean {
-  if ((part.type as string) !== 'file') return false
-
+function isHoistableFilePart(part: FileUIPart, hoistNonImageFiles: boolean): boolean {
   if (isImageFilePart(part)) return !!extractImageUrl(part)
 
   return hoistNonImageFiles && !!fileHandleFromPart(part)
@@ -281,7 +277,7 @@ export function getHoistedAttachments(
   const files: HoistedFileAttachment[] = []
 
   parts.forEach((part, index) => {
-    if (!isHoistableFilePart(part, hoistNonImageFiles)) return
+    if (part.type !== 'file' || !isHoistableFilePart(part, hoistNonImageFiles)) return
 
     if (isImageFilePart(part)) {
       const source = toImageSource(part)
@@ -407,13 +403,13 @@ function getComposerFileTokenNames(token: ComposerMessageToken): Set<string> {
 }
 
 function getComposerTokenDisplayText(
-  part: CherryMessagePart,
+  part: TextUIPart,
   message: MessageListItem,
   partId: string,
   expandedTextPartIds: ReadonlySet<string>,
   composer: ComposerMessageSnapshot
 ): string {
-  const text = (part as { text?: string }).text ?? ''
+  const text = part.text ?? ''
 
   if (message.role !== 'user' || expandedTextPartIds.has(partId)) return text
 
@@ -426,7 +422,7 @@ function getVisibleComposerFileTokens(
   expandedTextPartIds: ReadonlySet<string>
 ): VisibleComposerFileToken[] {
   return parts.flatMap((part, index) => {
-    if ((part.type as string) !== 'text') return []
+    if (part.type !== 'text') return []
     const composer = getCherryMeta(part)?.composer
 
     if (!composer) return []
@@ -445,9 +441,7 @@ function getFileEntrySourceId(entry: PartEntry): string | undefined {
   return getCherryMeta(entry.part)?.fileTokenSourceId
 }
 
-function getFileEntryName(entry: PartEntry): string {
-  const filePart = entry.part as { filename?: string; url?: string }
-
+function getFileEntryName(filePart: FileUIPart): string {
   return (
     filePart.filename ||
     filePart.url
@@ -499,7 +493,7 @@ function getPreviewPathFromFileUrl(url: string | undefined) {
   if (!url) return null
 
   try {
-    const parsed = fileUrlToPath(url as FileUrlString)
+    const parsed = fileUrlToPath(new URL(url))
 
     return AbsoluteFilePathSchema.safeParse(parsed).data ?? null
   } catch {
@@ -545,7 +539,8 @@ function getDisplayProjection(
   hiddenImageTokens: ReadonlySet<ComposerMessageToken>
   associatedReadOnlyFilePreviews: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
 } {
-  const isHoistedEntry = (entry: PartEntry) => hoistAttachments && isHoistableFilePart(entry.part, hoistNonImageFiles)
+  const isHoistedEntry = (entry: PartEntry) =>
+    hoistAttachments && entry.part.type === 'file' && isHoistableFilePart(entry.part, hoistNonImageFiles)
 
   if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
     // oxlint-disable-next-line anti-slop/no-known-value-widening -- Both projection branches expose shared token and preview collections as readonly to their rendering consumers.
@@ -559,9 +554,9 @@ function getDisplayProjection(
   const fileEntryNameCounts = new Map<string, number>()
 
   for (const entry of entries) {
-    if ((entry.part.type as string) !== 'file') continue
+    if (entry.part.type !== 'file') continue
 
-    const name = getFileEntryName(entry)
+    const name = getFileEntryName(entry.part)
 
     if (name) fileEntryNameCounts.set(name, (fileEntryNameCounts.get(name) ?? 0) + 1)
   }
@@ -570,7 +565,7 @@ function getDisplayProjection(
   const explicitTokenIndexes = new Set<number>()
 
   for (const entry of entries) {
-    if ((entry.part.type as string) !== 'file') continue
+    if (entry.part.type !== 'file') continue
     const sourceId = getFileEntrySourceId(entry)
 
     if (!sourceId) continue
@@ -590,7 +585,7 @@ function getDisplayProjection(
   const associatedReadOnlyFilePreviews = new Map<string, ReadOnlyComposerFileTokenPreview>()
 
   for (const entry of entries) {
-    if ((entry.part.type as string) !== 'file') {
+    if (entry.part.type !== 'file') {
       displayEntries.push(entry)
       continue
     }
@@ -606,7 +601,7 @@ function getDisplayProjection(
       : undefined
 
     if (matchIndex === undefined) {
-      const name = getFileEntryName(entry)
+      const name = getFileEntryName(entry.part)
       const filenameExcluded = new Set<number>([...usedTokenIndexes, ...explicitTokenIndexes])
       matchIndex =
         name && fileEntryNameCounts.get(name) === 1
@@ -668,11 +663,11 @@ function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): Placehol
 
     if (isToolUIPart(part)) return 'usingTools'
 
-    if ((part.type as string) === 'reasoning' && (part as ReasoningUIPart).state === 'streaming') return 'thinking'
+    if (part.type === 'reasoning' && part.state === 'streaming') return 'thinking'
 
     if (isReasoningMessagePart(part)) return 'thinking'
 
-    if ((part.type as string) === 'text' || (part.type as string) === 'data-code') return 'generating'
+    if (part.type === 'text' || part.type === 'data-code') return 'generating'
 
     if (isResultPart(part)) return 'generating'
   }
@@ -682,7 +677,7 @@ function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): Placehol
 
 function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean {
   const { part } = entry
-  const partType = part.type as string
+  const partType = part.type
 
   if (isHiddenPart(part)) return false
 
@@ -703,7 +698,7 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
     return !!toolResponse && (canRenderMessageTool(toolResponse) || isReportArtifactsToolResponse(toolResponse))
   }
 
-  if (partType === 'file') return !!(part as { url?: string }).url
+  if (partType === 'file') return !!part.url
 
   if (partType === 'data-video' || partType === 'data-error') return 'data' in part && !!part.data
 
@@ -818,7 +813,7 @@ function renderPart(
     }
 
     case 'data-compact': {
-      const compactData = (part as { data: { content: string; compactedContent: string } }).data
+      const compactData = part.data
 
       return (
         <CompactBlock
@@ -831,7 +826,7 @@ function renderPart(
     }
 
     case 'data-compaction-anchor':
-      return <CompactionAnchorBlock key={partId} data={(part as { data?: CompactionAnchorData }).data} />
+      return <CompactionAnchorBlock key={partId} data={part.data} />
 
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
@@ -840,7 +835,7 @@ function renderPart(
       return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />
 
     case 'data-translation': {
-      const translationData = (part as { data: { content: string } }).data
+      const translationData = part.data
 
       return (
         <TranslationPartView
@@ -855,6 +850,8 @@ function renderPart(
 
     case 'text': {
       const cherryMeta = getCherryMeta(part)
+
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy entries are only partially validated; citation converters interpret them without replacing the cached array.
       const references = cherryMeta?.references as ContentReference[] | undefined
       let converted = references ? referenceCitationsCache.get(references) : undefined
 
@@ -894,7 +891,7 @@ function renderPart(
     }
 
     case 'data-code': {
-      const codeData = (part as { data: { content: string; language?: string } }).data
+      const codeData = part.data
       const codeContent = `\`\`\`${codeData.language ?? ''}\n${codeData.content}\n\`\`\``
 
       return (
@@ -951,7 +948,7 @@ function renderPart(
       return null
 
     case 'file': {
-      const filePart = part as { url?: string; mediaType?: string; filename?: string }
+      const filePart = part
 
       if (filePart.mediaType?.startsWith('image/')) {
         const source = toImageSource(part)
@@ -1006,7 +1003,7 @@ interface CachedToolProjection {
 const toolProjectionCache = new WeakMap<object, Map<string, CachedToolProjection>>()
 
 function getCachedToolProjection(part: CherryMessagePart, partId: string): CachedToolProjection {
-  const cacheKey = part as object
+  const cacheKey = part
   let projectionsById = toolProjectionCache.get(cacheKey)
 
   if (!projectionsById) {
@@ -1267,7 +1264,7 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
       continue
     }
 
-    if ((entry.part.type as string) === 'reasoning' || isToolUIPart(entry.part)) {
+    if (entry.part.type === 'reasoning' || isToolUIPart(entry.part)) {
       flushContent()
       processEntries.push(entry)
     } else {
@@ -1339,8 +1336,8 @@ function renderNestedHistory(
     const isThinking =
       isCurrentProcess &&
       lastProcessEntry !== undefined &&
-      (lastProcessEntry.part.type as string) === 'reasoning' &&
-      (lastProcessEntry.part as ReasoningUIPart).state === 'streaming'
+      lastProcessEntry.part.type === 'reasoning' &&
+      lastProcessEntry.part.state === 'streaming'
 
     // Stated intents already say what each step is for, so thinking blocks between them only add noise.
     const showsReasoning = !toolItems.some(hasToolIntent)
@@ -1674,7 +1671,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
   const completedHasError = (() => {
     const historyHasError = completedHistoryEntries.some((entry) => {
-      if ((entry.part.type as string) === 'data-error') return true
+      if (entry.part.type === 'data-error') return true
 
       if (!isToolUIPart(entry.part)) return false
 
@@ -1694,7 +1691,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
       if (isReasoningMessagePart(entry.part)) continue
 
-      if ((entry.part.type as string) === 'data-error') return true
+      if (entry.part.type === 'data-error') return true
 
       if (!isToolUIPart(entry.part)) return false
 
@@ -1970,6 +1967,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
     const textParts = messageParts.filter((part) => {
       if (part.type !== 'text') return false
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy entries are only partially validated; reuse the citation converters without claiming a complete ContentReference parse.
       const references = getCherryMeta(part)?.references as ContentReference[] | undefined
 
       return !references?.length || convertReferencesToCitations(references).length === 0
