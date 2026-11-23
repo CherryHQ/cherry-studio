@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, realpathSync } from 'node:fs'
-import { copyFile, link, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
 
@@ -89,6 +89,27 @@ async function run(input: ClaudeRecoveryWorkerInput) {
     const stat = await lstat(targetProject)
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Invalid Claude target project')
   }
+  // On retry the copied target already exists; recover the validated retained source key.
+  if (await exists(targetFile)) {
+    const hash = createHash('sha256').update(path.resolve(input.sourceCwd)).digest('hex')
+    const record = path.join(input.configDir, '.cherry-workspace-recovery', `${input.nativeThreadId}.${hash}.json`)
+    if (await exists(record)) {
+      const stat = await lstat(record)
+      if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Invalid Claude source recovery record')
+      const saved = JSON.parse(await readFile(record, 'utf8'))
+      if (
+        saved.version !== 3 ||
+        saved.sessionId !== input.nativeThreadId ||
+        saved.cwd !== path.resolve(input.sourceCwd) ||
+        typeof saved.projectKey !== 'string' ||
+        !saved.projectKey ||
+        /[\\/]/.test(saved.projectKey) ||
+        ['.', '..'].includes(saved.projectKey)
+      )
+        throw new Error('Invalid Claude source recovery record')
+      sourceKey = saved.projectKey
+    }
+  }
   const preferred = path.join(projects, sourceKey, `${input.nativeThreadId}.jsonl`)
   if (targetFile !== preferred && (await exists(targetFile)) && (await exists(preferred))) {
     await regularTree(preferred)
@@ -157,20 +178,25 @@ async function run(input: ClaudeRecoveryWorkerInput) {
     try {
       await writeFile(temporary, content, { flag: 'wx', mode: 0o600 })
       if (exclusive) {
+        // mkdir is the no-replace primitive on portable profile volumes too. A crashed
+        // publisher leaves a lock and fails closed rather than exposing a partial record.
+        const lock = record + '.lock'
+        await mkdir(lock)
         try {
-          await link(temporary, record)
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-          const stat = await lstat(record)
-          if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Invalid Claude source recovery record')
-          const saved = JSON.parse(await readFile(record, 'utf8'))
-          if (
-            saved.version !== 3 ||
-            saved.sessionId !== input.nativeThreadId ||
-            saved.cwd !== resolved ||
-            saved.projectKey !== key
-          )
-            throw new Error('Conflicting Claude source recovery record')
+          if (await exists(record)) {
+            const stat = await lstat(record)
+            if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Invalid Claude source recovery record')
+            const saved = JSON.parse(await readFile(record, 'utf8'))
+            if (
+              saved.version !== 3 ||
+              saved.sessionId !== input.nativeThreadId ||
+              saved.cwd !== resolved ||
+              saved.projectKey !== key
+            )
+              throw new Error('Conflicting Claude source recovery record')
+          } else await rename(temporary, record)
+        } finally {
+          await rm(lock, { recursive: true })
         }
       } else await rename(temporary, record)
     } finally {

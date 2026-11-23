@@ -29,7 +29,13 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
 
-async function nativeWorker(file: string, workerData: object, configDir: string, failRecordWrite = false) {
+async function nativeWorker(
+  file: string,
+  workerData: object,
+  configDir: string,
+  failRecordWrite = false,
+  rejectHardLinks = false
+) {
   let source = stripTypeScriptTypes(
     await readFile(path.resolve('src/main/ai/runtime/claudeCode', file), 'utf8')
   ).replaceAll(
@@ -40,6 +46,11 @@ async function nativeWorker(file: string, workerData: object, configDir: string,
     source = source.replace(
       "await writeFile(temporary, content, { flag: 'wx', mode: 0o600 })",
       "await writeFile(temporary, content.slice(0, 10), { flag: 'wx', mode: 0o600 }); throw new Error('injected ENOSPC')"
+    )
+  if (rejectHardLinks)
+    source = source.replace(
+      'await link(temporary, record)',
+      "await Promise.reject(Object.assign(new Error('no hard links'), { code: 'ENOTSUP' }))"
     )
   return runForkWorker(
     new Worker(new URL(`data:text/javascript,${encodeURIComponent(source)}`), {
@@ -262,6 +273,7 @@ it('retains the actual unique fallback project key for a rejected disconnected-a
   const content = f.content + JSON.stringify(assistant) + '\n'
   await writeFile(f.source, content)
   await nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)
+  await nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)
   // Recovery has already published its record, but the final service probe rejects B.
   // A remains bound and receives another reply after that copy was verified.
   assistant.uuid = randomUUID()
@@ -286,6 +298,13 @@ it('retains the actual unique fallback project key for a rejected disconnected-a
   expect(fork.checkpoints).toHaveLength(1)
   expect(await readFile(f.source, 'utf8')).toBe(later)
   expect(await readFile(f.target, 'utf8')).toBe(content)
+})
+
+it('recovers on a profile volume that rejects hard links', async () => {
+  const f = await fixture()
+  expect(await nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir, false, true)).toEqual({ verified: true })
+  expect(await readFile(f.source, 'utf8')).toBe(f.content)
+  expect(await readFile(f.target, 'utf8')).toBe(f.content)
 })
 
 it('retries after a partial record write without leaving a partial final source record', async () => {
