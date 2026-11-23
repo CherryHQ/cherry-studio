@@ -133,6 +133,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
+import { getErrorMessage } from '@main/utils/error'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -1250,10 +1251,9 @@ export class FileManager extends BaseService implements IFileManager {
         if (!cached) seen.set(params.externalPath, entry)
         succeeded.push({ id: entry.id, sourceRef })
       } catch (err) {
-        // Wire format only carries `.message`; preserve the stack via the
-        // logger side-channel for postmortem.
+        // Only safe error text crosses IPC; keep the original failure in the log.
         fileManagerLogger.warn('batchEnsureExternalEntries item failed', { sourceRef, err })
-        failed.push({ sourceRef, error: (err as Error).message })
+        failed.push({ sourceRef, error: getErrorMessage(err, 'Unknown error') })
       }
     }
 
@@ -1473,11 +1473,10 @@ async function aggregateCreate<P>(
       const entry = await op(items[i])
       succeeded.push({ id: entry.id, sourceRef })
     } catch (err) {
-      // No FileEntryId yet (insert never happened); report by sourceRef so
-      // callers can correlate with the original `items` array. Wire format
-      // carries `.message`; side-channel the full err for stack preservation.
+      // Correlate failures by sourceRef; only safe error text crosses IPC.
+      // Keep the original failure in the log for diagnosis.
       fileManagerLogger.warn('batch create item failed', { sourceRef, err })
-      failed.push({ sourceRef, error: (err as Error).message })
+      failed.push({ sourceRef, error: getErrorMessage(err, 'Unknown error') })
     }
   }
 

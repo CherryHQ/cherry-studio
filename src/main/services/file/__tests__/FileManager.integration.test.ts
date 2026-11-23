@@ -775,6 +775,7 @@ describe('FileManager (integration)', () => {
     expect(result.succeeded[0]).toMatchObject({ sourceRef: '#0' })
     expect(result.succeeded[1]).toMatchObject({ sourceRef: '#2' })
     expect(result.failed[0].sourceRef).toBe('#1')
+    expect(result.failed[0].error).toContain('data URI is not in the expected')
     // The failed item must NOT leave an entry behind.
     const rows = await dbh.db.select().from(fileEntryTable)
     expect(rows).toHaveLength(2)
@@ -800,9 +801,61 @@ describe('FileManager (integration)', () => {
     expect(result.succeeded[0].id).toBe(result.succeeded[1].id)
     expect(result.failed).toHaveLength(1)
     expect(result.failed[0].sourceRef).toBe(missing)
+    expect(result.failed[0].error).toContain(missing)
     // The DB must contain exactly one external row for `same`.
     const rows = await dbh.db.select().from(fileEntryTable)
     expect(rows.filter((r) => r.externalPath === same)).toHaveLength(1)
+  })
+
+  it.each([
+    { rejection: 'upload interrupted', message: 'upload interrupted' },
+    { rejection: null, message: 'null' }
+  ])('continues internal creation after a non-Error item failure: $message', async ({ rejection, message }) => {
+    const create = fm.createInternalEntry.bind(fm)
+    vi.spyOn(fm, 'createInternalEntry').mockImplementationOnce(create).mockRejectedValueOnce(rejection)
+
+    const result = await fm.batchCreateInternalEntries([
+      { source: 'bytes', data: new TextEncoder().encode('first'), name: 'a', ext: 'txt', cleanupPolicy: 'manual' },
+      { source: 'bytes', data: new TextEncoder().encode('failed'), name: 'b', ext: 'txt', cleanupPolicy: 'manual' },
+      { source: 'bytes', data: new TextEncoder().encode('last'), name: 'c', ext: 'txt', cleanupPolicy: 'manual' }
+    ])
+
+    expect(result.failed).toEqual([{ sourceRef: '#1', error: message }])
+    expect(result.succeeded.map((entry) => entry.sourceRef)).toEqual(['#0', '#2'])
+    expect(await readFile(fm.getPhysicalPath(result.succeeded[0].id), 'utf-8')).toBe('first')
+    expect(await readFile(fm.getPhysicalPath(result.succeeded[1].id), 'utf-8')).toBe('last')
+    expect(dbh.db.select().from(fileEntryTable).all()).toHaveLength(2)
+  })
+
+  it.each([
+    { rejection: undefined, message: 'undefined' },
+    {
+      rejection: {
+        toString() {
+          throw new Error('cannot stringify')
+        }
+      },
+      message: 'Unknown error'
+    }
+  ])('continues external registration after a non-Error item failure: $message', async ({ rejection, message }) => {
+    const first = AbsoluteFilePathSchema.parse(path.join(tmp, 'first.txt'))
+    const failed = AbsoluteFilePathSchema.parse(path.join(tmp, 'failed.txt'))
+    const last = AbsoluteFilePathSchema.parse(path.join(tmp, 'last.txt'))
+    await writeFile(first, 'first')
+    await writeFile(last, 'last')
+    const ensure = fm.ensureExternalEntry.bind(fm)
+    vi.spyOn(fm, 'ensureExternalEntry').mockImplementationOnce(ensure).mockRejectedValueOnce(rejection)
+
+    const result = await fm.batchEnsureExternalEntries([
+      { externalPath: first, cleanupPolicy: 'manual' },
+      { externalPath: failed, cleanupPolicy: 'manual' },
+      { externalPath: last, cleanupPolicy: 'manual' }
+    ])
+
+    expect(result.failed).toEqual([{ sourceRef: failed, error: message }])
+    expect(result.succeeded.map((entry) => entry.sourceRef)).toEqual([first, last])
+    expect(await readFile(fm.getPhysicalPath(result.succeeded[1].id), 'utf-8')).toBe('last')
+    expect(dbh.db.select().from(fileEntryTable).all()).toHaveLength(2)
   })
 
   it('INT-8: batchGetDanglingStates returns "unknown" for ids that have no entry', async () => {
