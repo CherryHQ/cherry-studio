@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isScannedPdfError } from '../documentToMarkdown/handler'
+import { isScannedPdfError } from '@main/utils/pdfText'
 
 const hasNativeBinding =
   ((process.platform === 'darwin' || process.platform === 'linux') &&

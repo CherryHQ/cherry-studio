@@ -40,8 +40,11 @@ export function isErrorCategory(value: unknown): value is ErrorCategory {
  * (CLI stderr); callers holding a real status field must pass that instead.
  */
 export function extractHttpStatus(text: string): number | undefined {
-  const match = /\b([45]\d\d)\b/.exec(text)
-  return match ? Number(match[1]) : undefined
+  const match =
+    /(?:\bHTTP(?:\/\d+(?:\.\d+)?)?\s+|\bAPI Error:\s*)([45]\d{2})\b|\bRequest rejected \(([45]\d{2})\)|^\s*([45]\d{2}):/i.exec(
+      text
+    )
+  return match ? Number(match[1] ?? match[2] ?? match[3]) : undefined
 }
 
 // Groq's entitlement response links to billing; the host confines this exception
@@ -61,6 +64,7 @@ function isQuotaExhaustionMessage(message: string): boolean {
     message.includes('insufficient balance') ||
     message.includes('insufficient_credit') ||
     message.includes('insufficient credit') ||
+    message.includes('credit balance is running low') ||
     message.includes('billing_hard_limit_reached') ||
     message.includes('余额不足')
   )

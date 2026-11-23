@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 
 import { anyFileExt } from '@renderer/utils/file'
-import { isAudioModel, isAudioModels, isVideoModel, isVideoModels } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
+import { isAudioModel, isVideoModel } from '@shared/utils/model'
 
 export interface ComposerFileCapabilities {
   canAddImageFile: boolean
@@ -23,12 +23,11 @@ const EMPTY_MODELS: Model[] = []
 const ALL_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts, ...archiveExts]
 
 // audio/video are the only modalities the chat surface still gates on (images always work
-// via the OCR fallback, documents/text always extract). Each maps to the predicate pair
-// that probes whether the active model set supports it (single model vs. every mentioned).
+// via the OCR fallback, documents/text always extract).
 const MEDIA_INPUT_PREDICATES = {
-  audio: [isAudioModel, isAudioModels],
-  video: [isVideoModel, isVideoModels]
-} as const satisfies Record<string, readonly [(model: Model) => boolean, (models: Model[]) => boolean]>
+  audio: isAudioModel,
+  video: isVideoModel
+} as const satisfies Record<string, (model: Model) => boolean>
 
 function isMultiModelArgs(
   input: Model | undefined | ComposerFileCapabilitiesArgs
@@ -70,8 +69,8 @@ export function useComposerFileCapabilities(
       }
     }
 
-    const supports = ([single, plural]: (typeof MEDIA_INPUT_PREDICATES)[keyof typeof MEDIA_INPUT_PREDICATES]) =>
-      models.length > 0 ? plural(models) : fallbackModel ? single(fallbackModel) : false
+    const supports = (predicate: (model: Model) => boolean) =>
+      models.length > 0 ? models.every(predicate) : fallbackModel ? predicate(fallbackModel) : false
     const audio = supports(MEDIA_INPUT_PREDICATES.audio)
     const video = supports(MEDIA_INPUT_PREDICATES.video)
     return {

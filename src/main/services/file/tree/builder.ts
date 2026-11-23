@@ -19,6 +19,7 @@ import {
 
 import type { FileObservationService } from '../observation/FileObservationService'
 import type { ObservationEvent, ObservationLease } from '../observation/WatchScope'
+import type { CreateDirectoryWatcherOptions } from '../watcher'
 import { type GitignorePredicate, loadGitignorePredicate } from './gitignore'
 import { listDirectory as searchListDirectory } from './search'
 
@@ -284,27 +285,6 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   }
 
   private attachWatcher(): Promise<void> {
-    // Let attach failures propagate too. A silently-failed watcher install
-    // produces a zombie builder: the initial snapshot looks fine but no
-    // mutation will ever fire — worse than failing init() outright because
-    // the renderer has no signal to retry.
-    //
-    // Pass the gitignore predicate to chokidar. Without it, chokidar
-    // installs an FSEvents (macOS) or inotify (linux) handle per
-    // directory and hits `ulimit -n` (EMFILE) the moment the workspace
-    // is a real code repo with a `node_modules` blob. The predicate
-    // fires before chokidar recurses into the dir, so the cost stays
-    // at "one Ignore.ignores() call per entry".
-    const watcherIgnore = (p: AbsoluteFilePath) => {
-      const normalized = normalizePath(p)
-      if (this.rootMissingAtInit) {
-        const isTargetPath = normalized === this.rootPath || normalized.startsWith(`${this.rootPath}/`)
-        const isTargetAncestor = normalized === this.watcherRootPath || this.rootPath.startsWith(`${normalized}/`)
-        if (!isTargetPath && !isTargetAncestor) return true
-        if (isTargetAncestor && !isTargetPath) return false
-      }
-      return this.shouldIgnorePath(normalized)
-    }
     const rootDepthOffset = path.posix.relative(this.watcherRootPath, this.rootPath).split('/').filter(Boolean).length
     const watcherMaxDepth =
       this.options.maxDepth === Number.MAX_SAFE_INTEGER
@@ -319,8 +299,14 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       // the new directory. Emit that first scan so the builder cannot miss
       // files created in the same burst as the root.
       emitInitial: this.rootMissingAtInit,
-      ignore: watcherIgnore
-    }
+      filter: {
+        kind: 'tree',
+        root: this.rootPath,
+        includeHidden: this.options.includeHidden,
+        gitignoreRules: this.ignorePredicate?.rules,
+        missingRoot: this.rootMissingAtInit
+      }
+    } satisfies CreateDirectoryWatcherOptions
     const key = JSON.stringify([
       'tree',
       this.watcherRootPath,
