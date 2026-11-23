@@ -2079,6 +2079,68 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('validates a window against the refreshed A that the PATCH would preserve', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    selectTab('Model')
+    view.rerender(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...original,
+          settings: { ...original.settings, contextSettings: { maxMessages: 5, compressWindow: 6 } }
+        }}
+        onOpenChange={onOpenChange}
+      />
+    )
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '4')
+    await user.tab()
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(rounds).toHaveValue('4')
+    expect(rounds).toHaveAttribute('aria-invalid', 'true')
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps a successful save even when the clock moves backward', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      updatedAt: '2026-11-23T10:00:00Z',
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const saved = {
+      ...original,
+      updatedAt: '2026-11-23T09:00:00Z',
+      settings: { ...original.settings, contextSettings: { maxMessages: 4, compressWindow: 6 } }
+    }
+    updateAssistantMock.mockResolvedValueOnce(saved)
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    selectTab('Model')
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '4')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    view.rerender(<AssistantEditDialog open resource={saved} onOpenChange={onOpenChange} />)
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({
+        body: { settings: { contextSettings: { maxMessages: 4, compressWindow: 7 } } }
+      })
+    )
+  })
+
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 

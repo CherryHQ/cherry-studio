@@ -235,10 +235,13 @@ function AssistantEditDialogContent({
   const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
   const formBaselineRef = useRef(formBaseline)
   const savedResourceRef = useRef(resource)
+  const [savedResource, setSavedResource] = useState(resource)
+  // Resource identity marks a newly confirmed detail read. Do not order saves by
+  // wall-clock timestamps: the clock can move backward. If refresh fails, the
+  // unchanged resource prop does not replace our successful PATCH snapshot.
   useEffect(() => {
-    if (resource.id !== savedResourceRef.current.id || resource.updatedAt >= savedResourceRef.current.updatedAt) {
-      savedResourceRef.current = resource
-    }
+    savedResourceRef.current = resource
+    setSavedResource(resource)
   }, [resource])
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
@@ -287,6 +290,7 @@ function AssistantEditDialogContent({
     if (!justOpened) return
 
     savedResourceRef.current = resource
+    setSavedResource(resource)
     form.reset(defaultValues)
     formBaselineRef.current = initialAssistantFormState(resource)
     setFormBaseline(formBaselineRef.current)
@@ -331,7 +335,8 @@ function AssistantEditDialogContent({
 
     try {
       const updated = await updateAssistant(pending.payload)
-      if (updated.updatedAt >= savedResourceRef.current.updatedAt) savedResourceRef.current = updated
+      savedResourceRef.current = updated
+      setSavedResource(updated)
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
@@ -483,7 +488,8 @@ function AssistantEditDialogContent({
         ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
           <AssistantAdvancedFields
-            explicitUnlimited={savedResourceRef.current.settings.contextSettings?.maxMessages === null}
+            storedMaxMessages={savedResource.settings.contextSettings?.maxMessages}
+            baselineMaxMessages={formBaseline.contextMaxMessages}
             form={form}
             modelFilter={modelFilter}
             isModelDisabled={isModelDisabled}
@@ -752,7 +758,8 @@ function AssistantToolsFields({
 }
 
 function AssistantAdvancedFields({
-  explicitUnlimited,
+  storedMaxMessages,
+  baselineMaxMessages,
   form,
   modelFilter,
   isModelDisabled,
@@ -760,7 +767,8 @@ function AssistantAdvancedFields({
   modelLabels,
   setModelLabels
 }: {
-  explicitUnlimited: boolean
+  storedMaxMessages: number | null | undefined
+  baselineMaxMessages: number | null
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -933,7 +941,8 @@ function AssistantAdvancedFields({
       />
 
       <ContextManagementFields
-        explicitUnlimited={explicitUnlimited}
+        storedMaxMessages={storedMaxMessages}
+        baselineMaxMessages={baselineMaxMessages}
         form={form}
         modelFilter={modelFilter}
         isModelDisabled={isModelDisabled}
@@ -967,7 +976,8 @@ function AssistantAdvancedFields({
 }
 
 function ContextManagementFields({
-  explicitUnlimited,
+  storedMaxMessages,
+  baselineMaxMessages,
   form,
   modelFilter,
   isModelDisabled,
@@ -976,7 +986,8 @@ function ContextManagementFields({
   setModelLabels,
   globalDefaults
 }: {
-  explicitUnlimited: boolean
+  storedMaxMessages: number | null | undefined
+  baselineMaxMessages: number | null
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -1000,7 +1011,12 @@ function ContextManagementFields({
   // preserve the saved values.
   const hadStoredOverride = useRef(values.contextOverrideEnabled)
   const [recentDraft, setRecentDraft] = useState<number | null | undefined>(undefined)
-  const effectiveRecent = values.contextMaxMessages ?? (explicitUnlimited ? null : globalDefaults.maxMessages)
+  const effectiveRecent =
+    values.contextMaxMessages === baselineMaxMessages
+      ? storedMaxMessages === undefined
+        ? globalDefaults.maxMessages
+        : storedMaxMessages
+      : (values.contextMaxMessages ?? globalDefaults.maxMessages)
   const effectiveWindow =
     values.contextCompressWindow === undefined ? globalDefaults.compressWindow : values.contextCompressWindow
 
