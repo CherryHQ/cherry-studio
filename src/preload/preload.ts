@@ -272,7 +272,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
-    console.error('[Preload]Failed to expose APIs:', error as Error)
+    console.error('[Preload]Failed to expose APIs:', error)
   }
 } else {
   window.electron = electronAPI

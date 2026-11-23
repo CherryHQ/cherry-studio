@@ -774,19 +774,19 @@ export class WebviewAnnotationController {
   }
 
   private overlayEventTarget(event: Event) {
-    const point = event as Event & { clientX?: unknown; clientY?: unknown }
-
     if (
       !this.overlayRoot ||
       !this.isOverlayEvent(event) ||
-      typeof point.clientX !== 'number' ||
-      typeof point.clientY !== 'number'
+      !('clientX' in event) ||
+      !('clientY' in event) ||
+      typeof event.clientX !== 'number' ||
+      typeof event.clientY !== 'number'
     ) {
       return null
     }
 
     try {
-      return this.overlayRoot.elementFromPoint(point.clientX, point.clientY)
+      return this.overlayRoot.elementFromPoint(event.clientX, event.clientY)
     } catch {
       return null
     }

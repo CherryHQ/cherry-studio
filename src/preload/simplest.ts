@@ -8,7 +8,7 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
   } catch (error) {
-    console.error('[Preload]Failed to expose APIs:', error as Error)
+    console.error('[Preload]Failed to expose APIs:', error)
   }
 } else {
   // @ts-ignore (define in dts)
