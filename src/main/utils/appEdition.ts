@@ -17,13 +17,7 @@ export function getAppEdition(): AppEdition {
 
 export function usesRuntimeAppEdition(): boolean {
   if (!app.isPackaged) return process.env.CHERRY_UNIFIED_RELEASE === '1'
-  return getPackageMetadata().cherryUnified === true || isLegacySessionCompatibilityPackage()
-}
-
-export function isLegacySessionCompatibilityPackage(): boolean {
-  if (!app.isPackaged) return false
-  const { cherryRegionBridge, cherryLegacySessionCompatibility } = getPackageMetadata()
-  return cherryRegionBridge === true || cherryLegacySessionCompatibility === true
+  return getPackageMetadata().cherryUnified === true
 }
 
 const APPLICATION_IDS = {

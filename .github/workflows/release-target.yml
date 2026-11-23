@@ -24,9 +24,6 @@ on:
       unified:
         default: false
         type: boolean
-      legacy-session-compatibility:
-        default: false
-        type: boolean
       clean:
         default: false
         type: boolean
@@ -144,14 +141,9 @@ jobs:
           platforms: arm64
 
       - name: Select desktop distribution config
-        if: inputs.unified || inputs.legacy-session-compatibility
+        if: inputs.unified
         shell: bash
-        env:
-          CONFIG: ${{ inputs.unified && 'electron-builder.unified.config.cjs' || 'electron-builder.legacy-session.config.cjs' }}
-          EDITION: ${{ inputs.edition }}
-        run: |
-          echo "CHERRY_BUILDER_CONFIG=$CONFIG" >> "$GITHUB_ENV"
-          echo "CHERRY_LEGACY_SESSION_EDITION=$EDITION" >> "$GITHUB_ENV"
+        run: echo "CHERRY_BUILDER_CONFIG=electron-builder.unified.config.cjs" >> "$GITHUB_ENV"
 
       - name: Build Linux
         if: fromJSON(inputs.target).platform == 'linux'

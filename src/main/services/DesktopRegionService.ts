@@ -1,30 +1,20 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
-import { eq } from 'drizzle-orm'
 import { app, net } from 'electron'
 import * as z from 'zod'
 
 import { application } from '@application'
-import { appStateTable } from '@data/db/schemas/appState'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import {
+  type CherryAccountCredentials,
   cherryAccountCredentialStore,
   getAccountEdition
 } from '@main/services/cherryCloud/CherryAccountCredentialStore'
-import {
-  getAppEdition,
-  getPackageEdition,
-  isLegacySessionCompatibilityPackage,
-  setRuntimeAppEdition,
-  usesRuntimeAppEdition
-} from '@main/utils/appEdition'
-import { APP_EDITIONS, type AppEdition } from '@shared/types/appEdition'
+import { getAppEdition, setRuntimeAppEdition, usesRuntimeAppEdition } from '@main/utils/appEdition'
+import type { AppEdition } from '@shared/types/appEdition'
 
 const logger = loggerService.withContext('DesktopRegionService')
-const STATE_KEY = 'app:region'
-const LEGACY_SESSION_KEY = 'desktopRegion:legacySession'
-const LEGACY_STATE_KEYS = ['desktop:region', 'desktop.region']
 const RESPONSE_LIMIT = 32 * 1024
 const TIMEOUT = 2_000
 const MAINLAND_TIME_ZONES = new Set([
@@ -37,14 +27,11 @@ const MAINLAND_TIME_ZONES = new Set([
   'PRC'
 ])
 const PLATFORMS = { win32: 'windows', darwin: 'macos', linux: 'linux' } as const
-const decisionSchema = z.object({ region: z.enum(APP_EDITIONS), source: z.enum(['local', 'server', 'account']) })
-const legacySessionSchema = z.object({ sessionId: z.string().min(1), region: z.enum(APP_EDITIONS) })
 const resolveSchema = z.object({
   schema_version: z.literal(1),
   requires_region_selection: z.literal(false),
   region: z.enum(['CN', 'GLOBAL'])
 })
-type RegionDecision = z.infer<typeof decisionSchema>
 
 export function inferDesktopEdition(timeZone: string, country: string, locale?: string): AppEdition {
   if (MAINLAND_TIME_ZONES.has(timeZone)) return 'cn'
@@ -56,126 +43,58 @@ export function inferDesktopEdition(timeZone: string, country: string, locale?: 
   }
 }
 
+function getSystemEdition(): AppEdition {
+  return inferDesktopEdition(
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+    app.getLocaleCountryCode(),
+    app.getPreferredSystemLanguages()[0]
+  )
+}
+
 @Injectable('DesktopRegionService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['ProxyService'])
 export class DesktopRegionService extends BaseService {
-  protected async onInit(): Promise<void> {
+  private startupCredentials: CherryAccountCredentials | null | undefined
+
+  protected onInit(): void {
     if (!usesRuntimeAppEdition()) return
-    const controller = new AbortController()
-    this.registerDisposable(() => controller.abort())
 
-    const session = cherryAccountCredentialStore.get()?.session
-    const accountEdition = getAccountEdition(session?.apiOrigin)
-    if (accountEdition) {
-      setRuntimeAppEdition(accountEdition)
-      return
-    }
-    if (session && !session.apiOrigin) {
-      const legacyEdition = isLegacySessionCompatibilityPackage()
-        ? this.recordLegacySessionEdition(session.sessionId)
-        : this.getLegacySessionEdition(session.sessionId)
-      if (legacyEdition) {
-        setRuntimeAppEdition(legacyEdition)
-        return
-      }
-    }
-
-    const stored = this.read()
-    if (stored && stored.source !== 'local') {
-      setRuntimeAppEdition(stored.region)
-      return
-    }
-
-    const resolved = await this.resolve(undefined, controller.signal)
-    if (controller.signal.aborted) return
-    if (resolved) this.write({ region: resolved, source: 'server' })
-    if (stored) {
-      setRuntimeAppEdition(stored.region)
-      return
-    }
-    const region =
-      resolved ??
-      inferDesktopEdition(
-        Intl.DateTimeFormat().resolvedOptions().timeZone,
-        app.getLocaleCountryCode(),
-        app.getPreferredSystemLanguages()[0]
-      )
-    if (!resolved) this.write({ region, source: 'local' })
-    setRuntimeAppEdition(region)
+    this.startupCredentials = cherryAccountCredentialStore.get()
+    this.registerDisposable(() => {
+      this.startupCredentials = undefined
+    })
+    const session = this.startupCredentials?.session
+    const accountEdition =
+      session && session.sessionExpiresAt > Date.now() ? getAccountEdition(session.apiOrigin) : undefined
+    setRuntimeAppEdition(accountEdition ?? getSystemEdition())
   }
 
-  async confirmLogin(signal: AbortSignal): Promise<AppEdition | null> {
-    const stored = this.read()
-    const selected = stored && stored.source !== 'local' ? stored.region : undefined
-    const region = await this.resolve(selected, signal)
-    if (!region || (selected && selected !== region)) return null
-    if (!selected) this.write({ region, source: 'server' })
-    return region
+  takeStartupCredentials(): CherryAccountCredentials | null {
+    const stored = this.startupCredentials
+    this.startupCredentials = undefined
+    return stored === undefined ? cherryAccountCredentialStore.get() : stored
   }
 
-  rememberAccount(edition: AppEdition): void {
-    if (getAppEdition() !== edition) {
-      setRuntimeAppEdition(edition)
-      application.get('IpcApiService').broadcast('app.edition_changed', edition)
-    }
-    this.write({ region: edition, source: 'account' })
+  async resolveLoginEdition(signal: AbortSignal): Promise<AppEdition> {
+    const edition = await this.resolve(signal)
+    signal.throwIfAborted()
+    const loginEdition = edition ?? getSystemEdition()
+    this.setEdition(loginEdition)
+    return loginEdition
   }
 
-  getLegacySessionEdition(sessionId: string): AppEdition | undefined {
-    try {
-      const row = application
-        .get('DbService')
-        .getDb()
-        .select({ value: appStateTable.value })
-        .from(appStateTable)
-        .where(eq(appStateTable.key, LEGACY_SESSION_KEY))
-        .get()
-      const legacy = legacySessionSchema.safeParse(row?.value).data
-      return legacy?.sessionId === sessionId ? legacy.region : undefined
-    } catch (error) {
-      logger.warn('Failed to read legacy session region', { error })
-      return undefined
-    }
+  setEdition(edition: AppEdition): void {
+    if (getAppEdition() === edition) return
+    setRuntimeAppEdition(edition)
+    application.get('IpcApiService').broadcast('app.edition_changed', edition)
   }
 
-  private recordLegacySessionEdition(sessionId: string): AppEdition {
-    const region = getPackageEdition()
-    try {
-      this.write({ region, sessionId }, LEGACY_SESSION_KEY)
-    } catch (error) {
-      logger.warn('Failed to save legacy session region', { error })
-    }
-    return region
+  resetToSystemEdition(): void {
+    this.setEdition(getSystemEdition())
   }
 
-  private read(): RegionDecision | undefined {
-    const db = application.get('DbService').getDb()
-    const state = db.select({ value: appStateTable.value }).from(appStateTable)
-    const row = state.where(eq(appStateTable.key, STATE_KEY)).get()
-    if (row) return decisionSchema.safeParse(row.value).data
-
-    for (const key of LEGACY_STATE_KEYS) {
-      const legacy = state.where(eq(appStateTable.key, key)).get()
-      const decision = decisionSchema.safeParse(legacy?.value).data
-      if (!decision) continue
-      db.update(appStateTable).set({ key: STATE_KEY }).where(eq(appStateTable.key, key)).run()
-      return decision
-    }
-    return undefined
-  }
-
-  private write(value: RegionDecision | z.infer<typeof legacySessionSchema>, key = STATE_KEY): void {
-    application
-      .get('DbService')
-      .getDb()
-      .insert(appStateTable)
-      .values({ key, value })
-      .onConflictDoUpdate({ target: appStateTable.key, set: { value } })
-      .run()
-  }
-
-  private async resolve(selected: AppEdition | undefined, signal: AbortSignal): Promise<AppEdition | null> {
+  private async resolve(signal: AbortSignal): Promise<AppEdition | null> {
     const platform = PLATFORMS[process.platform as keyof typeof PLATFORMS]
     if (!platform) return null
     const wait = new AbortController()
@@ -194,8 +113,7 @@ export class DesktopRegionService extends BaseService {
         body: JSON.stringify({
           client: 'community_desktop',
           platform,
-          app_version: app.getVersion(),
-          ...(selected && { selected_region: selected.toUpperCase() })
+          app_version: app.getVersion()
         }),
         credentials: 'omit',
         redirect: 'error',

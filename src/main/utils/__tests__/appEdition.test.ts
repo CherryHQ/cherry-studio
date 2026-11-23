@@ -65,19 +65,14 @@ describe('getAppEdition', () => {
     expect(getAppEdition()).toBe('global')
   })
 
-  it.each(['cherryRegionBridge', 'cherryLegacySessionCompatibility'])(
-    'uses runtime region with the %s marker while retaining the installation identity',
-    async (marker) => {
-      setPackaged(true)
-      readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn', [marker]: true }))
-      const edition = await import('../appEdition')
+  it('keeps the original CN product behavior in the Electron upgrade bridge', async () => {
+    setPackaged(true)
+    readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn', cherryRegionBridge: true }))
+    const edition = await import('../appEdition')
 
-      expect(edition.usesRuntimeAppEdition()).toBe(true)
-      edition.setRuntimeAppEdition('global')
-      expect(edition.getAppEdition()).toBe('global')
-      expect(edition.getApplicationId()).toBe('com.cherryai.cherrystudio.cn')
-    }
-  )
+    expect(edition.usesRuntimeAppEdition()).toBe(false)
+    expect(edition.getAppEdition()).toBe('cn')
+  })
 
   it('rejects an unsupported development edition', async () => {
     readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'global' }))

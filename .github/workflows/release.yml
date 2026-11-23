@@ -67,17 +67,14 @@ jobs:
       tag: ${{ steps.release-ref.outputs.tag }}
       targets: ${{ steps.release-ref.outputs.targets }}
       unified: ${{ steps.distribution.outputs.unified }}
-      legacy-session-compatibility: ${{ steps.distribution.outputs.legacy-session-compatibility }}
       draft-id: ${{ steps.draft.outputs.id }}
     steps:
       - name: Select release distribution
         id: distribution
         env:
           UNIFIED_RELEASE: ${{ vars.CHERRY_UNIFIED_RELEASE == 'true' && vars.CHERRY_MAC_CN_REGION_BRIDGE_TAG != inputs.tag }}
-          LEGACY_SESSION_COMPATIBILITY: ${{ vars.CHERRY_MAC_CN_REGION_BRIDGE_TAG == inputs.tag }}
         run: |
           echo "unified=$UNIFIED_RELEASE" >> "$GITHUB_OUTPUT"
-          echo "legacy-session-compatibility=$LEGACY_SESSION_COMPATIBILITY" >> "$GITHUB_OUTPUT"
       - name: Validate release selection
         shell: bash
         env:
@@ -108,12 +105,6 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.expected_sha }}
           path: release-source
-
-      - name: Verify legacy-session compatibility support
-        if: steps.distribution.outputs.legacy-session-compatibility == 'true'
-        run: |
-          test -f release-source/electron-builder.legacy-session.config.cjs
-          test -f release-source/src/main/services/DesktopRegionService.ts
 
       - name: Verify unified release support
         if: steps.distribution.outputs.unified == 'true'
@@ -318,7 +309,6 @@ jobs:
       tag: ${{ needs.prepare.outputs.tag }}
       draft-id: ${{ needs.prepare.outputs.draft-id }}
       unified: ${{ needs.prepare.outputs.unified == 'true' }}
-      legacy-session-compatibility: ${{ needs.prepare.outputs.legacy-session-compatibility == 'true' }}
       clean: ${{ inputs.clean }}
     secrets: inherit
 

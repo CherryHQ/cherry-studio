@@ -37,16 +37,14 @@ records the preservation boundary, deliberate fixes and offline verification lim
 
 ## Desktop region
 
-Unified and session compatibility builds derive the effective region from an existing
-account's trusted stored API origin. A signed request stays bound to that
-session's origin. For an older session without an origin, the compatibility build records the
-original package region alongside the session ID. The unified build can use a
-matching record to continue the refresh after an upgrade. A successful refresh
-writes the verified origin into the credentials. Profiles without an account reuse a persisted region or resolve one
-through Config Service. Local inference is provisional until a successful
-config response. New login authorizations use the confirmed origin for both
-creation and exchange. Sign-out keeps the most recent account region for future
-sign-ins.
+Unified builds derive the effective region from an existing account's trusted
+stored API origin. A signed request stays bound to that session's origin.
+An older session without an origin requires sign-in. Signed-out startup
+and sign-out infer the region from current system settings. Each sign-in asks
+Config Service to resolve the region and uses system settings if the request
+fails. The result updates the running app and determines the origin for that
+authorization and exchange. The credential file stores the origin at sign-in.
+
 
 ## AMD entry
 

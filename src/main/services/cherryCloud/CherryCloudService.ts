@@ -18,12 +18,7 @@ import {
   Signal
 } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
-import {
-  getAppEdition,
-  getPackageEdition,
-  isLegacySessionCompatibilityPackage,
-  usesRuntimeAppEdition
-} from '@main/utils/appEdition'
+import { getAppEdition, usesRuntimeAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
   createUniqueModelId,
@@ -399,10 +394,9 @@ export class CherryCloudService extends BaseService {
     const configuredOrigin = resolveConfiguredCloudOrigin()
     let apiOrigin = configuredOrigin ?? CLOUD_API_ORIGINS[getAppEdition()]
     if (!configuredOrigin && usesRuntimeAppEdition()) {
-      const edition = await application.get('DesktopRegionService').confirmLogin(operation.controller.signal)
+      const edition = await application.get('DesktopRegionService').resolveLoginEdition(operation.controller.signal)
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
-      if (!edition) throw new CherryCloudLoginUnavailableError()
       apiOrigin = CLOUD_API_ORIGINS[edition]
     }
 
@@ -597,7 +591,7 @@ export class CherryCloudService extends BaseService {
       if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
 
       this.persistSession(device, session)
-      this.rememberAccountRegion(session.apiOrigin)
+      this.applyAccountRegion(session.apiOrigin)
       this.clearPendingExpiryTimer()
       if (this.authorizationOperation === pending.operation) this.authorizationOperation = null
       this.invalidateModelSync()
@@ -1627,7 +1621,6 @@ export class CherryCloudService extends BaseService {
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
     if (reason) this.reportSignOut(reason)
 
-    this.rememberAccountRegion(currentSession.apiOrigin)
     cherryAccountCredentialStore.clearSession()
     this.invalidateModelSync()
     this.cloudState = { ...this.cloudState, session: null }
@@ -1637,6 +1630,13 @@ export class CherryCloudService extends BaseService {
     this.invalidateAccountRefreshes()
     this.resetAccountFacts()
     this.clearSessionExpiryTimer()
+    if (usesRuntimeAppEdition()) {
+      try {
+        application.get('DesktopRegionService').resetToSystemEdition()
+      } catch (error) {
+        logger.warn('Failed to reset the desktop region after sign-out', { error })
+      }
+    }
     this.finishSessionCleanup()
   }
 
@@ -1720,7 +1720,9 @@ export class CherryCloudService extends BaseService {
   }
 
   private async restoreSession(): Promise<void> {
-    const stored = cherryAccountCredentialStore.get()
+    const stored = usesRuntimeAppEdition()
+      ? application.get('DesktopRegionService').takeStartupCredentials()
+      : cherryAccountCredentialStore.get()
     if (!stored) return
 
     const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
@@ -1732,14 +1734,6 @@ export class CherryCloudService extends BaseService {
           ? getAccountEdition(apiOrigin) !== undefined
           : apiOrigin === (configuredOrigin ?? CLOUD_API_ORIGINS[getAppEdition()])
       if (!trusted) apiOrigin = undefined
-    } else if (stored.session) {
-      const configuredOrigin = resolveConfiguredCloudOrigin()
-      if (isLegacySessionCompatibilityPackage()) {
-        apiOrigin = configuredOrigin ?? CLOUD_API_ORIGINS[getPackageEdition()]
-      } else if (!configuredOrigin && usesRuntimeAppEdition()) {
-        const legacyEdition = application.get('DesktopRegionService').getLegacySessionEdition(stored.session.sessionId)
-        if (legacyEdition) apiOrigin = CLOUD_API_ORIGINS[legacyEdition]
-      }
     }
     const session = apiOrigin ? stored.session : null
 
@@ -1766,14 +1760,14 @@ export class CherryCloudService extends BaseService {
     await this.pruneExpiredState()
   }
 
-  private rememberAccountRegion(origin: string): void {
+  private applyAccountRegion(origin: string): void {
     if (!usesRuntimeAppEdition()) return
     const edition = getAccountEdition(origin)
     if (!edition) return
     try {
-      application.get('DesktopRegionService').rememberAccount(edition)
+      application.get('DesktopRegionService').setEdition(edition)
     } catch (error) {
-      logger.warn('Failed to save desktop account region', { error })
+      logger.warn('Failed to apply desktop account region', { error })
     }
   }
 
