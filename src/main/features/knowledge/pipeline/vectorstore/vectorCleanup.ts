@@ -58,9 +58,16 @@ export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<v
       logger.info('Reclaimed knowledge index space after delete', { baseId: base.id, reclaimedBytes })
     }
   } catch (error) {
-    const code = (error as { code?: string }).code
+    let corrupt = false
 
-    if (code === 'SQLITE_CORRUPT' || code === 'SQLITE_NOTADB') {
+    try {
+      const code = error !== null && typeof error === 'object' && 'code' in error ? error.code : undefined
+      corrupt = code === 'SQLITE_CORRUPT' || code === 'SQLITE_NOTADB'
+    } catch {
+      // Unreadable diagnostics must not turn best-effort reclamation into a failed delete.
+    }
+
+    if (corrupt) {
       logger.error('Knowledge index appears corrupt during post-delete reclaim', error, { baseId: base.id })
     } else {
       logger.warn('Failed to reclaim knowledge index space after delete', error, { baseId: base.id })

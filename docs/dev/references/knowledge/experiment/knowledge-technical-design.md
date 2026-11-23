@@ -186,6 +186,11 @@ transactions so the main event loop is not monopolized. `reclaimSpace()` runs
 FTS optimize before threshold-gated `VACUUM`, allowing deleted FTS segments and
 free pages to return to the operating system.
 
+Post-delete reclamation is best-effort: failure to open or reclaim the index does
+not fail the completed deletion. Recognized `SQLITE_CORRUPT` and `SQLITE_NOTADB`
+codes are logged at error level; other failures, including unreadable diagnostic
+fields, remain warnings.
+
 ## 8. Source Availability
 
 File roots rebuild from their Knowledge-owned raw file. Directory roots rebuild

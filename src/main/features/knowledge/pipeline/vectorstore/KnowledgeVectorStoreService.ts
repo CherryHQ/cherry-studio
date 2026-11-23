@@ -164,7 +164,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     try {
       return fs.statSync(getKnowledgeVectorStoreFilePathSync(baseId)).isFile()
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         return false
       }
 

@@ -82,6 +82,7 @@ export class BetterSqlite3Driver implements SqliteDriver {
     // `reader` is true for statements that yield rows (SELECT, row-returning PRAGMA).
     // run() throws on those and all() throws on non-row statements, so split on it.
     if (stmt.reader) {
+      // SAFETY: Private statements keep the native object-row mode; SQLite yields only null, strings, numbers/bigints and Buffers, all included in SqlValue.
       return { rows: stmt.all(...bound) as Array<Record<string, SqlValue>>, changes: 0 }
     }
 

@@ -112,12 +112,6 @@ describe('reclaimKnowledgeIndexSpace', () => {
     expect(reclaimSpaceMock).not.toHaveBeenCalled()
   })
 
-  it('reclaims the index space when a store exists', async () => {
-    await reclaimKnowledgeIndexSpace(createBase())
-
-    expect(reclaimSpaceMock).toHaveBeenCalledTimes(1)
-  })
-
   it('never throws when reclaim fails — the delete already succeeded', async () => {
     // Best-effort: a transient reclaim failure must not fail the delete job whose rows
     // and vectors are already gone; the freed pages just wait for a later index to reuse.
@@ -131,12 +125,9 @@ describe('reclaimKnowledgeIndexSpace', () => {
     expect(loggerErrorMock).not.toHaveBeenCalled()
   })
 
-  it('logs a corruption-class reclaim failure at error (still swallowed) so a damaged index is triaged', async () => {
-    // reclaim's whole-file checkpoint/optimize/VACUUM is often the first op to touch the full file
-    // post-delete, so SQLITE_CORRUPT/SQLITE_NOTADB surfaces here — it must be loud, not buried in the
-    // benign "failed to reclaim" warn, yet still swallowed (the delete already succeeded).
+  it.each(['SQLITE_CORRUPT', 'SQLITE_NOTADB'])('logs %s at error without failing a completed delete', async (code) => {
     reclaimSpaceMock.mockImplementationOnce(() => {
-      throw Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT' })
+      throw Object.assign(new Error('database disk image is malformed'), { code })
     })
 
     await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
@@ -158,5 +149,42 @@ describe('reclaimKnowledgeIndexSpace', () => {
 
     await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
     expect(reclaimSpaceMock).not.toHaveBeenCalled()
+  })
+
+  it.each<[string, () => unknown]>([
+    ['null', () => null],
+    ['undefined', () => undefined],
+    ['false', () => false],
+    ['zero', () => 0],
+    ['string', () => 'reclaim failed'],
+    [
+      'unreadable code',
+      () => ({
+        get code() {
+          throw new Error('unreadable code')
+        }
+      })
+    ],
+    [
+      'revoked proxy',
+      () => {
+        const { proxy, revoke } = Proxy.revocable({}, {})
+        revoke()
+
+        return proxy
+      }
+    ]
+  ])('keeps open and reclaim failures best-effort for %s', async (_label, makeFailure) => {
+    const failure = makeFailure()
+
+    for (const operation of [getIndexStoreIfExistsMock, reclaimSpaceMock]) {
+      operation.mockImplementationOnce(() => {
+        throw failure
+      })
+
+      await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
+      expect(loggerWarnMock.mock.calls.at(-1)?.[1]).toBe(failure)
+      expect(loggerErrorMock).not.toHaveBeenCalled()
+    }
   })
 })

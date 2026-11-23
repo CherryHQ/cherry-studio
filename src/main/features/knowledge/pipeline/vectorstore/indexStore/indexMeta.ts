@@ -29,7 +29,7 @@ export function ensureIndexMeta(executor: SqliteExecutor, input: IndexMetaInput)
   )
 
   const stored = executor.execute(`SELECT base_id FROM meta WHERE id = 1`)
-  const storedBaseId = stored.rows[0]?.base_id as string | undefined
+  const storedBaseId = stored.rows[0]?.base_id
 
   if (storedBaseId !== input.baseId) {
     throw new Error(
