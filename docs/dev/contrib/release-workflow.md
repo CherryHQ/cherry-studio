@@ -56,6 +56,8 @@ Preview builds typecheck and compile one JS bundle per edition, then package mac
 
 Dispatch **Preview Release** with `unified_region` to build one set with the international installer identity and runtime region enabled. Formal **Release** keeps the dual-edition distribution until the repository variable `CHERRY_UNIFIED_RELEASE` is enabled after signed migration and configuration-service acceptance. A tag selected for the CN macOS bridge takes priority and keeps dual-edition packaging. Unified formal releases assemble only the international package inventory. A single-platform retry requires an existing inventory in the same distribution mode. GitCode synchronization consumes the recorded inventory for either distribution mode.
 
+Before opening the unified feed, build the selected compatibility tag from a source that includes the runtime region and session-migration code. Its packages run under the original installer identities and can recover sessions that predate stored API origins. The selected CN macOS package also carries the Electron upgrade bridge. Electron-only builds are suitable for signing and upgrade verification. Publish a higher compatibility build with session migration before sending those installations to the unified feed.
+
 Preview uses the dependency-cache ownership, tool-asset preparation, and shallow packaging checkouts described under [Build or Retry the Draft Release](#3-build-or-retry-the-draft-release). Its hosted Windows Global job also saves the Windows store on a cache miss; the CN job only restores it. The resolved source must support packaging tool assets version 1 and contain `scripts/release/prepare-tools.js`; resolve rejects unsupported sources before bundle work starts.
 
 ## Nightly Builds

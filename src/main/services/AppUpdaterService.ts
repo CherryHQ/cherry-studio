@@ -16,7 +16,7 @@ import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, t } from '@main/i18n'
 import { regionService } from '@main/services/RegionService'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getPackageEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -290,7 +290,7 @@ export class AppUpdaterService extends BaseService {
 
     const ipCountry = await regionService.getCountry()
     const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
-    const edition = getAppEdition()
+    const edition = getPackageEdition()
     const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
     const updateHeaders = getUpdateHeaders({ region, edition })

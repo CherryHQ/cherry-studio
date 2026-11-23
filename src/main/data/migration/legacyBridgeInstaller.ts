@@ -20,7 +20,7 @@ import { loggerService } from '@logger'
 import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getPackageEdition } from '@main/utils/appEdition'
 import type { LegacyInstallState } from '@shared/types/legacyUpgrade'
 
 import { createLegacyBridgeProvider } from './legacyBridgeProvider'
@@ -79,7 +79,7 @@ export function getLegacyBridgeEligibility(profile: string): { prerequisite: boo
     return {
       prerequisite,
       target: findLegacyBridgeTarget(
-        getAppEdition(),
+        getPackageEdition(),
         process.platform,
         process.arch,
         linuxPackageType,

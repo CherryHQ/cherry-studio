@@ -1,25 +1,10 @@
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
-import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
-const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' },
-  migrationOrigin: { current: false }
-}))
-
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: () => applicationEdition.current
-}))
-
-vi.mock('@data/migration/v1MigrationOrigin', () => ({
-  isMigratedFromV1: () => migrationOrigin.current
-}))
-
 vi.mock('@cherrystudio/provider-registry/node', () => {
   class RegistryLoader {
     loadProviders() {
@@ -67,82 +52,26 @@ const modelRow = (providerId: string, modelId: string, orderKey: string) => ({
   orderKey
 })
 
-describe('ModelService edition availability', () => {
+describe('ModelService desktop catalog', () => {
   const dbh = setupTestDatabase()
 
-  beforeEach(() => {
-    applicationEdition.current = 'cn'
-    migrationOrigin.current = false
-  })
-
-  it('excludes persisted models owned by providers unavailable in the current edition', async () => {
-    await dbh.db.insert(userProviderTable).values([
-      {
-        providerId: 'global-only',
-        presetProviderId: 'global-only',
-        name: 'Global only',
-        orderKey: 'a0'
-      },
-      {
-        providerId: 'cn-provider',
-        presetProviderId: 'cn-provider',
-        name: 'CN provider',
-        orderKey: 'a1'
-      }
-    ])
-    await dbh.db
+  it('lists and resolves enabled models from both region-scoped presets', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values([
+        { providerId: 'global-only', presetProviderId: 'global-only', name: 'Global only', orderKey: 'a0' },
+        { providerId: 'cn-provider', presetProviderId: 'cn-provider', name: 'CN provider', orderKey: 'a1' }
+      ])
+      .run()
+    dbh.db
       .insert(userModelTable)
-      .values([modelRow('global-only', 'hidden-model', 'a0'), modelRow('cn-provider', 'visible-model', 'a0')])
+      .values([modelRow('global-only', 'model', 'a0'), modelRow('cn-provider', 'model', 'a0')])
+      .run()
 
-    expect(modelService.list({}).map((model) => model.id)).toEqual(['cn-provider::visible-model'])
-    expect(modelService.list({ providerId: 'global-only' })).toEqual([])
-    expect(modelService.findByIdTx(dbh.db, 'global-only::hidden-model')).toBeNull()
-    expect(modelService.existsByIdTx(dbh.db, 'global-only::hidden-model')).toBe(false)
-    expect(modelService.getNamesByUniqueIdsTx(dbh.db, ['global-only::hidden-model'])).toEqual(new Map())
-  })
-
-  it('rejects every direct read and write path for an unavailable persisted provider before mutation', async () => {
-    await dbh.db.insert(userProviderTable).values({
-      providerId: 'global-only',
-      presetProviderId: 'global-only',
-      name: 'Global only',
-      orderKey: 'a0'
-    })
-    await dbh.db.insert(userModelTable).values(modelRow('global-only', 'hidden-model', 'a0'))
-
-    const calls: Array<[string, () => unknown]> = [
-      ['getByKey', () => modelService.getByKey('global-only', 'hidden-model')],
-      ['create', () => modelService.create([{ dto: { providerId: 'global-only', modelId: 'new-model' } }])],
-      ['update', () => modelService.update('global-only', 'hidden-model', { name: 'changed' })],
-      [
-        'bulkUpdate',
-        () =>
-          modelService.bulkUpdate([{ providerId: 'global-only', modelId: 'hidden-model', patch: { name: 'changed' } }])
-      ],
-      ['reconcileForProvider', () => modelService.reconcileForProvider('global-only', { toAdd: [], toRemove: [] })],
-      ['delete', () => modelService.delete('global-only', 'hidden-model')],
-      ['bulkDelete', () => modelService.bulkDelete([{ providerId: 'global-only', modelId: 'hidden-model' }])]
-    ]
-
-    for (const [, invoke] of calls) {
-      expect(invoke).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
-    }
-
-    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'global-only'))
-    expect(rows).toHaveLength(1)
-    expect(rows[0].name).toBe('hidden-model')
-  })
-
-  it('keeps every persisted model available for users migrated from v1', async () => {
-    migrationOrigin.current = true
-    await dbh.db.insert(userProviderTable).values({
-      providerId: 'global-only',
-      presetProviderId: 'global-only',
-      name: 'Global only',
-      orderKey: 'a0'
-    })
-    await dbh.db.insert(userModelTable).values(modelRow('global-only', 'visible-model', 'a0'))
-
-    expect(modelService.list({}).map((model) => model.id)).toEqual(['global-only::visible-model'])
+    expect(modelService.list({ enabled: true }).map((model) => model.id)).toEqual(
+      expect.arrayContaining(['global-only::model', 'cn-provider::model'])
+    )
+    expect(modelService.findByIdTx(dbh.db, 'cn-provider::model')?.id).toBe('cn-provider::model')
+    expect(modelService.existsByIdTx(dbh.db, 'global-only::model')).toBe(true)
   })
 })

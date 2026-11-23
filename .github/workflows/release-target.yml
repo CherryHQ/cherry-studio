@@ -24,6 +24,9 @@ on:
       unified:
         default: false
         type: boolean
+      legacy-session-compatibility:
+        default: false
+        type: boolean
       clean:
         default: false
         type: boolean
@@ -140,11 +143,21 @@ jobs:
         with:
           platforms: arm64
 
+      - name: Select desktop distribution config
+        if: inputs.unified || inputs.legacy-session-compatibility
+        shell: bash
+        env:
+          CONFIG: ${{ inputs.unified && 'electron-builder.unified.config.cjs' || 'electron-builder.legacy-session.config.cjs' }}
+          EDITION: ${{ inputs.edition }}
+        run: |
+          echo "CHERRY_BUILDER_CONFIG=$CONFIG" >> "$GITHUB_ENV"
+          echo "CHERRY_LEGACY_SESSION_EDITION=$EDITION" >> "$GITHUB_ENV"
+
       - name: Build Linux
         if: fromJSON(inputs.target).platform == 'linux'
         run: |
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm exec electron-builder --linux --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --linux --${{ fromJSON(inputs.target).arch }} --publish never ${{ env.CHERRY_BUILDER_CONFIG && format('--config {0}', env.CHERRY_BUILDER_CONFIG) || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
 
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
@@ -155,7 +168,7 @@ jobs:
         if: fromJSON(inputs.target).platform == 'mac'
         run: |
           sudo -H pip install setuptools
-          pnpm exec electron-builder --mac --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --mac --${{ fromJSON(inputs.target).arch }} --publish never ${{ env.CHERRY_BUILDER_CONFIG && format('--config {0}', env.CHERRY_BUILDER_CONFIG) || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           CSC_FOR_PULL_REQUEST: true
@@ -170,7 +183,7 @@ jobs:
       - name: Build Windows
         if: fromJSON(inputs.target).platform == 'windows'
         run: |
-          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ env.CHERRY_BUILDER_CONFIG && format('--config {0}', env.CHERRY_BUILDER_CONFIG) || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ

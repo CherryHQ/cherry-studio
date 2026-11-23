@@ -65,6 +65,20 @@ describe('getAppEdition', () => {
     expect(getAppEdition()).toBe('global')
   })
 
+  it.each(['cherryRegionBridge', 'cherryLegacySessionCompatibility'])(
+    'uses runtime region with the %s marker while retaining the installation identity',
+    async (marker) => {
+      setPackaged(true)
+      readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn', [marker]: true }))
+      const edition = await import('../appEdition')
+
+      expect(edition.usesRuntimeAppEdition()).toBe(true)
+      edition.setRuntimeAppEdition('global')
+      expect(edition.getAppEdition()).toBe('global')
+      expect(edition.getApplicationId()).toBe('com.cherryai.cherrystudio.cn')
+    }
+  )
+
   it('rejects an unsupported development edition', async () => {
     readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'global' }))
     vi.stubEnv('CHERRY_EDITION', 'enterprise')

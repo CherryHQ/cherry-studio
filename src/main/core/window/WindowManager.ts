@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import {
   BaseService,
+  DependsOn,
   type Disposable,
   Emitter,
   type Event,
@@ -97,6 +98,7 @@ function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
 @Priority(5)
+@DependsOn(['DesktopRegionService'])
 export class WindowManager extends BaseService {
   /** All managed windows keyed by UUID */
   private windows = new Map<string, ManagedWindow>()
