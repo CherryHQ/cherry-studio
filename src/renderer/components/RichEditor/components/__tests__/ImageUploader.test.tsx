@@ -1,12 +1,13 @@
-import { resetToastMocks } from '@test-mocks/renderer/toast'
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { toast } from '@renderer/services/toast'
+import { getToastUtilities } from '@cherrystudio/ui'
+import ToastHost from '@renderer/components/ToastHost'
 
-// The shared setup stubs Dropzone; this test needs the real rejection path.
+// The shared setup stubs Dropzone and the toast service; this test needs the real rejection and toast paths.
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
+vi.unmock('@renderer/services/toast')
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -20,28 +21,38 @@ function dropFiles(files: File[]) {
   fireEvent.change(input, { target: { files } })
 }
 
+function renderUploader() {
+  render(
+    <>
+      <ImageUploader visible onImageSelect={vi.fn()} onClose={vi.fn()} />
+      <ToastHost />
+    </>
+  )
+}
+
 describe('ImageUploader rejections', () => {
-  beforeEach(() => resetToastMocks())
+  beforeEach(() => {
+    act(() => {
+      getToastUtilities().closeAll()
+    })
+  })
 
   // Dropping two images is not a type problem; "Please select an image file" would mislead.
   it('explains a multi-file drop as too many files, not an invalid type', async () => {
-    render(<ImageUploader visible onImageSelect={vi.fn()} onClose={vi.fn()} />)
+    renderUploader()
     dropFiles([new File(['a'], 'a.png', { type: 'image/png' }), new File(['b'], 'b.png', { type: 'image/png' })])
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    expect(toast.error).toHaveBeenCalledWith('richEditor.imageUploader.tooManyFiles')
-    expect(toast.error).not.toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'richEditor.imageUploader.invalidType' })
-    )
+    expect(await screen.findByText('richEditor.imageUploader.tooManyFiles')).toBeInTheDocument()
+    expect(screen.queryByText('richEditor.imageUploader.invalidType')).not.toBeInTheDocument()
   })
 
   // A wrong file type is user input, not a fault; it must not offer an error-details entry.
-  it('rejects a non-image with a plain toast and no details', async () => {
-    render(<ImageUploader visible onImageSelect={vi.fn()} onClose={vi.fn()} />)
+  it('rejects a non-image with a toast that has no details action', async () => {
+    renderUploader()
     dropFiles([new File(['a'], 'a.txt', { type: 'text/plain' })])
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    expect(toast.error).toHaveBeenCalledWith('richEditor.imageUploader.invalidType')
-    expect(toast.error).not.toHaveBeenCalledWith(expect.objectContaining({ cause: expect.anything() }))
+    expect(await screen.findByText('richEditor.imageUploader.invalidType')).toBeInTheDocument()
+    // The open dialog marks the toast viewport aria-hidden.
+    expect(screen.queryByRole('button', { name: 'common.detail', hidden: true })).not.toBeInTheDocument()
   })
 })
