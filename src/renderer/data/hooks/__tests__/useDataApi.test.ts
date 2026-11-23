@@ -1602,7 +1602,7 @@ describe('useMutation trigger identity & option freshness', () => {
 
   it('publishes the committed snapshot before a failed post-write refresh', async () => {
     const updated = { id: 'provider-1', name: 'Committed' }
-    vi.spyOn(dataApiService, 'patch').mockResolvedValue(updated as never)
+    vi.spyOn(dataApiService, 'patch').mockResolvedValue(updated)
     const events: string[] = []
     const onCommitted = vi.fn(() => {
       events.push('commit')
