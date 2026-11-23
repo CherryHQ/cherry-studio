@@ -168,6 +168,7 @@ function PreviewSession({
       onDiagnostic: reportDiagnostic,
       onRequestOpen: hasOpenAction ? requestOpen : undefined,
       failDocument,
+      errorDetail,
       isCurrentDocument: isCurrentSession,
       onRequestReload: requestReload
     }),
@@ -179,6 +180,7 @@ function PreviewSession({
       requestOpen,
       hasOpenAction,
       failDocument,
+      errorDetail,
       isCurrentSession,
       requestReload
     ]

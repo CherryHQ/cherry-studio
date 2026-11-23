@@ -21,7 +21,7 @@ const IMAGE_MEDIA_TYPE_BY_EXTENSION: Record<string, string> = {
 
 export default function ImageFilePreview({ sourceId, fileName, document, mediaType }: FilePreviewPluginProps) {
   const { t } = useTranslation()
-  const { failDocument, isCurrentDocument } = usePreviewHost()
+  const { failDocument, errorDetail, isCurrentDocument } = usePreviewHost()
   const [url, setUrl] = useState<string | null>(null)
   const objectUrlRef = useRef<string | null>(null)
   const [status, setStatus] = useState<'error' | 'loading' | 'ready' | 'too_large'>('loading')
@@ -96,6 +96,7 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
               icon={ImageOff}
               title={t('file_preview.load_error.title')}
               description={t('file_preview.load_error.description')}
+              detail={errorDetail}
               className="h-full"
             />
           </div>

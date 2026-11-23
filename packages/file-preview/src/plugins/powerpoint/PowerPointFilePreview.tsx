@@ -110,7 +110,7 @@ export default function PowerPointFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('PowerPointFilePreview')
-  const { options, failDocument, isCurrentDocument } = usePreviewHost()
+  const { options, failDocument, errorDetail, isCurrentDocument } = usePreviewHost()
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
@@ -458,6 +458,7 @@ export default function PowerPointFilePreview({
                   icon={AlertCircle}
                   title={t('file_preview.load_error.title')}
                   description={t('file_preview.load_error.description')}
+                  detail={errorDetail}
                   className="h-full"
                 />
               )}

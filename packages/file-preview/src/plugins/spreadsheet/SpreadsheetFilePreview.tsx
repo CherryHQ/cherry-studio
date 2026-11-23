@@ -105,7 +105,7 @@ export default function SpreadsheetFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('SpreadsheetFilePreview')
-  const { options } = usePreviewHost()
+  const { options, errorDetail } = usePreviewHost()
   const { t } = useTranslation()
   const state = useXlsxWorkbook(previewDocument, fileName)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
@@ -241,6 +241,7 @@ export default function SpreadsheetFilePreview({
         icon={AlertCircle}
         title={t('file_preview.load_error.title')}
         description={t('xlsx_preview.error.description')}
+        detail={errorDetail}
         className="h-full"
       />
     )
