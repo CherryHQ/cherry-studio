@@ -238,7 +238,8 @@ describe('useModelMutations', () => {
   })
 
   it('should call PATCH mutation trigger with uniqueModelId param and body when updateModel is invoked', async () => {
-    const updateTrigger = vi.fn().mockResolvedValue({})
+    const updated = { id: 'openai::gpt-4o', isEnabled: false }
+    const updateTrigger = vi.fn().mockResolvedValue(updated)
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger: path === '/models/:uniqueModelId*' && _method === 'PATCH' ? updateTrigger : vi.fn(),
       isLoading: false,
@@ -248,7 +249,7 @@ describe('useModelMutations', () => {
     const { result } = renderHook(() => useModelMutations())
 
     await act(async () => {
-      await result.current.updateModel('openai', 'gpt-4o', { isEnabled: false })
+      await expect(result.current.updateModel('openai', 'gpt-4o', { isEnabled: false })).resolves.toEqual(updated)
     })
 
     expect(updateTrigger).toHaveBeenCalledWith({

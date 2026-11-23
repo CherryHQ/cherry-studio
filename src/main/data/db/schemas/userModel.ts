@@ -1,14 +1,3 @@
-import { sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
-
-import type {
-  EndpointType,
-  Modality,
-  ModelCapability,
-  ParameterSupport,
-  ReasoningConfig,
-  RuntimeModelPricing
-} from '@shared/data/types/model'
 /**
  * User Model table schema
  *
@@ -22,6 +11,17 @@ import type {
  *
  * Type definitions are sourced from @shared/data/types/model
  */
+import { sql } from 'drizzle-orm'
+import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+
+import type {
+  EndpointType,
+  Modality,
+  ModelCapability,
+  ParameterSupport,
+  ReasoningConfig,
+  RuntimeModelPricing
+} from '@shared/data/types/model'
 import type { ModelMetadataSources, ProviderModelMetadata } from '@shared/data/types/modelMetadata'
 
 import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
