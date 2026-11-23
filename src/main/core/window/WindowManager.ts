@@ -33,7 +33,6 @@ import {
 } from '@main/core/window/types'
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
-import { getRuntimeAppEdition } from '@main/utils/appEdition'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('WindowManager')
@@ -1398,18 +1397,13 @@ export class WindowManager extends BaseService {
     const preloadName = metadata.preload ?? 'preload.js'
     const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
 
-    const edition = getRuntimeAppEdition()
-
     // 1. Create BrowserWindow
     const window = new BrowserWindow({
       ...config,
       show: showMode === 'immediate',
       webPreferences: {
         ...(preloadPath ? { preload: preloadPath } : {}),
-        ...config.webPreferences,
-        ...(edition && {
-          additionalArguments: [...(config.webPreferences?.additionalArguments ?? []), `--cherry-edition=${edition}`]
-        })
+        ...config.webPreferences
       }
     })
 

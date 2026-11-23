@@ -53,10 +53,6 @@ export function setRuntimeAppEdition(edition: AppEdition): void {
   runtimeEdition = edition
 }
 
-export function getRuntimeAppEdition(): AppEdition | undefined {
-  return runtimeEdition
-}
-
 export function getAppEdition(): AppEdition {
   return runtimeEdition ?? getPackageEdition()
 }

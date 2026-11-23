@@ -16,7 +16,6 @@ import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/us
 import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
-import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/modelDeletionEffects'
 import { pinService } from '@data/services/PinService'
@@ -29,7 +28,6 @@ import {
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
-import { getAppEdition, isUnifiedPackage } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -73,41 +71,18 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 export const providerAvailabilityColumns = {
   providerId: userProviderTable.providerId,
-  presetProviderId: userProviderTable.presetProviderId,
-  isEnabled: userProviderTable.isEnabled,
-  apiKeys: userProviderTable.apiKeys,
-  endpointConfigs: userProviderTable.endpointConfigs,
-  providerSettings: userProviderTable.providerSettings
+  presetProviderId: userProviderTable.presetProviderId
 }
 
 type ProviderIdentity = Pick<UserProviderRow, keyof typeof providerAvailabilityColumns>
 
-function isProviderAvailableInCurrentEdition(
-  provider: Pick<Provider, 'availableInEditions'>,
-  db?: Pick<DbType, 'select'>
-): boolean {
-  const availableInEditions = provider.availableInEditions
-  return isMigratedFromV1(db) || !availableInEditions || availableInEditions.includes(getAppEdition())
+export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
+  return !isRetiredProvider(row.providerId, row.presetProviderId)
 }
 
-function getAvailableProviderMetadata(
-  row: ProviderIdentity,
-  db?: Pick<DbType, 'select'>
-): ProviderDisplayMetadata | null {
-  if (isRetiredProvider(row.providerId, row.presetProviderId)) return null
-
-  const metadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
-    row.providerId,
-    row.presetProviderId
-  )
-  if (isProviderAvailableInCurrentEdition(metadata, db)) return metadata
-  const configured = row.isEnabled || row.apiKeys?.length || row.endpointConfigs || row.providerSettings
-  return configured && isUnifiedPackage() ? metadata : null
-}
-
-/** Edition availability from provider metadata, the build edition, and persisted v1 migration origin. */
-export function isProviderIdentityAvailable(row: ProviderIdentity, db?: Pick<DbType, 'select'>): boolean {
-  return getAvailableProviderMetadata(row, db) !== null
+function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
+  if (!isProviderIdentityAvailable(row)) return null
+  return getDataService('ProviderRegistryService').getProviderDisplayMetadata(row.providerId, row.presetProviderId)
 }
 
 function rowToReasoningProviderContext(
@@ -409,7 +384,7 @@ class ProviderService {
     return providers
   }
 
-  /** Return matching provider IDs available to runtime callers in this application edition. */
+  /** Return matching provider IDs available to desktop callers. */
   listAvailableProviderIds(providerIds?: Iterable<string>): Set<string> {
     const ids = providerIds ? [...new Set(providerIds)] : undefined
     if (ids?.length === 0) return new Set()
@@ -436,6 +411,7 @@ class ProviderService {
     const rows = tx
       .select({
         ...providerAvailabilityColumns,
+        endpointConfigs: userProviderTable.endpointConfigs,
         defaultChatEndpoint: userProviderTable.defaultChatEndpoint
       })
       .from(userProviderTable)
@@ -443,13 +419,13 @@ class ProviderService {
       .all()
     const contexts = new Map<string, ReasoningProviderContext>()
     for (const row of rows) {
-      const metadata = getAvailableProviderMetadata(row, tx)
+      const metadata = getAvailableProviderMetadata(row)
       if (metadata) contexts.set(row.providerId, rowToReasoningProviderContext(row, metadata))
     }
     return contexts
   }
 
-  /** Check whether a persisted provider is available to runtime callers in this application edition. */
+  /** Check whether a persisted provider is available to desktop callers. */
   isAvailableByProviderId(providerId: string): boolean {
     const [row] = application
       .get('DbService')
@@ -463,7 +439,7 @@ class ProviderService {
     return row !== undefined && isProviderIdentityAvailable(row)
   }
 
-  /** Assert that a persisted provider is available to runtime callers in this application edition. */
+  /** Assert that a persisted provider is available to desktop callers. */
   assertAvailable(providerId: string): void {
     const [row] = application
       .get('DbService')
@@ -508,12 +484,6 @@ class ProviderService {
       dto.providerId,
       dto.presetProviderId ?? null
     )
-    if (!isProviderAvailableInCurrentEdition(presetMetadata)) {
-      throw DataApiErrorFactory.invalidOperation(
-        `create provider ${dto.providerId}`,
-        'provider is unavailable in the current application edition'
-      )
-    }
     const defaultChatEndpoint =
       dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
@@ -568,7 +538,11 @@ class ProviderService {
       // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
       // into the row and break the "row stores only overrides" contract.
       const [current] = tx
-        .select(providerAvailabilityColumns)
+        .select({
+          ...providerAvailabilityColumns,
+          endpointConfigs: userProviderTable.endpointConfigs,
+          providerSettings: userProviderTable.providerSettings
+        })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)

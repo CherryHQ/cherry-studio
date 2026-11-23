@@ -38,10 +38,7 @@ type ShortcutRegistrationConflictPayload = {
 }
 
 // Custom APIs for renderer
-const edition = process.argv.find((argument) => argument.startsWith('--cherry-edition='))?.split('=')[1]
-
 const api = {
-  appEdition: edition === 'cn' || edition === 'global' ? edition : undefined,
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),

@@ -1,6 +1,6 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,7 +17,10 @@ describe('DesktopRegionService', () => {
     vi.stubEnv('CHERRY_UNIFIED_RELEASE', '1')
     MockApplicationUtils.setService('ProxyService', { getAppliedSnapshot: async () => ({ converged: true }) })
     vi.spyOn(cherryAccountCredentialStore, 'get').mockReturnValue(null)
-    db.db.delete(appStateTable).where(eq(appStateTable.key, 'desktop.region')).run()
+    db.db
+      .delete(appStateTable)
+      .where(inArray(appStateTable.key, ['desktop.region', 'desktop:region', 'app:region']))
+      .run()
   })
 
   afterEach(() => {
@@ -39,6 +42,7 @@ describe('DesktopRegionService', () => {
     const first = new DesktopRegionService()
     await first._doInit()
     expect(getAppEdition()).toBe('cn')
+    expect(fetch.mock.calls[0]?.[0]).toBe('https://config.cherry-ai.com/v1/region')
     await first._doStop()
     DesktopRegionService.resetInstances()
 
@@ -51,10 +55,28 @@ describe('DesktopRegionService', () => {
     DesktopRegionService.resetInstances()
   })
 
+  it.each(['desktop.region', 'desktop:region'])(
+    'renames %s without resolving the confirmed region again',
+    async (key) => {
+      const value = { region: 'cn', source: 'server' }
+      db.db.insert(appStateTable).values({ key, value }).run()
+      const fetch = vi.spyOn(net, 'fetch').mockRejectedValue(new Error('Offline'))
+      const service = new DesktopRegionService()
+      await service._doInit()
+
+      expect(getAppEdition()).toBe('cn')
+      expect(fetch).not.toHaveBeenCalled()
+      expect(db.db.select().from(appStateTable).where(eq(appStateTable.key, 'app:region')).get()?.value).toEqual(value)
+      expect(db.db.select().from(appStateTable).where(eq(appStateTable.key, key)).get()).toBeUndefined()
+      await service._doStop()
+      DesktopRegionService.resetInstances()
+    }
+  )
+
   it('keeps the provisional region until the confirmed result can apply on a later launch', async () => {
     db.db
       .insert(appStateTable)
-      .values({ key: 'desktop.region', value: { region: 'cn', source: 'local' } })
+      .values({ key: 'app:region', value: { region: 'cn', source: 'local' } })
       .run()
     const fetch = vi.spyOn(net, 'fetch').mockResolvedValueOnce(Response.json({ region: 'GLOBAL' }))
     const provisional = new DesktopRegionService()

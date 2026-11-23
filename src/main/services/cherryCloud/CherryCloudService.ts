@@ -116,10 +116,13 @@ function emptyState(): CherryCloudState {
   return { device: null, pending: null, session: null }
 }
 
-export function resolveCherryCloudApiOrigin(): string {
+function resolveConfiguredCloudOrigin(): string | undefined {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
-  if (configuredOrigin) return new URL(configuredOrigin).origin
-  return CLOUD_API_ORIGINS[getAppEdition()]
+  return configuredOrigin ? new URL(configuredOrigin).origin : undefined
+}
+
+export function resolveCherryCloudApiOrigin(): string {
+  return resolveConfiguredCloudOrigin() ?? CLOUD_API_ORIGINS[getAppEdition()]
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
@@ -388,8 +391,9 @@ export class CherryCloudService extends BaseService {
     this.assertAuthorizationOperation(operation)
     if (current.phase !== 'signed-out') return current
 
-    let apiOrigin = resolveCherryCloudApiOrigin()
-    if (isUnifiedPackage()) {
+    const configuredOrigin = resolveConfiguredCloudOrigin()
+    let apiOrigin = configuredOrigin ?? CLOUD_API_ORIGINS[getAppEdition()]
+    if (!configuredOrigin && isUnifiedPackage()) {
       const edition = await application.get('DesktopRegionService').confirmLogin(operation.controller.signal)
       this.assertLifecycleGeneration(lifecycleGeneration)
       this.assertAuthorizationOperation(operation)
@@ -1717,9 +1721,11 @@ export class CherryCloudService extends BaseService {
     const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
     let apiOrigin = stored.session?.apiOrigin
     if (apiOrigin) {
-      const trusted = isUnifiedPackage()
-        ? getAccountEdition(apiOrigin) !== undefined
-        : apiOrigin === resolveCherryCloudApiOrigin()
+      const configuredOrigin = resolveConfiguredCloudOrigin()
+      const trusted =
+        isUnifiedPackage() && !configuredOrigin
+          ? getAccountEdition(apiOrigin) !== undefined
+          : apiOrigin === (configuredOrigin ?? CLOUD_API_ORIGINS[getAppEdition()])
       if (!trusted) apiOrigin = undefined
     } else if (isRegionBridgePackage()) {
       apiOrigin = resolveCherryCloudApiOrigin()

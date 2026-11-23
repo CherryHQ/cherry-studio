@@ -16,7 +16,8 @@ import { getAppEdition, isUnifiedPackage, setRuntimeAppEdition } from '@main/uti
 import { APP_EDITIONS, type AppEdition } from '@shared/types/appEdition'
 
 const logger = loggerService.withContext('DesktopRegionService')
-const STATE_KEY = 'desktop.region'
+const STATE_KEY = 'app:region'
+const LEGACY_STATE_KEYS = ['desktop:region', 'desktop.region']
 const RESPONSE_LIMIT = 32 * 1024
 const TIMEOUT = 2_000
 const MAINLAND_TIME_ZONES = new Set([
@@ -100,14 +101,19 @@ export class DesktopRegionService extends BaseService {
   }
 
   private read(): RegionDecision | undefined {
-    const row = application
-      .get('DbService')
-      .getDb()
-      .select({ value: appStateTable.value })
-      .from(appStateTable)
-      .where(eq(appStateTable.key, STATE_KEY))
-      .get()
-    return decisionSchema.safeParse(row?.value).data
+    const db = application.get('DbService').getDb()
+    const state = db.select({ value: appStateTable.value }).from(appStateTable)
+    const row = state.where(eq(appStateTable.key, STATE_KEY)).get()
+    if (row) return decisionSchema.safeParse(row.value).data
+
+    for (const key of LEGACY_STATE_KEYS) {
+      const legacy = state.where(eq(appStateTable.key, key)).get()
+      const decision = decisionSchema.safeParse(legacy?.value).data
+      if (!decision) continue
+      db.update(appStateTable).set({ key: STATE_KEY }).where(eq(appStateTable.key, key)).run()
+      return decision
+    }
+    return undefined
   }
 
   private write(value: RegionDecision): void {
@@ -133,7 +139,7 @@ export class DesktopRegionService extends BaseService {
       ])
       if (!proxy?.converged) return null
       deadline.throwIfAborted()
-      const response = await net.fetch('https://config.cherry-ai.com/v1/resolve', {
+      const response = await net.fetch('https://config.cherry-ai.com/v1/region', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

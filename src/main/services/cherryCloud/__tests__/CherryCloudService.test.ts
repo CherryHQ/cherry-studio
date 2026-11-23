@@ -580,6 +580,23 @@ describe('CherryCloudService', () => {
     expect(mocks.savedSession?.apiOrigin).toBe(origin)
   })
 
+  it('authorizes and restores a unified development session on the configured backend', async () => {
+    mocks.unified = true
+    const origin = 'http://127.0.0.1:8084'
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', `${origin}/`)
+    const service = await createSignedInService()
+    expect(mocks.savedSession?.apiOrigin).toBe(origin)
+    await service._doStop()
+    CherryCloudService.resetInstances()
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+
+    const restarted = await createService()
+    expect(await restarted.getStatus()).toMatchObject({ phase: 'signed-in', accountId })
+    expect((await restarted.authenticatedFetch('/api/v1/account')).ok).toBe(true)
+    expect(requestCalls('/api/v1/product-sessions/refresh')[0]?.[0]).toBe(`${origin}/api/v1/product-sessions/refresh`)
+  })
+
   it('records a legacy origin only after the bridge refresh succeeds', async () => {
     mocks.appEdition = 'cn'
     const service = await createSignedInService()

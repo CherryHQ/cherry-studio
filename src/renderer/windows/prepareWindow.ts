@@ -20,7 +20,6 @@ interface PrepareWindowOptions {
  */
 export async function prepareWindow(options: PrepareWindowOptions): Promise<void> {
   initSentry()
-  watchAppEdition()
 
   // Window-scoped dev bootstrap: expose the DataApi DevTools control surface
   // before the first render (and thus the first DataApi request) so payload
@@ -30,5 +29,5 @@ export async function prepareWindow(options: PrepareWindowOptions): Promise<void
   const preferencesWarm =
     options.preference === 'all' ? preferenceService.preloadAll() : preferenceService.preload(options.preference)
 
-  await Promise.all([initI18n(), preferencesWarm])
+  await Promise.all([initI18n(), preferencesWarm, watchAppEdition()])
 }
