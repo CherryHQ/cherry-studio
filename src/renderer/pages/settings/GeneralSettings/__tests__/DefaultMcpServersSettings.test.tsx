@@ -23,7 +23,7 @@ beforeEach(async () => {
   mockPreferenceService._resetMockState()
   mockPreferenceState.set(key, ['a'])
   MockUseDataApiUtils.resetMocks()
-  MockUseDataApiUtils.mockQueryData('/mcp-servers', { items: servers, total: 2, page: 1, limit: 2 })
+  MockUseDataApiUtils.mockQueryData('/mcp-servers', { items: servers, total: 2, page: 1 })
 })
 afterEach(() => {
   cleanup()
