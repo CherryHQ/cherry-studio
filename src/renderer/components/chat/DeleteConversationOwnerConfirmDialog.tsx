@@ -3,10 +3,20 @@ import { useTranslation } from 'react-i18next'
 
 import { Checkbox, ConfirmDialog, Label } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+
+/** A failed confirm shown inside the dialog, since its focus trap keeps a toast's Details out of keyboard reach. */
+export interface DeletionFailure {
+  readonly error: unknown
+  readonly title: string
+  readonly operation: string
+  readonly recordId?: string
+}
 
 export interface DeleteConversationOwnerConfirmDialogProps {
   type: 'agent' | 'assistant'
@@ -16,6 +26,26 @@ export interface DeleteConversationOwnerConfirmDialogProps {
   onConfirm: (deleteChildren: boolean) => void | Promise<void>
   mode?: 'archive' | 'permanent'
   name?: string
+  failure?: DeletionFailure | null
+}
+
+function DeletionFailureNotice({ failure }: { failure?: DeletionFailure | null }) {
+  if (!failure) return null
+  return (
+    <ErrorNotice
+      variant="inline"
+      title={failure.title}
+      detail={
+        <ErrorDetailAction
+          error={failure.error}
+          message={failure.title}
+          source="resource"
+          operation={failure.operation}
+          {...(failure.recordId ? { recordId: failure.recordId } : {})}
+        />
+      }
+    />
+  )
 }
 
 // A resolved confirm must be allowed to close. Dismissal and a second submit stay
@@ -64,7 +94,8 @@ export function DeleteConversationOwnerConfirmDialog({
   onOpenChange,
   onConfirm,
   mode = 'archive',
-  name
+  name,
+  failure
 }: DeleteConversationOwnerConfirmDialogProps) {
   const { t } = useTranslation()
   const checkboxId = useId()
@@ -150,6 +181,7 @@ export function DeleteConversationOwnerConfirmDialog({
             <Label htmlFor={checkboxId}>{checkboxLabel}</Label>
           </div>
           {childrenHint && <p className="pl-6 text-muted-foreground text-xs">{childrenHint}</p>}
+          <DeletionFailureNotice failure={failure} />
         </div>
       }
     />
@@ -165,6 +197,7 @@ export interface PermanentConversationDeleteDialogProps {
   pending: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void | Promise<void>
+  failure?: DeletionFailure | null
 }
 
 export function PermanentConversationDeleteDialog({
@@ -174,7 +207,8 @@ export function PermanentConversationDeleteDialog({
   open,
   pending,
   onOpenChange,
-  onConfirm
+  onConfirm,
+  failure
 }: PermanentConversationDeleteDialogProps) {
   const { t } = useTranslation()
   const { runConfirm, handleOpenChange } = useDeletionConfirmGuard(open, pending, onOpenChange)
@@ -200,6 +234,7 @@ export function PermanentConversationDeleteDialog({
             </p>
           )}
           <p className="text-muted-foreground">{t('conversation.delete_permanently.attachments')}</p>
+          <DeletionFailureNotice failure={failure} />
         </div>
       }
       confirmText={t('common.delete_permanently')}
@@ -227,6 +262,7 @@ function PopupContainer({
 }: DeleteConversationOwnerPopupParams & PopupInjectedProps<boolean>) {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
+  const [failure, setFailure] = useState<DeletionFailure | null>(null)
 
   const handleOpenChange = (next: boolean) => {
     if (!next && !pending) {
@@ -236,10 +272,11 @@ function PopupContainer({
 
   const handleConfirm = async (deleteChildren: boolean) => {
     setPending(true)
+    setFailure(null)
     try {
       await action(deleteChildren)
     } catch (error) {
-      toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
+      setFailure({ error, title: t('conversation_owner.archive.failed'), operation: `${type}.archive` })
       setPending(false)
       throw error
     }
@@ -251,6 +288,7 @@ function PopupContainer({
       type={type}
       open={open}
       pending={pending}
+      failure={failure}
       onOpenChange={handleOpenChange}
       onConfirm={handleConfirm}
     />
@@ -280,6 +318,7 @@ function PermanentDeletePopupContainer(props: PermanentDeletePopupParams & Popup
   const { t } = useTranslation()
   const { open, resolve } = props
   const [pending, setPending] = useState(false)
+  const [failure, setFailure] = useState<DeletionFailure | null>(null)
   const submittingRef = useRef(false)
 
   const handleOpenChange = (next: boolean) => {
@@ -294,10 +333,15 @@ function PermanentDeletePopupContainer(props: PermanentDeletePopupParams & Popup
     }
     submittingRef.current = true
     setPending(true)
+    setFailure(null)
     try {
       await action()
     } catch (error) {
-      toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
+      setFailure({
+        error,
+        title: t('common.delete_failed'),
+        operation: `${props.kind === 'conversation' ? props.target : props.type}.delete`
+      })
       submittingRef.current = false
       setPending(false)
       throw error
@@ -313,6 +357,7 @@ function PermanentDeletePopupContainer(props: PermanentDeletePopupParams & Popup
         name={props.name}
         open={open}
         pending={pending}
+        failure={failure}
         onOpenChange={handleOpenChange}
         onConfirm={() => runAction(async () => props.action())}
       />
@@ -326,6 +371,7 @@ function PermanentDeletePopupContainer(props: PermanentDeletePopupParams & Popup
       name={props.name}
       open={open}
       pending={pending}
+      failure={failure}
       onOpenChange={handleOpenChange}
       onConfirm={(deleteChildren) => runAction(async () => props.action(deleteChildren))}
     />

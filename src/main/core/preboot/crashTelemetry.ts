@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import process from 'node:process'
 
 import { app, crashReporter } from 'electron'
@@ -76,9 +77,19 @@ function rejectionMessage(reason: unknown): string {
   return 'Unhandled promise rejection'
 }
 
+/** A digest of the whole reason, so long or non-Error reasons do not collide. */
 function rejectionSignature(reason: unknown): string {
-  if (reason instanceof Error) return `${reason.name}:${reason.message}`.slice(0, 240)
-  return rejectionMessage(reason).slice(0, 240)
+  let text: string
+  if (reason instanceof Error) text = `${reason.name}:${reason.message}`
+  else if (typeof reason === 'string') text = reason
+  else {
+    try {
+      text = JSON.stringify(reason) ?? String(reason)
+    } catch {
+      text = rejectionMessage(reason)
+    }
+  }
+  return createHash('sha256').update(text).digest('hex')
 }
 
 function rememberPresentedRejection(signature: string, now: number): void {

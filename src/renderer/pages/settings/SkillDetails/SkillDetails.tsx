@@ -23,6 +23,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { SkillSourceBadge } from '@renderer/components/resourceCatalog/catalog'
 import { SettingDescription, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
@@ -53,6 +54,8 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const globalToggleId = useId()
   const [isUpdatingMirror, setIsUpdatingMirror] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // The confirmation traps focus, so its failure stays inside it rather than in a toast.
+  const [deleteFailure, setDeleteFailure] = useState<unknown>(null)
   const [deleting, setDeleting] = useState(false)
   const [remoteCheck, setRemoteCheck] = useState<Extract<SkillRemoteUpdateCheck, { state: 'available' }> | null>(null)
   const [checkingRemote, setCheckingRemote] = useState(false)
@@ -108,25 +111,28 @@ export function SkillDetails({ skillId }: { skillId: string }) {
 
   const handleDelete = async () => {
     setDeleting(true)
+    setDeleteFailure(null)
     try {
       await uninstallSkill()
       setDeleteOpen(false)
       goBack()
     } catch (error) {
-      toastAppError(t('common.delete_failed'), error, {
-        source: 'skills',
-        operation: 'skill.delete',
-        recordId: skillId
-      })
+      logger.error('Failed to uninstall Skill', error as Error, { skillId })
+      setDeleteFailure(error)
+      return false
     } finally {
       setDeleting(false)
     }
+    return true
   }
 
   const checkRemoteUpdate = async () => {
     setCheckingRemote(true)
+    // Pending edits are saved and synced first; a failure there never reached the remote.
+    let operation = 'skill.files.flush'
     try {
       await fileBrowserRef.current?.flush()
+      operation = 'skill.remote.check'
       const result = await ipcApi.request('skill.remote.check', { skillId })
       if (result.state === 'unsupported') {
         toast.info({
@@ -151,7 +157,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       logger.error('Failed to check Skill update', error as Error, { skillId })
       toastAppError(t('settings.skills.remote.checkFailed'), error, {
         source: 'skills',
-        operation: 'skill.remote.check',
+        operation,
         recordId: skillId
       })
     } finally {
@@ -162,8 +168,10 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const applyRemoteUpdate = async () => {
     if (!remoteCheck) return
     setApplyingRemote(true)
+    let operation = 'skill.files.flush'
     try {
       await fileBrowserRef.current?.flush()
+      operation = 'skill.remote.apply'
       await ipcApi.request('skill.remote.apply', {
         skillId,
         revision: remoteCheck.revision,
@@ -185,7 +193,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         logger.error('Failed to apply Skill update', error as Error, { skillId })
         toastAppError(t('settings.skills.remote.applyFailed'), error, {
           source: 'skills',
-          operation: 'skill.remote.apply',
+          operation,
           recordId: skillId
         })
       }
@@ -370,10 +378,29 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={(open) => {
-          if (!open && !deleting) setDeleteOpen(false)
+          if (open || deleting) return
+          setDeleteOpen(false)
+          setDeleteFailure(null)
         }}
         title={t('library.delete.skill.title')}
         description={t('library.delete.skill.content')}
+        content={
+          deleteFailure != null ? (
+            <ErrorNotice
+              variant="inline"
+              title={t('common.delete_failed')}
+              detail={
+                <ErrorDetailAction
+                  error={deleteFailure}
+                  message={t('common.delete_failed')}
+                  source="skills"
+                  operation="skill.delete"
+                  recordId={skillId}
+                />
+              }
+            />
+          ) : null
+        }
         confirmText={t('library.action.uninstall')}
         cancelText={t('common.cancel')}
         destructive

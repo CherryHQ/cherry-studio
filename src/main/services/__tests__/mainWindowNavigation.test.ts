@@ -39,6 +39,7 @@ import {
   openSettingsInMainWindow,
   openTabInMainWindow,
   deliverToReadyMain,
+  flushMainRendererFault,
   queueMainRendererFault,
   resetMainRendererTabAttachDelivery,
   setMainSurfaceReceiver
@@ -374,6 +375,31 @@ describe('mainWindowNavigation', () => {
           message: 'Renderer process crashed'
         })
       )
+    })
+    it('keeps tab readiness while main is loading and presents the crash once loading ends', () => {
+      let loading = true
+      const loadingWindow = {
+        ...focusedWindow,
+        webContents: { isLoadingMainFrame: () => loading, isCrashed: () => false }
+      }
+      windowManagerMock.getWindowsByType.mockReturnValue([loadingWindow])
+      windowManagerMock.getWindow.mockReturnValue(loadingWindow)
+      markMainRendererReadyForTabAttach('main-1')
+      queueMainRendererFault('Renderer process crashed')
+      setMainSurfaceReceiver('error', true)
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+
+      loading = false
+      flushMainRendererFault()
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({ operation: 'renderer.crash' })
+      )
+
+      const tab = { id: 'tab-returned', type: 'route', url: '/app/chat', title: 'Chat' } as const
+      openTabInMainWindow(tab)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
     })
   })
 

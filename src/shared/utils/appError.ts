@@ -5,6 +5,7 @@ import type { AppErrorContext } from '../types/appError'
 export {
   createAppErrorContext,
   projectAppErrorContext,
+  stringifyThrown,
   summarizeErrorParams,
   summarizeProviderResponse
 } from './appErrorSnapshot'

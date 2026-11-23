@@ -6,6 +6,7 @@ import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SkillSearchResult } from '@shared/types/skill'
+import { SkillSearchFailedError } from '@shared/utils/skillMarketplace'
 
 import { SkillMarketplaceDialog } from '../SkillMarketplaceDialog'
 
@@ -421,6 +422,24 @@ describe('SkillMarketplaceDialog', () => {
     expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
     expect(screen.queryByText('registry timeout')).not.toBeInTheDocument()
+  })
+
+  it('opens the selected registry cause when every registry failed', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = []
+    skillSearchState.error = 'Search failed'
+    skillSearchState.cause = new SkillSearchFailedError({
+      'skills.sh': new Error('HTTP 429'),
+      'clawhub.ai': new Error('HTTP 503')
+    })
+    renderDialog()
+
+    typeSearchQuery('react')
+    await user.selectOptions(sourceSelect(), 'clawhub.ai')
+    await user.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(openDetail).toHaveBeenCalledTimes(1))
+    expect(openDetail.mock.calls[0][0].context.message).toBe('HTTP 503')
   })
 
   it('installs a marketplace skill and keeps the dialog open', async () => {

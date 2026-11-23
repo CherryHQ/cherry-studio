@@ -14,6 +14,7 @@ const cleanupTerminalRestoreArtifactsMock = vi.fn<() => void>()
 const readRestoreJournalMock = vi.fn<typeof readRestoreJournal>()
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
+const writeTextMock = vi.fn()
 const electronState = { ready: false, sessionData: '' }
 const setPathMock = vi.fn((key: string, value: string) => {
   if (key === 'sessionData') electronState.sessionData = value
@@ -27,6 +28,8 @@ vi.mock('electron', () => ({
     isReady: () => electronState.ready,
     setPath: (...args: [string, string]) => setPathMock(...args)
   },
+  clipboard: { writeText: (...args: unknown[]) => writeTextMock(...args) },
+  shell: { openExternal: vi.fn() },
   dialog: {
     showErrorBox: (...args: unknown[]) => showErrorBoxMock(...args),
     showMessageBox: (...args: unknown[]) => showMessageBoxMock(...args)
@@ -193,6 +196,19 @@ describe('runBackupRestoreGate', () => {
         message: expect.stringContaining('previous data')
       })
     )
+  })
+
+  it('copies the recovered promotion error and the journal state, not the retry text', async () => {
+    runRestorePromotionMock.mockRejectedValue(new Error('promotion crash'))
+    markRestoreFailedAfterCrashMock.mockImplementation(() => setJournalState('failed'))
+    showMessageBoxMock.mockResolvedValueOnce({ response: 1 }).mockResolvedValue({ response: 0 })
+
+    await expect(runBackupRestoreGate()).resolves.toBe('skipped')
+
+    const copied = String(writeTextMock.mock.calls[0]?.[0])
+    expect(copied).toContain('promotion crash')
+    expect(copied).toContain('failed')
+    expect(copied).not.toContain('previous data')
   })
 
   it.each(['promoting', 'completed', 'failed'] as const)(

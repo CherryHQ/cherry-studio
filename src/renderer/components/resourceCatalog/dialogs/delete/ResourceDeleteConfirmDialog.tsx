@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { DeleteConversationOwnerConfirmDialog } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
+import {
+  DeleteConversationOwnerConfirmDialog,
+  type DeletionFailure
+} from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { dataApiService } from '@renderer/data/DataApiService'
@@ -17,7 +20,6 @@ import {
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { ipcApi } from '@renderer/ipc'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { restoreRecycleBinUndoGroup, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -286,11 +288,13 @@ const ConversationOwnerDeleteDialogContent: FC<{
 }> = ({ resource, open, onClose, onDelete }) => {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
+  const [failure, setFailure] = useState<DeletionFailure | null>(null)
   const completedRef = useRef(false)
 
   const handleConfirm = useCallback(
     async (deleteChildren: boolean) => {
       setPending(true)
+      setFailure(null)
       try {
         await onDelete(deleteChildren)
         completedRef.current = true
@@ -298,8 +302,9 @@ const ConversationOwnerDeleteDialogContent: FC<{
       } catch (error) {
         if (isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
         else {
-          toastAppError(t('common.delete_failed'), error, {
-            source: 'resource',
+          setFailure({
+            error,
+            title: t('common.delete_failed'),
             operation: resource.type === 'agent' ? 'agent.delete' : 'assistant.delete',
             recordId: resource.id
           })
@@ -319,6 +324,7 @@ const ConversationOwnerDeleteDialogContent: FC<{
 
       open={open}
       pending={pending}
+      failure={failure}
       onOpenChange={(open) => {
         if (!open && !pending && !completedRef.current) onClose()
       }}

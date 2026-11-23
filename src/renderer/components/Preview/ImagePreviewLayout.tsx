@@ -68,7 +68,8 @@ const ImagePreviewLayout = ({
   const enablePanZoom = enableDrag || enableWheelZoom
 
   return (
-    <PreviewContainer className={`image-preview-layout flex-col ${className ?? ''}`}>
+    // Contain the overlays' z-index so a host toolbar drawn over the preview (Notes code block) stays clickable.
+    <PreviewContainer className={`image-preview-layout isolate flex-col ${className ?? ''}`}>
       {loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background-subtle">
           <LoadingIcon color={IMAGE_PREVIEW_LOADING_COLOR} />

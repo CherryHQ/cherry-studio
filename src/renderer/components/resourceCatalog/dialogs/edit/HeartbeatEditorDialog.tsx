@@ -97,12 +97,15 @@ export function HeartbeatEditorDialog({
   const baseline = document && (hasHeartbeatTasks(document.content) ? document.content : '')
   const dirty = document !== null && content !== baseline
   const result = latest?.output as { result?: string } | undefined
+  // A cancelled run stores its cancellation reason as an error, so the status picks the summary.
+  const latestOutcome = latest?.status === 'cancelled' ? 'agent.tasks.logs.runCancelled' : 'agent.tasks.logs.runFailed'
 
   async function save(run: boolean) {
     if (!document || busy) return
     setBusy(true)
     setFault(null)
     setRunNotice(null)
+    let operation: HeartbeatFault['operation'] = 'heartbeat.save'
     try {
       if (dirty) {
         const saved = await ipcApi.request('ai.agent.heartbeat.write', { agentId, ...document, content })
@@ -110,6 +113,7 @@ export function HeartbeatEditorDialog({
         setContent(hasHeartbeatTasks(saved.content) ? saved.content : '')
       }
       if (run) {
+        operation = 'heartbeat.run'
         const outcome = await ipcApi.request('ai.agent.heartbeat.run', { agentId })
         setRunNotice(outcome)
         void refetch()
@@ -125,7 +129,7 @@ export function HeartbeatEditorDialog({
             ? 'agent.heartbeat.conflict'
             : 'agent.heartbeat.action_failed'
         ),
-        operation: run ? 'heartbeat.run' : 'heartbeat.save'
+        operation
       })
     } finally {
       setBusy(false)
@@ -221,11 +225,11 @@ export function HeartbeatEditorDialog({
                   <ErrorNotice
                     variant="inline"
                     role="group"
-                    title={t('agent.tasks.logs.runFailed')}
+                    title={t(latestOutcome)}
                     detail={
                       <ErrorDetailAction
                         error={latest.error}
-                        message={t('agent.tasks.logs.runFailed')}
+                        message={t(latestOutcome)}
                         source="agent.heartbeat"
                         operation="heartbeat.run"
                         recordId={latest.id}

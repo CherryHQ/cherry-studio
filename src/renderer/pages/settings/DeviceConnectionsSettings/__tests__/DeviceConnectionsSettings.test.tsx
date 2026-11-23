@@ -520,7 +520,13 @@ describe('DeviceConnectionsSettings', () => {
     invitationMock.mockRejectedValueOnce(failure)
     render(<DeviceConnectionsSettings />)
     const refresh = await screen.findByRole('button', { name: 'Refresh' })
-    expect(toast.error).toHaveBeenCalledWith({ title: 'Failed to create pairing code', cause: failure })
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Failed to create pairing code',
+        cause: failure,
+        data: expect.objectContaining({ errorContext: expect.objectContaining({ operation: 'device.pairing.invite' }) })
+      })
+    )
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
     expect(invitationMock).toHaveBeenCalledTimes(1)
     invitationMock.mockResolvedValueOnce(createInvitation('retried'))
@@ -804,7 +810,13 @@ describe('DeviceConnectionsSettings', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled: true }]])
-    expect(toast.error).toHaveBeenCalledWith({ title: 'Failed to change network access', cause: failure })
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Failed to change network access',
+        cause: failure,
+        data: expect.objectContaining({ errorContext: expect.objectContaining({ operation: 'device.lan' }) })
+      })
+    )
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
   })
 

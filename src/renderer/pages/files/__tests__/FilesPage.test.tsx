@@ -1812,6 +1812,43 @@ describe('FilesPage file operations', () => {
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
   })
 
+  // A reconciled trash request error must not be filed as the cause of the external item's failure.
+  it('reports the external removal failure with its own cause after the trash request is reconciled', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') return Promise.reject(new Error('trash request lost'))
+      if (route === 'file.batch_remove_from_library') {
+        return Promise.resolve({ succeeded: [], failed: [{ id: externalEntry.id, error: 'remove denied' }] })
+      }
+      return Promise.resolve(input)
+    })
+    vi.mocked(dataApiService.get).mockImplementation(async (path) => {
+      if (path.endsWith(entry.id)) return { ...entry, deletedAt: 1_900_000_000_000 } as never
+      return externalEntry as never
+    })
+    renderFilesPage([entry, externalEntry])
+
+    selectFileAt(0)
+    selectFileAt(1)
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'remove denied',
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'remove denied',
+            operation: 'file.delete',
+            recordId: externalEntry.id
+          })
+        })
+      })
+    )
+  })
+
   it('shows a toast when delete rejects', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})

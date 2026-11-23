@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,13 +13,25 @@ import i18n from '@renderer/i18n/resolver'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { formatErrorMessage } from '@renderer/utils/error'
 
-const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
+const { openDetail, toastError } = vi.hoisted(() => ({ openDetail: vi.fn(), toastError: vi.fn() }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastError }
 }))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => openDetail(request),
+  showDetailOpenFailed: vi.fn()
+}))
+
+// The confirmation traps focus, so its Details entry must be reachable by Tab from inside it.
+async function openDetailsByKeyboard(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
+  const details = within(dialog).getByRole('button', { name: i18n.t('common.detail') })
+  for (let step = 0; step < 10 && document.activeElement !== details; step++) await user.tab()
+  expect(details).toHaveFocus()
+  await user.keyboard('{Enter}')
+}
 
 import {
   DeleteConversationOwnerConfirmDialog,
@@ -71,6 +83,7 @@ afterEach(() => {
   vi.advanceTimersByTime(POPUP_EXIT_MS)
   vi.useRealTimers()
   toastError.mockClear()
+  openDetail.mockClear()
 })
 
 describe('DeleteConversationOwnerConfirmDialog', () => {
@@ -420,13 +433,17 @@ describe('deleteConversationOwnerPopup', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Archive' }))
 
-    await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith({
-        title: i18n.t('common.error'),
-        description: formatErrorMessage(error)
-      })
-    })
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(i18n.t('conversation_owner.archive.failed'))
+    await openDetailsByKeyboard(user, dialog)
+    await waitFor(() =>
+      expect(openDetail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: expect.objectContaining({ message: 'delete failed', operation: 'assistant.archive' })
+        })
+      )
+    )
+    expect(toastError).not.toHaveBeenCalled()
     expect(ignoredAction).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Archive' }))
@@ -693,13 +710,17 @@ describe('permanent deletion confirmation', () => {
     })
 
     await user.click(await screen.findByRole('button', { name: 'Delete Permanently' }))
-    await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith({
-        title: i18n.t('common.error'),
-        description: formatErrorMessage(error)
-      })
-    })
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(i18n.t('common.delete_failed'))
+    await openDetailsByKeyboard(user, dialog)
+    await waitFor(() =>
+      expect(openDetail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: expect.objectContaining({ message: 'delete failed', operation: 'topic.delete' })
+        })
+      )
+    )
+    expect(toastError).not.toHaveBeenCalled()
     expect(action).toHaveBeenCalledOnce()
 
     await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
@@ -719,13 +740,9 @@ describe('permanent deletion confirmation', () => {
     })
 
     await user.click(await screen.findByRole('button', { name: 'Delete Permanently' }))
-    await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith({
-        title: i18n.t('common.error'),
-        description: formatErrorMessage(error)
-      })
-    })
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(await within(screen.getByRole('dialog')).findByRole('alert')).toHaveTextContent(
+      i18n.t('common.delete_failed')
+    )
     expect(action).toHaveBeenCalledOnce()
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))

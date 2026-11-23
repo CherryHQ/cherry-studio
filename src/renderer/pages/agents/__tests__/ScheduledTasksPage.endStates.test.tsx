@@ -63,7 +63,7 @@ function task(status: ScheduledTaskListItem['status'], index = 0): ScheduledTask
 
 async function openPage(
   withHistory = true,
-  legacy?: 'missing' | 'unlinked' | 'error' | 'empty' | 'outside' | 'pending' | 'delayed'
+  legacy?: 'missing' | 'unlinked' | 'error' | 'empty' | 'outside' | 'pending' | 'delayed' | 'cancelled'
 ) {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   const availability = { recent: true }
@@ -108,7 +108,7 @@ async function openPage(
                   id: legacy === 'outside' ? 'another' : 'older',
                   sessionId: 'older-session',
                   startedAt: '2026-01-01T00:00:00Z',
-                  status: 'failed',
+                  status: legacy === 'cancelled' ? 'cancelled' : 'failed',
                   result: outputs.older.result,
                   error: 'failure sentinel\nsecond line'
                 }
@@ -141,7 +141,11 @@ async function openPage(
       return {
         id: path.split('/').at(-1),
         status:
-          path === '/jobs/recent' ? 'completed' : legacy === 'pending' || legacy === 'delayed' ? legacy : 'failed',
+          path === '/jobs/recent'
+            ? 'completed'
+            : legacy === 'pending' || legacy === 'delayed' || legacy === 'cancelled'
+              ? legacy
+              : 'failed',
         output: path === '/jobs/recent' ? outputs.recent : legacy === 'empty' ? null : outputs.older,
         error: legacy === 'empty' ? null : { message: 'failure sentinel\nsecond line' },
         type: 'agent.task',
@@ -265,6 +269,20 @@ it.each(['missing', 'unlinked'] as const)(
     expect(screen.queryByText('old sentinel', { exact: false })).not.toBeInTheDocument()
   }
 )
+
+it('summarizes a cancelled run by its status and keeps the stored reason behind Details', async () => {
+  const user = userEvent.setup()
+  const { router } = await openPage(true, 'cancelled')
+  await act(async () =>
+    router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'completed-0', runId: 'older' } })
+  )
+  expect(await screen.findByText(en['agent.tasks.logs.runCancelled'])).toBeVisible()
+  expect(screen.queryByText(en['agent.tasks.logs.runFailed'])).not.toBeInTheDocument()
+  const open = vi.spyOn(appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+  await user.click(screen.getByRole('button', { name: 'Details' }))
+  await waitFor(() => expect(open).toHaveBeenCalledTimes(1))
+  expect(JSON.stringify(open.mock.calls[0][0])).toContain('failure sentinel')
+})
 
 it('retains the selected option outside loaded history', async () => {
   const user = userEvent.setup()

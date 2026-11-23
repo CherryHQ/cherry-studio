@@ -32,10 +32,10 @@ import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthC
 import { maskApiKey } from '@renderer/utils/api'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import { getModelLogoRef } from '@renderer/utils/model'
-import { parseUniqueModelId, type Model } from '@shared/data/types/model'
+import { endpointImpliedCapability, parseUniqueModelId, type Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { AppErrorContext } from '@shared/types/appError'
-import { isNonChatModel } from '@shared/utils/model'
+import { isEmbeddingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { redactSecretLiterals } from '@shared/utils/redaction'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -231,6 +231,14 @@ function ApiKeyScopeField({
   )
 }
 
+// Mirrors AiService.checkModel: a chat-primary endpoint is probed by text generation even when
+// the model also advertises embedding or image generation.
+function isCheckedWithoutChat(model: Model): boolean {
+  const primary = model.endpointTypes?.[0]
+  const chatPrimary = primary != null && endpointImpliedCapability(primary) === undefined
+  return isRerankModel(model) || (!chatPrimary && (isEmbeddingModel(model) || isGenerateImageModel(model)))
+}
+
 export default function ModelCheckDialog() {
   const { t } = useTranslation()
   const modelLabelId = useId()
@@ -349,7 +357,7 @@ export default function ModelCheckDialog() {
         modelId = selectedModel.id
       }
     }
-    const imageOnly = selectedModel ? isNonChatModel(selectedModel) : false
+    const imageOnly = selectedModel ? isCheckedWithoutChat(selectedModel) : false
     // Providers may echo a credential that has no recognizable prefix, so mask every configured one literally.
     const keys = providerRequestSecrets(
       health.apiKeyEntries.map((entry) => entry.key),

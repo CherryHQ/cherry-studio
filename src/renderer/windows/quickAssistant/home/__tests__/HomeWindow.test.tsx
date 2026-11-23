@@ -438,6 +438,27 @@ describe('HomeWindow', () => {
     })
   })
 
+  it('attributes a stream failure to the model it was sent with after the quick model changes', async () => {
+    state.openDetail.mockClear()
+    state.sendMessage.mockImplementation(() => undefined)
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+
+    state.quickModel = { id: 'openai::gpt-b', modelId: 'gpt-b', name: 'GPT B', providerId: 'openai', group: 'OpenAI' }
+    view.rerender(<HomeWindow draggable={false} />)
+    act(() => {
+      state.streamError?.(new Error('Service Unavailable'), { message: 'Service Unavailable', statusCode: 503 })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(state.openDetail).toHaveBeenCalled())
+    expect(state.openDetail.mock.calls.at(-1)?.[0].context).toMatchObject({
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet'
+    })
+  })
+
   it('keeps typed input out of the clipboard preview', () => {
     render(<HomeWindow draggable={false} />)
 

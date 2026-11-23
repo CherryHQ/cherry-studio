@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { createAppErrorContext, summarizeErrorParams } from '@shared/utils/appError'
 import { doctorScopeKey } from '@shared/utils/doctor'
@@ -96,6 +97,17 @@ describe('app error presentation', () => {
     })
     expect(detailErrorFromHost(cause, undefined)).toMatchObject({ statusCode: 429, responseBody: '{"error":"quota"}' })
     expect(JSON.stringify(diagnosticErrorFromUnknown(cause))).not.toContain('draw a cat')
+  })
+
+  it('keeps the IPC error code so failures with the same message stay distinguishable', () => {
+    const noSpace = diagnosticErrorFromUnknown(new IpcError(fileErrorCodes.EDIT_NO_SPACE, 'File editing I/O failed'))
+    const denied = diagnosticErrorFromUnknown(new IpcError(fileErrorCodes.EDIT_PERMISSION, 'File editing I/O failed'))
+
+    expect(noSpace).toMatchObject({ code: 'FILE_EDIT_NO_SPACE', message: 'File editing I/O failed' })
+    expect(denied).toMatchObject({ code: 'FILE_EDIT_PERMISSION', message: 'File editing I/O failed' })
+    expect(
+      diagnosticErrorFromUnknown(Object.assign(new Error('boom'), { code: '/Users/me/notes/a.md' }))
+    ).not.toHaveProperty('code')
   })
 
   it('keeps the original technical fault when a wrapper error carries it as its cause', () => {

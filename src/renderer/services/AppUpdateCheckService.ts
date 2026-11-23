@@ -284,6 +284,8 @@ class AppUpdateCheckService {
     ) {
       return
     }
+    // A new click supersedes the previous attempt's notice.
+    this.setUpdateNotice(null)
 
     if (presentedRouteService.readPresentedWindowSource() !== 'mainWindow') {
       this.checkInFlight = true
