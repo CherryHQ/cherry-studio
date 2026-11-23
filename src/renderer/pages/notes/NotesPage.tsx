@@ -511,7 +511,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           throw new Error('No folder path selected')
         }
         const { path: notePath } = await addNote(name, '', targetPath)
-        trackProductEvent({ event: 'feature_used', feature: 'notes', action: 'note_created' })
+        trackProductEvent({ event: 'feature_used', feature: 'notes', action: 'note_created', trigger: 'page' })
         setFolderExpandedByPath(targetPath, true)
         setActiveFilePath(AbsoluteFilePathSchema.parse(notePath))
         setSelectedFolderId(null)

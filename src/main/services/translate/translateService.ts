@@ -134,7 +134,7 @@ export class TranslateService {
     const wcListener = new WebContentsListener(sender, req.streamId)
     // User-created languages are user-defined, so only built-in codes are reported.
     const builtinTarget = BUILTIN_TRANSLATE_LANGUAGES.some((language) => language.langCode === req.targetLangCode)
-    const report = (status: 'success' | 'error', error?: SerializedError) =>
+    const report = (status: 'success' | 'error' | 'cancelled', error?: SerializedError) =>
       trackMainProductEvent({
         event: 'feature_used',
         feature: 'translate',
@@ -154,7 +154,7 @@ export class TranslateService {
         const text = finalMessage?.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
         report(text?.trim() ? 'success' : 'error')
       },
-      onPaused: () => {},
+      onPaused: () => report('cancelled'),
       onError: (result) => report('error', result.error),
       isAlive: () => wcListener.isAlive()
     }

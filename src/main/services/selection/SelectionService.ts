@@ -16,6 +16,7 @@ import { createLatestReconciler, type LatestReconciler } from '@main/core/concur
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
+import { isProductDataCollectionConsented, trackMainProductEvent } from '@main/services/productAnalytics'
 import { getApplicationId } from '@main/utils/appEdition'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { isAgentSelectionAction, type SelectionAction, type SelectionActionSession } from '@shared/types/selection'
@@ -102,6 +103,8 @@ export class SelectionService extends BaseService implements Activatable {
   // querying WindowManager at each call site. Kept in sync via onWindowCreated/Destroyed.
   private toolbarWindow: BrowserWindow | null = null
   private toolbarWindowId: string | null = null
+  // Shows since the last hourly flush; one event per show would flood analytics.
+  private toolbarShownCount = 0
 
   private isHideByMouseKeyListenerActive: boolean = false
   private isCtrlkeyListenerActive: boolean = false
@@ -247,6 +250,12 @@ export class SelectionService extends BaseService implements Activatable {
 
   protected async onInit(): Promise<void> {
     const wm = application.get('WindowManager')
+    this.registerInterval(() => this.flushToolbarShown(), 60 * 60_000)
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('app.privacy.data_collection.enabled', (enabled) => {
+        if (!enabled) this.toolbarShownCount = 0
+      })
+    )
 
     const actionWindowListeners = new Map<string, () => void>()
     this.registerDisposable(() => {
@@ -359,6 +368,7 @@ export class SelectionService extends BaseService implements Activatable {
   }
 
   protected async onStop(): Promise<void> {
+    this.flushToolbarShown()
     // _doStop() auto-deactivates before onStop() — releaseActivationResources() already called
     // Disposables (preference subscriptions) are cleaned up after onStop() by the framework
 
@@ -616,6 +626,9 @@ export class SelectionService extends BaseService implements Activatable {
       y: posY
     })
 
+    // Counted only with consent: a show before opting in must not reach the next hourly batch.
+    if (isProductDataCollectionConsented()) this.toolbarShownCount++
+
     // setAlwaysOnTop(true, 'screen-saver') is re-applied on every platform by the
     // reapplyAlwaysOnTop quirk after each show()/showInactive() call (see
     // WindowManager.applyQuirks) — on Windows that re-assert is what keeps the
@@ -671,6 +684,13 @@ export class SelectionService extends BaseService implements Activatable {
     // (showInactive also fires 'show').
 
     return
+  }
+
+  private flushToolbarShown(): void {
+    if (this.toolbarShownCount === 0) return
+    const count = this.toolbarShownCount
+    this.toolbarShownCount = 0
+    trackMainProductEvent({ event: 'feature_used', feature: 'selection', action: 'toolbar_shown', count })
   }
 
   /**

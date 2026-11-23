@@ -14,6 +14,7 @@ import { useMiniAppRuntime } from '@renderer/hooks/useMiniAppRuntime'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { miniAppIdFromTabUrl, miniAppResourceKey } from '@renderer/utils/miniAppKeepAlive'
@@ -332,7 +333,9 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const createCustomMiniApp = useCallback(
     async (dto: CreateMiniAppDto) => {
       try {
-        return await postMiniApp({ body: dto })
+        const created = await postMiniApp({ body: dto })
+        trackProductEvent({ event: 'feature_used', feature: 'mini_app', action: 'app_added' })
+        return created
       } catch (error) {
         logger.error('Failed to create custom mini app', { error: toDataApiError(error) })
         throw toDataApiError(error)

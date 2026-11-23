@@ -20,6 +20,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { addNote } from '@renderer/services/NotesService'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type {
   ExportableMessage,
@@ -1654,7 +1655,22 @@ interface NoteExportOptions {
   platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'joplin' | 'siyuan' | 'copyImage' | 'exportImage'
 }
 
-export const exportNote = async ({ node, platform }: NoteExportOptions): Promise<void> => {
+const NOTE_IMAGE_EXPORT_TARGETS = { copyImage: 'copy_image', exportImage: 'image' } as const
+
+export const exportNote = async (options: NoteExportOptions): Promise<void> => {
+  const { platform } = options
+  const target = platform === 'copyImage' || platform === 'exportImage' ? NOTE_IMAGE_EXPORT_TARGETS[platform] : platform
+  const report = (status: 'success' | 'error' | 'cancelled') =>
+    trackProductEvent({ event: 'feature_used', feature: 'notes', action: 'exported', target, status })
+  try {
+    report((await exportNoteTo(options)) === 'cancelled' ? 'cancelled' : 'success')
+  } catch (error) {
+    report('error')
+    throw error
+  }
+}
+
+const exportNoteTo = async ({ node, platform }: NoteExportOptions): Promise<'cancelled' | void> => {
   try {
     const content = await window.api.file.readExternal(node.externalPath)
 
@@ -1665,12 +1681,14 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
         return await exportNoteAsImageFile(node.name, node.id)
       case 'markdown':
         return await exportNoteAsMarkdown(node.name, content)
-      case 'docx':
-        void ipcApi.request('export.word.from_markdown', {
+      case 'docx': {
+        // Main resolves false when the user cancels the save dialog.
+        const saved = await ipcApi.request('export.word.from_markdown', {
           markdown: `# ${node.name}\n\n${content}`,
           fileName: removeSpecialCharactersForFileName(node.name)
         })
-        return
+        return saved === false ? 'cancelled' : undefined
+      }
       case 'notion':
         await exportMessageToNotion(node.name, content)
         return

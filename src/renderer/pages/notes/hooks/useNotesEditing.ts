@@ -3,11 +3,15 @@ import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode, RenameNote } from '@renderer/types/note'
 import { fetchNoteSummary } from '@renderer/utils/aiGeneration'
 
 const logger = loggerService.withContext('UseNotesEditing')
+
+const trackAiTitle = (status: 'success' | 'error') =>
+  trackProductEvent({ event: 'feature_used', feature: 'notes', action: 'ai_titled', status })
 
 interface UseNotesEditingProps {
   onRenameNode: RenameNote
@@ -59,14 +63,17 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
         const summaryText = await fetchNoteSummary({ content })
         if (summaryText) {
           const result = await onRenameNode(note.id, summaryText)
+          trackAiTitle(result.ok ? 'success' : 'error')
           if (result.ok) {
             toast.success(t('notes.auto_rename.success'))
             renamed = result.name !== note.name
           }
         } else {
+          trackAiTitle('error')
           toast.error(t('notes.auto_rename.failed'))
         }
       } catch (error) {
+        trackAiTitle('error')
         toast.error(t('notes.auto_rename.failed'))
         logger.error(`Failed to auto-rename note: ${error}`)
       } finally {

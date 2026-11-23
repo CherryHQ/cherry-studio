@@ -18,6 +18,7 @@ import {
   Signal
 } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
@@ -373,6 +374,13 @@ export class CherryCloudService extends BaseService {
 
   private settleAuthorization(operation: AuthorizationOperation, result: LoginSettlement): void {
     if (operation.completion.isResolved) return
+    // 'stopped' is the app shutting down mid-login, not a user outcome.
+    if (result.outcome !== 'stopped') {
+      trackMainProductEvent({
+        event: 'account_sign_in_result',
+        result: result.outcome === 'signed-in' ? 'signed_in' : result.outcome
+      })
+    }
     if (this.loginPromise?.operation === operation) this.loginPromise = null
     operation.completion.resolve(result)
     if (this.authorizationOperation === operation) this.authorizationOperation = null
@@ -1478,6 +1486,7 @@ export class CherryCloudService extends BaseService {
     const session = this.cloudState.session
     if (!session) return this.currentStatus()
     await this.clearSession(session)
+    trackMainProductEvent({ event: 'account_signed_out', reason: 'user' })
 
     const url = this.resolveRequestUrl('/api/v1/product-sessions/current')
     void this.signedFetch(
@@ -1606,7 +1615,10 @@ export class CherryCloudService extends BaseService {
   private async clearSession(expectedSession?: ProductSession, reason?: SignOutReason): Promise<void> {
     const currentSession = this.cloudState.session
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
-    if (reason) this.reportSignOut(reason)
+    if (reason) {
+      this.reportSignOut(reason)
+      trackMainProductEvent({ event: 'account_signed_out', reason })
+    }
 
     cherryAccountCredentialStore.clearSession()
     this.invalidateModelSync()

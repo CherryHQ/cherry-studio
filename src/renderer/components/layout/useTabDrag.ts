@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { loggerService } from '@logger'
 import type { Tab } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { applyHorizontalRubberBandTranslateX } from './tabDragRubberBand'
@@ -304,6 +305,7 @@ export function useTabDrag({
                 y: e.screenY - 20
               })
               .then(() => {
+                trackProductEvent({ event: 'window_opened', kind: 'tab_detached' })
                 closeTab(tab.id)
                 drag.tabClosed = true
               })

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoicePlaybackState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
@@ -126,6 +127,16 @@ interface PlaybackRun {
 
 const logger = loggerService.withContext('SpeechPlaybackService')
 const sourceLabels = new Set<string>(SPEECH_PLAYBACK_SOURCE_LABELS)
+
+const reportReadAloud = (input: SpeechPlaybackStartInput, status: 'success' | 'error') =>
+  trackProductEvent({
+    event: 'feature_used',
+    feature: 'voice',
+    action: 'read_aloud',
+    status,
+    target: input.sourceLabel,
+    ...(input.trigger === 'auto_read' && { trigger: 'auto' })
+  })
 const IDLE_SNAPSHOT: SpeechPlaybackSnapshot = Object.freeze({
   phase: 'idle',
   progress: Object.freeze({ completed: 0, total: 0 })
@@ -265,6 +276,7 @@ export class SpeechPlaybackService {
       assertStartCurrent()
       const reason = errorReason(error)
       this.publishStartFailure(input.sourceLabel, plan.chunks.length, reason)
+      reportReadAloud(input, 'error')
       throw new VoiceDomainError(reason)
     }
     const deferredVisibilityToken = input.trigger === 'auto_read' && this.visibleRun ? this.visibilityToken : undefined
@@ -320,6 +332,7 @@ export class SpeechPlaybackService {
         if (!run.stopped) void this.failPlayback(run, errorReason(error)).catch(() => undefined)
       })
     }
+    reportReadAloud(input, 'success')
     return { status: 'started' }
   }
 

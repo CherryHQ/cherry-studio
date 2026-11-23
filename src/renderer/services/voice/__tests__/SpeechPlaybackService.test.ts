@@ -12,6 +12,11 @@ import {
   playbackPhase,
   type PlaybackState
 } from '../../../../main/ai/voice/playbackState'
+const ipcRequest = vi.hoisted(() =>
+  vi.fn<(route: string, payload?: unknown) => Promise<undefined>>(async () => undefined)
+)
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest } }))
+
 import { SpeechPlaybackService, type SpeechPlaybackStartInput } from '../SpeechPlaybackService'
 import { VoiceDomainError, type VoiceService } from '../VoiceService'
 
@@ -990,6 +995,27 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(manual.voice.controlPlayback).not.toHaveBeenCalled()
     expect(manual.voice.discardSession).not.toHaveBeenCalled()
     expect(manual.service.getSnapshot().phase).toBe('playing')
+  })
+
+  it('reports each read-aloud start by source and auto-read, never the text', async () => {
+    const { service, voice } = createHarness()
+    ipcRequest.mockClear()
+    await service.start(baseInput)
+    voice.readSpeechPreferenceInput.mockRejectedValueOnce(new VoiceDomainError('voice_unavailable'))
+    await expect(service.start({ ...baseInput, sourceLabel: 'preview', trigger: 'auto_read' })).rejects.toThrow()
+
+    expect(ipcRequest.mock.calls.map(([, event]) => event)).toEqual([
+      { event: 'feature_used', feature: 'voice', action: 'read_aloud', status: 'success', target: 'message' },
+      {
+        event: 'feature_used',
+        feature: 'voice',
+        action: 'read_aloud',
+        status: 'error',
+        target: 'preview',
+        trigger: 'auto'
+      }
+    ])
+    await service.stop()
   })
 
   it('does not replace a visible snapshot when a new start fails local validation', async () => {

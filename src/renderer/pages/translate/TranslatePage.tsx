@@ -24,6 +24,7 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { exportContentToNotes } from '@renderer/services/ExportService'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -140,6 +141,9 @@ const getTitleFromTranslationResult = (translationResult: string) =>
  * Observes a single image OCR task and reports its terminal result.
  * Mounted only while the translate page tracks an active task.
  */
+const trackOcr = (status: 'success' | 'error' | 'cancelled') =>
+  trackProductEvent({ event: 'feature_used', feature: 'translate', action: 'ocr_used', status })
+
 const OcrTaskWatcher: FC<{
   taskId: FileProcessingTaskId
   onCompleted: (text: string) => void
@@ -173,6 +177,7 @@ const OcrTaskWatcher: FC<{
       handledRef.current = true
       const failure = error ?? new Error('Image OCR task became unobservable')
       logger.error('Failed to observe OCR task.', failure, { taskId })
+      trackOcr('error')
       rejectTask(failure, failure.message)
       onSettled()
       return
@@ -183,13 +188,16 @@ const OcrTaskWatcher: FC<{
 
     if (task.status === 'completed') {
       if (task.artifact.kind === 'text') {
+        trackOcr('success')
         onCompleted(task.artifact.text)
         toast.success(t('translate.files.ocr_completed'))
       } else {
         logger.warn('Image OCR task completed without a text artifact.', { taskId })
+        trackOcr('error')
         rejectTask(null, 'Image OCR completed without a text artifact')
       }
     } else if (task.status === 'failed' || task.status === 'cancelled') {
+      trackOcr(task.status === 'failed' ? 'error' : 'cancelled')
       rejectTask({ message: task.error }, 'Image OCR failed')
     }
 
@@ -576,6 +584,7 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory, files?: TranslationFiles) => {
+      trackProductEvent({ event: 'translate_history_used', action: 'reused' })
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
@@ -712,6 +721,7 @@ const TranslatePage: FC = () => {
         taskId = task.id
       } catch (error) {
         logger.error('Failed to start image OCR.', error as Error)
+        trackOcr('error')
         toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
         return
       }
@@ -989,13 +999,14 @@ const TranslatePage: FC = () => {
               variant="ghost"
               size="icon-sm"
               className={historyOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
-              onClick={() =>
+              onClick={() => {
+                if (!historyOpen) trackProductEvent({ event: 'translate_history_used', action: 'opened' })
                 setHistoryOpen((open) => {
                   const next = !open
                   if (next) setSettingsOpen(false)
                   return next
                 })
-              }
+              }}
               aria-label={t('translate.history.title')}
               aria-pressed={historyOpen}>
               <History size={14} />

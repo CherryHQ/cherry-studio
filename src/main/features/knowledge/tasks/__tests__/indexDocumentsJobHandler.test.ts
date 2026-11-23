@@ -1,7 +1,8 @@
 import { mockNotificationService } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, type Mock } from 'vitest'
 
+import { application } from '@application'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
@@ -57,6 +58,11 @@ function lastRebuildInput(): RebuildMaterialInput & { embeddings: RebuildMateria
   return { ...input, embeddings: [...input.embeddings] }
 }
 
+const processedEvents = () =>
+  (application.get('AnalyticsService').trackProductEvent as Mock).mock.calls
+    .map(([event]) => event)
+    .filter((event) => event.action === 'item_processed')
+
 describe('index-documents job handler', () => {
   it('records embedding completion only after the logical job settles successfully', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
@@ -87,6 +93,35 @@ describe('index-documents job handler', () => {
       }),
       { source: 'knowledge' }
     )
+    expect(processedEvents()).toEqual([
+      { event: 'feature_used', feature: 'knowledge', action: 'item_processed', target: 'note', status: 'success' }
+    ])
+  })
+
+  it('reports an app-quit interruption as cancelled, not as an indexing error', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    await handler.onSettled?.({
+      jobId: 'interrupted-job',
+      type: 'knowledge.index-documents',
+      scheduleId: null,
+      parentId: null,
+      status: 'cancelled',
+      input: { baseId: 'kb-1', itemId: NOTE_ITEM_ID },
+      error: null,
+      attempt: 1,
+      metadata: {}
+    })
+    expect(processedEvents()).toEqual([
+      {
+        event: 'feature_used',
+        feature: 'knowledge',
+        action: 'item_processed',
+        target: 'note',
+        status: 'cancelled',
+        errorReason: 'indexing_interrupted'
+      }
+    ])
   })
 
   it('does not notify when indexing was skipped because the source disappeared', async () => {
@@ -107,6 +142,7 @@ describe('index-documents job handler', () => {
       metadata: {}
     })
     expect(mockNotificationService.publish).not.toHaveBeenCalled()
+    expect(processedEvents()).toEqual([])
   })
 
   it('updates statuses, writes vectors, and completes the item', async () => {
@@ -409,6 +445,16 @@ describe('index-documents job handler', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
       error: 'empty_indexable_text'
     })
+    expect(processedEvents()).toEqual([
+      {
+        event: 'feature_used',
+        feature: 'knowledge',
+        action: 'item_processed',
+        target: 'file',
+        status: 'error',
+        errorReason: 'empty_indexable_text'
+      }
+    ])
   })
 
   it('uses the processed-artifact path (indexedRelativePath) as the material relative path', async () => {

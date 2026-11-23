@@ -1131,14 +1131,14 @@ export class AiService extends BaseService {
    * delegates here (the registry is service state).
    */
   async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
-    // Paintings is this route's only caller; a user cancel is not an outcome.
+    // Paintings is this route's only caller.
     let requestSignal: AbortSignal | undefined
     const providerId = payload.uniqueModelId && parseUniqueModelId(payload.uniqueModelId).providerId
-    const report = (status: 'success' | 'error', count?: number, error?: unknown) =>
+    const report = (status: 'success' | 'error' | 'cancelled', count?: number, error?: unknown) =>
       trackMainProductEvent({
         event: 'feature_used',
         feature: 'paintings',
-        action: 'image_generated',
+        action: !payload.mode || payload.mode === 'generate' ? 'image_generated' : 'image_edited',
         status,
         ...(error !== undefined && {
           errorReason: toExecutionFailure(serializeError(error), payload.uniqueModelId).failure.reasonCode
@@ -1156,7 +1156,8 @@ export class AiService extends BaseService {
       report(result.files.length > 0 ? 'success' : 'error', result.files.length)
       return result
     } catch (error) {
-      if (!requestSignal?.aborted) report('error', undefined, error)
+      if (requestSignal?.aborted) report('cancelled')
+      else report('error', undefined, error)
       throw error
     }
   }

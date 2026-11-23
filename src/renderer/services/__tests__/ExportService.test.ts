@@ -1616,6 +1616,13 @@ describe('ExportService image capture serialization', () => {
       expect(capturedNoteSurface).toBe(replacementNote.scrollable)
       expect(capturedNoteSurface).not.toBe(originalNote.scrollable)
       expect(saveImage).toHaveBeenCalledWith('Note', 'data:image/png;base64,note')
+      expect(imageCaptureMocks.request).toHaveBeenCalledWith('analytics.track', {
+        event: 'feature_used',
+        feature: 'notes',
+        action: 'exported',
+        target: 'image',
+        status: 'success'
+      })
     } finally {
       releaseFirstCanvas.resolve()
       blocker.remove()
@@ -1740,5 +1747,31 @@ describe('Obsidian-only model attribution', () => {
     expect(topic).toContain('# Test Topic')
     expect(topic).toContain('**Frozen Model**')
     expect(topic).toContain('Frozen reasoning')
+  })
+})
+
+describe('exportNote Word analytics', () => {
+  it.each([
+    [true, 'success'],
+    [false, 'cancelled']
+  ])('reports a Word export whose save dialog returns %s as %s', async (saved, status) => {
+    Object.defineProperty(window, 'api', {
+      value: { ...window.api, file: { ...window.api.file, readExternal: vi.fn().mockResolvedValue('Body') } },
+      configurable: true
+    })
+    imageCaptureMocks.request.mockReset()
+    imageCaptureMocks.request.mockImplementation(async (route: string) =>
+      route === 'export.word.from_markdown' ? saved : undefined
+    )
+
+    await exportNote({ node: { id: 'n', name: 'Note', externalPath: '/notes/n.md' }, platform: 'docx' })
+
+    expect(imageCaptureMocks.request).toHaveBeenCalledWith('analytics.track', {
+      event: 'feature_used',
+      feature: 'notes',
+      action: 'exported',
+      target: 'docx',
+      status
+    })
   })
 })

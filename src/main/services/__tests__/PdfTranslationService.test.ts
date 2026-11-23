@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   isInChina: vi.fn(),
   modelGetByKey: vi.fn(),
   notifyDataApiDataChange: vi.fn(),
-  spawn: vi.fn()
+  spawn: vi.fn(),
+  trackMainProductEvent: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -41,6 +42,7 @@ vi.mock('@data/services/TranslateHistoryService', () => ({
   translateHistoryService: { createFileTx: mocks.createFileTx }
 }))
 vi.mock('@main/utils/binaryResolver', () => ({ getBinaryPath: mocks.getBinaryPath }))
+vi.mock('@main/services/productAnalytics', () => ({ trackMainProductEvent: mocks.trackMainProductEvent }))
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: mocks.isInChina } }))
 vi.mock('@main/utils/processRunner', () => ({
   crossPlatformSpawn: mocks.spawn,
@@ -354,6 +356,9 @@ describe('PdfTranslationService', () => {
     expect(fileManager.permanentDelete).not.toHaveBeenCalled()
     // The temp dir is gone even though the run succeeded — its content now lives in FileManager.
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-history'))).toBe(false)
+    expect(mocks.trackMainProductEvent.mock.calls).toEqual([
+      [{ event: 'feature_used', feature: 'translate', action: 'document_translated', status: 'success' }]
+    ])
   })
 
   it('records an auto-detected source language as null', async () => {
@@ -613,6 +618,17 @@ describe('PdfTranslationService', () => {
 
     await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-scanned-pdf'))).toBe(false)
+    expect(mocks.trackMainProductEvent.mock.calls).toEqual([
+      [
+        {
+          event: 'feature_used',
+          feature: 'translate',
+          action: 'document_translated',
+          status: 'error',
+          errorReason: 'ocr_required'
+        }
+      ]
+    ])
   })
 
   it('terminates the sidecar and cleans partial output when the job is cancelled', async () => {
@@ -638,6 +654,9 @@ describe('PdfTranslationService', () => {
     child!.emit('close', null, 'SIGTERM')
 
     await expect(pending).rejects.toThrow('PDF translation cancelled')
+    expect(mocks.trackMainProductEvent.mock.calls).toEqual([
+      [{ event: 'feature_used', feature: 'translate', action: 'document_translated', status: 'cancelled' }]
+    ])
     expect(child!.kill).toHaveBeenCalledTimes(1)
     expect(disposeCredential).toHaveBeenCalledOnce()
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-cancel'))).toBe(false)

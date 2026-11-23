@@ -28,6 +28,20 @@ export async function trackAgentSessionCreated(agentId: string): Promise<void> {
   }
 }
 
+type MiniAppOpenTrigger = 'launchpad' | 'page' | 'sidebar' | 'split'
+const miniAppOpenTriggers = new Map<string, MiniAppOpenTrigger>()
+
+/** Entry points name how a mini app is being opened; the runtime takes it once when it creates the app. */
+export function markMiniAppOpenTrigger(appId: string, trigger: MiniAppOpenTrigger): void {
+  miniAppOpenTriggers.set(appId, trigger)
+}
+
+export function takeMiniAppOpenTrigger(appId: string): MiniAppOpenTrigger | 'other' {
+  const trigger = miniAppOpenTriggers.get(appId)
+  miniAppOpenTriggers.delete(appId)
+  return trigger ?? 'other'
+}
+
 const AGENT_SESSION_TOPIC_PREFIX = buildAgentSessionTopicId('')
 
 /** Agent session conversations share chat components; this tells their events apart. */

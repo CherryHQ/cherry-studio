@@ -26,6 +26,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
+import { trackKnowledgeItemsAdded, trackMainProductEvent } from '@main/services/productAnalytics'
 import type {
   KbGrepOutput,
   KbListInput,
@@ -141,7 +142,8 @@ function isConceptLookupError(output: object): output is KnowledgeLookupError {
 export async function searchKnowledge(
   query: string,
   baseIds: string[],
-  allowedIds: readonly string[]
+  allowedIds: readonly string[],
+  trigger: 'chat' | 'agent'
 ): Promise<KnowledgeSearchResultOrError> {
   const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
 
@@ -170,9 +172,17 @@ export async function searchKnowledge(
     })
   )
 
+  const allFailed = perBase.every((r) => !r.ok)
+  trackMainProductEvent({
+    event: 'feature_used',
+    feature: 'knowledge',
+    action: 'searched',
+    status: allFailed ? 'error' : 'success',
+    trigger
+  })
   // Every targeted base errored → surface the failure so the model doesn't claim the KB has nothing
   // on the topic (and waste retries). A partial failure still returns whatever bases succeeded.
-  if (perBase.every((r) => !r.ok)) {
+  if (allFailed) {
     const firstError = perBase.find((r): r is { ok: false; error: string } => !r.ok)
     return { error: firstError?.error ?? 'All targeted knowledge bases failed to search.' }
   }
@@ -509,15 +519,22 @@ export async function manageKnowledge(
             if (!result.ok) return { error: `items[${index}]: ${result.error}` }
             built.push(result)
           }
-          await service.addItems(
+          const added = await service.addItems(
             input.baseId,
             built.map((entry) => entry.input)
           )
+          if (added.status === 'added') {
+            trackKnowledgeItemsAdded(
+              built.map((entry) => entry.input.type),
+              'agent_tool'
+            )
+          }
           return { action: 'add', added: built.map((entry) => entry.source) }
         }
         const built = buildAddInput(input)
         if (!built.ok) return { error: built.error }
-        await service.addItems(input.baseId, [built.input])
+        const added = await service.addItems(input.baseId, [built.input])
+        if (added.status === 'added') trackKnowledgeItemsAdded([built.input.type], 'agent_tool')
         return { action: 'add', added: [built.source] }
       }
       case 'delete': {

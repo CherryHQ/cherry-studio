@@ -6,6 +6,7 @@ import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
@@ -202,10 +203,29 @@ export class BrowserSessionService extends BaseService {
         properties: ['openFile'],
         filters: [{ name: 'JSON / Netscape cookies', extensions: ['json', 'txt'] }]
       })
-      if (picked.canceled || !picked.filePaths[0]) return { ...emptyImportResult(), cancelled: true }
+      if (picked.canceled || !picked.filePaths[0]) {
+        trackMainProductEvent({ event: 'data_imported', source: 'browser', status: 'cancelled' })
+        return { ...emptyImportResult(), cancelled: true }
+      }
       file = picked.filePaths[0]
     }
-    return this.runImport(options, file)
+    try {
+      const result = await this.runImport(options, file)
+      const categories = [result.history, result.cookies, result.localStorage]
+      const imported = categories.reduce((sum, category) => sum + category.imported, 0)
+      // Nothing came over while something failed: the dialog shows it as incomplete, so it is no success.
+      const failed = categories.some((category) => category.failed > 0 || category.unsupported)
+      trackMainProductEvent({
+        event: 'data_imported',
+        source: 'browser',
+        status: result.cancelled ? 'cancelled' : imported === 0 && failed ? 'error' : 'success',
+        count: imported
+      })
+      return result
+    } catch (error) {
+      trackMainProductEvent({ event: 'data_imported', source: 'browser', status: 'error', errorReason: 'other' })
+      throw error
+    }
   }
 
   runImport(options: BrowserImportOptions, file?: string): Promise<BrowserImportResult> {

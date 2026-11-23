@@ -111,7 +111,24 @@ describe('codeCliHandlers', () => {
       await expect(codeCliHandlers['code_cli.run'](input, ctx)).resolves.toEqual(outcome)
 
       expect(launchEvents()).toEqual([
-        { event: 'feature_used', feature: 'code', action: 'cli_launched', status, target: 'qwen-code' }
+        {
+          event: 'feature_used',
+          feature: 'code',
+          action: 'cli_launched',
+          status,
+          target: 'qwen-code',
+          modelSource: 'own_key'
+        }
+      ])
+    })
+
+    it('names no model source when the tool runs on its own login', async () => {
+      codeCliService.run.mockResolvedValue({ success: true })
+
+      await codeCliHandlers['code_cli.run']({ cliTool: CodeCli.QWEN_CODE, mode: 'own-login', directory: '/p' }, ctx)
+
+      expect(launchEvents()).toEqual([
+        { event: 'feature_used', feature: 'code', action: 'cli_launched', status: 'success', target: 'qwen-code' }
       ])
     })
 
@@ -121,7 +138,14 @@ describe('codeCliHandlers', () => {
       await expect(codeCliHandlers['code_cli.run'](input, ctx)).rejects.toThrow('spawn failed')
 
       expect(launchEvents()).toEqual([
-        { event: 'feature_used', feature: 'code', action: 'cli_launched', status: 'error', target: 'qwen-code' }
+        {
+          event: 'feature_used',
+          feature: 'code',
+          action: 'cli_launched',
+          status: 'error',
+          target: 'qwen-code',
+          modelSource: 'own_key'
+        }
       ])
     })
   })

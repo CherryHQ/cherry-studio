@@ -706,6 +706,12 @@ describe('TranslatePage', () => {
 
     await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('recognized image text'))
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('translate.files.ocr_completed'))
+    expect(ipcRequestMock).toHaveBeenCalledWith('analytics.track', {
+      event: 'feature_used',
+      feature: 'translate',
+      action: 'ocr_used',
+      status: 'success'
+    })
     await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
     rerender(<TranslatePage />)
@@ -1138,6 +1144,12 @@ describe('TranslatePage', () => {
         'translate.files.error.ocr: Default file processor for image_to_text is not configured'
       )
     )
+    expect(ipcRequestMock).toHaveBeenCalledWith('analytics.track', {
+      event: 'feature_used',
+      feature: 'translate',
+      action: 'ocr_used',
+      status: 'error'
+    })
     expect(toast.loading).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
   })

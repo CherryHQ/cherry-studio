@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { NotificationRecord } from '@shared/data/types/notification'
 
@@ -17,6 +18,8 @@ import { NotificationTaskIdentity } from './NotificationTaskIdentity'
 import { NotificationTitle } from './NotificationTitle'
 
 const logger = loggerService.withContext('NotificationCenter')
+// Once per announcement per window session, however often the list re-renders.
+const shownAnnouncementIds = new Set<string>()
 const ReleaseNotes = lazy(() => import('./ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })))
 type DrawerSide = 'left' | 'right'
 const NotificationCenterContext = createContext<{
@@ -58,6 +61,12 @@ function NotificationItem({
   const release = record.target?.kind === 'release' ? record.target : null
   const announcement = record.target?.kind === 'announcement' ? record.target : null
   const announcementUrl = announcement?.url
+  const isAnnouncement = !!announcement
+  useEffect(() => {
+    if (!isAnnouncement || shownAnnouncementIds.has(record.id)) return
+    shownAnnouncementIds.add(record.id)
+    trackProductEvent({ event: 'announcement_action', action: 'shown' })
+  }, [isAnnouncement, record.id])
   const expandable = !!(release || announcement)
   const Icon = record.target?.kind === 'scheduled-task' ? CalendarClock : notificationCategoryIcons[record.category]
   const task =
@@ -90,6 +99,7 @@ function NotificationItem({
     try {
       if (expandable) {
         if (record.readAt === null) await markRead({ params: { id: record.id }, body: { read: true } })
+        if (announcement && !expanded) trackProductEvent({ event: 'announcement_action', action: 'expanded' })
         setExpanded(!expanded)
       } else {
         await ipcApi.request('notification.activate', { id: record.id })
@@ -186,11 +196,12 @@ function NotificationItem({
           {announcementUrl && (
             <Button
               variant="outline"
-              onClick={() =>
+              onClick={() => {
+                trackProductEvent({ event: 'announcement_action', action: 'link_clicked' })
                 void ipcApi
                   .request('system.shell.open_website', announcementUrl)
                   .catch((error) => logger.error('Failed to open announcement link', error as Error))
-              }>
+              }}>
               {t('common.open')}
             </Button>
           )}

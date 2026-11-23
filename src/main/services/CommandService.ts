@@ -93,7 +93,8 @@ export class CommandService extends BaseService {
     })
 
     this.registerHandler('quick_assistant.toggle', () => {
-      application.get('QuickAssistantService').toggleQuickAssistant()
+      // The command has no menu entry, so it only runs from its global shortcut.
+      application.get('QuickAssistantService').toggleQuickAssistant('shortcut')
     })
 
     this.registerHandler('app.zoom.in', (window) => {

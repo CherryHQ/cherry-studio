@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 
 import type { PaintingTemplatePreset } from '../hooks/usePaintingTemplateCatalog'
 
@@ -103,6 +104,12 @@ const PaintingTemplateShowcase: FC<PaintingTemplateShowcaseProps> = ({ paintingI
               }}
               onClick={() => {
                 setStyleSelection({ paintingId, presetId: preset.id })
+                trackProductEvent({
+                  event: 'feature_used',
+                  feature: 'paintings',
+                  action: 'template_used',
+                  target: preset.id
+                })
                 onSelect(preset.prompt)
               }}>
               <span className="pointer-events-none relative size-full overflow-hidden rounded-xl bg-card">

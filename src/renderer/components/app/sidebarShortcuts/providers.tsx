@@ -5,6 +5,7 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
+import { markMiniAppOpenTrigger } from '@renderer/services/productAnalytics'
 import {
   resolveAgentEntrySessionIdForAgent,
   resolveChatEntryTopicIdForAssistant
@@ -176,6 +177,7 @@ const miniAppProvider: SidebarShortcutProvider = {
   activate(target, gateway) {
     if (!this.validate(target)) return
     const id = target.locator.resourceId
+    markMiniAppOpenTrigger(id, 'sidebar')
     gateway.openWorkspace({ url: `/app/mini-app/${encodeURIComponent(id)}`, title: id })
   },
   isActive: (target, navigation) => miniAppIdFromTabUrl(navigation.url) === target.locator.resourceId

@@ -14,6 +14,7 @@ import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { regionService } from '@main/services/RegionService'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
@@ -30,6 +31,7 @@ import { type FileEntry, SafeNameSchema } from '@shared/data/types/file'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
+import type { FeatureErrorReason } from '@shared/ipc/schemas/analytics'
 import {
   PDF_TRANSLATION_PROGRESS_STAGES,
   type PdfTranslationProgress,
@@ -40,6 +42,24 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 
 const logger = loggerService.withContext('PdfTranslationService')
+
+const PDF_TRANSLATION_ERROR_REASONS: Record<string, FeatureErrorReason> = {
+  [translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED]: 'dependency_missing',
+  [translateErrorCodes.PDF_DEPENDENCY_OUTDATED]: 'dependency_outdated',
+  [translateErrorCodes.PDF_OCR_REQUIRED]: 'ocr_required',
+  [translateErrorCodes.PDF_RESULT_PERSIST_FAILED]: 'persist_failed'
+}
+
+function pdfTranslationErrorReason(error: unknown): FeatureErrorReason {
+  return (error instanceof IpcError && PDF_TRANSLATION_ERROR_REASONS[error.code]) || 'other'
+}
+
+function trackPdfTranslation(
+  outcome: { status: 'success' | 'cancelled' } | { status: 'error'; errorReason: FeatureErrorReason }
+): void {
+  trackMainProductEvent({ event: 'feature_used', feature: 'translate', action: 'document_translated', ...outcome })
+}
+
 const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v2'
 const babeldocStreamProgressSchema = z.strictObject({
   schema: z.literal(BABELDOC_STREAM_SCHEMA),
@@ -295,8 +315,13 @@ export class PdfTranslationService extends BaseService {
       this.reportProgress(job, { stage: 'rendering', stageProgress: 100, overallProgress: 100 }, onProgress)
       // `await` (not a bare `return`) so the `finally` below cannot delete the temp dir
       // out from under the copy into FileManager.
-      return await this.persistResult(request, outputPath, job)
+      const result = await this.persistResult(request, outputPath, job)
+      trackPdfTranslation({ status: 'success' })
+      return result
     } catch (error) {
+      trackPdfTranslation(
+        job.cancelled ? { status: 'cancelled' } : { status: 'error', errorReason: pdfTranslationErrorReason(error) }
+      )
       // Surface the failure to the main-process log (the stderr tail rides along in the
       // reject message on the non-zero-exit path). Cancellation is expected; IpcErrors
       // (OCR required, dependency missing) are actionable user conditions, so log those at

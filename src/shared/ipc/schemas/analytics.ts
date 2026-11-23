@@ -4,6 +4,7 @@ import { type AiFailureReason, aiFailureReasonSchema } from '@cherrystudio/remot
 import type { ScheduleKind } from '@shared/ai/scheduleTrigger'
 import type { AgentPermissionMode, AgentType } from '@shared/data/api/schemas/agents'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { DoctorCheckId, DoctorRunTier } from '@shared/types/doctor'
 import { ANALYTICS_PRESET_ID_PATTERN } from '@shared/utils/analyticsModelSource'
 import { ERROR_CATEGORIES } from '@shared/utils/errorCategory'
 
@@ -42,6 +43,20 @@ const featureSchema = z.enum([
   'provider'
 ])
 
+/** Failure reasons outside AI work (knowledge indexing, PDF translation, conversation import). */
+export const featureErrorReasonSchema = z.enum([
+  'empty_indexable_text',
+  'indexing_interrupted',
+  'dependency_missing',
+  'dependency_outdated',
+  'ocr_required',
+  'persist_failed',
+  'unsupported_format',
+  'invalid_format',
+  'other'
+])
+export type FeatureErrorReason = z.infer<typeof featureErrorReasonSchema>
+
 /** One core action of a feature; `target` names a preset (mini app, provider, CLI tool, channel type, built-in translate language), else omitted. */
 export const featureUsedEventSchema = z.strictObject({
   event: z.literal('feature_used'),
@@ -68,15 +83,43 @@ export const featureUsedEventSchema = z.strictObject({
     'skill_uninstalled',
     'server_connected',
     'channel_disconnected',
-    'channel_deleted'
+    'channel_deleted',
+    'item_processed',
+    'document_translated',
+    'ocr_used',
+    'image_edited',
+    'template_used',
+    'read_aloud',
+    'app_installed',
+    'app_pinned',
+    'app_added',
+    'toolbar_shown',
+    'ai_titled',
+    'exported'
   ]),
-  status: z.enum(['success', 'error']).optional(),
+  status: z.enum(['success', 'error', 'cancelled']).optional(),
   modelSource: analyticsModelSourceSchema.optional(),
-  trigger: z.enum(['page', 'selection', 'quick_assistant', 'shortcut', 'tray', 'menu', 'other']).optional(),
+  trigger: z
+    .enum([
+      'page',
+      'selection',
+      'quick_assistant',
+      'shortcut',
+      'tray',
+      'menu',
+      'auto',
+      'chat',
+      'agent',
+      'launchpad',
+      'sidebar',
+      'split',
+      'other'
+    ])
+    .optional(),
   target: presetIdSchema.optional(),
   count: z.number().int().nonnegative().optional(),
   durationMs: durationMsSchema.optional(),
-  errorReason: aiFailureReasonSchema.optional(),
+  errorReason: z.union([aiFailureReasonSchema, featureErrorReasonSchema]).optional(),
   // Where a skill came from; `origin` tells Cherry tool calls apart from the UI.
   source: z.enum(['marketplace', 'zip', 'local', 'system']).optional(),
   origin: z.enum(['ui', 'agent_tool']).optional()
@@ -127,7 +170,11 @@ export const BEHAVIOR_ANALYTICS_EVENTS = [
   'agent_session_action',
   'tool_approval',
   'agent_context_event',
-  'scheduled_task_snapshot'
+  'scheduled_task_snapshot',
+  'translate_history_used',
+  'global_search_used',
+  'announcement_action',
+  'window_opened'
 ] as const
 
 /** Where an Agent was created from; renderer callers attach it to the create command. */
@@ -275,6 +322,32 @@ export const rendererAnalyticsEventSchema = z.discriminatedUnion('event', [
     event: z.literal('code_block_action'),
     action: z.enum(['preview_opened', 'open_external', 'download', 'copy', 'run', 'view_mode']),
     language: presetIdSchema.optional()
+  }),
+  // `count` is conversations imported; `errorReason` only on error.
+  z.strictObject({
+    event: z.literal('data_imported'),
+    source: z.enum(['chatgpt', 'claude', 'browser']),
+    status: z.enum(['success', 'error', 'cancelled']),
+    errorReason: featureErrorReasonSchema.optional(),
+    count: z.number().int().nonnegative().optional()
+  }),
+  z.strictObject({
+    event: z.literal('translate_history_used'),
+    action: z.enum(['opened', 'reused', 'cleared', 'starred'])
+  }),
+  // `group` is the static result group of the picked item.
+  z.strictObject({
+    event: z.literal('global_search_used'),
+    found: z.boolean(),
+    group: presetIdSchema.optional()
+  }),
+  z.strictObject({
+    event: z.literal('announcement_action'),
+    action: z.enum(['shown', 'expanded', 'link_clicked'])
+  }),
+  z.strictObject({
+    event: z.literal('window_opened'),
+    kind: z.enum(['tab_detached', 'topic', 'session'])
   })
 ])
 export type RendererAnalyticsEvent = z.infer<typeof rendererAnalyticsEventSchema>
@@ -405,6 +478,26 @@ export type MainAnalyticsEvent =
     } & Record<`status:${string}` | `frequency:${string}` | `channel:${string}`, number>)
   | { event: 'cherryin_quota_error'; composer: 'chat' | 'agent' }
   | {
+      event: 'account_sign_in_result'
+      result: 'signed_in' | 'cancelled' | 'expired' | 'rejected' | 'failed'
+    }
+  | { event: 'account_signed_out'; reason: 'user' | 'expired' | 'revoked' | 'disabled' }
+  | {
+      event: 'diagnostics_run'
+      tier: DoctorRunTier
+      status: 'completed' | 'canceled' | 'failed'
+      failCount?: number
+      warnCount?: number
+      origin: 'ui' | 'agent_tool'
+    }
+  | {
+      event: 'diagnostics_fix'
+      check: DoctorCheckId
+      fix: string
+      result: 'fixed' | 'requires_relaunch' | 'failed' | 'stale'
+      origin: 'ui' | 'agent_tool'
+    }
+  | {
       event: 'chat_turn_finished'
       status: 'success' | 'error' | 'stopped'
       modelSource: AnalyticsModelSource
@@ -443,6 +536,8 @@ export type MainAnalyticsEvent =
   | ({ event: 'settings_snapshot' } & Record<`setting:${string}`, boolean | number | string>)
   | { event: 'chat_branch_snapshot'; topicCount: number; branchedTopicCount: number; branchCount: number }
   | FeatureUsedEvent
+  // Browser data imports run in main; conversation imports report from the renderer.
+  | Extract<RendererAnalyticsEvent, { event: 'data_imported' }>
 
 export type ProductAnalyticsEvent = RendererAnalyticsEvent | MainAnalyticsEvent
 

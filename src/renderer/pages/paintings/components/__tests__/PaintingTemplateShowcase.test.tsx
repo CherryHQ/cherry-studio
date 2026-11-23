@@ -7,6 +7,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+const ipcRequest = vi.hoisted(() =>
+  vi.fn<(route: string, payload?: unknown) => Promise<undefined>>(async () => undefined)
+)
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest } }))
+
 import PaintingTemplateShowcase from '../PaintingTemplateShowcase'
 
 const templates = Array.from({ length: 7 }, (_, index) => ({
@@ -26,6 +31,12 @@ describe('PaintingTemplateShowcase', () => {
 
     expect(onSelect).toHaveBeenCalledWith('Prompt 2')
     expect(templateButton).toHaveAttribute('aria-pressed', 'true')
+    expect(ipcRequest).toHaveBeenCalledWith('analytics.track', {
+      event: 'feature_used',
+      feature: 'paintings',
+      action: 'template_used',
+      target: 'template-2'
+    })
   })
 
   it('uses the current prompt to select the matching template', () => {
