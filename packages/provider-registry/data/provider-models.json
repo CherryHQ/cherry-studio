@@ -3496,6 +3496,15 @@
       "providerId": "cerebras"
     },
     {
+      "apiModelId": "anthropic/claude-fable-5.2",
+      "capabilities": {
+        "remove": ["structured-output"]
+      },
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-fable-5-2",
+      "providerId": "cherryin"
+    },
+    {
       "apiModelId": "deepseek/deepseek-v3.2",
       "modelId": "deepseek-v3-2",
       "providerId": "cherryin",
@@ -45728,5 +45737,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e1999d1729469d8e"
+  "version": "7e571c0960800863"
 }

@@ -53,7 +53,7 @@
     "echarts": "^6.1.0",
     "exceljs": "^4.4.0",
     "fast-formula-parser": "^1.0.19",
-    "fast-xml-parser": "5.5.6",
+    "fast-xml-parser": "5.12.1",
     "i18next": "^23.11.5",
     "jszip": "^3.10.1",
     "lucide-react": "^0.545.0",

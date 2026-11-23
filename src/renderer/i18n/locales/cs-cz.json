@@ -3980,6 +3980,7 @@
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "Server toto hlášení problému odmítl. Použijte ruční zpětnou vazbu a v případě potřeby přiložte uložený diagnostický soubor.",
   "settings.about.diagnostics.report.feedback_id": "ID zpětné vazby",
   "settings.about.diagnostics.report.history_save_failed": "Hlášení bylo odesláno, ale nepodařilo se jej uložit do historie tohoto zařízení. Uschovejte ID zpětné vazby nebo odkaz na stav.",
+  "settings.about.diagnostics.report.include_chat_history": "Zahrnout historii této konverzace (posledních 24 hodin). Pomůže nám to najít příčinu a problém opravit.",
   "settings.about.diagnostics.report.open_failed": "Stránku se stavem diagnostiky se nepodařilo otevřít.",
   "settings.about.diagnostics.report.open_location": "Otevřít umístění",
   "settings.about.diagnostics.report.open_manual_form": "Ruční zpětná vazba",
