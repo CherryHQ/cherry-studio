@@ -1,14 +1,18 @@
-import { Plus, X } from 'lucide-react'
+import { Link, Plus, X } from 'lucide-react'
 import { type FC, type MouseEvent, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useComposerToolDispatch, useComposerToolState } from '@renderer/components/composer/ComposerToolRuntime'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import ImageViewer from '@renderer/components/ImageViewer'
+import { toast } from '@renderer/services/toast'
 import { FILE_TYPE } from '@renderer/types/file'
 import { toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file'
+
+import { downloadImages } from '../utils/downloadImages'
 
 function imagePreviewUrl(path: AbsoluteFilePath, ext: string): string {
   return toSafeFileUrl(path, ext.replace(/^\./, '').toLowerCase() || null)
@@ -27,6 +31,28 @@ export const PaintingImageAddButton: FC = () => {
   const { extensions } = useComposerToolState()
   const { setFiles } = useComposerToolDispatch()
   const [selecting, setSelecting] = useState(false)
+  const [urlOpen, setUrlOpen] = useState(false)
+  const [url, setUrl] = useState('')
+
+  const importUrl = async () => {
+    if (selecting) return
+    const source = url.trim()
+    if (!/^https?:\/\//i.test(source)) {
+      toast.error(t('message.empty_url'))
+      return
+    }
+    setSelecting(true)
+    try {
+      const imported = await downloadImages([source], { showProxyWarning: true })
+      if (imported.length) {
+        setFiles((current) => [...current, ...toComposerAttachments(imported)])
+        setUrl('')
+        setUrlOpen(false)
+      }
+    } finally {
+      setSelecting(false)
+    }
+  }
 
   const pickImages = useCallback(async () => {
     if (selecting) return
@@ -45,19 +71,46 @@ export const PaintingImageAddButton: FC = () => {
   }, [extensions, selecting, setFiles])
 
   return (
-    <button
-      type="button"
-      aria-label={t('paintings.add_image')}
-      title={t('paintings.add_image')}
-      disabled={selecting}
-      onMouseDown={stop}
-      onClick={(event) => {
-        stop(event)
-        void pickImages()
-      }}
-      className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border-subtle text-muted-foreground transition-colors hover:border-border-strong hover:bg-accent hover:text-foreground">
-      <Plus className="size-5" aria-hidden />
-    </button>
+    <>
+      <button
+        type="button"
+        aria-label={t('paintings.add_image')}
+        title={t('paintings.add_image')}
+        disabled={selecting}
+        onMouseDown={stop}
+        onClick={(event) => {
+          stop(event)
+          void pickImages()
+        }}
+        className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border-subtle text-muted-foreground transition-colors hover:border-border-strong hover:bg-accent hover:text-foreground">
+        <Plus className="size-5" aria-hidden />
+      </button>
+      <Popover open={urlOpen} onOpenChange={setUrlOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t('paintings.add_image_url')}
+            onMouseDown={stop}
+            disabled={selecting}>
+            <Link className="size-4" aria-hidden />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 space-y-2" onClick={stop}>
+          <Input
+            type="url"
+            aria-label={t('paintings.add_image_url')}
+            placeholder="https://"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+          />
+          <Button type="button" disabled={selecting || !url.trim()} onClick={() => void importUrl()}>
+            {t('common.add')}
+          </Button>
+        </PopoverContent>
+      </Popover>
+    </>
   )
 }
 

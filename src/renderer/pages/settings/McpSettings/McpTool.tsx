@@ -1,15 +1,14 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-import { Zap } from 'lucide-react'
 import type { Key } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ColumnDef } from '@cherrystudio/ui'
-import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Markdown, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
-import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import { Badge, ColFlex, Flex, Markdown, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { McpTool } from '@renderer/types/tool'
 import type { McpServer } from '@shared/data/types/mcpServer'
+
+import McpPermissionTable from './McpPermissionTable'
 
 interface McpToolsSectionProps {
   tools: McpTool[]
@@ -57,6 +56,7 @@ const AutoApproveCell = ({
       }>
       <Switch
         size="xs"
+        aria-label={`${t('settings.mcp.tools.autoApprove.label')}: ${tool.name}`}
         checked={isAutoApproved}
         disabled={!enabled}
         onCheckedChange={(checked) => onToggle(tool, checked)}
@@ -72,16 +72,6 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
   // Check if a tool is enabled (not in the disabledTools array)
   const isToolEnabled = (tool: McpTool) => {
     return !server.disabledTools?.includes(tool.name)
-  }
-
-  // Handle tool toggle
-  const handleToggle = (tool: McpTool, checked: boolean) => {
-    onToggleTool(tool, checked)
-  }
-
-  // Handle auto-approve toggle
-  const handleAutoApproveToggle = (tool: McpTool, checked: boolean) => {
-    onToggleAutoApprove(tool, checked)
   }
 
   const getTypeBadgeClass = (type: string | undefined) => {
@@ -210,68 +200,16 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     )
   }, [searchText, tools])
 
-  const columns: ColumnDef<McpTool>[] = [
-    {
-      id: 'name',
-      header: () => <span className="font-medium">{t('settings.mcp.tools.availableTools')}</span>,
-      meta: { width: 400, maxWidth: 400, className: 'overflow-hidden' },
-      cell: ({ row }) => {
-        const tool = row.original
-
-        return (
-          <ColFlex className="min-w-0 gap-1 overflow-hidden">
-            <Flex className="min-w-0 items-center gap-1">
-              <span className="truncate text-foreground text-sm" title={tool.name}>
-                {tool.name}
-              </span>
-              <InfoTooltip content={`ID: ${tool.id}`} />
-            </Flex>
-            {tool.description && (
-              <p className="m-0 line-clamp-1 w-full min-w-0 max-w-full overflow-hidden text-[13px] text-muted-foreground leading-5">
-                {tool.description}
-              </p>
-            )}
-          </ColFlex>
-        )
-      }
-    },
-    {
-      id: 'enable',
-      header: () => (
-        <Flex className="items-center justify-center gap-1">
-          <McpLogo width={14} height={14} style={{ opacity: 0.8 }} />
-          <span className="font-medium">{t('settings.mcp.tools.enable')}</span>
-        </Flex>
-      ),
-      meta: { width: 150, maxWidth: 150, align: 'center' },
-      cell: ({ row }) => {
-        const tool = row.original
-
-        return (
-          <Switch size="xs" checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
-        )
-      }
-    },
-    {
-      id: 'autoApprove',
-      header: () => (
-        <Flex className="items-center justify-center gap-1">
-          <Zap size={14} color="var(--error)" />
-          <span className="font-medium">{t('settings.mcp.tools.autoApprove.label')}</span>
-        </Flex>
-      ),
-      meta: { width: 150, maxWidth: 150, align: 'center' },
-      cell: ({ row }) => (
-        <AutoApproveCell tool={row.original} enabled={isToolEnabled(row.original)} onToggle={handleAutoApproveToggle} />
-      )
-    }
-  ]
-
   return (
-    <DataTable
+    <McpPermissionTable
       data={filteredTools}
-      columns={columns}
-      rowKey="id"
+      nameLabel={t('settings.mcp.tools.availableTools')}
+      enableLabel={t('settings.mcp.tools.enable')}
+      isEnabled={isToolEnabled}
+      onToggleEnabled={onToggleTool}
+      renderAutoApprove={(tool) => (
+        <AutoApproveCell tool={tool} enabled={isToolEnabled(tool)} onToggle={onToggleAutoApprove} />
+      )}
       emptyText={searchText ? t('common.no_results') : t('settings.mcp.tools.noToolsAvailable')}
       expandedRowKeys={expandedRowKeys}
       onExpandedRowChange={setExpandedRowKeys}
@@ -280,9 +218,6 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         const properties = getToolSchemaProperties(tool)
         return Boolean(tool.description) || Boolean(properties && Object.keys(properties).length)
       }}
-      tableLayout="fixed"
-      className="bg-transparent [&_[data-slot=table-cell]]:bg-transparent [&_[data-slot=table-head]]:bg-transparent [&_[data-slot=table-header]]:bg-transparent [&_[data-slot=table-header]_[data-slot=table-row]]:bg-transparent"
-      rowClassName="bg-transparent"
     />
   )
 }

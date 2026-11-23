@@ -44,6 +44,7 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
 
@@ -128,6 +129,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private checkpoint?: string
   private readonly turnUsage = new PiTurnUsage()
   private readonly adapter = new PiMessageMetadata((name) => this.resolveMcpToolMetadata(name))
+  private retryUpdates: Promise<void> = Promise.resolve()
   private projection?: ThreadProjection
 
   constructor(private readonly input: AgentRuntimeConnectInput) {}
@@ -271,7 +273,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           if (responseId) this.eventQueue.push({ type: 'response-start', responseId })
           this.recordUsage(usage)
         }
-      }
+      },
+      undefined,
+      (event, sessionId) => this.onModelRetry(event, sessionId)
     )
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
       commandPrefix: loginPathPrefix,
@@ -317,6 +321,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     })
     const options = {
       ...binding,
+      compactionPercent: initialSnapshot.model.contextWindow ? initialSnapshot.compactionPercent : undefined,
       cwd: workspacePath,
       agentDir,
       sessionManager: manager,
@@ -705,6 +710,20 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
     if (result.status !== 'acknowledged') throw new Error(result.error.message)
+  }
+
+  private onModelRetry(event: RetryPartData, sessionId: string): void {
+    this.retryUpdates = this.retryUpdates
+      .then(async () => {
+        if (this.closing) return
+        if (sessionId === this.handle?.thread.id) {
+          this.eventQueue.push({ type: 'chunk', chunk: { type: 'data-retry', id: 'retry', data: event } })
+        } else {
+          const child = (await this.childResources()).find((child) => child.handle.thread.id === sessionId)
+          child?.projection.retry(event)
+        }
+      })
+      .catch((error) => logger.warn('Failed to project model retry status', { error }))
   }
 
   private async childResources(): Promise<PiChildResource[]> {

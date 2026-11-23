@@ -133,21 +133,27 @@ export function ChatConversationControls({
     openResourceEditDialog({ kind: 'assistant', id: assistantId })
   }, [assistantId])
 
+  const assistantAvatar = (
+    <AssistantAvatarImage
+      src={assistantAvatarSrc}
+      alt=""
+      size={20}
+      className="shrink-0 rounded-full object-cover"
+      fallback={
+        assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null
+      }
+    />
+  )
+
   const avatarButton =
-    onAvatarClick && assistantId && assistantIcon ? (
+    onAvatarClick && assistantId && (assistantIcon || assistantAvatarSrc) ? (
       <button
         type="button"
         aria-label={t('chat.profile_pane.open', { name: assistantName })}
         aria-pressed={avatarActive}
         onClick={onAvatarClick}
         className={COMPOSER_PROFILE_AVATAR_BUTTON_CLASS}>
-        <AssistantAvatarImage
-          src={assistantAvatarSrc}
-          alt=""
-          size={20}
-          className="max-w-none rounded-full object-cover"
-          fallback={<EmojiIcon emoji={assistantIcon} size={20} />}
-        />
+        {assistantAvatar}
       </button>
     ) : null
 
@@ -159,17 +165,7 @@ export function ChatConversationControls({
       disabled={assistantTriggerAction === 'edit' && !assistantId}
       aria-label={assistantTriggerAction === 'edit' ? `${t('assistants.edit.title')}: ${assistantName}` : undefined}
       onClick={assistantTriggerAction === 'edit' ? handleAssistantEdit : undefined}>
-      {avatarButton ? null : assistantIcon ? (
-        <AssistantAvatarImage
-          src={assistantAvatarSrc}
-          alt=""
-          size={20}
-          className="shrink-0 rounded-full object-cover"
-          fallback={<EmojiIcon emoji={assistantIcon} size={20} />}
-        />
-      ) : iconOnly ? (
-        <Bot size={16} aria-hidden />
-      ) : null}
+      {avatarButton ? null : assistantAvatar}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
       {assistantTriggerAction === 'edit' ? null : (
         // Beside the avatar, the chevron alone is the icon-only switch control.

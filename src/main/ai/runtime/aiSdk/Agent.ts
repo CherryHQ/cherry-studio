@@ -135,14 +135,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         model: params.modelId,
         system: params.system,
         tools,
-        maxRetries: 0,
+        maxRetries: params.wrapModel ? 0 : (opts.maxRetries ?? 0),
         stopWhen: stepCountIs(1)
       }
       return {
         stream: (input: { messages: ModelMessage[]; abortSignal?: AbortSignal }) =>
-          executor.streamText({ ...singleStep, ...input }),
+          executor.streamText({ ...singleStep, ...input }, params.wrapModel),
         generate: (input: ({ prompt: string } | { messages: ModelMessage[] }) & { abortSignal?: AbortSignal }) =>
-          executor.generateText({ ...singleStep, ...input })
+          executor.generateText({ ...singleStep, ...input }, params.wrapModel)
       }
     }
     const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)

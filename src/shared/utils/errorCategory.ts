@@ -38,13 +38,15 @@ export function isErrorCategory(value: unknown): value is ErrorCategory {
 /**
  * Recover an HTTP status from free text. Only for sources without a structured status
  * (CLI stderr, stored job errors); callers holding a real status field must pass that instead.
- * The number must sit in HTTP syntax (`HTTP 429`, `status 401`, `API Error: 403`,
- * `error (401)`, or a leading `403:`), so durations such as `after 401 minute(s)` are ignored.
+ * The number must sit in HTTP syntax (`HTTP 429`, `API Error: 403`,
+ * `Request rejected (429)`, or a leading `403:`), so durations are ignored.
  */
 export function extractHttpStatus(text: string): number | undefined {
   const match =
-    /(?:\bhttp(?:\/[\d.]+)?|\bstatus(?:[ _]?code)?|\berror)["']?\s*[:=]?\s*\(?([45]\d\d)\b|^\s*([45]\d\d):/i.exec(text)
-  return match ? Number(match[1] ?? match[2]) : undefined
+    /(?:\bHTTP(?:\/\d+(?:\.\d+)?)?\s+|\bAPI Error:\s*)([45]\d{2})\b|\bRequest rejected \(([45]\d{2})\)|^\s*([45]\d{2}):/i.exec(
+      text
+    )
+  return match ? Number(match[1] ?? match[2] ?? match[3]) : undefined
 }
 
 // Groq's entitlement response links to billing; the host confines this exception
@@ -64,6 +66,7 @@ function isQuotaExhaustionMessage(message: string): boolean {
     message.includes('insufficient balance') ||
     message.includes('insufficient_credit') ||
     message.includes('insufficient credit') ||
+    message.includes('credit balance is running low') ||
     message.includes('billing_hard_limit_reached') ||
     message.includes('余额不足')
   )

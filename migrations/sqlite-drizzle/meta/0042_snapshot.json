@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6022f9b9-9657-4a14-8907-fe636a1e6788",
+  "id": "da0ca127-9aa9-4030-800b-b57b79ac14fb",
   "prevId": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "tables": {
     "agent": {
@@ -2142,183 +2142,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
-    },
-    "artifact": {
-      "name": "artifact",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "assistant_id": {
-          "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "topic_id": {
-          "name": "topic_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "file_entry_id": {
-          "name": "file_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "size": {
-          "name": "size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "reported_at": {
-          "name": "reported_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "artifact_session_path_uq": {
-          "name": "artifact_session_path_uq",
-          "columns": [
-            "session_id",
-            "path"
-          ],
-          "isUnique": true
-        },
-        "artifact_agent_reported_idx": {
-          "name": "artifact_agent_reported_idx",
-          "columns": [
-            "agent_id",
-            "reported_at"
-          ],
-          "isUnique": false
-        },
-        "artifact_assistant_reported_idx": {
-          "name": "artifact_assistant_reported_idx",
-          "columns": [
-            "assistant_id",
-            "reported_at"
-          ],
-          "isUnique": false
-        },
-        "artifact_topic_idx": {
-          "name": "artifact_topic_idx",
-          "columns": [
-            "topic_id"
-          ],
-          "isUnique": false
-        },
-        "artifact_file_entry_idx": {
-          "name": "artifact_file_entry_idx",
-          "columns": [
-            "file_entry_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "artifact_agent_id_agent_id_fk": {
-          "name": "artifact_agent_id_agent_id_fk",
-          "tableFrom": "artifact",
-          "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "artifact_session_id_agent_session_id_fk": {
-          "name": "artifact_session_id_agent_session_id_fk",
-          "tableFrom": "artifact",
-          "tableTo": "agent_session",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "artifact_assistant_id_assistant_id_fk": {
-          "name": "artifact_assistant_id_assistant_id_fk",
-          "tableFrom": "artifact",
-          "tableTo": "assistant",
-          "columnsFrom": [
-            "assistant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "artifact_topic_id_topic_id_fk": {
-          "name": "artifact_topic_id_topic_id_fk",
-          "tableFrom": "artifact",
-          "tableTo": "topic",
-          "columnsFrom": [
-            "topic_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "artifact_owner_check": {
-          "name": "artifact_owner_check",
-          "value": "(\"artifact\".\"agent_id\" IS NOT NULL AND \"artifact\".\"session_id\" IS NOT NULL AND \"artifact\".\"assistant_id\" IS NULL AND \"artifact\".\"topic_id\" IS NULL AND \"artifact\".\"path\" IS NOT NULL AND \"artifact\".\"file_entry_id\" IS NULL) OR (\"artifact\".\"agent_id\" IS NULL AND \"artifact\".\"session_id\" IS NULL AND \"artifact\".\"assistant_id\" IS NOT NULL AND \"artifact\".\"topic_id\" IS NOT NULL AND \"artifact\".\"path\" IS NULL AND \"artifact\".\"file_entry_id\" IS NOT NULL)"
-        }
-      }
     },
     "assistant": {
       "name": "assistant",
@@ -4944,6 +4767,13 @@
         },
         "disabled_auto_approve_tools": {
           "name": "disabled_auto_approve_tools",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "skill_permissions": {
+          "name": "skill_permissions",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

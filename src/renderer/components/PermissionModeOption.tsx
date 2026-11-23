@@ -106,7 +106,7 @@ export function PermissionModeSelectItem({
     <SelectItem
       value={card.mode}
       className={cn(
-        'py-2 data-[state=checked]:bg-accent! data-[state=checked]:text-accent-foreground! [&_.lucide-check]:text-muted-foreground!',
+        '[&_.lucide-check]:text-muted-foreground! py-2 data-[state=checked]:bg-accent! data-[state=checked]:text-accent-foreground!',
         warning && 'pr-14 [&>span:first-child]:right-8!'
       )}>
       <div className="flex w-full min-w-0 items-center gap-2">
@@ -128,7 +128,7 @@ export function PermissionModeSelectItem({
       content={warning}
       side="right"
       sideOffset={8}
-      contentProps={{ portalContainer: portalContainer ?? undefined }}>
+      contentProps={{ portalContainer: portalContainer ?? undefined, className: 'data-[state=closed]:hidden' }}>
       {option}
     </NormalTooltip>
   ) : (
@@ -297,7 +297,7 @@ export function PermissionModeOptionLabel({
       <span
         className={cn(
           'truncate text-foreground',
-          withDescription ? 'font-medium text-sm' : 'font-normal text-[13px] leading-4',
+          withDescription ? 'text-sm font-medium' : 'text-[13px] leading-4 font-normal',
           card.dangerous && 'text-destructive'
         )}>
         {t(card.titleKey, card.titleFallback)}

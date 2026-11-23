@@ -1805,6 +1805,17 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['language'])
   })
 
+  it('picks up a lower task threshold on the next warm connection reconcile', async () => {
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, isTaskReuseTarget: true })
+    let percent = 80
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'chat.context_settings.compress.threshold_percent' ? percent : undefined
+    )
+    const initial = await deriveSignature()
+    percent = 60
+    expect((await deriveSignature()).rebuildSignature).not.toBe(initial.rebuildSignature)
+  })
+
   it('changes only the prompt username rebuild fact when the user name changes', async () => {
     mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Alice' : undefined))
     const alice = await deriveSignature()
