@@ -524,7 +524,7 @@ required service tier.`
           message: 'Rate limit exceeded',
           stack: null,
           statusCode: 429,
-          data: circularData as never
+          data: circularData
         }}
         message={message}
       />
