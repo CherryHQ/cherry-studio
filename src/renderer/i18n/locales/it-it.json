@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "Questa CLI non può ripristinare le sessioni. Dopo averla chiusa o arrestata è necessaria una nuova conversazione.",
   "local_agents.not_installed": "Non installato",
   "local_agents.open_terminal": "Apri CLI nel terminale",
+  "local_agents.permission_approval_help": "Quando un’azione richiede la tua approvazione, puoi esaminarla nella conversazione.",
   "local_agents.plan": "Piano dell’agente",
   "local_agents.reauthenticate": "Accedi di nuovo",
   "local_agents.sign_in": "Accedi",

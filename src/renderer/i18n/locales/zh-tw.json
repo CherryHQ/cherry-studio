@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "此 CLI 不支援對話恢復，關閉或停止後需要建立新對話。",
   "local_agents.not_installed": "未安裝",
   "local_agents.open_terminal": "在終端機開啟命令列",
+  "local_agents.permission_approval_help": "需要你確認的操作會在對話中顯示審批卡片。",
   "local_agents.plan": "智慧體計畫",
   "local_agents.reauthenticate": "重新登入",
   "local_agents.sign_in": "登入",

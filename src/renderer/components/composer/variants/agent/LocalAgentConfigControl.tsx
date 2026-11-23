@@ -1,4 +1,4 @@
-import { ChevronDown, Settings2, ShieldAlert } from 'lucide-react'
+import { ChevronDown, Settings2, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,6 +14,9 @@ import {
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   ScrollArea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -23,6 +26,8 @@ import { localAgentConfigOptions, localAgentModeOptions } from '@renderer/utils/
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 
+const triggerClass = 'h-7 min-w-0 max-w-64 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground'
+
 export function LocalAgentConfigControl({
   sessionId,
   presetId,
@@ -30,6 +35,7 @@ export function LocalAgentConfigControl({
   mode,
   thoughtLevel,
   disabled,
+  showApprovalInfo = false,
   side = 'top'
 }: {
   sessionId: string
@@ -38,6 +44,7 @@ export function LocalAgentConfigControl({
   mode?: LocalAgentSelection
   thoughtLevel?: LocalAgentSelection
   disabled: boolean
+  showApprovalInfo?: boolean
   side?: 'top' | 'bottom'
 }) {
   const { t } = useTranslation()
@@ -112,7 +119,23 @@ export function LocalAgentConfigControl({
         }
       })
   ]
-  if (!rows.length) return null
+  const approvalLabel = t('code.adv.permission_mode')
+  if (!rows.length) {
+    if (!showApprovalInfo) return null
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" className={triggerClass}>
+            <ShieldCheck className="lucide-custom size-3.5 shrink-0" />
+            <span className="truncate">{approvalLabel}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent side={side} align="end" aria-label={approvalLabel} className="w-64 p-3">
+          <p className="text-xs text-muted-foreground">{t('local_agents.permission_approval_help')}</p>
+        </PopoverContent>
+      </Popover>
+    )
+  }
   const single = rows.length === 1
   const selectedName = (option: LocalAgentConfigOption) =>
     option.type === 'boolean'
@@ -162,10 +185,7 @@ export function LocalAgentConfigControl({
         <Button
           variant="ghost"
           size="sm"
-          className={cn(
-            'h-7 min-w-0 max-w-64 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground',
-            riskyMode && 'text-warning-subtle-foreground'
-          )}
+          className={cn(triggerClass, riskyMode && 'text-warning-subtle-foreground')}
           aria-label={t('local_agents.configuration')}>
           {riskyMode ? (
             <ShieldAlert className="lucide-custom size-3.5 shrink-0" />
@@ -184,6 +204,9 @@ export function LocalAgentConfigControl({
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           {single ? rows[0].option.name : t('local_agents.configuration')}
         </DropdownMenuLabel>
+        {showApprovalInfo && (
+          <p className="px-2 pb-1.5 text-xs text-muted-foreground">{t('local_agents.permission_approval_help')}</p>
+        )}
         {disabled && (
           <p role="status" className="px-2 pb-1.5 text-xs text-muted-foreground">
             {t('local_agents.configuration_read_only')}

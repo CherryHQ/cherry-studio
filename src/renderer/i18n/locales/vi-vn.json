@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "CLI này không khôi phục phiên. Sau khi đóng hoặc dừng, cần tạo cuộc trò chuyện mới.",
   "local_agents.not_installed": "Chưa cài đặt",
   "local_agents.open_terminal": "Mở CLI trong cửa sổ dòng lệnh",
+  "local_agents.permission_approval_help": "Khi một thao tác cần bạn phê duyệt, bạn có thể xem xét thao tác đó trong cuộc trò chuyện.",
   "local_agents.plan": "Kế hoạch tác nhân",
   "local_agents.reauthenticate": "Đăng nhập lại",
   "local_agents.sign_in": "Đăng nhập",

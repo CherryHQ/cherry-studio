@@ -350,6 +350,8 @@ interface language. Model names, model groups and unknown custom text remain nat
 The complete configuration snapshot retains native categories and priority order;
 unknown option types are ignored. Model parameters (`model_config`) appear in the
 model picker and remain session-owned. Model selection uses the preset-specific defaults described above. Confirmed snapshots replace removed options and model catalogs.
+Selecting a remembered option after an idle disconnect reconnects the native session
+and checks the value against its current options before applying the change.
 Mode and reasoning changes share an in-flight guard; confirmed notifications refresh
 the controls, and failed requests preserve the last confirmed value. Modes remain
 session-owned and do not change Cherry's permission policy or the global Agent.
@@ -391,6 +393,11 @@ changes stay disabled until live session information arrives. Cached snapshots d
 not enable attachment capabilities. A single configurable item opens its choices
 directly and shows its name and current value in the trigger; multiple items use
 submenus. Starting or ending generation does not clear the configuration display.
+
+The local Agent composer explains where to review approval requests. With no
+adjustable session options, a Permission Approval button opens that explanation.
+Otherwise the same guidance appears in the session configuration menu. Approval
+requests are resolved in the conversation using the CLI's supported decisions.
 
 Tools merge by native call ID. Standalone permission IDs settle their own cards.
 Approval previews reuse cached ACP tool titles and inputs when the permission
@@ -527,7 +534,7 @@ Cursor's question extension remains supported independently of standard elicitat
   restore, standalone approvals, and installation environment precedence.
 - Runtime host regression: changing a provisional task's agent discards its old
   prewarmed connection and native identity.
-- Renderer tests: native permission options and removal of Cherry-only controls.
+- Renderer tests: native session options and approval guidance for sessions without them.
 
 See [Adding a Runtime](./adding-a-runtime.md) and
 [Agent Session Runtime](./agent-session-runtime.md) for the shared host contract.

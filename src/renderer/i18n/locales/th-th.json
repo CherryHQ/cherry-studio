@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "CLI นี้กู้คืนเซสชันไม่ได้ หลังปิดหรือหยุดต้องเริ่มการสนทนาใหม่",
   "local_agents.not_installed": "ยังไม่ได้ติดตั้ง",
   "local_agents.open_terminal": "เปิด CLI ในเทอร์มินัล",
+  "local_agents.permission_approval_help": "เมื่อการดำเนินการต้องได้รับอนุมัติจากคุณ คุณสามารถตรวจสอบได้ในบทสนทนา",
   "local_agents.plan": "แผนของเอเจนต์",
   "local_agents.reauthenticate": "ลงชื่อเข้าใช้อีกครั้ง",
   "local_agents.sign_in": "เข้าสู่ระบบ",

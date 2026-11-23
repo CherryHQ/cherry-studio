@@ -6,7 +6,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@te
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import * as ui from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui/components/primitives/button'
@@ -1552,7 +1552,36 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('keeps the configuration visible without reloading capabilities when streaming changes', async () => {
+  it('explains where to approve requests when the local agent offers no session options', async () => {
+    const user = userEvent.setup()
+    const realControls = [
+      vi.spyOn(ui, 'Button').mockImplementation(Button),
+      vi.spyOn(ui, 'Popover').mockImplementation(Popover),
+      vi.spyOn(ui, 'PopoverContent').mockImplementation(PopoverContent),
+      vi.spyOn(ui, 'PopoverTrigger').mockImplementation(PopoverTrigger)
+    ]
+    onTestFinished(() => realControls.forEach((control) => control.mockRestore()))
+    mocks.ipcApiRequest.mockResolvedValue({ models: [], images: false, resume: true, configOptions: [] })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="local-approval-session"
+        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code.adv.permission_mode' }))
+    const approvalInfo = await screen.findByRole('dialog', { name: 'code.adv.permission_mode' })
+    expect(approvalInfo).toHaveTextContent('local_agents.permission_approval_help')
+    expect(within(approvalInfo).queryByRole('radio')).not.toBeInTheDocument()
+  })
+
+  it('shows only one session configuration entry even with Cherry permission mode pinned', async () => {
+    mocks.pinnedToolIds = ['permission-mode']
     const info = {
       models: [],
       images: false,
@@ -1580,11 +1609,44 @@ describe('AgentComposer', () => {
     const view = render(<AgentComposer {...props} />)
     const controls = within(screen.getByTestId('composer-send-accessory'))
     await waitFor(() => expect(controls.getAllByLabelText('local_agents.configuration')).toHaveLength(1))
+    expect(
+      screen.queryByRole('button', { name: /agent.settings.permissionMode.title|Permission Mode|权限模式/ })
+    ).toBeNull()
+    expect(mocks.surfaceProps?.onShiftTab).toBeUndefined()
     for (const isStreaming of [true, false, true, false]) {
       view.rerender(<AgentComposer {...props} isStreaming={isStreaming} />)
       expect(controls.getAllByLabelText('local_agents.configuration')).toHaveLength(1)
     }
     expect(mocks.ipcApiRequest.mock.calls.filter(([route]) => route === 'ai.local_agents.session_info')).toHaveLength(1)
+  })
+
+  it('enables cached local modes after the idle connection expires', () => {
+    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
+      'session-1': {
+        mode: {
+          id: 'mode',
+          currentValue: 'manual',
+          options: [
+            { value: 'manual', name: 'Manual review' },
+            { value: 'edit', name: 'Review edits' }
+          ]
+        }
+      }
+    })
+    mocks.ipcApiRequest.mockResolvedValue(null)
+    render(
+      <AgentComposer
+        sessionId="session-1"
+        agentId="agent-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const option = screen.getByRole('menuitemradio', { name: 'Review edits' })
+    expect(option).toBeEnabled()
   })
 
   it('uses the controlled session, agent, and model context', () => {

@@ -3995,28 +3995,34 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  async setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
-    const entry = this.entries.get(sessionId)
-    const connection = entry && this.currentConnection(entry)
-    if (!connection?.setConfigOption || this.isSessionBusy(sessionId))
-      throw new Error('Local agent session is unavailable or busy')
-    return connection.setConfigOption(configId, value)
+  private async changeLocalOption(
+    sessionId: string,
+    apply: (connection: AgentRuntimeConnection) => Promise<LocalAgentSessionInfo> | undefined
+  ) {
+    let entry = this.entries.get(sessionId)
+    if ((!entry || !this.currentConnection(entry)) && !this.isSessionBusy(sessionId)) {
+      const agentId = agentSessionService.getById(sessionId)?.agentId
+      if (agentId && agentService.getAgent(agentId)?.type === 'local') {
+        await this.primeConnection(sessionId)
+        entry = this.entries.get(sessionId)
+      }
+    }
+    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
+    const change = connection && !this.isSessionBusy(sessionId) && apply(connection)
+    if (!change) throw new Error('Local agent session is unavailable or busy')
+    return change
   }
 
-  async setLocalMode(sessionId: string, configId: string, value: string) {
-    const entry = this.entries.get(sessionId)
-    const connection = entry && this.currentConnection(entry)
-    if (!connection?.setMode || this.isSessionBusy(sessionId))
-      throw new Error('Local agent session is unavailable or busy')
-    return connection.setMode(configId, value)
+  setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
+    return this.changeLocalOption(sessionId, (connection) => connection.setConfigOption?.(configId, value))
   }
 
-  async setLocalThoughtLevel(sessionId: string, configId: string, value: string) {
-    const entry = this.entries.get(sessionId)
-    const connection = entry && this.currentConnection(entry)
-    if (!connection?.setThoughtLevel || this.isSessionBusy(sessionId))
-      throw new Error('Local agent session is unavailable or busy')
-    return connection.setThoughtLevel(configId, value)
+  setLocalMode(sessionId: string, configId: string, value: string) {
+    return this.changeLocalOption(sessionId, (connection) => connection.setMode?.(configId, value))
+  }
+
+  setLocalThoughtLevel(sessionId: string, configId: string, value: string) {
+    return this.changeLocalOption(sessionId, (connection) => connection.setThoughtLevel?.(configId, value))
   }
 
   getLocalSessionInfo(sessionId: string) {

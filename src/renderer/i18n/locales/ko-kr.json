@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "이 CLI는 세션을 복원할 수 없습니다. 닫거나 중지하면 새 대화를 시작해야 합니다.",
   "local_agents.not_installed": "설치되지 않음",
   "local_agents.open_terminal": "터미널에서 CLI 열기",
+  "local_agents.permission_approval_help": "승인이 필요한 작업은 대화에서 검토할 수 있습니다.",
   "local_agents.plan": "에이전트 계획",
   "local_agents.reauthenticate": "다시 로그인",
   "local_agents.sign_in": "로그인",

@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "Αυτό το CLI δεν επαναφέρει συνεδρίες. Μετά το κλείσιμο ή τη διακοπή απαιτείται νέα συνομιλία.",
   "local_agents.not_installed": "Δεν εγκαταστάθηκε",
   "local_agents.open_terminal": "Άνοιγμα CLI στο τερματικό",
+  "local_agents.permission_approval_help": "Όταν μια ενέργεια χρειάζεται την έγκρισή σας, μπορείτε να την ελέγξετε στη συνομιλία.",
   "local_agents.plan": "Σχέδιο πράκτορα",
   "local_agents.reauthenticate": "Σύνδεση ξανά",
   "local_agents.sign_in": "Σύνδεση",

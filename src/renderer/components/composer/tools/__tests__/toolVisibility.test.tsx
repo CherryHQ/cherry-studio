@@ -54,7 +54,12 @@ describe('composer tool visibility', () => {
     expect(tools).toContain('mcp_prompts')
     expect(tools).toContain('mcp_resources')
     expect(tools).toContain('note-reference')
-    expect(tools).toContain('permission_mode')
+    expect(tools).not.toContain('permission_mode')
     expect(tools).toContain('slash_commands')
+  })
+
+  it.each(['pi', 'claude-code'])('keeps Cherry permission controls available to the %s runtime', (agentType) => {
+    const tools = getToolsForScope(TopicType.Session, { session: { agentId: 'agent', agentType } })
+    expect(tools.map((tool) => tool.key)).toContain('permission_mode')
   })
 })

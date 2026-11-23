@@ -151,6 +151,7 @@ const permissionModeTool = defineTool({
   key: 'permission_mode',
   label: PERMISSION_MODE_TOOLBAR_MANIFEST.label,
   visibleInScopes: PERMISSION_MODE_TOOLBAR_MANIFEST.visibleInScopes,
+  condition: ({ session }) => !!session && session.agentType !== 'local',
 
   composer: {
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />

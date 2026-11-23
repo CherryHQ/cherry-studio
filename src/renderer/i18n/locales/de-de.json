@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "Diese CLI kann Sitzungen nicht wiederherstellen. Nach dem Schließen oder Stoppen ist eine neue Unterhaltung erforderlich.",
   "local_agents.not_installed": "Nicht installiert",
   "local_agents.open_terminal": "CLI im Terminal öffnen",
+  "local_agents.permission_approval_help": "Wenn eine Aktion deine Zustimmung erfordert, kannst du sie im Gespräch prüfen.",
   "local_agents.plan": "Agentenplan",
   "local_agents.reauthenticate": "Erneut anmelden",
   "local_agents.sign_in": "Anmelden",

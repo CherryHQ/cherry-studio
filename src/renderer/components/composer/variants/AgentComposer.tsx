@@ -659,7 +659,9 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
-  const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
+  const usesCherryPermissionMode = !!agent && agent.type !== 'local'
+  const supportsPlan =
+    usesCherryPermissionMode && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
@@ -1653,6 +1655,7 @@ const AgentComposerInner = ({
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
         customTools={toolbarCustomTools}
+        hiddenIds={usesCherryPermissionMode ? undefined : ['permission-mode']}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         isModelUnavailable={isModelUnavailable}
@@ -1668,7 +1671,8 @@ const AgentComposerInner = ({
       resetPinnedToolIds,
       setCustomizeToolbarOpen,
       setPinnedToolIds,
-      toolbarCustomTools
+      toolbarCustomTools,
+      usesCherryPermissionMode
     ]
   )
 
@@ -1710,19 +1714,20 @@ const AgentComposerInner = ({
           onFastModeChange={setFastMode}
         />
       ) : null}
-      {agent?.type === 'local' && localOptions && !launchOptions?.editing ? (
+      {agent?.type === 'local' && !launchOptions?.editing ? (
         <LocalAgentConfigControl
           key={`config:${sessionId}`}
           sessionId={sessionId}
           presetId={agent.configuration?.localRuntime?.presetId}
-          options={localOptions.configOptions?.filter(
+          options={localOptions?.configOptions?.filter(
             (option) =>
               option.category !== 'model_config' &&
               option !== localOptions.configOptions?.find((item) => item.category === 'model' && item.type === 'select')
           )}
-          mode={localOptions.mode}
-          thoughtLevel={localOptions.thoughtLevel}
-          disabled={isStreaming || !localInfo}
+          mode={localOptions?.mode}
+          thoughtLevel={localOptions?.thoughtLevel}
+          disabled={isStreaming}
+          showApprovalInfo
         />
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />

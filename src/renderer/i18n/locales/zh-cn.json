@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "此 CLI 不支持会话恢复，关闭或停止后需要新建对话。",
   "local_agents.not_installed": "未安装",
   "local_agents.open_terminal": "在终端打开命令行",
+  "local_agents.permission_approval_help": "需要你确认的操作会在对话中显示审批卡片。",
   "local_agents.plan": "智能体计划",
   "local_agents.reauthenticate": "重新登录",
   "local_agents.sign_in": "登录",

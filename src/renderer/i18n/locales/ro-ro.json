@@ -2555,6 +2555,7 @@
   "local_agents.no_resume": "Acest CLI nu poate restaura sesiunile. După închidere sau oprire, începeți o conversație nouă.",
   "local_agents.not_installed": "Neinstalat",
   "local_agents.open_terminal": "Deschide CLI în terminal",
+  "local_agents.permission_approval_help": "Când o acțiune necesită aprobarea ta, o poți verifica în conversație.",
   "local_agents.plan": "Planul agentului",
   "local_agents.reauthenticate": "Autentificare din nou",
   "local_agents.sign_in": "Autentificare",

@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "Esta CLI não restaura sessões. Após fechar ou parar, inicie uma nova conversa.",
   "local_agents.not_installed": "Não instalado",
   "local_agents.open_terminal": "Abrir CLI no terminal",
+  "local_agents.permission_approval_help": "Quando uma ação precisar da sua aprovação, pode analisá-la na conversa.",
   "local_agents.plan": "Plano do agente",
   "local_agents.reauthenticate": "Iniciar sessão novamente",
   "local_agents.sign_in": "Iniciar sessão",

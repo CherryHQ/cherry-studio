@@ -5018,6 +5018,32 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('restores the native session to change its mode without sending a turn', async () => {
+    const info = { models: [], images: false, resume: true }
+    const connection = {
+      ...createAsyncQueue<any>(),
+      send: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      setMode: vi.fn().mockResolvedValue(info)
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({ type: 'local', connect, validateSession: vi.fn() })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'local', model: baseTurnInput.modelId })
+    mocks.getLastRuntimeResumeToken.mockReturnValue('previous-session')
+
+    const service = new AgentSessionRuntimeService()
+    await expect(service.setLocalMode('session-1', 'mode', 'default')).resolves.toEqual(info)
+    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ resumeToken: 'previous-session' }))
+    expect(connection.setMode).toHaveBeenCalledWith('mode', 'default')
+    expect(connection.send).not.toHaveBeenCalled()
+    expect(service.inspect('session-1')?.status).toBe('idle')
+
+    service.beginTurn({ ...baseTurnInput, agentType: 'local' })
+    await expect(service.setLocalMode('session-1', 'mode', 'auto')).rejects.toThrow('busy')
+    expect(connection.setMode).toHaveBeenCalledTimes(1)
+  })
+
   describe('primeConnection — eager command load on session open', () => {
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]

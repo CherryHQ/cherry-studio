@@ -2578,6 +2578,7 @@
   "local_agents.no_resume": "To CLI nie potrafi przywracać sesji. Zamknięcie lub zatrzymanie wymaga rozpoczęcia nowej rozmowy.",
   "local_agents.not_installed": "Niezainstalowano",
   "local_agents.open_terminal": "Otwórz CLI w terminalu",
+  "local_agents.permission_approval_help": "Gdy działanie wymaga Twojej zgody, możesz je sprawdzić w rozmowie.",
   "local_agents.plan": "Plan agenta",
   "local_agents.reauthenticate": "Zaloguj się ponownie",
   "local_agents.sign_in": "Zaloguj się",

@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "この CLI はセッションを復元できません。終了または停止後は新しい会話が必要です。",
   "local_agents.not_installed": "未インストール",
   "local_agents.open_terminal": "ターミナルで CLI を開く",
+  "local_agents.permission_approval_help": "承認が必要な操作は、会話内で確認できます。",
   "local_agents.plan": "エージェントの計画",
   "local_agents.reauthenticate": "再ログイン",
   "local_agents.sign_in": "ログイン",

@@ -2554,6 +2554,7 @@
   "local_agents.no_resume": "Bu CLI oturumları geri yükleyemez. Kapatma veya durdurma sonrasında yeni bir konuşma başlatın.",
   "local_agents.not_installed": "Yüklü değil",
   "local_agents.open_terminal": "CLI’yi terminalde aç",
+  "local_agents.permission_approval_help": "Bir işlem onayınızı gerektirdiğinde, işlemi konuşmada inceleyebilirsiniz.",
   "local_agents.plan": "Ajan planı",
   "local_agents.reauthenticate": "Yeniden oturum aç",
   "local_agents.sign_in": "Oturum aç",

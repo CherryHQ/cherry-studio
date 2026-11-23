@@ -2556,6 +2556,7 @@
   "local_agents.no_resume": "Этот CLI не восстанавливает сеансы. После закрытия или остановки начните новый разговор.",
   "local_agents.not_installed": "Не установлен",
   "local_agents.open_terminal": "Открыть CLI в терминале",
+  "local_agents.permission_approval_help": "Если действие требует вашего одобрения, его можно проверить в беседе.",
   "local_agents.plan": "План агента",
   "local_agents.reauthenticate": "Войти снова",
   "local_agents.sign_in": "Войти",
