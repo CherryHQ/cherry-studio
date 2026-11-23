@@ -308,7 +308,7 @@ export async function runDataReset(): Promise<void> {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
-      await refuseResetForPathMismatch()
+      refuseResetForPathMismatch()
       return
     }
 
@@ -318,7 +318,7 @@ export async function runDataReset(): Promise<void> {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
-      await abandonIncompleteReset()
+      abandonIncompleteReset()
       return
     }
 
@@ -338,7 +338,7 @@ export async function runDataReset(): Promise<void> {
       logger.error('Data reset abandoned: the attempt count could not be durably recorded', {
         error: String(error)
       })
-      await abandonIncompleteReset()
+      abandonIncompleteReset()
       return
     }
 
@@ -361,7 +361,7 @@ export async function runDataReset(): Promise<void> {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
-      await abandonIncompleteReset()
+      abandonIncompleteReset()
       return
     }
 
@@ -419,14 +419,15 @@ function wipeNestedUserDataTargets(failures: string[]): void {
   }
 }
 
-async function refuseResetForPathMismatch(): Promise<void> {
+// Startup continues without waiting for ready: relocation must isolate sessionData before it.
+function refuseResetForPathMismatch(): void {
   deleteMarker()
-  await showPathMismatchWarning()
+  void showPathMismatchWarning().catch((error) => logger.error('Could not show the reset warning', error as Error))
 }
 
-async function abandonIncompleteReset(): Promise<void> {
+function abandonIncompleteReset(): void {
   deleteMarker()
-  await showIncompleteResetWarning()
+  void showIncompleteResetWarning().catch((error) => logger.error('Could not show the reset warning', error as Error))
 }
 
 async function showDataResetError(title: string, message: string, technicalDetail: string): Promise<void> {

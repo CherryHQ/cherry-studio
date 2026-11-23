@@ -532,12 +532,14 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
-    expect(showMessageBoxMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        buttons: ['dialog.support.close', 'dialog.support.copy_and_feedback', 'dialog.support.releases'],
-        message: 'dialog.data_reset.cancelled.message',
-        title: 'dialog.data_reset.cancelled.title'
-      })
+    await vi.waitFor(() =>
+      expect(showMessageBoxMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          buttons: ['dialog.support.close', 'dialog.support.copy_and_feedback', 'dialog.support.releases'],
+          message: 'dialog.data_reset.cancelled.message',
+          title: 'dialog.data_reset.cancelled.title'
+        })
+      )
     )
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
@@ -595,8 +597,38 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(markerExists()).toBe(false)
-    expect(showMessageBoxMock).toHaveBeenCalled()
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalled())
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an exhausted marker', pendingMarker({ attempts: 2 })],
+    ['a path mismatch', pendingMarker({ canonicalPath: '/mock/old-target' })]
+  ])('returns before Electron is ready when %s only needs a warning', async (_case, marker) => {
+    stubAll(marker)
+    let markReady!: () => void
+    const ready = new Promise<void>((resolve) => (markReady = resolve))
+    let isReady = false
+    vi.doMock('electron', () => ({
+      __esModule: true,
+      app: { isPackaged: true, isReady: () => isReady, whenReady: () => ready, getLocale: () => 'en-US' },
+      dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
+      session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
+    }))
+
+    // Relocation must still isolate sessionData before ready, so the warning cannot hold preboot.
+    const outcome = await Promise.race([
+      runReset().then(() => 'returned'),
+      new Promise((resolve) => setTimeout(() => resolve('waiting for ready'), 100))
+    ])
+    expect(outcome).toBe('returned')
+    expect(markerExists()).toBe(false)
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
+
+    isReady = true
+    markReady()
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledOnce())
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -606,7 +638,7 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
-    expect(showMessageBoxMock).toHaveBeenCalled()
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalled())
   })
 
   it('quits rather than booting writable when abandoning a marker fails', async () => {
