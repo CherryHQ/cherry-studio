@@ -326,6 +326,17 @@ describe('getWebSourcesMarkdown', () => {
     expect(getWebSourcesMarkdown(message)).toBe('[1] [Second](https://second.com)')
   })
 
+  it('does not treat a comment opener inside an HTML attribute as a comment', () => {
+    const text = '<!-- note --> <span title="<!--">Visible claim [cite:1].</span>'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.byMarker.get('1')?.number).toBe(1)
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
   it('collects copy eligibility after duplicate collapse changes Markdown boundaries', () => {
     const message = createExportView([
       { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },

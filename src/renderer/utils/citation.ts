@@ -11,6 +11,7 @@
  */
 
 import type { GroundingSupport } from '@google/genai'
+import { Parser as HtmlParser } from 'htmlparser2'
 import type { Root, RootContent } from 'mdast'
 import remarkDefinitionList from 'remark-definition-list'
 import remarkGfm from 'remark-gfm'
@@ -83,11 +84,19 @@ export function findMarkdownCodeRanges(content: string, protectAllCodeBlocks = f
       if (start.offset !== undefined && end.offset !== undefined) {
         if (node.type === 'html') {
           const raw = content.slice(start.offset, end.offset)
-          for (const comment of raw.matchAll(/<!--[\s\S]*?(?:-->|$)/g)) {
-            const range = { start: start.offset + comment.index, end: start.offset + comment.index + comment[0].length }
-            ranges.push(range)
-            allCodeRanges.push(range)
-          }
+          const offset = start.offset
+          const boundary = end.offset
+          const parser = new HtmlParser({
+            oncomment() {
+              const range = {
+                start: offset + parser.startIndex,
+                end: Math.min(boundary, offset + parser.endIndex + 1)
+              }
+              ranges.push(range)
+              allCodeRanges.push(range)
+            }
+          })
+          parser.end(raw)
           continue
         }
         const range = { start: start.offset, end: end.offset }
