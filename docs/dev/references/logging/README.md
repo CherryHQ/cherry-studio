@@ -6,6 +6,7 @@ sources:
   - src/main/core/preboot/legacyUpgradeGate.ts
   - src/main/data/failureFacts.ts
   - src/main/services/file/failureFacts.ts
+  - src/main/utils/error.ts
   - src/main/services/file/FileEditService.ts
   - src/main/services/file/system.ts
   - src/main/services/file/internal/content
@@ -138,6 +139,14 @@ unexpected faults are recorded. Entry reads and conditional writes classify with
 the resolved entry origin; rename collisions retain `EEXIST`. Copy distinguishes
 a missing or unreadable managed source from an external destination failure;
 source probes that cannot establish readability retain managed-file reporting.
+
+File classification checks cancellation first, then reads a string code against explicit domain
+and filesystem lists. Readable virtual fields and callable failures follow the same code policy.
+Unknown or unreadable diagnostics produce the fixed `file_operation_failed` reason without copying
+their message, path, or unknown code. TypeError, ReferenceError, and SyntaxError identities from the
+current realm remain defects; an unreadable prototype cannot prove that identity and stays unknown.
+Both defects and unknown failures remain eligible for reporting.
+
 File editing classifies original filesystem errors and domain `FILE_EDIT_*`
 codes in `FileEditService`; IPC normalization retains that classification's
 reporting ownership. Each lease retains whether its target is an external file

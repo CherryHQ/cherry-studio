@@ -72,6 +72,7 @@ export async function readByPath(
     const after: FileVersion = { mtime: afterStat.modifiedAt, size: afterStat.size }
 
     if (isSameVersion(before, after) && (readByteLength === undefined || after.size === readByteLength)) {
+      // SAFETY: Only BinaryReadOptions selects the captured binary encoding; withContentHash is optional on that member.
       if (encoding === 'binary' && (options as BinaryReadOptions).withContentHash) {
         return { content, mime: contentMime, version: after, contentHash: hashContent(content) }
       }
