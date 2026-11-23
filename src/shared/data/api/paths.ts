@@ -41,8 +41,24 @@ export type ApiPath = ConcreteApiPaths | TemplateApiPaths
  * Reverse lookup: from concrete path back to original template path
  * Used to determine which ApiSchema entry matches a concrete path
  */
+type MatchPathSegments<Path extends string, Template extends string> = Template extends `${infer Head}/${infer Tail}`
+  ? Path extends `${infer PathHead}/${infer PathTail}`
+    ? Head extends `:${string}`
+      ? MatchPathSegments<PathTail, Tail>
+      : PathHead extends Head
+        ? MatchPathSegments<PathTail, Tail>
+        : false
+    : false
+  : Path extends `${string}/${string}`
+    ? false
+    : Template extends `:${string}`
+      ? true
+      : Path extends Template
+        ? true
+        : false
+
 export type MatchApiPath<Path extends string> = {
-  [K in keyof ApiSchemas]: Path extends ResolvedPath<K & string> ? K : never
+  [K in keyof ApiSchemas]: MatchPathSegments<Path, K & string> extends true ? K : never
 }[keyof ApiSchemas]
 
 /**

@@ -92,7 +92,7 @@ export const COMPOSER_SHORTCUTS: readonly ComposerShortcut[] = [
 ]
 
 // v1 (and pre-2.0 v2) stored one of five fixed strings instead of a binding.
-const LEGACY_COMPOSER_SHORTCUTS: ReadonlyMap<string, ComposerShortcut> = new Map([
+const LEGACY_COMPOSER_SHORTCUTS: ReadonlyMap<string, ComposerShortcut> = new Map<string, ComposerShortcut>([
   ['Enter', ['Enter']],
   ['Shift+Enter', ['Shift', 'Enter']],
   ['Alt+Enter', ['Alt', 'Enter']],

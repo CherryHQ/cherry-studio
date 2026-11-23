@@ -21,6 +21,7 @@ export function useNutstoreSso() {
 
     return new Promise<string | null>((resolve) => {
       let removeListener: (() => void) | undefined
+      // eslint-disable-next-line prefer-const -- A synchronous subscription callback can release resources before the timer is allocated.
       let timeoutId: number | undefined
       let settled = false
 

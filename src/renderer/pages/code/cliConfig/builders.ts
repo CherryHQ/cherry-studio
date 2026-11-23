@@ -223,6 +223,7 @@ function buildOpenCodeModelOptions(
   if (options.reasoning === true && options.supportsReasoningEffort === true) {
     return { reasoning: true, options: { reasoningEffort: 'medium' } }
   }
+  return undefined
 }
 
 function openCodeModelLimit(options: OpenCodeConfigOptions): Partial<Record<'context' | 'output', number>> | undefined {

@@ -151,6 +151,7 @@ async function resolveFallback(
     return null
   }
 
+  // eslint-disable-next-line prefer-const -- The callback registered during parameter construction must see undefined until the usage plugin exists.
   let repairUsagePlugins: AiPlugin[] | undefined
   const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
     request: args.request,

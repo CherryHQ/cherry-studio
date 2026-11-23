@@ -630,6 +630,7 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
+    // eslint-disable-next-line prefer-const -- The callback registered during parameter construction must see undefined until the usage plugin exists.
     let repairUsagePlugins: AiPlugin[] | undefined
     const {
       sdkConfig,
@@ -695,6 +696,7 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
+    // eslint-disable-next-line prefer-const -- The retry callback is registered before Agent construction and must tolerate events before assignment.
     let agent: Agent | undefined
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
@@ -855,6 +857,7 @@ export class AiService extends BaseService {
     // Model messages go directly to generation, not the UI-message context scanner.
     const { messages, ...parameterRequest } = request
 
+    // eslint-disable-next-line prefer-const -- The callback registered during parameter construction must see undefined until the usage plugin exists.
     let repairUsagePlugins: AiPlugin[] | undefined
     const {
       sdkConfig,

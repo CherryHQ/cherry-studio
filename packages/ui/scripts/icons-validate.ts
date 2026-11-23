@@ -21,7 +21,7 @@ function parseArgs() {
   if (dir !== 'providers' && dir !== 'models' && dir !== 'general') {
     throw new Error('--dir must be providers, models or general')
   }
-  return { dir }
+  return { dir } satisfies { dir: SourceDir }
 }
 
 interface ValidationResult {

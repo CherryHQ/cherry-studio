@@ -8,7 +8,7 @@ describe('createMinimaxProvider', () => {
       apiKey: 'sk-test',
       fetch: async () =>
         new Response(JSON.stringify({ data: { image_urls: ['https://cdn.example.com/image.png'] } }), {
-          headers: { ['__proto__']: 'trace-marker' }
+          headers: [['__proto__', 'trace-marker']]
         })
     })
 
