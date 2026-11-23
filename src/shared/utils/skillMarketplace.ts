@@ -77,7 +77,7 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
 
   if (!parsed.success) throw new Error('Invalid claude-plugins.dev search response')
 
-  return parsed.data.skills.flatMap((s) => {
+  return parsed.data.skills.flatMap<SkillSearchResult>((s) => {
     const repoOwner = s.metadata?.repoOwner ?? ''
     const repoName = s.metadata?.repoName ?? ''
 
@@ -96,7 +96,7 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
       author: s.author ?? s.namespace ?? null,
       stars: s.stars ?? 0,
       downloads: s.installs ?? 0,
-      sourceRegistry: 'claude-plugins.dev' as SkillSearchSource,
+      sourceRegistry: 'claude-plugins.dev',
       sourceUrl: s.sourceUrl ?? `https://github.com/${repoOwner}/${repoName}/tree/main/${directoryPath}`,
       // The install identifier is owner/repo/directoryPath — the REAL directory, not the display name.
       installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`

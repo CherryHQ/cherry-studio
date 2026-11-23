@@ -218,12 +218,14 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
   const letterMatch = trimmed.match(/^Key([A-Z])$/)
 
   if (letterMatch) {
+    // SAFETY: The anchored capture is one uppercase ASCII letter, all of which are in SHORTCUT_LETTERS.
     return letterMatch[1] as ShortcutLetter
   }
 
   const digitMatch = trimmed.match(/^(?:Digit|Numpad)(\d)$/)
 
   if (digitMatch) {
+    // SAFETY: The anchored capture is one ASCII digit, all of which are in SHORTCUT_DIGITS.
     return digitMatch[1] as ShortcutDigit
   }
 

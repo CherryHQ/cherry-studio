@@ -155,9 +155,8 @@ export function isWithTrailingSharp<T extends string>(url: T): boolean {
 /**
  * Removes the trailing '#' from a URL string if it exists.
  *
- * @template T - The string type to preserve type safety
- * @param {T} url - The URL string to process
- * @returns {T} The URL string without a trailing '#'
+ * @param url - The URL string to process
+ * @returns The URL string without a trailing '#'
  *
  * @example
  * ```ts
@@ -165,8 +164,8 @@ export function isWithTrailingSharp<T extends string>(url: T): boolean {
  * withoutTrailingSharp('https://example.com')  // 'https://example.com'
  * ```
  */
-export function withoutTrailingSharp<T extends string>(url: T): T {
-  return url.replace(/#$/, '') as T
+export function withoutTrailingSharp(url: string): string {
+  return url.replace(/#$/, '')
 }
 
 /**

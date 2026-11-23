@@ -364,16 +364,18 @@ const mergeConstraint = (left: KeyConstraint, right: KeyConstraint): KeyConstrai
     next.polarity = right.polarity
   }
 
-  if (right.equals !== undefined) {
-    if (next.equals !== undefined && !valuesEqual(next.equals, right.equals)) {
+  const rightEquals = right.equals
+
+  if (rightEquals !== undefined) {
+    if (next.equals !== undefined && !valuesEqual(next.equals, rightEquals)) {
       return undefined
     }
 
-    if (next.notEquals.some((value) => valuesEqual(value, right.equals as ContextLiteral))) {
+    if (next.notEquals.some((value) => valuesEqual(value, rightEquals))) {
       return undefined
     }
 
-    next.equals = right.equals
+    next.equals = rightEquals
   }
 
   for (const value of right.notEquals) {

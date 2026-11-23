@@ -167,6 +167,7 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 
+// SAFETY: The catalog covers every CodeCli ID exactly once, enforced by codeCliTools.test.ts.
 export const CODE_CLI_TOOL_PRESET_MAP = Object.freeze(
   Object.fromEntries(CODE_CLI_TOOL_PRESETS.map((preset) => [preset.id, preset])) as Record<
     CodeCli,
@@ -174,6 +175,7 @@ export const CODE_CLI_TOOL_PRESET_MAP = Object.freeze(
   >
 )
 
+// SAFETY: The target has no prototype; only executable/preset pairs are assigned before it is frozen.
 export const CODE_CLI_TOOL_PRESET_BY_EXECUTABLE = Object.freeze(
   Object.assign(
     Object.create(null),
