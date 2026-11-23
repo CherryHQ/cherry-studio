@@ -266,6 +266,33 @@ describe('getWebSourcesMarkdown', () => {
     expect(getCitedWebSources(message)).toHaveLength(1)
   })
 
+  it.each(['<!-- Note --> Visible claim [cite:1].', '    \\`escaped\n    Claim [cite:1] \\`'])(
+    'resolves prose following protected delimiters: %s',
+    (text) => {
+      const message = createExportView([
+        { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+        { type: 'text', text }
+      ] as MessageExportView['parts'])
+      const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+      expect(resolved.byMarker.get('1')?.number).toBe(1)
+      if (text.startsWith('<!--')) expect(getCitedWebSources(message)).toHaveLength(1)
+    }
+  )
+
+  it('matches fallback delimiters without repeatedly scanning earlier runs', () => {
+    const find = vi.spyOn(Array.prototype, 'findIndex')
+    try {
+      const message = createExportView([
+        { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com' },
+        { type: 'text', text: '```\n' + '`x` '.repeat(16000) + '[cite:1]' }
+      ] as MessageExportView['parts'])
+      getCitedWebSources(message)
+      expect(find.mock.calls.filter((args) => String(args[0]).includes('opener')).length).toBe(0)
+    } finally {
+      find.mockRestore()
+    }
+  })
+
   it('collects copy eligibility after duplicate collapse changes Markdown boundaries', () => {
     const message = createExportView([
       { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },

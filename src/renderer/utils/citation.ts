@@ -81,19 +81,31 @@ export function findMarkdownCodeRanges(content: string, protectAllCodeBlocks = f
     ) {
       const { start, end } = node.position
       if (start.offset !== undefined && end.offset !== undefined) {
-        const range = { start: start.offset, end: end.offset }
+        const commentEnd = node.type === 'html' ? content.indexOf('-->', start.offset + 4) : -1
+        const range = { start: start.offset, end: commentEnd >= 0 ? commentEnd + 3 : end.offset }
         allCodeRanges.push(range)
         if (node.type !== 'code' || isCitationOpaqueCode(node, content, start.offset, end.offset)) ranges.push(range)
         else {
           // The stray-indentation fallback remains prose, but its backtick literals are opaque.
           const raw = content.slice(start.offset, end.offset)
-          const runs = [...raw.matchAll(/`+/g)]
+          const runs = [...raw.matchAll(/`+/g)].filter((run) => {
+            let slashes = 0
+            for (let j = run.index - 1; j >= 0 && raw[j] === '\\'; j--) slashes++
+            return slashes % 2 === 0
+          })
+          // Build next-equal-run links once. Never rescan the prefix for each opener.
+          const next = new Map<number, number>()
+          const matching = new Map<number, number>()
+          for (let i = runs.length - 1; i >= 0; i--) {
+            const close = next.get(runs[i][0].length)
+            if (close !== undefined) matching.set(i, close)
+            next.set(runs[i][0].length, i)
+          }
           for (let i = 0; i < runs.length; i++) {
-            const opener = runs[i]
-            const close = runs.findIndex((run, index) => index > i && run[0].length === opener[0].length)
-            if (close < 0) continue
+            const close = matching.get(i)
+            if (close === undefined) continue
             ranges.push({
-              start: start.offset + opener.index,
+              start: start.offset + runs[i].index,
               end: start.offset + runs[close].index + runs[close][0].length
             })
             i = close
