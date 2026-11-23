@@ -308,7 +308,7 @@ export async function runDataReset(): Promise<void> {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
-      await refuseResetForPathMismatch()
+      refuseResetForPathMismatch(`recorded: ${marker.canonicalPath}\nactual: ${actualCanonical}`)
       return
     }
 
@@ -318,7 +318,7 @@ export async function runDataReset(): Promise<void> {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
-      await abandonIncompleteReset()
+      abandonIncompleteReset(`Data reset attempt cap reached after ${attempts} attempts`)
       return
     }
 
@@ -338,7 +338,7 @@ export async function runDataReset(): Promise<void> {
       logger.error('Data reset abandoned: the attempt count could not be durably recorded', {
         error: String(error)
       })
-      await abandonIncompleteReset()
+      abandonIncompleteReset(`Could not record the reset attempt: ${String(error)}`)
       return
     }
 
@@ -361,7 +361,7 @@ export async function runDataReset(): Promise<void> {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
-      await abandonIncompleteReset()
+      abandonIncompleteReset(`Could not remove:\n${failures.join('\n')}`)
       return
     }
 
@@ -419,14 +419,19 @@ function wipeNestedUserDataTargets(failures: string[]): void {
   }
 }
 
-async function refuseResetForPathMismatch(): Promise<void> {
+// Startup continues without waiting for ready: relocation must isolate sessionData before it.
+function refuseResetForPathMismatch(technicalDetail: string): void {
   deleteMarker()
-  await showPathMismatchWarning()
+  void showPathMismatchWarning(technicalDetail).catch((error) =>
+    logger.error('Could not show the reset warning', error as Error)
+  )
 }
 
-async function abandonIncompleteReset(): Promise<void> {
+function abandonIncompleteReset(technicalDetail: string): void {
   deleteMarker()
-  await showIncompleteResetWarning()
+  void showIncompleteResetWarning(technicalDetail).catch((error) =>
+    logger.error('Could not show the reset warning', error as Error)
+  )
 }
 
 async function showDataResetError(title: string, message: string, technicalDetail: string): Promise<void> {
@@ -495,33 +500,31 @@ function canonicalize(p: string): string {
   return fs.realpathSync.native(path.resolve(p))
 }
 
-async function showPathMismatchWarning(): Promise<void> {
+async function showPathMismatchWarning(technicalDetail: string): Promise<void> {
   const language = await systemLanguage()
-  const message = t('dialog.data_reset.cancelled.message', undefined, language)
   await showSupportedMessageBox({
     box: {
       type: 'warning',
       title: t('dialog.data_reset.cancelled.title', undefined, language),
-      message,
+      message: t('dialog.data_reset.cancelled.message', undefined, language),
       buttons: [await prebootText('close')],
       cancelId: 0
     },
-    technicalDetail: message
+    technicalDetail
   })
 }
 
-async function showIncompleteResetWarning(): Promise<void> {
+async function showIncompleteResetWarning(technicalDetail: string): Promise<void> {
   const language = await systemLanguage()
-  const message = t('dialog.data_reset.incomplete.partial', undefined, language)
   await showSupportedMessageBox({
     box: {
       type: 'warning',
       title: t('dialog.data_reset.incomplete.title', undefined, language),
-      message,
+      message: t('dialog.data_reset.incomplete.partial', undefined, language),
       buttons: [await prebootText('close')],
       cancelId: 0
     },
-    technicalDetail: message
+    technicalDetail
   })
 }
 
