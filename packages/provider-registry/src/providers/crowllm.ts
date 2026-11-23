@@ -99,21 +99,6 @@ export default openaiCompatible({
         cacheRead: { currency: 'USD', perMillionTokens: 0.09 },
         cacheWrite: { currency: 'USD', perMillionTokens: 0.75 }
       }
-    },
-    {
-      modelId: 'grok-4.7:free',
-      apiModelId: 'grok-4.7:free',
-      name: 'Grok 4.7 (free)',
-      family: 'grok',
-      ownedBy: 'xai',
-      limits: { contextWindow: 256000, maxOutputTokens: 32768 },
-      inputModalities: ['text'],
-      pricing: {
-        input: { currency: 'USD', perMillionTokens: 0 },
-        output: { currency: 'USD', perMillionTokens: 0 },
-        cacheRead: { currency: 'USD', perMillionTokens: 0 },
-        cacheWrite: { currency: 'USD', perMillionTokens: 0 }
-      }
     }
   ]
 })
