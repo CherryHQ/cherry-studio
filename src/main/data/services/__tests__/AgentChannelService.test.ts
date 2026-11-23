@@ -436,6 +436,41 @@ describe('AgentChannelService', () => {
     })
   })
 
+  describe('countForAnalytics', () => {
+    it('counts channels by type, active, connected, and receiving task results', async () => {
+      await insertSchedule('task-1')
+      const telegram = agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Ops',
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
+      agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Off',
+        workspace: SYSTEM_WORKSPACE,
+        isActive: false,
+        config: TELEGRAM_CONFIG
+      })
+      agentChannelService.createChannel({
+        type: 'discord',
+        name: 'Team',
+        workspace: SYSTEM_WORKSPACE,
+        config: DISCORD_CONFIG
+      })
+      await dbh.db.insert(agentChannelTaskTable).values({ channelId: telegram.id, taskId: 'task-1' })
+
+      expect(agentChannelService.countForAnalytics((id) => id === telegram.id)).toEqual({
+        channelCount: 3,
+        activeChannelCount: 2,
+        connectedChannelCount: 1,
+        resultChannelCount: 1,
+        'channel:telegram': 2,
+        'channel:discord': 1
+      })
+    })
+  })
+
   describe('deleteChannel', () => {
     it('deletes a channel and returns true', async () => {
       const channel = agentChannelService.createChannel({

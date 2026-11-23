@@ -299,6 +299,20 @@ describe('ChannelManager', () => {
     expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toBeUndefined()
   })
 
+  it('settles the launch wait only once every started channel reported its first outcome', async () => {
+    let settled = false
+    void manager.whenInitialConnectionsSettled().then(() => (settled = true))
+    rows = [makeChannel()]
+    await manager.start()
+    await vi.waitFor(() => expect(manager.getAdapter('ch-1')).toBeDefined())
+    // Like Discord before READY: connect() returned, the platform has not confirmed yet.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(false)
+
+    adapters[0].emit('statusChange', { channelId: 'ch-1', connected: true })
+    await vi.waitFor(() => expect(settled).toBe(true))
+  })
+
   describe('connection analytics', () => {
     const reported = () => mocks.trackProductEvent.mock.calls.map(([event]) => event)
 
@@ -310,7 +324,7 @@ describe('ChannelManager', () => {
 
       rows.push(makeChannel({ id: 'ch-new', type: 'dingtalk' }))
       manager.requestReconcile('ch-new')
-      manager.reportNextConnection('ch-new', 'dingtalk')
+      manager.reportNextConnection('ch-new', 'dingtalk', 'ui')
       await vi.waitFor(() => expect(adapters).toHaveLength(2))
       adapters[1].emit('statusChange', { channelId: 'ch-new', connected: true })
       adapters[1].emit('statusChange', { channelId: 'ch-new', connected: true })
@@ -321,6 +335,7 @@ describe('ChannelManager', () => {
           feature: 'channels',
           action: 'channel_connected',
           target: 'dingtalk',
+          origin: 'ui',
           status: 'success'
         }
       ])
@@ -355,6 +370,7 @@ describe('ChannelManager', () => {
           feature: 'channels',
           action: 'channel_connected',
           target: 'wechat',
+          origin: 'ui',
           status: 'success'
         })
       )
@@ -375,7 +391,7 @@ describe('ChannelManager', () => {
         return adapter
       })
       manager.requestReconcile('ch-1')
-      manager.reportNextConnection('ch-1', 'telegram')
+      manager.reportNextConnection('ch-1', 'telegram', 'agent_tool')
 
       await vi.waitFor(() =>
         expect(reported()).toEqual([
@@ -384,6 +400,7 @@ describe('ChannelManager', () => {
             feature: 'channels',
             action: 'channel_connected',
             target: 'telegram',
+            origin: 'agent_tool',
             status: 'error'
           }
         ])

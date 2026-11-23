@@ -2,7 +2,9 @@ import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-moc
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AnalyticsClient, AnalyticsClientOptions } from '@cherrystudio/analytics-client'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { BaseService } from '@main/core/lifecycle'
@@ -877,6 +879,22 @@ describe('AnalyticsService daily snapshots', () => {
       'kind:builtin': 1,
       'kind:custom': 2
     })
+    vi.spyOn(agentTaskService, 'countForAnalytics').mockReturnValue({
+      taskCount: 2,
+      autoPausedCount: 1,
+      reuseSessionCount: 0,
+      withChannelTaskCount: 1,
+      'status:active': 1,
+      'status:paused': 1,
+      'frequency:daily': 2
+    })
+    vi.spyOn(agentChannelService, 'countForAnalytics').mockReturnValue({
+      channelCount: 1,
+      activeChannelCount: 1,
+      connectedChannelCount: 0,
+      resultChannelCount: 1,
+      'channel:telegram': 1
+    })
   })
 
   afterEach(() => {
@@ -1014,6 +1032,49 @@ describe('AnalyticsService daily snapshots', () => {
     })
   })
 
+  it('reports scheduled task and channel counts in one snapshot', async () => {
+    await startService()
+
+    expect(captures('scheduled_task_snapshot')[0].properties).toMatchObject({
+      task_count: 2,
+      auto_paused_count: 1,
+      with_channel_task_count: 1,
+      'status:paused': 1,
+      'frequency:daily': 2,
+      channel_count: 1,
+      connected_channel_count: 0,
+      result_channel_count: 1,
+      'channel:telegram': 1
+    })
+  })
+
+  it('counts the channels that connect at launch, waiting for their first attempts', async () => {
+    const { MockApplicationUtils } = await import('@test-mocks/main/application')
+    let connected = false
+    const settled = Promise.withResolvers<void>()
+    MockApplicationUtils.setService('ChannelManager', {
+      whenInitialConnectionsSettled: () => settled.promise,
+      getAdapter: () => ({ connected })
+    })
+    vi.mocked(agentChannelService.countForAnalytics).mockImplementation((isConnected) => ({
+      channelCount: 1,
+      activeChannelCount: 1,
+      connectedChannelCount: isConnected('ch') ? 1 : 0,
+      resultChannelCount: 1,
+      'channel:telegram': 1
+    }))
+    await startService()
+    expect(captures('scheduled_task_snapshot')).toEqual([])
+
+    connected = true
+    settled.resolve()
+
+    await vi.waitFor(() =>
+      expect(captures('scheduled_task_snapshot')[0]?.properties).toMatchObject({ connected_channel_count: 1 })
+    )
+    MockApplicationUtils.resetServices()
+  })
+
   it("omits a value outside a setting's fixed options", async () => {
     captured.preferenceValues['ui.theme_mode'] = 'sepia'
     await startService()
@@ -1030,7 +1091,7 @@ describe('AnalyticsService daily snapshots', () => {
     expect(captures('settings_snapshot')).toHaveLength(1)
 
     vi.setSystemTime(new Date(2026, 10, 18, 0, 30))
-    vi.advanceTimersByTime(60 * 60_000)
+    await vi.advanceTimersByTimeAsync(60 * 60_000)
     expect(captures('settings_snapshot')).toHaveLength(2)
   })
 
@@ -1041,6 +1102,7 @@ describe('AnalyticsService daily snapshots', () => {
     expect(captures('chat_branch_snapshot')).toEqual([])
     expect(captures('assistant_snapshot')).toEqual([])
     expect(captures('agent_snapshot')).toEqual([])
+    expect(captures('scheduled_task_snapshot')).toEqual([])
     expect(MockMainCacheServiceExport.cacheService.getPersist('analytics.snapshot.last_day')).toBeNull()
   })
 

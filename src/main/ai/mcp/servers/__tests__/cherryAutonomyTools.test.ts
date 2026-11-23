@@ -108,7 +108,9 @@ vi.mock('@application', async () => {
     ChannelManager: {
       getNotifyAdapters: mockGetNotifyAdapters,
       getAgentAdapters: mockGetNotifyAdapters,
-      getAdapterStatuses: vi.fn().mockReturnValue([])
+      getAdapterStatuses: vi.fn().mockReturnValue([]),
+      getAdapter: vi.fn(),
+      reportNextConnection: vi.fn()
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -792,14 +794,18 @@ describe('cherry-tools autonomy tools', () => {
         cron: '0 9 * * 1-5'
       })
 
-      expect(mockCreateTask).toHaveBeenCalledWith('agent_1', {
-        name: 'Daily standup',
-        prompt: 'Run standup check',
-        trigger: { kind: 'cron', expr: '0 9 * * 1-5' },
-        workspace: WORKSPACE_SOURCE,
-        timeoutMinutes: undefined,
-        channelIds: undefined
-      })
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        'agent_1',
+        {
+          name: 'Daily standup',
+          prompt: 'Run standup check',
+          trigger: { kind: 'cron', expr: '0 9 * * 1-5' },
+          workspace: WORKSPACE_SOURCE,
+          timeoutMinutes: undefined,
+          channelIds: undefined
+        },
+        'agent_tool'
+      )
     })
 
     it('should create a task with interval schedule', async () => {
@@ -814,14 +820,18 @@ describe('cherry-tools autonomy tools', () => {
         every: '30m'
       })
 
-      expect(mockCreateTask).toHaveBeenCalledWith('agent_2', {
-        name: 'Health check',
-        prompt: 'Check system health',
-        trigger: { kind: 'interval', ms: 30 * 60_000 },
-        workspace: WORKSPACE_SOURCE,
-        timeoutMinutes: undefined,
-        channelIds: undefined
-      })
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        'agent_2',
+        {
+          name: 'Health check',
+          prompt: 'Check system health',
+          trigger: { kind: 'interval', ms: 30 * 60_000 },
+          workspace: WORKSPACE_SOURCE,
+          timeoutMinutes: undefined,
+          channelIds: undefined
+        },
+        'agent_tool'
+      )
     })
 
     it.each([
@@ -840,7 +850,8 @@ describe('cherry-tools autonomy tools', () => {
       expect(result.isError).not.toBe(true)
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
-        expect.objectContaining({ trigger: { kind: 'interval', ms } })
+        expect.objectContaining({ trigger: { kind: 'interval', ms } }),
+        'agent_tool'
       )
     })
 
@@ -870,7 +881,8 @@ describe('cherry-tools autonomy tools', () => {
         'agent_test',
         expect.objectContaining({
           trigger: expect.objectContaining({ kind: 'once' })
-        })
+        }),
+        'agent_tool'
       )
     })
 
@@ -914,7 +926,11 @@ describe('cherry-tools autonomy tools', () => {
         channel_ids: ['ch_own']
       })
 
-      expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: ['ch_own'] }))
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        'agent_1',
+        expect.objectContaining({ channelIds: ['ch_own'] }),
+        'agent_tool'
+      )
     })
 
     it('rejects an owned channel outside a task turn’s exact notification recipients', async () => {
@@ -1019,7 +1035,7 @@ describe('cherry-tools autonomy tools', () => {
       const server = createServer('agent_1')
       await callTool(server, { action: 'remove', id: 'task_1' })
 
-      expect(mockDeleteTask).toHaveBeenCalledWith('agent_1', 'task_1')
+      expect(mockDeleteTask).toHaveBeenCalledWith('agent_1', 'task_1', 'agent_tool')
     })
 
     it('should error when task not found', async () => {
@@ -1150,7 +1166,11 @@ describe('cherry-tools autonomy tools', () => {
         every: '1h'
       })
 
-      expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: ['ch1', 'ch2'] }))
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        'agent_1',
+        expect.objectContaining({ channelIds: ['ch1', 'ch2'] }),
+        'agent_tool'
+      )
     })
 
     it('fails before dispatch when one configured recipient has no runtime adapter', async () => {
@@ -1553,7 +1573,8 @@ describe('cherry-tools autonomy tools', () => {
           expect.objectContaining({
             config: { type: 'wechat', token_path: '', allowed_chat_ids: ['chat-1'] }
           }),
-          30_000
+          30_000,
+          expect.any(Function)
         )
         expect(result.content).toHaveLength(2)
 
@@ -1603,7 +1624,8 @@ describe('cherry-tools autonomy tools', () => {
               mention_only: false
             }
           }),
-          30_000
+          30_000,
+          expect.any(Function)
         )
         expect(result.content).toHaveLength(2)
 
@@ -1641,7 +1663,8 @@ describe('cherry-tools autonomy tools', () => {
             name: 'Second Feishu',
             agentId: 'agent_1'
           }),
-          30_000
+          30_000,
+          expect.any(Function)
         )
         expect(result.content.filter((item: { type: string }) => item.type === 'image')).toHaveLength(1)
       })
@@ -1742,6 +1765,21 @@ describe('cherry-tools autonomy tools', () => {
         expect(result.content[0].text).toContain('reconnect_channel')
         expect(mockCreateChannel).not.toHaveBeenCalled()
         expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
+      })
+
+      it('registers the connection report before setup can fail without a QR code', async () => {
+        const { application } = await import('@application')
+        const manager = application.get('ChannelManager')
+        vi.mocked(manager.getAdapter).mockReturnValue(undefined)
+        mockCreateChannelAndWaitForQr.mockImplementationOnce(async (_data, _timeout, beforeConnect) => {
+          beforeConnect({ id: 'ch_wc2', type: 'wechat', name: 'My WeChat', isActive: true })
+          throw new Error('Timed out waiting for QR code')
+        })
+
+        const server = createServer('agent_1')
+        await callTool(server, { action: 'add_channel', type: 'wechat', name: 'My WeChat', auth_mode: 'qr' }, 'config')
+
+        expect(manager.reportNextConnection).toHaveBeenCalledWith('ch_wc2', 'wechat', 'agent_tool')
       })
 
       it('reports the failure when wechat QR times out', async () => {
@@ -1866,7 +1904,30 @@ describe('cherry-tools autonomy tools', () => {
         const server = createServer('agent_1')
         await callTool(server, { action: 'update_channel', channel_id: 'ch_1', enabled: false }, 'config')
 
-        expect(mockUpdateChannel).toHaveBeenCalledWith('ch_1', expect.objectContaining({ isActive: false }))
+        expect(mockUpdateChannel).toHaveBeenCalledWith(
+          'ch_1',
+          expect.objectContaining({ isActive: false }),
+          'agent_tool'
+        )
+      })
+
+      it('does not report a rename of a connected channel as a new connection', async () => {
+        const { application } = await import('@application')
+        const manager = application.get('ChannelManager')
+        let adapter: { connected: boolean } | undefined = { connected: true }
+        vi.mocked(manager.getAdapter).mockImplementation(() => adapter as never)
+        mockGetChannel.mockReturnValue(telegramChannel)
+        // The update reconciles, which takes the live adapter down before the lookup after it.
+        mockUpdateChannel.mockImplementationOnce((_id, updates) => {
+          adapter = undefined
+          return { ...telegramChannel, ...updates }
+        })
+
+        const server = createServer('agent_1')
+        await callTool(server, { action: 'update_channel', channel_id: 'ch_1', name: 'Renamed' }, 'config')
+
+        expect(manager.reportNextConnection).not.toHaveBeenCalled()
+        vi.mocked(manager.getAdapter).mockReset()
       })
 
       it('should error when channel_id is missing', async () => {
@@ -1911,7 +1972,7 @@ describe('cherry-tools autonomy tools', () => {
         const result = await callTool(server, { action: 'remove_channel', channel_id: 'ch_1' }, 'config')
 
         expect(result.content[0].text).toContain('My Telegram')
-        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_1')
+        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_1', 'agent_tool')
       })
 
       it('should error when channel_id is missing', async () => {

@@ -4,7 +4,9 @@ import type { PostHog } from 'posthog-node'
 import { application } from '@application'
 import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
@@ -43,6 +45,7 @@ const DEVICE_EVENTS: ReadonlySet<string> = new Set([
 ])
 const SETTING_CHANGE_COALESCE_MS = 2_000
 const SNAPSHOT_CHECK_INTERVAL_MS = 60 * 60_000
+const CHANNEL_STARTUP_WAIT_MS = 60_000
 const USER_AVATAR_KEY = 'app.user.avatar'
 // Model choices report where the model comes from, never the model or a user-created provider.
 const MODEL_ID_SETTING_KEYS: ReadonlySet<string> = new Set([
@@ -243,7 +246,7 @@ export class AnalyticsService extends BaseService implements Activatable {
     this.registerDisposable(() => this.clearPendingSettingChanges())
     this.registerInterval(() => {
       this.reportDailyActive()
-      this.reportDailySnapshots()
+      void this.reportDailySnapshots()
     }, SNAPSHOT_CHECK_INTERVAL_MS)
   }
 
@@ -314,7 +317,7 @@ export class AnalyticsService extends BaseService implements Activatable {
     }
     for (const event of takePendingReports()) this.captureProductEvent(event)
     this.reportDailyActive()
-    this.reportDailySnapshots()
+    void this.reportDailySnapshots()
 
     logger.info('Analytics service activated')
   }
@@ -387,8 +390,11 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   // Settings and branch counts as they stand, once per local day while product events are flowing.
-  private reportDailySnapshots(): void {
+  private async reportDailySnapshots(): Promise<void> {
     if (!this.productEventsReady || !behaviorEventsEnabled()) return
+    // Channels connect after launch; counting them first would record the day with none connected.
+    await this.channelsSettled()
+    if (!this.productEventsReady) return
     const cache = application.get('CacheService')
     const today = localDay(new Date())
     if (cache.getPersist('analytics.snapshot.last_day') === today) return
@@ -409,6 +415,32 @@ export class AnalyticsService extends BaseService implements Activatable {
       this.trackProductEvent({ event: 'agent_snapshot', ...agentService.countForAnalytics() })
     } catch (error) {
       logger.warn('Agent snapshot skipped', error as Error)
+    }
+    try {
+      this.trackProductEvent({
+        event: 'scheduled_task_snapshot',
+        ...agentTaskService.countForAnalytics(),
+        ...agentChannelService.countForAnalytics(
+          (id) => application.get('ChannelManager').getAdapter(id)?.connected === true
+        )
+      })
+    } catch (error) {
+      logger.warn('Scheduled task snapshot skipped', error as Error)
+    }
+  }
+
+  private async channelsSettled(): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const cap = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, CHANNEL_STARTUP_WAIT_MS)
+      timer.unref?.()
+    })
+    try {
+      await Promise.race([application.get('ChannelManager').whenInitialConnectionsSettled(), cap])
+    } catch {
+      // A failed lookup only means the snapshot reads the channels as they are.
+    } finally {
+      clearTimeout(timer)
     }
   }
 

@@ -2,17 +2,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createChannel: vi.fn(),
+  getChannel: vi.fn(),
   updateChannel: vi.fn(),
   deleteChannel: vi.fn(),
   requestReconcile: vi.fn(),
   reconcileChannel: vi.fn(),
   waitForQrAndReconcile: vi.fn(),
-  removeChannel: vi.fn()
+  removeChannel: vi.fn(),
+  trackProductEvent: vi.fn()
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     createChannel: mocks.createChannel,
+    getChannel: mocks.getChannel,
     updateChannel: mocks.updateChannel,
     deleteChannel: mocks.deleteChannel
   }
@@ -21,6 +24,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
+      if (name === 'AnalyticsService') return { trackProductEvent: mocks.trackProductEvent }
       if (name !== 'ChannelManager') throw new Error(`Unexpected service: ${name}`)
       return {
         requestReconcile: mocks.requestReconcile,
@@ -59,6 +63,7 @@ describe('channelCommands', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.createChannel.mockReturnValue(channel)
+    mocks.getChannel.mockReturnValue(channel)
     mocks.updateChannel.mockReturnValue(channel)
     mocks.deleteChannel.mockReturnValue(true)
     mocks.removeChannel.mockResolvedValue(undefined)
@@ -74,13 +79,13 @@ describe('channelCommands', () => {
   })
 
   it('keeps a successful update even though runtime convergence is asynchronous', () => {
-    expect(updateAgentChannel('ch-1', { name: 'Renamed' })).toBe(channel)
+    expect(updateAgentChannel('ch-1', { name: 'Renamed' }, 'ui')).toBe(channel)
     expect(mocks.updateChannel).toHaveBeenCalledWith('ch-1', { name: 'Renamed' })
     expect(mocks.requestReconcile).toHaveBeenCalledWith('ch-1')
   })
 
   it('deletes persisted state before removing the owned runtime', async () => {
-    await expect(deleteAgentChannel('ch-1')).resolves.toBe(true)
+    await expect(deleteAgentChannel('ch-1', 'ui')).resolves.toBe(true)
     expect(mocks.deleteChannel.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.removeChannel.mock.invocationCallOrder[0]
     )
@@ -94,5 +99,39 @@ describe('channelCommands', () => {
     expect(mocks.waitForQrAndReconcile).toHaveBeenCalledWith('agent-1', 'ch-1', 10)
     expect(mocks.deleteChannel).toHaveBeenCalledWith('ch-1')
     expect(mocks.removeChannel).toHaveBeenCalledWith('ch-1')
+    expect(mocks.trackProductEvent).not.toHaveBeenCalled()
+  })
+
+  describe('analytics', () => {
+    const reported = () => mocks.trackProductEvent.mock.calls.map(([event]) => event)
+
+    it('reports a disconnect only when an active channel is turned off, by type and origin', () => {
+      updateAgentChannel('ch-1', { name: 'Renamed' }, 'ui')
+      mocks.updateChannel.mockReturnValueOnce({ ...channel, isActive: false })
+      updateAgentChannel('ch-1', { isActive: false }, 'agent_tool')
+      mocks.getChannel.mockReturnValueOnce({ ...channel, isActive: false })
+      mocks.updateChannel.mockReturnValueOnce({ ...channel, isActive: false })
+      updateAgentChannel('ch-1', { isActive: false }, 'ui')
+
+      expect(reported()).toEqual([
+        {
+          event: 'feature_used',
+          feature: 'channels',
+          action: 'channel_disconnected',
+          target: 'telegram',
+          origin: 'agent_tool'
+        }
+      ])
+    })
+
+    it('reports a delete with the channel type, and nothing when the channel was already gone', async () => {
+      await deleteAgentChannel('ch-1', 'ui')
+      mocks.deleteChannel.mockReturnValueOnce(false)
+      await deleteAgentChannel('ch-1', 'agent_tool')
+
+      expect(reported()).toEqual([
+        { event: 'feature_used', feature: 'channels', action: 'channel_deleted', target: 'telegram', origin: 'ui' }
+      ])
+    })
   })
 })

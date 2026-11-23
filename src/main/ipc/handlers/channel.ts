@@ -26,7 +26,7 @@ async function exposeChannelError<T>(operation: () => T | Promise<T>): Promise<T
 /** A user command that leaves a disconnected channel set to connect gets its outcome reported. */
 function reportConnectOutcome(channel: AgentChannelEntity, wasConnected: boolean): AgentChannelEntity {
   if (!wasConnected && channel.isActive && channel.agentId) {
-    application.get('ChannelManager').reportNextConnection(channel.id, channel.type)
+    application.get('ChannelManager').reportNextConnection(channel.id, channel.type, 'ui')
   }
   return channel
 }
@@ -51,11 +51,11 @@ export const channelHandlers: IpcHandlersFor<typeof channelRequestSchemas> = {
   'channel.update': async ({ channelId, updates }) =>
     exposeChannelError(() => {
       const wasConnected = application.get('ChannelManager').getAdapter(channelId)?.connected === true
-      return reportConnectOutcome(updateAgentChannel(channelId, updates), wasConnected)
+      return reportConnectOutcome(updateAgentChannel(channelId, updates, 'ui'), wasConnected)
     }),
   'channel.delete': async ({ channelId }) => {
     await exposeChannelError(async () => {
-      if (!(await deleteAgentChannel(channelId))) {
+      if (!(await deleteAgentChannel(channelId, 'ui'))) {
         throw new IpcError(channelErrorCodes.CHANNEL_NOT_FOUND, `Channel with id '${channelId}' not found`)
       }
     })

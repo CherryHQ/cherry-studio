@@ -4,9 +4,15 @@ import { describe, expect, it } from 'vitest'
 
 import { agentHandlers } from '@data/api/handlers/agents'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import {
+  agentTaskService,
+  HEARTBEAT_PROMPT_SENTINEL,
+  writeCircuitBreakerPaused,
+  writeTaskSessionReuse
+} from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 
@@ -20,20 +26,49 @@ describe('AgentTaskService active-Agent read contract', () => {
       .run()
   }
 
-  function seedTask(name: string, agentId: string): string {
+  function seedTask(name: string, agentId: string, prompt = `Prompt for ${name}`): string {
     return jobScheduleService.create({
       type: 'agent.task',
       name,
       trigger: { kind: 'interval', ms: 60_000 },
       jobInputTemplate: {
         agentId,
-        prompt: `Prompt for ${name}`,
+        prompt,
         timeoutMinutes: 2,
         workspace: { type: 'system' }
       },
       catchUpPolicy: { kind: 'skip-missed' }
     }).id
   }
+
+  it('counts live tasks by status, frequency, auto-pause, session reuse, and channels for the snapshot', () => {
+    seedAgent('owner')
+    seedAgent('trashed', Date.now())
+    const hourly = seedTask('hourly', 'owner')
+    const breaker = seedTask('breaker', 'owner')
+    const reused = seedTask('reused', 'owner')
+    seedTask('orphan', 'trashed')
+    seedTask('heartbeat', 'owner', HEARTBEAT_PROMPT_SENTINEL)
+    jobScheduleService.update(hourly, { trigger: { kind: 'cron', expr: '0 * * * *' } })
+    jobScheduleService.update(breaker, { enabled: false, metadata: writeCircuitBreakerPaused({}, true) })
+    jobScheduleService.update(reused, { metadata: writeTaskSessionReuse(undefined, { enabled: true, revision: 0 }) })
+    dbh.db
+      .insert(agentChannelTable)
+      .values({ id: 'ch', type: 'telegram', name: 'Ops', agentId: 'owner', workspace: { type: 'system' }, config: {} })
+      .run()
+    dbh.db.insert(agentChannelTaskTable).values({ channelId: 'ch', taskId: hourly }).run()
+
+    expect(agentTaskService.countForAnalytics()).toEqual({
+      taskCount: 3,
+      autoPausedCount: 1,
+      reuseSessionCount: 1,
+      withChannelTaskCount: 1,
+      'status:active': 2,
+      'status:paused': 1,
+      'frequency:hourly': 1,
+      'frequency:interval': 2
+    })
+  })
 
   it('retains actual execution facts through queueing, cancellation request and terminal settlement', () => {
     seedAgent('owner')

@@ -82,7 +82,7 @@ describe('channelHandlers', () => {
 
     updateChannelMock.mockReturnValueOnce(channel({}))
     await channelHandlers['channel.update']({ channelId: 'c1', updates: { agentId: 'agent-1' } }, ctx)
-    expect(channelManager.reportNextConnection.mock.calls).toEqual([['c1', 'feishu']])
+    expect(channelManager.reportNextConnection.mock.calls).toEqual([['c1', 'feishu', 'ui']])
   })
 
   it('update exposes service validation as a channel-domain IPC error', async () => {

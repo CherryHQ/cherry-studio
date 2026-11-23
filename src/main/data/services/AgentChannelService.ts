@@ -375,6 +375,41 @@ export class AgentChannelService {
     return rows.map((row) => this.rowToEntity(row))
   }
 
+  /** Channels by type and state, and how many receive task results, for the daily analytics snapshot. */
+  countForAnalytics(isConnected: (channelId: string) => boolean): {
+    channelCount: number
+    activeChannelCount: number
+    connectedChannelCount: number
+    resultChannelCount: number
+  } & Record<`channel:${string}`, number> {
+    const database = application.get('DbService').getDb()
+    const channels = database
+      .select({ id: channelsTable.id, type: channelsTable.type, isActive: channelsTable.isActive })
+      .from(channelsTable)
+      .all()
+    const withResults = new Set(
+      database
+        .selectDistinct({ channelId: channelTaskSubscriptionsTable.channelId })
+        .from(channelTaskSubscriptionsTable)
+        .all()
+        .map((row) => row.channelId)
+    )
+    const counts: Record<string, number> = {
+      channelCount: channels.length,
+      activeChannelCount: 0,
+      connectedChannelCount: 0,
+      resultChannelCount: 0
+    }
+    const add = (key: string) => (counts[key] = (counts[key] ?? 0) + 1)
+    for (const channel of channels) {
+      add(`channel:${channel.type}`)
+      if (channel.isActive) add('activeChannelCount')
+      if (isConnected(channel.id)) add('connectedChannelCount')
+      if (withResults.has(channel.id)) add('resultChannelCount')
+    }
+    return counts as ReturnType<AgentChannelService['countForAnalytics']>
+  }
+
   getSubscribedTasks(channelId: string): string[] {
     const database = application.get('DbService').getDb()
     const subs = database

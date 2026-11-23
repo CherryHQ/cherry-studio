@@ -19,6 +19,7 @@ import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { triggerToFormState } from '@shared/ai/scheduleTrigger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   ListTasksQuery,
@@ -440,6 +441,37 @@ export class AgentTaskService {
       tasks: result.tasks.map((task) => ({ ...task, runSummary: runSummaries.get(task.id) ?? null })),
       total: result.total
     }
+  }
+
+  /** Live tasks (heartbeats excluded) by status and frequency, for the daily analytics snapshot. */
+  countForAnalytics(): {
+    taskCount: number
+    autoPausedCount: number
+    reuseSessionCount: number
+    withChannelTaskCount: number
+  } & Record<`status:${string}` | `frequency:${string}`, number> {
+    const { tasks } = this.queryTasks({})
+    const autoPaused = new Set(
+      jobScheduleService
+        .listAll({ type: AGENT_TASK_TYPE })
+        .filter((schedule) => !schedule.enabled && isCircuitBreakerPaused(schedule.metadata))
+        .map((schedule) => schedule.id)
+    )
+    const counts: Record<string, number> = {
+      taskCount: tasks.length,
+      autoPausedCount: 0,
+      reuseSessionCount: 0,
+      withChannelTaskCount: 0
+    }
+    const add = (key: string) => (counts[key] = (counts[key] ?? 0) + 1)
+    for (const task of tasks) {
+      add(`status:${task.status}`)
+      add(`frequency:${triggerToFormState(task.trigger).kind}`)
+      if (autoPaused.has(task.id)) add('autoPausedCount')
+      if (task.reuseSession) add('reuseSessionCount')
+      if (task.channelIds?.length) add('withChannelTaskCount')
+    }
+    return counts as ReturnType<AgentTaskService['countForAnalytics']>
   }
 
   queryTasks(
