@@ -5,6 +5,7 @@ import type { ComponentProps, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUiModule from '@cherrystudio/ui'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import type { InstalledSkill } from '@shared/data/types/agent'
 
 const mocks = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   },
   ipcRequest: vi.fn(),
   flushBrowser: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   launchSkill: vi.fn(),
   navigate: vi.fn(),
   query: { data: undefined, error: undefined, isLoading: false } as {
@@ -48,6 +50,10 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
 }))
 vi.mock('@renderer/hooks/useSkillLauncher', () => ({ useSkillLauncher: () => mocks.launchSkill }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
+}))
 vi.mock('@renderer/components/resourceCatalog/catalog/SkillSourceBadge', () => ({
   SkillSourceBadge: ({ source, sourceUrl }: { source: string; sourceUrl?: string | null }) => (
     <span data-source-url={sourceUrl ?? ''} data-testid="source-badge">
@@ -100,6 +106,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  Alert: (await importOriginal<typeof CherryUiModule>()).Alert,
   Label: (await importOriginal<typeof CherryUiModule>()).Label,
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({ children, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
@@ -112,25 +119,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
       </button>
     )
   },
-  ConfirmDialog: ({
-    confirmText,
-    open,
-    onConfirm,
-    title
-  }: {
-    confirmText?: ReactNode
-    open: boolean
-    onConfirm: () => Promise<void>
-    title: ReactNode
-  }) =>
-    open ? (
-      <div role="dialog">
-        <span>{title}</span>
-        <button type="button" onClick={() => void onConfirm()}>
-          {confirmText}
-        </button>
-      </div>
-    ) : null,
+  ConfirmDialog: (await importOriginal<typeof CherryUiModule>()).ConfirmDialog,
   DropdownMenu: (await importOriginal<typeof CherryUiModule>()).DropdownMenu,
   DropdownMenuContent: (await importOriginal<typeof CherryUiModule>()).DropdownMenuContent,
   DropdownMenuCheckboxItem: (await importOriginal<typeof CherryUiModule>()).DropdownMenuCheckboxItem,
@@ -348,7 +337,8 @@ describe('SkillDetails', () => {
     expect(toggle).not.toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('reports a skill delete failure with the translated caption and the original cause', async () => {
+  // The confirmation traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps a failed uninstall inside its confirmation with keyboard-reachable Details', async () => {
     const failure = new Error('uninstall rejected')
     mocks.uninstallSkill.mockRejectedValueOnce(failure)
     const user = userEvent.setup()
@@ -356,28 +346,24 @@ describe('SkillDetails', () => {
 
     await user.click(screen.getByRole('button', { name: 'common.more' }))
     await user.click(screen.getByRole('menuitem', { name: /library.action.uninstall/ }))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'library.action.uninstall' }))
+    const dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'library.action.uninstall' }))
 
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'common.delete_failed',
-          cause: failure,
-          data: expect.objectContaining({
-            localizedErrorMessage: 'common.delete_failed',
-            errorContext: expect.objectContaining({
-              message: 'uninstall rejected',
-              source: 'skills',
-              operation: 'skill.delete',
-              recordId: 'skill-1'
-            })
-          })
-        })
-      )
-    )
-    expect(toast.error).not.toHaveBeenCalledWith('uninstall rejected')
+    expect(await within(dialog).findByText('common.delete_failed')).toBeVisible()
+    const details = within(dialog).getByRole('button', { name: 'common.detail' })
+    for (let step = 0; step < 10 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(mocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'uninstall rejected',
+      source: 'skills',
+      operation: 'skill.delete',
+      recordId: 'skill-1'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
     expect(mocks.navigate).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(dialog).toBeInTheDocument()
   })
 
   it('returns to the list from the header', () => {
