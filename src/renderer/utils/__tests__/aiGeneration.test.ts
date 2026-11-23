@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { preferenceService } from '@data/PreferenceService'
 import i18n from '@renderer/i18n/resolver'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 import { fetchGenerate, fetchMessagesSummary, fetchNoteSummary } from '../aiGeneration'
 
@@ -153,5 +154,17 @@ describe('note naming boundary', () => {
     readDefaultModelMock.mockResolvedValue(TEST_MODEL)
     generateTextMock.mockRejectedValue(new Error('offline'))
     expect(await fetchNoteSummary({ content: 'note' })).toBeNull()
+  })
+
+  it('keeps its own translated failure reasons displayable in a language that hides raw causes', async () => {
+    await i18n.changeLanguage('de-DE')
+    readQuickModelMock.mockResolvedValue(null)
+    const { error: noModel } = await fetchMessagesSummary({ messages: [] })
+    expect(formatErrorMessageWithPrefix(noModel, 'Prefix')).toBe(`Prefix: ${i18n.t('error.model.not_exists')}`)
+
+    readQuickModelMock.mockResolvedValue(TEST_MODEL)
+    generateTextMock.mockResolvedValue({ text: '' })
+    const { error: empty } = await fetchMessagesSummary({ messages: [] })
+    expect(formatErrorMessageWithPrefix(empty, 'Prefix')).toBe(`Prefix: ${i18n.t('error.no_response')}`)
   })
 })

@@ -107,7 +107,8 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
         setAllServers((prev) => ({ ...prev, [provider.key]: result.allServers }))
         toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
       } else {
-        toast.error(formatErrorMessageWithPrefix(result.message, t('settings.mcp.sync.error')))
+        // Provider sync results carry renderer-translated copy, never raw provider text.
+        toast.error(result.message)
       }
     } catch (error: any) {
       logger.error('Failed to fetch MCP servers', error)

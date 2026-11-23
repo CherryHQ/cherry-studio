@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import type { McpProviderKey } from '@renderer/utils/mcpDiscovery'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -107,6 +108,17 @@ describe('MCP provider configuration', () => {
     expect(openExternalWebsite).toHaveBeenCalledWith('https://example.com/api-keys')
     await user.click(screen.getByRole('link', { name: 'Open website: Provider modelscope' }))
     expect(openExternalWebsite).toHaveBeenCalledWith('https://example.com/market')
+  })
+
+  it("shows the provider's translated rejection reason in a language that hides raw causes", async () => {
+    await i18next.changeLanguage('de-DE')
+    const unauthorized = i18next.t('settings.mcp.sync.unauthorized')
+    syncServers.mockResolvedValue({ success: false, message: unauthorized, allServers: [] })
+    render(<McpProviderSettings provider={makeProvider('bailian')} existingServers={[]} />)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: i18next.t('settings.mcp.fetch.button') }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(unauthorized))
   })
 
   it('discards a fetched list if the API key changed while the request was pending', async () => {

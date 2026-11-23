@@ -13,7 +13,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import { getErrorMessage, LocalizedError } from '@renderer/utils/error'
+import { LocalizedError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdownLight'
 import { getNamingTextContent } from '@renderer/utils/message/find'
 import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
@@ -27,11 +27,11 @@ export async function fetchMessagesSummary({
   messages
 }: {
   messages: ExportableMessage[]
-}): Promise<{ text: string | null; error?: string }> {
+}): Promise<{ text: string | null; error?: unknown }> {
   let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const model = await readQuickModel()
   if (!model) {
-    return { text: null, error: i18n.t('error.model.not_exists') }
+    return { text: null, error: new LocalizedError(i18n.t('error.model.not_exists')) }
   }
 
   if (prompt && containsSupportedVariables(prompt)) {
@@ -63,9 +63,9 @@ export async function fetchMessagesSummary({
     })
 
     const result = removeSpecialCharactersForTopicName(text)
-    return result ? { text: result } : { text: null, error: i18n.t('error.no_response') }
+    return result ? { text: result } : { text: null, error: new LocalizedError(i18n.t('error.no_response')) }
   } catch (error: unknown) {
-    return { text: null, error: getErrorMessage(error) }
+    return { text: null, error }
   }
 }
 
