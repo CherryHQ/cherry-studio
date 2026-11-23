@@ -58,8 +58,9 @@ import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
-import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
+import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint, resolveWireModelId } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import { listNewApiKeysForModel } from './listModels'
 import { transformLmStudioRequestBody } from './lmstudio'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
@@ -169,8 +170,10 @@ type ConfigBuilderEntry = {
   build: (ctx: BuilderContext) => ResolvedProviderConfigBuild | Promise<ResolvedProviderConfigBuild>
 }
 
-function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
-  const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
+function selectApiKey(ctx: BuilderContext, preferredKeyIds?: ReadonlySet<string>): ApiKeyBuilderContext {
+  const resolved = preferredKeyIds?.size
+    ? providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride, preferredKeyIds)
+    : providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
   return {
     ...ctx,
     baseConfig: { ...ctx.baseConfig, apiKey: resolved.value },
@@ -400,7 +403,7 @@ export async function resolveProviderAiSdkConfig(
       match: (p) => matchesPreset(p, SystemProviderIds.cherryin),
       build: withSelectedApiKey(buildCherryinConfig)
     },
-    { match: (_, id) => id === 'newapi', build: withSelectedApiKey(buildNewApiConfig) },
+    { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (_, id) => id === 'aihubmix', build: withSelectedApiKey(buildAiHubMixConfig) },
     { match: (_, id) => id === 'dmxapi', build: withSelectedApiKey(buildDmxapiConfig) }
   ]
@@ -974,7 +977,7 @@ function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undef
     : formatApiHost(host, true)
 }
 
-function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
+async function buildNewApiConfig(ctx: BuilderContext): Promise<ResolvedProviderConfigBuild> {
   const endpointType = ctx.endpointType
   let rawBaseURL: string
 
@@ -989,14 +992,22 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     ? ctx.baseConfig.baseURL
     : formatNewApiBaseURL(rawBaseURL, endpointType)
 
+  const preferredKeyIds =
+    ctx.apiKeyOverride === undefined && endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS && !ctx.endpoint
+      ? await listNewApiKeysForModel(ctx.actualProvider, baseURL, resolveWireModelId(ctx.model, endpointType))
+      : undefined
+  const selected = selectApiKey(ctx, preferredKeyIds)
   return {
-    providerId: 'newapi',
-    endpoint: ctx.endpoint,
-    providerSettings: {
-      ...ctx.baseConfig,
-      baseURL,
-      endpointType: mapCherryinEndpointType(endpointType),
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
-    }
+    config: {
+      providerId: 'newapi',
+      endpoint: ctx.endpoint,
+      providerSettings: {
+        ...selected.baseConfig,
+        baseURL,
+        endpointType: mapCherryinEndpointType(endpointType),
+        headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
+      }
+    },
+    credentialReceipt: selected.apiKeySelection
   }
 }

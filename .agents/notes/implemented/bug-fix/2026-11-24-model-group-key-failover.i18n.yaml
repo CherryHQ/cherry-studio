@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-24-model-group-key-failover.md
+2026-11-24-model-group-key-failover.md: 50a95c8a4493bb867d6b8d183f05dca949e21699
+2026-11-24-model-group-key-failover.zh.md: 97d102ecc4be480a05e4ad77f0ab6f6efff728aa

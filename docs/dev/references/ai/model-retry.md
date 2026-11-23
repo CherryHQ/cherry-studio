@@ -11,13 +11,19 @@ sources:
 
 User-configurable retry for model calls, built on
 [`ai-retry`](https://github.com/zirkelc/ai-retry) (v1.x, AI SDK v6). When a
-call fails with 401/429 and another enabled API key is available, the wrapper
-first rotates to that key. Other retryable API errors (503 / 529 and other
-`isRetryable` errors, honoring `Retry-After` headers with optional exponential
-backoff — `TimeoutError`s are deliberately not retried, see below) retry the
+call fails with 401/429 or a 404 that explicitly says the current API key's
+group does not support the model, the wrapper first tries another enabled key.
+Other 404 responses do not switch keys. Retryable API errors (503 / 529 and
+other `isRetryable` errors, honoring `Retry-After` headers with optional
+exponential backoff — `TimeoutError`s are deliberately not retried, see below) retry the
 **same model**, then **fall back** to the user's configured fallback models in
 order. Retry happens at the model layer — below the agent loop, so tool state
 and hook composition are untouched.
+
+New API Chat Completions prefers enabled keys whose `/models` list contains
+the selected model. Lists are fetched in parallel, with a two-second timeout,
+and reused for one minute. If none lists the model, normal rotation applies.
+Explicit key overrides, custom headers, and custom endpoint paths bypass this check.
 
 ```text
 AiService.streamText/generateText
@@ -72,10 +78,10 @@ in `buildAgentParams`, closed over that model). So for each configured fallback
 **`createRetryableWrap`** (`createRetryableWrap.ts`) then just assembles the
 ai-retry policy from the pre-built fallbacks (no provider/model loading in this
 leaf). It returns `undefined` only when model retry is disabled and no eligible
-API-key fallback exists; otherwise it returns a `wrapModel` closure. Key rotation
-is attempted first for 401/429 responses. When model retry is enabled, a selected
-replacement key still receives the configured same-model retry for other
-retryable errors (such as 503/529) before cross-model fallback begins.
+API-key fallback exists; otherwise it returns a `wrapModel` closure. API-key
+failover takes priority over transient retry and cross-model fallback. When
+model retry is enabled, a replacement key still receives the configured
+same-model retry for other retryable errors (such as 503/529).
 
 ```ts
 // ai-retry's condition-based API (ai-retry/language-model). The retry STRATEGY
@@ -83,8 +89,8 @@ retryable errors (such as 503/529) before cross-model fallback begins.
 createRetryableModel({
   model: base,
   retries: [
-    // API-key failover consumes 401/429 first; same-model retry handles the
-    // remaining retryable errors (such as 503/529). maxAttempts =
+    // API-key failover runs first; same-model retry handles the remaining
+    // retryable errors (such as 503/529). maxAttempts =
     // max_attempts + 1 (ai-retry counts the original call, so the pref reads as
     // the number of RETRIES); backoffFactor only when backoff_enabled. Honors Retry-After.
     and(error.isRetryable(true), not(error.statusCode(401, 429))).retry({
