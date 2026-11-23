@@ -1,29 +1,49 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { foldPathSegment } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 
 const logger = loggerService.withContext('SkillPaths')
 
 const MAX_FOLDER_NAME_LENGTH = 80
+const HASH_SUFFIX_LENGTH = 8
+const WINDOWS_RESERVED_FOLDER_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
+
+const shortHash = (input: string): string =>
+  createHash('sha256').update(input).digest('hex').slice(0, HASH_SUFFIX_LENGTH)
 
 export function sanitizeFolderName(folderName: string): string {
-  let sanitized = folderName.replace(/[/\\]/g, '_')
-  sanitized = sanitized.replace(new RegExp(String.fromCharCode(0), 'g'), '')
-  sanitized = sanitized.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const normalized = folderName.normalize('NFC').trim()
+  let sanitized = normalized
+    .replace(/\0/g, '')
+    .replace(/[^\p{L}\p{M}\p{N}_-]/gu, '_')
+    .replace(/^\p{M}+/u, '')
 
-  if (sanitized.length > MAX_FOLDER_NAME_LENGTH) {
-    sanitized = sanitized.slice(0, MAX_FOLDER_NAME_LENGTH)
+  if (!/[\p{L}\p{N}]/u.test(sanitized)) {
+    if (!normalized) return ''
+    return `skill-${shortHash(normalized)}`
+  }
+
+  const codePoints = Array.from(sanitized)
+  if (codePoints.length > MAX_FOLDER_NAME_LENGTH) {
+    const prefixLength = MAX_FOLDER_NAME_LENGTH - HASH_SUFFIX_LENGTH - 1
+    sanitized = `${codePoints.slice(0, prefixLength).join('')}-${shortHash(normalized)}`
+  }
+
+  if (WINDOWS_RESERVED_FOLDER_NAME.test(sanitized)) {
+    sanitized = `${sanitized}-skill`
   }
 
   return sanitized
 }
 
-/** Case-folding key for folder names, so a case-only difference never reads as two skills. */
+/** Case- and Unicode-folding key for folder names so platform-equivalent names match. */
 export function normalizeFolderKey(folderName: string): string {
-  return folderName.toLowerCase()
+  return foldPathSegment(folderName)
 }
 
 export async function createTempDir(prefix: string): Promise<string> {
