@@ -5,7 +5,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isMcpToolDisabledBySource, resolveMcpSourceSkillAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
@@ -59,6 +59,12 @@ export class McpCatalogService extends BaseService {
         }
       })
     )
+  }
+
+  public async listSkills(serverId: string, signal?: AbortSignal, includeDisabled = false) {
+    const skills = await this.runtimeService().listSkills(serverId, signal)
+    const server = this.getServerById(serverId)
+    return includeDisabled ? skills : skills.filter((skill) => resolveMcpSourceSkillAccess(server, skill.uri).enabled)
   }
 
   protected async onReady(): Promise<void> {
