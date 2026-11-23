@@ -107,22 +107,28 @@ export class ClaudeCodeOtlpAdapter {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Collector JSON parsing does not validate OTLP structure; conversion failures propagate to its HTTP 400 boundary before span entities are published.
   static spansFromPayload(payload: unknown, resolveTraceContext: TraceContextResolver): SpanEntity[] {
     const result: SpanEntity[] = []
-    const resourceSpans = arrayFrom((payload as { resourceSpans?: unknown })?.resourceSpans)
+    const resourceSpans = arrayFrom(
+      payload !== null && typeof payload === 'object' && 'resourceSpans' in payload ? payload.resourceSpans : undefined
+    )
 
     for (const resourceSpan of resourceSpans) {
       const resourceAttributes = prefixAttributes(
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- OTLP attributes remain unvalidated; preserve the compatibility converter's coercion and HTTP rejection behavior.
         attributesFromKeyValues((resourceSpan as { resource?: { attributes?: OtlpKeyValue[] } }).resource?.attributes),
         'resource.'
       )
 
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- This unchecked collection view retains empty non-array collections and rejection of malformed null members.
       const scopeSpans = arrayFrom((resourceSpan as { scopeSpans?: unknown }).scopeSpans)
 
       for (const scopeSpan of scopeSpans) {
         const scopeAttributes = prefixAttributes(
+          // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- OTLP attributes remain unvalidated; preserve the compatibility converter's coercion and HTTP rejection behavior.
           attributesFromKeyValues((scopeSpan as { scope?: { attributes?: OtlpKeyValue[] } }).scope?.attributes),
           'scope.'
         )
 
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Record shapes remain unchecked; decode all records before publishing converted spans/log events, and reject failed conversion.
         const spans = arrayFrom((scopeSpan as { spans?: unknown }).spans) as OtlpSpan[]
 
         for (const span of spans) {
@@ -139,22 +145,28 @@ export class ClaudeCodeOtlpAdapter {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Collector input is JSON with unverified OTLP nesting; conversion must finish before publishing log events, and failures become HTTP 400.
   static logEventsFromPayload(payload: unknown): ClaudeCodeOtlpLogEvent[] {
     const result: ClaudeCodeOtlpLogEvent[] = []
-    const resourceLogs = arrayFrom((payload as { resourceLogs?: unknown })?.resourceLogs)
+    const resourceLogs = arrayFrom(
+      payload !== null && typeof payload === 'object' && 'resourceLogs' in payload ? payload.resourceLogs : undefined
+    )
 
     for (const resourceLog of resourceLogs) {
       const resourceAttributes = prefixAttributes(
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- OTLP attributes remain unvalidated; preserve the compatibility converter's coercion and HTTP rejection behavior.
         attributesFromKeyValues((resourceLog as { resource?: { attributes?: OtlpKeyValue[] } }).resource?.attributes),
         'resource.'
       )
 
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- This unchecked collection view retains empty non-array collections and rejection of malformed null members.
       const scopeLogs = arrayFrom((resourceLog as { scopeLogs?: unknown }).scopeLogs)
 
       for (const scopeLog of scopeLogs) {
         const scopeAttributes = prefixAttributes(
+          // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- OTLP attributes remain unvalidated; preserve the compatibility converter's coercion and HTTP rejection behavior.
           attributesFromKeyValues((scopeLog as { scope?: { attributes?: OtlpKeyValue[] } }).scope?.attributes),
           'scope.'
         )
 
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Record shapes remain unchecked; decode all records before publishing converted spans/log events, and reject failed conversion.
         const logRecords = arrayFrom((scopeLog as { logRecords?: unknown }).logRecords) as OtlpLogRecord[]
 
         for (const record of logRecords) {
