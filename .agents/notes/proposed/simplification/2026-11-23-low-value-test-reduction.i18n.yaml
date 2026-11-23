@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/simplification/2026-11-23-low-value-test-reduction.md
+2026-11-23-low-value-test-reduction.md: d5bfc8aa53a87b7f60f0c8f0de5fc07a079c5d07
+2026-11-23-low-value-test-reduction.zh.md: 40ce0a67f3c7c4ba58787dd7dd8b0894afecc95c
