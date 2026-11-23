@@ -1570,19 +1570,37 @@ describe('AgentComposer', () => {
     expect(screen.queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
   })
 
-  it('shows only one session configuration entry even with Cherry permission mode pinned', async () => {
+  it('uses dedicated permission controls, wires Shift+Tab plan toggling without auto-escalating, and separates security options', async () => {
     mocks.pinnedToolIds = ['permission-mode']
     const info = {
       models: [],
       images: false,
       resume: true,
-      configOptions: [],
+      configOptions: [
+        {
+          id: 'allow_all',
+          name: 'Allow All',
+          type: 'boolean' as const,
+          currentValue: false
+        },
+        {
+          id: 'detail',
+          name: 'Answer detail',
+          type: 'select' as const,
+          currentValue: 'brief',
+          options: [
+            { value: 'brief', name: 'Brief' },
+            { value: 'full', name: 'Detailed' }
+          ]
+        }
+      ],
       mode: {
         id: 'mode',
         currentValue: 'default',
         options: [
           { value: 'default', name: 'Always Ask' },
-          { value: 'plan', name: 'Plan' }
+          { value: 'plan', name: 'Plan' },
+          { value: 'yolo', name: 'YOLO' }
         ]
       }
     }
@@ -1597,17 +1615,51 @@ describe('AgentComposer', () => {
       isStreaming: false
     }
     const view = render(<AgentComposer {...props} />)
-    const controls = within(screen.getByTestId('composer-send-accessory'))
-    await waitFor(() => expect(controls.getAllByLabelText('local_agents.configuration')).toHaveLength(1))
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    await waitFor(() => expect(getControls().getAllByLabelText('code.adv.permission_mode')).toHaveLength(1))
+    expect(getControls().getAllByLabelText('local_agents.configuration')).toHaveLength(1)
     expect(
       screen.queryByRole('button', { name: /agent.settings.permissionMode.title|Permission Mode|权限模式/ })
     ).toBeNull()
-    expect(mocks.surfaceProps?.onShiftTab).toBeUndefined()
-    for (const isStreaming of [true, false, true, false]) {
+
+    // Security option routes into permission control while general config stays in LocalAgentConfigControl.
+    expect(getControls().getByRole('menuitemradio', { name: 'common.enabled' })).toBeInTheDocument()
+    expect(getControls().getByRole('menuitemradio', { name: 'agent.speed.summary.detailed' })).toBeInTheDocument()
+
+    // Shift+Tab enters plan mode via ai.local_agents.set_mode.
+    expect(mocks.surfaceProps?.onShiftTab).toBeTypeOf('function')
+    act(() => mocks.surfaceProps?.onShiftTab?.())
+    await waitFor(() =>
+      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
+        sessionId: 'session-1',
+        configId: 'mode',
+        value: 'plan'
+      })
+    )
+
+    // Even if previously in high-risk yolo mode, leaving plan via Shift+Tab falls back to safe default.
+    mocks.ipcApiRequest.mockImplementation(async (route) =>
+      route === 'ai.local_agents.session_info' ? { ...info, mode: { ...info.mode, currentValue: 'plan' } } : {}
+    )
+    view.rerender(<AgentComposer {...props} sessionId="session-plan-safe" />)
+    await waitFor(() =>
+      expect(getControls().getByRole('button', { name: 'code.adv.permission_mode' })).toHaveTextContent(
+        'local_agents.modes.plan'
+      )
+    )
+    act(() => mocks.surfaceProps?.onShiftTab?.())
+    await waitFor(() =>
+      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
+        sessionId: 'session-plan-safe',
+        configId: 'mode',
+        value: 'default'
+      })
+    )
+
+    for (const isStreaming of [true, false]) {
       view.rerender(<AgentComposer {...props} isStreaming={isStreaming} />)
-      expect(controls.getAllByLabelText('local_agents.configuration')).toHaveLength(1)
+      expect(getControls().getAllByLabelText('code.adv.permission_mode')).toHaveLength(1)
     }
-    expect(mocks.ipcApiRequest.mock.calls.filter(([route]) => route === 'ai.local_agents.session_info')).toHaveLength(1)
   })
 
   it('enables cached local modes after the idle connection expires', () => {

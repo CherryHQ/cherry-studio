@@ -1,4 +1,4 @@
-import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentSessionInfo, LocalAgentSessionOverrides } from '@shared/ai/localAgent'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
@@ -455,6 +455,10 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'local_agent.model_catalogs': Record<string, CacheValueTypes.LocalAgentModelCacheEntry>
+  'local_agent.session_option_snapshots': Record<
+    string,
+    Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'>
+  >
   'ui.model_selector.presentation': 'popover' | 'dialog'
   'ui.browser.import_prompt_hidden': boolean
   'ui.browser.last_urls': Record<string, string>
@@ -539,6 +543,7 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'local_agent.model_catalogs': {},
+  'local_agent.session_option_snapshots': {},
   'ui.model_selector.presentation': 'popover',
   'ui.browser.import_prompt_hidden': false,
   'ui.browser.last_urls': {},
@@ -622,6 +627,7 @@ export type MainPersistCacheSchema = {
   // a @main enum (no reverse import), so the key type is `string`; the
   // windowBoundsTracker is the sole writer and controls which keys appear.
   'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
+  'local_agent.session_overrides': Record<string, LocalAgentSessionOverrides>
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
@@ -632,7 +638,8 @@ export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'cherry_cloud.notification_cursors': {},
   'cherryin.models.last_attempt_at': null,
   'internal.persist_probe': 0,
-  'window.bounds': {}
+  'window.bounds': {},
+  'local_agent.session_overrides': {}
 }
 
 // ============================================================================

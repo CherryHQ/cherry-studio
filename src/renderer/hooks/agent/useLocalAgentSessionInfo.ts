@@ -1,14 +1,35 @@
 import { useEffect, useEffectEvent, useMemo, useState } from 'react'
 
-import { useCache } from '@data/hooks/useCache'
+import { useCache, usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import {
+  getDefaultLocalAgentMode,
+  type LocalAgentConfiguration,
+  type LocalAgentSessionInfo
+} from '@shared/ai/localAgent'
 
 const logger = loggerService.withContext('useLocalAgentSessionInfo')
 
-export function useLocalAgentSessionInfo(sessionId: string, enabled: boolean) {
+type LocalOptionSnapshot = Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'>
+
+function upsertSnapshot(
+  previous: Record<string, LocalOptionSnapshot>,
+  sessionId: string,
+  snapshot: LocalOptionSnapshot
+): Record<string, LocalOptionSnapshot> {
+  return Object.fromEntries(
+    [[sessionId, snapshot], ...Object.entries(previous).filter(([id]) => id !== sessionId)].slice(0, 100)
+  )
+}
+
+export function useLocalAgentSessionInfo(
+  sessionId: string,
+  enabled: boolean,
+  protocol?: LocalAgentConfiguration['protocol']
+) {
   const [snapshots, setSnapshots] = useCache('agent.session.local_options')
+  const [persistedSnapshots, setPersistedSnapshots] = usePersistCache('local_agent.session_option_snapshots')
   const scope = useMemo(() => ({ sessionId, enabled }), [sessionId, enabled])
   const [live, setLive] = useState<{ scope: typeof scope; info: LocalAgentSessionInfo } | null>(null)
 
@@ -19,15 +40,13 @@ export function useLocalAgentSessionInfo(sessionId: string, enabled: boolean) {
       return
     }
     setLive({ scope, info })
-    const { mode, thoughtLevel, configOptions } = info
-    setSnapshots((previous) =>
-      Object.fromEntries(
-        [
-          [sessionId, { mode, thoughtLevel, configOptions }],
-          ...Object.entries(previous).filter(([id]) => id !== sessionId)
-        ].slice(0, 100)
-      )
-    )
+    const snapshot: LocalOptionSnapshot = {
+      mode: info.mode,
+      thoughtLevel: info.thoughtLevel,
+      configOptions: info.configOptions
+    }
+    setSnapshots((previous) => upsertSnapshot(previous, sessionId, snapshot))
+    setPersistedSnapshots((previous) => upsertSnapshot(previous, sessionId, snapshot))
   })
 
   useEffect(() => {
@@ -54,5 +73,13 @@ export function useLocalAgentSessionInfo(sessionId: string, enabled: boolean) {
   }, [sessionId, enabled, scope])
 
   const info = enabled && live?.scope === scope ? live.info : null
-  return { info, options: info ?? snapshots[sessionId] }
+  const fallbackMode = useMemo(() => (protocol ? getDefaultLocalAgentMode(protocol) : undefined), [protocol])
+  return {
+    info,
+    options:
+      info ??
+      snapshots[sessionId] ??
+      persistedSnapshots[sessionId] ??
+      (enabled && fallbackMode ? { mode: fallbackMode } : undefined)
+  }
 }

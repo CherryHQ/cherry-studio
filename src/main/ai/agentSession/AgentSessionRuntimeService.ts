@@ -62,7 +62,12 @@ import {
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
-import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import {
+  getDefaultLocalAgentMode,
+  LOCAL_PERMISSION_CONFIG_OPTION_IDS,
+  type LocalAgentSessionInfo,
+  type LocalAgentSessionOverrides
+} from '@shared/ai/localAgent'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -2541,6 +2546,23 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.contextUsageModel = target.modelId
     entry.usageCapture = connection.usageCapture
     this.resetConnectionRuntimeState(entry, connection)
+    if (entry.agentType === 'local') {
+      const savedOverrides = this.getLocalSessionOverrides(entry.sessionId)
+      if (
+        savedOverrides?.mode ||
+        (savedOverrides?.configOptions && Object.keys(savedOverrides.configOptions).length > 0)
+      ) {
+        if (!(await this.restoreLocalSessionOverrides(entry, connection, attemptId, savedOverrides))) {
+          if (this.currentConnection(entry) !== connection) {
+            void this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
+          }
+          return false
+        }
+      }
+      if (connection.localSessionInfo) {
+        this.publishLocalSessionInfo(entry, connection.localSessionInfo)
+      }
+    }
     // Priming opens an idle connection only to populate connection-local metadata such as slash
     // commands. Context usage is expensive (the SDK issues multiple token-count probes), so defer it
     // until a real turn, a runtime event, or an explicit UI refresh needs a reading.
@@ -4004,6 +4026,107 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private getLocalSessionOverrides(sessionId: string): LocalAgentSessionOverrides | undefined {
+    try {
+      const store = application.get('CacheService').getPersist?.('local_agent.session_overrides')
+      return store?.[sessionId]
+    } catch {
+      return undefined
+    }
+  }
+
+  private saveLocalSessionOverride(
+    sessionId: string,
+    patch: { mode?: { configId: string; value: string }; configOption?: { configId: string; value: string | boolean } }
+  ): void {
+    try {
+      const cache = application.get('CacheService')
+      if (!cache.getPersist || !cache.setPersist) return
+      const store = cache.getPersist('local_agent.session_overrides') ?? {}
+      const existing = store[sessionId]
+      const nextEntry: LocalAgentSessionOverrides = {
+        ...existing,
+        ...(patch.mode ? { mode: patch.mode } : {}),
+        ...(patch.configOption
+          ? {
+              configOptions: {
+                ...existing?.configOptions,
+                [patch.configOption.configId]: patch.configOption.value
+              }
+            }
+          : {}),
+        updatedAt: Date.now()
+      }
+      const entries: Array<[string, LocalAgentSessionOverrides]> = [
+        [sessionId, nextEntry],
+        ...Object.entries(store).filter(([id]) => id !== sessionId)
+      ]
+      const nextStore = Object.fromEntries(entries.sort(([, a], [, b]) => b.updatedAt - a.updatedAt).slice(0, 500))
+      cache.setPersist('local_agent.session_overrides', nextStore)
+    } catch (error) {
+      logger.warn('Failed to persist local session override', error as Error, { sessionId })
+    }
+  }
+
+  private async restoreLocalSessionOverrides(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection,
+    attemptId: string,
+    saved: LocalAgentSessionOverrides
+  ): Promise<boolean> {
+    const modeInfo = connection.localSessionInfo?.mode
+    if (
+      saved.mode &&
+      connection.setMode &&
+      modeInfo &&
+      modeInfo.id === saved.mode.configId &&
+      modeInfo.currentValue !== saved.mode.value &&
+      modeInfo.options.some((option) => option.value === saved.mode!.value)
+    ) {
+      try {
+        await connection.setMode(saved.mode.configId, saved.mode.value)
+      } catch (error) {
+        logger.warn('Failed to restore local session mode override', error as Error, {
+          sessionId: entry.sessionId,
+          configId: saved.mode.configId,
+          value: saved.mode.value
+        })
+      }
+      if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) {
+        return false
+      }
+    }
+    if (saved.configOptions && connection.setConfigOption) {
+      for (const [configId, value] of Object.entries(saved.configOptions)) {
+        const option = connection.localSessionInfo?.configOptions?.find((item) => item.id === configId)
+        if (!option || option.currentValue === value) continue
+        if (option.type === 'boolean' && typeof value !== 'boolean') continue
+        if (
+          option.type === 'select' &&
+          (typeof value !== 'string' ||
+            !option.options
+              .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+              .some((choice) => choice.value === value))
+        ) {
+          continue
+        }
+        try {
+          await connection.setConfigOption(configId, value)
+        } catch (error) {
+          logger.warn('Failed to restore local session config option override', error as Error, {
+            sessionId: entry.sessionId,
+            configId,
+            value
+          })
+        }
+        if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) {
+          return false
+        }
+      }
+    }
+    return this.isCurrentGeneration(entry, attemptId) && this.currentConnection(entry) === connection
+  }
+
   private async changeLocalOption(
     sessionId: string,
     apply: (connection: AgentRuntimeConnection) => Promise<LocalAgentSessionInfo> | undefined
@@ -4022,12 +4145,48 @@ export class AgentSessionRuntimeService extends BaseService {
     return change
   }
 
-  setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
-    return this.changeLocalOption(sessionId, (connection) => connection.setConfigOption?.(configId, value))
+  async setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
+    const info = await this.changeLocalOption(sessionId, (connection) => connection.setConfigOption?.(configId, value))
+    if (LOCAL_PERMISSION_CONFIG_OPTION_IDS.has(configId)) {
+      this.saveLocalSessionOverride(sessionId, { configOption: { configId, value } })
+    }
+    return info
   }
 
-  setLocalMode(sessionId: string, configId: string, value: string) {
-    return this.changeLocalOption(sessionId, (connection) => connection.setMode?.(configId, value))
+  async setLocalMode(sessionId: string, configId: string, value: string) {
+    if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
+    let entry = this.entries.get(sessionId)
+    if (!entry || !this.currentConnection(entry)) {
+      const agentId = agentSessionService.getById(sessionId)?.agentId
+      if (agentId && agentService.getAgent(agentId)?.type === 'local') {
+        await this.primeConnection(sessionId)
+        entry = this.entries.get(sessionId)
+      }
+    }
+    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
+    if (connection && !this.isSessionBusy(sessionId) && connection.setMode) {
+      const info = await connection.setMode(configId, value)
+      this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+      return info
+    }
+    if (!connection && !this.isSessionBusy(sessionId)) {
+      const session = agentSessionService.getById(sessionId)
+      const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
+      const protocol = agent?.type === 'local' ? agent.configuration?.localRuntime?.protocol : undefined
+      const defaultMode = protocol ? getDefaultLocalAgentMode(protocol) : undefined
+      if (defaultMode && defaultMode.id === configId && defaultMode.options.some((option) => option.value === value)) {
+        this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+        const info: LocalAgentSessionInfo = {
+          models: [],
+          images: true,
+          resume: true,
+          mode: { ...defaultMode, currentValue: value }
+        }
+        application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
+        return info
+      }
+    }
+    throw new Error('Local agent session is unavailable or busy')
   }
 
   setLocalThoughtLevel(sessionId: string, configId: string, value: string) {

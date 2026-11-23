@@ -6,7 +6,14 @@ import zh from '@renderer/i18n/locales/zh-cn.json'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption } from '@shared/ai/localAgent'
 
-import { isHighRiskLocalOption, localAgentConfigOptions, localAgentModeOptions } from '../localAgentLabels'
+import {
+  findLocalDefaultNonPlanOption,
+  findLocalPlanModeOption,
+  getLocalOptionRiskLevel,
+  isHighRiskLocalOption,
+  localAgentConfigOptions,
+  localAgentModeOptions
+} from '../localAgentLabels'
 
 const i18n = createInstance()
 beforeAll(async () => {
@@ -260,5 +267,40 @@ describe('installed agent translations', () => {
     expect(
       isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: 'true', name: 'Sandbox Environment' })
     ).toBe(false)
+
+    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'plan', name: 'Plan' })).toBe('readonly')
+    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'readOnly', name: 'Read Only' })).toBe(
+      'readonly'
+    )
+    expect(
+      getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'acceptEdits', name: 'Accept Edits' })
+    ).toBe('auto_edit')
+    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'workspace', name: 'Workspace' })).toBe(
+      'auto_edit'
+    )
+    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'default', name: 'Default' })).toBe('ask')
+    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'yolo', name: 'YOLO' })).toBe('full_access')
+
+    const codexMode = {
+      id: 'codex-mode',
+      currentValue: 'fullAccess',
+      options: [
+        { value: 'fullAccess', name: 'Full Access' },
+        { value: 'readOnly', name: 'Read Only' },
+        { value: 'workspace', name: 'Workspace' }
+      ]
+    }
+    expect(findLocalPlanModeOption(codexMode)?.value).toBe('readOnly')
+    expect(findLocalDefaultNonPlanOption(codexMode, 'readOnly')?.value).toBe('workspace')
+
+    const riskyOnlyMode = {
+      id: 'mode',
+      currentValue: 'plan',
+      options: [
+        { value: 'plan', name: 'Plan' },
+        { value: 'yolo', name: 'YOLO' }
+      ]
+    }
+    expect(findLocalDefaultNonPlanOption(riskyOnlyMode, 'plan')).toBeUndefined()
   })
 })

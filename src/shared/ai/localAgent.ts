@@ -412,6 +412,50 @@ export interface LocalAgentSelection {
   options: Array<{ value: string; name: string; description?: string }>
 }
 
+export const CLAUDE_LOCAL_MODE_ID = 'claude-mode'
+export const CLAUDE_LOCAL_MODE_OPTIONS = [
+  { value: 'default', name: 'Default' },
+  { value: 'acceptEdits', name: 'Accept Edits' },
+  { value: 'plan', name: 'Plan' },
+  { value: 'auto', name: 'Auto' },
+  { value: 'bypassPermissions', name: 'Bypass Permissions' }
+] as const
+
+export const CODEX_LOCAL_MODE_ID = 'codex-mode'
+export const CODEX_LOCAL_MODE_OPTIONS = [
+  { value: 'readOnly', name: 'Read Only' },
+  { value: 'workspace', name: 'Workspace' },
+  { value: 'fullAccess', name: 'Full Access' }
+] as const
+
+export function getDefaultLocalAgentMode(
+  protocol: LocalAgentConfiguration['protocol']
+): LocalAgentSelection | undefined {
+  if (protocol === 'claude') {
+    return {
+      id: CLAUDE_LOCAL_MODE_ID,
+      currentValue: 'default',
+      options: CLAUDE_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+    }
+  }
+  if (protocol === 'codex') {
+    return {
+      id: CODEX_LOCAL_MODE_ID,
+      currentValue: 'workspace',
+      options: CODEX_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+    }
+  }
+  return undefined
+}
+
+export const LOCAL_PERMISSION_CONFIG_OPTION_IDS = new Set(['allow_all', 'sandbox'])
+
+export interface LocalAgentSessionOverrides {
+  mode?: { configId: string; value: string }
+  configOptions?: Record<string, string | boolean>
+  updatedAt: number
+}
+
 export interface LocalAgentNotice {
   severity: 'info' | 'warning' | 'error'
   title: string
@@ -434,6 +478,10 @@ export type LocalAgentConfigOption = {
       >
     }
 )
+
+export function isLocalPermissionConfigOption(option: Pick<LocalAgentConfigOption, 'id' | 'category'>): boolean {
+  return option.category === 'mode' || LOCAL_PERMISSION_CONFIG_OPTION_IDS.has(option.id)
+}
 
 export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
   configOptions?: LocalAgentConfigOption[]

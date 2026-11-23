@@ -72,6 +72,11 @@ import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { getPermissionModeCards } from '@renderer/utils/agent'
+import {
+  findLocalDefaultNonPlanOption,
+  findLocalPlanModeOption,
+  isHighRiskLocalOption
+} from '@renderer/utils/agent/localAgentLabels'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
   getComposerShortcutLabel,
@@ -82,6 +87,7 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { isLocalPermissionConfigOption } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -126,6 +132,7 @@ import {
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
 import { LocalAgentConfigControl } from './agent/LocalAgentConfigControl'
+import { LocalAgentPermissionControl } from './agent/LocalAgentPermissionControl'
 import { useAgentPromptSuggestion } from './agent/useAgentPromptSuggestion'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
@@ -605,7 +612,8 @@ const AgentComposerInner = ({
   const isActiveTab = useIsActiveTab()
   const { info: localInfo, options: localOptions } = useLocalAgentSessionInfo(
     sessionId,
-    agent?.type === 'local' && (!currentTabId || isActiveTab)
+    agent?.type === 'local' && (!currentTabId || isActiveTab),
+    agent?.type === 'local' ? agent.configuration?.localRuntime?.protocol : undefined
   )
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
   const canonicalReasoningEffort = model
@@ -662,6 +670,16 @@ const AgentComposerInner = ({
   const usesCherryPermissionMode = !!agent && agent.type !== 'local'
   const supportsPlan =
     usesCherryPermissionMode && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
+  const localMode = agent?.type === 'local' ? localOptions?.mode : undefined
+  const localPlanOption = findLocalPlanModeOption(localMode)
+  const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
+  const localPlanSwitchInFlightRef = useRef(false)
+  useEffect(() => {
+    if (!localMode || !localPlanOption) return
+    if (localMode.currentValue !== localPlanOption.value) {
+      lastNonPlanLocalModeRef.current = { sessionId, value: localMode.currentValue }
+    }
+  }, [localMode, localPlanOption, sessionId])
   const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
@@ -687,6 +705,46 @@ const AgentComposerInner = ({
     const launcher = getLaunchers('root-panel').find((entry) => entry.id === 'plan-mode')
     if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
   }, [dispatchLauncher, getLaunchers, quickPanel])
+  const toggleLocalPlanMode = useCallback(() => {
+    if (isStreaming || localPlanSwitchInFlightRef.current || !localMode || !localPlanOption) return
+    const isCurrentlyPlan = localMode.currentValue === localPlanOption.value
+    let targetValue: string | undefined
+    if (!isCurrentlyPlan) {
+      targetValue = localPlanOption.value
+    } else {
+      const remembered =
+        lastNonPlanLocalModeRef.current?.sessionId === sessionId ? lastNonPlanLocalModeRef.current.value : undefined
+      const rememberedOption = remembered ? localMode.options.find((option) => option.value === remembered) : undefined
+      if (
+        rememberedOption &&
+        rememberedOption.value !== localPlanOption.value &&
+        !isHighRiskLocalOption({
+          kind: 'mode',
+          optionId: localMode.id,
+          value: rememberedOption.value,
+          name: rememberedOption.name
+        })
+      ) {
+        targetValue = rememberedOption.value
+      } else {
+        targetValue = findLocalDefaultNonPlanOption(localMode, localPlanOption.value)?.value
+      }
+    }
+    if (!targetValue || targetValue === localMode.currentValue) return
+    localPlanSwitchInFlightRef.current = true
+    void ipcApi
+      .request('ai.local_agents.set_mode', {
+        sessionId,
+        configId: localMode.id,
+        value: targetValue
+      })
+      .catch((error) => {
+        toast.error(String(error))
+      })
+      .finally(() => {
+        localPlanSwitchInFlightRef.current = false
+      })
+  }, [isStreaming, localMode, localPlanOption, sessionId])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -1701,6 +1759,16 @@ const AgentComposerInner = ({
     workspaceChanging
   })
 
+  const localPrimaryModelOption = localOptions?.configOptions?.find(
+    (item) => item.category === 'model' && item.type === 'select'
+  )
+  const localExtraOptions = localOptions?.configOptions?.filter(
+    (option) =>
+      option.category !== 'model_config' && option !== localPrimaryModelOption && option.id !== localOptions?.mode?.id
+  )
+  const localSecurityOptions = localExtraOptions?.filter((option) => isLocalPermissionConfigOption(option))
+  const localNonPermissionOptions = localExtraOptions?.filter((option) => !isLocalPermissionConfigOption(option))
+
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {model ? (
@@ -1715,20 +1783,27 @@ const AgentComposerInner = ({
         />
       ) : null}
       {agent?.type === 'local' && !launchOptions?.editing ? (
-        <LocalAgentConfigControl
-          key={`config:${sessionId}`}
-          sessionId={sessionId}
-          agentName={agent.name.trim() || undefined}
-          presetId={agent.configuration?.localRuntime?.presetId}
-          options={localOptions?.configOptions?.filter(
-            (option) =>
-              option.category !== 'model_config' &&
-              option !== localOptions.configOptions?.find((item) => item.category === 'model' && item.type === 'select')
-          )}
-          mode={localOptions?.mode}
-          thoughtLevel={localOptions?.thoughtLevel}
-          disabled={isStreaming}
-        />
+        <>
+          <LocalAgentPermissionControl
+            key={`perm:${sessionId}`}
+            sessionId={sessionId}
+            agentId={agent.id}
+            agentName={agent.name.trim() || undefined}
+            presetId={agent.configuration?.localRuntime?.presetId}
+            mode={localOptions?.mode}
+            securityOptions={localSecurityOptions}
+            disabled={isStreaming}
+          />
+          <LocalAgentConfigControl
+            key={`config:${sessionId}`}
+            sessionId={sessionId}
+            agentName={agent.name.trim() || undefined}
+            presetId={agent.configuration?.localRuntime?.presetId}
+            options={localNonPermissionOptions}
+            thoughtLevel={localOptions?.thoughtLevel}
+            disabled={isStreaming}
+          />
+        </>
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
       <ComposerDictationButton inputAdapter={inputAdapter} />
@@ -1783,7 +1858,7 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
-          onShiftTab={supportsPlan ? togglePlanMode : undefined}
+          onShiftTab={supportsPlan ? togglePlanMode : localPlanOption ? toggleLocalPlanMode : undefined}
           queueContent={
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}

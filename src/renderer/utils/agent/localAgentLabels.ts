@@ -38,6 +38,23 @@ const HIGH_RISK_MODE_IDENTIFIERS = new Set([
 const UNSANDBOXED_VALUES = new Set(['false', 'off', 'disabled', 'none', 'local', 'local_environment'])
 const UNSANDBOXED_NAMES = new Set(['local environment', 'local'])
 
+export type LocalPermissionRiskLevel = 'readonly' | 'ask' | 'auto_edit' | 'full_access'
+
+const READONLY_MODE_IDENTIFIERS = new Set(['plan', 'read only', 'readonly', 'read-only', 'ask'])
+const AUTO_EDIT_MODE_IDENTIFIERS = new Set([
+  'accept edits',
+  'acceptedits',
+  'auto edit',
+  'auto-edit',
+  'auto',
+  'code',
+  'build',
+  'agent',
+  'workspace',
+  'workspace-write'
+])
+const DEFAULT_NON_PLAN_IDENTIFIERS = ['default', 'workspace', 'always ask', 'ask', 'agent', 'code', 'build']
+
 export function isHighRiskLocalOption({
   kind,
   optionId,
@@ -70,6 +87,62 @@ export function isHighRiskLocalOption({
     )
   }
   return false
+}
+
+export function getLocalOptionRiskLevel(params: {
+  kind: 'mode' | 'thought' | 'config'
+  optionId: string
+  value: string | boolean
+  name?: string
+}): LocalPermissionRiskLevel {
+  if (isHighRiskLocalOption(params)) return 'full_access'
+  if (params.kind === 'mode') {
+    const normalizedValue = String(params.value).trim().toLowerCase()
+    const normalizedName = params.name?.trim().toLowerCase()
+    if (
+      READONLY_MODE_IDENTIFIERS.has(normalizedValue) ||
+      (!!normalizedName && READONLY_MODE_IDENTIFIERS.has(normalizedName))
+    ) {
+      return 'readonly'
+    }
+    if (
+      AUTO_EDIT_MODE_IDENTIFIERS.has(normalizedValue) ||
+      (!!normalizedName && AUTO_EDIT_MODE_IDENTIFIERS.has(normalizedName))
+    ) {
+      return 'auto_edit'
+    }
+  }
+  return 'ask'
+}
+
+export function findLocalPlanModeOption(mode?: LocalAgentSelection) {
+  if (!mode || mode.options.length < 2) return undefined
+  const exactPlan = mode.options.find((option) => {
+    const value = option.value.trim().toLowerCase()
+    const name = option.name.trim().toLowerCase()
+    return value === 'plan' || name === 'plan'
+  })
+  if (exactPlan) return exactPlan
+  return mode.options.find((option) => {
+    const value = option.value.trim().toLowerCase()
+    const name = option.name.trim().toLowerCase()
+    return ['readonly', 'read-only', 'read_only'].includes(value) || name === 'read only'
+  })
+}
+
+export function findLocalDefaultNonPlanOption(mode: LocalAgentSelection, planValue: string) {
+  const candidates = mode.options.filter(
+    (option) =>
+      option.value !== planValue &&
+      !isHighRiskLocalOption({ kind: 'mode', optionId: mode.id, value: option.value, name: option.name })
+  )
+  for (const preferred of DEFAULT_NON_PLAN_IDENTIFIERS) {
+    const match = candidates.find(
+      (option) => option.value.trim().toLowerCase() === preferred || option.name.trim().toLowerCase() === preferred
+    )
+    if (match) return match
+  }
+  return candidates[0]
 }
 
 // Translate recognized native descriptions exactly; custom permission semantics stay intact.

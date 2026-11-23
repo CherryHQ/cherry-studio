@@ -177,6 +177,17 @@ provider is required. “Local” refers to the CLI process, not an offline mode
 - A new local task defaults to its own managed directory. An empty task can select
   an existing project; sending its first message locks the agent and directory.
   Missing user directories are reported rather than created.
+- Local session permissions stay native to each CLI protocol rather than reading
+  Cherry's `configuration.permission_mode` field. `ClaudeConnection`,
+  `CodexConnection`, and `AcpConnection` expose protocol modes through
+  `localSessionInfo.mode` (`setMode`), while safety-sensitive config options
+  (`allow_all`, `sandbox`) stay separated from general session parameters in the
+  composer's permission control. Per-session overrides persist under
+  `local_agent.session_overrides` in the main persist cache and replay on
+  reconnect before new turns without mutating the CLI's global configuration
+  files. High-risk selections require `FullAccessConfirmDialog` confirmation, and
+  `Shift+Tab` toggles between the active safe mode and the advertised Plan or
+  read-only mode without auto-escalating into high-risk access.
 
 ## Additional ACP presets
 

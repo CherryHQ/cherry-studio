@@ -2,6 +2,7 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
 import { ipcApi } from '@renderer/ipc'
 import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 
@@ -125,5 +126,33 @@ describe('local agent session option cache', () => {
     expect(view.result.current.options?.mode).toEqual(first.mode)
     act(() => publish({ sessionId: 'one', info: { models: [], images: false, resume: true } }))
     expect(view.result.current.options?.mode).toBeUndefined()
+  })
+
+  it('persists option snapshots across memory reset and provides pre-connect defaults for Claude and Codex', async () => {
+    vi.mocked(ipcApi.request).mockResolvedValue(first)
+    const initial = renderHook(() => useLocalAgentSessionInfo('persisted', true, 'acp'))
+    await waitFor(() => expect(initial.result.current.info).toEqual(first))
+    initial.unmount()
+
+    cacheService.setCasual('agent.session.local_options', {})
+    expect(cacheService.getCasual('agent.session.local_options')).toEqual({})
+    vi.mocked(ipcApi.request).mockResolvedValue(null)
+    const afterReload = renderHook(() => useLocalAgentSessionInfo('persisted', true, 'acp'))
+    expect(afterReload.result.current.options?.mode).toEqual(first.mode)
+
+    const claudeBlank = renderHook(() => useLocalAgentSessionInfo('blank-claude', true, 'claude'))
+    expect(claudeBlank.result.current.options?.mode).toMatchObject({
+      id: 'claude-mode',
+      currentValue: 'default'
+    })
+
+    const codexBlank = renderHook(() => useLocalAgentSessionInfo('blank-codex', true, 'codex'))
+    expect(codexBlank.result.current.options?.mode).toMatchObject({
+      id: 'codex-mode',
+      currentValue: 'workspace'
+    })
+
+    const acpBlank = renderHook(() => useLocalAgentSessionInfo('blank-acp', true, 'acp'))
+    expect(acpBlank.result.current.options).toBeUndefined()
   })
 })

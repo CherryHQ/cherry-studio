@@ -5,6 +5,7 @@ import * as z from 'zod'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import { CODEX_LOCAL_MODE_ID, CODEX_LOCAL_MODE_OPTIONS } from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
@@ -71,13 +72,7 @@ const RpcSchema = z.object({
 const ThreadSchema = z.object({ thread: z.object({ id: z.string() }) })
 const ItemSchema = z.object({ id: z.string(), type: z.string() }).passthrough()
 
-const CODEX_MODE_OPTIONS = [
-  { value: 'readOnly', name: 'Read Only' },
-  { value: 'workspace', name: 'Workspace' },
-  { value: 'fullAccess', name: 'Full Access' }
-] as const
-
-type CodexModeValue = (typeof CODEX_MODE_OPTIONS)[number]['value']
+type CodexModeValue = (typeof CODEX_LOCAL_MODE_OPTIONS)[number]['value']
 
 const CODEX_TURN_MODE_PARAMS = {
   readOnly: {
@@ -246,9 +241,9 @@ export class CodexConnection extends LocalConnection {
           ? 'readOnly'
           : 'workspace')
     this.localSessionInfo.mode = {
-      id: 'codex-mode',
+      id: CODEX_LOCAL_MODE_ID,
       currentValue: initialMode,
-      options: CODEX_MODE_OPTIONS.map((option) => ({ ...option }))
+      options: CODEX_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
     }
     this.threadId = ThreadSchema.parse(response).thread.id
     this.supportedCommands = CODEX_SUPPORTED_COMMANDS
@@ -258,8 +253,8 @@ export class CodexConnection extends LocalConnection {
 
   async setMode(configId: string, value: string) {
     if (this.closed || this.active) throw new Error('Codex session is unavailable or busy')
-    const option = CODEX_MODE_OPTIONS.find((item) => item.value === value)
-    if (configId !== 'codex-mode' || !option || !this.localSessionInfo.mode) {
+    const option = CODEX_LOCAL_MODE_OPTIONS.find((item) => item.value === value)
+    if (configId !== CODEX_LOCAL_MODE_ID || !option || !this.localSessionInfo.mode) {
       throw new Error('This session option is no longer available')
     }
     this.modeOverride = option.value
