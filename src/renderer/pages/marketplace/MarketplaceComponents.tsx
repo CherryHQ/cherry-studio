@@ -189,13 +189,7 @@ export function MarketplaceLoadState({
       </div>
     )
   if (empty)
-    return (
-      <EmptyState
-        preset="no-result"
-        title={t('marketplace.no_results')}
-        description={t('marketplace.no_results_description')}
-      />
-    )
+    return <EmptyState title={t('marketplace.no_results')} description={t('marketplace.no_results_description')} />
   return null
 }
 

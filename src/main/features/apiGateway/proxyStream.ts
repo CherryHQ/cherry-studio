@@ -1,191 +1,43 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
-import type { CallOverrides } from '@main/ai/types'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
 import type { ISseFormatter, IStreamAdapter } from './adapters'
-import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
+import { StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame, internalGatewayError } from './errors'
-import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
+import type { MessageConfig } from './gatewayRequest'
+import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
+import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
 
 export type { MessageConfig } from './gatewayRequest'
-import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
-import { appendInternalAgentContinuation } from './utils/agentContinuation'
-import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
-import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
-import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
-const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
-
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
-const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set([
-  'text-start',
-  'text-delta',
-  'text-end',
-  'reasoning-start',
-  'reasoning-delta',
-  'reasoning-end',
-  'tool-input-available',
-  'finish'
-])
-
-function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
-  return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
-}
-
-/**
- * Terminal error for a stream that paused without finishing — the 20-minute idle
- * timeout firing, or a mid-stream abort. `AiStreamManager` classifies both as
- * `paused` (not `error`), so the gateway must synthesize a failure: a 504 for the
- * non-streaming path and a dialect error frame for the streaming path. Without
- * this, a truncated reply is indistinguishable from a real completion.
- */
-function streamInterruptedError(): Error & { status: number } {
-  const error = new Error('Upstream idle timeout exceeded') as Error & {
-    status: number
-    cause?: string
+export async function processMessage(config: MessageConfig, release?: () => void): Promise<Response> {
+  try {
+    return await startMessage(config, release)
+  } catch (error) {
+    release?.()
+    throw error
   }
-  error.status = 504
-  error.cause = 'UPSTREAM_IDLE_TIMEOUT'
-  return error
 }
 
-export async function processMessage(config: MessageConfig): Promise<Response> {
-  const request = await resolveGatewayRequest(config)
-  const {
-    inputFormat,
-    outputFormat,
-    params,
-    provider,
-    model,
-    resolvedModel,
-    endpoint,
-    isInternalAnthropicAgentRequest,
-    isStreaming,
-    agentSessionId,
-    turnOptions,
-    reasoning,
-    uniqueModelId,
-    modelId,
-    logContext,
-    asClientError
-  } = request
-  logger.info('Converting gateway protocol request', {
-    ...logContext,
-    mode: 'sdk',
-    inputFormat,
-    target: endpoint.endpointType,
-    outputFormat
-  })
+async function startMessage(config: MessageConfig, release?: () => void): Promise<Response> {
+  const request = await prepareGatewayMessage(config)
+  const { messages, convertedMessages, adapterOptions, internal, outputFormat, logContext, isStreaming } = request
   const { onError, onComplete, signal } = config
-  const internal = config.requestHeaders
-    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
-    : false
-  let effectiveParams = params
-
-  if (isInternalAnthropicAgentRequest) {
-    const anthropicParams = params as MessageCreateParams
-    const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
-
-    if (normalization.status === 'conflict') {
-      logger.warn('Rejected conflicting tool history in internal Agent request', {
-        ...logContext,
-        toolUseId: normalization.toolUseId,
-        reason: normalization.reason,
-        firstLocation: normalization.firstLocation,
-        duplicateLocation: normalization.duplicateLocation
-      })
-      throw asClientError(new Error('Invalid Anthropic tool history: tool_use ids must be unique'))
-    }
-
-    if (normalization.status === 'repaired') {
-      effectiveParams = { ...anthropicParams, messages: normalization.messages }
-      logger.warn('Repaired duplicate tool history in internal Agent request', {
-        ...logContext,
-        duplicateToolUseCount: normalization.duplicateToolUseCount,
-        duplicateToolResultCount: normalization.duplicateToolResultCount
-      })
-    }
-  }
-
-  // 2. Build converter and extract messages / tools / sampling / provider options.
-  const converter = MessageConverterFactory.create(inputFormat, {
-    googleReasoningCache,
-    openRouterReasoningCache
-  })
-
-  // These adapters derive instructions from messages and ignore the provider option.
-  const instructionsInMessages = ['open-responses', 'xai-responses'].includes(
-    resolveAiSdkProviderId(provider, endpoint.endpointType)
-  )
-  const responsesInstructions =
-    inputFormat === 'openai-responses' &&
-    !instructionsInMessages &&
-    endpoint.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
-    'instructions' in effectiveParams &&
-    typeof effectiveParams.instructions === 'string'
-      ? effectiveParams.instructions
-      : undefined
-  const convertedMessages = converter.toUIMessages(
-    responsesInstructions !== undefined ? { ...effectiveParams, instructions: undefined } : effectiveParams
-  )
-  // Leaving inline system messages in place is what keeps the prompt prefix cacheable
-  // across turns; targets that reject them get a downgrade 400 or a fold.
-  const positionedMessages = positionInlineSystemMessages(
-    convertedMessages,
-    endpoint.endpointType,
-    config.requestHeaders
-  )
-  const messages = isInternalAnthropicAgentRequest
-    ? appendInternalAgentContinuation(positionedMessages)
-    : positionedMessages
-  const tools = converter.toAiSdkTools?.(effectiveParams, endpoint.endpointType)
-  const streamOptions = converter.extractStreamOptions(effectiveParams)
-
-  // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const extractedProviderOptions =
-    converter.extractProviderOptions(
-      provider,
-      model,
-      effectiveParams,
-      streamOptions.maxOutputTokens,
-      reasoning.success
-    ) ?? {}
-  if (responsesInstructions !== undefined) {
-    const key = resolveEndpointProviderOptionsKey(provider, endpoint)
-    extractedProviderOptions[key] = { ...extractedProviderOptions[key], instructions: responsesInstructions }
-  }
-  const providerOptions = agentSessionId
-    ? applyAgentPromptCacheKey(provider, model, extractedProviderOptions, agentSessionId)
-    : extractedProviderOptions
-
-  // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
-  const callOverrides: CallOverrides = {
-    ...streamOptions,
-    ...(tools ? { tools } : {}),
-    ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {})
-  }
-
-  // 4. Adapter + formatter translate UIMessageChunk → output format.
-  const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
-    model: `${provider.id}:${modelId}`,
-    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
-  })
+  const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, adapterOptions)
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
     : undefined
 
+  const promptOptions = gatewayPromptOptions(request, usageContext)
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {
     logger.info('Appended assistant-tail continuation for internal agent request', { ...logContext, streamId })
@@ -233,6 +85,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           if (closed) return
           closed = true
           signal?.removeEventListener('abort', onAbort)
+          release?.()
           try {
             controller.close()
           } catch {
@@ -337,19 +190,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         if (closed) return
         try {
           aiStreamManager.streamPrompt({
-            ...turnOptions,
+            ...promptOptions,
             streamId,
-            uniqueModelId,
-            resolvedModel,
-            messages,
-            listener,
-            callOverrides,
-            contextOwner: 'caller',
-            ...(usageContext ? { usageContext } : {}),
-            ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
-            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
-            // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
-            maxRetries: 0
+            listener
           })
         } catch (error) {
           fail(error)
@@ -437,18 +280,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   try {
     if (!aborted) {
       aiStreamManager.streamPrompt({
-        ...turnOptions,
+        ...promptOptions,
         streamId,
-        uniqueModelId,
-        resolvedModel,
-        messages,
-        listener,
-        callOverrides,
-        contextOwner: 'caller',
-        ...(usageContext ? { usageContext } : {}),
-        ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
-        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
-        maxRetries: 0
+        listener
       })
     }
 
@@ -469,5 +303,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     throw error
   } finally {
     signal?.removeEventListener('abort', onAbort)
+    release?.()
   }
 }

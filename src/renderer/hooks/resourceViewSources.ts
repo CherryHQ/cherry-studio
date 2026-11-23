@@ -1,6 +1,7 @@
 import { createContext, use, useCallback } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -24,7 +25,8 @@ import { mapApiTopicToRendererTopic, useTopics } from './useTopic'
 const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
 
 export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
-  const listSource = useTopics({ loadAll: true, enabled })
+  const [sort] = usePreference('chat.topics.sort')
+  const listSource = useTopics({ loadAll: true, enabled, sort })
   const loadLatestTopic = useCallback(async (assistantId?: string | null) => {
     const result =
       assistantId === undefined
@@ -42,7 +44,9 @@ export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } =
 }
 
 export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
+  const [sort] = usePreference('agent.session.sort')
   const listSource = useSessions(undefined, {
+    sort,
     loadAll: true,
     pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE,
     enabled
