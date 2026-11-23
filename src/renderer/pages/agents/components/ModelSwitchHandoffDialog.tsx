@@ -121,7 +121,6 @@ export function ModelSwitchHandoffDialog({
                     value={draft.text}
                     rows={10}
                     className="max-h-64 min-h-40 overflow-y-auto"
-                    className="max-h-64 min-h-40 overflow-y-auto"
                     disabled={saving}
                     onChange={(event) => setDraft({ ...draft, text: event.target.value })}
                   />

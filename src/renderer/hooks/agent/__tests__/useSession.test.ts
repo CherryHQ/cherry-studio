@@ -745,8 +745,8 @@ describe('useUpdateSession', () => {
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions/:sessionId/model-switch', trigger)
     const { result } = renderHook(() => useUpdateSession())
     const body = {
-      previousModel: 'fixture::old',
-      nextModel: 'fixture::next',
+      previousModel: 'fixture::old' as const,
+      nextModel: 'fixture::next' as const,
       sourceHead: 'head',
       sourceVersion: 'version',
       text: '  Edited handoff  '
@@ -767,8 +767,8 @@ describe('useUpdateSession', () => {
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions/:sessionId/model-switch', trigger)
     const { result } = renderHook(() => useUpdateSession())
     const body = {
-      previousModel: 'fixture::old',
-      nextModel: 'fixture::next',
+      previousModel: 'fixture::old' as const,
+      nextModel: 'fixture::next' as const,
       sourceHead: 'head',
       sourceVersion: 'version',
       text: 'Edited'
