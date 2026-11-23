@@ -190,7 +190,7 @@ export interface FileEntryService {
    *
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
-  findCaseInsensitivePeers(canonicalPath: CanonicalFilePath): FileEntry[]
+  findCaseInsensitivePeers(canonicalPath: CanonicalFilePath): Extract<FileEntry, { origin: 'external' }>[]
 
   /** Active internal entries whose persisted hash exactly matches, oldest first. */
   findInternalByContentHash(contentHash: ContentHash): FileEntry[]
@@ -506,7 +506,7 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.length === 0 ? null : rowToFileEntry(rows[0])
   }
 
-  findCaseInsensitivePeers(canonicalPath: CanonicalFilePath): FileEntry[] {
+  findCaseInsensitivePeers(canonicalPath: CanonicalFilePath): Extract<FileEntry, { origin: 'external' }>[] {
     const rows = this.getDb()
       .select()
       .from(fileEntryTable)
@@ -523,7 +523,9 @@ class FileEntryServiceImpl implements FileEntryService {
       .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
       .all()
 
-    return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
+    return rows
+      .map(rowToFileEntrySafe)
+      .filter((entry): entry is Extract<FileEntry, { origin: 'external' }> => entry?.origin === 'external')
   }
 
   findInternalByContentHash(contentHash: ContentHash): FileEntry[] {

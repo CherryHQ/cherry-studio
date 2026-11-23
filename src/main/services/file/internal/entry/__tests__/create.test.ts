@@ -9,6 +9,7 @@ import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { fileEntryTable } from '@data/db/schemas/file'
 import { hashContent } from '@main/utils/file/contentHash'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, UrlStringSchema } from '@shared/types/file'
 
@@ -449,6 +450,45 @@ describe('internal/entry/create.createInternal', () => {
         })
         expect(second.id).not.toBe(first.id)
         expect(fileEntryService.findById(second.id)).not.toBeNull()
+      }
+    )
+
+    it.skipIf(process.platform === 'linux')(
+      'creates an external entry when a captured peer ID now belongs to an internal row',
+      async () => {
+        const upper = path.join(tmp, 'REPLACED.txt')
+        const lower = path.join(tmp, 'replaced.txt')
+        await writeFile(upper, 'external bytes')
+        const first = await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath, cleanupPolicy: 'manual' })
+        const findPeers = fileEntryService.findCaseInsensitivePeers.bind(fileEntryService)
+        vi.spyOn(fileEntryService, 'findCaseInsensitivePeers').mockImplementationOnce((canonical) => {
+          const peers = findPeers(canonical)
+          fileEntryService.withWriteTx((tx) => {
+            fileEntryService.deleteTx(tx, first.id)
+            tx.insert(fileEntryTable)
+              .values({
+                id: first.id,
+                origin: 'internal',
+                name: 'replacement',
+                ext: 'txt',
+                size: 0,
+                cleanupPolicy: 'manual',
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+              })
+              .run()
+          })
+
+          return peers
+        })
+
+        const second = await ensureExternal(deps, { externalPath: lower as AbsoluteFilePath, cleanupPolicy: 'manual' })
+
+        expect(second.origin).toBe('external')
+        expect(second.id).not.toBe(first.id)
+        expect(fileEntryService.getById(first.id).origin).toBe('internal')
+        expect(fileEntryService.getById(second.id).origin).toBe('external')
+        expect(await readFile(lower, 'utf-8')).toBe('external bytes')
       }
     )
 

@@ -51,6 +51,10 @@ second copy.
 canonical path as its upsert identity. Reusing an entry may upgrade
 `delete_when_unreferenced -> manual`; it never implicitly demotes a manual entry.
 
+The case-insensitive peer query retains only schema-parsed external entries and exposes that
+narrower return type. After filesystem comparison yields, creation re-reads the matching ID and
+checks its current origin before reading `externalPath` and reusing the entry.
+
 Canonicalization is lexical and byte-faithful:
 
 - it resolves `.` and `..`, strips trailing separators, and normalizes the Windows drive/separator

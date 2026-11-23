@@ -249,11 +249,11 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
       // error — fall through and insert, which is what the caller asked for.
       const stillPresent = deps.fileEntryService.findById(reusable.id)
 
-      if (stillPresent) {
+      if (stillPresent?.origin === 'external') {
         logger.info('ensureExternal: reusing case-collision peer (fs.realpath confirmed same FS entry)', {
           newPath: canonical,
           peerId: stillPresent.id,
-          peerPath: (stillPresent as { externalPath: string }).externalPath
+          peerPath: stillPresent.externalPath
         })
 
         return upgradeCleanupPolicyIfNeeded(deps, stillPresent, params.cleanupPolicy)
@@ -277,9 +277,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
       // uniqueness is what option (c) brings.
       throw new Error(
         `ensureExternal: case-collision with existing entries — fs.realpath confirms different FS entities. ` +
-          `New: ${canonical}; conflicting peers: ${peers
-            .map((p) => `${p.id}=${(p as { externalPath: string }).externalPath}`)
-            .join(', ')}`
+          `New: ${canonical}; conflicting peers: ${peers.map((p) => `${p.id}=${p.externalPath}`).join(', ')}`
       )
     }
   }
@@ -335,7 +333,10 @@ function defaultNameFromPath(p: string): string {
  *
  * Returns the matching peer, or `null` when no peer is the same FS entity.
  */
-async function resolveCaseCollisionPeer(newCanonical: AbsoluteFilePath, peers: FileEntry[]): Promise<FileEntry | null> {
+async function resolveCaseCollisionPeer(
+  newCanonical: AbsoluteFilePath,
+  peers: Extract<FileEntry, { origin: 'external' }>[]
+): Promise<Extract<FileEntry, { origin: 'external' }> | null> {
   // The caller's `fsStat(newCanonical)` already succeeded a moment ago, so a
   // realpath failure here means the file was raced away or a symlink target
   // became unreachable between calls. We let the error propagate unchanged
@@ -344,8 +345,6 @@ async function resolveCaseCollisionPeer(newCanonical: AbsoluteFilePath, peers: F
   const newReal = await realpath(newCanonical)
 
   for (const peer of peers) {
-    if (peer.origin !== 'external') continue
-
     try {
       const peerReal = await realpath(peer.externalPath)
 
