@@ -34,8 +34,9 @@ Decided per file part in `prepareChatMessages`
 | Attachment | Native when | What the model receives |
 |---|---|---|
 | image | model is vision | native image part (inline) |
-| image | non-vision, OCR finds text | OCR text, inline (capped) |
-| image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
+| image | non-vision, current turn, OCR finds text | OCR text, inline (capped) |
+| image | non-vision, current turn, OCR empty/unconfigured/failed | short note that no readable text could be extracted |
+| image | non-vision, earlier turn | short note that the model does not accept images |
 | pdf | provider+model native PDF | native PDF part (inline) |
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
@@ -65,12 +66,12 @@ Decided per file part in `prepareChatMessages`
 - Unknown extensions undergo a conservative content sniff (binary detection +
   encoding confidence). Binary bytes or ambiguous legacy encodings get a short
   unsupported note instead of being decoded into mojibake.
-- A non-vision image only degrades to OCR text when OCR actually finds text.
-  Otherwise (empty OCR result, unconfigured or failed OCR) attachment routing
-  raises a localized error before opening the provider request. A gateway-backed
-  model that accepts images must have **Vision** enabled under Provider Settings
-  → model input modalities; that user override takes precedence over the catalog
-  and sends the native image without running OCR.
+- Non-vision routing attempts OCR only on images in the latest user message.
+  An empty result or processor failure becomes a note in the prompt, and the
+  request proceeds. Earlier images also become notes without running OCR.
+  A gateway-backed model that accepts images must have **Vision** enabled under
+  Provider Settings → model input modalities. That override takes precedence
+  over the catalog and sends native images without OCR.
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
@@ -157,8 +158,8 @@ to the shared chat runtime or to ordinary Agents.
 `ai/` reaches OCR through the `FileProcessingService` rather than deep-importing
 the feature, keeping processor/handler internals in that domain. Both
 `extractDocumentText` and the OCR path are path-free and cache their result by
-content version (30 min), so the eager every-turn pass over history doesn't
-re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
+content version (30 min). This avoids repeated document extraction from history
+and repeated OCR when retrying the current turn. `extractDocumentText` reads bytes through
 `FileManager.read` (PDF via `pdf-parse`, office via
 `officeparser`/`word-extractor`, known text extensions via
 `decodeTextWithAutoEncoding`, and files with no extension or an unrecognized

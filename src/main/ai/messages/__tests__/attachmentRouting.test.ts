@@ -169,35 +169,49 @@ describe('prepareChatMessages — routing', () => {
     expect(ocrMock).not.toHaveBeenCalled()
   })
 
-  it('rejects before native materialization when OCR finds no text', async () => {
+  it.each([null, new Error('OCR provider rejected the request')])(
+    'keeps the current prompt when OCR produces no text (%s)',
+    async (failure) => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+      if (failure) ocrMock.mockRejectedValueOnce(failure)
+      else ocrMock.mockResolvedValueOnce('   ')
+
+      const [out] = await run(
+        [{ type: 'text', text: 'Describe this' }, fileWithEntry('e1', 'a.png', 'image/png')],
+        NONE
+      )
+
+      expect(out.parts).toEqual([
+        { type: 'text', text: 'Describe this' },
+        { type: 'text', text: 'Attached image "a.png": [no readable text could be extracted].' }
+      ])
+    }
+  )
+
+  it('propagates OCR cancellation instead of sending a fallback note', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
-    ocrMock.mockResolvedValueOnce('   ')
+    const cancellation = new DOMException('Cancelled', 'AbortError')
+    ocrMock.mockRejectedValueOnce(cancellation)
 
-    // The detail key tells an empty OCR result apart from a failing OCR path (#20343).
-    // The reason rides the i18n fields, never `message`: provider-flavored wording in
-    // the message would hand the error to the chat provider's auth classifier.
-    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
-      name: 'NonVisionImageOcrError',
-      i18nKey: 'image_unreadable_for_non_vision_model',
-      detailI18nKey: 'ocr_detail_empty',
-      message: expect.not.stringContaining('OCR')
-    })
-
-    expect(resolveMock).not.toHaveBeenCalled()
+    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toBe(cancellation)
   })
 
-  it('rejects before native materialization when OCR is unconfigured or fails', async () => {
+  it('keeps a later text turn sendable without running OCR on earlier images', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
-    ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
-
-    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
-      name: 'NonVisionImageOcrError',
-      i18nKey: 'image_unreadable_for_non_vision_model',
-      detailI18nKey: 'ocr_detail_failed',
-      detailI18nValues: { reason: 'Default file processor for image_to_text is not configured' }
+    const history = userMessage([fileWithEntry('e1', 'earlier.png', 'image/png')])
+    const prompt = { ...userMessage([{ type: 'text', text: 'New question' }]), id: 'm2' }
+    const messages = [history, prompt] as UIMessage[]
+    const out = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: false
     })
 
-    expect(resolveMock).not.toHaveBeenCalled()
+    expect(out[0].parts).toEqual([
+      { type: 'text', text: 'Attached image "earlier.png": [this model does not accept image input].' }
+    ])
+    expect(out[1]).toEqual(prompt)
+    expect(ocrMock).not.toHaveBeenCalled()
   })
 
   it('inlines extracted text for office docs', async () => {
