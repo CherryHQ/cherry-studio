@@ -19,6 +19,7 @@ describe('ElectronFilePreview error detail inside the package preview', () => {
         fileName="report.pdf"
         metadata={{ size: 128, modifiedAt: 1 }}
         metadataRequest={async () => null}
+        refreshKey={0}
       />
     )
 
