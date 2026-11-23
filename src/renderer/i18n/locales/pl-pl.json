@@ -1483,6 +1483,7 @@
   "conversation.delete_permanently.title": "Trwale usunąć „{{name}}”?",
   "conversation.delete_permanently.topic_scope": "Ten temat i wszystkie jego wiadomości zostaną trwale usunięte. Nie trafi do Archiwum i tej operacji nie można cofnąć.",
   "conversation.delete_permanently.user_workspace": "Wybrany przez Ciebie folder {{path}} nie zostanie usunięty.",
+  "conversation_owner.archive.failed": "Nie udało się zarchiwizować",
   "conversation_owner.archive.related_sessions": "Zarchiwizuj także powiązane sesje",
   "conversation_owner.archive.related_topics": "Zarchiwizuj także powiązane tematy",
   "conversation_owner.delete_permanently.agent_scope": "Jego ustawienia, powiązania z umiejętnościami, MCP i bazami wiedzy oraz wszystkie zaplanowane zadania zostaną usunięte. Same umiejętności, serwery MCP i bazy wiedzy zostaną zachowane, a połączone kanały zostaną odłączone. Tej operacji nie można cofnąć.",

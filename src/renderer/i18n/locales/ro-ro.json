@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "Ștergi definitiv „{{name}}”?",
   "conversation.delete_permanently.topic_scope": "Acest subiect și toate mesajele sale vor fi șterse definitiv. Nu va ajunge în Arhivă, iar această acțiune nu poate fi anulată.",
   "conversation.delete_permanently.user_workspace": "Folderul selectat, {{path}}, nu va fi șters.",
+  "conversation_owner.archive.failed": "Arhivarea a eșuat",
   "conversation_owner.archive.related_sessions": "Arhivează și sesiunile asociate",
   "conversation_owner.archive.related_topics": "Arhivează și subiectele asociate",
   "conversation_owner.delete_permanently.agent_scope": "Setările, legăturile cu abilitățile, MCP și bazele de cunoștințe, precum și toate sarcinile sale programate vor fi șterse. Abilitățile, serverele MCP și bazele de cunoștințe propriu-zise sunt păstrate, iar canalele asociate sunt deconectate. Această acțiune nu poate fi anulată.",

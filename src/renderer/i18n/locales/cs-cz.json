@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "Trvale smazat „{{name}}“?",
   "conversation.delete_permanently.topic_scope": "Toto téma a všechny jeho zprávy budou trvale smazány. Nepřesune se do archivu a tuto akci nelze vrátit zpět.",
   "conversation.delete_permanently.user_workspace": "Vybraná složka {{path}} nebude smazána.",
+  "conversation_owner.archive.failed": "Archivace se nezdařila",
   "conversation_owner.archive.related_sessions": "Archivovat také související relace",
   "conversation_owner.archive.related_topics": "Archivovat také související témata",
   "conversation_owner.delete_permanently.agent_scope": "Smažou se jeho nastavení, propojení s dovednostmi, MCP a znalostními bázemi a všechny jeho naplánované úlohy. Dovednosti, servery MCP a znalostní báze samotné zůstanou zachovány, propojené kanály budou odpojeny. Tuto akci nelze vrátit zpět.",

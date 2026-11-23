@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "ลบ \"{{name}}\" อย่างถาวรหรือไม่?",
   "conversation.delete_permanently.topic_scope": "หัวข้อนี้และข้อความทั้งหมดในหัวข้อจะถูกลบอย่างถาวร โดยจะไม่ถูกย้ายไปยังคลังจัดเก็บ และการกระทำนี้ย้อนกลับไม่ได้",
   "conversation.delete_permanently.user_workspace": "โฟลเดอร์ที่คุณเลือก {{path}} จะไม่ถูกลบ",
+  "conversation_owner.archive.failed": "เก็บถาวรไม่สำเร็จ",
   "conversation_owner.archive.related_sessions": "จัดเก็บเซสชันที่เกี่ยวข้องด้วย",
   "conversation_owner.archive.related_topics": "จัดเก็บบทสนทนาที่เกี่ยวข้องด้วย",
   "conversation_owner.delete_permanently.agent_scope": "การตั้งค่า การเชื่อมโยงกับสกิล MCP และฐานความรู้ รวมถึงงานตามกำหนดการทั้งหมดจะถูกลบ ส่วนสกิล เซิร์ฟเวอร์ MCP และฐานความรู้จะยังคงเก็บไว้ และแชนแนลที่เชื่อมไว้จะถูกตัดการเชื่อมต่อ การกระทำนี้ย้อนกลับไม่ได้",

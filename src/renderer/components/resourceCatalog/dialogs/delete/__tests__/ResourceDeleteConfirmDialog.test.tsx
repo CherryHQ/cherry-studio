@@ -308,7 +308,8 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(mocks.restoreTopic).toHaveBeenCalledExactlyOnceWith({ params: { id: 'topic-1' } })
   })
 
-  it('keeps the owner dialog open after a failed delete and allows retry', async () => {
+  // The modal traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps the owner dialog open with keyboard-reachable Details after a failed delete and allows retry', async () => {
     const user = userEvent.setup()
     const failure = new Error('delete failed')
     mocks.deleteAssistant.mockRejectedValueOnce(failure).mockResolvedValueOnce({
@@ -320,23 +321,25 @@ describe('ResourceDeleteConfirmDialog', () => {
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={onClose} />)
     await user.click(screen.getByRole('button', { name: 'Archive' }))
 
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('common.delete_failed')
+    const details = within(dialog).getByRole('button', { name: 'common.detail' })
+    for (let step = 0; step < 10 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
     await waitFor(() =>
-      expect(mocks.toastError).toHaveBeenCalledWith(
+      expect(mocks.openDetail).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'common.delete_failed',
-          cause: failure,
-          data: expect.objectContaining({
-            localizedErrorMessage: 'common.delete_failed',
-            errorContext: expect.objectContaining({
-              message: 'delete failed',
-              source: 'resource',
-              operation: 'assistant.delete',
-              recordId: 'assistant-1'
-            })
+          context: expect.objectContaining({
+            message: 'delete failed',
+            source: 'resource',
+            operation: 'assistant.delete',
+            recordId: 'assistant-1'
           })
         })
       )
     )
+    expect(mocks.toastError).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
 

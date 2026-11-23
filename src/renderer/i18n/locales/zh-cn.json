@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "永久删除「{{name}}」？",
   "conversation.delete_permanently.topic_scope": "这个话题和其中的全部消息会被彻底删除，不会进入归档，也无法撤销。",
   "conversation.delete_permanently.user_workspace": "你选择的文件夹 {{path}} 不会被删除。",
+  "conversation_owner.archive.failed": "归档失败",
   "conversation_owner.archive.related_sessions": "同时归档关联会话",
   "conversation_owner.archive.related_topics": "同时归档关联话题",
   "conversation_owner.delete_permanently.agent_scope": "智能体的设置、技能、MCP 和知识库关联，以及它的全部定时任务会被删除；技能、MCP 服务器和知识库本身会保留，关联的频道会断开连接。此操作无法撤销。",

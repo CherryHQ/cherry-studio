@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "Supprimer définitivement « {{name}} » ?",
   "conversation.delete_permanently.topic_scope": "Ce sujet et tous ses messages seront définitivement supprimés. Il ne sera pas placé dans les Archives, et cette action est irréversible.",
   "conversation.delete_permanently.user_workspace": "Le dossier sélectionné, {{path}}, ne sera pas supprimé.",
+  "conversation_owner.archive.failed": "Échec de l’archivage",
   "conversation_owner.archive.related_sessions": "Archiver aussi les sessions associées",
   "conversation_owner.archive.related_topics": "Archiver aussi les sujets associés",
   "conversation_owner.delete_permanently.agent_scope": "Ses paramètres, ses liens vers les compétences, MCP et les bases de connaissances, ainsi que toutes ses tâches planifiées seront supprimés. Les compétences, serveurs MCP et bases de connaissances eux-mêmes sont conservés, et les chaînes liées sont déconnectées. Cette action est irréversible.",

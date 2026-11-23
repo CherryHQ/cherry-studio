@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "Xóa vĩnh viễn \"{{name}}\"?",
   "conversation.delete_permanently.topic_scope": "Chủ đề này và toàn bộ tin nhắn trong đó sẽ bị xóa vĩnh viễn. Chủ đề sẽ không được chuyển vào Kho lưu trữ và không thể hoàn tác thao tác này.",
   "conversation.delete_permanently.user_workspace": "Thư mục bạn đã chọn, {{path}}, sẽ không bị xóa.",
+  "conversation_owner.archive.failed": "Lưu trữ thất bại",
   "conversation_owner.archive.related_sessions": "Lưu trữ cả các phiên liên quan",
   "conversation_owner.archive.related_topics": "Lưu trữ cả các chủ đề liên quan",
   "conversation_owner.delete_permanently.agent_scope": "Cài đặt, liên kết với kỹ năng, MCP, cơ sở tri thức và toàn bộ tác vụ đã lên lịch sẽ bị xóa. Bản thân kỹ năng, máy chủ MCP và cơ sở tri thức được giữ lại, các kênh liên kết sẽ bị ngắt kết nối. Không thể hoàn tác thao tác này.",

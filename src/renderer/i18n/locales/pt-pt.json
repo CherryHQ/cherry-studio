@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "Eliminar permanentemente \"{{name}}\"?",
   "conversation.delete_permanently.topic_scope": "Este tópico e todas as suas mensagens serão eliminados permanentemente. Não irá para o Arquivo e esta ação não pode ser anulada.",
   "conversation.delete_permanently.user_workspace": "A pasta selecionada, {{path}}, não será eliminada.",
+  "conversation_owner.archive.failed": "Falha ao arquivar",
   "conversation_owner.archive.related_sessions": "Arquivar também as sessões relacionadas",
   "conversation_owner.archive.related_topics": "Arquivar também os tópicos relacionados",
   "conversation_owner.delete_permanently.agent_scope": "As definições, as ligações a competências, MCP e bases de conhecimento, e todas as tarefas agendadas serão eliminadas. As competências, os servidores MCP e as bases de conhecimento propriamente ditos são mantidos, e os canais associados são desligados. Esta ação não pode ser anulada.",

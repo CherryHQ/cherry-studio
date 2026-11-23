@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "\"{{name}}\" kalıcı olarak silinsin mi?",
   "conversation.delete_permanently.topic_scope": "Bu konu ve tüm mesajları kalıcı olarak silinecek. Arşive taşınmayacak ve bu işlem geri alınamaz.",
   "conversation.delete_permanently.user_workspace": "Seçtiğiniz {{path}} klasörü silinmeyecek.",
+  "conversation_owner.archive.failed": "Arşivleme başarısız oldu",
   "conversation_owner.archive.related_sessions": "İlgili oturumları da arşivle",
   "conversation_owner.archive.related_topics": "İlgili konuları da arşivle",
   "conversation_owner.delete_permanently.agent_scope": "Ayarları; beceri, MCP ve bilgi tabanı bağlantıları ve tüm zamanlanmış görevleri silinecek. Becerilerin, MCP sunucularının ve bilgi tabanlarının kendisi korunur, bağlı kanalların bağlantısı kesilir. Bu işlem geri alınamaz.",

@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "永久刪除「{{name}}」？",
   "conversation.delete_permanently.topic_scope": "這個話題和其中的所有訊息會被永久刪除，不會移至封存，也無法復原。",
   "conversation.delete_permanently.user_workspace": "你選擇的資料夾 {{path}} 不會被刪除。",
+  "conversation_owner.archive.failed": "封存失敗",
   "conversation_owner.archive.related_sessions": "同時封存關聯工作階段",
   "conversation_owner.archive.related_topics": "同時封存關聯話題",
   "conversation_owner.delete_permanently.agent_scope": "智能體的設定、技能、MCP 和知識庫關聯，以及它的所有排程任務會被刪除；技能、MCP 伺服器和知識庫本身會保留，關聯的頻道會中斷連線。此操作無法復原。",

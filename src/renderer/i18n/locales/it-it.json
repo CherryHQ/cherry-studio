@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "Eliminare definitivamente \"{{name}}\"?",
   "conversation.delete_permanently.topic_scope": "Questo argomento e tutti i suoi messaggi verranno eliminati definitivamente. Non verrà spostato nell'Archivio e l'operazione non può essere annullata.",
   "conversation.delete_permanently.user_workspace": "La cartella selezionata, {{path}}, non verrà eliminata.",
+  "conversation_owner.archive.failed": "Archiviazione non riuscita",
   "conversation_owner.archive.related_sessions": "Archivia anche le sessioni correlate",
   "conversation_owner.archive.related_topics": "Archivia anche gli argomenti correlati",
   "conversation_owner.delete_permanently.agent_scope": "Le sue impostazioni, i collegamenti a competenze, MCP e basi di conoscenza e tutte le sue attività pianificate verranno eliminati. Le competenze, i server MCP e le basi di conoscenza in sé vengono conservati e i canali collegati vengono disconnessi. Questa operazione non può essere annullata.",

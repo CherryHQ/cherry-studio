@@ -1463,6 +1463,7 @@
   "conversation.delete_permanently.title": "Permanently delete \"{{name}}\"?",
   "conversation.delete_permanently.topic_scope": "This topic and all of its messages will be permanently deleted. It won't go to the Archive, and this can't be undone.",
   "conversation.delete_permanently.user_workspace": "The folder you chose, {{path}}, won't be deleted.",
+  "conversation_owner.archive.failed": "Failed to archive",
   "conversation_owner.archive.related_sessions": "Also archive related sessions",
   "conversation_owner.archive.related_topics": "Also archive related topics",
   "conversation_owner.delete_permanently.agent_scope": "Its settings, its skill, MCP, and knowledge base links, and all of its scheduled tasks will be deleted. Skills, MCP servers, and knowledge bases themselves are kept, and linked channels are disconnected. This can't be undone.",
