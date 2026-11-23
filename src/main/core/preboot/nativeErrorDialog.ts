@@ -98,6 +98,8 @@ export async function showSupportedMessageBox(input: SupportedDialogInput): Prom
       buttons: [...primary, ...support.map((item) => item.label)],
       // Without it Electron may map Escape to a support action.
       cancelId,
+      // Windows would otherwise move common labels below the support command links.
+      noLink: true,
       detail: notice ? [input.box.detail, notice].filter(Boolean).join('\n\n') : input.box.detail
     })
     const response = result?.response

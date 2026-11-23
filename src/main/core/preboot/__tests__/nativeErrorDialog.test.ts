@@ -200,6 +200,28 @@ describe('showSupportedMessageBox', () => {
     expect(showMessageBox).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the primary button before the support choices on Windows', async () => {
+    // Electron on Windows moves common labels to the footer and shows the rest as command links first.
+    const windowsOrder = ({ buttons = [], noLink }: Electron.MessageBoxOptions) => {
+      if (noLink) return buttons
+      const common = buttons.filter((label) =>
+        ['ok', 'close', 'cancel', 'yes', 'no', 'retry'].includes(label.toLowerCase())
+      )
+      return [...buttons.filter((label) => !common.includes(label)), ...common]
+    }
+    showMessageBox.mockResolvedValue({ response: 0 })
+
+    await showSupportedMessageBox({
+      box: { type: 'error', title: 'Restore failed', message: 'Kept.', buttons: ['OK'] }
+    })
+
+    expect(windowsOrder(showMessageBox.mock.calls[0][0])).toEqual([
+      'OK',
+      'Copy error and send feedback…',
+      'Open download page'
+    ])
+  })
+
   it('returns the original cancel button when the response is outside the dialog', async () => {
     showMessageBox.mockResolvedValue({ response: 99 })
 
