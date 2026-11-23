@@ -165,14 +165,14 @@ function resolveOpenAITokenLimits(
 ): { contextWindow?: number; maxOutputTokens?: number } {
   const validContextValues = new Set<number>()
   if (OPENAI_CONTEXT_LIMIT_KEYS.every((key) => model[key] == null)) {
-    logger.warn('Provider did not advertise a model context limit', { providerId, modelId: model.id })
+    logger.warn('Provider did not advertise a model context limit', { providerId })
   }
   for (const key of OPENAI_CONTEXT_LIMIT_KEYS) {
     const value = model[key]
     if (value === undefined || value === null) continue
     const parsed = parsePositiveTokenLimit(value)
     if (parsed === undefined) {
-      logger.warn('Ignoring malformed model context limit from provider', { providerId, modelId: model.id, key })
+      logger.warn('Ignoring malformed model context limit from provider', { providerId, key })
     } else {
       validContextValues.add(parsed)
     }
@@ -183,20 +183,18 @@ function resolveOpenAITokenLimits(
     limits.contextWindow = [...validContextValues][0]
   } else if (validContextValues.size > 1) {
     logger.warn('Ignoring contradictory model context limits from provider', {
-      providerId,
-      modelId: model.id,
-      values: [...validContextValues]
+      providerId
     })
   }
 
   const maxTokens = model.max_tokens
   if (maxTokens === undefined || maxTokens === null) {
-    logger.warn('Provider did not advertise a model output token limit', { providerId, modelId: model.id })
+    logger.warn('Provider did not advertise a model output token limit', { providerId })
   }
   if (maxTokens !== undefined && maxTokens !== null) {
     const parsed = parsePositiveTokenLimit(maxTokens)
     if (parsed === undefined) {
-      logger.warn('Ignoring malformed model output token limit from provider', { providerId, modelId: model.id })
+      logger.warn('Ignoring malformed model output token limit from provider', { providerId })
     } else {
       limits.maxOutputTokens = parsed
     }
