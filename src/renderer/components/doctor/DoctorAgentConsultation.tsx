@@ -26,7 +26,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { checkDoctorAgentModel } from '@renderer/services/modelHealthCheck'
-import { serializeHealthCheckError } from '@renderer/utils/error'
+import { providerErrorText, serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { Model } from '@shared/data/types/model'
 import { normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
@@ -218,7 +218,7 @@ function ModelPicker({
       const classification = classifyError(serializedError, providerId)
       const unclassified = classification.category === 'unknown'
       const message = unclassified ? t('settings.doctor.agent.model_picker.check_failed') : t(classification.i18nKey)
-      const raw = unclassified ? serializedError.message || undefined : undefined
+      const raw = unclassified ? providerErrorText(serializedError) || undefined : undefined
       const settingsPath = normalizeSettingsPath(
         classification.navTarget ??
           (providerId ? `/settings/provider?id=${encodeURIComponent(providerId)}` : '/settings/provider')
