@@ -127,6 +127,7 @@ const gateFetch = (raw: { url?: unknown; method?: unknown; headers?: unknown; bo
   // Coerced once and measured on the forwarded string — see `gateChat`.
   const url = str(params.url)
   assertPayloadSize(url ?? '', MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
+
   const rawHeaders = params.headers ?? {}
   const headers =
     Object.keys(rawHeaders).length <= MINI_APP_GUEST_LIMITS.fetchHeaderCount ? Object.entries(rawHeaders) : undefined

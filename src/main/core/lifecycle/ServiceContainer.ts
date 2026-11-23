@@ -343,8 +343,7 @@ export class ServiceContainer {
   /**
    * Create a service instance with dependency injection
    */
-  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Registered constructors own different instance shapes; keep their results opaque until the public legacy token boundary.
-  private createInstance(entry: ServiceEntry): unknown {
+  private createInstance<T>(entry: ServiceEntry<T>): T {
     const { metadata, useClass } = entry.provider
     const deps: unknown[] = []
 
