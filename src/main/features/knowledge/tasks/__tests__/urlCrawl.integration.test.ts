@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import type * as KnowledgeItemModule from '@data/services/KnowledgeItemService'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { KeyedMutex } from '@shared/utils/async'
@@ -25,7 +26,7 @@ import {
 } from './jobHandlerTestUtils'
 
 const { knowledgeItemService } = await import('@data/services/KnowledgeItemService')
-const { KnowledgeItemService } = await vi.importActual<typeof import('@data/services/KnowledgeItemService')>(
+const { KnowledgeItemService } = await vi.importActual<typeof KnowledgeItemModule>(
   '@data/services/KnowledgeItemService'
 )
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
