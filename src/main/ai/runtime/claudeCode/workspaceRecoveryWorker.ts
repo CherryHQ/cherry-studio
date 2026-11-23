@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, realpathSync } from 'node:fs'
-import { copyFile, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { copyFile, link, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
 
@@ -153,18 +153,26 @@ async function run(input: ClaudeRecoveryWorkerInput) {
     const hash = createHash('sha256').update(resolved).digest('hex')
     const record = path.join(records, `${input.nativeThreadId}.${hash}.json`)
     const content = JSON.stringify({ version: 3, sessionId: input.nativeThreadId, cwd: resolved, projectKey: key })
-    if (exclusive) {
-      try {
-        await writeFile(record, content, { flag: 'wx', mode: 0o600 })
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      }
-      return
-    }
     const temporary = path.join(records, `${input.nativeThreadId}.${randomUUID()}.tmp`)
     try {
       await writeFile(temporary, content, { flag: 'wx', mode: 0o600 })
-      await rename(temporary, record)
+      if (exclusive) {
+        try {
+          await link(temporary, record)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+          const stat = await lstat(record)
+          if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Invalid Claude source recovery record')
+          const saved = JSON.parse(await readFile(record, 'utf8'))
+          if (
+            saved.version !== 3 ||
+            saved.sessionId !== input.nativeThreadId ||
+            saved.cwd !== resolved ||
+            saved.projectKey !== key
+          )
+            throw new Error('Conflicting Claude source recovery record')
+        }
+      } else await rename(temporary, record)
     } finally {
       await rm(temporary, { force: true })
     }

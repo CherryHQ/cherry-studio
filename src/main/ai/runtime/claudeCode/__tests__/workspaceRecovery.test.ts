@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createRequire, stripTypeScriptTypes } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -29,13 +29,18 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
 
-async function nativeWorker(file: string, workerData: object, configDir: string) {
-  const source = stripTypeScriptTypes(
+async function nativeWorker(file: string, workerData: object, configDir: string, failRecordWrite = false) {
+  let source = stripTypeScriptTypes(
     await readFile(path.resolve('src/main/ai/runtime/claudeCode', file), 'utf8')
   ).replaceAll(
     '@anthropic-ai/claude-agent-sdk',
     pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
   )
+  if (failRecordWrite)
+    source = source.replace(
+      "await writeFile(temporary, content, { flag: 'wx', mode: 0o600 })",
+      "await writeFile(temporary, content.slice(0, 10), { flag: 'wx', mode: 0o600 }); throw new Error('injected ENOSPC')"
+    )
   return runForkWorker(
     new Worker(new URL(`data:text/javascript,${encodeURIComponent(source)}`), {
       workerData,
@@ -281,6 +286,41 @@ it('retains the actual unique fallback project key for a rejected disconnected-a
   expect(fork.checkpoints).toHaveLength(1)
   expect(await readFile(f.source, 'utf8')).toBe(later)
   expect(await readFile(f.target, 'utf8')).toBe(content)
+})
+
+it('retries after a partial record write without leaving a partial final source record', async () => {
+  const f = await fixture()
+  const messageUuid = randomUUID()
+  const content =
+    f.content +
+    JSON.stringify({
+      type: 'assistant',
+      sessionId: f.nativeThreadId,
+      uuid: messageUuid,
+      parentUuid: JSON.parse(f.content).uuid,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'Reply' }] }
+    }) +
+    '\n'
+  await writeFile(f.source, content)
+  await expect(nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir, true)).rejects.toThrow('injected ENOSPC')
+  const hash = createHash('sha256').update(path.resolve(f.sourceCwd)).digest('hex')
+  const record = path.join(f.configDir, '.cherry-workspace-recovery', `${f.nativeThreadId}.${hash}.json`)
+  await expect(readFile(record)).rejects.toMatchObject({ code: 'ENOENT' })
+  await nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)
+  const checkpoint = { runtime: 'claude-code', runtimeSessionId: f.nativeThreadId, messageUuid, configDir: f.configDir }
+  const fork = await forkClaudeSession({
+    sourceSessionId: 'source',
+    targetSessionId: 'fork',
+    checkpoint,
+    checkpoints: [checkpoint],
+    targetCwd: f.sourceCwd,
+    artifactDirectory: path.join(f.configDir, 'retry-fork'),
+    signal: AbortSignal.timeout(15_000)
+  })
+  expect(fork.resumeToken).not.toBe(f.nativeThreadId)
+  // Existing records are verified, never accepted on EEXIST alone.
+  await writeFile(record, '{')
+  await expect(nativeWorker('workspaceRecoveryWorker.ts', f, f.configDir)).rejects.toThrow()
 })
 
 it('retries an interrupted child copy when existing child bytes match the retained source', async () => {
