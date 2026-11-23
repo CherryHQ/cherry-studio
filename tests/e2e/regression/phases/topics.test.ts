@@ -14,7 +14,12 @@ import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/scre
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
-import { selectSidebarApp, dismissOnboarding } from '../helpers/navigation'
+import {
+  dismissOnboarding,
+  selectConversationListOption,
+  openConversationListOptions,
+  selectSidebarApp
+} from '../helpers/navigation'
 import { collectVirtualizedText, revealVirtualized } from '../helpers/virtualList'
 import { exportTopicFiles } from '../scenarios/exportTopicFiles'
 
@@ -102,16 +107,15 @@ test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
     const view = page.locator('[data-ui~="agent.view"]:visible')
     const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
     if (await showSidebar.isVisible()) await showSidebar.click()
-    const displayMode = view.getByRole('button', { name: 'Display mode', exact: true })
-    await displayMode.click()
-    await page.locator('[data-slot="menu-item"]').getByText('Agent', { exact: true }).click()
-    await displayMode.click()
-    const collapseAll = page.getByRole('button', { name: 'Collapse all', exact: true })
+    await selectConversationListOption(view, 'Group by', 'Agent')
+    const listOptions = view.getByRole('button', { name: 'List options', exact: true })
+    await listOptions.click()
+    const collapseAll = page.getByRole('menuitem', { name: 'Collapse all', exact: true })
     if (await collapseAll.isVisible()) {
       await collapseAll.click()
-      await displayMode.click()
+      await listOptions.click()
     }
-    await page.getByRole('button', { name: 'Expand all', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Expand all', exact: true }).click()
     const sessionScroller = view.locator('[data-virtual-scrolling]').first()
     const showMore = view.getByRole('button', { name: 'Show more', exact: true }).first()
     for (let step = 0; step < sessions.length; step += 1) {
@@ -611,6 +615,7 @@ test(...caseDefinition('MP-44'), async ({ app, mainWindow }, testInfo) => {
   const assistantName = app.resourceName('Topic ordering assistant')
   const preferences = await page.evaluate(async () => ({
     displayMode: await window.api.preference.get('topic.tab.display_mode'),
+    sort: await window.api.preference.get('chat.topics.sort'),
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
   let assistantId: string | undefined
@@ -632,7 +637,11 @@ test(...caseDefinition('MP-44'), async ({ app, mainWindow }, testInfo) => {
 
   try {
     await page.evaluate(() =>
-      window.api.preference.setMultiple({ 'topic.tab.display_mode': 'time', 'menu.presentation_mode': 'cherry' })
+      window.api.preference.setMultiple({
+        'topic.tab.display_mode': 'time',
+        'chat.topics.sort': { by: 'createdAt', direction: 'desc' },
+        'menu.presentation_mode': 'cherry'
+      })
     )
     const assistant = await page.evaluate(
       (name) =>
@@ -680,6 +689,10 @@ test(...caseDefinition('MP-44'), async ({ app, mainWindow }, testInfo) => {
 
     await page.evaluate(() => window.api.preference.set('topic.tab.display_mode', 'assistant'))
     await expandAssistant()
+    await selectConversationListOption(chat(), 'Sort by', 'Manually')
+    await expect
+      .poll(() => page.evaluate(() => window.api.preference.get('chat.topics.sort')))
+      .toEqual({ by: 'orderKey' })
     await expect(rows()).toHaveCount(4)
     const before = await rows().allTextContents()
     const activeName = before[3].trim()
@@ -726,6 +739,7 @@ test(...caseDefinition('MP-44'), async ({ app, mainWindow }, testInfo) => {
       async ({ assistantId, preferences }) => {
         await window.api.preference.setMultiple({
           'topic.tab.display_mode': preferences.displayMode,
+          'chat.topics.sort': preferences.sort,
           'menu.presentation_mode': preferences.menuMode
         })
         if (assistantId) {
@@ -787,8 +801,8 @@ test(...caseDefinition('MP-46'), async ({ app, mainWindow }, testInfo) => {
   const history = () => page.getByRole('region', { name: 'History', exact: true })
   const openHistory = async () => {
     await selectSidebarApp(page, 'Chat')
-    await page.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'History', exact: true }).click()
+    await openConversationListOptions(page.locator('[data-ui~="chat.view"]:visible'))
+    await page.getByRole('menuitem', { name: 'History', exact: true }).click()
     await expect(history()).toBeVisible()
     await history().getByPlaceholder('Search conversations...', { exact: true }).fill(prefix)
   }

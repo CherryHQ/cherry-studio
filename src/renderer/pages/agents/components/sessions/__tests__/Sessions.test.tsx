@@ -1,4 +1,5 @@
-import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
+import { dragRow, dropRow, hoverRow, startRowDrag } from '@test-mocks/dndDriver'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Activity, type ComponentProps, type HTMLAttributes, type ReactNode } from 'react'
@@ -48,6 +49,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
+    DragDropRoot: (await import('@test-mocks/dndDriver')).withManagerProbe(actual.DragDropRoot),
     ContextMenu: ({ children, onOpenChange }: { children?: ReactNode; onOpenChange?: (open: boolean) => void }) => (
       <ContextMenuContext value={{ onOpenChange }}>
         <div data-testid="context-menu">{children}</div>
@@ -147,88 +149,11 @@ const virtualMocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn()
 }))
 
-const dndMocks = vi.hoisted(() => ({
-  droppableData: new Map<string, unknown>(),
-  onDragCancel: undefined as undefined | ((event: any) => void),
-  onDragEnd: undefined as undefined | ((event: any) => void),
-  onDragOver: undefined as undefined | ((event: any) => void),
-  onDragStart: undefined as undefined | ((event: any) => void),
-  sortableData: new Map<string, unknown>()
-}))
-
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: virtualMocks.useVirtualizer,
   defaultRangeExtractor: vi.fn((range) =>
     Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => range.startIndex + i)
   )
-}))
-
-vi.mock('@dnd-kit/core', () => {
-  const React = require('react')
-  return {
-    DndContext: ({
-      children,
-      onDragCancel,
-      onDragEnd,
-      onDragOver,
-      onDragStart
-    }: {
-      children: ReactNode
-      onDragCancel?: any
-      onDragEnd?: any
-      onDragOver?: any
-      onDragStart?: any
-    }) => {
-      dndMocks.onDragCancel = onDragCancel
-      dndMocks.onDragEnd = onDragEnd
-      dndMocks.onDragOver = onDragOver
-      dndMocks.onDragStart = onDragStart
-      return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
-    },
-    DragOverlay: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'drag-overlay' }, children),
-    KeyboardSensor: vi.fn(),
-    PointerSensor: vi.fn(),
-    useDroppable: ({ data, id }: { data: unknown; id: string }) => {
-      dndMocks.droppableData.set(id, data)
-      return { isOver: false, setNodeRef: vi.fn() }
-    },
-    useSensor: vi.fn((sensor, options) => ({ sensor, options })),
-    useSensors: vi.fn((...sensors) => sensors)
-  }
-})
-
-vi.mock('@dnd-kit/sortable', () => {
-  const React = require('react')
-  return {
-    SortableContext: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'sortable-context' }, children),
-    useSortable: ({ data, id }: { data?: unknown; id: string }) => {
-      if (data) {
-        dndMocks.sortableData.set(id, data)
-      }
-
-      return {
-        attributes: { 'data-sortable-id': id },
-        listeners: {},
-        setActivatorNodeRef: vi.fn(),
-        setNodeRef: vi.fn(),
-        transform: null,
-        transition: undefined,
-        isDragging: false
-      }
-    },
-    verticalListSortingStrategy: {}
-  }
-})
-
-vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
-  ...(await importOriginal<typeof DndKitUtilities>()),
-  CSS: {
-    Transform: {
-      toString: () => undefined
-    }
-  }
 }))
 
 const sessionDataMocks = vi.hoisted(() => ({
@@ -837,38 +762,6 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   }
 }
 
-function sortableData(id: string) {
-  const data = dndMocks.sortableData.get(id)
-  if (!data) {
-    throw new Error(`Expected sortable data for ${id}`)
-  }
-  return { current: data }
-}
-
-function startDraggingSession(id: string) {
-  act(() => {
-    dndMocks.onDragStart?.({
-      active: {
-        data: sortableData(`item:${id}`),
-        id: `item:${id}`,
-        rect: { current: { initial: { height: 32, width: 240 }, translated: null } }
-      }
-    })
-  })
-}
-
-function startDraggingGroup(groupId: string) {
-  act(() => {
-    dndMocks.onDragStart?.({
-      active: {
-        data: sortableData(`group:${groupId}`),
-        id: `group:${groupId}`,
-        rect: { current: { initial: { height: 32, width: 240 }, translated: null } }
-      }
-    })
-  })
-}
-
 function expectSessionBlocked(name: string) {
   expect(screen.getByText(name).closest('[data-drop-blocked="true"]')).toBeInTheDocument()
 }
@@ -940,6 +833,8 @@ function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
 }
 
 describe('Sessions', () => {
+  beforeAll(installDndDomStubs)
+
   beforeEach(() => {
     preferenceMocks.values.clear()
     cacheMocks.values.clear()
@@ -1103,8 +998,6 @@ describe('Sessions', () => {
   })
 
   afterEach(() => {
-    dndMocks.droppableData.clear()
-    dndMocks.sortableData.clear()
     virtualMocks.scrollToIndex.mockClear()
     vi.useRealTimers()
   })
@@ -2074,16 +1967,7 @@ describe('Sessions', () => {
     })
     render(<SessionsForTest />)
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-c'),
-          id: 'item:session-c',
-          rect: { current: { initial: null, translated: { top: 0, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 100, height: 20 } }
-      })
-    })
+    await dragRow({ source: 'item:session-c', target: 'item:session-b', side: 'before' })
     await vi.waitFor(() =>
       expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-c', { before: 'session-b' })
     )
@@ -3461,24 +3345,18 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    startDraggingSession('session-a')
+    await startRowDrag('item:session-a')
 
     expectGroupBlocked('Pinned')
     expectSessionBlocked('Gamma session')
-    expect(screen.getByRole('button', { name: 'Project A Workspace' }).closest('[data-drop-blocked="true"]')).toBeNull()
+    // The draggable group row and its header button share the group's name.
+    for (const header of screen.getAllByRole('button', { name: 'Project A Workspace' })) {
+      expect(header.closest('[data-drop-blocked="true"]')).toBeNull()
+    }
     expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
-      })
-    })
+    await hoverRow('item:session-b', 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
@@ -3505,22 +3383,13 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    startDraggingSession('session-a')
+    await startRowDrag('item:session-a')
 
     expectSessionBlocked('Gamma session')
     expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
-      })
-    })
+    await hoverRow('item:session-b', 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
@@ -3549,22 +3418,10 @@ describe('Sessions', () => {
     })
 
     render(<SessionsForTest />)
-    startDraggingSession('session-pinned-a')
+    await startRowDrag('item:session-pinned-a')
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-pinned-a'),
-          id: 'item:session-pinned-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: {
-          data: sortableData('item:session-pinned-b'),
-          id: 'item:session-pinned-b',
-          rect: { top: 10, height: 20 }
-        }
-      })
-    })
+    await hoverRow('item:session-pinned-b', 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(dataApiMocks.reorderPin).toHaveBeenCalledWith({ params: { id: 'pin-a' }, body: { after: 'pin-b' } })
@@ -3574,7 +3431,7 @@ describe('Sessions', () => {
 
   // Would catch: dragging across the pinned boundary, which would silently pin or
   // unpin a task — pin state must only change through the star button.
-  it('rejects dragging a pinned session onto an unpinned one', () => {
+  it('rejects dragging a pinned session onto an unpinned one', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
@@ -3590,22 +3447,10 @@ describe('Sessions', () => {
     })
 
     render(<SessionsForTest />)
-    startDraggingSession('session-pinned')
+    await startRowDrag('item:session-pinned')
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-pinned'),
-          id: 'item:session-pinned',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: {
-          data: sortableData('item:session-plain'),
-          id: 'item:session-plain',
-          rect: { top: 10, height: 20 }
-        }
-      })
-    })
+    await hoverRow('item:session-plain', 'after')
+    await dropRow()
 
     expect(dataApiMocks.reorderPin).not.toHaveBeenCalled()
     expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
@@ -3636,20 +3481,10 @@ describe('Sessions', () => {
 
     const projectAGroupId = 'session:workspace:ws-a'
     const projectBGroupId = 'session:workspace:ws-b'
-    startDraggingGroup(projectAGroupId)
+    await startRowDrag(`group:${projectAGroupId}`)
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData(`group:${projectAGroupId}`),
-          id: `group:${projectAGroupId}`
-        },
-        over: {
-          data: sortableData(`group:${projectBGroupId}`),
-          id: `group:${projectBGroupId}`
-        }
-      })
-    })
+    await hoverRow(`group:${projectBGroupId}`, 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(dataApiMocks.reorderWorkspace).toHaveBeenCalledWith({
@@ -3682,20 +3517,10 @@ describe('Sessions', () => {
 
     const alphaGroupId = 'session:agent:agent-a'
     const betaGroupId = 'session:agent:agent-b'
-    startDraggingGroup(alphaGroupId)
+    await startRowDrag(`group:${alphaGroupId}`)
 
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData(`group:${alphaGroupId}`),
-          id: `group:${alphaGroupId}`
-        },
-        over: {
-          data: sortableData(`group:${betaGroupId}`),
-          id: `group:${betaGroupId}`
-        }
-      })
-    })
+    await hoverRow(`group:${betaGroupId}`, 'after')
+    await dropRow()
 
     await vi.waitFor(() =>
       expect(dataApiMocks.reorderAgent).toHaveBeenCalledWith({

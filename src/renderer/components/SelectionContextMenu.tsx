@@ -206,6 +206,19 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           )
         })
       const target = event.target instanceof Element ? event.target : null
+      const latex = target
+        ?.closest('.katex')
+        ?.querySelector('.katex-mathml annotation[encoding="application/x-tex"]')?.textContent
+      const formulaItems: CommandContextMenuExtraItem[] = latex?.trim()
+        ? [
+            {
+              type: 'item',
+              id: 'math.copy-latex',
+              label: t('chat.message.copy_latex'),
+              onSelect: () => handleCopy(latex)
+            }
+          ]
+        : []
       const anchor = target?.closest('a[href]')
       const href = anchor?.getAttribute('href')
       if (href && isHttpUrl(href)) {
@@ -240,12 +253,11 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             onSelect: () => handleCopy(href)
           }
         ]
-        return selectedLinkText
-          ? [...getMenuItems(selectedLinkText, quoteText, canSaveSelection), { type: 'separator' }, ...linkItems]
-          : linkItems
+        const contentItems = [...getMenuItems(selectedLinkText, quoteText, canSaveSelection), ...formulaItems]
+        return contentItems.length > 0 ? [...contentItems, { type: 'separator' }, ...linkItems] : linkItems
       }
 
-      return getMenuItems(selectedText, quoteText, canSaveSelection)
+      return [...getMenuItems(selectedText, quoteText, canSaveSelection), ...formulaItems]
     },
     [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
   )
