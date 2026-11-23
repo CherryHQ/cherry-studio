@@ -16,6 +16,7 @@ import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import SendMessageButton from '@renderer/components/SendMessageButton'
+import { useTabInputFocus } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { getAppEdition } from '@renderer/utils/appEdition'
@@ -26,6 +27,7 @@ import {
   resolveSendShortcut
 } from '@renderer/utils/input'
 
+import { useComposerLayerActive } from './ComposerContext'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
 import { ComposerPromptSuggestion } from './ComposerPromptSuggestion'
@@ -80,6 +82,13 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
   const [runtimeReady, setRuntimeReady] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
+  const ActiveRuntime = runtimeReady && !isComposing ? Runtime : undefined
+  const layerActive = useComposerLayerActive()
+  const [runtimeFocus, setRuntimeFocus] = useState<() => boolean>()
+  const handleFocusTargetChange: NonNullable<ComposerSurfaceProps['onFocusTargetChange']> = useCallback(
+    (focus) => setRuntimeFocus(() => focus),
+    []
+  )
   const sendBlockedReasonRef = useRef(props.sendBlockedReason)
   const editableRef = useRef(props.editable)
   editableRef.current = props.editable
@@ -196,6 +205,32 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     return () => window.cancelIdleCallback(idleId)
   }, [Runtime, requestRuntime])
 
+  const focusTextarea = useCallback((position?: Parameters<ComposerSurfaceActions['focus']>[0]) => {
+    const input = textareaRef.current
+    if (!input) return false
+    input.focus()
+    const nextPosition =
+      typeof position === 'number'
+        ? position
+        : position === 'start'
+          ? 0
+          : position === 'all'
+            ? undefined
+            : input.value.length
+    input.setSelectionRange(nextPosition ?? 0, nextPosition ?? input.value.length)
+    return document.activeElement === input
+  }, [])
+
+  const focusTarget = props.editable === false ? undefined : ActiveRuntime ? runtimeFocus : focusTextarea
+  const onFocusTargetChange = props.onFocusTargetChange
+  useTabInputFocus(focusTarget, props.focusOnTabActivation === true && layerActive)
+
+  useEffect(() => {
+    if (!onFocusTargetChange) return
+    onFocusTargetChange(focusTarget)
+    return () => onFocusTargetChange(undefined)
+  }, [focusTarget, onFocusTargetChange])
+
   useEffect(() => {
     if (Runtime || !props.onActionsChange) return
 
@@ -205,20 +240,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     const updateTokens = (tokens: readonly ComposerSerializedToken[]) => props.onTokensChange(tokens)
 
     const actions: ComposerSurfaceActions = {
-      focus: (position) => {
-        const input = textareaRef.current
-        if (!input) return
-        input.focus()
-        const nextPosition =
-          typeof position === 'number'
-            ? position
-            : position === 'start'
-              ? 0
-              : position === 'all'
-                ? undefined
-                : input.value.length
-        input.setSelectionRange(nextPosition ?? 0, nextPosition ?? input.value.length)
-      },
+      focus: focusTextarea,
       onTextChange: updateText,
       appendText: () => false,
       replaceDraft: (draft) => {
@@ -246,18 +268,19 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     }
 
     props.onActionsChange(actions)
-  }, [Runtime, getFallbackDraft, props, requestRuntime])
+  }, [Runtime, focusTextarea, getFallbackDraft, props, requestRuntime])
 
-  if (Runtime && runtimeReady && !isComposing) {
+  if (ActiveRuntime) {
     return (
       // Tiptap fixes extensions when the editor is created, so a preview toggle needs a new editor.
-      <Runtime
+      <ActiveRuntime
         key={props.markdownLivePreview ? 'markdown' : 'plain'}
         {...props}
         showAiDisclaimer={showAiDisclaimer}
         initialTextSelection={selectionRef.current}
         deferredIntent={intentRef.current}
         onInputAdapterChange={handleInputAdapterChange}
+        onFocusTargetChange={props.focusOnTabActivation || onFocusTargetChange ? handleFocusTargetChange : undefined}
         onVoiceTargetInteraction={markVoiceTargetCurrent}
       />
     )
@@ -339,7 +362,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       className={
         props.embedded
           ? 'inputbar-container relative'
-          : `inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-composer-surface pt-2 shadow-sm ${
+          : `inputbar-container bg-composer-surface relative rounded-[20px] border-[0.5px] border-border pt-2 shadow-sm ${
               belowControls ? 'mb-0.5' : 'mb-3'
             }`
       }>

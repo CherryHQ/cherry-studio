@@ -593,7 +593,9 @@ export class DiagnosticBundleService {
       try {
         const range = toTimeRange(input.range, Date.now())
         const collection = await collectDiagnosticSources(range, input)
-        const chatCollection = input.includeChatRecords ? collectChatRecords(range) : emptyChatRecordCollection()
+        const chatCollection = input.chatTopicId
+          ? collectChatRecords(range, input.chatTopicId)
+          : emptyChatRecordCollection()
         const selection = await selectBundleSources([...collection.logs, ...collection.traces], chatCollection)
         mergeWarnings(collection.warnings, chatCollection.warnings)
         if (selection.omittedFiles.length > 0 || selection.omittedChats) {
@@ -606,7 +608,7 @@ export class DiagnosticBundleService {
           destination,
           destinationIdentity: { status: 'missing' },
           expectedChatArchiveNames: selection.expectedChatArchiveNames,
-          input,
+          input: { ...input, includeChatRecords: input.chatTopicId !== undefined },
           range,
           selectedChats: selection.selectedChats,
           selectedFiles: selection.selectedFiles,
