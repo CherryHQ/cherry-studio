@@ -1,0 +1,51 @@
+{
+  "name": "@cherrystudio/memory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared and agent-private memory rules with host-owned storage and execution.",
+  "license": "AGPL-3.0-only",
+  "author": "Cherry Studio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/memory"
+  },
+  "files": [
+    "dist/**/*",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.cts",
+  "exports": {
+    ".": {
+      "react-native": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "default": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "pnpm build",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}
