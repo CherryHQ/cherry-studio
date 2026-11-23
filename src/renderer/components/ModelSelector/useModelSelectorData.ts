@@ -365,18 +365,22 @@ export function useModelSelectorData({
       )
       const rows: ModelSelectorNavigableItem[] = [...modelRows, ...group.actions]
       if (rows.length === 0) return
+      const groupPresentation = composition?.providerGroups?.find((entry) => entry.id === group.id)
       items.push({
         key: `provider-${group.id}`,
         type: 'group',
         groupKind: 'provider',
         provider: group.provider,
         canNavigateToSettings: isProviderSettingsListVisibleProvider(group.provider),
-        trailing: composition?.providerGroups?.find((entry) => entry.id === group.id)?.trailing
+        titleAction: groupPresentation?.titleAction,
+        trailing: groupPresentation?.trailing
       })
       items.push(
         ...(searchText.length === 0
-          ? sortBy(rows, (item) =>
-              item.type === 'model' ? (getModelPresentation(item.model, item.provider).priority ?? 0) : 0
+          ? sortBy(
+              rows,
+              (item) =>
+                (item.type === 'model' ? getModelPresentation(item.model, item.provider).priority : item.priority) ?? 0
             )
           : rows)
       )

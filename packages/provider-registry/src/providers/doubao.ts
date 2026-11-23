@@ -87,6 +87,7 @@ const legacyChatModels = [
 ]
 
 const overrides: ProviderModelOffer[] = [
+  { apiModelId: 'doubao-seedream-5-5' },
   // The effort SKUs are the 250615+ line Ark serves over /responses, where the built-in web_search tool
   // and encrypted-CoT replay live — list Responses first so it's preferred, keeping chat selectable.
   ...effortModels.map((apiModelId) => ({
