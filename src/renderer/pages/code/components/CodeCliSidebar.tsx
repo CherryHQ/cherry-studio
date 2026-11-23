@@ -65,7 +65,10 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
 
   return (
     <div data-ui="code.navigation" className="flex h-full min-h-0 w-66 shrink-0 flex-col border-border-subtle border-r">
-      <ScrollArea viewportProps={{ className: 'overflow-x-hidden p-2.5' }} className="min-h-0 flex-1">
+      <ScrollArea
+        contentProps={{ className: 'p-2.5' }}
+        viewportProps={{ className: 'overflow-x-hidden' }}
+        className="min-h-0 flex-1">
         {tools.length === 0 ? (
           <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_tools')}</div>
         ) : (
@@ -97,7 +100,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                     type="button"
                     onClick={() => onSelectTool(tool.value)}
                     className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <CliIcon id={tool.value} size={28} className="size-7 shrink-0" />
+                    <CliIcon id={tool.value} size={32} />
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
                         <div className="min-w-0 flex-1 truncate text-[13px] text-foreground">{meta.label}</div>

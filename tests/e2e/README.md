@@ -27,7 +27,6 @@ tests/e2e/
 │   │   ├── waitHelpers.ts
 │   │   ├── uiLocator.ts
 │   │   └── index.ts
-│   ├── appLaunch.test.ts
 │   └── composerFocus.test.ts
 └── regression/               # Controller-owned critical-path suite
     ├── README.md
@@ -48,6 +47,7 @@ tests/e2e/
 
 The prerequisites and commands below apply only to the smoke suite in `smoke/`.
 Each test receives an isolated application profile and CLI home in an owned temporary directory.
+Each launch reuses the platform-specific Claude Agent Runtime from the application's installed SDK dependencies.
 Main-window selection uses its renderer entry path because pooled windows can share the application title during startup.
 The fixture uses short runtime paths for Chromium's macOS socket limit; specialized persistence fixtures may keep profiles under the output directory.
 Cleanup closes Electron within 15 seconds or terminates the owned process and fails the test, then removes owned runtime directories.
@@ -69,10 +69,10 @@ pnpm test:e2e
 pnpm test:e2e --headed
 
 # Run a specific test file
-pnpm playwright test tests/e2e/smoke/appLaunch.test.ts
+pnpm playwright test tests/e2e/smoke/composerFocus.test.ts
 
 # Run tests matching a name
-pnpm playwright test -g "reasonable size"
+pnpm playwright test -g "focus"
 
 # Run in debug mode (pauses execution and opens the debugger)
 pnpm playwright test --debug
@@ -102,6 +102,7 @@ Test design and review follow the [Frontend Testing Guidelines](../../docs/dev/r
 The smoke suite uses the following Electron E2E infrastructure:
 
 - Import fixtures and assertions from `smoke/fixtures/electron.fixture.ts`: `test`, `expect`, `electronApp`, and `mainWindow`.
+- Use `launchSmokeElectron` from the same fixture when a test manages its own profile or restarts Electron.
 - Use `smoke/utils/uiLocator.ts` to locate stable application boundaries defined in the
   [UI Semantic Contract](../../docs/dev/references/components/ui-semantic-contract.md).
 - Refer to `playwright.config.ts` in the repository root for runtime settings.

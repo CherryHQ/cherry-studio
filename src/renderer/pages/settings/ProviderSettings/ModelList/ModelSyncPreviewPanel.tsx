@@ -344,7 +344,6 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
     return (
       <EmptyState
         compact
-        preset={searchActive ? 'no-result' : 'no-model'}
         title={searchActive ? t('common.no_results') : t('settings.models.empty')}
         className="min-h-52"
       />
@@ -355,6 +354,7 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
     <DynamicVirtualList
       list={virtualRows}
       className={modelSyncClasses.manageScrollArea}
+      contentProps={{ className: 'pr-1' }}
       role="list"
       estimateSize={() => 44}
       itemContainerStyle={{ height: 44 }}

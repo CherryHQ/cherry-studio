@@ -2,10 +2,7 @@
 export { KnowledgeService } from './KnowledgeService'
 export { KnowledgeVectorStoreService } from './pipeline/vectorstore/KnowledgeVectorStoreService'
 
-// Index & material rebuild surface — the knowledge-owned primitives the indexing runtime and the
-// v1→v2 migrators (data/migration/v2) build a base's materials + vector index from. The index
-// engine internals (driver / schema / meta / vector index) stay private behind
-// createKnowledgeIndexStoreAtPath; the snapshot derivation stays private behind build*SnapshotFile.
+// Knowledge-owned index and material primitives; store internals remain private.
 export { type MaterialFieldSource, toMaterialRelativePath } from './items'
 export {
   assertSafeKnowledgeRelativePath,

@@ -14,6 +14,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
+import { useWheelZoom } from '@renderer/hooks/useWheelZoom'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -79,6 +80,7 @@ export function useWindowRuntime(): void {
   useCustomCss()
   useDayjsLocaleSync()
   useAppPathSnapshot()
+  useWheelZoom()
 
   // Root background (macOS vibrancy / transparent-window aware).
   useEffect(() => {

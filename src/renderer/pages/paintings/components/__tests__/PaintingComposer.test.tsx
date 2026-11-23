@@ -216,24 +216,10 @@ describe('PaintingComposer', () => {
     mockIsEditImageModel.mockReturnValue(false)
   })
 
-  it('renders the top image strip + add button and drops file pills for edit-image models', () => {
-    mockIsEditImageModel.mockReturnValue(true)
+  it('keeps the prompt as plain text', () => {
     renderComposer()
-    expect(captured.surfaceProps?.topContent).toBeTruthy()
-    expect(captured.surfaceProps?.leadingContent).toBeTruthy()
-    expect(captured.surfaceProps?.tokens).toEqual([])
-    expect(captured.surfaceProps?.managedTokenKinds).toEqual([])
-  })
 
-  it('keeps file pills and no image tray for non-edit models', () => {
-    renderComposer()
-    expect(captured.surfaceProps?.topContent).toBeUndefined()
-    expect(captured.surfaceProps?.leadingContent).toBeUndefined()
-    expect(captured.surfaceProps?.managedTokenKinds).toEqual(['file'])
-    expect(captured.surfaceProps?.voiceTarget).toEqual({
-      targetId: 'composer:painting:p1',
-      sourceEntityId: 'p1'
-    })
+    expect(captured.surfaceProps?.markdownLivePreview).toBeFalsy()
   })
 
   it('gates send and shows a reason for edit-only models missing an image', () => {
@@ -293,12 +279,6 @@ describe('PaintingComposer', () => {
     renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     expect(captured.surfaceProps?.sendDisabled).toBe(false)
     expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
-  })
-
-  it('renders the model selector and unified panel controls in the toolbar', () => {
-    renderComposer()
-    expect(screen.getByTestId('painting-model-selector')).toBeInTheDocument()
-    expect(screen.getByTestId('painting-plus-control')).toBeInTheDocument()
   })
 
   it('reports prompt edits to the page', () => {

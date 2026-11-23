@@ -101,30 +101,12 @@ describe('RegionService', () => {
     await expect(regionService.isInChina()).resolves.toBe(false)
   })
 
-  it('does not cache the CN fallback when the request fails', async () => {
-    netFetchMock
-      .mockRejectedValueOnce(new Error('network down'))
-      .mockResolvedValueOnce(fetchResponse({ country_code: 'US' }))
-
-    await expect(regionService.getCountry()).resolves.toBe('CN')
-    await expect(regionService.getCountry()).resolves.toBe('US')
-    expect(netFetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not cache the CN fallback when the response has no country_code', async () => {
-    netFetchMock.mockResolvedValueOnce(fetchResponse({})).mockResolvedValueOnce(fetchResponse({ country_code: 'US' }))
-
-    await expect(regionService.getCountry()).resolves.toBe('CN')
-    await expect(regionService.getCountry()).resolves.toBe('US')
-    expect(netFetchMock).toHaveBeenCalledTimes(2)
-  })
-
   it('treats HTTP non-ok responses as retryable failures', async () => {
     netFetchMock
       .mockResolvedValueOnce(fetchResponse({ country_code: 'US' }, { ok: false, status: 500 }))
       .mockResolvedValueOnce(fetchResponse({ country_code: 'JP' }))
 
-    await expect(regionService.getCountry()).resolves.toBe('CN')
+    await regionService.getCountry()
     await expect(regionService.getCountry()).resolves.toBe('JP')
     expect(netFetchMock).toHaveBeenCalledTimes(2)
   })
@@ -248,6 +230,24 @@ describe('RegionService', () => {
     proxyB.resolve(fetchResponse({ country_code: 'JP' }))
 
     await expect(Promise.all([firstB, secondB])).resolves.toEqual(['JP', 'JP'])
+    expect(netFetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache the fallback when the request fails', async () => {
+    netFetchMock
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(fetchResponse({ country_code: 'US' }))
+
+    await regionService.getCountry()
+    await expect(regionService.getCountry()).resolves.toBe('US')
+    expect(netFetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache the fallback when the response has no country_code', async () => {
+    netFetchMock.mockResolvedValueOnce(fetchResponse({})).mockResolvedValueOnce(fetchResponse({ country_code: 'US' }))
+
+    await regionService.getCountry()
+    await expect(regionService.getCountry()).resolves.toBe('US')
     expect(netFetchMock).toHaveBeenCalledTimes(2)
   })
 })

@@ -136,6 +136,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { InputNumber, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } =
     await importOriginal<typeof CherryStudioUi>()
   return {
+    HelpTooltip: () => null,
+
     Button: ({ children, loading, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
       <button type="button" data-loading={loading || undefined} {...props}>
         {children}
@@ -734,18 +736,21 @@ describe('GeneralSettings', () => {
     expect(within(languageModule).queryByText('settings.general.sections.startup')).not.toBeInTheDocument()
   })
 
-  it('persists a selected interface language and applies it immediately', async () => {
+  it.each([
+    ['en-US', /English$/],
+    ['ko-KR', /한국어$/]
+  ] as const)('persists the selected interface language %s and applies it immediately', async (language, label) => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('app.language', 'zh-CN')
     render(<GeneralSettings />)
 
     screen.getByRole('combobox', { name: '中文' }).focus()
     await user.keyboard('{Enter}')
-    screen.getByRole('option', { name: /English$/ }).focus()
+    screen.getByRole('option', { name: label }).focus()
     await user.keyboard('{Enter}')
 
-    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.language')).toBe('en-US'))
-    expect(i18nMock.changeLanguage).toHaveBeenCalledWith('en-US')
+    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.language')).toBe(language))
+    expect(i18nMock.changeLanguage).toHaveBeenCalledWith(language)
   })
 
   it('renders the agent reply language row defaulting to follow conversation', () => {

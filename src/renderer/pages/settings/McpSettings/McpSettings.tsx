@@ -45,15 +45,15 @@ import {
   toMcpServerFields,
   useMcpRegistryState
 } from './McpServerFields'
+import McpSkillsSection from './McpSkill'
 import McpToolsSection from './McpTool'
-import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
 const mcpSettingsRouteApi = getRouteApi('/settings/mcp/settings/$serverId')
 
-type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions'
+type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions' | 'skills'
 type McpTabItem = {
   key: TabKey
   label: React.ReactNode
@@ -325,15 +325,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       return
     }
 
-    if (active && isQVerisApiKeyMissing(server)) {
-      void popup.error({
-        title: t('settings.mcp.startError'),
-        content: <QVerisApiKeyGuide />,
-        centered: true
-      })
-      return
-    }
-
     const isValid = await form.trigger()
     if (!isValid) {
       return
@@ -548,6 +539,12 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       )
     })
 
+    tabs.push({
+      key: 'skills',
+      label: t('plugins.skills'),
+      children: activeTab === 'skills' ? <McpSkillsSection server={server} updateMcpServer={updateMcpServer} /> : null
+    })
+
     tabs.push(
       {
         key: 'prompts',
@@ -601,7 +598,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
           <div className="shrink-0 px-6 pt-4">
-            <div className="mx-auto w-full max-w-3xl">
+            <div className="mx-auto w-full max-w-5xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
                   <Button
@@ -679,8 +676,11 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               </div>
             </div>
           </div>
-          <ScrollArea viewportProps={{ className: 'px-6 pt-2 pb-6' }} className="min-h-0 flex-1">
-            <div className="mx-auto w-full max-w-3xl">
+          <ScrollArea
+            contentProps={{ className: 'px-6 pt-2 pb-6' }}
+
+            className="min-h-0 flex-1">
+            <div className="mx-auto w-full max-w-5xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
                   {tab.children}
@@ -690,7 +690,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           </ScrollArea>
           {activeTabValue === 'settings' && (
             <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
-              <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+              <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
                 <Button
                   size="sm"
                   variant="ghost"

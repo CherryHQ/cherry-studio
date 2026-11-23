@@ -2,6 +2,29 @@ import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
+export const computerUseAppSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  identity: z.string().min(1).max(512).optional()
+})
+export type ComputerUseApp = z.infer<typeof computerUseAppSchema>
+export const computerUseAppIconSchema = z.discriminatedUnion('status', [
+  z.object({
+    status: z.literal('available'),
+    icon: z.object({ mimeType: z.literal('image/png'), dataBase64: z.base64().min(1).max(65536) })
+  }),
+  z.object({ status: z.literal('unavailable') })
+])
+
+export const computerUseApprovalScopeSchema = z.enum(['always', 'session', 'reject'])
+export type ComputerUseApprovalScope = z.infer<typeof computerUseApprovalScopeSchema>
+const computerUseApprovalRequestSchema = z.object({
+  approvalId: z.uuid(),
+  topicId: z.string(),
+  app: computerUseAppSchema
+})
+export type ComputerUseApprovalRequest = z.infer<typeof computerUseApprovalRequestSchema>
+
 const permissionStatusSchema = z.object({
   permissions: z.array(
     z.object({
@@ -18,6 +41,7 @@ const computerUseControlSchema = z.object({
   label: z.string(),
   appId: z.string().optional(),
   appName: z.string().optional(),
+  appIdentity: z.string().min(1).max(512).optional(),
   status: z.enum(['opening', 'active', 'stopping', 'stopped', 'unconfirmed'])
 })
 
@@ -25,9 +49,27 @@ export type ComputerUseControl = z.infer<typeof computerUseControlSchema>
 export type ControlStatus = ComputerUseControl['status']
 export type ComputerUseEventSchemas = {
   'computer_use.controls_changed': ComputerUseControl[]
+  'computer_use.approvals_changed': undefined
 }
 
 export const computerUseRequestSchemas = {
+  'computer_use.revoke_approval': defineRoute({
+    input: z.strictObject({ identity: z.string().min(1).max(512) }),
+    output: z.void()
+  }),
+  'computer_use.get_approvals': defineRoute({ input: z.void(), output: z.array(computerUseApprovalRequestSchema) }),
+  'computer_use.respond_approval': defineRoute({
+    input: z.strictObject({ approvalId: z.uuid(), scope: computerUseApprovalScopeSchema }),
+    output: z.boolean()
+  }),
+  'computer_use.get_call_apps': defineRoute({
+    input: z.strictObject({ cell: z.uuid() }),
+    output: z.array(computerUseAppSchema)
+  }),
+  'computer_use.get_app_icon': defineRoute({
+    input: z.strictObject({ identity: z.string().min(1).max(512) }),
+    output: computerUseAppIconSchema
+  }),
   'computer_use.get_controls': defineRoute({ input: z.void(), output: z.array(computerUseControlSchema) }),
   'computer_use.stop_app': defineRoute({
     input: z.strictObject({ ownerId: z.string().min(1), appId: z.string().min(1) }),

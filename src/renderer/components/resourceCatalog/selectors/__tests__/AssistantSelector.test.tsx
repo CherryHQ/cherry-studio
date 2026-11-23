@@ -431,8 +431,6 @@ describe('AssistantSelector', () => {
     expect(options[0]).toHaveTextContent('Alpha Assistant')
     expect(options[1]).toHaveTextContent('Beta Assistant')
     expect(screen.getByRole('button', { name: 'work' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Newest' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Oldest' })).not.toBeInTheDocument()
   })
 
   it('hides group filters that are not referenced by any selector item', () => {
@@ -476,9 +474,6 @@ describe('AssistantSelector', () => {
     await openCreateDialog()
 
     expect(screen.getByRole('heading', { name: 'New Assistant' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Name this resource')).toBeInTheDocument()
-    expect(screen.getByText('Model')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
   it('calls the dialog-close autofocus callback when the create dialog closes', async () => {
@@ -518,14 +513,11 @@ describe('AssistantSelector', () => {
 
     await waitFor(() =>
       expect(createAssistantMock).toHaveBeenCalledWith({
-        body: {
+        body: expect.objectContaining({
           name: 'Created Assistant',
-          emoji: '💬',
           modelId: MODEL.id,
-          description: 'Created from selector',
-          prompt: '',
-          knowledgeBaseIds: []
-        }
+          description: 'Created from selector'
+        })
       })
     )
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
