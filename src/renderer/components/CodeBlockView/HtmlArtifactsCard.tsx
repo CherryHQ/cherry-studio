@@ -7,6 +7,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { ipcApi } from '@renderer/ipc'
+import { trackCodeBlockAction } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -35,6 +36,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
       const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
       await window.api.file.write(tempPath, htmlContent)
       await ipcApi.request('system.shell.open_path', tempPath)
+      trackCodeBlockAction('open_external', 'html')
     } catch (error) {
       logger.error('Failed to open HTML artifact externally', error as Error)
       toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
@@ -47,6 +49,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
       const savedPath = await window.api.file.save(fileName, htmlContent)
       if (!savedPath) return
 
+      trackCodeBlockAction('download', 'html')
       toast.success(t('message.download.success'))
     } catch (error) {
       logger.error('Failed to download HTML artifact', error as Error)
@@ -62,7 +65,10 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
           aria-label={`${t('chat.artifacts.button.preview')}: ${title}`}
           title={title}
           disabled={!hasContent}
-          onClick={() => setIsPopupOpen(true)}
+          onClick={() => {
+            setIsPopupOpen(true)
+            trackCodeBlockAction('preview_opened', 'html')
+          }}
           className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left disabled:cursor-default">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
             <FileIcon path="artifact.html" className="text-[20px]" />

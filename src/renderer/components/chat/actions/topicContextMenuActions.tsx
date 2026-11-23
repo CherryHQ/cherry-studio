@@ -99,7 +99,7 @@ function buildMoveToAssistantActionId(assistantId: string) {
   return `${MOVE_TO_ASSISTANT_ACTION_PREFIX}${encodeURIComponent(assistantId)}`
 }
 
-function getMoveToAssistantTargetId(actionId: string) {
+export function getMoveToAssistantTargetId(actionId: string) {
   if (!actionId.startsWith(MOVE_TO_ASSISTANT_ACTION_PREFIX)) return undefined
 
   try {

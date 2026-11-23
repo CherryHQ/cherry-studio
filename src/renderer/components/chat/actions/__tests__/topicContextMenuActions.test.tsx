@@ -1,8 +1,9 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
+import { runTopicMenuAction, useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
 import type { Topic } from '@renderer/types/topic'
+import type { RendererAnalyticsEvent } from '@shared/ipc/schemas/analytics'
 
 import { executeTopicMenuAction, resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
 
@@ -256,5 +257,29 @@ describe('topic context menu actions', () => {
 
     await expect(executeTopicMenuAction(moveAction!.children[0], context)).resolves.toBe(false)
     expect(onMoveToAssistant).not.toHaveBeenCalled()
+  })
+
+  it('reports a topic action by a fixed id only once it ran, never the target assistant', async () => {
+    const request = vi.mocked(window.api.ipcApi.request)
+    request.mockClear()
+    const reported = () =>
+      request.mock.calls.flatMap(([route, event]) =>
+        route === 'analytics.track' ? [(event as RendererAnalyticsEvent & { action: string }).action] : []
+      )
+    const moveContext = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-b', name: 'Assistant B' }],
+      onMoveToAssistant: vi.fn()
+    })
+    const move = resolveTopicMenuActions(moveContext).find((action) => action.id === 'topic.move-to-assistant')!
+    const pinned = createTopicActionFixture({ topic: { ...topic, pinned: true } })
+    const pin = resolveTopicMenuActions(pinned).find((action) => action.id === 'topic.pin')!
+    const blocked = createTopicActionFixture({ isArchiveBlocked: true })
+    const archive = resolveTopicMenuActions(blocked).find((action) => action.id === 'topic.delete')!
+
+    await runTopicMenuAction(move.children[0], moveContext)
+    await runTopicMenuAction(pin, pinned)
+    await runTopicMenuAction(archive, blocked)
+
+    expect(reported()).toEqual(['topic.move-to-assistant', 'topic.unpin'])
   })
 })

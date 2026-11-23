@@ -785,7 +785,7 @@ export function useHomeMessageListProviderValue({
         if (!selected) return
         try {
           await regenerateMessageUsingModel(message.id, selected.id)
-          trackProductEvent({ event: 'message_action_used', action: 'assistant-mention-model' })
+          trackProductEvent({ event: 'message_action_used', action: 'assistant-mention-model', surface: 'chat' })
         } catch (error) {
           logger.error('Failed to regenerate message using selected model:', error as Error)
           toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))

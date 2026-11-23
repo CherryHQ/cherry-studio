@@ -10,6 +10,7 @@ import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/c
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
+import { trackAssistantCreated } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { buildCreateAssistantDto } from '@shared/ai/assistantCreateDto'
@@ -208,6 +209,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         created = await createAssistant({
           body: buildCreateAssistantDto(values)
         })
+        trackAssistantCreated('blank')
       } catch (error) {
         logger.error('Failed to create assistant from selector', error as Error)
         throw error

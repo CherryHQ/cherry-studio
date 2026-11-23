@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   executeTopicMenuAction,
+  getMoveToAssistantTargetId,
   resolveTopicMenuActions,
   type TopicActionContext,
   type TopicExportMenuOptions,
@@ -14,6 +15,7 @@ import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -170,7 +172,17 @@ export async function runTopicMenuAction(
   action: ResolvedAction<TopicActionContext>,
   actionContext: TopicActionContext
 ) {
-  await executeTopicMenuAction(action, actionContext)
+  const analyticsAction = topicAnalyticsAction(action.id, actionContext.topic.pinned)
+  if (await executeTopicMenuAction(action, actionContext)) {
+    trackProductEvent({ event: 'topic_action_used', action: analyticsAction })
+  }
+}
+
+// The move target is an assistant id, and pin is a toggle; both report a fixed action id.
+function topicAnalyticsAction(actionId: string, pinned: boolean | undefined): string {
+  if (getMoveToAssistantTargetId(actionId)) return 'topic.move-to-assistant'
+  if (actionId === 'topic.pin') return pinned ? 'topic.unpin' : 'topic.pin'
+  return actionId
 }
 
 export type TopicMenuActionContextOverride = Partial<Pick<TopicActionContext, 'isRenaming' | 'onStartRename'>>

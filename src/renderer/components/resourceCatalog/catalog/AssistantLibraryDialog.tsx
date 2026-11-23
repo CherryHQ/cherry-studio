@@ -25,6 +25,7 @@ import {
   toCreateAssistantDtoFromCatalogPreset,
   useAssistantCatalogPresets
 } from '@renderer/hooks/useAssistantCatalogPresets'
+import { trackAssistantCreated } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { matchesPinyinInitials } from '@renderer/utils/pinyin'
@@ -118,6 +119,7 @@ export function AssistantLibraryDialog({
   const addPreset = useCallback(
     async (preset: AssistantCatalogPreset) => {
       const assistant = await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset))
+      trackAssistantCreated('library', preset.id)
       setAddedAssistantPresets((current) => ({
         ...current,
         [getAssistantPresetCatalogKey(preset)]: assistant.id

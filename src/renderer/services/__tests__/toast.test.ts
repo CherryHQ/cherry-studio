@@ -67,3 +67,31 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
 })
+
+it('tells the caller which recovery action the user took and for which error category', async () => {
+  const onAction = vi.fn()
+  const switchModel = vi.fn()
+  const key = toast.errorFromException(
+    { name: 'Error', statusCode: 404, message: 'model gpt-x does not exist' },
+    { provider: { id: 'openai', name: 'OpenAI' }, actions: { switchModel }, onAction }
+  )
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+
+  await shown.action!.onClick()
+
+  expect(switchModel).toHaveBeenCalledOnce()
+  expect(onAction).toHaveBeenCalledExactlyOnceWith('switchModel', 'model')
+})
+
+it('names a quota recovery without a billing page as configure, the settings it opens', async () => {
+  const onAction = vi.fn()
+  const key = toast.errorFromException(
+    { name: 'Error', message: 'insufficient_quota', statusCode: 429 },
+    { provider: { id: 'groq', name: 'Groq' }, onAction }
+  )
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+
+  await shown.action!.onClick()
+
+  expect(onAction).toHaveBeenCalledExactlyOnceWith('configure', 'quota')
+})

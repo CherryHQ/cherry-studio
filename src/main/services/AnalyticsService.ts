@@ -4,6 +4,7 @@ import type { PostHog } from 'posthog-node'
 import { application } from '@application'
 import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
+import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
@@ -42,6 +43,14 @@ const DEVICE_EVENTS: ReadonlySet<string> = new Set([
 const SETTING_CHANGE_COALESCE_MS = 2_000
 const SNAPSHOT_CHECK_INTERVAL_MS = 60 * 60_000
 const USER_AVATAR_KEY = 'app.user.avatar'
+// Model choices report where the model comes from, never the model or a user-created provider.
+const MODEL_ID_SETTING_KEYS: ReadonlySet<string> = new Set([
+  'chat.default_model_id',
+  'chat.context_settings.compress.model_id',
+  'feature.paintings.default_model_id',
+  'feature.quick_assistant.model_id',
+  'feature.translate.model_id'
+])
 
 const VOICE_MODEL_SETTING_KEYS: ReadonlySet<string> = new Set([
   'feature.voice.recognition.model_id',
@@ -99,6 +108,11 @@ function settingsSnapshot(read: (key: UnifiedPreferenceKeyType) => unknown): Set
         : String(value).startsWith(STORED_FILE_REF_PREFIX)
           ? 'image'
           : 'emoji'
+    } else if (MODEL_ID_SETTING_KEYS.has(key)) {
+      event[`setting:${key}`] =
+        typeof value === 'string' && value.includes('::')
+          ? analyticsModelSource(parseUniqueModelId(value as UniqueModelId).providerId)
+          : 'none'
     } else if (VOICE_MODEL_SETTING_KEYS.has(key)) {
       event[`setting:${key}`] = voiceModelSource(value)
     } else if (kind === 'text') {
@@ -384,6 +398,11 @@ export class AnalyticsService extends BaseService implements Activatable {
       this.trackProductEvent({ event: 'chat_branch_snapshot', ...messageService.countTopicBranches() })
     } catch (error) {
       logger.warn('Branch snapshot skipped', error as Error)
+    }
+    try {
+      this.trackProductEvent({ event: 'assistant_snapshot', ...assistantDataService.countConfiguredForAnalytics() })
+    } catch (error) {
+      logger.warn('Assistant snapshot skipped', error as Error)
     }
   }
 

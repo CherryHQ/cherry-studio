@@ -13,6 +13,7 @@ import {
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
+import { trackAssistantCreated } from '@renderer/services/productAnalytics'
 import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
 import { buildCreateAssistantDto } from '@shared/ai/assistantCreateDto'
@@ -129,6 +130,7 @@ export function AssistantConversationPickerDialog({
         const created = await createAssistant({
           body: buildCreateAssistantDto(values)
         })
+        trackAssistantCreated('blank')
         createdIdRef.current = created.id
         return created.id
       } catch (error) {

@@ -18,6 +18,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
+import { trackAssistantCreated } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
 
@@ -191,6 +192,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       try {
         const groupName = draft.groupName?.trim()
         await importAssistant({ ...draft.dto, ...(groupName ? { groupName } : {}) })
+        trackAssistantCreated('import')
         outcomes.push({ kind: 'ok' })
       } catch (error) {
         outcomes.push({

@@ -490,7 +490,9 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     await act(async () => onSelect?.({ id: 'provider::model-b' }))
     expect(chatWriteMock.regenerate).toHaveBeenLastCalledWith('message-a', { modelId: 'provider::model-b' })
-    expect(reportedActions()).toEqual([{ event: 'message_action_used', action: 'assistant-mention-model' }])
+    expect(reportedActions()).toEqual([
+      { event: 'message_action_used', action: 'assistant-mention-model', surface: 'chat' }
+    ])
   })
 
   it('capture consumer consumes pending topic image requests without binding visible image events', async () => {

@@ -385,6 +385,32 @@ export class AssistantDataService {
     }))
   }
 
+  /** Live assistants and how many set each context option, for the daily analytics snapshot. */
+  countConfiguredForAnalytics(): {
+    assistantCount: number
+    withPrompt: number
+    withModel: number
+    withTemperature: number
+    withWebSearch: number
+    withKnowledge: number
+  } {
+    const flag = (condition: SQL) => sql<number>`coalesce(sum(case when ${condition} then 1 else 0 end), 0)`
+    const hasKnowledge = sql`exists (select 1 from ${assistantKnowledgeBaseTable} where ${assistantKnowledgeBaseTable.assistantId} = ${assistantTable.id})`
+    const [row] = this.db
+      .select({
+        assistantCount: sql<number>`count(*)`,
+        withPrompt: flag(sql`${assistantTable.prompt} != ''`),
+        withModel: flag(sql`${assistantTable.modelId} is not null`),
+        withTemperature: flag(sql`json_extract(${assistantTable.settings}, '$.enableTemperature') = 1`),
+        withWebSearch: flag(sql`json_extract(${assistantTable.settings}, '$.enableWebSearch') = 1`),
+        withKnowledge: flag(hasKnowledge)
+      })
+      .from(assistantTable)
+      .where(isNull(assistantTable.deletedAt))
+      .all()
+    return row
+  }
+
   /**
    * List assistants with optional filters.
    *

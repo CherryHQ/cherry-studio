@@ -153,4 +153,8 @@ export interface AiStreamRequest extends AiChatRequest {
    * attribution would misclassify a mini app's call as an agent turn.
    */
   source?: SourceSnapshot | null
+  /** Main-internal: how this reply turn was started, for product analytics only. */
+  turnAnalytics?: { origin: ChatTurnOrigin; modelCount: number }
 }
+
+export type ChatTurnOrigin = 'send' | 'regenerate' | 'retry' | 'steer' | 'continue'

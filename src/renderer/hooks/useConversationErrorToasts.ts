@@ -5,8 +5,10 @@ import { dataApiService } from '@data/DataApiService'
 import { useCommandRuntime } from '@renderer/hooks/command'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { trackChatErrorAction } from '@renderer/services/productAnalytics'
 import { toast, type ErrorToastContext } from '@renderer/services/toast'
 import type { ExecutionFinishEvent } from '@renderer/types/message'
+import type { ErrorToastAction } from '@renderer/utils/errorToast'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { ActiveExecution, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -32,6 +34,15 @@ interface Attempt {
   message?: CherryUIMessage
   result?: { success: boolean; error?: unknown }
 }
+
+const TOAST_ANALYTICS_ACTIONS = {
+  configure: 'open_settings',
+  billing: 'billing',
+  retry: 'retry',
+  trimContext: 'trim_context',
+  switchModel: 'switch_model',
+  mcp: 'mcp'
+} as const satisfies Record<ErrorToastAction, string>
 
 export function useConversationErrorToasts(scopeKey: string, actions: RecoveryActions = {}) {
   const commands = useCommandRuntime()
@@ -144,7 +155,8 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
             : undefined,
         modelName: message?.metadata?.messageSnapshot?.model?.name ?? identity?.modelId,
         actions: recovery,
-        isCurrent: () => state.active && generation === state.generation
+        isCurrent: () => state.active && generation === state.generation,
+        onAction: (action, category) => trackChatErrorAction(TOAST_ANALYTICS_ACTIONS[action], category, state.scopeKey)
       })
     },
     [state, waitForFinish]

@@ -2,6 +2,7 @@ import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-moc
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AnalyticsClient, AnalyticsClientOptions } from '@cherrystudio/analytics-client'
+import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { BaseService } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
@@ -856,12 +857,28 @@ describe('AnalyticsService daily snapshots', () => {
       branchedTopicCount: 2,
       branchCount: 5
     })
+    vi.spyOn(assistantDataService, 'countConfiguredForAnalytics').mockReturnValue({
+      assistantCount: 4,
+      withPrompt: 3,
+      withModel: 2,
+      withTemperature: 1,
+      withWebSearch: 1,
+      withKnowledge: 0
+    })
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    for (const key of ['ui.theme_mode', 'app.zoom_factor', 'app.proxy.url', 'app.user.name', 'app.user.avatar']) {
+    for (const key of [
+      'ui.theme_mode',
+      'app.zoom_factor',
+      'app.proxy.url',
+      'app.user.name',
+      'app.user.avatar',
+      'chat.default_model_id',
+      'feature.translate.model_id'
+    ]) {
       delete captured.preferenceValues[key]
     }
   })
@@ -892,6 +909,20 @@ describe('AnalyticsService daily snapshots', () => {
     })
   })
 
+  it('reports where chosen models come from, never the model or a user-created provider', async () => {
+    Object.assign(captured.preferenceValues, {
+      'chat.default_model_id': 'my-relay-uuid::gpt-secret-finetune',
+      'feature.translate.model_id': 'cherryin::qwen'
+    })
+    await startService()
+
+    const { properties } = captures('settings_snapshot')[0]
+    expect(properties['setting:chat.default_model_id']).toBe('own_key')
+    expect(properties['setting:feature.translate.model_id']).toBe('cherryin')
+    expect(properties['setting:feature.quick_assistant.model_id']).toBe('none')
+    expect(JSON.stringify(properties)).not.toContain('gpt-secret-finetune')
+  })
+
   it('reports where the voice models come from, including on-device ones, never the model', async () => {
     Object.assign(captured.preferenceValues, {
       'feature.voice.recognition.model_id': 'local-voice::qwen3-asr-1.7b',
@@ -916,6 +947,19 @@ describe('AnalyticsService daily snapshots', () => {
 
     expect(captures('setting_changed').map(({ properties }) => properties.value)).toEqual([true, false])
     expect(service.isActivated).toBe(true)
+  })
+
+  it('reports how many assistants use each context option alongside the settings', async () => {
+    await startService()
+
+    expect(captures('assistant_snapshot')[0].properties).toMatchObject({
+      assistant_count: 4,
+      with_prompt: 3,
+      with_model: 2,
+      with_temperature: 1,
+      with_web_search: 1,
+      with_knowledge: 0
+    })
   })
 
   it("omits a value outside a setting's fixed options", async () => {
@@ -943,6 +987,7 @@ describe('AnalyticsService daily snapshots', () => {
 
     expect(captures('settings_snapshot')).toEqual([])
     expect(captures('chat_branch_snapshot')).toEqual([])
+    expect(captures('assistant_snapshot')).toEqual([])
     expect(MockMainCacheServiceExport.cacheService.getPersist('analytics.snapshot.last_day')).toBeNull()
   })
 

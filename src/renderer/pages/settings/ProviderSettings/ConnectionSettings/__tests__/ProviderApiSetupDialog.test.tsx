@@ -128,7 +128,8 @@ vi.mock('../../utils/modelSync', () => ({
 
 vi.mock('../../utils/healthCheck', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args),
-  getModelHealthCheckSkipReason: (...args: any[]) => getModelHealthCheckSkipReasonMock(...args)
+  getModelHealthCheckSkipReason: (...args: any[]) => getModelHealthCheckSkipReasonMock(...args),
+  modelCheckErrorCategory: () => 'network'
 }))
 
 vi.mock('@renderer/services/modelHealthCheck', () => ({

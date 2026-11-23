@@ -1,5 +1,10 @@
 import * as z from 'zod'
 
+import { type AiFailureReason, aiFailureReasonSchema } from '@cherrystudio/remote-protocol/failure'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { ANALYTICS_PRESET_ID_PATTERN } from '@shared/utils/analyticsModelSource'
+import { ERROR_CATEGORIES } from '@shared/utils/errorCategory'
+
 import { defineRoute } from '../define'
 
 /**
@@ -15,7 +20,7 @@ export const analyticsModelSourceSchema = z.enum(['cherry_free', 'cherry_cloud',
 export type AnalyticsModelSource = z.infer<typeof analyticsModelSourceSchema>
 
 // Preset identifiers only (built-in mini app ids, provider ids, data-ui tokens); never user-entered names.
-export const presetIdSchema = z.string().regex(/^[a-z0-9][a-z0-9:._-]{0,119}$/)
+export const presetIdSchema = z.string().regex(ANALYTICS_PRESET_ID_PATTERN)
 
 const featureSchema = z.enum([
   'translate',
@@ -63,7 +68,8 @@ export const featureUsedEventSchema = z.strictObject({
   trigger: z.enum(['page', 'selection', 'quick_assistant', 'shortcut', 'tray', 'menu', 'other']).optional(),
   target: presetIdSchema.optional(),
   count: z.number().int().nonnegative().optional(),
-  durationMs: durationMsSchema.optional()
+  durationMs: durationMsSchema.optional(),
+  errorReason: aiFailureReasonSchema.optional()
 })
 export type FeatureUsedEvent = z.infer<typeof featureUsedEventSchema>
 
@@ -99,7 +105,13 @@ export const BEHAVIOR_ANALYTICS_EVENTS = [
   'settings_snapshot',
   'chat_branch_used',
   'chat_branch_snapshot',
-  'message_action_used'
+  'message_action_used',
+  'chat_error_action',
+  'chat_model_selected',
+  'topic_action_used',
+  'assistant_snapshot',
+  'quick_panel_used',
+  'code_block_action'
 ] as const
 
 export const chatBranchSourceSchema = z.enum(['regenerate', 'edit', 'manual', 'mention'])
@@ -169,7 +181,63 @@ export const rendererAnalyticsEventSchema = z.discriminatedUnion('event', [
     source: chatBranchSourceSchema.optional()
   }),
   // Static message toolbar or menu action id, e.g. 'copy' or 'export.markdown'.
-  z.strictObject({ event: z.literal('message_action_used'), action: presetIdSchema })
+  z.strictObject({
+    event: z.literal('message_action_used'),
+    action: presetIdSchema,
+    surface: z.enum(['chat', 'agent']).optional()
+  }),
+  // What the user did with a failed reply; `reason` is the classified error category.
+  z.strictObject({
+    event: z.literal('chat_error_action'),
+    action: z.enum(['retry', 'switch_model', 'trim_context', 'open_settings', 'billing', 'mcp', 'detail', 'dismiss']),
+    reason: z.enum(ERROR_CATEGORIES),
+    surface: z.enum(['chat', 'agent'])
+  }),
+  // `target` is a built-in provider id; `count` is set for a multi-model mention pick.
+  z.strictObject({
+    event: z.literal('chat_model_selected'),
+    surface: z.enum(['chat', 'agent', 'mention']),
+    modelSource: analyticsModelSourceSchema,
+    target: presetIdSchema.optional(),
+    count: z.number().int().nonnegative().optional()
+  }),
+  // Static topic menu action id, e.g. 'topic.export.markdown' or 'topic.unpin'.
+  z.strictObject({ event: z.literal('topic_action_used'), action: presetIdSchema }),
+  z.strictObject({
+    event: z.literal('provider_check_result'),
+    status: z.enum(['passed', 'failed']),
+    surface: z.enum(['settings', 'setup']),
+    errorReason: z.enum(ERROR_CATEGORIES).optional(),
+    keyCount: z.number().int().nonnegative(),
+    target: presetIdSchema.optional()
+  }),
+  // `target` is the assistant library preset id.
+  z.strictObject({
+    event: z.literal('assistant_created'),
+    source: z.enum(['blank', 'library', 'import', 'duplicate']),
+    target: presetIdSchema.optional()
+  }),
+  z.strictObject({
+    event: z.literal('quick_panel_used'),
+    panel: z.enum([
+      'root',
+      'knowledge_base',
+      'quick_phrases',
+      'mcp_status',
+      'mcp_prompts',
+      'mcp_resources',
+      'notes',
+      'other'
+    ]),
+    via: z.enum(['input', 'button']),
+    result: z.enum(['selected', 'closed'])
+  }),
+  // `language` only for languages with a special view (e.g. html, mermaid).
+  z.strictObject({
+    event: z.literal('code_block_action'),
+    action: z.enum(['preview_opened', 'open_external', 'download', 'copy', 'run', 'view_mode']),
+    language: presetIdSchema.optional()
+  })
 ])
 export type RendererAnalyticsEvent = z.infer<typeof rendererAnalyticsEventSchema>
 
@@ -217,11 +285,34 @@ export type MainAnalyticsEvent =
       event: 'chat_turn_finished'
       status: 'success' | 'error' | 'stopped'
       modelSource: AnalyticsModelSource
+      // Built-in provider id only; user-created providers are never named.
+      target?: string
+      errorReason?: AiFailureReason
+      origin: 'send' | 'regenerate' | 'retry' | 'steer' | 'continue'
+      // Models answering the same send; each reply still reports its own event.
+      modelCount: number
       durationMs: number
+      firstTokenMs?: number
+      reasoningEffort?: ReasoningEffortOption
+      fastMode: boolean
+      webSearchEnabled: boolean
       usedWebSearch: boolean
+      knowledgeBaseCount: number
       usedKnowledge: boolean
       mcpToolCount: number
       attachmentCount: number
+      imageCount: number
+      // User messages sent as context in this request.
+      depth: number
+    }
+  | {
+      event: 'assistant_snapshot'
+      assistantCount: number
+      withPrompt: number
+      withModel: number
+      withTemperature: number
+      withWebSearch: number
+      withKnowledge: number
     }
   // Values are booleans, numbers, or a catalogued fixed option; free-text settings report the key alone.
   | { event: 'setting_changed'; key: string; value?: boolean | number | string }

@@ -167,6 +167,25 @@ describe('useProviderConnectionCheck', () => {
     expect(toast.success).toHaveBeenCalled()
   })
 
+  it('reports a failed keyless check once, with no API keys counted', async () => {
+    const providerAuth: ModelCheckCredential = { kind: 'provider-auth', id: 'provider-auth', key: '' }
+    prepareCredentialsMock.mockResolvedValueOnce([providerAuth])
+    checkModelWithMultipleKeysMock.mockResolvedValueOnce([failedResult(providerAuth)])
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    await act(async () => {
+      await result.current
+        .startSingleModelCheck({ model, keySelection: { mode: 'all' }, notify: false })
+        .catch(() => {})
+    })
+
+    const checks = vi
+      .mocked(window.api.ipcApi.request)
+      .mock.calls.map(([route, event]) => (route === 'analytics.track' ? (event as { event: string }) : undefined))
+      .filter((event) => event?.event === 'provider_check_result')
+    expect(checks).toEqual([expect.objectContaining({ status: 'failed', keyCount: 0 })])
+  })
+
   it('keeps the complete per-key report when any API key fails', async () => {
     checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) => [
       successfulResult(credentials[0]),

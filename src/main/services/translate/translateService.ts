@@ -30,6 +30,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { analyticsModelSource, trackMainProductEvent } from '@main/services/productAnalytics'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
@@ -37,6 +38,7 @@ import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueMo
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FeatureUsedEvent } from '@shared/ipc/schemas/analytics'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { SerializedError } from '@shared/types/error'
 import { isQwenMTModel } from '@shared/utils/model'
 
 import { type StreamListener, WebContentsListener } from '../../ai/streamManager'
@@ -132,12 +134,13 @@ export class TranslateService {
     const wcListener = new WebContentsListener(sender, req.streamId)
     // User-created languages are user-defined, so only built-in codes are reported.
     const builtinTarget = BUILTIN_TRANSLATE_LANGUAGES.some((language) => language.langCode === req.targetLangCode)
-    const report = (status: 'success' | 'error') =>
+    const report = (status: 'success' | 'error', error?: SerializedError) =>
       trackMainProductEvent({
         event: 'feature_used',
         feature: 'translate',
         action: 'translated',
         status,
+        ...(error && { errorReason: toExecutionFailure(error, uniqueModelId).failure.reasonCode }),
         modelSource: analyticsModelSource(model.providerId),
         trigger: translateTrigger(senderType, req.fromMessage === true),
         ...(builtinTarget && { target: req.targetLangCode })
@@ -152,7 +155,7 @@ export class TranslateService {
         report(text?.trim() ? 'success' : 'error')
       },
       onPaused: () => {},
-      onError: () => report('error'),
+      onError: (result) => report('error', result.error),
       isAlive: () => wcListener.isAlive()
     }
 

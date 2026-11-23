@@ -1769,11 +1769,13 @@ describe('AiService', () => {
       expect(trackedEvents().map((event) => event.target)).toEqual(['silicon', undefined])
     })
 
-    it('reports a failed generation as an error and still rejects', async () => {
+    it('reports a failed generation with its classified reason and still rejects', async () => {
       const service = createService()
-      vi.spyOn(service, 'generateImage').mockRejectedValue(new Error('provider down'))
+      vi.spyOn(service, 'generateImage').mockRejectedValue(
+        Object.assign(new Error('rate limited for key sk-9'), { statusCode: 429 })
+      )
 
-      await expect(service.runImageRequest('request-2', imagePayload)).rejects.toThrow('provider down')
+      await expect(service.runImageRequest('request-2', imagePayload)).rejects.toThrow('rate limited')
 
       expect(trackedEvents()).toEqual([
         {
@@ -1781,6 +1783,7 @@ describe('AiService', () => {
           feature: 'paintings',
           action: 'image_generated',
           status: 'error',
+          errorReason: 'rate_limit',
           modelSource: 'cherry_free'
         }
       ])

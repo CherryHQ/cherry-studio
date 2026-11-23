@@ -1085,6 +1085,25 @@ describe('message action analytics', () => {
     expect(reportedActions()).toEqual(['export.markdown'])
   })
 
+  it('tells an Agent session message action apart from a chat one', async () => {
+    const regenerateMessage = vi.fn()
+    const surfaces = () =>
+      request.mock.calls.flatMap(([route, event]) => {
+        const tracked = event as RendererAnalyticsEvent
+        return route === 'analytics.track' && tracked.event === 'message_action_used' ? [tracked.surface] : []
+      })
+    const chat = createActionContext({ actions: { regenerateMessage } })
+    const agent = createActionContext({
+      actions: { regenerateMessage },
+      message: { ...chat.message, topicId: 'agent-session:s1' }
+    })
+
+    await executeMessageMenuBarAction('assistant-regenerate', chat)
+    await executeMessageMenuBarAction('assistant-regenerate', agent)
+
+    expect(surfaces()).toEqual(['chat', 'agent'])
+  })
+
   it('reports stopping a translation apart from picking a language', async () => {
     await executeMessageMenuBarAction(
       'translate',

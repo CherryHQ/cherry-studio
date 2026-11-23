@@ -44,6 +44,8 @@ export interface ErrorToastContext {
   retryAfterSeconds?: number
   actions?: Partial<Record<ErrorToastAction, () => void | boolean | Promise<void | boolean>>>
   isCurrent?: () => boolean
+  /** Called when the user takes the toast's recovery action. */
+  onAction?: (action: ErrorToastAction, category: ErrorCategory) => void
 }
 
 function errorFromException(error: unknown, context: ErrorToastContext = {}): string {
@@ -67,7 +69,9 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       : undefined,
     ...context.actions
   }
-  const actionKind = presentation.action
+  // Billing without a billing page falls back to the provider settings, and is named for what it opens.
+  const actionKind =
+    presentation.action === 'billing' && !billing && !context.actions?.billing ? 'configure' : presentation.action
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
@@ -93,13 +97,11 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     action:
       run && actionKind
         ? {
-            label:
-              actionKind === 'billing' && !billing && !context.actions?.billing
-                ? i18n.t('toast.error.configure')
-                : i18n.t(actionLabelKey),
+            label: i18n.t(actionLabelKey),
             onClick: async () => {
               if (running || context.isCurrent?.() === false) return
               running = true
+              context.onAction?.(actionKind, category)
               const tracksCompletion = actionKind === 'retry' || actionKind === 'trimContext'
               if (tracksCompletion) notifications.loading({ key })
               const pending = notifications.getToastQueue().toasts.find((item) => item.key === key)

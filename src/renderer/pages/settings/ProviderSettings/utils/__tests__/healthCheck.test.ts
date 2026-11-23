@@ -9,6 +9,8 @@ import {
   checkModelWithMultipleKeys,
   getModelCheckCredentialPolicy,
   getModelHealthCheckSkipReason,
+  ModelCheckCredentialsError,
+  modelCheckErrorCategory,
   resolveModelCheckCredentials
 } from '../../utils/healthCheck'
 
@@ -177,5 +179,14 @@ describe('getModelHealthCheckSkipReason', () => {
     expect(getModelHealthCheckSkipReason(createModel('chat', []))).toBeNull()
     expect(getModelHealthCheckSkipReason(createModel('embedding', [MODEL_CAPABILITY.EMBEDDING]))).toBeNull()
     expect(getModelHealthCheckSkipReason(createModel('rerank', [MODEL_CAPABILITY.RERANK]))).toBeNull()
+  })
+})
+
+describe('modelCheckErrorCategory', () => {
+  it('classifies a failed check by category, treating missing credentials as auth', () => {
+    expect(modelCheckErrorCategory(new ModelCheckCredentialsError('api_key_required'), 'openai')).toBe('auth')
+    expect(modelCheckErrorCategory(Object.assign(new Error('Too many requests'), { statusCode: 429 }), 'openai')).toBe(
+      'rate_limit'
+    )
   })
 })
