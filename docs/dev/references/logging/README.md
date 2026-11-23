@@ -250,7 +250,10 @@ const logger = loggerService.withContext('moduleName', CONTEXT)
 In your code, you can call `logger` at any time to record logs. The supported levels are: `error`, `warn`, `info`, `verbose`, `debug`, and `silly`.
 For the meaning of each level, please refer to the subsequent sections.
 
-Logging methods take a string message followed by optional `Error` and/or object context values (using `logger.LEVEL` as an example):
+Logging methods take a string message followed by optional values. Main-process
+`error` and `warn` accept arbitrary thrown values directly; native `Error` instances
+retain their identity for report deduplication. Renderer logging and the other
+levels accept `Error` or object context values (using `logger.LEVEL` as an example):
 
 ```typescript
 logger.LEVEL(message)
@@ -264,7 +267,7 @@ logger.LEVEL(message, CONTEXT, MORE_CONTEXT)
 | --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `message` | `string` | Required. This is the core field of the log, containing the main content to be recorded.                                                                                                                                                                                                                                      |
 | `CONTEXT` | `object` | Optional. Additional information to be recorded in the log file. It is recommended to use the `{ key: value, ...}` format.                                                                                                                                                                                                    |
-| `error`   | `Error`  | Optional. The error stack trace will also be printed.<br />Note that the `error` caught by `catch(error)` is of the `unknown` type. According to TypeScript best practices, you should first use `instanceof` for type checking. If you are certain it is an `Error` type, you can also use a type assertion like `as Error`. |
+| `error`   | `Error` or main-process `unknown` | Optional. Main-process `error`/`warn` accept the original caught value. Renderer callers narrow untyped values to an `Error` or object context before logging. Native error stack traces use the existing bounded error projection. |
 
 Inside structured context written to JSON file logs, `undefined` and non-finite
 numbers become `null`; `bigint`, function, and symbol values become `<redacted>`.
