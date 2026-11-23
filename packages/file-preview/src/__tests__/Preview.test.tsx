@@ -441,6 +441,20 @@ describe('preview sessions', () => {
     expect(screen.queryByRole('link', { name: 'Details' })).not.toBeInTheDocument()
   })
 
+  // A size limit is preview policy, so a host's fault-detail entry must not appear for it.
+  it('withholds the host error detail when the source rejects as too large', async () => {
+    render(
+      <Preview
+        source={source('huge', async () => {
+          throw new PreviewError('too_large', 'Source exceeds the host limit')
+        })}
+        errorDetail={<a href="#detail">Details</a>}
+      />
+    )
+    await screen.findByRole('heading', { name: 'Preview failed' })
+    expect(screen.queryByRole('link', { name: 'Details' })).not.toBeInTheDocument()
+  })
+
   it('contains render failures, closes the document and reports one diagnostic and error', async () => {
     const opened = document()
     const onError = vi.fn()
