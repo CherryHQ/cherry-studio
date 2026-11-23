@@ -61,7 +61,7 @@ import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
-import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import {
@@ -75,6 +75,7 @@ import {
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
@@ -190,6 +191,7 @@ export interface BeginAgentSessionTurnInput {
   assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
   headless?: boolean
+  permissionModeOverride?: AgentPermissionMode
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
@@ -255,6 +257,7 @@ type AgentSessionTurn = {
   parentId?: string
   origin?: AutonomousTurnOrigin
   headless?: boolean
+  permissionModeOverride?: AgentPermissionMode
   trustedNotifyChannels?: readonly NotifyChannel[]
   /** A background run continued this reply after its input ended; Stop then ends that run, not the input. */
   continuedInBackground?: boolean
@@ -270,6 +273,7 @@ type PendingAgentSessionTurn = {
   steer?: boolean
   /** The follow-up must open a responder-less/headless turn. */
   headless?: boolean
+  permissionModeOverride?: AgentPermissionMode
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   /** Submit-time author snapshot so a mid-session agent/model change can't restamp the reply. */
@@ -283,6 +287,7 @@ type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
   fastMode: boolean
   /** The target turn's dispatch mode: headless turns resolve against the agent default. */
   headless?: boolean
+  permissionModeOverride?: AgentPermissionMode
 }
 
 type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessionTurn>
@@ -858,6 +863,7 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
       headless: input.headless === true,
+      permissionModeOverride: input.permissionModeOverride,
       trustedNotifyChannels: input.trustedNotifyChannels
     })
     const { turnId } = turn
@@ -1317,6 +1323,7 @@ export class AgentSessionRuntimeService extends BaseService {
     message: AgentSessionMessageEntity,
     opts: {
       headless?: boolean
+      permissionModeOverride?: AgentPermissionMode
       trustedNotifyChannels?: readonly NotifyChannel[]
       messageSnapshot?: MessageSnapshot
       reasoningEffort?: ReasoningEffortOption
@@ -1404,6 +1411,7 @@ export class AgentSessionRuntimeService extends BaseService {
         fastMode,
         steer: true,
         ...(headless ? { headless } : {}),
+        ...(opts.permissionModeOverride ? { permissionModeOverride: opts.permissionModeOverride } : {}),
         ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
       }
@@ -2007,6 +2015,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if (pending.presentation === 'application') return { ok: false, reason: 'rejected' }
+    const prepared = prepareAgentConfigApproval(approvalId, decision)
+    const guardedDecision = prepared.decision
 
     if (pending.presentation === 'message') {
       if (!anchorId) {
@@ -2015,9 +2025,9 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
         approvalId,
-        approved: decision.approved,
-        ...(decision.reason !== undefined && { reason: decision.reason }),
-        ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
+        approved: guardedDecision.approved,
+        ...(guardedDecision.reason !== undefined && { reason: guardedDecision.reason }),
+        ...(guardedDecision.updatedInput !== undefined && { updatedInput: guardedDecision.updatedInput })
       })
       if (!applied) {
         logger.warn('Persisted tool approval response did not match a pending card', {
@@ -2030,10 +2040,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
     // A refusal that arrived here is the user's own answer, so drivers may attribute it to them.
     // Registry/abort denials reach dispatch() directly and stay unmarked.
-    const dispatched = toolApprovalRegistry.dispatch(
-      approvalId,
-      decision.approved ? decision : { ...decision, reasonSource: 'user' }
-    )
+    const executionInput = prepared.executionInput?.()
+    const dispatched = toolApprovalRegistry.dispatch(approvalId, {
+      ...guardedDecision,
+      ...(executionInput && { updatedInput: executionInput }),
+      ...(!decision.approved && { reasonSource: 'user' as const })
+    })
     if (!dispatched) return { ok: false, reason: 'rejected' }
 
     if (dispatched.presentation === 'stream') {
@@ -2042,14 +2054,18 @@ export class AgentSessionRuntimeService extends BaseService {
         getAgentSessionRuntimeNativeTurn(entry.runtimeState)?.projection?.resolveToolApproval(
           dispatched.toolCallId,
           approvalId,
-          decision.approved
+          guardedDecision.approved
         )
       }
       application
         .get('AiStreamManager')
-        .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId, decision.approved)
+        .resolveToolApproval(
+          buildAgentSessionTopicId(dispatched.sessionId),
+          dispatched.toolCallId,
+          guardedDecision.approved
+        )
     }
-    return { ok: true }
+    return { ok: true, ...(decision.approved && !guardedDecision.approved && { approved: false }) }
   }
 
   /**
@@ -2227,6 +2243,7 @@ export class AgentSessionRuntimeService extends BaseService {
           knowledgeBaseIds: turn.knowledgeBaseIds,
           fastMode: turn.fastMode,
           headless: turn.headless === true,
+          ...(turn.permissionModeOverride ? { permissionModeOverride: turn.permissionModeOverride } : {}),
           trustedNotifyChannels: turn.trustedNotifyChannels
         }
       : {
@@ -2249,6 +2266,7 @@ export class AgentSessionRuntimeService extends BaseService {
       current.serviceTier === target.serviceTier &&
       current.fastMode === target.fastMode &&
       (current.headless === true) === (target.headless === true) &&
+      current.permissionModeOverride === target.permissionModeOverride &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, current.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, target.knowledgeBaseIds)
@@ -2407,6 +2425,7 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
       headless: target.headless,
+      ...(target.permissionModeOverride ? { permissionModeOverride: target.permissionModeOverride } : {}),
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
@@ -3629,6 +3648,7 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: pending.knowledgeBaseIds,
       fastMode: pending.fastMode,
       headless: pending.headless,
+      permissionModeOverride: pending.permissionModeOverride,
       trustedNotifyChannels: pending.trustedNotifyChannels
     })
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })

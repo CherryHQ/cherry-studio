@@ -29,6 +29,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
+import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
@@ -236,6 +237,7 @@ function AssistantEditDialogContent({
   const { t } = useTranslation()
   const [page, setPage] = useState<EditPage>(() => resolveInitialEditPage('assistant', initialTab, ASSISTANT_SUB_PAGES))
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
@@ -270,6 +272,7 @@ function AssistantEditDialogContent({
     setFormBaseline(formBaselineRef.current)
     form.clearErrors()
     setPage(resolveInitialEditPage('assistant', initialTab, ASSISTANT_SUB_PAGES))
+    setConfirmDiscard(false)
     setCreateGroupDialogOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
     // A fresh open is a fresh editing session — a stale failure from a prior
@@ -340,16 +343,19 @@ function AssistantEditDialogContent({
 
     const currentValues = form.getValues()
     const pending = getCurrentSaveIntent()
-    if (!pending || (!currentValues.name.trim() && allowDiscard)) {
+    if (!pending) {
       onOpenChange(false)
       return true
     }
-    if (!currentValues.name.trim()) return false
+    if (!currentValues.name.trim()) {
+      if (allowDiscard) setConfirmDiscard(true)
+      return false
+    }
     if (failedSaveKeyRef.current === JSON.stringify(currentValues)) {
       toast.error(saveFailedMessage)
       if (!allowDiscard || pendingSave) return false
-      onOpenChange(false)
-      return true
+      setConfirmDiscard(true)
+      return false
     }
     await flush()
     if (
@@ -410,6 +416,7 @@ function AssistantEditDialogContent({
       form={form}
       open={open}
       onOpenChange={handleOpenChange}
+      guardDismiss={Boolean(saveIntent)}
       page={page}
       title={pageTitles[page]}
       onBack={page === 'settings' ? undefined : () => setPage('settings')}
@@ -513,6 +520,9 @@ function AssistantEditDialogContent({
         onCreate={handleCreateGroup}
         onOpenChange={setCreateGroupDialogOpen}
       />
+      {confirmDiscard && (
+        <DiscardChangesDialog onCancel={() => setConfirmDiscard(false)} onDiscard={() => onOpenChange(false)} />
+      )}
     </EditDialogPageShell>
   )
 }

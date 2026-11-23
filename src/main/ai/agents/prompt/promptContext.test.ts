@@ -19,7 +19,7 @@ import { lstat, open, readdir, realpath } from 'node:fs/promises'
 
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
-import { PromptBuilder } from '../prompt'
+import { PromptBuilder } from './promptContext'
 
 const mockedLstat = vi.mocked(lstat)
 const mockedOpen = vi.mocked(open)

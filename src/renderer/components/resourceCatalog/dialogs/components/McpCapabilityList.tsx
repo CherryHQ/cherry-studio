@@ -32,12 +32,14 @@ const serverIcon = (
 export function McpCapabilityList({
   selectedIds,
   onSelectedIdsChange,
+  onFeaturedInstall,
   emptyLabel,
   portalContainer,
   disabled = false
 }: {
   selectedIds: readonly string[]
   onSelectedIdsChange: (ids: string[]) => void
+  onFeaturedInstall?: (install: Promise<McpServer>) => Promise<void>
   emptyLabel: ReactNode
   portalContainer: HTMLElement | null
   disabled?: boolean
@@ -62,8 +64,12 @@ export function McpCapabilityList({
 
   const install = async (preset: McpServerPreset) => {
     try {
-      const server = await catalog.installFeatured(preset)
-      bind([server.id])
+      const install = catalog.installFeatured(preset)
+      if (onFeaturedInstall) {
+        await onFeaturedInstall(install)
+      } else {
+        bind([(await install).id])
+      }
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('settings.mcp.addError')))
     }

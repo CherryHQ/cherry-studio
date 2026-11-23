@@ -15,7 +15,13 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type {
+  CreateMcpServerDto,
+  InstallMcpServerPresetDto,
+  ListMcpServersQuery,
+  UpdateMcpServerDto
+} from '@shared/data/api/schemas/mcpServers'
+import { FEATURED_MCP_PRESETS, PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -146,6 +152,39 @@ export class McpServerService {
 
     logger.info('Created MCP server', { id: row.id, name: row.name })
 
+    return rowToMcpServer(row)
+  }
+
+  installPreset({ name, activate }: InstallMcpServerPresetDto): McpServer {
+    const preset = PRESET_MCP_SERVERS.find((item) => item.name === name)
+    if (!preset) throw DataApiErrorFactory.notFound('McpServerPreset', name)
+    if (activate && !FEATURED_MCP_PRESETS.includes(preset)) {
+      throw DataApiErrorFactory.invalidOperation('Install MCP server preset', 'The preset requires manual setup')
+    }
+
+    const row = application.get('DbService').withWriteTx((tx) => {
+      const existing = tx
+        .select()
+        .from(mcpServerTable)
+        .where(and(eq(mcpServerTable.name, preset.name), eq(mcpServerTable.installSource, 'builtin')))
+        .orderBy(asc(mcpServerTable.createdAt), asc(mcpServerTable.id))
+        .get()
+      if (existing) {
+        if (!activate || existing.isActive) return existing
+        return tx
+          .update(mcpServerTable)
+          .set({ isActive: true })
+          .where(eq(mcpServerTable.id, existing.id))
+          .returning()
+          .all()[0]
+      }
+
+      return tx
+        .insert(mcpServerTable)
+        .values({ ...preset, isActive: activate || preset.isActive })
+        .returning()
+        .all()[0]
+    })
     return rowToMcpServer(row)
   }
 

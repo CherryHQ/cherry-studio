@@ -1,6 +1,8 @@
 import { seedSessionRoot, setupTestDatabase, withRoot } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -10,7 +12,10 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { artifactService } from '@data/services/ArtifactService'
+import { backfillPastOutputs } from '@main/ai/agents/ArtifactBackfillService'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 const NOW = Date.UTC(2026, 10, 13, 12)
@@ -18,7 +23,6 @@ const DAY = 24 * 60 * 60 * 1000
 
 describe('ArtifactService', () => {
   const dbh = setupTestDatabase()
-  const backfill = () => artifactService.backfillPastOutputsTx(dbh.db)
 
   afterEach(() => {
     vi.restoreAllMocks()
@@ -59,6 +63,7 @@ describe('ArtifactService', () => {
         '/ws/voice.mp3',
         '/ws/clip.mp4',
         '/ws/data.csv',
+        '/ws/nested/.PNG',
         '/ws/README'
       ])
 
@@ -72,6 +77,7 @@ describe('ArtifactService', () => {
         'voice.mp3': 'media',
         'clip.mp4': 'media',
         'data.csv': 'file',
+        '.PNG': 'file',
         README: 'file'
       })
     })
@@ -127,6 +133,37 @@ describe('ArtifactService', () => {
       expect(artifactService.list({ agentId: 'reviewer' }).counts.all).toBe(2)
     })
 
+    it('retains current and legacy output identities when the system workspace moves', () => {
+      seed()
+      dbh.db.update(agentWorkspaceTable).set({ type: 'system' }).where(eq(agentWorkspaceTable.id, 'ws')).run()
+      recordAt(NOW, 'reviewer', 's-1', ['/ws/current.md', '/ws/legacy.md'])
+      dbh.db.update(artifactTable).set({ path: '/ws/legacy.md' }).where(eq(artifactTable.path, 'legacy.md')).run()
+      const before = artifactService.list({ agentId: 'reviewer' }).items
+
+      application.get('DbService').withWriteTx((tx) => {
+        agentWorkspaceService.relocateSystemWorkspaceTx(tx, 'ws', '/ws', '/ws-moved')
+      })
+
+      expect(artifactService.list({ agentId: 'reviewer' }).items).toEqual(
+        before.map((item) => ({ ...item, path: item.path?.replace('/ws/', '/ws-moved/') }))
+      )
+    })
+
+    it('moves output ownership with the session and refreshes the same output after another report', () => {
+      seed()
+      recordAt(NOW, 'reviewer', 's-1', ['/ws/report.md'])
+      const originalId = artifactService.list({ agentId: 'reviewer' }).items[0].id
+
+      agentSessionService.update('s-1', { agentId: 'writer' })
+      expect(artifactService.list({ agentId: 'reviewer' }).items).toEqual([])
+      expect(artifactService.list({ agentId: 'writer' }).items).toEqual([expect.objectContaining({ id: originalId })])
+
+      recordAt(NOW + DAY, 'writer', 's-1', ['/ws/report.md'])
+      expect(artifactService.list({ agentId: 'writer' }).items).toEqual([
+        expect.objectContaining({ id: originalId, reportedAt: new Date(NOW + DAY).toISOString() })
+      ])
+    })
+
     it('rejects an output of a session that does not exist', () => {
       seed()
       expect(() => recordAt(NOW, 'reviewer', 'missing', ['/ws/a.pdf'])).toThrow()
@@ -160,7 +197,7 @@ describe('ArtifactService', () => {
           .run()
       }
 
-      it("lists the deliverables reported in every past session, in each transport's tool shape", () => {
+      it("lists the deliverables reported in every past session, in each transport's tool shape", async () => {
         seed()
         message('s-1', NOW - 10 * DAY, [
           { type: 'text', text: 'Here is the report' },
@@ -177,7 +214,7 @@ describe('ArtifactService', () => {
         ])
         message('s-other', NOW, [report('mcp__cherry-tools__report_artifacts', [{ path: '/ws/foreign.pdf' }])])
 
-        backfill()
+        await backfillPastOutputs()
 
         const list = artifactService.list({ agentId: 'reviewer' })
         expect(
@@ -208,14 +245,14 @@ describe('ArtifactService', () => {
         expect(artifactService.list({ agentId: 'writer' }).items.map((item) => item.path)).toEqual(['/ws/foreign.pdf'])
       })
 
-      it('keeps one row per session and path, with its newest report', () => {
+      it('keeps one row per session and path, with its newest report', async () => {
         seed()
         message('s-1', NOW - 2 * DAY, [report('report_artifacts', [{ path: '/ws/a.md', description: 'Draft' }])])
         message('s-1', NOW - DAY, [report('report_artifacts', [{ path: '/ws/a.md', description: 'Final' }])])
         message('s-1', NOW - 3 * DAY, [report('report_artifacts', [{ path: '/ws/live.md', description: 'Old' }])])
         recordAt(NOW, 'reviewer', 's-1', ['/ws/live.md'])
 
-        backfill()
+        await backfillPastOutputs()
 
         const items = artifactService.list({ agentId: 'reviewer' }).items
         expect(items.map(({ path, title, reportedAt }) => ({ path, title, reportedAt }))).toEqual([
@@ -224,17 +261,17 @@ describe('ArtifactService', () => {
         ])
       })
 
-      it('adds nothing when the same reports are indexed again', () => {
+      it('adds nothing when the same reports are indexed again', async () => {
         seed()
         message('s-1', NOW, [report('report_artifacts', [{ path: '/ws/a.md' }, { path: '/ws/b.png' }])])
 
-        backfill()
-        backfill()
+        await backfillPastOutputs()
+        await backfillPastOutputs()
 
         expect(dbh.db.select().from(artifactTable).all()).toHaveLength(2)
       })
 
-      it('skips deleted sessions and malformed or unfinished calls', () => {
+      it('shows past outputs after restoring a session and skips malformed or unfinished calls', async () => {
         seed()
         message('s-deleted', NOW, [report('report_artifacts', [{ path: '/ws/trashed.md' }])])
         message('s-1', NOW, [
@@ -252,9 +289,45 @@ describe('ArtifactService', () => {
           report('report_artifacts', [{ path: '/ws/kept.md' }])
         ])
 
-        backfill()
+        await backfillPastOutputs()
 
-        expect(dbh.db.select({ path: artifactTable.path }).from(artifactTable).all()).toEqual([{ path: '/ws/kept.md' }])
+        expect(artifactService.list({ agentId: 'reviewer' }).items.map((row) => row.path)).toEqual(['/ws/kept.md'])
+        agentSessionService.restore('s-deleted')
+        expect(artifactService.list({ agentId: 'reviewer' }).items.map((row) => row.path)).toContain('/ws/trashed.md')
+      })
+
+      it('recovers historical absolute paths after their workspace has moved', async () => {
+        seed()
+        dbh.db.update(agentWorkspaceTable).set({ type: 'system' }).where(eq(agentWorkspaceTable.id, 'ws')).run()
+        message('s-1', NOW, [report('report_artifacts', [{ path: '/ws/summary.md' }])])
+        application.get('DbService').withWriteTx((tx) => {
+          agentWorkspaceService.relocateSystemWorkspaceTx(tx, 'ws', '/ws', '/ws-moved')
+        })
+
+        await backfillPastOutputs()
+
+        expect(artifactService.list({ agentId: 'reviewer' }).items.map((row) => row.path)).toEqual([
+          '/ws-moved/summary.md'
+        ])
+      })
+
+      it('rolls back indexed rows when the completion marker cannot be written, then retries', async () => {
+        seed()
+        message('s-1', NOW, [report('report_artifacts', [{ path: 'a.md' }])])
+        dbh.sqlite.exec(`
+          CREATE TRIGGER fail_artifact_marker BEFORE INSERT ON app_state
+          WHEN NEW.key = 'artifact:past-outputs:v2'
+          BEGIN SELECT RAISE(ABORT, 'marker unavailable'); END;
+        `)
+
+        await expect(backfillPastOutputs()).rejects.toThrow('marker unavailable')
+        expect(artifactService.list({ agentId: 'reviewer' }).items).toEqual([])
+        expect(artifactService.hasBackfilledPastOutputs()).toBe(false)
+
+        dbh.sqlite.exec('DROP TRIGGER fail_artifact_marker')
+        await backfillPastOutputs()
+        expect(artifactService.list({ agentId: 'reviewer' }).items.map((row) => row.path)).toEqual(['/ws/a.md'])
+        expect(artifactService.hasBackfilledPastOutputs()).toBe(true)
       })
     })
   })
@@ -331,7 +404,7 @@ describe('ArtifactService', () => {
       expect(artifactService.list({ assistantId: 'writer' }).items.map((item) => item.fileEntryId)).toEqual([IMAGE_2])
     })
 
-    it('lists the images generated in past topics, once, at the time of their message', () => {
+    it('lists the images generated in past topics, once, at the time of their message', async () => {
       seed()
       const generated = (output: unknown, state = 'output-available') => ({
         type: 'dynamic-tool',
@@ -378,8 +451,8 @@ describe('ArtifactService', () => {
       artifactService.recordTopicFiles('t-1', [IMAGE_2])
       vi.restoreAllMocks()
 
-      backfill()
-      backfill()
+      await backfillPastOutputs()
+      await backfillPastOutputs()
 
       expect(
         artifactService
@@ -389,7 +462,13 @@ describe('ArtifactService', () => {
         { fileEntryId: IMAGE_2, reportedAt: new Date(NOW + DAY).toISOString() },
         { fileEntryId: IMAGE_1, reportedAt: new Date(NOW - DAY).toISOString() }
       ])
-      expect(dbh.db.select().from(artifactTable).all()).toHaveLength(2)
+      expect(artifactService.list({ assistantId: 'writer' }).items.some((row) => row.sourceId === 't-deleted')).toBe(
+        false
+      )
+      dbh.db.update(topicTable).set({ deletedAt: null }).where(eq(topicTable.id, 't-deleted')).run()
+      expect(artifactService.list({ assistantId: 'writer' }).items.some((row) => row.sourceId === 't-deleted')).toBe(
+        true
+      )
     })
   })
 })

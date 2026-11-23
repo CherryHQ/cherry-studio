@@ -3,7 +3,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
+import {
+  createModels,
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+  getSystemMessageText
+} from '@earendil-works/pi-ai'
 import { Harness } from '@earendil-works/pi-durable'
 import { MemoryStorage } from '@earendil-works/pi-durable/storage/memory'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -99,10 +105,13 @@ describe('Pi Durable desktop tools of a user Agent', () => {
     })
     const desktop = await prepareDurableDesktop({ sessionId: session.id, agentId: agent.id, modelId: MODEL }, () => {})
     const fake = fauxProvider({ tokensPerSecond: 100_000 })
+    let systemPrompt = ''
     // The model follows only what its system prompt says: the `await tools.<name>(` calls it names.
     fake.setResponses([
       (context) => {
-        const prompt = JSON.stringify(context.messages.filter((message) => message.role === 'system'))
+        const messages = context.messages.filter((message) => message.role === 'system')
+        systemPrompt = messages.map(getSystemMessageText).join('\n')
+        const prompt = JSON.stringify(messages)
         const named = [...prompt.matchAll(/await tools\.(mcp__\w+)\(/g)].map((match) => match[1])
         const find = (suffix: string) => named.find((name) => name.endsWith(suffix))
         const create = find('__assistant_create')
@@ -134,6 +143,7 @@ describe('Pi Durable desktop tools of a user Agent', () => {
       )
       native.resume()
       await submission.wait(BACKGROUND_CONTEXT)
+      expect(systemPrompt).toContain(`<cwd>\n${workspace.path.replaceAll('\\', '/')}\n</cwd>`)
 
       const entries = await conversation.entries({ order: 'ascending' }, 100, undefined, BACKGROUND_CONTEXT)
       const result = entries.items

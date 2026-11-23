@@ -8,7 +8,7 @@ import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkServ
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
-import { previewAgentConfigChange, refuseOutdatedAgentConfigApproval } from '@main/ai/agents/agentConfigTool'
+import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { createAgent } from '@main/ai/agents/createAgent'
@@ -216,9 +216,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   // The continuation dispatch streams to the caller window, so it needs that window's WebContents.
   'ai.tool.respond_approval': (payload, { senderId }) =>
-    application
-      .get('AiService')
-      .respondToolApproval(refuseOutdatedAgentConfigApproval(payload), senderWebContents(senderId)),
+    application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,

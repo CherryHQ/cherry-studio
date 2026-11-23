@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { toAgentChannelDraft } from '@renderer/components/channel/channelDraft'
+import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -26,6 +27,7 @@ import {
 } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DEFAULT_ASSISTANT_CREATE_AVATAR } from '@shared/ai/assistantCreateDto'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import {
@@ -104,6 +106,7 @@ function getDefaultValues(
     channels: [],
     languageMode: 'inherit',
     languageCustom: '',
+    claudeCodeNativePromptEnabled: true,
     heartbeatEnabled: DEFAULT_HEARTBEAT_ENABLED,
     heartbeatInterval: DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
     heartbeatTimeoutMinutes: DEFAULT_HEARTBEAT_TIMEOUT_MINUTES,
@@ -198,6 +201,7 @@ function WizardFooter({
   isLast,
   isSubmitting,
   imagePending,
+  mcpInstallPending,
   onCancel,
   onBack,
   onNext,
@@ -209,6 +213,7 @@ function WizardFooter({
   isLast: boolean
   isSubmitting: boolean
   imagePending: boolean
+  mcpInstallPending: boolean
   onCancel: () => void
   onBack: () => void
   onNext: () => void
@@ -230,7 +235,11 @@ function WizardFooter({
         {t('common.cancel')}
       </Button>
       {stepIndex > 0 ? (
-        <Button type="button" variant="outline" disabled={submitting || imagePending} onClick={onBack}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={submitting || imagePending || mcpInstallPending}
+          onClick={onBack}>
           {t('library.config.dialogs.create.back')}
         </Button>
       ) : null}
@@ -238,12 +247,15 @@ function WizardFooter({
         <Button
           type="button"
           loading={submitting}
-          disabled={!basicValid || !channelsValid || imagePending}
+          disabled={!basicValid || !channelsValid || imagePending || mcpInstallPending}
           onClick={onCreate}>
           {t('library.config.dialogs.create.submit')}
         </Button>
       ) : (
-        <Button type="button" disabled={!canProceed || submitting || imagePending} onClick={onNext}>
+        <Button
+          type="button"
+          disabled={!canProceed || submitting || imagePending || mcpInstallPending}
+          onClick={onNext}>
           {t('library.config.dialogs.create.next')}
         </Button>
       )}
@@ -306,7 +318,10 @@ export function ResourceCreateWizard({
   const [stepIndex, setStepIndex] = useState(0)
   const [imagePending, setImagePending] = useState(false)
   const submitPendingRef = useRef(false)
+  const mcpInstallDraft = useRef({ pending: 0 })
+  const [mcpInstallPending, setMcpInstallPending] = useState(false)
   const [view, setView] = useState<WizardView>(() => getInitialView(initialValues))
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [created, setCreated] = useState<CreatedResource | null>(null)
   const [editTarget, setEditTarget] = useState<ResourceEditDialogTarget | null>(null)
   const autoAbortRef = useRef<AbortController | null>(null)
@@ -318,10 +333,16 @@ export function ResourceCreateWizard({
   // Combine the parent's async-submit flag with RHF's own isSubmitting so close
   // protection (overlay / Esc / X / knowledge-page navigation) stays locked for the
   // entire submit, not just the window after the parent renders its loading state —
-  // otherwise a failure would write its error into an already-closed form. Subscribing
-  // to isSubmitting (not form values) keeps the shell off the field-edit re-render path.
-  const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
+  // otherwise a failure would write its error into an already-closed form.
+  const { isSubmitting: isFormSubmitting, isDirty } = useFormState({ control: form.control })
   const submitting = isSubmitting || isFormSubmitting
+  const hasDraft =
+    view !== 'result' && (isDirty || !!initialValues || view === 'working' || mcpInstallPending || imagePending)
+  const requestClose = () => {
+    if (submitPendingRef.current || submitting) return
+    if (hasDraft) setConfirmDiscard(true)
+    else onOpenChange(false)
+  }
 
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
@@ -357,9 +378,11 @@ export function ResourceCreateWizard({
     autoSelectedDefaultModelIdRef.current = null
     form.reset(getDefaultValues(kind, initialName, initialValues))
     form.clearErrors()
+    setMcpInstallPending(false)
     setStepIndex(0)
     setView(getInitialView(initialValues))
     setCreated(null)
+    setConfirmDiscard(false)
   })
 
   /** Last `(kind, open)` pair this wizard already initialised for. <Activity> destroys the
@@ -373,6 +396,7 @@ export function ResourceCreateWizard({
     if (previous?.kind === kind && previous.open === open) return
 
     lastHandledResetKeyRef.current = { kind, open }
+    mcpInstallDraft.current = { pending: 0 }
     if (!open) return
 
     resetForOpen()
@@ -412,7 +436,24 @@ export function ResourceCreateWizard({
 
   const isLast = stepIndex === steps.length - 1
 
+  const installDraftMcp = async (install: Promise<McpServer>) => {
+    const draft = mcpInstallDraft.current
+    draft.pending++
+    setMcpInstallPending(true)
+    try {
+      const server = await install
+      if (draft === mcpInstallDraft.current) {
+        const ids = form.getValues('mcpServerIds')
+        if (!ids.includes(server.id)) form.setValue('mcpServerIds', [...ids, server.id], { shouldDirty: true })
+      }
+    } finally {
+      draft.pending--
+      if (draft === mcpInstallDraft.current) setMcpInstallPending(draft.pending > 0)
+    }
+  }
+
   const goNext = () => {
+    if (mcpInstallDraft.current.pending > 0) return
     if (stepIndex === 0) {
       const { name, modelId } = form.getValues()
       if (!(name.trim().length > 0 && modelId)) return
@@ -493,6 +534,9 @@ export function ResourceCreateWizard({
       agentSettings: {
         languageMode: values.languageMode,
         languageCustom: values.languageCustom,
+        ...(values.agentType === 'claude-code' && !values.claudeCodeNativePromptEnabled
+          ? { claudeCodeNativePromptEnabled: false }
+          : {}),
         heartbeatEnabled: values.heartbeatEnabled,
         heartbeatInterval: values.heartbeatInterval,
         heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
@@ -516,7 +560,7 @@ export function ResourceCreateWizard({
   }
   const submitForm = form.handleSubmit((values) => submitValues(values))
   const handleCreate = async () => {
-    if (submitPendingRef.current || submitting || imagePending) return
+    if (submitPendingRef.current || submitting || imagePending || mcpInstallDraft.current.pending > 0) return
     submitPendingRef.current = true
     try {
       await submitForm()
@@ -538,28 +582,42 @@ export function ResourceCreateWizard({
     form.clearErrors('root')
 
     const controller = new AbortController()
-    const timeout = AbortSignal.timeout(AUTO_CREATE_TIMEOUT_MS)
+    const timeout = new AbortController()
+    const timer = setTimeout(() => timeout.abort(), AUTO_CREATE_TIMEOUT_MS)
+    const signal = AbortSignal.any([controller.signal, timeout.signal])
+    const cancelled = new Promise<never>((_, reject) => {
+      signal.onabort = () => reject(signal.reason)
+    })
     autoAbortRef.current = controller
     setAutoProgress(null)
     setView('working')
     let draft: AutoConfigDraft | null
     try {
-      draft = await generate({
-        agentType: values.agentType,
-        purpose: values.description,
-        name: values.name,
-        signal: AbortSignal.any([controller.signal, timeout]),
-        onProgress: (progress) => {
-          if (!controller.signal.aborted) setAutoProgress(progress)
-        }
-      })
+      draft = await Promise.race([
+        cancelled,
+        generate({
+          agentType: values.agentType,
+          purpose: values.description,
+          name: values.name,
+          signal,
+          onProgress: (progress) => {
+            if (!signal.aborted && autoAbortRef.current === controller) setAutoProgress(progress)
+          }
+        })
+      ])
     } catch (error) {
-      if (!controller.signal.aborted) {
-        form.setError('root', { message: timeout.aborted ? t('error.request_timeout') : getErrorMessage(error) })
+      if (autoAbortRef.current === controller) {
+        if (!controller.signal.aborted) {
+          form.setError('root', {
+            message: timeout.signal.aborted ? t('error.request_timeout') : getErrorMessage(error)
+          })
+        }
+        setView('entry')
       }
-      setView('entry')
       return
     } finally {
+      clearTimeout(timer)
+      signal.onabort = null
       if (autoAbortRef.current === controller) autoAbortRef.current = null
     }
     // An abort (close or <Activity> hide) returns to the entry so a re-show is not stuck working.
@@ -573,22 +631,28 @@ export function ResourceCreateWizard({
     // leaves the entry (and the manual path) exactly as the user filled it in.
     const generated = draft
     let createdResource = false
-    await form.handleSubmit(async (current) => {
-      const merged = {
-        ...current,
-        ...applyAutoConfigDraft(current, generated, current.avatar !== form.formState.defaultValues?.avatar)
-      }
-      // Featured MCP servers install before the resource is created, so a failed install creates no resource;
-      // servers installed before the failure stay installed for reuse.
-      let mcpServerIds: string[]
-      try {
-        mcpServerIds = await installFeaturedMcpServers(merged.mcpServerIds)
-      } catch (error) {
-        form.setError('root', { message: formatErrorMessageWithPrefix(error, t('settings.mcp.addError')) })
-        return
-      }
-      createdResource = await submitValues({ ...merged, mcpServerIds }, true)
-    })()
+    setConfirmDiscard(false)
+    submitPendingRef.current = true
+    try {
+      await form.handleSubmit(async (current) => {
+        const merged = {
+          ...current,
+          ...applyAutoConfigDraft(current, generated, current.avatar !== form.formState.defaultValues?.avatar)
+        }
+        // Featured MCP servers install before the resource is created, so a failed install creates no resource;
+        // servers installed before the failure stay installed for reuse.
+        let mcpServerIds: string[]
+        try {
+          mcpServerIds = await installFeaturedMcpServers(merged.mcpServerIds)
+        } catch (error) {
+          form.setError('root', { message: formatErrorMessageWithPrefix(error, t('settings.mcp.addError')) })
+          return
+        }
+        createdResource = await submitValues({ ...merged, mcpServerIds }, true)
+      })()
+    } finally {
+      submitPendingRef.current = false
+    }
     if (!createdResource) setView('entry')
   }
 
@@ -618,10 +682,14 @@ export function ResourceCreateWizard({
       <Dialog
         key={dialogKey}
         open={open}
-        onOpenChange={(nextOpen) => !submitPendingRef.current && !submitting && onOpenChange(nextOpen)}>
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) onOpenChange(true)
+          else requestClose()
+        }}>
         <DialogContent
           ref={setDialogContentElement}
-          closeOnOverlayClick={!submitting}
+          guardDismiss={submitting || hasDraft}
+          closeOnOverlayClick={!submitting && !hasDraft}
           size="xl"
           className={cn(
             // Narrows with the window instead of filling a small one edge to edge.
@@ -629,7 +697,7 @@ export function ResourceCreateWizard({
             view === 'steps' && 'h-[min(600px,76vh)]',
             resourceDialogCloseButtonClassName
           )}
-          onPointerDownOutside={(event) => submitting && event.preventDefault()}>
+          onPointerDownOutside={(event) => (submitting || hasDraft) && event.preventDefault()}>
           {/* Header — title */}
           <div className={resourceDialogHeaderClassName}>
             <div className="min-w-0">
@@ -706,7 +774,7 @@ export function ResourceCreateWizard({
                               }
                               label={step.label}
                               active={active}
-                              disabled={!done || submitting || imagePending}
+                              disabled={!done || submitting || imagePending || mcpInstallPending}
                               onClick={() => done && setStepIndex(index)}
                               aria-current={active ? 'step' : undefined}
                               className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
@@ -743,7 +811,12 @@ export function ResourceCreateWizard({
                         <CapabilityStep form={form} portalContainer={dialogContentElement} />
                       ) : null}
                       {currentStep.id === 'mcp' ? (
-                        <McpStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
+                        <McpStep
+                          form={form}
+                          onFeaturedInstall={installDraftMcp}
+                          isSubmitting={submitting}
+                          portalContainer={dialogContentElement}
+                        />
                       ) : null}
                       {currentStep.id === 'channels' ? (
                         <ChannelsStep form={form} portalContainer={dialogContentElement} />
@@ -761,7 +834,8 @@ export function ResourceCreateWizard({
                     isLast={isLast}
                     isSubmitting={isSubmitting}
                     imagePending={imagePending}
-                    onCancel={() => !submitPendingRef.current && !submitting && onOpenChange(false)}
+                    mcpInstallPending={mcpInstallPending}
+                    onCancel={requestClose}
                     onBack={goBack}
                     onNext={goNext}
                     onCreate={() => void handleCreate()}
@@ -770,6 +844,17 @@ export function ResourceCreateWizard({
               )}
             </form>
           </Form>
+          {confirmDiscard && (
+            <DiscardChangesDialog
+              onCancel={() => setConfirmDiscard(false)}
+              onDiscard={() => {
+                setConfirmDiscard(false)
+                if (submitPendingRef.current || submitting) return
+                autoAbortRef.current?.abort()
+                onOpenChange(false)
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
       {/* Outside the Dialog so it outlives the wizard closing. */}

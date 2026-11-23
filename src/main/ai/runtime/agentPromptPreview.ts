@@ -3,11 +3,9 @@ import { mkdir, stat } from 'node:fs/promises'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { mcpServerService } from '@data/services/McpServerService'
 import { agentDataDirectoryPath } from '@main/ai/agents/agentDataDirectory'
 import { resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { loadBuiltinAgentDefinition } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
-import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
@@ -20,14 +18,21 @@ import type {
   AgentSystemPromptPreview
 } from '@shared/ipc/schemas/agent'
 
-import { loadPiSdk } from '../pi/piSdk'
-import { buildDurablePrompt } from './durablePrompt'
+import { buildClaudeAgentPrompt } from './claudeCode'
+import { buildPiAgentPrompt } from './pi/piPrompt'
+import { loadPiSdk } from './pi/piSdk'
+import { buildDurablePrompt } from './piDurable/durablePrompt'
 
 /** A new Agent has no ID yet; its data directory is shown with this placeholder. */
 const NEW_AGENT_ID = '{agent-id}'
 
-/** An existing Agent previews in its latest session's workspace; a new one in the system workspace root. */
-async function resolvePreviewWorkspace(agentId: string | undefined): Promise<string> {
+async function resolvePreviewWorkspace(agentId: string | undefined, sessionId: string | undefined): Promise<string> {
+  if (sessionId) {
+    const session = agentSessionService.getById(sessionId)
+    if (!agentId || session.agentId !== agentId) throw new Error('Session does not belong to the Agent')
+    return session.workspace.path
+  }
+
   const latest = agentId ? agentSessionService.getLatestActive({ agentId })?.workspace.path : undefined
   if (latest && (await stat(latest).catch(() => undefined))?.isDirectory()) return latest
   const root = application.getPath('feature.agents.system_workspaces')
@@ -35,18 +40,55 @@ async function resolvePreviewWorkspace(agentId: string | undefined): Promise<str
   return root
 }
 
-/** Assemble the Pi Durable system prompt for a draft as generated blocks, ignoring the Agent's overrides. */
-export async function previewDurableSystemPrompt(draft: AgentSystemPromptDraft): Promise<AgentSystemPromptPreview> {
+export async function previewAgentSystemPrompt(draft: AgentSystemPromptDraft): Promise<AgentSystemPromptPreview> {
   const stored = draft.agentId ? agentService.getAgent(draft.agentId) : null
   if (draft.agentId && !stored) throw new Error(`Agent not found: ${draft.agentId}`)
 
   const agent = {
-    type: 'pi-durable' as const,
+    type: stored?.type ?? draft.agentType ?? 'pi-durable',
+    disabledTools: draft.disabledTools,
+    knowledgeBaseIds: draft.knowledgeBaseIds,
     instructions: draft.instructions,
     modelName: stored?.modelName ?? null,
-    configuration: { ...stored?.configuration, language: draft.language, prompt_overrides: undefined }
+    configuration: {
+      ...stored?.configuration,
+      language: draft.language,
+      claude_code_native_prompt_enabled:
+        draft.claudeCodeNativePromptEnabled ?? stored?.configuration?.claude_code_native_prompt_enabled,
+      prompt_overrides: undefined
+    }
   }
-  const cwd = await resolvePreviewWorkspace(stored?.id)
+  const cwd = await resolvePreviewWorkspace(stored?.id, draft.sessionId)
+  const agentDataPath = agentDataDirectoryPath(application.getPath('feature.agents.data'), stored?.id ?? NEW_AGENT_ID)
+  const builtinRole = stored?.configuration?.builtin_role
+  const builtinInstructions = builtinRole ? loadBuiltinAgentDefinition(builtinRole)?.instructions : undefined
+  const options = {
+    agent,
+    agentDataPath,
+    effectiveLanguage: getEffectiveAgentLanguage(agent),
+    instructionsSlot: AGENT_INSTRUCTIONS_SLOT
+  }
+  if (agent.type === 'claude-code') {
+    const { blocks } = await buildClaudeAgentPrompt({ ...options, cwd })
+    return {
+      blocks: blocks.some((block) => block.key === 'cwd')
+        ? blocks
+        : [{ key: 'cwd', kind: 'live', text: cwd }, ...blocks],
+      builtinInstructions
+    }
+  }
+
+  const piOptions = {
+    ...options,
+    channelLinked: false,
+    disabledTools: new Set(draft.disabledTools.map(normalizePiDisabledToolId)),
+    knowledgeBaseScope: resolveKnowledgeBaseScope(draft.knowledgeBaseIds, undefined)
+  }
+  if (agent.type === 'pi') {
+    const { blocks } = await buildPiAgentPrompt({ ...piOptions, workspacePath: cwd })
+    return { blocks: [{ key: 'cwd', kind: 'live', text: cwd }, ...blocks], builtinInstructions }
+  }
+
   const preferences = application.get('PreferenceService')
   const access = resolveAutomationAccess(
     { configuration: agent.configuration, disabledTools: draft.disabledTools },
@@ -69,22 +111,13 @@ export async function previewDurableSystemPrompt(draft: AgentSystemPromptDraft):
       (selectedSkillIds.has(skill.id) || (!stored && skill.source === 'builtin')) &&
       isAutomationSkillAvailable(skill, access)
   )
-  const mcpServerIds = draft.mcpServerIds.flatMap((idOrName) => mcpServerService.findByIdOrName(idOrName)?.id ?? [])
-
   const prompt = await buildDurablePrompt(pi, {
-    agent,
+    ...piOptions,
     cwd,
-    agentDataPath: agentDataDirectoryPath(application.getPath('feature.agents.data'), stored?.id ?? NEW_AGENT_ID),
-    effectiveLanguage: getEffectiveAgentLanguage(agent),
-    channelLinked: false,
-    disabledTools: new Set(draft.disabledTools.map(normalizePiDisabledToolId)),
-    knowledgeBaseScope: resolveKnowledgeBaseScope(draft.knowledgeBaseIds, undefined),
     skillPaths: [
       ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
       ...workspaceSkillPaths
-    ],
-    mcpInstructions: buildMcpInstructionsContext(mcpServerIds),
-    instructionsSlot: AGENT_INSTRUCTIONS_SLOT
+    ]
   })
   // The harness sends its sections before the instructions; they follow memory, files, skills, and MCP servers.
   const live: AgentPromptBlockPreview[] = []
@@ -93,9 +126,5 @@ export async function previewDurableSystemPrompt(draft: AgentSystemPromptDraft):
     const text = typeof content === 'object' ? content.text : content
     if (text !== undefined) live.push({ key: section.key, kind: 'live', text })
   }
-  const builtinRole = stored?.configuration?.builtin_role
-  return {
-    blocks: [...live, ...prompt.blocks],
-    ...(builtinRole ? { builtinInstructions: loadBuiltinAgentDefinition(builtinRole)?.instructions } : {})
-  }
+  return { blocks: [...live, ...prompt.blocks], builtinInstructions }
 }

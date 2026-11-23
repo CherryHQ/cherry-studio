@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8e2a56ed-91cb-4e97-af4f-6e7c5763d165",
+  "id": "6022f9b9-9657-4a14-8907-fe636a1e6788",
   "prevId": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "tables": {
     "agent": {
@@ -2202,13 +2202,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "size": {
           "name": "size",
           "type": "integer",
@@ -2321,10 +2314,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "artifact_kind_check": {
-          "name": "artifact_kind_check",
-          "value": "\"artifact\".\"kind\" IN ('page', 'media', 'file')"
-        },
         "artifact_owner_check": {
           "name": "artifact_owner_check",
           "value": "(\"artifact\".\"agent_id\" IS NOT NULL AND \"artifact\".\"session_id\" IS NOT NULL AND \"artifact\".\"assistant_id\" IS NULL AND \"artifact\".\"topic_id\" IS NULL AND \"artifact\".\"path\" IS NOT NULL AND \"artifact\".\"file_entry_id\" IS NULL) OR (\"artifact\".\"agent_id\" IS NULL AND \"artifact\".\"session_id\" IS NULL AND \"artifact\".\"assistant_id\" IS NOT NULL AND \"artifact\".\"topic_id\" IS NOT NULL AND \"artifact\".\"path\" IS NULL AND \"artifact\".\"file_entry_id\" IS NOT NULL)"

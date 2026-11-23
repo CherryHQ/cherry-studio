@@ -577,12 +577,14 @@ describe('PermissionRequestComposer', () => {
       render(
         <PermissionRequestComposer
           request={agentConfigRequest('approval-loading', 'assistant', 'update_agent', { model: 'wire::other' })}
+          requiresAgentConfigPreview
           onRespond={vi.fn()}
         />
       )
 
       expect(screen.getByText('agent.toolPermission.agent_config.loading')).toBeInTheDocument()
       expect(screen.getByText('wire::other')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Allow/ })).toBeDisabled()
     })
 
     it('falls back to the raw arguments when main cannot preview the change', async () => {

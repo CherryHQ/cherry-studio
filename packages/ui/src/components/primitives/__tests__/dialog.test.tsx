@@ -441,6 +441,28 @@ describe('Dialog primitive', () => {
     expect(handleOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('keeps a guarded dialog open on Escape and overlay clicks and lets its close button work', () => {
+    function GuardedDialog() {
+      const [open, setOpen] = useState(true)
+      return (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent guardDismiss aria-describedby={undefined}>
+            <DialogTitle>Unsaved draft</DialogTitle>
+          </DialogContent>
+        </Dialog>
+      )
+    }
+
+    render(<GuardedDialog />)
+    const dialog = screen.getByRole('dialog', { name: 'Unsaved draft' })
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    fireEvent.click(document.querySelector('[data-slot="dialog-overlay"]')!)
+    expect(dialog).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('does not close when overlay click close is disabled', () => {
     const handleOpenChange = vi.fn()
 

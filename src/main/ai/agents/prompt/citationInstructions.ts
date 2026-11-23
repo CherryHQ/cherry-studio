@@ -15,22 +15,20 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 
-import type { ToolCallForm } from './configToolsGuidance'
+import type { BuildAgentPromptOptions } from './buildAgentPrompt'
 
-export interface CitationsGuidanceOptions {
-  web: boolean
-  kb: boolean
-  /** Quotes each lookup the way this runtime calls it; a bare `web_search` matches nothing it can invoke. */
-  ref: ToolCallForm['ref']
-}
-
-export function buildCitationsGuidance({ web, kb, ref }: CitationsGuidanceOptions): string | undefined {
-  if (!web && !kb) return undefined
-  const lookup = (search: string, read: string) => `${ref('cherry-tools', search)} / ${ref('cherry-tools', read)}`
-  const tools = [
-    ...(web ? [lookup(WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME)] : []),
-    ...(kb ? [lookup(KB_SEARCH_TOOL_NAME, KB_READ_TOOL_NAME)] : [])
-  ].join(' and ')
+export function buildCitationInstructions(
+  referenceTool: NonNullable<BuildAgentPromptOptions['referenceTool']>,
+  includeKnowledge: boolean
+): string | undefined {
+  const toolNames = [WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME]
+  const reference = (name: string) => referenceTool('cherry-tools', name)
+  const lookups = [
+    toolNames.map(reference).filter(Boolean).join(' / '),
+    includeKnowledge && [KB_SEARCH_TOOL_NAME, KB_READ_TOOL_NAME].map(reference).filter(Boolean).join(' / ')
+  ].filter(Boolean)
+  if (!lookups.length) return undefined
+  const tools = lookups.join(' and ')
   return `## Citations
 
 Results from ${tools} each carry an \`id\` field. When a statement in your reply is based on one of those results, append a citation marker immediately after it: [cite:ID] with the exact id (e.g. "Prices rose 3% in June. [cite:3f2a1b9c-2]"). Chain markers when several results support one statement: [cite:3f2a1b9c-1][cite:7d4e0a51-3]. Copy ids exactly — never invent or renumber them — and do not add a "References" or "Sources" section: the app renders citations from the inline markers.`

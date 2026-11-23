@@ -56,6 +56,12 @@ const MCP_SERVER_MUTABLE_FIELDS = {
 export const CreateMcpServerSchema = McpServerSchema.pick(MCP_SERVER_MUTABLE_FIELDS).partial().required({ name: true })
 export type CreateMcpServerDto = z.infer<typeof CreateMcpServerSchema>
 
+export const InstallMcpServerPresetSchema = z.strictObject({
+  name: z.string().min(1),
+  activate: z.boolean()
+})
+export type InstallMcpServerPresetDto = z.infer<typeof InstallMcpServerPresetSchema>
+
 /**
  * DTO for updating an existing MCP server. All fields optional, chain-derived from Create.
  */
@@ -111,6 +117,13 @@ export type McpServerSchemas = {
     PATCH: {
       body: ReorderMcpServersBody
       response: void
+    }
+  }
+
+  '/mcp-servers/install-preset': {
+    POST: {
+      body: InstallMcpServerPresetDto
+      response: McpServer
     }
   }
 

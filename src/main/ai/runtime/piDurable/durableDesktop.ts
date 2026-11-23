@@ -7,12 +7,11 @@ import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
-import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '../agentMcpServers'
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
-import { buildPiMcpToolName } from '../pi/piMcpExtension'
+import { buildPiMcpToolName, isPiToolDisabled } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
@@ -41,7 +40,7 @@ export async function prepareDurableDesktop(
   const { session, agent } = snapshot
   const cwd = session.workspace.path
   await prepareAgentSessionWorkspaceDirectory(session)
-  let permissionMode = agent.configuration?.permission_mode ?? 'default'
+  let permissionMode = input.permissionModeOverride ?? agent.configuration?.permission_mode ?? 'default'
   let disabled = new Set((agent.disabledTools ?? []).map(normalizePiDisabledToolId))
   const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
   const mountedServers = resolveMountedMcpServers(agent, {
@@ -103,17 +102,7 @@ export async function prepareDurableDesktop(
     )
   )
   try {
-    const isDisabled = (name: string) => {
-      const tool = mcp.metadata.get(name)
-      return (
-        disabled.has(name) ||
-        Boolean(
-          tool &&
-          (disabled.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
-            disabled.has(`mcp__${tool.serverId}__${tool.name}`))
-        )
-      )
-    }
+    const isDisabled = (name: string) => isPiToolDisabled(disabled, name, mcp.metadata.get(name))
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
     const bash = tools.createBashTool({
@@ -185,7 +174,7 @@ export async function prepareDurableDesktop(
           next.modelId,
           next.knowledgeBaseIds
         )
-        const mode = current.agent.configuration?.permission_mode ?? 'default'
+        const mode = next.permissionModeOverride ?? current.agent.configuration?.permission_mode ?? 'default'
         // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.
         const permissionChanged = mode !== permissionMode
         permissionMode = mode

@@ -97,10 +97,12 @@ export function AssistantProfileSettings({ assistant }: { assistant: Assistant }
 /** The Agent's model, permission mode and reply language, changed in place. */
 export function AgentProfileSettings({
   agent,
+  sessionId,
   model: conversationModel,
   onModelChange
 }: {
   agent: AgentEntity
+  sessionId?: string
   /** The conversation's model, which a session may set apart from the Agent's. */
   model?: Model
   /** Switches the conversation's model, asking first when it already has messages. */
@@ -125,7 +127,7 @@ export function AgentProfileSettings({
   const permissionLabel = t('chat.profile_pane.permission')
 
   return (
-    <ProfileSettingsSection onOpenAll={() => openResourceEditDialog({ kind: 'agent', id: agent.id })}>
+    <ProfileSettingsSection onOpenAll={() => openResourceEditDialog({ kind: 'agent', id: agent.id, sessionId })}>
       <ProfileSettingsRow label={modelLabel}>
         <ModelPill
           label={modelLabel}

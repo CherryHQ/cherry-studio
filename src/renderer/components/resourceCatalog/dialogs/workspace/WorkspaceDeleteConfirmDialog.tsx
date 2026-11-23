@@ -228,6 +228,7 @@ export function WorkspaceDeleteConfirmDialog({
         motion="fade-scale"
         showCloseButton={false}
         closeOnOverlayClick={!isPending}
+        guardDismiss={isPending}
         className="max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('agent.session.workdir.delete.title')}</DialogTitle>

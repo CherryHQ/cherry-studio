@@ -2,6 +2,7 @@ import type { Storage, ConversationId } from '@earendil-works/pi-durable'
 import * as z from 'zod'
 
 import type { PiDurableRuntime } from '@cherrystudio/agent-runtime-pi-durable'
+import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
@@ -12,6 +13,7 @@ const requestSchema = z.object({
   reasoningEffort: ReasoningEffortOptionSchema.optional(),
   serviceTier: ServiceTierSelectionSchema.optional(),
   fastMode: z.boolean().optional(),
+  permissionModeOverride: AgentPermissionModeSchema.optional(),
   knowledgeBaseIds: z.array(z.string()).optional()
 })
 async function requestDocument() {

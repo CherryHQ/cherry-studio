@@ -125,6 +125,7 @@ function AgentEditDialogHost({
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
       initialTab={target.initialTab}
+      sessionId={target.sessionId}
     />
   )
 }

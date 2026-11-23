@@ -6,7 +6,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
-import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
+import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from '../bootstrap'
 
 const logger = loggerService.withContext('PromptBuilder')
 const PROMPT_FILE_CACHE_TTL_MS = 30 * 60 * 1000

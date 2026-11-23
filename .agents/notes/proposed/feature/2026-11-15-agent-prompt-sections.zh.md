@@ -16,26 +16,27 @@ Pi Durable 智能体的系统提示词页面（`PiPromptField`）展示组装后
 - **智能体系统提示词段落**承载智能体的指令。没有自定义指令的内置智能体，在这里显示其内置提示词；编辑后保存为自定义指令，"恢复内置提示词"（段落右上角的还原图标）会清除它们，让内置提示词重新生效。
 - 每个可编辑段落都提供 **AI 优化**，用默认模型只改写这一段；与现有的提示词润色一样，结果可以撤销。
 - **身份段落**直接编辑 SOUL.md、USER.md 和 FACT.md：每个文件一个标签页，打开即可编辑，每个文件各自保留草稿，点保存才写入。该段落仍随这些文件更新；文件有未保存的修改时，点返回会先询问。
-- **其他实时段落**（工作区指令、技能、MCP 服务说明、工作区 system.md、回复语言）同样可以编辑。未修改时，页面注明由什么保持更新；修改后注明不再自动更新，还原图标会恢复为自动生成、持续更新的段落。
-- 覆盖文本只对 Pi Durable 智能体生效，它是唯一有完整提示词预览的运行时。Claude Code 和 Pi 智能体仍只能编辑自己的指令。
+- **其他实时段落**（工作区指令、技能、工作区 system.md、回复语言）同样可以编辑。未修改时，页面注明由什么保持更新；修改后注明不再自动更新，还原图标会恢复为自动生成、持续更新的段落。
+- 三个运行时共用提示词编辑器，覆盖文本对各自实际组装的 Cherry 段落生效。编辑器不展示 SDK 自有提示词或 MCP 服务说明。Claude Code 可以关闭 SDK 的内置系统提示词，同时保留 Cherry 和工作区指令。
 - 预览接口改为返回每个段落的键、类型和生成文本，而不是指令前后的两段文本，这样页面可以按段落显示生成文本、覆盖文本和恢复操作。
+- Pi Durable 在只读的 `<cwd>` 段落中发送当前会话的工作区路径，与 Pi 一致。从会话打开的预览使用该会话的工作区，从资源目录打开时使用最近会话或系统工作区。 [#25204](https://github.com/CherryHQ/cherry-studio/issues/25204)
 
 ## 备选方案
 
 - 实时段落和回复语言保持只读（否决：用户希望每个段落都能自己措辞；编辑后的副本不再跟随数据或设置，所以页面会注明，并可用还原图标恢复为持续更新的段落）。
 - 保存身份段落的编辑副本（否决：会冻结记忆；身份段落改为直接编辑文件本身）。
-- 覆盖文本对所有运行时生效（否决：只有 Pi Durable 显示完整提示词，在其他运行时用户看不到改动后的效果）。
+- 展示 SDK 自有提示词（否决：由运行时生成，其全文不属于编辑器的契约）。
 - 对整个提示词做一次 AI 优化（否决：整体改写难以审阅，还会改到用户不想改的段落）。
 
 ## 验收标准
 
-- AC1 — Pi Durable 智能体的系统提示词页面以智能体系统提示词开头，按运行时顺序列出其他段落的名称；每个段落在自己的页面中打开，每个段落都可编辑（身份通过其文件），未修改的实时段落注明由什么保持更新 (verification: renderer; owner: implementer)
+- AC1 — 智能体的系统提示词页面以智能体系统提示词开头，按运行时顺序列出其他段落的名称；每个段落在自己的页面中打开，工作目录只读，身份通过其文件编辑，未修改的实时段落注明由什么保持更新 (verification: renderer; owner: implementer)
 - AC2 — 编辑指引或实时段落会为该智能体保存覆盖文本并标记为已修改，运行时下次组装的提示词在该段落位置使用编辑后的文本 (verification: unit; owner: implementer)
 - AC3 — 段落右上角的还原图标会删除覆盖文本，该段落和下次组装的提示词重新显示生成的文本 (verification: unit; owner: implementer)
 - AC4 — 当前设置不会生成的段落，其覆盖文本不会发送 (verification: unit; owner: implementer)
 - AC5 — 没有自定义指令的内置智能体，其智能体系统提示词段落显示内置提示词，"恢复内置提示词"会清除编辑过的指令 (verification: renderer; owner: implementer)
 - AC6 — 对可编辑段落使用 AI 优化只替换这一段，且可以撤销 (verification: renderer; owner: implementer)
-- AC7 — Claude Code 和 Pi 智能体忽略已保存的覆盖文本，提示词页面仍只编辑指令 (verification: unit; owner: implementer)
+- AC7 — Pi、Pi Durable 和 Claude Code 都应用支持的 Cherry 段落覆盖；MCP 服务说明仍由服务维护，Claude Code 关闭内置提示词后仍保留 Cherry 和工作区指令 (verification: unit; owner: implementer)
 - AC8 — 新增的段落标题、说明和操作在所有语言中都有对应文案 (verification: renderer; owner: implementer)
 - AC9 — 在应用中，Pi Durable 智能体编辑过的指引段落出现在其提示词中，"恢复自动生成"会带回生成的文本 (verification: Electron; owner: implementer)
 - AC10 — 身份段落直接编辑 SOUL.md、USER.md 和 FACT.md，每个文件各自保留草稿、点保存才写入，文件有未保存的修改时点返回会先询问 (verification: renderer, Electron; owner: implementer)

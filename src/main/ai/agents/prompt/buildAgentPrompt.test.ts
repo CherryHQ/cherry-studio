@@ -11,9 +11,9 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { createAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { PromptBuilder } from '@main/ai/agents/prompt'
 
-import { buildAgentRuntimePrompt } from './agentPrompt'
+import { buildAgentPrompt } from './buildAgentPrompt'
+import { PromptBuilder } from './promptContext'
 
 describe('Agent prompt onboarding', () => {
   const dbh = setupTestDatabase()
@@ -51,7 +51,7 @@ describe('Agent prompt onboarding', () => {
     const agent = agentService.getAgent(id)!
 
     expect(agent.instructions).toBe('')
-    const { append } = await buildAgentRuntimePrompt({ workspacePath, agentDataPath, agent })
+    const { append } = await buildAgentPrompt({ workspacePath, agentDataPath, agent })
 
     expect(append).toContain('## Bootstrap Mode')
     expect(append).toContain('**Discover the role**')
@@ -70,7 +70,7 @@ describe('Agent prompt onboarding', () => {
       instructions: 'Research primary sources and cite evidence.'
     })
     const agent = agentService.getAgent(id)!
-    const { append } = await buildAgentRuntimePrompt({ workspacePath, agentDataPath, agent })
+    const { append } = await buildAgentPrompt({ workspacePath, agentDataPath, agent })
 
     expect(append).toContain('<agent_instructions>\nResearch primary sources and cite evidence.\n</agent_instructions>')
     expect(append).toContain('## Bootstrap Mode')
@@ -93,7 +93,7 @@ describe('Agent prompt onboarding', () => {
       instructions: 'Research primary sources.'
     })
 
-    const { append } = await buildAgentRuntimePrompt({ workspacePath, agentDataPath, agent })
+    const { append } = await buildAgentPrompt({ workspacePath, agentDataPath, agent })
 
     expect(append).not.toContain('## Bootstrap Mode')
     const identity = await new PromptBuilder().buildMemoriesSection(agentDataPath)
@@ -102,5 +102,19 @@ describe('Agent prompt onboarding', () => {
     expect(identity).toContain('<user>\nCall the user Lin. They prefer Chinese.\n</user>')
     expect(identity).toContain('<facts>\nThe project is called Orchard.\n</facts>')
     expect(identity).not.toContain('Unrelated workspace identity')
+  })
+  it('uses the reporting reference and hint supplied by the runtime', async () => {
+    const { blocks } = await buildAgentPrompt({
+      workspacePath,
+      agentDataPath: workspacePath,
+      agent: { instructions: 'Write the report.', configuration: { bootstrap_completed: true }, modelName: null },
+      referenceTool: (server, tool) => (tool === 'report_artifacts' ? `<${server}/${tool}>` : undefined),
+      toolCallHint: 'Run the reporting tool from codemode.'
+    })
+
+    const reporting = blocks.find(({ key }) => key === 'report_artifacts')
+    expect(reporting?.text).toContain('<cherry-tools/report_artifacts>')
+    expect(reporting?.text).toContain('Run the reporting tool from codemode.')
+    expect(blocks.some(({ key }) => key === 'config_tools')).toBe(false)
   })
 })

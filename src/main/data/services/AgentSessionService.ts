@@ -14,6 +14,7 @@ import {
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { artifactTable } from '@data/db/schemas/artifact'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -212,10 +213,21 @@ export class AgentSessionService {
   private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
   readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
 
-  notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
+  notifyReadModelChange(
+    sessionIds: readonly string[],
+    kind: 'membership' | 'projection',
+    restoredAgentId?: string | null
+  ): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length === 0) return
     if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
+    if (restoredAgentId) {
+      effects.push({
+        endpoint: '/agents/:agentId/artifacts',
+        kind: 'membership',
+        routeParams: { agentId: restoredAgentId }
+      })
+    }
     notifyDataApiDataChange(effects)
   }
 
@@ -986,7 +998,9 @@ export class AgentSessionService {
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
-    this.notifyReadModelChange([id], 'projection')
+    const effects = agentSessionReadModelEffects([id], 'projection')
+    if (result.artifactOwnershipChanged) effects.push({ endpoint: '/agents/:agentId/artifacts', kind: 'membership' })
+    notifyDataApiDataChange(effects)
     this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
@@ -995,7 +1009,7 @@ export class AgentSessionService {
     tx: DbOrTx,
     id: string,
     patch: UpdateAgentSessionDto
-  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
+  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[]; artifactOwnershipChanged: boolean } {
     const [current] = tx
       .select({
         agentId: sessionsTable.agentId,
@@ -1006,7 +1020,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
-    if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
+    if (!current) return { row: undefined, clearedTaskScheduleIds: [], artifactOwnershipChanged: false }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
     if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
       throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
@@ -1051,10 +1065,25 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .returning()
       .all()
+    let artifactOwnershipChanged = false
     if (reassigned) {
       tx.update(sessionsTable).set({ agentId: patch.agentId }).where(eq(sessionsTable.ownerSessionId, id)).run()
+      const result = tx
+        .update(artifactTable)
+        .set({ agentId: patch.agentId })
+        .where(
+          inArray(
+            artifactTable.sessionId,
+            tx
+              .select({ id: sessionsTable.id })
+              .from(sessionsTable)
+              .where(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)))
+          )
+        )
+        .run()
+      artifactOwnershipChanged = result.changes > 0
     }
-    return { row, clearedTaskScheduleIds }
+    return { row, clearedTaskScheduleIds, artifactOwnershipChanged }
   }
 
   /**
@@ -1366,11 +1395,11 @@ export class AgentSessionService {
       .where(
         and(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)), isNotNull(sessionsTable.deletedAt))
       )
-      .returning({ id: sessionsTable.id })
+      .returning({ id: sessionsTable.id, agentId: sessionsTable.agentId })
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
 
-    this.notifyReadModelChange([id], 'membership')
+    this.notifyReadModelChange([id], 'membership', row.agentId)
     logger.info('Restored session', { id })
     return this.getById(id)
   }

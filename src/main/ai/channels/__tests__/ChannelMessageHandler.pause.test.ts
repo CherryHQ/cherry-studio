@@ -81,9 +81,14 @@ vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
-    getChannel: vi
-      .fn()
-      .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
+    getChannel: vi.fn().mockReturnValue({
+      id: 'channel-1',
+      agentId: 'agent-1',
+      isActive: true,
+      sessionId: null,
+      permissionMode: null,
+      workspace: { type: 'system' }
+    }),
     updateChannel: vi.fn().mockResolvedValue(null),
     findBySessionId: vi.fn().mockResolvedValue(null),
     getActiveSessionId: vi.fn((channelId: string, conversationId: string) =>

@@ -194,15 +194,7 @@ export interface CacheAskUserQuestionDraft {
 export type ExternalOpenTargetPreferences = Record<string, string>
 
 /** Icon and "not done yet" rule of a profile starter; Assistant questions are always `generic`. */
-export type ProfileStarterKind =
-  | 'channel-feishu'
-  | 'channel-wechat'
-  | 'schedule'
-  | 'github'
-  | 'skills'
-  | 'memory'
-  | 'knowledge'
-  | 'generic'
+export type ProfileStarterKind = 'schedule' | 'github' | 'skills' | 'memory' | 'knowledge' | 'generic'
 
 /** A generated Agent suggestion or Assistant opening question; `prompt` goes into the composer. */
 export interface ProfileStarter {
@@ -212,7 +204,7 @@ export interface ProfileStarter {
   prompt: string
 }
 
-/** Generated starters per Assistant / Agent ID; `hash` covers the identity they were generated from. */
+/** Generated starters per Assistant / Agent ID; `hash` identifies compatible generations. */
 export type ProfileStartersCache = Record<string, { hash: string; items: ProfileStarter[] }>
 
 export type CachePaintingGenerationState = {

@@ -5,7 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
-import { AgentChannelsPage } from '../AgentChannelsPage'
+import { AgentChannels } from '../AgentChannels'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
@@ -35,6 +35,7 @@ const ALL_CHANNELS = [
   channel('c2', 'agent-2', 'Other agent bot'),
   channel('c3', 'agent-1', 'WeChat helper', { type: 'wechat', config: { token_path: '' }, isActive: false })
 ]
+let channels: typeof ALL_CHANNELS
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -49,6 +50,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   MockUseDataApiUtils.resetMocks()
+  channels = [...ALL_CHANNELS]
   ipcRequest
     .mockReset()
     .mockImplementation(async (route: string, input: Record<string, unknown>) =>
@@ -58,7 +60,7 @@ beforeEach(() => {
   mockUseQuery.mockImplementation((path: string, options?: { query?: { agentId?: string } }) => ({
     data:
       path === '/agent-channels'
-        ? ALL_CHANNELS.filter((item) => !options?.query?.agentId || item.agentId === options.query.agentId)
+        ? channels.filter((item) => !options?.query?.agentId || item.agentId === options.query.agentId)
         : undefined,
     isLoading: false,
     isRefreshing: false,
@@ -68,12 +70,58 @@ beforeEach(() => {
   }))
 })
 
-function renderPage() {
-  return render(<AgentChannelsPage agentId="agent-1" agentType="pi" permissionMode="default" portalContainer={null} />)
+function renderPage(presentation?: 'profile') {
+  return render(
+    <AgentChannels
+      agentId="agent-1"
+      agentType="pi"
+      permissionMode="default"
+      portalContainer={null}
+      presentation={presentation}
+    />
+  )
 }
 
 // AC6: the page shows, adds, toggles, and deletes only this Agent's channels through the channel commands.
-describe('AgentChannelsPage', () => {
+describe('AgentChannels', () => {
+  it('moves a newly added platform to the Agent’s accounts and opens its configuration', async () => {
+    ipcRequest.mockImplementation(async (route: string, input: Record<string, unknown>) => {
+      if (route !== 'channel.create') return {}
+      const created = channel('c4', String(input.agentId), String(input.name), input)
+      channels.push(created)
+      return created
+    })
+    const user = userEvent.setup()
+    renderPage('profile')
+
+    const available = within(screen.getByRole('region', { name: '可接入平台' }))
+    expect(available.getAllByRole('button')).toHaveLength(6)
+    expect(screen.getByRole('button', { name: '管理 Team bot' })).toBeInTheDocument()
+    expect(screen.queryByText('Other agent bot')).not.toBeInTheDocument()
+    await user.click(available.getByRole('button', { name: '接入 Slack' }))
+    expect(await screen.findByRole('dialog', { name: 'Slack' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    const config = screen.getByRole('dialog', { name: 'Slack' })
+    await user.click(within(config).getByRole('button', { name: '关闭' }))
+
+    expect(await screen.findByRole('button', { name: '管理 Slack' })).toBeInTheDocument()
+    expect(available.queryByRole('button', { name: '接入 Slack' })).not.toBeInTheDocument()
+  })
+
+  it('lets an Agent manage or remove a Feishu account before QR registration', async () => {
+    channels.push(channel('c4', 'agent-1', 'Team Feishu', { type: 'feishu', config: {}, isActive: false }))
+    const user = userEvent.setup()
+    renderPage('profile')
+
+    expect(screen.getByRole('button', { name: '扫码登录 Team Feishu' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '管理 Team Feishu' }))
+    const config = within(await screen.findByRole('dialog', { name: '飞书' }))
+    expect(config.getByPlaceholderText('输入你的飞书应用 ID')).toBeEnabled()
+    await user.click(config.getByRole('button', { name: '删除' }))
+
+    expect(await screen.findByText('确定删除频道「Team Feishu」？')).toBeVisible()
+  })
+
   it("lists only this Agent's channels", () => {
     renderPage()
 

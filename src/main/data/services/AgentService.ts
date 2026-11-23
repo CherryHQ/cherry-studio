@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -15,7 +15,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentTaskService, HEARTBEAT_PROMPT_SENTINEL } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
@@ -43,7 +43,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { ListOptions } from '@shared/data/api/types'
+import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -291,6 +291,18 @@ function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<strin
 
 const STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
+type AgentUpdatePrecondition = {
+  updatedAt: string
+  mcpServerIds: readonly string[]
+  knowledgeBaseIds: readonly string[]
+  skillIds: readonly string[]
+  reasoningEffort?: string
+}
+
+function sameIds(current: readonly string[], expected: readonly string[]): boolean {
+  return current.length === expected.length && current.every((id) => expected.includes(id))
+}
+
 export class AgentService {
   private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
   readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
@@ -464,8 +476,17 @@ export class AgentService {
     }
 
     const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds, avatarFileId)
-    notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
-    for (const channelId of row.channelIds) agentChannelService.notifyReadModelChange(channelId, 'membership')
+    const effects: DataApiDataChangeEffect[] = [{ endpoint: '/agents', kind: 'membership', entityIds: [id] }]
+    if (row.channelIds.length) {
+      effects.push(
+        { endpoint: '/agent-workspaces', kind: 'membership' },
+        { endpoint: '/agent-channels', kind: 'membership', entityIds: row.channelIds }
+      )
+      for (const channelId of row.channelIds) {
+        effects.push({ endpoint: '/agent-channels/:channelId', routeParams: { channelId }, entityIds: [channelId] })
+      }
+    }
+    notifyDataApiDataChange(effects)
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -678,14 +699,19 @@ export class AgentService {
         )
       )
       .all()
-    const taskIds = agentTaskService.listTasks(id).tasks.map((task) => task.id)
-    const [taskRuns] = taskIds.length
-      ? database
-          .select({ count: count() })
-          .from(jobTable)
-          .where(and(inArray(jobTable.scheduleId, taskIds), gte(jobTable.startedAt, since)))
-          .all()
-      : [{ count: 0 }]
+    const [taskRuns] = database
+      .select({ count: count() })
+      .from(jobTable)
+      .where(
+        and(
+          eq(jobTable.type, 'agent.task'),
+          sql`json_extract(${jobTable.input}, '$.agentId') = ${id}`,
+          sql`json_extract(${jobTable.input}, '$.prompt') IS NOT ${HEARTBEAT_PROMPT_SENTINEL}`,
+          gte(jobTable.startedAt, since),
+          lte(jobTable.startedAt, now)
+        )
+      )
+      .all()
 
     return {
       sessionCount: sessions.count,
@@ -843,7 +869,7 @@ export class AgentService {
   updateAgent(
     id: string,
     updates: UpdateAgentDto,
-    { replaceAvatarImage = false }: { replaceAvatarImage?: boolean } = {}
+    { replaceAvatarImage = false, expected }: { replaceAvatarImage?: boolean; expected?: AgentUpdatePrecondition } = {}
   ): AgentEntity | null {
     // Preserve the existing not-found precedence before validating related IDs.
     // The authoritative configuration read still happens inside the write tx.
@@ -880,9 +906,25 @@ export class AgentService {
             .limit(1)
             .all()
           if (!current) throw DataApiErrorFactory.notFound('Agent', id)
+          if (expected) {
+            const skills = getDataService('AgentGlobalSkillService')
+              .list({ agentId: id })
+              .filter((skill) => skill.isEnabled)
+            if (
+              timestampToISO(current.updatedAt) !== expected.updatedAt ||
+              !sameIds(fetchMcpsForAgents(tx, [id]).get(id) ?? [], expected.mcpServerIds) ||
+              !sameIds(fetchKnowledgeBasesForAgents(tx, [id]).get(id) ?? [], expected.knowledgeBaseIds) ||
+              !sameIds(
+                skills.map((skill) => skill.id),
+                expected.skillIds
+              )
+            ) {
+              throw DataApiErrorFactory.invalidOperation('update agent', 'Agent changed after configuration approval')
+            }
+          }
 
           const updateData: Partial<AgentRow> = {
-            updatedAt: Date.now()
+            updatedAt: Math.max(Date.now(), current.updatedAt + 1)
           }
 
           // Several mutable fields map to NOT NULL columns with DB defaults
@@ -926,6 +968,12 @@ export class AgentService {
                 nextConfiguration.reasoning_effort =
                   resolveReasoningEffortForModel(nextModel, currentEffort) ?? 'default'
               }
+            }
+            if (
+              expected?.reasoningEffort !== undefined &&
+              nextConfiguration.reasoning_effort !== expected.reasoningEffort
+            ) {
+              throw DataApiErrorFactory.invalidOperation('update agent', 'Model changed after configuration approval')
             }
             updateData.configuration = nextConfiguration
           }

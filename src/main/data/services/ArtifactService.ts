@@ -1,18 +1,19 @@
-import { statSync } from 'node:fs'
 import path from 'node:path'
 
-import { and, count, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNotNull, isNull, like, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { appStateTable } from '@data/db/schemas/appState'
 import { artifactTable } from '@data/db/schemas/artifact'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
+import { isOutsidePath } from '@main/utils/file'
 import {
   GENERATE_IMAGE_TOOL_NAME,
   generateImageOutputItemSchema,
@@ -26,12 +27,12 @@ import {
   type ListArtifactsQuery
 } from '@shared/data/api/schemas/artifacts'
 import { FILE_TYPE } from '@shared/types/file'
-import { getFileTypeByExt } from '@shared/utils/file'
+import { fileTypeMap } from '@shared/utils/file'
 
 import { timestampToISO } from './utils/rowMappers'
 
 export interface ReportedAgentArtifact {
-  /** Absolute path. */
+  /** Path relative to the session workspace. */
   path: string
   title: string
   /** Bytes, or null when the path is not a readable file. */
@@ -40,33 +41,51 @@ export interface ReportedAgentArtifact {
 
 export type ArtifactOwner = { agentId: string } | { assistantId: string }
 
-/** A deliverable an Agent session reported before outputs were indexed. */
-type PastAgentReport = Omit<ReportedAgentArtifact, 'size'> & {
-  agentId: string
+export interface PastAgentReport {
   sessionId: string
-  /** When the reporting message was created. */
+  workspacePath: string
+  path: string
+  title?: string
   reportedAt: number
 }
 
-function fileSizeSync(filePath: string): number | null {
-  try {
-    const stats = statSync(filePath)
-    return stats.isFile() ? stats.size : null
-  } catch {
-    return null
-  }
+export type PreparedPastAgentReport = Pick<PastAgentReport, 'sessionId' | 'reportedAt'> & ReportedAgentArtifact
+interface PastAssistantImage {
+  fileEntryId: string
+  topicId: string
+  reportedAt: number
 }
 
-const PAGE_EXTENSIONS = new Set(['html', 'htm', 'md', 'markdown'])
-const MEDIA_TYPES = new Set<string>([FILE_TYPE.IMAGE, FILE_TYPE.AUDIO, FILE_TYPE.VIDEO])
+const BACKFILL_KEY = 'artifact:past-outputs:v2'
+const RELOCATED_PATH_PREFIX = 'artifact:past-outputs:relocated:'
 
-/** HTML and Markdown are pages; images, audio and video are media; everything else is a file. */
-export function getArtifactKind(fileName: string): ArtifactKind {
-  const name = fileName.split(/[\\/]/).at(-1) ?? ''
-  const dot = name.lastIndexOf('.')
-  const extension = dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
-  if (PAGE_EXTENSIONS.has(extension)) return 'page'
-  return MEDIA_TYPES.has(getFileTypeByExt(extension)) ? 'media' : 'file'
+function asPathList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((path): path is string => typeof path === 'string') : []
+}
+
+function workspaceRelativePath(workspacePath: string, filePath: string): string | undefined {
+  const relativePath = path.relative(workspacePath, path.resolve(workspacePath, filePath))
+  return relativePath && !isOutsidePath(relativePath) ? relativePath.split(path.sep).join('/') : undefined
+}
+
+const PAGE_EXTENSIONS = ['html', 'htm', 'md', 'markdown']
+const MEDIA_TYPES = new Set<string>([FILE_TYPE.IMAGE, FILE_TYPE.AUDIO, FILE_TYPE.VIDEO])
+const MEDIA_EXTENSIONS = Object.entries(fileTypeMap)
+  .filter(([, type]) => MEDIA_TYPES.has(type))
+  .map(([extension]) => extension)
+
+function getArtifactKind(fileName: SQL): SQL<ArtifactKind> {
+  const lowerName = sql`lower(${fileName})`
+  const matchesExtension = (extensions: readonly string[]) =>
+    sql.join(
+      extensions.map((extension) => sql`${lowerName} GLOB ${`*[^/\\].${extension}`}`),
+      sql` OR `
+    )
+  return sql<ArtifactKind>`CASE
+    WHEN ${matchesExtension(PAGE_EXTENSIONS)} THEN 'page'
+    WHEN ${matchesExtension(MEDIA_EXTENSIONS)} THEN 'media'
+    ELSE 'file'
+  END`
 }
 
 type StoredToolCall = { input?: unknown; output?: unknown }
@@ -95,16 +114,24 @@ export class ArtifactService {
   recordAgentArtifacts(agentId: string, sessionId: string, artifacts: readonly ReportedAgentArtifact[]): void {
     if (!artifacts.length) return
     const reportedAt = Date.now()
-    application.get('DbService').withWriteTx((tx) => {
+    const changed = application.get('DbService').withWriteTx((tx) => {
+      const session = this.getArtifactSession(tx, sessionId)
+      if (!session) throw new Error('Artifact session does not exist')
+      if (session.agentId !== agentId) return false
       for (const artifact of artifacts) {
-        const values = { title: artifact.title, kind: getArtifactKind(artifact.path), size: artifact.size, reportedAt }
-        tx.insert(artifactTable)
-          .values({ agentId, sessionId, path: artifact.path, ...values })
-          .onConflictDoUpdate({ target: [artifactTable.sessionId, artifactTable.path], set: values })
-          .run()
+        this.upsertAgentArtifactTx(
+          tx,
+          { agentId, sessionId, workspacePath: session.workspacePath },
+          artifact,
+          reportedAt
+        )
       }
+      return true
     })
-    notifyDataApiDataChange([{ endpoint: '/agents/:agentId/artifacts', kind: 'membership', routeParams: { agentId } }])
+    if (changed)
+      notifyDataApiDataChange([
+        { endpoint: '/agents/:agentId/artifacts', kind: 'membership', routeParams: { agentId } }
+      ])
   }
 
   /**
@@ -137,7 +164,7 @@ export class ArtifactService {
         .values(
           files.map((file) => {
             const title = file.ext ? `${file.name}.${file.ext}` : file.name
-            return { ...owner, fileEntryId: file.id, title, kind: getArtifactKind(title), size: file.size }
+            return { ...owner, fileEntryId: file.id, title, size: file.size }
           })
         )
         .run()
@@ -149,33 +176,133 @@ export class ArtifactService {
       ])
   }
 
-  /**
-   * Index outputs made before this index existed: deliverables reported in live Agent sessions (the
-   * newest report per session and path, sized from the file still on disk) and the images
-   * `generate_image` made in live Assistant topics. Idempotent; `PastOutputsBackfillSeeder` runs it.
-   */
-  backfillPastOutputsTx(tx: DbOrTx): void {
-    for (const report of this.findPastAgentReportsTx(tx)) {
-      const { agentId, sessionId, path: filePath, title, reportedAt } = report
-      const values = { title, kind: getArtifactKind(filePath), size: fileSizeSync(filePath), reportedAt }
-      tx.insert(artifactTable)
-        .values({ agentId, sessionId, path: filePath, ...values })
-        .onConflictDoUpdate({
-          target: [artifactTable.sessionId, artifactTable.path],
-          set: values,
-          setWhere: sql`excluded.reported_at > ${artifactTable.reportedAt}`
-        })
-        .run()
-    }
-    this.backfillAssistantImagesTx(tx)
+  hasBackfilledPastOutputs(): boolean {
+    return this.hasBackfilledPastOutputsTx(this.db)
   }
 
-  /** Deliverables reported in live Agent sessions; paths resolve against the session workspace. */
-  private findPastAgentReportsTx(tx: DbOrTx): PastAgentReport[] {
-    const messages = tx
+  private hasBackfilledPastOutputsTx(tx: DbOrTx): boolean {
+    return Boolean(
+      tx.select({ key: appStateTable.key }).from(appStateTable).where(eq(appStateTable.key, BACKFILL_KEY)).get()
+    )
+  }
+
+  commitPastOutputs(reports: readonly PreparedPastAgentReport[], images: readonly PastAssistantImage[]): void {
+    const changed = application.get('DbService').withWriteTx((tx) => {
+      if (this.hasBackfilledPastOutputsTx(tx)) return false
+      for (const report of reports) {
+        const session = this.getArtifactSession(tx, report.sessionId)
+        if (!session?.agentId) continue
+        this.upsertAgentArtifactTx(
+          tx,
+          { agentId: session.agentId, sessionId: report.sessionId, workspacePath: session.workspacePath },
+          report,
+          report.reportedAt
+        )
+      }
+      this.insertPastAssistantImagesTx(tx, images)
+      tx.delete(appStateTable)
+        .where(like(appStateTable.key, `${RELOCATED_PATH_PREFIX}%`))
+        .run()
+      tx.insert(appStateTable)
+        .values({ key: BACKFILL_KEY, value: { completedAt: Date.now() } })
+        .run()
+      return true
+    })
+    if (changed) {
+      notifyDataApiDataChange([
+        { endpoint: '/agents/:agentId/artifacts', kind: 'membership' },
+        { endpoint: '/assistants/:id/artifacts', kind: 'membership' }
+      ])
+    }
+  }
+
+  private getArtifactSession(tx: DbOrTx, sessionId: string) {
+    return tx
+      .select({ agentId: agentSessionTable.agentId, workspacePath: agentWorkspaceTable.path })
+      .from(agentSessionTable)
+      .innerJoin(agentWorkspaceTable, eq(agentWorkspaceTable.id, agentSessionTable.workspaceId))
+      .where(eq(agentSessionTable.id, sessionId))
+      .get()
+  }
+
+  private upsertAgentArtifactTx(
+    tx: DbOrTx,
+    owner: { agentId: string; sessionId: string; workspacePath: string },
+    artifact: ReportedAgentArtifact,
+    reportedAt: number
+  ): void {
+    const relativePath = workspaceRelativePath(owner.workspacePath, artifact.path)
+    if (!relativePath) return
+    const { agentId, sessionId, workspacePath } = owner
+    const values = {
+      agentId,
+      title: artifact.title,
+      size: artifact.size,
+      reportedAt
+    }
+    this.rebaseLegacyArtifactTx(tx, sessionId, path.resolve(workspacePath, relativePath), relativePath)
+    tx.insert(artifactTable)
+      .values({ sessionId, path: relativePath, ...values })
+      .onConflictDoUpdate({
+        target: [artifactTable.sessionId, artifactTable.path],
+        set: values,
+        setWhere: sql`excluded.reported_at >= ${artifactTable.reportedAt}`
+      })
+      .run()
+  }
+
+  /** Convert legacy absolute rows before changing their workspace's base directory. */
+  rebaseWorkspaceArtifactsTx(tx: DbOrTx, workspaceId: string, oldPath: string): void {
+    const rows = tx
+      .select({ sessionId: agentSessionTable.id, path: artifactTable.path })
+      .from(artifactTable)
+      .innerJoin(agentSessionTable, eq(agentSessionTable.id, artifactTable.sessionId))
+      .where(eq(agentSessionTable.workspaceId, workspaceId))
+      .all()
+    for (const row of rows) {
+      if (!row.path || !path.isAbsolute(row.path)) continue
+      const relativePath = workspaceRelativePath(oldPath, row.path)
+      if (relativePath) this.rebaseLegacyArtifactTx(tx, row.sessionId, row.path, relativePath)
+    }
+    if (this.hasBackfilledPastOutputsTx(tx)) return
+    const key = RELOCATED_PATH_PREFIX + workspaceId
+    const prior = tx.select({ value: appStateTable.value }).from(appStateTable).where(eq(appStateTable.key, key)).get()
+    const value = [...new Set([...asPathList(prior?.value), oldPath])]
+    if (prior) tx.update(appStateTable).set({ value }).where(eq(appStateTable.key, key)).run()
+    else tx.insert(appStateTable).values({ key, value }).run()
+  }
+
+  private rebaseLegacyArtifactTx(tx: DbOrTx, sessionId: string, absolutePath: string, relativePath: string): void {
+    const rows = tx
+      .select()
+      .from(artifactTable)
+      .where(and(eq(artifactTable.sessionId, sessionId), inArray(artifactTable.path, [absolutePath, relativePath])))
+      .all()
+    const legacy = rows.find((row) => row.path === absolutePath)
+    if (!legacy) return
+    const relative = rows.find((row) => row.path === relativePath)
+    if (relative && relative.reportedAt >= legacy.reportedAt) {
+      tx.delete(artifactTable).where(eq(artifactTable.id, legacy.id)).run()
+      return
+    }
+    if (relative) tx.delete(artifactTable).where(eq(artifactTable.id, relative.id)).run()
+    tx.update(artifactTable).set({ path: relativePath }).where(eq(artifactTable.id, legacy.id)).run()
+  }
+
+  /** Include trashed sources. The list applies visibility so restored sessions retain their outputs. */
+  readPastAgentReports(): PastAgentReport[] {
+    const relocated = new Map(
+      this.db
+        .select({ key: appStateTable.key, value: appStateTable.value })
+        .from(appStateTable)
+        .where(like(appStateTable.key, `${RELOCATED_PATH_PREFIX}%`))
+        .all()
+        .map(({ key, value }) => [key.slice(RELOCATED_PATH_PREFIX.length), asPathList(value)])
+    )
+    const messages = this.db
       .select({
-        agentId: agentSessionTable.agentId,
         sessionId: agentSessionTable.id,
+        workspaceId: agentWorkspaceTable.id,
         workspacePath: agentWorkspaceTable.path,
         data: agentSessionMessageTable.data,
         createdAt: agentSessionMessageTable.createdAt
@@ -186,7 +313,6 @@ export class ArtifactService {
       .where(
         and(
           isNotNull(agentSessionTable.agentId),
-          isNull(agentSessionTable.deletedAt),
           sql`${agentSessionMessageTable.data} LIKE ${`%${REPORT_ARTIFACTS_TOOL_NAME}%`}`
         )
       )
@@ -198,14 +324,20 @@ export class ArtifactService {
         const input = reportArtifactsInputSchema.safeParse(call.input)
         if (!input.success) continue
         for (const artifact of input.data.artifacts) {
-          const filePath = path.resolve(message.workspacePath, artifact.path)
-          const key = `${message.sessionId}\n${filePath}`
+          const relativePath =
+            workspaceRelativePath(message.workspacePath, artifact.path) ??
+            relocated
+              .get(message.workspaceId)
+              ?.map((root) => workspaceRelativePath(root, artifact.path))
+              .find(Boolean)
+          if (!relativePath) continue
+          const key = `${message.sessionId}\n${relativePath}`
           if ((reports.get(key)?.reportedAt ?? -1) > message.createdAt) continue
           reports.set(key, {
-            agentId: message.agentId!,
             sessionId: message.sessionId,
-            path: filePath,
-            title: artifact.description ?? path.basename(filePath),
+            workspacePath: message.workspacePath,
+            path: relativePath,
+            title: artifact.description,
             reportedAt: message.createdAt
           })
         }
@@ -214,26 +346,39 @@ export class ArtifactService {
     return [...reports.values()]
   }
 
-  /** Images `generate_image` made in live Assistant topics that are not indexed yet. */
-  private backfillAssistantImagesTx(tx: DbOrTx): void {
-    const messages = tx
-      .select({
-        topicId: topicTable.id,
-        assistantId: topicTable.assistantId,
-        data: messageTable.data,
-        createdAt: messageTable.createdAt
-      })
+  /** Images from successful tool calls, including those in restorable topics. */
+  readPastAssistantImages(): PastAssistantImage[] {
+    const messages = this.db
+      .select({ topicId: topicTable.id, data: messageTable.data, createdAt: messageTable.createdAt })
       .from(messageTable)
       .innerJoin(topicTable, eq(topicTable.id, messageTable.topicId))
       .where(
         and(
           isNotNull(topicTable.assistantId),
-          isNull(topicTable.deletedAt),
           isNull(messageTable.deletedAt),
           sql`${messageTable.data} LIKE ${`%${GENERATE_IMAGE_TOOL_NAME}%`}`
         )
       )
       .all()
+    const images = new Map<string, PastAssistantImage>()
+    for (const message of messages) {
+      for (const call of successfulToolCalls(message.data, (name) => name === GENERATE_IMAGE_TOOL_NAME)) {
+        const output = Array.isArray(call.output) ? call.output : (call.output as { content?: unknown })?.content
+        if (!Array.isArray(output)) continue
+        for (const item of output) {
+          const image = generateImageOutputItemSchema.safeParse(item)
+          if (!image.success) continue
+          const key = `${message.topicId}\n${image.data.id}`
+          if ((images.get(key)?.reportedAt ?? -1) > message.createdAt) continue
+          images.set(key, { fileEntryId: image.data.id, topicId: message.topicId, reportedAt: message.createdAt })
+        }
+      }
+    }
+    return [...images.values()]
+  }
+
+  private insertPastAssistantImagesTx(tx: DbOrTx, images: readonly PastAssistantImage[]): void {
+    if (!images.length) return
     const indexed = new Set(
       tx
         .select({ topicId: artifactTable.topicId, fileEntryId: artifactTable.fileEntryId })
@@ -242,40 +387,24 @@ export class ArtifactService {
         .all()
         .map((row) => `${row.topicId}\n${row.fileEntryId}`)
     )
-    const images = new Map<string, { topicId: string; assistantId: string; reportedAt: number }>()
-    for (const message of messages) {
-      for (const call of successfulToolCalls(message.data, (name) => name === GENERATE_IMAGE_TOOL_NAME)) {
-        const output = Array.isArray(call.output) ? call.output : (call.output as { content?: unknown })?.content
-        if (!Array.isArray(output)) continue
-        for (const item of output) {
-          const image = generateImageOutputItemSchema.safeParse(item)
-          if (!image.success || indexed.has(`${message.topicId}\n${image.data.id}`)) continue
-          images.set(image.data.id, {
-            topicId: message.topicId,
-            assistantId: message.assistantId!,
-            reportedAt: message.createdAt
-          })
-        }
-      }
-    }
-    if (images.size) {
-      const files = tx
-        .select({
-          id: fileEntryTable.id,
-          name: fileEntryTable.name,
-          ext: fileEntryTable.ext,
-          size: fileEntryTable.size
-        })
+    for (const image of images) {
+      if (indexed.has(`${image.topicId}\n${image.fileEntryId}`)) continue
+      const topic = tx
+        .select({ assistantId: topicTable.assistantId })
+        .from(topicTable)
+        .where(eq(topicTable.id, image.topicId))
+        .get()
+      if (!topic?.assistantId) continue
+      const file = tx
+        .select({ name: fileEntryTable.name, ext: fileEntryTable.ext, size: fileEntryTable.size })
         .from(fileEntryTable)
-        .where(inArray(fileEntryTable.id, [...images.keys()]))
-        .all()
-      for (const file of files) {
-        const owner = images.get(file.id)!
-        const title = file.ext ? `${file.name}.${file.ext}` : file.name
-        tx.insert(artifactTable)
-          .values({ ...owner, fileEntryId: file.id, title, kind: getArtifactKind(title), size: file.size })
-          .run()
-      }
+        .where(eq(fileEntryTable.id, image.fileEntryId))
+        .get()
+      if (!file) continue
+      const title = file.ext ? `${file.name}.${file.ext}` : file.name
+      tx.insert(artifactTable)
+        .values({ ...image, assistantId: topic.assistantId, title, size: file.size })
+        .run()
     }
   }
 
@@ -284,41 +413,54 @@ export class ArtifactService {
     const source =
       'agentId' in owner
         ? {
-            owned: eq(artifactTable.agentId, owner.agentId),
+            owned: and(eq(artifactTable.agentId, owner.agentId), eq(agentSessionTable.agentId, owner.agentId)),
             table: agentSessionTable,
             join: eq(agentSessionTable.id, artifactTable.sessionId),
             live: isNull(agentSessionTable.deletedAt),
             id: agentSessionTable.id,
-            name: agentSessionTable.name
+            name: agentSessionTable.name,
+            workspacePath: sql<
+              string | null
+            >`(SELECT ${agentWorkspaceTable.path} FROM ${agentWorkspaceTable} WHERE ${agentWorkspaceTable.id} = ${agentSessionTable.workspaceId})`
           }
         : {
             owned: eq(artifactTable.assistantId, owner.assistantId),
             table: topicTable,
             join: eq(topicTable.id, artifactTable.topicId),
             // Drop outputs whose managed file is gone; the row has no FK so it cannot pin the file.
-            live: and(
-              isNull(topicTable.deletedAt),
-              sql`EXISTS (SELECT 1 FROM ${fileEntryTable} WHERE ${fileEntryTable.id} = ${artifactTable.fileEntryId})`
-            ),
+            live: and(isNull(topicTable.deletedAt), isNotNull(fileEntryTable.id)),
             id: topicTable.id,
-            name: topicTable.name
+            name: topicTable.name,
+            workspacePath: sql<null>`NULL`
           }
     const where = (...extra: (SQL | undefined)[]) => and(source.owned, source.live, ...extra)
+    const fileJoin = eq(fileEntryTable.id, artifactTable.fileEntryId)
+    const kind = getArtifactKind(
+      sql`coalesce(${artifactTable.path}, ${fileEntryTable.name} || '.' || nullif(${fileEntryTable.ext}, ''), ${fileEntryTable.name})`
+    )
 
     const rows = this.db
-      .select({ artifact: artifactTable, sourceId: source.id, sourceName: source.name })
+      .select({
+        artifact: artifactTable,
+        kind,
+        sourceId: source.id,
+        sourceName: source.name,
+        workspacePath: source.workspacePath
+      })
       .from(artifactTable)
       .innerJoin(source.table, source.join)
-      .where(where(query.kind ? eq(artifactTable.kind, query.kind) : undefined))
+      .leftJoin(fileEntryTable, fileJoin)
+      .where(where(query.kind ? eq(kind, query.kind) : undefined))
       .orderBy(desc(artifactTable.reportedAt), desc(sql`${artifactTable}.rowid`))
       .limit(ARTIFACT_LIST_LIMIT)
       .all()
     const totals = this.db
-      .select({ kind: artifactTable.kind, count: count() })
+      .select({ kind, count: count() })
       .from(artifactTable)
       .innerJoin(source.table, source.join)
+      .leftJoin(fileEntryTable, fileJoin)
       .where(where())
-      .groupBy(artifactTable.kind)
+      .groupBy(kind)
       .all()
 
     const counts = { all: 0, page: 0, media: 0, file: 0 }
@@ -327,14 +469,17 @@ export class ArtifactService {
       counts.all += total.count
     }
     return {
-      items: rows.map(({ artifact, sourceId, sourceName }) => ({
+      items: rows.map(({ artifact, kind, sourceId, sourceName, workspacePath }) => ({
         id: artifact.id,
         sourceId,
         sourceName,
-        path: artifact.path ?? undefined,
+        path:
+          artifact.path && workspacePath && workspaceRelativePath(workspacePath, artifact.path)
+            ? path.resolve(workspacePath, artifact.path)
+            : undefined,
         fileEntryId: artifact.fileEntryId ?? undefined,
         title: artifact.title,
-        kind: artifact.kind,
+        kind,
         size: artifact.size ?? undefined,
         reportedAt: timestampToISO(artifact.reportedAt)
       })),

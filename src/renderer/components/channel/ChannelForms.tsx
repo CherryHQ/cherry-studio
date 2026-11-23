@@ -5,7 +5,9 @@ import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Button,
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -344,13 +346,20 @@ export const FeishuForm: FC<ChannelFormProps> = (props) => {
           setQrUrl(null)
           if (status === 'pending') setStatus('idle')
         }}>
-        <DialogContent closeOnOverlayClick={false} className="max-w-90">
+        <DialogContent guardDismiss={status === 'pending'} className="max-w-90" closeLabel={t('common.close')}>
           <DialogHeader>
             <DialogTitle>{t('agent.channels.feishu.qrTitle')}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
             {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
             <span className="text-center text-xs text-muted-foreground">{t('agent.channels.feishu.qrScanHint')}</span>
+            {status === 'pending' && (
+              <DialogClose asChild>
+                <Button type="button" variant="outline" size="sm">
+                  {t('common.cancel')}
+                </Button>
+              </DialogClose>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -536,13 +545,20 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ o
           setQrUrl(null)
           if (status !== 'confirmed' && onRemove) onRemove()
         }}>
-        <DialogContent closeOnOverlayClick={false} className="max-w-90">
+        <DialogContent guardDismiss={status === 'pending'} className="max-w-90" closeLabel={t('common.close')}>
           <DialogHeader>
             <DialogTitle>{t('agent.channels.wechat.qrTitle')}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
             {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
             <span className="text-center text-xs text-muted-foreground">{t('agent.channels.wechat.qrHint')}</span>
+            {status === 'pending' && (
+              <DialogClose asChild>
+                <Button type="button" variant="outline" size="sm">
+                  {t('common.cancel')}
+                </Button>
+              </DialogClose>
+            )}
           </div>
         </DialogContent>
       </Dialog>

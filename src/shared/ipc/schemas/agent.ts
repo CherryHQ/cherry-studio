@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { AGENT_MEMORY_MAX_WRITE_CHARS } from '@shared/ai/agentMemory'
+import { AgentTypeSchema } from '@shared/data/api/schemas/agents'
 
 import { defineRoute } from '../define'
 import { ImageBytesSchema } from './entityImage'
@@ -41,13 +42,15 @@ const AgentIdInputSchema = z.strictObject({ agentId: z.string().min(1).max(200) 
 /** An Agent's prompt-relevant settings as currently edited; `agentId` is absent while creating one. */
 export const AgentSystemPromptDraftSchema = z.strictObject({
   agentId: z.string().min(1).max(200).optional(),
+  sessionId: z.string().min(1).max(200).optional(),
+  agentType: AgentTypeSchema.optional(),
+  claudeCodeNativePromptEnabled: z.boolean().optional(),
   instructions: z.string(),
   /** As `configuration.language`: a label, `null` for none, absent to follow the global setting. */
   language: z.string().nullable().optional(),
   skillIds: z.array(z.string()),
   disabledTools: z.array(z.string()),
-  knowledgeBaseIds: z.array(z.string()),
-  mcpServerIds: z.array(z.string())
+  knowledgeBaseIds: z.array(z.string())
 })
 export type AgentSystemPromptDraft = z.infer<typeof AgentSystemPromptDraftSchema>
 
@@ -96,7 +99,7 @@ export const agentRequestSchemas = {
     input: AgentIdInputSchema,
     output: z.void()
   }),
-  /** The Pi Durable system prompt the runtime would send for this draft. */
+  /** The editable and inspectable system prompt blocks for this draft. */
   'agent.system_prompt.preview': defineRoute({
     input: AgentSystemPromptDraftSchema,
     output: AgentSystemPromptPreviewSchema

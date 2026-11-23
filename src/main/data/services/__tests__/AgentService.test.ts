@@ -403,6 +403,7 @@ describe('AgentService', () => {
       }
 
       it('creates the channels bound to the new Agent in the system workspace', async () => {
+        notifyDataApiDataChangeMock.mockClear()
         const agent = createAgentForTest({
           type: 'claude-code',
           name: 'With Channels',
@@ -411,6 +412,16 @@ describe('AgentService', () => {
         })
 
         const channels = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.agentId, agent.id))
+        expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+          { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] },
+          { endpoint: '/agent-workspaces', kind: 'membership' },
+          { endpoint: '/agent-channels', kind: 'membership', entityIds: channels.map(({ id }) => id) },
+          ...channels.map(({ id }) => ({
+            endpoint: '/agent-channels/:channelId',
+            routeParams: { channelId: id },
+            entityIds: [id]
+          }))
+        ])
         expect(
           channels.map(({ name, type, isActive, permissionMode, workspace, config }) => ({
             name,

@@ -16,7 +16,7 @@ import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { PromptBuilder } from '@main/ai/agents/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
 
 import { createClaudeCodeIdentityHooks } from './claudeCode/identityHooks'

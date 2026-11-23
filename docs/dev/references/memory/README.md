@@ -1,7 +1,7 @@
 ---
 description: Entry point for the memory mechanisms — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature
 sources:
-  - src/main/ai/agents/prompt.ts
+  - src/main/ai/agents/prompt/promptContext.ts
   - src/main/ai/mcp/servers/agentMemory.ts
   - src/main/ai/mcp/servers/memory.ts
   - src/main/features/knowledge

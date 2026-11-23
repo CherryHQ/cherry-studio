@@ -81,7 +81,7 @@ vi.mock('./piConnectionSignature', () => ({
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
 vi.mock('./gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
-vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
+vi.mock('@main/ai/agents/prompt/buildAgentPrompt', () => ({ buildAgentPrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: () => ({})

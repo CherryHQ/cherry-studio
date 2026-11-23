@@ -13,6 +13,7 @@ import type {
   ChatContextUsageSource,
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
+import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
@@ -301,6 +302,7 @@ const ChatContentInner: FC<InnerProps> = ({
         <RefreshProvider value={refresh}>
           <MessageEditingProvider>
             <ConversationStageCenter placement={placement} main={main} composer={composer} />
+            <ResourceEditDialogEventHost />
           </MessageEditingProvider>
         </RefreshProvider>
       </SiblingsProvider>

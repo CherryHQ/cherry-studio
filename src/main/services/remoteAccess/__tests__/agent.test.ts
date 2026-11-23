@@ -65,11 +65,13 @@ import {
   AgentChatContextProvider
 } from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import { FileManager, FileIntakeService } from '@main/services/file'
 import type { FileManagerDeps } from '@main/services/file/internal/deps'
 import { createInternal } from '@main/services/file/internal/entry/create'
+import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -117,7 +119,7 @@ const fake = vi.hoisted(() => {
       async prepareBranch() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
-      respondToolApproval: vi.fn(() => true),
+      respondToolApproval: vi.fn((): AiToolApprovalRespondResponse => ({ ok: true })),
       cancelSessionForks: async () => {},
       closeSession: async () => {},
       recoverSessionForks: async () => {}
@@ -1553,6 +1555,73 @@ describe('remote agent access', () => {
     await expect(
       call('agent.interactions.respond', { ...params, response: { kind: 'answer', answers: { '目录？': 'docs' } } })
     ).rejects.toMatchObject({ data: { reason: 'IDEMPOTENCY_CONFLICT' } })
+  })
+
+  it('reports a refused configuration approval as denied even when the remote user sent Allow', async () => {
+    const { session } = await call('agent.sessions.get', { sessionId })
+    await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      expectedIdleRevision: session.idleRevision,
+      text: 'Change the Agent description'
+    })
+    const anchor = randomUUID()
+    const input = { agentId: session.agentId, description: 'New description' }
+    toolApprovalRegistry.register({
+      approvalId: 'edit-approval',
+      sessionId,
+      toolCallId: 'edit-call',
+      toolName: 'mcp__assistant__update_agent',
+      originalInput: input,
+      resolve: () => {}
+    })
+    emit(
+      {
+        type: 'tool-input-available',
+        toolCallId: 'edit-call',
+        toolName: 'mcp__assistant__update_agent',
+        input
+      },
+      anchor
+    )
+    emit({ type: 'tool-approval-request', toolCallId: 'edit-call', approvalId: 'edit-approval' }, anchor)
+    try {
+      const listed = (await call('agent.interactions.list', { sessionId })).items.find(
+        (item) => item.interactionId === 'edit-approval'
+      )!
+      const { interaction } = await call('agent.interactions.get', { sessionId, interactionId: 'edit-approval' })
+      expect(interaction).toMatchObject({
+        configPreview: { ok: true, summary: expect.arrayContaining([expect.stringContaining('New description')]) }
+      })
+      const params = {
+        sessionId,
+        interactionId: interaction.interactionId,
+        expectedRevision: interaction.revision,
+        expectedExecutionId: interaction.executionId,
+        decision: 'approve'
+      }
+      expect(
+        await call('agent.interactions.respond', {
+          ...params,
+          commandId: randomUUID(),
+          inputDigest: listed.inputDigest
+        })
+      ).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+      expect(fake.runtime.respondToolApproval).not.toHaveBeenCalled()
+      fake.runtime.respondToolApproval.mockReturnValueOnce({ ok: true, approved: false })
+      const receipt = await call('agent.interactions.respond', {
+        ...params,
+        commandId: randomUUID(),
+        inputDigest: interaction.inputDigest
+      })
+
+      expect(receipt).toMatchObject({ status: 'applied', result: { decision: 'deny' } })
+      expect(
+        (await call('agent.interactions.get', { sessionId, interactionId: 'edit-approval' })).interaction.status
+      ).toBe('denied')
+    } finally {
+      toolApprovalRegistry.abort(sessionId)
+    }
   })
 
   it('forwards a denial reason without treating it as updated tool input', async () => {

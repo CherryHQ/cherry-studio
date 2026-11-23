@@ -14,13 +14,15 @@ import {
   CREATE_AGENT_TOOL_DESCRIPTION,
   CREATE_ASSISTANT_TOOL_DESCRIPTION,
   createAgentFromTool,
-  CreateAgentToolInputSchema,
   createAssistantFromTool,
-  CreateAssistantToolInputSchema,
   toolOutput,
-  UpdateAgentToolInputSchema,
   updateAgentFromTool
 } from '@main/ai/agents/agentConfigTool'
+import {
+  CreateAgentToolInputSchema,
+  CreateAssistantToolInputSchema,
+  UpdateAgentToolInputSchema
+} from '@main/ai/agents/agentConfigToolSchemas'
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
 import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'

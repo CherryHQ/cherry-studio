@@ -10,7 +10,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { AGENT_INSTRUCTIONS_SLOT, type AgentPromptOverrides } from '@shared/ai/agentPromptSections'
 import type { AgentSystemPromptDraft } from '@shared/ipc/schemas/agent'
 
-import { PiPromptField, type PiPromptDraft } from '../PiPromptField'
+import { AgentPromptField, type AgentPromptDraft } from '../AgentPromptField'
 
 const request = vi.hoisted(() => vi.fn())
 const fetchGenerate = vi.hoisted(() => vi.fn())
@@ -62,11 +62,10 @@ const INSTRUCTIONS = { name: '智能体提示词' }
 const REPORT = '汇报产物'
 const LOAD_FAILED = '无法生成完整的系统提示词'
 const GENERATED_REPORT = '## Reporting deliverables\n\nCall report_artifacts.'
-const baseDraft: PiPromptDraft = {
+const baseDraft: AgentPromptDraft = {
   skillIds: [],
   disabledTools: [],
   knowledgeBaseIds: [],
-  mcpServerIds: [],
   languageMode: 'inherit',
   languageCustom: ''
 }
@@ -94,7 +93,7 @@ function Harness({
   name = '',
   withOverrides = false
 }: {
-  draft?: PiPromptDraft
+  draft?: AgentPromptDraft
   initial?: string
   name?: string
   withOverrides?: boolean
@@ -103,7 +102,8 @@ function Harness({
   const [overrides, setOverrides] = useState<AgentPromptOverrides>({})
   return (
     <>
-      <PiPromptField
+      <AgentPromptField
+        portalContainer={null}
         value={value}
         onChange={setValue}
         name={name}
@@ -131,7 +131,7 @@ const openInstructions = (user: ReturnType<typeof userEvent.setup>) =>
 const openSection = (user: ReturnType<typeof userEvent.setup>, name: string) =>
   user.click(screen.getByRole('button', { name: new RegExp(`^${name}(:|$)`) }))
 
-describe('PiPromptField', () => {
+describe('AgentPromptField', () => {
   it('leads with the Agent prompt and lists every other block as editable where edits can be saved', async () => {
     answerWithDraft()
     render(<Harness initial="Review code." withOverrides />)

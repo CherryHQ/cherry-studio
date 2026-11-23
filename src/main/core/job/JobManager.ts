@@ -2368,7 +2368,10 @@ export class JobManager extends BaseService {
       logger.error('GC: pruneTerminalOlderThan failed', { err: (err as Error).message })
     }
     try {
-      byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE)
+      const retainedTypes = [...this.handlers]
+        .filter(([, handler]) => handler.retainTerminalHistoryForTtl)
+        .map(([type]) => type)
+      byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE, retainedTypes)
     } catch (err) {
       logger.error('GC: pruneTerminalKeepLatestPerSchedule failed', { err: (err as Error).message })
     }

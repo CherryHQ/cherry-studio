@@ -400,10 +400,6 @@ export class ChannelMessageHandler {
         return
       }
 
-      // TODO(channel-perm-override): channel-level permission_mode used to mutate
-      // session.configuration in-place; with config now living on agent, this
-      // override needs to flow as a per-dispatch option instead. Tracked separately.
-
       const workDir = session.workspace?.path
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
@@ -536,8 +532,6 @@ export class ChannelMessageHandler {
     try {
       switch (command.command) {
         case 'new': {
-          // TODO(channel-perm-override): channel.permissionMode no longer
-          // applied here — config lives on agent now. Tracked separately.
           const newSession = this.createSessionForConversation(agentId, adapter.channelId, conversationIdOf(command))
           const trackerKey = conversationKey(agentId, adapter.channelId, conversationIdOf(command))
           this.sessionTracker.set(trackerKey, newSession.id)
@@ -898,11 +892,16 @@ export class ChannelMessageHandler {
     }
 
     try {
+      const channel = channelService.getChannel(adapter.channelId)
+      if (!channel?.isActive || channel.agentId !== session.agentId) {
+        throw new AgentSessionRunNotStartedError('session-invalid')
+      }
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts,
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
+        permissionModeOverride: channel.permissionMode ?? undefined,
         requireIdle: { expectedAgentId: session.agentId }
       })
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.

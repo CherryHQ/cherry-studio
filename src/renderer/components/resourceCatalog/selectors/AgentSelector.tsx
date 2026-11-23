@@ -1,4 +1,4 @@
-import { lazy, type ReactElement, Suspense, useCallback, useMemo, useRef, useState } from 'react'
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -71,7 +71,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
-  const createdAgentRef = useRef<AgentDetail | null>(null)
+  const [createdAgent, setCreatedAgent] = useState<AgentDetail | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -144,17 +144,16 @@ export function AgentSelector(props: AgentSelectorProps) {
     [onDialogCloseAutoFocus]
   )
 
-  // Closing the wizard after a create closes the picker when it already picked the new Agent.
   const handleCreateDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
       setCreateDialogOpen(nextOpen)
       if (nextOpen) return
       onDialogCloseAutoFocus?.()
-      if (!createdAgentRef.current) return
-      createdAgentRef.current = null
+      if (!createdAgent) return
+      setCreatedAgent(null)
       handleSelectorOpenChange(!autoSelectOnCreate)
     },
-    [autoSelectOnCreate, handleSelectorOpenChange, onDialogCloseAutoFocus]
+    [autoSelectOnCreate, createdAgent, handleSelectorOpenChange, onDialogCloseAutoFocus]
   )
 
   const handleSubmitCreate = useCallback(
@@ -167,30 +166,32 @@ export function AgentSelector(props: AgentSelectorProps) {
         throw error
       }
 
-      createdAgentRef.current = created
+      setCreatedAgent(created)
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh agents after selector create', { error })
         toast.error(t('selector.create_dialog.refresh_failed'))
       }
-      if (autoSelectOnCreate) {
-        if (props.selectionType === 'item') {
-          props.onChange({
-            id: created.id,
-            name: created.name,
-            description: getAgentDescriptionForDisplay(created, t),
-            emoji: getAgentAvatarFromConfiguration(created.configuration),
-            avatarSrc: created.avatarSrc
-          })
-        } else {
-          props.onChange(created.id)
-        }
-      }
       return created.id
     },
-    [autoSelectOnCreate, createAgent, props, refetch, t]
+    [createAgent, refetch, t]
   )
+
+  const handleStartCreatedConversation = () => {
+    if (!createdAgent) return
+    if (props.selectionType === 'item') {
+      props.onChange({
+        id: createdAgent.id,
+        name: createdAgent.name,
+        description: getAgentDescriptionForDisplay(createdAgent, t),
+        emoji: getAgentAvatarFromConfiguration(createdAgent.configuration),
+        avatarSrc: createdAgent.avatarSrc
+      })
+    } else {
+      props.onChange(createdAgent.id)
+    }
+  }
 
   const createDialog = (
     <ResourceCreateWizard
@@ -199,6 +200,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       isSubmitting={isCreatingAgent}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
+      onStartConversation={autoSelectOnCreate ? handleStartCreatedConversation : undefined}
     />
   )
 

@@ -1,8 +1,6 @@
-import { stat } from 'node:fs/promises'
-import path from 'node:path'
-
 import { artifactService } from '@data/services/ArtifactService'
 import { loggerService } from '@logger'
+import { prepareAgentArtifact } from '@main/ai/agents/agentArtifactFile'
 import type { ReportArtifactsInput } from '@shared/ai/builtinTools'
 
 const logger = loggerService.withContext('McpServer:CherryReportArtifacts')
@@ -11,15 +9,6 @@ export interface ReportArtifactsContext {
   agentId: string
   sessionId: string
   workspacePath: string
-}
-
-async function fileSize(filePath: string): Promise<number | null> {
-  try {
-    const stats = await stat(filePath)
-    return stats.isFile() ? stats.size : null
-  } catch {
-    return null
-  }
 }
 
 /**
@@ -32,16 +21,13 @@ export async function recordReportedArtifacts(
 ): Promise<void> {
   try {
     const reported = await Promise.all(
-      artifacts.map(async (artifact) => {
-        const filePath = path.resolve(context.workspacePath, artifact.path)
-        return {
-          path: filePath,
-          title: artifact.description ?? path.basename(filePath),
-          size: await fileSize(filePath)
-        }
-      })
+      artifacts.map((artifact) => prepareAgentArtifact(context.workspacePath, artifact.path, artifact.description))
     )
-    artifactService.recordAgentArtifacts(context.agentId, context.sessionId, reported)
+    artifactService.recordAgentArtifacts(
+      context.agentId,
+      context.sessionId,
+      reported.filter((artifact) => artifact !== undefined)
+    )
   } catch (error) {
     logger.warn('Failed to index reported artifacts', { sessionId: context.sessionId, error })
   }

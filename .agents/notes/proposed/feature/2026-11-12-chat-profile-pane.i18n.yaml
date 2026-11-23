@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-12-chat-profile-pane.md
-2026-11-12-chat-profile-pane.md: 6f9c1d03bcc0b9dad680609594c2132f66ca7760
-2026-11-12-chat-profile-pane.zh.md: e74f77128154efd3aa42114f72951958f1123c4a
+2026-11-12-chat-profile-pane.md: c4f3daa8f5481e32c47719424b3d4aadfc52b35a
+2026-11-12-chat-profile-pane.zh.md: dfd8d99e980fe20b5e03b6ad7f058aa0a54c261a

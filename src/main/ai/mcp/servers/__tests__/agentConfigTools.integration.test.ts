@@ -20,7 +20,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { assistantDataService } from '@data/services/AssistantService'
-import { previewAgentConfigChange, refuseOutdatedAgentConfigApproval } from '@main/ai/agents/agentConfigTool'
+import { prepareAgentConfigApproval, previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -566,14 +566,47 @@ describe('Agent create and configure tools', () => {
       agentService.updateAgent('target', { configuration: { permission_mode: 'default' } })
       previewAgentConfigChange(current)
 
-      expect(refuseOutdatedAgentConfigApproval({ approvalId: outdated, approved: true })).toMatchObject({
-        approved: false,
-        reason: expect.stringContaining('Call the tool again')
+      expect(prepareAgentConfigApproval(outdated, { approved: true })).toMatchObject({
+        decision: { approved: false, reason: expect.stringContaining('Call the tool again') }
       })
-      expect(refuseOutdatedAgentConfigApproval({ approvalId: current, approved: true })).toEqual({
-        approvalId: current,
-        approved: true
+      expect(prepareAgentConfigApproval(current, { approved: true })).toMatchObject({
+        decision: { approved: true },
+        executionInput: expect.any(Function)
       })
+    })
+
+    it('checks the Agent version again in the write transaction after approval', async () => {
+      seedAgent('target')
+      const approvalId = pendingApproval('mcp__assistant__update_agent', {
+        agentId: 'target',
+        description: 'Approved text'
+      })
+      expect(previewAgentConfigChange(approvalId).ok).toBe(true)
+      const { executionInput } = prepareAgentConfigApproval(approvalId, { approved: true })
+      const input = executionInput!()
+      agentService.updateAgent('target', { description: 'User edit' })
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', input)
+
+      expect(result.isError).toBe(true)
+      expect(agentService.getAgent('target')?.description).toBe('User edit')
+    })
+
+    it('rejects a reviewed update if skill bindings change independently before it writes', async () => {
+      seedAgent('target')
+      const approvalId = pendingApproval('mcp__assistant__update_agent', {
+        agentId: 'target',
+        description: 'Approved text'
+      })
+      expect(previewAgentConfigChange(approvalId).ok).toBe(true)
+      const input = prepareAgentConfigApproval(approvalId, { approved: true }).executionInput!()
+      agentGlobalSkillService.upsertJoin('target', USER_SKILL, true)
+
+      const result = await callBuiltinTool(assistantServer, 'update_agent', input)
+
+      expect(result.isError).toBe(true)
+      expect(agentService.getAgent('target')?.description).toBe('Original description')
+      expect(skillEnabledFor('target', USER_SKILL)).toBe(true)
     })
 
     it('shows a schedule-only heartbeat change while the heartbeat is off', () => {
@@ -612,6 +645,32 @@ describe('Agent create and configure tools', () => {
       expect(assistantDataService.list({ page: 1, limit: 100 }).items.map((item) => item.name)).not.toContain(
         'Translator'
       )
+    })
+
+    it('creates with the reviewed model if the default changes, and the plan cannot be replayed', async () => {
+      seedAgent('caller')
+      const session = createSession('caller')
+      const approvalId = pendingApproval(
+        'mcp__assistant__create_agent',
+        { name: 'Reviewer', instructions: 'Review.' },
+        session.id
+      )
+      expect(previewAgentConfigChange(approvalId)).toMatchObject({
+        ok: true,
+        resource: { highlights: expect.arrayContaining(['Default Model']) }
+      })
+      MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', OTHER_MODEL)
+      const input = prepareAgentConfigApproval(approvalId, { approved: true }).executionInput!()
+
+      const result = await callBuiltinTool(assistantServer, 'create_agent', input)
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(
+        agentService
+          .listAgents()
+          .agents.filter((agent) => agent.name === 'Reviewer')
+          .map((agent) => agent.model)
+      ).toEqual([DEFAULT_MODEL])
+      expect((await callBuiltinTool(assistantServer, 'create_agent', input)).isError).toBe(true)
     })
 
     // Catches a card naming the saved Agent model while Cherry Assistant's server creates with the session's model.

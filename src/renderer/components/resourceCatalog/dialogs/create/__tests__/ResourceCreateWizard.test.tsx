@@ -9,10 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AutoConfigProgressView } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { AgentType } from '@shared/data/types/agent'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
+
+const manualMcp = vi.hoisted(() => ({ install: vi.fn<() => Promise<McpServer>>() }))
 
 const autoConfigure = vi.hoisted(() => ({
   ready: true,
@@ -172,10 +175,21 @@ vi.mock('../steps/CapabilityStep', () => ({
 // The tools and advanced steps run for real; only their catalog-backed and Radix-select fields are stubbed.
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/McpCapabilityList', () => ({
-  McpCapabilityList: ({ onSelectedIdsChange }: { onSelectedIdsChange: (ids: string[]) => void }) => (
-    <button type="button" onClick={() => onSelectedIdsChange(['mcp-github'])}>
-      select MCP server
-    </button>
+  McpCapabilityList: ({
+    onSelectedIdsChange,
+    onFeaturedInstall
+  }: {
+    onSelectedIdsChange: (ids: string[]) => void
+    onFeaturedInstall: (install: Promise<McpServer>) => Promise<void>
+  }) => (
+    <>
+      <button type="button" onClick={() => onSelectedIdsChange(['mcp-github'])}>
+        select MCP server
+      </button>
+      <button type="button" onClick={() => void onFeaturedInstall(manualMcp.install())}>
+        install featured MCP
+      </button>
+    </>
   )
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect', () => ({
@@ -428,6 +442,17 @@ afterEach(() => {
 })
 
 describe('ResourceCreateWizard', () => {
+  it('asks before discarding a typed draft', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
+
+    await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'Draft agent')
+    fireEvent.click(dialogCloseButton())
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    await user.click(screen.getByRole('button', { name: 'common.discard_changes' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
   it('preserves image bytes across steps and a failed submit, guards repeated activation, and resets on reopen', async () => {
     const user = userEvent.setup()
     modelHook.defaultModel = makeModel()
@@ -544,6 +569,7 @@ describe('ResourceCreateWizard', () => {
       expectDraft()
 
       await user.click(screen.getByRole('button', { name: CANCEL }))
+      await user.click(screen.getByRole('button', { name: 'common.discard_changes' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       await user.click(screen.getByRole('button', { name: 'reopen wizard' }))
 
@@ -580,6 +606,7 @@ describe('ResourceCreateWizard', () => {
 
     expectDraft()
     await user.click(screen.getByRole('button', { name: CANCEL }))
+    await user.click(screen.getByRole('button', { name: 'common.discard_changes' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: 'reopen wizard' }))
     expectDefaults('assistant', 'Newest seed')
@@ -954,6 +981,25 @@ describe('ResourceCreateWizard agent steps', () => {
       PROMPT_ROW,
       'library.config.dialogs.create.step.knowledge'
     ])
+  })
+
+  it('waits for a selected featured MCP install and saves its installed ID', async () => {
+    const user = userEvent.setup()
+    const { promise, resolve } = Promise.withResolvers<McpServer>()
+    manualMcp.install.mockReturnValueOnce(promise)
+    const onSubmit = await startManual(user)
+
+    for (let i = 0; i < 4; i++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select MCP server' }))
+    await user.click(screen.getByRole('button', { name: 'install featured MCP' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+
+    await act(async () => resolve({ id: 'mcp-fetch-installed', name: '@cherry/fetch', isActive: true }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(submittedCommand(onSubmit).mcps).toEqual(['mcp-github', 'mcp-fetch-installed']))
   })
 
   it('walks an Agent through seven steps and sends what each one set', async () => {
@@ -1487,6 +1533,30 @@ describe('ResourceCreateWizard auto create', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('returns to the entry at the deadline even if the provider finishes later', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue('agent-1')
+    const pending = Promise.withResolvers<unknown>()
+    autoConfigure.generate.mockReturnValue(pending.promise)
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(screen.getByRole('button', { name: AUTO }))
+      await act(async () => vi.advanceTimersByTimeAsync(60_000))
+
+      expect(screen.getByText('error.request_timeout')).toBeVisible()
+      expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
+      await act(async () => pending.resolve(generated))
+      expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
+      expect(onSubmit).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows the Agent by its name while generating and keeps the purpose as the subtitle', async () => {
     const user = userEvent.setup()
     autoConfigure.generate.mockReturnValue(new Promise(() => {}))
@@ -1567,6 +1637,7 @@ describe('ResourceCreateWizard auto create', () => {
     expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.result.working_title' })).toBeVisible()
     expect(screen.queryByRole('button', { name: MANUAL })).not.toBeInTheDocument()
     fireEvent.click(dialogCloseButton())
+    await user.click(screen.getByRole('button', { name: 'common.discard_changes' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(signal?.aborted).toBe(true)

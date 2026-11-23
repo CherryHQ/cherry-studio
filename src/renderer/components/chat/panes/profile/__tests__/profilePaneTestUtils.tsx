@@ -1,6 +1,6 @@
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { render } from '@testing-library/react'
-import type { ReactElement } from 'react'
+import type { PropsWithChildren, ReactElement } from 'react'
 import { vi } from 'vitest'
 
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -39,9 +39,12 @@ const NO_SCOPE = {}
 
 /** Renders a pane body inside the right-pane controller it always lives in. */
 export function renderInRightPane(ui: ReactElement) {
-  return render(
-    <RightPanelProvider capabilities={NO_CAPABILITIES} scope={NO_SCOPE}>
-      {ui}
-    </RightPanelProvider>
-  )
+  function Wrapper({ children }: PropsWithChildren) {
+    return (
+      <RightPanelProvider capabilities={NO_CAPABILITIES} scope={NO_SCOPE}>
+        {children}
+      </RightPanelProvider>
+    )
+  }
+  return render(ui, { wrapper: Wrapper })
 }

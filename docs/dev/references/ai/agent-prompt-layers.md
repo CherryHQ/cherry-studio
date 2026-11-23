@@ -1,12 +1,11 @@
 ---
 description: Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables
 sources:
-  - src/main/ai/runtime/agentPrompt.ts
+  - src/main/ai/agents/prompt
   - src/main/ai/runtime
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
   - src/main/ai/runtime/claudeCode/identityHooks.ts
   - src/main/ai/runtime/pi/identityExtension.ts
-  - src/main/ai/agents/prompt.ts
   - src/main/ai/agents/bootstrap.ts
   - src/main/ai/mcp/servers/agentMemory.ts
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
@@ -33,7 +32,7 @@ The hierarchy is an explicit instruction contract provided to the model, not a d
 
 Assistant and Agent editors both call the field **System Prompt** and expose variable insertion, resolved preview, generation, and polishing. Their storage and runtimes remain different: Assistant stores `assistant.prompt`; Agent stores `agent.instructions`. The editor's resolved preview is display-only: unresolved source text is persisted, and Main resolves it independently when materializing a connection.
 
-For Agents, `buildAgentRuntimePrompt` resolves a non-blank configured System
+For Agents, `buildAgentPrompt` resolves a non-blank configured System
 Prompt and wraps it in `<agent_instructions>` for every registered runtime.
 Workspace and persona content remain present, but they cannot redefine the
 Agent role. When the configured value is blank, neither that wrapper nor the
@@ -48,13 +47,11 @@ Pi uses system/append overrides. Runtime-
 native workspace context can still load according to that driver's trust
 boundary. Cherry-owned persona, memory, workspace-path, security, citation,
 artifact, create-tool, and language guidance is appended independently of the
-base. The create-tool guidance (`configToolsGuidance.ts`) names only the Agent
-and Assistant create and settings tools the session mounts and has not disabled,
-so a channel-linked Cherry Assistant session gets none. It also lists each tool's
-argument names from its input schema, with optional ones marked, because
-`codemode` shows no tool signatures and models otherwise guess the names. The
-artifact, citation and create-tool guidance name tools in the call form each
-runtime adapter passes. Claude Code calls `mcp__cherry-tools__…` directly. Pi and
+base. The shared `agents/prompt/` module builds tool instructions from references
+provided by the runtime. Those references follow the session's role, channel
+binding, and disabled tools. Configuration instructions list public argument
+names with optional ones marked because `codemode` does not show tool signatures.
+Internal approval fields stay out of the generated instructions. Claude Code calls `mcp__cherry-tools__…` directly. Pi and
 Pi Durable take theirs from `resolvePiToolCallForm`, which follows the session's
 actual exposure: `tools.mcp__cherry_tools__…()` inside `codemode` while codemode
 is enabled; otherwise, on Pi Durable only, a direct call after `tool_search`
@@ -62,17 +59,25 @@ loads the tool, because Durable defers MCP tools while Pi exposes them to
 codemode only and leaves `tool_search` inactive. With no path left, the
 guidance that names those tools is omitted.
 
-A Pi Durable Agent may replace any block of its System Prompt except identity
-with its own text, stored in `configuration.prompt_overrides` and keyed by
-`EDITABLE_PROMPT_SECTIONS`: the Cherry-written guidance and the blocks that
-follow data or settings (workspace instructions, skills, MCP instructions,
-workspace `system.md`, reply language). `buildAgentRuntimePrompt` and
-`buildDurablePrompt` substitute an override only for a block the current
-settings generate, and a replaced live block no longer follows its data until
-the override is removed. An update patches overrides block by block (text
-replaces a block, `null` removes its override, an omitted block stays), so two
-windows saving different blocks keep both. Claude Code and Pi ignore overrides. Identity is edited
-through the `SOUL.md`, `USER.md`, and `FACT.md` files themselves.
+Pi and Pi Durable send the current workspace path in a `<cwd>` section.
+The Agent editor shows the workspace path as read-only. A preview opened from
+a conversation uses that session's workspace. The catalog uses the Agent's
+latest session or the system workspace.
+
+All three Agent runtimes use the same editor for the Cherry-owned prompt blocks
+they assemble. Each Agent can replace its editable blocks using
+`configuration.prompt_overrides`, keyed by `EDITABLE_PROMPT_SECTIONS`.
+`buildAgentPrompt` and `buildDurablePrompt` substitute an override only for a
+block the current settings generate. A replaced live block follows its data
+again when the override is removed. Updates patch individual blocks, so two
+windows saving different blocks keep both. Identity is edited through
+`SOUL.md`, `USER.md`, and `FACT.md`.
+
+MCP server instructions come from connected servers and remain outside the
+Agent editor. The editor also leaves out SDK-owned prompt text. In Claude Code,
+the native system prompt can be disabled per Agent. Cherry guidance and the
+workspace instructions still apply. Changing the switch or a prompt override
+rebuilds the warm Claude Code connection before its next turn.
 
 ## Persona and onboarding
 
@@ -119,7 +124,7 @@ next turn boundary; workspace prompt files retain their existing lifecycle.
 
 Saving `agent.instructions` invalidates the connection rebuild signature. Changes to `app.user.name` and the effective connection model name also invalidate it because they affect `{{username}}` and `{{model_name}}`. An idle stale connection closes eagerly; a live response finishes with its captured prompt; the next fresh model turn rebuilds and sees the saved value.
 
-System Prompt variables are resolved by `buildAgentRuntimePrompt` when an Agent
+System Prompt variables are resolved by `buildAgentPrompt` when an Agent
 runtime connection is created or rebuilt. `{{model_name}}` uses the effective connection model name: the session override
 when configured for an interactive turn, otherwise the Agent default. Headless
 (scheduled or responder-less) runs use the Agent default and ignore session
@@ -129,9 +134,9 @@ not force a rebuild every turn.
 
 ## Implementation map
 
-- `src/main/ai/runtime/agentPrompt.ts` owns shared precedence, variable materialization, and the `{ base, append }` contract.
+- `src/main/ai/agents/prompt` owns shared precedence, variable materialization, and the `{ base, append }` contract.
 - Runtime drivers under `src/main/ai/runtime/{claudeCode,pi,piDurable}/` map that contract into their SDK/composition.
-- `src/main/ai/agents/prompt.ts` owns workspace base selection and persona/memory context.
+- `src/main/ai/agents/prompt/promptContext.ts` owns workspace base selection and persona/memory context.
 - `src/main/ai/runtime/claudeCode/identityHooks.ts`, `src/main/ai/runtime/pi/identityExtension.ts` and `src/main/ai/runtime/piDurable/durableDesktop.ts` deliver live identity through native hooks or prompt sections.
 - `src/main/ai/agents/bootstrap.ts` owns first-run persona and user onboarding guidance.
 - `src/main/ai/agentSession/AgentSessionRuntimeService.ts` owns next-turn connection reconciliation.

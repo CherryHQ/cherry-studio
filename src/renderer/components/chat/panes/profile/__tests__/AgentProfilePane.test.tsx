@@ -56,17 +56,14 @@ const task = (id: string, agentId: string, name: string, enabled = true): Schedu
     status: enabled ? 'active' : 'paused'
   }) as unknown as ScheduledTaskEntity
 
-function serveAgentData({
-  tasks = [],
-  channels = []
-}: { tasks?: ScheduledTaskEntity[]; channels?: { agentId: string; type: string }[] } = {}) {
+function serveAgentData({ tasks = [] }: { tasks?: ScheduledTaskEntity[] } = {}) {
   serveQueries({
     '/agents/:agentId': ({ params }) => (params?.agentId === agent.id ? agent : undefined),
     '/agents/:agentId/tasks': ({ params }) => {
       const items = tasks.filter((item) => item.agentId === params?.agentId)
       return { items, total: items.length, page: 1 }
     },
-    '/agent-channels': ({ query }) => channels.filter((channel) => channel.agentId === query?.agentId),
+    '/agent-channels': () => [],
     '/mcp-servers': () => ({ items: [], total: 0, page: 1 }),
     [`/models/${DEFAULT_MODEL_ID}`]: () => ({ id: DEFAULT_MODEL_ID, name: 'GPT-5' })
   })
@@ -118,6 +115,17 @@ describe('AgentProfilePane', () => {
 
     expect(screen.getByRole('heading', { name: 'Code Reviewer' })).toBeInTheDocument()
     expect(screen.getByText('Reviews changes and points out risks')).toBeInTheDocument()
+  })
+
+  it('shows every supported platform in Channels for an Agent with no accounts', () => {
+    renderInRightPane(<AgentProfilePane agentId={agent.id} sessionId="session-1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Channels' }))
+    const platforms = within(screen.getByRole('region', { name: 'Available platforms' }))
+    for (const platform of ['WeChat', 'Feishu', 'WeCom', 'DingTalk', 'QQ', 'Telegram', 'Discord', 'Slack']) {
+      expect(platforms.getByRole('button', { name: `Connect ${platform}` })).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('region', { name: 'Suggestions' })).not.toBeInTheDocument()
   })
 
   describe('settings', () => {
@@ -249,20 +257,13 @@ describe('AgentProfilePane', () => {
     })
 
     it('suggests only what this Agent has not set up yet', () => {
-      serveAgentData({
-        tasks: [task('t-1', agent.id, 'Daily code review')],
-        channels: [
-          { agentId: agent.id, type: 'feishu' },
-          // Another Agent's WeChat channel does not count for this one.
-          { agentId: 'agent-2', type: 'wechat' }
-        ]
-      })
+      serveAgentData({ tasks: [task('t-1', agent.id, 'Daily code review')] })
       agent = { ...agent, knowledgeBaseIds: ['kb-1'] }
       renderInRightPane(<AgentProfilePane agentId={agent.id} sessionId="session-1" />)
       const suggestions = within(screen.getByRole('region', { name: 'Suggestions' }))
 
       expect(suggestions.queryByText('Connect to Feishu')).toBeNull()
-      expect(suggestions.getByText('Connect to WeChat')).toBeInTheDocument()
+      expect(suggestions.queryByText('Connect to WeChat')).toBeNull()
       expect(suggestions.queryByText('Send me a daily report every morning')).toBeNull()
       expect(suggestions.queryByText('Link a knowledge base')).toBeNull()
       expect(suggestions.getByText('Connect GitHub')).toBeInTheDocument()
@@ -270,20 +271,10 @@ describe('AgentProfilePane', () => {
       expect(suggestions.getByText('Remember my habits')).toBeInTheDocument()
     })
 
-    it('still suggests Feishu when the Agent only has a channel on another platform', () => {
-      serveAgentData({ tasks: [], channels: [{ agentId: agent.id, type: 'telegram' }] })
-      renderInRightPane(<AgentProfilePane agentId={agent.id} sessionId="session-1" />)
-
-      expect(
-        within(screen.getByRole('region', { name: 'Suggestions' })).getByText('Connect to Feishu')
-      ).toBeInTheDocument()
-    })
-
     it('fills the composer from a suggestion and opens the edit dialog to link a knowledge base', async () => {
       renderInRightPane(<AgentProfilePane agentId={agent.id} sessionId="session-1" />)
       const region = screen.getByRole('region', { name: 'Suggestions' })
 
-      expect(within(region).getByText('Connect to Feishu')).toBeInTheDocument()
       expect(within(region).getByText('Send me a daily report every morning')).toBeInTheDocument()
       fireEvent.click(within(region).getByText('Remember my habits'))
       fireEvent.click(within(region).getByText('Link a knowledge base'))
@@ -325,20 +316,18 @@ describe('AgentProfilePane', () => {
       const suggestions = () => within(screen.getByRole('region', { name: 'Suggestions' }))
 
       it('shows the generated suggestions minus what is already set up, and a click fills the composer', async () => {
-        serveAgentData({
-          tasks: [task('t-1', agent.id, 'Daily code review')],
-          channels: [{ agentId: agent.id, type: 'feishu' }]
-        })
+        serveAgentData({ tasks: [task('t-1', agent.id, 'Daily code review')] })
         fetchGenerate.mockResolvedValue(`\`\`\`json\n${reply(GENERATED)}\n\`\`\``)
         renderPane()
 
         expect(await suggestions().findByText('Review my latest PR')).toBeInTheDocument()
-        expect(suggestions().getByText('Reach me on WeChat')).toBeInTheDocument()
+        expect(suggestions().queryByText('Reach me on WeChat')).toBeNull()
         expect(suggestions().getByText('Link the style guide')).toBeInTheDocument()
         expect(suggestions().getByText('Remember my review style')).toBeInTheDocument()
         expect(suggestions().queryByText('Post reviews to Feishu')).toBeNull()
         expect(suggestions().queryByText('Weekly risk digest')).toBeNull()
         expect(suggestions().queryByText('Connect GitHub')).toBeNull()
+        expect(fetchGenerate.mock.calls[0][0].content).not.toContain('Connected channels:')
 
         fireEvent.click(suggestions().getByText('Review my latest PR'))
         fireEvent.click(suggestions().getByText('Link the style guide'))
@@ -346,6 +335,20 @@ describe('AgentProfilePane', () => {
           expect(prefills.requests).toEqual([{ topicId: SESSION_TOPIC, text: 'Review my latest PR, please' }])
           expect(dialog.requests).toEqual([{ kind: 'agent', id: agent.id, initialTab: 'tools.knowledge' }])
         })
+      })
+
+      it('regenerates old cached recommendations that could include channel-related tasks', async () => {
+        MockUseCacheUtils.setPersistCacheValue('ui.chat.profile_pane.starters', {
+          [agent.id]: {
+            hash: 'n91u1u', // The pre-version cache key for the default test Agent in en-US.
+            items: [{ kind: 'generic', title: 'Send updates to Slack', hint: '', prompt: 'Send updates to Slack' }]
+          }
+        })
+        fetchGenerate.mockResolvedValue(reply(GENERATED))
+        renderPane()
+
+        expect(await suggestions().findByText('Review my latest PR')).toBeInTheDocument()
+        expect(suggestions().queryByText('Send updates to Slack')).not.toBeInTheDocument()
       })
 
       // In Chinese the model called the Agent 助手, the UI's word for an Assistant.
@@ -367,6 +370,10 @@ describe('AgentProfilePane', () => {
         [
           'the reply has too few valid suggestions',
           () => fetchGenerate.mockResolvedValue(reply([GENERATED[0], { title: 'No prompt' }]))
+        ],
+        [
+          'channel suggestions leave fewer than four valid items',
+          () => fetchGenerate.mockResolvedValue(reply(GENERATED.slice(0, 4)))
         ]
       ])('shows the rule-based suggestions when %s', async (_case, arrange) => {
         arrange()
@@ -394,6 +401,28 @@ describe('AgentProfilePane', () => {
           vi.useRealTimers()
         }
       })
+
+      it.each(['generated cards', 'default cards'] as const)(
+        'keeps %s visible while updated instructions regenerate recommendations',
+        async (initial) => {
+          const initialCard = initial === 'generated cards' ? 'Review my latest PR' : 'Connect GitHub'
+          if (initial === 'generated cards') fetchGenerate.mockResolvedValueOnce(reply(GENERATED))
+          else fetchGenerate.mockRejectedValueOnce(new Error('Provider unavailable'))
+
+          const next = Promise.withResolvers<string>()
+          fetchGenerate.mockReturnValueOnce(next.promise)
+          const view = renderPane()
+          expect(await suggestions().findByText(initialCard)).toBeVisible()
+
+          agent = { ...agent, instructions: 'Review database migrations' }
+          view.rerender(<AgentProfilePane agentId={agent.id} sessionId="session-1" />)
+
+          expect(suggestions().getByText(initialCard)).toBeVisible()
+          expect(suggestions().queryByText('Loading...')).not.toBeInTheDocument()
+          await act(async () => next.resolve(reply([generated('Audit migration risks'), ...GENERATED.slice(1)])))
+          expect(await suggestions().findByText('Audit migration risks')).toBeVisible()
+        }
+      )
 
       it.each(['name', 'description', 'instructions'] as const)(
         'reuses the cached suggestions until the %s changes',

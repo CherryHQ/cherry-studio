@@ -1,3 +1,4 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
@@ -8,8 +9,9 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { McpCapabilityList } from '../McpCapabilityList'
 
-const { mcp, toastError } = vi.hoisted(() => ({
+const { mcp, installPreset, toastError } = vi.hoisted(() => ({
   mcp: { servers: [] as Partial<McpServer>[], addMcpServer: vi.fn() },
+  installPreset: vi.fn(),
   toastError: vi.fn()
 }))
 
@@ -84,7 +86,10 @@ function Harness() {
 describe('McpCapabilityList', () => {
   beforeEach(() => {
     mcp.servers = [{ id: 'mcp-github', name: 'GitHub', type: 'stdio', isActive: true }]
+    MockUseDataApiUtils.resetMocks()
     mcp.addMcpServer.mockReset()
+    installPreset.mockReset()
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/mcp-servers/install-preset', installPreset)
     toastError.mockReset()
   })
 
@@ -94,12 +99,13 @@ describe('McpCapabilityList', () => {
     expect(screen.getByRole('switch', { name: FETCH })).not.toBeChecked()
     expect(screen.queryByRole('switch', { name: '@cherry/brave-search' })).not.toBeInTheDocument()
     expect(screen.queryByRole('switch', { name: '@cherry/browser' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: '@cherry/nowledge-mem' })).not.toBeInTheDocument()
   })
 
   it('installs a featured server once, active, and binds its new ID', async () => {
     const user = userEvent.setup()
     let finishInstall: (server: Partial<McpServer>) => void = () => {}
-    mcp.addMcpServer.mockImplementation(
+    installPreset.mockImplementation(
       () =>
         new Promise((resolve) => {
           finishInstall = resolve
@@ -113,13 +119,13 @@ describe('McpCapabilityList', () => {
 
     finishInstall({ id: 'mcp-fetch-new', name: FETCH })
     await waitFor(() => expect(screen.getByTestId('selected')).toHaveTextContent('mcp-fetch-new'))
-    expect(mcp.addMcpServer).toHaveBeenCalledTimes(1)
-    expect(mcp.addMcpServer.mock.calls[0][0]).toMatchObject({ name: FETCH, isActive: true })
+    expect(installPreset).toHaveBeenCalledTimes(1)
+    expect(installPreset).toHaveBeenCalledWith({ body: { name: FETCH, activate: true } })
   })
 
   it('leaves a featured server off and reports the error when it fails to install', async () => {
     const user = userEvent.setup()
-    mcp.addMcpServer.mockRejectedValue(new Error('npm offline'))
+    installPreset.mockRejectedValue(new Error('npm offline'))
     render(<Harness />)
 
     await user.click(screen.getByRole('switch', { name: FETCH }))
@@ -136,7 +142,7 @@ describe('McpCapabilityList', () => {
     await user.click(screen.getByRole('switch', { name: ENABLE_ALL }))
 
     expect(screen.getByTestId('selected').textContent).toBe('mcp-github')
-    expect(mcp.addMcpServer).not.toHaveBeenCalled()
+    expect(installPreset).not.toHaveBeenCalled()
   })
 
   it('offers adding manually or importing JSON, each in its own dialog', async () => {

@@ -1,10 +1,14 @@
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
-import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { type AgentPromptOverrides, isEditablePromptSection } from '@shared/ai/agentPromptSections'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+
+import { buildAgentConfigInstructions } from './agentConfigInstructions'
+import { buildArtifactReportingInstructions } from './artifactReportingInstructions'
+import { buildCitationInstructions } from './citationInstructions'
+import { type AgentPromptBase, PromptBuilder } from './promptContext'
 
 const logger = loggerService.withContext('AgentPrompt')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
@@ -37,20 +41,19 @@ export interface AgentRuntimePrompt {
   blocks: AgentPromptBlock[]
 }
 
-export interface BuildAgentRuntimePromptOptions {
+export interface BuildAgentPromptOptions {
   workspacePath: string
   agentDataPath: string
   agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName'>
-  citationsGuidance?: string
-  /** From `buildReportArtifactsGuidance`, in the adapter's tool call form. */
-  reportArtifactsGuidance?: string
-  /** From `buildConfigToolsGuidance`, in the adapter's tool call form. */
-  configToolsGuidance?: string
+  /** Formats a model-facing call reference when the session can reach the tool. */
+  referenceTool?: (server: string, tool: string) => string | undefined
+  toolCallHint?: string
+  includeKnowledgeCitations?: boolean
   /** Context required only when a custom system.md replaces the runtime's native base. */
   customBaseContext?: string
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
-  mcpInstructions?: string
+  nativeBaseEnabled?: boolean
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
   modelName?: string | null
   /** Preview only: stands in for the instructions, or marks where they would go when there are none. */
@@ -62,20 +65,20 @@ export interface BuildAgentRuntimePromptOptions {
 const promptBuilder = new PromptBuilder()
 
 /** Materialize Cherry-owned prompt policy once; runtime adapters only map base/append into their SDK. */
-export async function buildAgentRuntimePrompt({
+export async function buildAgentPrompt({
   workspacePath,
   agentDataPath,
   agent,
-  citationsGuidance,
-  reportArtifactsGuidance,
-  configToolsGuidance,
+  referenceTool,
+  toolCallHint,
+  includeKnowledgeCitations = false,
   customBaseContext,
   effectiveLanguage,
-  mcpInstructions,
+  nativeBaseEnabled = true,
   modelName,
   instructionsSlot,
-  overrides
-}: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
+  overrides = agent.configuration?.prompt_overrides
+}: BuildAgentPromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
   let instructions = agent.instructions
@@ -100,12 +103,26 @@ export async function buildAgentRuntimePrompt({
     agentDataPath
   )
 
+  const base: AgentPromptBase =
+    parts.base.kind === 'custom'
+      ? {
+          ...parts.base,
+          content: parts.base.content ? (overrides?.workspace_system ?? parts.base.content) : parts.base.content
+        }
+      : nativeBaseEnabled
+        ? parts.base
+        : { kind: 'custom', content: '' }
+
   // Stable prefix first for prompt-cache sharing; deferential language stays last so persona/workspace win.
   const blocks: AgentPromptBlock[] = (
     [
       ['instruction_precedence', 'guidance', hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined],
-      ['report_artifacts', 'guidance', reportArtifactsGuidance],
-      ['config_tools', 'guidance', configToolsGuidance],
+      [
+        'report_artifacts',
+        'guidance',
+        referenceTool && buildArtifactReportingInstructions(referenceTool, toolCallHint)
+      ],
+      ['config_tools', 'guidance', referenceTool && buildAgentConfigInstructions(referenceTool, toolCallHint)],
       [
         'instructions',
         'instructions',
@@ -115,9 +132,8 @@ export async function buildAgentRuntimePrompt({
       ],
       ['bootstrap', 'guidance', parts.bootstrap],
       ['memories', 'guidance', parts.memories],
-      ['custom_base_context', 'live', parts.base.kind === 'custom' ? customBaseContext : undefined],
-      ['citations', 'guidance', citationsGuidance],
-      ['mcp_instructions', 'live', mcpInstructions],
+      ['cwd', 'live', base.kind === 'custom' ? customBaseContext : undefined],
+      ['citations', 'guidance', referenceTool && buildCitationInstructions(referenceTool, includeKnowledgeCitations)],
       ['language', 'setting', getLanguageInstruction(agent, effectiveLanguage)]
     ] satisfies [string, AgentPromptBlockKind, string | undefined][]
   ).flatMap(([key, kind, text]) => (text ? [{ key, kind, text }] : []))
@@ -126,7 +142,10 @@ export async function buildAgentRuntimePrompt({
     .filter(Boolean)
     .join('\n\n')
 
-  return { base: parts.base, append, blocks }
+  if (parts.base.kind === 'custom' && parts.base.content) {
+    blocks.unshift({ key: 'workspace_system', kind: 'live', text: parts.base.content })
+  }
+  return { base, append, blocks }
 }
 
 function buildAgentInstructionsSection(instructions: string): string {

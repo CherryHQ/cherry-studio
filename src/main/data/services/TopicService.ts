@@ -128,7 +128,7 @@ export class TopicService {
   notifyReadModelChange(
     topicIds: readonly string[],
     kind: 'membership' | 'projection',
-    options: { deleted?: boolean } = {}
+    options: { deleted?: boolean; restoredAssistantId?: string | null } = {}
   ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
@@ -143,7 +143,16 @@ export class TopicService {
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
       ...byIdEffects,
-      { endpoint: '/topics/latest' }
+      { endpoint: '/topics/latest' },
+      ...(options.restoredAssistantId
+        ? [
+            {
+              endpoint: '/assistants/:id/artifacts',
+              kind: 'membership',
+              routeParams: { id: options.restoredAssistantId }
+            } as const
+          ]
+        : [])
     ])
   }
 
@@ -613,7 +622,7 @@ export class TopicService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Topic', id)
 
-    this.notifyReadModelChange([id], 'membership')
+    this.notifyReadModelChange([id], 'membership', { restoredAssistantId: row.assistantId })
     logger.info('Restored topic', { id })
     return rowToTopic(row)
   }

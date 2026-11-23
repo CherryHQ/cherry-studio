@@ -80,7 +80,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: mockProvisionBuiltinAgent
 }))
 
-vi.mock('@main/ai/agents/prompt', () => ({
+vi.mock('@main/ai/agents/prompt/promptContext', () => ({
   PromptBuilder: vi.fn(function () {
     return {
       buildPromptParts: mockBuildPrompt,
@@ -236,8 +236,24 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     expect(text).toContain('Do the task.')
   })
 
-  // Overrides are a Pi Durable feature; a Claude Code Agent keeps the generated guidance.
-  it('ignores prompt overrides saved on the Agent', async () => {
+  it.each(['mcp__cherry-tools__report_artifacts', 'mcp__cherry-tools__*', 'mcp__*'])(
+    'omits reporting instructions when %s disables the tool',
+    async (disabled) => {
+      const agent = makeAgent({ disabledTools: [disabled] })
+      const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
+      expect(text).not.toContain('## Reporting deliverables')
+    }
+  )
+
+  it('keeps an available configuration operation when another is disabled', async () => {
+    const agent = makeAgent({ disabledTools: ['mcp__cherry-tools__agent_create'] })
+    const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
+    expect(text).toContain('mcp__cherry-tools__assistant_create')
+    expect(text).not.toContain('mcp__cherry-tools__agent_create')
+    expect(text).not.toContain('cherryApprovalExecution')
+  })
+
+  it('uses saved overrides for Claude Code guidance', async () => {
     const agent = makeAgent({
       instructions: 'Do the task.',
       configuration: { prompt_overrides: { report_artifacts: 'OVERRIDDEN' } }
@@ -245,8 +261,20 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
 
     const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
 
-    expect(text).toContain('`mcp__cherry-tools__report_artifacts`')
-    expect(text).not.toContain('OVERRIDDEN')
+    expect(text).not.toContain('`mcp__cherry-tools__report_artifacts`')
+    expect(text).toContain('OVERRIDDEN')
+  })
+  it('disables the SDK preset while preserving Cherry instructions and the cwd', async () => {
+    const agent = makeAgent({
+      instructions: 'Keep this instruction.',
+      configuration: { claude_code_native_prompt_enabled: false }
+    })
+    const prompt = await buildSystemPrompt(agent, '/tmp/cwd')
+    expect(prompt).toMatchObject({ type: 'custom', snapshot: false })
+    const text = promptText(prompt)
+    expect(text).toContain('Keep this instruction.')
+    expect(text).toContain('/tmp/cwd')
+    expect(text).toContain('Reporting deliverables')
   })
 })
 

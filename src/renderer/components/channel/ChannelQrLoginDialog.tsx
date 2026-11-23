@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from '@cherrystudio/ui'
@@ -25,14 +25,17 @@ export function ChannelQrLoginDialog({
   const { t } = useTranslation()
   const [status, setStatus] = useState<QrLoginStatus>('starting')
   const [url, setUrl] = useState<string | null>(null)
+  const login = useRef<{ cancelled: boolean; confirmed: boolean } | null>(null)
   const copy =
     channel.type === 'wechat'
       ? { title: 'agent.channels.wechat.qrTitle', hint: 'agent.channels.wechat.qrHint' }
       : { title: 'agent.channels.feishu.qrTitle', hint: 'agent.channels.feishu.qrScanHint' }
 
   const handleEvent = (data: QrLoginEvent) => {
-    if (data.channelId !== channel.id) return
+    const attempt = login.current
+    if (!attempt || attempt.cancelled || attempt.confirmed || data.channelId !== channel.id) return
     if (data.status === 'confirmed' || data.status === 'expired' || data.status === 'error') {
+      attempt.confirmed = data.status === 'confirmed'
       setUrl(null)
       setStatus(data.status)
     } else if (data.status === 'pending' && data.url) {
@@ -43,21 +46,48 @@ export function ChannelQrLoginDialog({
   useIpcOn('channel.wechat.qr_login', handleEvent)
   useIpcOn('channel.feishu.qr_login', handleEvent)
 
-  const start = () => {
+  const start = async (retry: boolean) => {
+    const attempt = login.current
+    if (!attempt || attempt.cancelled || attempt.confirmed) return
     setStatus('starting')
-    void onActiveChange(true).then((result) => result === null && setStatus('error'))
+    setUrl(null)
+    if (retry) {
+      const stopped = await onActiveChange(false)
+      if (attempt.cancelled) return
+      if (stopped === null) {
+        setStatus('error')
+        return
+      }
+    }
+    const started = await onActiveChange(true)
+    if (!attempt.cancelled && !attempt.confirmed && started === null) setStatus('error')
   }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- starts once per opened dialog
-  useEffect(start, [channel.id])
+
+  const cancel = () => {
+    const attempt = login.current
+    if (!attempt || attempt.cancelled) return
+    attempt.cancelled = true
+    if (!attempt.confirmed) void onActiveChange(false)
+  }
+  const startOnMount = useEffectEvent(() => {
+    login.current = { cancelled: false, confirmed: false }
+    void start(false)
+  })
+  const cancelOnUnmount = useEffectEvent(cancel)
+  useEffect(() => {
+    startOnMount()
+    return () => cancelOnUnmount()
+  }, [])
 
   const close = () => {
-    if (status !== 'confirmed') void onActiveChange(false)
+    cancel()
     onClose()
   }
 
+  const pending = status === 'starting' || status === 'pending'
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
-      <DialogContent closeOnOverlayClick={false} className="max-w-90" closeLabel={t('common.close')}>
+      <DialogContent guardDismiss={pending} className="max-w-90" closeLabel={t('common.close')}>
         <DialogHeader>
           <DialogTitle>{t(copy.title)}</DialogTitle>
         </DialogHeader>
@@ -77,14 +107,18 @@ export function ChannelQrLoginDialog({
             {status === 'error' && t('agent.channels.qrSetup.error')}
           </p>
           {status === 'expired' || status === 'error' ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => void onActiveChange(false).then(start)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void start(true)}>
               {t('common.retry')}
             </Button>
           ) : status === 'confirmed' ? (
-            <Button type="button" variant="emphasis" size="sm" onClick={onClose}>
+            <Button type="button" variant="emphasis" size="sm" onClick={close}>
               {t('library.config.dialogs.create.channels.done')}
             </Button>
-          ) : null}
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={close}>
+              {t('common.cancel')}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -11,16 +11,27 @@ import { requestComposerPrefill, useComposerPrefill } from '../useComposerPrefil
 
 const TOPIC_ID = 'topic-a'
 
-function Composer({ initialText = '', topicId = TOPIC_ID }: { initialText?: string; topicId?: string }) {
+function Composer({
+  initialText = '',
+  topicId = TOPIC_ID,
+  editing = false
+}: {
+  initialText?: string
+  topicId?: string
+  editing?: boolean
+}) {
   const [draft, setDraft] = useState<ComposerSerializedDraft>({ text: initialText, tokens: [] })
   const [focused, setFocused] = useState(false)
   const actionsRef = useRef({
     getDraft: () => draft,
-    replaceDraft: (next: ComposerSerializedDraft) => setDraft(next),
     focus: () => setFocused(true)
   })
   actionsRef.current.getDraft = () => draft
-  useComposerPrefill(actionsRef, topicId)
+  useComposerPrefill(actionsRef, {
+    topicId,
+    enabled: !editing,
+    replaceDraft: (text) => setDraft({ text, tokens: [] })
+  })
   return (
     <>
       <textarea aria-label="Draft" value={draft.text} readOnly />
@@ -107,6 +118,16 @@ describe('useComposerPrefill', () => {
     render(<Composer topicId="topic-new" />)
 
     expect(await screen.findByDisplayValue('Create a scheduled task for me:')).toBeInTheDocument()
+  })
+
+  it('keeps the edit draft and defers prefill until editing ends', async () => {
+    const view = render(<Composer editing initialText="Edited message" />)
+
+    await prefill(TOPIC_ID, 'Try another task')
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('Edited message')
+
+    view.rerender(<Composer key="main" />)
+    expect(await screen.findByDisplayValue('Try another task')).toBeInTheDocument()
   })
 
   it('ignores text addressed to another conversation in the same window', async () => {

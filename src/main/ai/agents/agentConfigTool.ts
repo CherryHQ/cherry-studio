@@ -5,7 +5,9 @@
  * accepts the same fields and refuses the same values.
  */
 
-import * as z from 'zod'
+import { randomUUID } from 'node:crypto'
+
+import type * as z from 'zod'
 
 import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
@@ -17,9 +19,9 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
-import { getAgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
+import { type AgentConfigToolKind, getAgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import type {
   AgentConfigChangePreview,
   AgentConfigToolOutput,
@@ -41,12 +43,7 @@ import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import {
-  type AgentEntity,
-  type AgentPermissionMode,
-  AgentPermissionModeSchema,
-  type AgentType
-} from '@shared/data/api/schemas/agents'
+import { type AgentEntity, type AgentPermissionMode, type AgentType } from '@shared/data/api/schemas/agents'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import type { AssistantReplyLanguage } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -56,6 +53,12 @@ import { toAvatarEmoji } from '@shared/utils/emoji'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { isNonChatModel } from '@shared/utils/model'
 
+import {
+  CreateAgentToolInputSchema,
+  CreateAssistantToolInputSchema,
+  SelfUpdateToolInputSchema,
+  UpdateAgentToolInputSchema
+} from './agentConfigToolSchemas'
 import { createAgent } from './createAgent'
 
 const logger = loggerService.withContext('AgentConfigTool')
@@ -63,85 +66,11 @@ const logger = loggerService.withContext('AgentConfigTool')
 /** Every create entry point builds the runtime the create wizard defaults to. */
 const NEW_AGENT_TYPE: AgentType = 'pi-durable'
 const SUMMARY_TEXT_MAX_LENGTH = 60
-
-const settingsShape = {
-  emoji: z.string().optional().describe('One emoji for the avatar.'),
-  description: z.string().optional().describe('One line shown in the Agent list.'),
-  instructions: z
-    .string()
-    .optional()
-    .describe("The Agent's system prompt: role, behavior, output format. Write it in the user's language."),
-  model: z.string().optional().describe('Model id in the form "providerId::modelId".'),
-  permissionMode: AgentPermissionModeSchema.optional().describe(
-    // Users name modes by their UI labels; Kimi K2.6 read "逐次确认" as acceptEdits without them.
-    'default ("Ask Before Acting" / "逐次确认") asks before acting; acceptEdits ("Auto-accept Edits" / "自动接受编辑") accepts file edits; auto ("Approve for Me" / "智能批准") approves routine actions. bypassPermissions ("Full Access" / "完全访问") is never accepted here.'
-  ),
-  skillIds: z
-    .array(z.string())
-    .optional()
-    .describe('Installed skills to enable. Replaces the current set; built-in skills keep their state.'),
-  knowledgeBaseIds: z.array(z.string()).optional().describe('Knowledge bases to bind. Replaces the current set.'),
-  mcpServerIds: z.array(z.string()).optional().describe('Installed MCP servers to bind. Replaces the current set.'),
-  disabledTools: z
-    .array(z.string())
-    .optional()
-    .describe('Built-in tools to switch off. Replaces the current list; an empty list enables all.'),
-  language: z
-    .string()
-    .optional()
-    .describe(
-      'Reply language: "inherit" follows the global setting, "off" removes the constraint, anything else is a language label such as "English" or "中文".'
-    ),
-  heartbeat: z
-    .strictObject({
-      enabled: z.boolean().optional(),
-      intervalMinutes: z.number().int().positive().optional(),
-      timeoutMinutes: z.number().int().positive().optional()
-    })
-    .optional()
-    .describe('Periodic heartbeat check.')
-}
-
 export const CREATE_AGENT_TOOL_DESCRIPTION =
   'Create a new Agent (an autonomous worker with its own tools, skills and workspace) only when the user explicitly asks for a new Agent, e.g. "建一个 Agent". Never use it to carry out or schedule a task yourself; scheduled or recurring work goes to cron. Propose the configuration first; the user approves every call. Omit model to use the default model.'
 
 export const CREATE_ASSISTANT_TOOL_DESCRIPTION =
   'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) only when the user explicitly asks for a new Assistant, e.g. "建一个助手". Never use it to carry out or schedule a task yourself. Propose the configuration first; the user approves every call. Omit model to use the default model.'
-
-export const CreateAgentToolInputSchema = z.strictObject({
-  ...settingsShape,
-  name: z.string().trim().min(1).describe('Short display name, e.g. "Python Reviewer" or "周报助手".'),
-  instructions: z
-    .string()
-    .trim()
-    .min(1)
-    .describe("The Agent's system prompt: role, behavior, output format. Write it in the user's language.")
-})
-
-export const UpdateAgentToolInputSchema = z.strictObject({
-  agentId: z.string().min(1).describe('ID of the Agent to change, from agent_list.'),
-  name: z.string().trim().min(1).optional().describe('New display name.'),
-  ...settingsShape
-})
-
-/** The calling Agent's own fields; renaming stays on the approval-free `config` rename action. */
-export const SelfUpdateToolInputSchema = z.strictObject(settingsShape)
-
-export const CreateAssistantToolInputSchema = z.strictObject({
-  name: z.string().trim().min(1).describe('Short display name, e.g. "Translator" or "周报助手".'),
-  emoji: settingsShape.emoji,
-  description: z.string().optional().describe('One line shown in the Assistant list.'),
-  prompt: z
-    .string()
-    .trim()
-    .min(1)
-    .describe("The Assistant's system prompt: role, behavior, output format. Write it in the user's language."),
-  model: settingsShape.model,
-  knowledgeBaseIds: z.array(z.string()).optional().describe('Knowledge bases to bind.'),
-  mcpServerIds: z.array(z.string()).optional().describe('Installed MCP servers the Assistant may use.'),
-  webSearch: z.boolean().optional().describe('Let the Assistant search and read the web.'),
-  language: settingsShape.language
-})
 
 type SettingsInput = z.infer<typeof SelfUpdateToolInputSchema> & { name?: string }
 
@@ -542,25 +471,30 @@ function fullTextChanges(before: AgentFormState, after: AgentFormState) {
 }
 
 /** The reasoning effort a model change will make the service store, which no input field shows. */
-function reasoningEffortChange(agent: AgentEntity, before: AgentFormState, after: AgentFormState): string[] {
-  if (!after.model || after.model === before.model) return []
+function planReasoningEffort(agent: AgentEntity, before: AgentFormState, after: AgentFormState) {
+  if (!after.model || after.model === before.model) return undefined
   const { providerId, modelId } = parseUniqueModelId(after.model)
   let nextModel: Model | undefined
   try {
     nextModel = modelService.getByKey(providerId, modelId)
   } catch {
-    return []
+    return undefined
   }
   const current = agent.configuration?.reasoning_effort ?? 'default'
   const next = resolveReasoningEffortForModel(nextModel, current) ?? 'default'
-  if (next === current) return []
-  return [
-    t('agent.config_tool.summary.change', {
-      field: t('agent.config_tool.field.reasoning_effort'),
-      from: REASONING_LABEL[current](),
-      to: REASONING_LABEL[next]()
-    })
-  ]
+  return {
+    expected: next,
+    summary:
+      next === current
+        ? []
+        : [
+            t('agent.config_tool.summary.change', {
+              field: t('agent.config_tool.field.reasoning_effort'),
+              from: REASONING_LABEL[current](),
+              to: REASONING_LABEL[next]()
+            })
+          ]
+  }
 }
 
 /** The card already shows the avatar, name and description; model and permission always matter. */
@@ -639,7 +573,17 @@ export async function createAgentFromTool(
   input: z.infer<typeof CreateAgentToolInputSchema>,
   { fallbackModel }: { fallbackModel?: string } = {}
 ): Promise<AgentConfigToolOutput> {
-  const { blank, created, model } = planAgentCreate(input, fallbackModel)
+  return executeAgentCreate(
+    takeApprovedConfigPlan('create_agent', input.cherryApprovalExecution) ?? planAgentCreate(input, fallbackModel)
+  )
+}
+
+async function executeAgentCreate({
+  blank,
+  created,
+  model
+}: ReturnType<typeof planAgentCreate>): Promise<AgentConfigToolOutput> {
+  resolveModel(model, NEW_AGENT_TYPE)
 
   const agent = await createAgent(
     buildCreateAgentCommand({
@@ -696,10 +640,15 @@ export function createAssistantFromTool(
   input: z.infer<typeof CreateAssistantToolInputSchema>,
   { fallbackModel }: { fallbackModel?: string } = {}
 ): AssistantCreateToolOutput {
-  const { knowledgeBaseIds, mcpServerIds, replyLanguage, modelId, emoji, form } = planAssistantCreate(
-    input,
-    fallbackModel
-  )
+  const approved = takeApprovedConfigPlan('create_assistant', input.cherryApprovalExecution)
+  return executeAssistantCreate(approved?.input ?? input, approved?.plan ?? planAssistantCreate(input, fallbackModel))
+}
+
+function executeAssistantCreate(
+  input: z.infer<typeof CreateAssistantToolInputSchema>,
+  { knowledgeBaseIds, mcpServerIds, replyLanguage, modelId, emoji, form }: ReturnType<typeof planAssistantCreate>
+): AssistantCreateToolOutput {
+  resolveModel(modelId, 'assistant')
   const assistant = assistantDataService.create(
     buildCreateAssistantDto({
       avatar: emoji,
@@ -766,92 +715,154 @@ function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self
   const next = applySettingsInput(baseline, input, agent.type, { creating: false })
   const diff = diffAgentUpdate(baseline, next)
   if (!diff) throw new Error('Nothing to change: every given value matches the current setting.')
+  const effort = planReasoningEffort(agent, baseline, next)
   return {
+    agentId,
+    expected: {
+      updatedAt: agent.updatedAt,
+      mcpServerIds: agent.mcps ?? [],
+      knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
+      skillIds,
+      reasoningEffort: effort?.expected
+    },
     dto: diff.dto,
-    summary: [...describeChanges(baseline, next), ...reasoningEffortChange(agent, baseline, next)],
+    summary: [...describeChanges(baseline, next), ...(effort?.summary ?? [])],
     details: fullTextChanges(baseline, next),
     replaceAvatarImage: Boolean(agent.avatarFileId) && next.avatar !== baseline.avatar
   }
 }
 
-/**
- * What a pending create or update would do, for its approval card: the new resource's identity, or
- * `field: current → new` lines. Writes nothing, and reads the call from the approval itself so the
- * preview always matches what approving runs.
- */
-export function previewAgentConfigChange(approvalId: string): AgentConfigChangePreview {
-  const preview = buildAgentConfigChangePreview(approvalId)
-  for (const id of shownUpdatePreviews.keys()) if (!toolApprovalRegistry.peek(id)) shownUpdatePreviews.delete(id)
-  if (preview.ok && preview.summary) shownUpdatePreviews.set(approvalId, JSON.stringify(preview))
-  return preview
-}
-
-/** What each settings-change card showed, keyed by approval, so Allow can be checked against it. */
-const shownUpdatePreviews = new Map<string, string>()
-
-/**
- * Turns an Allow into a refusal when the Agent changed after its card was previewed, so the card no longer shows
- * what approving would write; the model is told to ask again with a fresh card.
- */
-export function refuseOutdatedAgentConfigApproval<T extends { approvalId: string; approved: boolean; reason?: string }>(
-  response: T
-): T {
-  const shown = shownUpdatePreviews.get(response.approvalId)
-  shownUpdatePreviews.delete(response.approvalId)
-  if (!response.approved || shown === undefined) return response
-  if (JSON.stringify(buildAgentConfigChangePreview(response.approvalId)) === shown) return response
-  return {
-    ...response,
-    approved: false,
-    reason:
-      'Not applied: the Agent changed after this change was shown for approval. Call the tool again so the user can approve the current change.'
+type ConfigPlanData = {
+  create_agent: ReturnType<typeof planAgentCreate>
+  create_assistant: {
+    input: z.infer<typeof CreateAssistantToolInputSchema>
+    plan: ReturnType<typeof planAssistantCreate>
   }
+  update: ReturnType<typeof planAgentUpdate>
+  self_update: ReturnType<typeof planAgentUpdate>
 }
+type ConfigPlan = {
+  [K in AgentConfigToolKind]: { kind: K; data: ConfigPlanData[K]; preview: AgentConfigChangePreview }
+}[AgentConfigToolKind]
 
-function buildAgentConfigChangePreview(approvalId: string): AgentConfigChangePreview {
+const shownPlans = new Map<string, { originalInput: Record<string, unknown>; plan: ConfigPlan }>()
+const approvedPlans = new Map<string, { plan: ConfigPlan; expiresAt: number }>()
+const EXECUTION_TTL_MS = 5 * 60_000
+const STALE_APPROVAL_REASON =
+  'Not applied: the approved configuration is unavailable or changed. Call the tool again so the user can approve the current change.'
+
+/** Reopening a pending approval card shows the same plan that was presented first. */
+export function previewAgentConfigChange(approvalId: string): AgentConfigChangePreview {
+  for (const id of shownPlans.keys()) if (!toolApprovalRegistry.peek(id)) shownPlans.delete(id)
   const call = toolApprovalRegistry.peekCall(approvalId)
   const name = call && parseFunctionCallToolName(call.toolName)
-  const kind = name ? getAgentConfigToolKind(name.serverPart, name.toolPart) : undefined
+  const kind = name && getAgentConfigToolKind(name.serverPart, name.toolPart)
   if (!call || !name || !kind) return { ok: false }
+  const existing = shownPlans.get(approvalId)
+  if (existing?.originalInput === call.originalInput && existing.plan.kind === kind) return existing.plan.preview
+
   try {
-    if (kind === 'create_agent' || kind === 'create_assistant') {
-      const fallbackModel = callerModel(call.sessionId, name.serverPart)
-      if (kind === 'create_agent') {
-        const { created } = planAgentCreate(CreateAgentToolInputSchema.parse(call.originalInput), fallbackModel)
-        const resource = { kind: 'agent' as const, name: created.name, emoji: created.avatar }
-        return {
+    if (Object.hasOwn(call.originalInput, 'cherryApprovalExecution')) return { ok: false }
+    let prepared: ConfigPlan
+    if (kind === 'create_agent') {
+      const input = CreateAgentToolInputSchema.parse(call.originalInput)
+      const data = planAgentCreate(input, callerModel(call.sessionId, name.serverPart))
+      const { created } = data
+      prepared = {
+        kind,
+        data,
+        preview: {
           ok: true,
-          resource: { ...resource, description: created.description, highlights: agentHighlights(created) }
+          resource: {
+            kind: 'agent',
+            name: created.name,
+            emoji: created.avatar,
+            description: created.description,
+            highlights: agentHighlights(created)
+          }
         }
       }
+    } else if (kind === 'create_assistant') {
       const input = CreateAssistantToolInputSchema.parse(call.originalInput)
-      const { emoji, form } = planAssistantCreate(input, fallbackModel)
-      return {
-        ok: true,
-        resource: {
-          kind: 'assistant',
-          name: input.name.trim(),
-          emoji,
-          description: input.description?.trim() ?? '',
-          highlights: assistantHighlights(form, input.webSearch)
+      const plan = planAssistantCreate(input, callerModel(call.sessionId, name.serverPart))
+      prepared = {
+        kind,
+        data: { input, plan },
+        preview: {
+          ok: true,
+          resource: {
+            kind: 'assistant',
+            name: input.name.trim(),
+            emoji: plan.emoji,
+            description: input.description?.trim() ?? '',
+            highlights: assistantHighlights(plan.form, input.webSearch)
+          }
         }
       }
+    } else {
+      const self = kind === 'self_update'
+      const { agentId, ...settings } = self
+        ? {
+            agentId: agentSessionService.getById(call.sessionId).agentId,
+            ...SelfUpdateToolInputSchema.parse(call.originalInput)
+          }
+        : UpdateAgentToolInputSchema.parse(call.originalInput)
+      if (!agentId) throw new Error(`Session has no Agent: ${call.sessionId}`)
+      const data = planAgentUpdate(agentId, settings, { self })
+      const { summary, details } = data
+      prepared = { kind, data, preview: { ok: true, summary, ...(details.length ? { details } : {}) } }
     }
-    if (kind === 'update') {
-      const { agentId, ...settings } = UpdateAgentToolInputSchema.parse(call.originalInput)
-      const { summary, details } = planAgentUpdate(agentId, settings, { self: false })
-      return { ok: true, summary, ...(details.length ? { details } : {}) }
-    }
-    const { agentId } = agentSessionService.getById(call.sessionId)
-    if (!agentId) throw new Error(`Session has no Agent: ${call.sessionId}`)
-    const settings = SelfUpdateToolInputSchema.parse(call.originalInput)
-    const { summary, details } = planAgentUpdate(agentId, settings, { self: true })
-    return { ok: true, summary, ...(details.length ? { details } : {}) }
+    shownPlans.set(approvalId, { originalInput: call.originalInput, plan: prepared })
+    return prepared.preview
   } catch (error) {
-    // The tool reports the same refusal to the model when it runs; the user sees the raw arguments.
     logger.warn('Agent config preview failed', { approvalId, error })
     return { ok: false }
   }
+}
+
+/** Resolve only configuration approvals here. Other tools keep their original decisions. */
+export function prepareAgentConfigApproval(
+  approvalId: string,
+  decision: DispatchDecision
+): {
+  decision: DispatchDecision
+  executionInput?: () => Record<string, unknown>
+} {
+  const call = toolApprovalRegistry.peekCall(approvalId)
+  const name = call && parseFunctionCallToolName(call.toolName)
+  const kind = name && getAgentConfigToolKind(name.serverPart, name.toolPart)
+  if (!call || !kind || !decision.approved) return { decision }
+
+  const shown = shownPlans.get(approvalId)
+  const plan = shown?.originalInput === call.originalInput ? shown.plan : undefined
+  if (
+    !plan ||
+    plan.kind !== kind ||
+    ((plan.kind === 'update' || plan.kind === 'self_update') &&
+      agentService.getAgent(plan.data.agentId)?.updatedAt !== plan.data.expected.updatedAt)
+  ) {
+    return { decision: { approved: false, reason: STALE_APPROVAL_REASON } }
+  }
+
+  return {
+    decision: { approved: true },
+    executionInput: () => {
+      const now = Date.now()
+      for (const [token, entry] of approvedPlans) if (entry.expiresAt <= now) approvedPlans.delete(token)
+      const token = randomUUID()
+      approvedPlans.set(token, { plan, expiresAt: now + EXECUTION_TTL_MS })
+      shownPlans.delete(approvalId)
+      return { ...call.originalInput, cherryApprovalExecution: token }
+    }
+  }
+}
+
+function takeApprovedConfigPlan<K extends AgentConfigToolKind>(kind: K, token?: string): ConfigPlanData[K] | undefined {
+  if (token === undefined) return undefined
+  const entry = approvedPlans.get(token)
+  if (entry?.plan.kind !== kind || entry.expiresAt <= Date.now()) throw new Error(STALE_APPROVAL_REASON)
+  approvedPlans.delete(token)
+  return entry.plan.data as ConfigPlanData[K]
 }
 
 /** Apply a partial settings update to a user-created Agent; built-in Agents are refused. */
@@ -860,8 +871,11 @@ export function updateAgentFromTool(
   input: SettingsInput,
   options: { self: boolean }
 ): AgentConfigToolOutput {
-  const { dto, summary, replaceAvatarImage } = planAgentUpdate(agentId, input, options)
-  const updated = agentService.updateAgent(agentId, dto, { replaceAvatarImage })
+  const approved = takeApprovedConfigPlan(options.self ? 'self_update' : 'update', input.cherryApprovalExecution)
+  const plan = approved ?? planAgentUpdate(agentId, input, options)
+  if (plan.agentId !== agentId) throw new Error(STALE_APPROVAL_REASON)
+  const { dto, summary, replaceAvatarImage, expected } = plan
+  const updated = agentService.updateAgent(agentId, dto, { replaceAvatarImage, expected })
   if (!updated) throw new Error(`Agent not found: ${agentId}`)
   return toOutput(updated, summary)
 }

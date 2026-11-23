@@ -112,9 +112,14 @@ vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
-    getChannel: vi
-      .fn()
-      .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
+    getChannel: vi.fn().mockReturnValue({
+      id: 'channel-1',
+      agentId: 'agent-1',
+      isActive: true,
+      sessionId: null,
+      permissionMode: null,
+      workspace: { type: 'system' }
+    }),
     updateChannel: vi.fn().mockResolvedValue(null),
     findBySessionId: vi.fn().mockResolvedValue(null),
     getActiveSessionId: vi.fn((channelId: string, conversationId: string) =>
@@ -664,7 +669,11 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', { replyToMessageId: undefined })
   })
 
-  it('handleCommand /compact sends /compact as message content', async () => {
+  it('handleCommand /compact sends /compact with the bound channel permission mode', async () => {
+    const channel = channelService.getChannel('channel-1')!
+    vi.mocked(channelService.getChannel)
+      .mockReturnValueOnce({ ...channel, permissionMode: 'plan' })
+      .mockReturnValueOnce({ ...channel, permissionMode: 'plan' })
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
@@ -693,6 +702,7 @@ describe('ChannelMessageHandler', () => {
         // Channel-triggered runs have no interactive responder — headless keeps AskUserQuestion
         // disallowed so the run can't stall on an approval prompt.
         headless: true,
+        permissionModeOverride: 'plan',
         requireIdle: { expectedAgentId: 'agent-1' },
         listeners: expect.arrayContaining([
           expect.objectContaining({ id: expect.stringContaining('channel-completion:') })

@@ -43,6 +43,7 @@ export function EditDialogPageShell<TValues extends FieldValues>({
   onBack,
   rootError,
   setDialogContentElement,
+  guardDismiss,
   fill = false,
   children
 }: {
@@ -55,6 +56,7 @@ export function EditDialogPageShell<TValues extends FieldValues>({
   onBack?: () => void
   rootError?: string
   setDialogContentElement: (element: HTMLDivElement | null) => void
+  guardDismiss?: boolean
   fill?: boolean
   children: ReactNode
 }) {
@@ -69,6 +71,7 @@ export function EditDialogPageShell<TValues extends FieldValues>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
+        guardDismiss={guardDismiss}
         size="xl"
         className={cn(
           // Narrows with the window instead of filling a small one edge to edge.

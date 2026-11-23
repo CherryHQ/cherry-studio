@@ -8,7 +8,10 @@ import type { SkillCatalogEntry } from '@shared/types/skill'
 
 export type ResourceType = 'agent' | 'assistant' | 'skill' | 'prompt'
 
-export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { kind: 'agent'; id: string }) & {
+export type ResourceEditDialogTarget = (
+  | { kind: 'assistant'; id: string }
+  | { kind: 'agent'; id: string; sessionId?: string }
+) & {
   /** Deep-link ID naming the page to open (e.g. `tools.mcp`, `memory`, `channels`); see `resolveInitialEditPage`. */
   initialTab?: string
 }

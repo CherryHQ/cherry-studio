@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { resolvePiToolCallForm } from './piToolCallForm'
 
 const call = (disabled: string[], toolSearchLoadsMcp: boolean) => {
-  const form = resolvePiToolCallForm(new Set(disabled), { toolSearchLoadsMcp })
-  return form && `${form.ref('cherry-tools', 'agent_create')}${form.hint}`
+  const form = resolvePiToolCallForm(new Set(disabled), { toolSearchLoadsMcp, allowsTool: () => true })
+  return form && `${form.referenceTool('cherry-tools', 'agent_create')} ${form.toolCallHint}`
 }
 
 // Catches guidance that sends the model to a discovery tool the session does not have active.
@@ -27,6 +27,15 @@ describe('resolvePiToolCallForm', () => {
     expect(text).toContain('tool_search')
     expect(text).not.toContain('codemode')
   })
+
+  it.each(['mcp__cherry-tools__agent_create', 'mcp__cherry_tools__agent_create'])(
+    'omits the disabled MCP tool for stored identifier %s',
+    (disabled) => {
+      const form = resolvePiToolCallForm(new Set([disabled]), { toolSearchLoadsMcp: true, allowsTool: () => true })
+      expect(form?.referenceTool('cherry-tools', 'agent_create')).toBeUndefined()
+      expect(form?.referenceTool('cherry-tools', 'report_artifacts')).toContain('report_artifacts')
+    }
+  )
 
   it.each([
     ['Pi without codemode, whose tool_search cannot load MCP tools', ['codemode'], false],

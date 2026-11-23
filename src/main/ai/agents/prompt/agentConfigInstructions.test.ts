@@ -1,14 +1,24 @@
 import { describe, expect, it } from 'vitest'
 
+import { resolveAgentMcpToolExposure } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 
-import { buildConfigToolsGuidance, buildReportArtifactsGuidance } from './configToolsGuidance'
+import { buildAgentConfigInstructions } from './agentConfigInstructions'
 
-const callForm = { ref: (server: string, name: string) => `<${server}/${name}>`, hint: ' RUNTIME_HINT.' }
+function configInstructions(
+  agent: Parameters<typeof resolveAgentMcpToolExposure>[0],
+  { channelLinked = false, blocked = [] }: { channelLinked?: boolean; blocked?: string[] } = {}
+) {
+  const { allowsTool } = resolveAgentMcpToolExposure(agent, { channelLinked })
+  return buildAgentConfigInstructions((server, tool) => {
+    const id = `${server}/${tool}`
+    return allowsTool(server, tool) && !blocked.includes(id) ? `<${id}>` : undefined
+  }, 'RUNTIME_HINT.')
+}
 
-describe('buildConfigToolsGuidance', () => {
+describe('Agent configuration instructions', () => {
   it('sends a user-created Agent to its own create and settings tools, in the runtime call form', () => {
-    const prompt = buildConfigToolsGuidance({ type: 'pi', configuration: {} }, { channelLinked: false, callForm })
+    const prompt = configInstructions({ type: 'pi', configuration: {} })
 
     expect(prompt).toContain('<cherry-tools/agent_create>')
     expect(prompt).toContain('<cherry-tools/assistant_create>')
@@ -33,7 +43,7 @@ describe('buildConfigToolsGuidance', () => {
       'assistant/update_agent'
     ]
   ])('spells out the real argument names for %s', (_name, configuration, createAgent, createAssistant, update) => {
-    const prompt = buildConfigToolsGuidance({ type: 'pi', configuration }, { channelLinked: false, callForm }) ?? ''
+    const prompt = configInstructions({ type: 'pi', configuration }) ?? ''
     const argsOf = (tool: string) =>
       prompt.match(new RegExp(`<${tool}>[^\`]*\`\\{ ([^}]*) \\}\``))?.[1].split(', ') ?? []
 
@@ -43,6 +53,7 @@ describe('buildConfigToolsGuidance', () => {
     expect(argsOf(createAssistant)).toEqual(expect.arrayContaining(['name', 'prompt', 'emoji?']))
     expect(argsOf(createAssistant)).not.toContain('instructions')
     expect(argsOf(update)).toEqual(expect.arrayContaining(['permissionMode?', 'language?', 'instructions?']))
+    expect(prompt).not.toContain('cherryApprovalExecution')
   })
 
   // "创建一个定时任务" is the Agent's own scheduled work, not a request for a new Agent.
@@ -50,7 +61,7 @@ describe('buildConfigToolsGuidance', () => {
     ['a user-created Agent', {}],
     ['Cherry Assistant', { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT }]
   ])('sends %s to cron for scheduled work instead of the create tools', (_name, configuration) => {
-    const prompt = buildConfigToolsGuidance({ type: 'claude-code', configuration }, { channelLinked: false, callForm })
+    const prompt = configInstructions({ type: 'claude-code', configuration })
 
     expect(prompt).toContain('<cherry-tools/cron>')
   })
@@ -61,11 +72,7 @@ describe('buildConfigToolsGuidance', () => {
     ['agent_create', 'cherry-tools/agent_create', ['<cherry-tools/assistant_create>', '<cherry-tools/config_update>']],
     ['cron', 'cherry-tools/cron', ['<cherry-tools/agent_create>']]
   ])('leaves out a disabled %s and keeps the tools still available', (_tool, disabled, kept) => {
-    const prompt =
-      buildConfigToolsGuidance(
-        { type: 'pi-durable', configuration: {} },
-        { channelLinked: false, callForm, isToolEnabled: (server, name) => `${server}/${name}` !== disabled }
-      ) ?? ''
+    const prompt = configInstructions({ type: 'pi-durable', configuration: {} }, { blocked: [disabled] }) ?? ''
 
     expect(prompt).not.toContain(`<${disabled}>`)
     for (const tool of kept) expect(prompt).toContain(tool)
@@ -73,29 +80,28 @@ describe('buildConfigToolsGuidance', () => {
 
   it('gives no guidance when every create and settings tool is disabled', () => {
     expect(
-      buildConfigToolsGuidance(
+      configInstructions(
         { type: 'pi-durable', configuration: {} },
-        { channelLinked: false, callForm, isToolEnabled: (server) => server !== 'cherry-tools' }
+        { blocked: ['cherry-tools/agent_create', 'cherry-tools/assistant_create', 'cherry-tools/config_update'] }
       )
     ).toBeUndefined()
   })
 
   // Catches cron attached to every non-create request, which can persist a job for work meant to run now.
   it('asks for cron only for a scheduled or recurring request', () => {
-    const prompt = buildConfigToolsGuidance({ type: 'pi', configuration: {} }, { channelLinked: false, callForm }) ?? ''
+    const prompt = configInstructions({ type: 'pi', configuration: {} }) ?? ''
     const sentences = prompt.split(/(?<=\.)\s+/)
 
     expect(sentences.find((sentence) => sentence.includes('<cherry-tools/cron>'))).toMatch(
       /^When the user asks for a scheduled or recurring task/
     )
-    expect(sentences.find((sentence) => sentence.includes('Any other request'))).not.toContain('cron')
   })
 
   it('points Cherry Assistant at its host create and update tools', () => {
-    const prompt = buildConfigToolsGuidance(
-      { type: 'claude-code', configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } },
-      { channelLinked: false, callForm }
-    )
+    const prompt = configInstructions({
+      type: 'claude-code',
+      configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT }
+    })
 
     expect(prompt).toContain('<assistant/create_agent>')
     expect(prompt).toContain('<assistant/create_assistant>')
@@ -103,12 +109,23 @@ describe('buildConfigToolsGuidance', () => {
     expect(prompt).not.toContain('config_update')
   })
 
+  it('keeps the available host create tool and omits update when agent lookup is blocked', () => {
+    const prompt = configInstructions(
+      { type: 'claude-code', configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } },
+      { blocked: ['assistant/create_agent', 'cherry-tools/agent_list'] }
+    )
+    expect(prompt).toContain('asks for a new Assistant')
+    expect(prompt).toContain('<assistant/create_assistant>')
+    expect(prompt).not.toContain('<assistant/create_agent>')
+    expect(prompt).not.toContain('<assistant/update_agent>')
+  })
+
   // A channel-linked Cherry Assistant session leaves the assistant server unmounted.
   it('names no tools a channel-linked Cherry Assistant session does not mount', () => {
     expect(
-      buildConfigToolsGuidance(
+      configInstructions(
         { type: 'claude-code', configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } },
-        { channelLinked: true, callForm }
+        { channelLinked: true }
       )
     ).toBeUndefined()
   })
@@ -116,22 +133,7 @@ describe('buildConfigToolsGuidance', () => {
   it.each([BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.DOCTOR])(
     'adds no create guidance for the built-in %s Agent, which mounts no create tools',
     (role) => {
-      expect(
-        buildConfigToolsGuidance(
-          { type: 'claude-code', configuration: { builtin_role: role } },
-          { channelLinked: false, callForm }
-        )
-      ).toBeUndefined()
+      expect(configInstructions({ type: 'claude-code', configuration: { builtin_role: role } })).toBeUndefined()
     }
   )
-})
-
-describe('buildReportArtifactsGuidance', () => {
-  // Pi Durable reaches report_artifacts only from codemode; a Claude Code name left its Outputs empty.
-  it('names report_artifacts in the runtime call form, with its hint', () => {
-    const prompt = buildReportArtifactsGuidance(callForm)
-
-    expect(prompt).toContain('<cherry-tools/report_artifacts>')
-    expect(prompt).toContain('RUNTIME_HINT.')
-  })
 })

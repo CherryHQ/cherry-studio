@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -7,10 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { PastOutputsBackfillSeeder } from '@data/db/seeding/seeders/PastOutputsBackfillSeeder'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { artifactService } from '@data/services/ArtifactService'
+import { backfillPastOutputs } from '@main/ai/agents/ArtifactBackfillService'
 
 import { createCherryToolsServer } from '../cherryBuiltinTools'
 import { callBuiltinTool, toolText } from './builtinMcpClient'
@@ -81,6 +81,25 @@ describe('report_artifacts indexes the Agent outputs', () => {
     expect(byTitle['missing.csv']).toMatchObject({ kind: 'file', size: undefined })
   })
 
+  it('excludes paths outside the session workspace, including symlink targets', async () => {
+    const outside = await mkdtemp(path.join(os.tmpdir(), 'cherry-outside-artifacts-'))
+    try {
+      const outsideFile = path.join(await realpath(outside), 'private.md')
+      await writeFile(outsideFile, 'not a deliverable')
+      await symlink(outsideFile, path.join(workspacePath, 'escape.md'))
+      await writeFile(path.join(workspacePath, 'inside.md'), 'deliverable')
+
+      const result = await callBuiltinTool(createServer, 'report_artifacts', {
+        artifacts: [{ path: 'escape.md' }, { path: outsideFile }, { path: 'inside.md' }]
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      expect(artifactService.list({ agentId: 'reporter' }).items.map((item) => item.title)).toEqual(['inside.md'])
+    } finally {
+      await rm(outside, { recursive: true, force: true })
+    }
+  })
+
   it('still confirms the report when the outputs cannot be indexed', async () => {
     sessionId = 'session-without-row'
 
@@ -119,7 +138,7 @@ describe('report_artifacts indexes the Agent outputs', () => {
       await writeFile(path.join(workspacePath, 'summary.md'), '# Summary')
       pastReport([{ path: 'summary.md', description: 'Summary' }, { path: 'deleted.pdf' }])
 
-      new PastOutputsBackfillSeeder().run(dbh.db)
+      await backfillPastOutputs()
 
       const byTitle = Object.fromEntries(
         artifactService.list({ agentId: 'reporter' }).items.map((item) => [item.title, item])

@@ -1,8 +1,10 @@
 import { useTranslation } from 'react-i18next'
 
+import { AgentChannels } from '@renderer/components/channel/AgentChannels'
 import { AgentAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AgentAvatarPicker'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { getAgentAvatar } from '@renderer/utils/agent'
+import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
 import type { Model } from '@shared/data/types/model'
 
 import { AgentProfileActivity, type AgentProfileWorkspace } from './AgentProfileActivity'
@@ -55,10 +57,20 @@ export function AgentProfilePane({
         activity={
           <>
             <AgentProfileActivity agent={agent} sessionId={sessionId} workspace={workspace} />
-            <AgentProfileSettings agent={agent} model={model} onModelChange={onModelChange} />
+            <AgentProfileSettings agent={agent} sessionId={sessionId} model={model} onModelChange={onModelChange} />
           </>
         }
         outputs={<AgentOutputs agentId={agent.id} onOpen={onOpenOutput} />}
+        channels={
+          <AgentChannels
+            key={agent.id}
+            agentId={agent.id}
+            agentType={agent.type}
+            permissionMode={normalizePermissionMode(agent.configuration?.permission_mode)}
+            portalContainer={null}
+            presentation="profile"
+          />
+        }
       />
     </ProfilePaneFrame>
   )

@@ -22,13 +22,15 @@ import {
   CREATE_AGENT_TOOL_DESCRIPTION,
   CREATE_ASSISTANT_TOOL_DESCRIPTION,
   createAgentFromTool,
-  CreateAgentToolInputSchema,
   createAssistantFromTool,
-  CreateAssistantToolInputSchema,
-  SelfUpdateToolInputSchema,
   toolOutput,
   updateAgentFromTool
 } from '@main/ai/agents/agentConfigTool'
+import {
+  CreateAgentToolInputSchema,
+  CreateAssistantToolInputSchema,
+  SelfUpdateToolInputSchema
+} from '@main/ai/agents/agentConfigToolSchemas'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,

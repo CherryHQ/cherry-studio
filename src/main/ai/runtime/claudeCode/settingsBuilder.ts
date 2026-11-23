@@ -20,6 +20,7 @@ import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import {
   resolveAgentCapabilities,
+  resolveAgentMcpToolExposure,
   resolveAutomationAccess,
   resolveMountedMcpServers
 } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -28,6 +29,7 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { buildAgentPrompt } from '@main/ai/agents/prompt/buildAgentPrompt'
 import {
   type AgentNotificationContext,
   type LinkedChannelSnapshot,
@@ -35,26 +37,18 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import {
   AgentSessionWorkspaceError,
   assertAgentSessionWorkspaceDirectory,
   isAgentSessionWorkspaceError,
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
-import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import {
-  buildConfigToolsGuidance,
-  buildReportArtifactsGuidance,
-  type ToolCallForm
-} from '@main/ai/runtime/configToolsGuidance'
 import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   resolveDelegationApproval,
-  toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
@@ -65,12 +59,6 @@ import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/a
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { t } from '@main/i18n'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import {
-  KB_READ_TOOL_NAME,
-  KB_SEARCH_TOOL_NAME,
-  WEB_FETCH_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME
-} from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -738,8 +726,6 @@ async function buildToolPermissions(
   }
 }
 
-const CLAUDE_CODE_TOOL_CALL_FORM: ToolCallForm = { ref: (server, name) => `\`mcp__${server}__${name}\``, hint: '' }
-
 export async function buildSystemPrompt(
   agent: AgentEntity,
   cwd: string,
@@ -754,31 +740,15 @@ export async function buildSystemPrompt(
   promptModelName?: string | null,
   channelLinked = false
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
-  const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
-  const unavailableTools = new Set(disallowedTools)
-  const isLookupEnabled = (toolName: string) => !unavailableTools.has(toCherryBuiltinRuntimeName(toolName))
-  const citationsGuidance = buildCitationsGuidance({
-    web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
-    kb:
-      (canReadAllKnowledgeBases || knowledgeBaseIds.length > 0) &&
-      (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME)),
-    ref: CLAUDE_CODE_TOOL_CALL_FORM.ref
-  })
-  const customBaseContext = [
-    '## Current Workspace',
-    `Current working directory: ${JSON.stringify(cwd)}`,
-    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
-  ].join('\n')
-  const prompt = await buildAgentRuntimePrompt({
-    workspacePath: cwd,
-    agentDataPath,
+  const prompt = await buildClaudeAgentPrompt({
     agent,
-    citationsGuidance,
-    reportArtifactsGuidance: buildReportArtifactsGuidance(CLAUDE_CODE_TOOL_CALL_FORM),
-    configToolsGuidance: buildConfigToolsGuidance(agent, { channelLinked, callForm: CLAUDE_CODE_TOOL_CALL_FORM }),
-    customBaseContext,
+    cwd,
+    agentDataPath,
+    knowledgeBaseIds,
+    disallowedTools,
     effectiveLanguage,
-    modelName: promptModelName
+    promptModelName,
+    channelLinked
   })
 
   // Rebuilding and resuming must apply changed Cherry instructions without waiting for compaction.
@@ -790,6 +760,53 @@ export async function buildSystemPrompt(
     prompt: prompt.base.content ? `${prompt.base.content}\n\n${prompt.append}` : prompt.append,
     snapshot: false
   }
+}
+
+export function buildClaudeAgentPrompt({
+  agent,
+  cwd,
+  agentDataPath,
+  knowledgeBaseIds = agent.knowledgeBaseIds ?? [],
+  disallowedTools = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
+  effectiveLanguage,
+  promptModelName,
+  channelLinked = false,
+  instructionsSlot
+}: {
+  agent: Pick<
+    AgentEntity,
+    'type' | 'instructions' | 'configuration' | 'modelName' | 'disabledTools' | 'knowledgeBaseIds'
+  >
+  cwd: string
+  agentDataPath: string
+  knowledgeBaseIds?: readonly string[]
+  disallowedTools?: readonly string[]
+  effectiveLanguage?: string | null
+  promptModelName?: string | null
+  channelLinked?: boolean
+  instructionsSlot?: string
+}) {
+  const { allowsTool } = resolveAgentMcpToolExposure(agent, { channelLinked })
+  const customBaseContext = [
+    '## Current Workspace',
+    `Current working directory: ${JSON.stringify(cwd)}`,
+    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
+  ].join('\n')
+  return buildAgentPrompt({
+    workspacePath: cwd,
+    agentDataPath,
+    agent,
+    referenceTool(server, tool) {
+      const name = toMcpRuntimeName({ serverName: server, toolName: tool })
+      return allowsTool(server, tool) && !isToolDisallowed(name, disallowedTools) ? `\`${name}\`` : undefined
+    },
+    includeKnowledgeCitations: resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseIds.length > 0,
+    customBaseContext,
+    nativeBaseEnabled: agent.configuration?.claude_code_native_prompt_enabled !== false,
+    instructionsSlot,
+    effectiveLanguage,
+    modelName: promptModelName
+  })
 }
 
 /**

@@ -12,6 +12,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { agentService } from '@data/services/AgentService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AiUsageRecordSourceType } from '@shared/data/types/aiUsageRecord'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -161,7 +162,7 @@ describe('Agent stats', () => {
   }
 
   let runSequence = 0
-  function seedRun(scheduleId: string, startedAt: number | null) {
+  function seedRun(scheduleId: string, startedAt: number | null, agentId = 'reviewer', prompt = 'Review') {
     dbh.db
       .insert(jobTable)
       .values({
@@ -172,7 +173,8 @@ describe('Agent stats', () => {
         status: startedAt === null ? 'pending' : 'completed',
         scheduledAt: startedAt ?? NOW,
         startedAt,
-        input: {},
+        finishedAt: startedAt,
+        input: { agentId, prompt, timeoutMinutes: 2 },
         createdAt: startedAt ?? NOW
       })
       .run()
@@ -194,7 +196,8 @@ describe('Agent stats', () => {
     seedRun(daily, NOW - 6 * DAY)
     seedRun(daily, NOW - 8 * DAY)
     seedRun(daily, null)
-    seedRun(otherAgentTask, NOW - DAY)
+    seedRun(otherAgentTask, NOW - DAY, 'writer')
+    seedRun(daily, NOW + DAY)
     dbh.db
       .insert(aiUsageRecordTable)
       .values([
@@ -216,9 +219,20 @@ describe('Agent stats', () => {
   it('does not count heartbeat runs as task runs', () => {
     seedAgent('reviewer')
     const heartbeat = seedTask('heartbeat', 'reviewer', '__heartbeat__')
-    seedRun(heartbeat, NOW - DAY)
+    seedRun(heartbeat, NOW - DAY, 'reviewer', '__heartbeat__')
 
     expect(agentService.getStats('reviewer', NOW)?.recentTaskRunCount).toBe(0)
+  })
+
+  it('counts recent task executions after schedule deletion and count-based cleanup', () => {
+    seedAgent('reviewer')
+    const schedule = seedTask('frequent', 'reviewer')
+    for (let run = 0; run < 101; run++) seedRun(schedule, NOW - DAY + run)
+    jobScheduleService.delete(schedule)
+
+    jobService.pruneTerminalKeepLatestPerSchedule(100, ['agent.task'])
+
+    expect(agentService.getStats('reviewer', NOW)?.recentTaskRunCount).toBe(101)
   })
 
   it('returns nothing for an unknown Agent', () => {

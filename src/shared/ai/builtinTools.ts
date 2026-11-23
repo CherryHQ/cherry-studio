@@ -544,7 +544,11 @@ export const reportArtifactsInputSchema = z.object({
   artifacts: z
     .array(
       z.object({
-        path: z.string().trim().min(1).describe('Absolute or workspace-relative path to a final deliverable file.'),
+        path: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('Absolute or relative path to a final deliverable inside the session workspace.'),
         description: z.string().trim().min(1).optional().describe('One-line description of what this file is.')
       })
     )

@@ -62,7 +62,7 @@ export function ChannelConfigDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent
-        closeOnOverlayClick={false}
+        guardDismiss
         className="flex max-h-[calc(100dvh-2rem)] max-w-125 flex-col gap-4 overflow-hidden"
         closeLabel={t('common.close')}>
         {renderedChannel && (

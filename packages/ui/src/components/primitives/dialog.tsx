@@ -69,6 +69,8 @@ const dialogContentSizeClass: Record<DialogContentSize, string> = {
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
   closeLabel?: string
   closeOnOverlayClick?: boolean
+  /** Ignore implicit dismissal and protect the window's host-close shortcut. */
+  guardDismiss?: boolean
   motion?: DialogContentMotion
   overlayClassName?: string
   showCloseButton?: boolean
@@ -89,11 +91,14 @@ function DialogContent({
   children,
   closeLabel = 'Close',
   closeOnOverlayClick = true,
+  guardDismiss = false,
   showCloseButton = true,
   motion = 'directional',
   overlayClassName,
   onPointerDown,
   onCloseAutoFocus,
+  onEscapeKeyDown,
+  onPointerDownOutside,
   size = 'default',
   style,
   ref,
@@ -127,7 +132,7 @@ function DialogContent({
         <DialogOverlay
           className={overlayClassName}
           onClick={(event) => {
-            if (!closeOnOverlayClick) event.preventDefault()
+            if (guardDismiss || !closeOnOverlayClick) event.preventDefault()
           }}
         />
       </DialogPrimitive.Close>
@@ -165,11 +170,20 @@ function DialogContent({
         onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
           checkForDefaultPrevented: false
         })}
+        onEscapeKeyDown={(event) => {
+          onEscapeKeyDown?.(event)
+          if (guardDismiss) event.preventDefault()
+        }}
+        onPointerDownOutside={(event) => {
+          onPointerDownOutside?.(event)
+          if (guardDismiss) event.preventDefault()
+        }}
         style={style}
         {...props}>
         <KeyboardLayer
           releaseAfterFocusRestore={layer.releaseAfterFocusRestore}
           active={layer.active}
+          guardHostClose={guardDismiss}
           element={contentElement}>
           <PortalContainerProvider
             container={contentElement}

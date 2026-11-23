@@ -399,7 +399,7 @@ export const aiRequestSchemas = {
       anchorId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.discriminatedUnion('ok', [
-      z.object({ ok: z.literal(true) }),
+      z.object({ ok: z.literal(true), approved: z.literal(false).optional() }),
       z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
     ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),

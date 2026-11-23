@@ -41,6 +41,7 @@ const RECENT_TERMINAL_WINDOW = 3
 export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   /** Preserve the existing at-least-once recovery contract; reuse mode inherits its crash-replay limitation. */
   recovery: 'retry',
+  retainTerminalHistoryForTtl: true,
 
   /** Bound same-agent parallelism to limit subprocess and workspace contention. */
   defaultQueue: (input) => `agent:${input.agentId}`,

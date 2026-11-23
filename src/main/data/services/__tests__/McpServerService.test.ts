@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { mcpServerService } from '@data/services/McpServerService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 describe('McpServerService', () => {
   const dbh = setupTestDatabase()
@@ -24,6 +25,29 @@ describe('McpServerService', () => {
     await dbh.db.insert(mcpServerTable).values(values)
     return values
   }
+
+  describe('installPreset', () => {
+    it('reuses the preset across marketplace and featured install without adopting a same-name custom server', async () => {
+      const name = BuiltinMcpServerNames.python
+      await seedServer({ name })
+
+      const installed = mcpServerService.installPreset({ name, activate: false })
+      expect(installed).toMatchObject({ name, isActive: false, installSource: 'builtin', type: 'inMemory' })
+      expect(installed.id).not.toBe('srv-1')
+
+      const active = mcpServerService.installPreset({ name, activate: true })
+      expect(active).toMatchObject({ id: installed.id, isActive: true })
+      expect(mcpServerService.installPreset({ name, activate: false })).toEqual(active)
+      expect(dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.name, name)).all()).toHaveLength(2)
+      expect(mcpServerService.getById('srv-1')).toMatchObject({ isActive: false, installSource: 'manual' })
+    })
+
+    it('rejects featured install for a preset that needs an external setup', () => {
+      const name = BuiltinMcpServerNames.nowledgeMem
+      expect(() => mcpServerService.installPreset({ name, activate: true })).toThrow(DataApiError)
+      expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
+    })
+  })
 
   describe('findByConfig', () => {
     const config = {

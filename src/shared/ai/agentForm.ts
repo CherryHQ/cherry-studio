@@ -4,7 +4,11 @@ import {
   normalizeHeartbeatTimeoutMinutes
 } from '@shared/ai/agentHeartbeat'
 import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
-import type { AgentPromptOverrides, AgentPromptOverridesPatch } from '@shared/ai/agentPromptSections'
+import {
+  type AgentPromptOverrides,
+  type AgentPromptOverridesPatch,
+  EDITABLE_PROMPT_SECTIONS
+} from '@shared/ai/agentPromptSections'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import {
   type AgentEntity,
@@ -59,6 +63,7 @@ export interface AgentFormState {
   /** Draft label; only meaningful when `languageMode` is custom. */
   languageCustom: string
   /** Pi Durable only: the Agent's own text for guidance blocks of its System Prompt. */
+  claudeCodeNativePromptEnabled: boolean
   promptOverrides: AgentPromptOverrides
 }
 
@@ -128,6 +133,7 @@ export function buildInitialAgentFormState(agent?: AgentEntity | null, skillIds:
     heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
     heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
     ...initialLanguageFields(cfg.language),
+    claudeCodeNativePromptEnabled: cfg.claude_code_native_prompt_enabled !== false,
     promptOverrides: { ...cfg.prompt_overrides }
   }
 }
@@ -174,7 +180,7 @@ function diffPromptOverrides(
   after: AgentPromptOverrides
 ): AgentPromptOverridesPatch | null {
   const patch: AgentPromptOverridesPatch = {}
-  for (const block of new Set([...Object.keys(before), ...Object.keys(after)]) as Set<keyof AgentPromptOverrides>) {
+  for (const block of EDITABLE_PROMPT_SECTIONS) {
     if (before[block] !== after[block]) patch[block] = after[block] ?? null
   }
   return Object.keys(patch).length ? patch : null
@@ -258,6 +264,11 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     cfgPatch.heartbeat_timeout_minutes = normalizeHeartbeatTimeoutMinutes(next.heartbeatTimeoutMinutes)
     cfgDirty = true
   }
+  if (baseline.claudeCodeNativePromptEnabled !== next.claudeCodeNativePromptEnabled) {
+    cfgPatch.claude_code_native_prompt_enabled = next.claudeCodeNativePromptEnabled
+    cfgDirty = true
+  }
+
   const overridesPatch = diffPromptOverrides(baseline.promptOverrides, next.promptOverrides)
   if (overridesPatch) {
     cfgPatch.prompt_overrides = overridesPatch
@@ -288,7 +299,8 @@ export type AgentCreateSettings = Pick<
   | 'heartbeatInterval'
   | 'heartbeatTimeoutMinutes'
   | 'envVarsText'
->
+> &
+  Partial<Pick<AgentFormState, 'claudeCodeNativePromptEnabled'>>
 
 /**
  * The configuration a new Agent's advanced settings produce: the keys that differ from a blank Agent,

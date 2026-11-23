@@ -16,6 +16,8 @@ The design prototype (`bot-profile-cherry`) replaces the rail with a narrow page
 
 The edit dialog becomes a narrow dialog with a page stack and a back button. The dialog opens on the settings page, which carries the identity block above grouped cards; each capability opens a sub-page. Back from a sub-page returns to the settings page, which has no back button. The dialog keeps the existing autosave (500 ms debounce), the flush on close, and name validation. Avatars, channels, tasks, heartbeat tasks, and memory keep saving immediately through their existing IPC and DataApi calls.
 
+While settings changes are unsaved, the backdrop, Escape, and the tab-close shortcut keep the editor open. The close button still flushes the changes. If the name is invalid or the same changes have already failed to save, closing requires a discard confirmation.
+
 ### Identity block
 
 At the top of the settings page:

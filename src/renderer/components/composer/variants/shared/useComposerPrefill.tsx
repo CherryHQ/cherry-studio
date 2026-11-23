@@ -10,7 +10,13 @@ import { popup } from '@renderer/services/popup'
 import { useComposerLayerActive } from '../../ComposerContext'
 import type { ComposerSurfaceActions } from '../../ComposerSurfaceRuntime'
 
-type PrefillActions = Pick<ComposerSurfaceActions, 'getDraft' | 'replaceDraft' | 'focus'>
+type PrefillActions = Pick<ComposerSurfaceActions, 'getDraft' | 'focus'>
+
+type ComposerPrefillOptions = {
+  topicId: string
+  enabled: boolean
+  replaceDraft: (text: string) => void
+}
 
 /**
  * Puts `text` into the composer of the conversation `topicId` (an Assistant topic id, or an Agent
@@ -29,7 +35,10 @@ const pendingPrefills = new Map<string, string>()
  * Applies {@link requestComposerPrefill} requests addressed to this composer. `EventEmitter` is
  * window-wide, so the payload's `topicId` must match — otherwise every mounted composer would take it.
  */
-export function useComposerPrefill<T extends PrefillActions>(actionsRef: RefObject<T>, topicId: string): void {
+export function useComposerPrefill(
+  actionsRef: RefObject<PrefillActions>,
+  { topicId, enabled, replaceDraft }: ComposerPrefillOptions
+): void {
   const { t } = useTranslation()
   const layerActive = useComposerLayerActive()
   const dontAskId = useId()
@@ -60,12 +69,12 @@ export function useComposerPrefill<T extends PrefillActions>(actionsRef: RefObje
       // Only a confirmed replace remembers the choice; cancelling keeps asking.
       if (hideNextTime) cacheService.setPersist('ui.composer.prefill_confirm_hidden', true)
     }
-    actionsRef.current.replaceDraft({ text, tokens: [] })
+    replaceDraft(text)
     focusComposer()
   })
 
   useEffect(() => {
-    if (!layerActive) return
+    if (!enabled || !layerActive) return
     const pending = pendingPrefills.get(topicId)
     if (pending !== undefined) {
       pendingPrefills.delete(topicId)
@@ -77,5 +86,5 @@ export function useComposerPrefill<T extends PrefillActions>(actionsRef: RefObje
       pendingPrefills.delete(topicId)
       void prefill(request.text)
     })
-  }, [layerActive, topicId])
+  }, [enabled, layerActive, topicId])
 }

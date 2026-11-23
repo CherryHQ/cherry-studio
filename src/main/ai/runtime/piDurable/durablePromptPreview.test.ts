@@ -13,15 +13,34 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { createAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { AGENT_INSTRUCTIONS_SLOT } from '@shared/ai/agentPromptSections'
 import type { AgentSystemPromptDraft, AgentSystemPromptPreview } from '@shared/ipc/schemas/agent'
 
+import { previewAgentSystemPrompt } from '../agentPromptPreview'
 import { loadPiSdk } from '../pi/piSdk'
-import { buildDurablePrompt, renderDurablePrompt } from './durablePrompt'
-import { previewDurableSystemPrompt } from './durablePromptPreview'
+import { buildDurablePrompt } from './durablePrompt'
 
-describe('previewDurableSystemPrompt', () => {
+/**
+ * The system prompt text these parts produce, rendered the way pi-durable renders sections (`<key>` tags, the
+ * instructions last) and pi-ai joins them. Other extensions' sections, such as codemode's tool catalog, are not included.
+ */
+async function renderDurablePrompt({
+  sections,
+  instructions
+}: Awaited<ReturnType<typeof buildDurablePrompt>>): Promise<string> {
+  const parts: string[] = []
+  for (const section of [...sections, { key: 'instructions', render: () => instructions }]) {
+    const content = await section.render()
+    const text = typeof content === 'object' ? content.text : content
+    if (text !== undefined) parts.push(`<${section.key}>\n${text}\n</${section.key}>`)
+  }
+  return parts.join('\n\n')
+}
+
+describe('previewAgentSystemPrompt', () => {
   const dbh = setupTestDatabase()
   const model = 'preview-test::test-model'
   let root: string
@@ -32,11 +51,10 @@ describe('previewDurableSystemPrompt', () => {
     skillIds: [],
     disabledTools: [],
     knowledgeBaseIds: [],
-    mcpServerIds: [],
     ...patch
   })
   // Pi Durable renders its extension sections as `<key>` blocks, then every other block inside <instructions>.
-  const HARNESS_SECTIONS = new Set(['agent_identity', 'project_context', 'skills', 'mcp_instructions'])
+  const HARNESS_SECTIONS = new Set(['agent_identity', 'project_context', 'skills', 'mcp_instructions', 'cwd'])
   const fullText = ({ blocks }: AgentSystemPromptPreview, instructions: string) =>
     [
       ...blocks
@@ -90,6 +108,52 @@ describe('previewDurableSystemPrompt', () => {
     )
   }
 
+  it('uses the selected session workspace instead of the Agent’s latest workspace', async () => {
+    const agent = agentService.createAgentWithId(randomUUID(), { type: 'pi-durable', name: 'Reviewer', model })
+    const createSession = async (name: string) => {
+      const cwd = path.join(root, name)
+      await mkdir(cwd)
+      await writeFile(path.join(cwd, 'AGENTS.md'), `Instructions for ${name}`)
+      const workspace = agentWorkspaceService.findOrCreateByPath(cwd)
+      return agentSessionService.create({
+        agentId: agent.id,
+        name,
+        workspace: { type: 'user', workspaceId: workspace.id }
+      })
+    }
+    const first = await createSession('first')
+    const second = await createSession('second')
+    dbh.db.transaction((tx) => agentSessionService.advanceLastActivityAtTx(tx, second.id, Date.now() + 1000))
+
+    const preview = await previewAgentSystemPrompt(draft({ agentId: agent.id, sessionId: first.id }))
+    expect(block(preview, 'cwd')?.text).toBe(first.workspace.path)
+    expect(block(preview, 'project_context')?.text).toContain('Instructions for first')
+    expect(block(preview, 'project_context')?.text).not.toContain('Instructions for second')
+
+    const otherAgent = agentService.createAgentWithId(randomUUID(), { type: 'pi', name: 'Other', model })
+    await expect(previewAgentSystemPrompt(draft({ agentId: otherAgent.id, sessionId: first.id }))).rejects.toThrow(
+      'Session does not belong to the Agent'
+    )
+  })
+
+  it.each(['pi', 'claude-code'] as const)('previews the editable guidance for %s', async (agentType) => {
+    const preview = await previewAgentSystemPrompt(draft({ agentType }))
+    expect(block(preview, 'report_artifacts')?.text).toContain('Reporting deliverables')
+    expect(block(preview, 'mcp_instructions')).toBeUndefined()
+  })
+
+  it('uses the deferred call form in a draft preview and omits disabled tools', async () => {
+    const preview = await previewAgentSystemPrompt(
+      draft({ disabledTools: ['codemode', 'mcp__cherry-tools__agent_create'] })
+    )
+
+    const config = block(preview, 'config_tools')?.text
+    expect(config).toContain('`mcp__cherry_tools__assistant_create`')
+    expect(config).toContain('`tool_search`')
+    expect(config).not.toContain('agent_create')
+    expect(block(preview, 'report_artifacts')?.text).toContain('`mcp__cherry_tools__report_artifacts`')
+  })
+
   it('reproduces what the runtime sends for a saved Agent, with its instructions in the editable slot', async () => {
     const id = randomUUID()
     const agentDataPath = await createAgentDataDirectory(application.getPath('feature.agents.data'), id)
@@ -104,7 +168,11 @@ describe('previewDurableSystemPrompt', () => {
       configuration: { bootstrap_completed: true, language: 'English' }
     })
 
-    const preview = await previewDurableSystemPrompt(draft({ agentId: id, skillIds: ['skill-1'] }))
+    const preview = await previewAgentSystemPrompt(draft({ agentId: id, skillIds: ['skill-1'] }))
+    expect(block(preview, 'cwd')).toMatchObject({
+      kind: 'live',
+      text: application.getPath('feature.agents.system_workspaces').replaceAll('\\', '/')
+    })
 
     const runtime = await renderDurablePrompt(
       await buildDurablePrompt(await loadPiSdk(), {
@@ -132,7 +200,7 @@ describe('previewDurableSystemPrompt', () => {
   })
 
   it('omits the sections that depend on instructions when they are empty, as the runtime does', async () => {
-    const preview = await previewDurableSystemPrompt(draft({ instructions: '  ' }))
+    const preview = await previewAgentSystemPrompt(draft({ instructions: '  ' }))
     const text = fullText(preview, '')
 
     expect(text).not.toContain('## Instruction Precedence')
@@ -154,7 +222,7 @@ describe('previewDurableSystemPrompt', () => {
   })
 
   it('includes onboarding for a new Agent with instructions', async () => {
-    const preview = await previewDurableSystemPrompt(draft())
+    const preview = await previewAgentSystemPrompt(draft())
 
     expect(block(preview, 'instruction_precedence')?.text).toContain('## Instruction Precedence')
     expect(block(preview, 'bootstrap')).toMatchObject({
@@ -166,9 +234,9 @@ describe('previewDurableSystemPrompt', () => {
   it('follows the reply language and enabled skills of the draft', async () => {
     await seedSkill('skill-1', 'release-notes', 'Write release notes from merged changes.')
 
-    const english = await previewDurableSystemPrompt(draft())
-    const off = await previewDurableSystemPrompt(draft({ language: null }))
-    const withSkill = await previewDurableSystemPrompt(draft({ skillIds: ['skill-1'] }))
+    const english = await previewAgentSystemPrompt(draft())
+    const off = await previewAgentSystemPrompt(draft({ language: null }))
+    const withSkill = await previewAgentSystemPrompt(draft({ skillIds: ['skill-1'] }))
 
     expect(block(english, 'language')).toMatchObject({
       kind: 'setting',
@@ -207,7 +275,7 @@ describe('previewDurableSystemPrompt', () => {
         })
       ).instructions
 
-    const preview = await previewDurableSystemPrompt(draft({ agentId: id }))
+    const preview = await previewAgentSystemPrompt(draft({ agentId: id }))
     const edited = await runtime(agent.configuration)
     const restored = await runtime({ ...agent.configuration, prompt_overrides: {} })
 
@@ -229,7 +297,6 @@ describe('previewDurableSystemPrompt', () => {
       instructions: 'Review pull requests.',
       configuration: {
         bootstrap_completed: true,
-        // No MCP server is enabled, so that section is not generated and its edit must not be sent.
         prompt_overrides: { skills: 'Use only my skills.', language: 'Reply in French.', mcp_instructions: 'MCP edit.' }
       }
     })
@@ -244,7 +311,8 @@ describe('previewDurableSystemPrompt', () => {
           channelLinked: false,
           disabledTools: new Set(),
           knowledgeBaseScope: [],
-          skillPaths: [application.getPath('feature.agents.skills', 'release-notes')]
+          skillPaths: [application.getPath('feature.agents.skills', 'release-notes')],
+          mcpInstructions: 'Server-provided guidance.'
         })
       )
 
@@ -256,6 +324,7 @@ describe('previewDurableSystemPrompt', () => {
     expect(edited).toContain('Reply in French.')
     expect(edited).not.toContain('respond in English')
     expect(edited).not.toContain('MCP edit.')
+    expect(edited).toContain('Server-provided guidance.')
     expect(restored).toContain('Write release notes from merged changes.')
     expect(restored).toContain('respond in English')
   })
@@ -326,10 +395,11 @@ describe('previewDurableSystemPrompt', () => {
       return typeof rendered === 'object' ? rendered.source : undefined
     }
 
+    const resources = expect.arrayContaining([expect.objectContaining({ name: 'release-notes' })])
     const overridden = await skillsSource(agent.configuration)
     expect(overridden?.kind).toBe('skills')
-    expect(overridden?.resources ?? []).toHaveLength(0)
-    expect((await skillsSource({ ...agent.configuration, prompt_overrides: {} }))?.resources).not.toHaveLength(0)
+    expect(overridden).not.toHaveProperty('resources', resources)
+    expect(await skillsSource({ ...agent.configuration, prompt_overrides: {} })).toHaveProperty('resources', resources)
   })
 
   it('returns the built-in prompt of a built-in Agent', async () => {
@@ -346,12 +416,12 @@ describe('previewDurableSystemPrompt', () => {
       .returning()
       .get()
 
-    const preview = await previewDurableSystemPrompt(draft({ agentId: id, instructions: '' }))
+    const preview = await previewAgentSystemPrompt(draft({ agentId: id, instructions: '' }))
 
     expect(preview.builtinInstructions).toContain('Cherry')
   })
 
   it('rejects an Agent that does not exist', async () => {
-    await expect(previewDurableSystemPrompt(draft({ agentId: 'missing' }))).rejects.toThrow('Agent not found')
+    await expect(previewAgentSystemPrompt(draft({ agentId: 'missing' }))).rejects.toThrow('Agent not found')
   })
 })

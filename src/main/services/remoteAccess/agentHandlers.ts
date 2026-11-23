@@ -19,6 +19,7 @@ import { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMes
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
+import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
@@ -28,6 +29,7 @@ import { pageOf, queryPage } from './agentPagination'
 import {
   createSessionTx,
   getSession,
+  inputDigest,
   listAgents,
   listMessages,
   listParts,
@@ -45,6 +47,14 @@ import { getTask, getTaskRun, listTasks, listTaskRuns, readTaskContent } from '.
 import type { UploadOwner } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentHandlers')
+
+function withConfigPreview(interaction: AgentInteraction): AgentInteraction {
+  if (interaction.status !== 'pending') return interaction
+  const preview = previewAgentConfigChange(interaction.interactionId)
+  return preview.ok
+    ? { ...interaction, configPreview: preview, inputDigest: inputDigest([interaction.inputDigest, preview]) }
+    : interaction
+}
 
 export interface AgentAccess {
   requireAgent(): UploadOwner
@@ -278,24 +288,25 @@ export function registerAgentMethods(
     getSession(sessionId)
     const interaction = interactionsOf(sessionId).find((item) => item.interactionId === interactionId)
     if (!interaction) throw new RemoteRpcError('NOT_FOUND', 'Interaction not found')
-    return { interaction }
+    return { interaction: withConfigPreview(interaction) }
   })
   on('agent.interactions.respond', (params, auth) => {
     getSession(params.sessionId)
     return command(auth, 'agent.interactions.respond', params, params.sessionId, async () => {
       const journal = hub.journal(params.sessionId)
       const interaction = interactionsOf(params.sessionId).find((item) => item.interactionId === params.interactionId)
+      const response = 'response' in params ? params.response : { kind: params.decision }
       if (
         !interaction ||
         interaction.status !== 'pending' ||
         interaction.revision !== params.expectedRevision ||
         interaction.executionId !== params.expectedExecutionId ||
-        interaction.inputDigest !== params.inputDigest
+        (withConfigPreview(interaction).inputDigest !== params.inputDigest &&
+          (response.kind !== 'deny' || interaction.inputDigest !== params.inputDigest))
       ) {
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Interaction changed since it was read' } }
       }
       const anchorId = journal.liveInteraction(params.interactionId)?.messageId ?? interaction.executionId
-      const response = 'response' in params ? params.response : { kind: params.decision }
       const approved = response.kind !== 'deny'
       let updatedInput: Record<string, unknown> | undefined
       if (response.kind === 'answer') {
@@ -331,16 +342,18 @@ export function registerAgentMethods(
         ...(updatedInput ? { updatedInput } : {}),
         ...('reason' in response ? { reason: response.reason } : {})
       }
-      if (
-        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
-      ) {
+      const settled = application
+        .get('AgentSessionRuntimeService')
+        .respondToolApproval(params.interactionId, decision, anchorId)
+      if (!settled.ok) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }
-      journal.markInteraction(params.interactionId, approved ? 'approved' : 'denied')
+      const appliedApproval = approved && settled.approved !== false
+      journal.markInteraction(params.interactionId, appliedApproval ? 'approved' : 'denied')
       return {
         status: 'applied',
         executionId: interaction.executionId,
-        result: { interactionId: params.interactionId, decision: approved ? 'approve' : 'deny' }
+        result: { interactionId: params.interactionId, decision: appliedApproval ? 'approve' : 'deny' }
       }
     })
   })

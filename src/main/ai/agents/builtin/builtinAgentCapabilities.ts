@@ -11,10 +11,11 @@
  * a data file. `agent.json` stays the Agent's content (identity, instructions, skills).
  */
 
-import { type AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
+import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
+import { getAgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
-import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { COMPUTER_USE_TOOL_GROUP } from '@shared/ai/computerUseTools'
 import { AGENT_TYPES, type AgentEntity, type AgentType } from '@shared/data/api/schemas/agents'
 
@@ -108,6 +109,27 @@ export function resolveHostTools(
   if (!channelLinked) return { tools: hostTools.tools }
   if (!hostTools.toolsInChannelSessions?.length) return undefined
   return { tools: hostTools.toolsInChannelSessions }
+}
+
+export function resolveAgentMcpToolExposure(
+  agent: Pick<AgentEntity, 'type' | 'configuration'>,
+  options: { channelLinked: boolean }
+) {
+  const host = resolveHostTools(agent, options)
+  const hostTools = host && (host.tools ?? DEFAULT_ASSISTANT_TOOL_NAMES)
+  const resourceCreateEnabled = resolveAgentCapabilities(agent).createResources
+  const selfConfigEnabled = !isProtectedBuiltinAgentRole(agent.configuration?.builtin_role)
+  return {
+    hostTools,
+    resourceCreateEnabled,
+    selfConfigEnabled,
+    allowsTool(server: string, name: string): boolean {
+      if (server === CHERRY_MCP_SERVER.ASSISTANT) return hostTools?.some((tool) => tool === name) ?? false
+      if (server !== CHERRY_MCP_SERVER.CHERRY_TOOLS) return false
+      const kind = getAgentConfigToolKind(server, name)
+      return kind === 'self_update' ? selfConfigEnabled : !kind || resourceCreateEnabled
+    }
+  }
 }
 
 /** Whether this session mounts the host (assistant) MCP servers. */

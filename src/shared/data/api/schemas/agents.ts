@@ -70,7 +70,8 @@ export const AgentConfigurationSchema = z
       .enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.DOCTOR])
       .optional(),
     language: AgentLanguageSchema.nullable().optional(),
-    /** Pi Durable only: the Agent's own text for guidance blocks of its System Prompt. */
+    claude_code_native_prompt_enabled: z.boolean().optional(),
+    /** The Agent's own text for editable blocks of its System Prompt. */
     prompt_overrides: AgentPromptOverridesSchema.optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob

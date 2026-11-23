@@ -3,9 +3,10 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount } from 'tokenx'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PromptEditorField, { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { ipcApi } from '@renderer/ipc'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@shared/ai/agentForm'
@@ -21,17 +22,18 @@ import type {
   AgentSystemPromptPreview
 } from '@shared/ipc/schemas/agent'
 
+import { PromptVariablesPopover } from './EditDialogShared'
 import { PromptPolishActions } from './PromptPolishActions'
 
-const logger = loggerService.withContext('PiPromptField')
+const logger = loggerService.withContext('AgentPromptField')
 const PREVIEW_DEBOUNCE_MS = 300
 const fixedTextClassName = 'whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground leading-5'
 
 const BLOCK_TITLES: Record<string, string> = {
+  cwd: 'agent.toolPermission.workingDirectory',
   agent_identity: 'library.config.agent.prompt.block.agent_identity',
   project_context: 'library.config.agent.prompt.block.project_context',
   skills: 'library.config.agent.prompt.block.skills',
-  mcp_instructions: 'library.config.agent.prompt.block.mcp_instructions',
   workspace_system: 'library.config.agent.prompt.block.workspace_system',
   instruction_precedence: 'library.config.agent.prompt.block.instruction_precedence',
   report_artifacts: 'library.config.agent.prompt.block.report_artifacts',
@@ -47,23 +49,25 @@ const BLOCK_CAPTIONS: Record<string, string> = {
   agent_identity: 'library.config.agent.prompt.caption.agent_identity',
   project_context: 'library.config.agent.prompt.caption.project_context',
   skills: 'library.config.agent.prompt.caption.skills',
-  mcp_instructions: 'library.config.agent.prompt.caption.mcp_instructions',
   workspace_system: 'library.config.agent.prompt.caption.workspace_system',
   language: 'library.config.agent.prompt.caption.language'
 }
 
 /** Everything besides the instructions that changes the assembled prompt. */
-export type PiPromptDraft = Omit<AgentSystemPromptDraft, 'instructions' | 'language'> & {
+export type AgentPromptDraft = Omit<AgentSystemPromptDraft, 'instructions' | 'language'> & {
   languageMode: AgentLanguageMode
   languageCustom: string
 }
 
-type PiPromptFieldProps = {
+type AgentPromptFieldProps = {
   value: string
   onChange: (value: string) => void
   /** The Agent's name, which Generate writes a blank Agent prompt from. */
   name: string
-  draft: PiPromptDraft
+  draft: AgentPromptDraft
+  portalContainer: HTMLElement | null
+  modelName?: string | null
+  onNativePromptEnabledChange?: (enabled: boolean) => void
   /** Given only where the Agent exists: guidance blocks are then editable and saved here. */
   overrides?: AgentPromptOverrides
   onOverridesChange?: (next: AgentPromptOverrides) => void
@@ -77,13 +81,13 @@ type PiPromptFieldProps = {
 }
 
 /** Mirrors how the edit form saves `configuration.language`; an invalid custom label keeps the inherited one. */
-function draftLanguage({ languageMode, languageCustom }: PiPromptDraft): string | null | undefined {
+function draftLanguage({ languageMode, languageCustom }: AgentPromptDraft): string | null | undefined {
   if (languageMode === 'off') return null
   if (languageMode === 'custom') return normalizeAgentLanguageInput(languageCustom) ?? undefined
   return undefined
 }
 
-function usePiPromptPreview(draft: PiPromptDraft, instructions: string, listShown: boolean) {
+function useAgentPromptPreview(draft: AgentPromptDraft, instructions: string, listShown: boolean) {
   const [preview, setPreview] = useState<AgentSystemPromptPreview | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -91,15 +95,18 @@ function usePiPromptPreview(draft: PiPromptDraft, instructions: string, listShow
   useEffect(() => {
     instructionsRef.current = instructions
   })
-  const { agentId, skillIds, disabledTools, knowledgeBaseIds, mcpServerIds } = draft
+  const { agentId, sessionId, agentType, claudeCodeNativePromptEnabled, skillIds, disabledTools, knowledgeBaseIds } =
+    draft
   const language = draftLanguage(draft)
   const request: Omit<AgentSystemPromptDraft, 'instructions'> = {
-    ...(agentId ? { agentId } : {}),
+    agentId,
+    sessionId,
+    agentType,
+    claudeCodeNativePromptEnabled,
     ...(language === undefined ? {} : { language }),
     skillIds,
     disabledTools,
-    knowledgeBaseIds,
-    mcpServerIds
+    knowledgeBaseIds
   }
   // The assembly only depends on whether instructions exist; their text sits in the editable slot.
   const requestKey = JSON.stringify([request, Boolean(instructions.trim())])
@@ -137,27 +144,31 @@ export function getPromptBlockTitleKey(key: string): string | undefined {
 }
 
 /**
- * A Pi Durable System Prompt: the Agent's own prompt to edit, then the blocks the runtime adds, each
+ * An Agent System Prompt: the Agent's own prompt to edit, then the blocks the runtime adds, each
  * opened on its own page. The page is controlled where a dialog header shows it, else local.
  */
-export function PiPromptField({
+export function AgentPromptField({
   value,
   onChange,
   name,
   draft,
+  portalContainer,
+  modelName,
+  onNativePromptEnabledChange,
   overrides,
   onOverridesChange,
   section: controlledSection,
   onSectionChange,
   onEditIdentity,
   heading
-}: PiPromptFieldProps) {
+}: AgentPromptFieldProps) {
   const { t } = useTranslation()
   const [localSection, setLocalSection] = useState<string | null>(null)
   const section = onSectionChange ? (controlledSection ?? null) : localSection
-  const { preview, failed, retry } = usePiPromptPreview(draft, value, section === null)
+  const { preview, failed, retry } = useAgentPromptPreview(draft, value, section === null)
   const setSection = onSectionChange ?? setLocalSection
   const instructions = value || preview?.builtinInstructions || ''
+  const nativePromptLabel = t('library.config.agent.prompt.claude_code_native')
   const overrideOf = (key: string) => (isEditablePromptSection(key) ? overrides?.[key] : undefined)
   // The callback keeps `$&`-style sequences in the Agent prompt literal.
   const sentText = (block: AgentPromptBlockPreview) =>
@@ -201,6 +212,8 @@ export function PiPromptField({
           builtin={preview?.builtinInstructions}
           overridden={Boolean(value)}
           name={name}
+          modelName={modelName}
+          portalContainer={portalContainer}
           onChange={onChange}
           fill={Boolean(onSectionChange)}
         />
@@ -250,6 +263,16 @@ export function PiPromptField({
   return (
     <div className="flex flex-col gap-5">
       {heading}
+      {draft.agentType === 'claude-code' && onNativePromptEnabledChange ? (
+        <div className="flex items-center justify-between gap-3 px-1 text-sm">
+          <span>{nativePromptLabel}</span>
+          <Switch
+            aria-label={nativePromptLabel}
+            checked={draft.claudeCodeNativePromptEnabled !== false}
+            onCheckedChange={onNativePromptEnabledChange}
+          />
+        </div>
+      ) : null}
       <div className="flex flex-col rounded-xl border border-border-subtle p-1">
         <Button
           type="button"
@@ -410,6 +433,8 @@ function InstructionsEditor({
   builtin,
   overridden,
   name,
+  modelName,
+  portalContainer,
   onChange,
   fill
 }: {
@@ -419,14 +444,23 @@ function InstructionsEditor({
   /** A saved prompt, even one equal to the built-in, keeps the Agent from following later built-in updates. */
   overridden: boolean
   name: string
+  modelName?: string | null
+  portalContainer: HTMLElement | null
   onChange: (next: string) => void
   /** Fills a dialog page; in a scrolling step it takes a fixed tall height instead. */
   fill: boolean
 }) {
   const { t } = useTranslation()
+  const processed = usePromptProcessor({ prompt: value, modelName: modelName ?? undefined })
   return (
     <PromptEditorField
-      label={label}
+      label={
+        <div className="flex items-center gap-1.5">
+          {label}
+          <PromptVariablesPopover portalContainer={portalContainer} />
+        </div>
+      }
+      previewValue={processed || value}
       editorLabel={t('library.config.agent.prompt.instructions_label')}
       value={value}
       onChange={onChange}

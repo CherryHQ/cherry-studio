@@ -71,6 +71,8 @@ export interface JobSettledEvent<TPayload = unknown> {
 export interface JobHandler<TPayload = unknown> {
   /** Required: startup recovery behavior for non-terminal jobs of this type. */
   recovery: RecoveryStrategy
+  /** Preserve terminal history for the full GC time window, even above the count cap. */
+  retainTerminalHistoryForTtl?: boolean
   /**
    * Default queue resolver. When enqueue does not pass `opts.queue` the handler
    * may pick one based on input (e.g. `base.${input.baseId}` for per-base

@@ -1,31 +1,34 @@
 import { ChevronRight, Loader2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWRImmutable from 'swr/immutable'
 
 import { ResourceIdentityRow } from '@renderer/components/chat/messages/tools/agent'
-import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
+import type { AgentConfigChangePreview as ConfigPreview } from '@shared/ai/agentConfigToolOutput'
 
 /**
  * Approval body for an Agent or Assistant create or settings change, read from main: the new resource's
  * identity, or each changed field as `current → new`. The raw arguments stay one click away, and on
  * screen until the preview arrives or when it cannot be built.
  */
-export function AgentConfigChangePreview({ approvalId, args }: { approvalId: string; args: ReactNode }) {
+export function AgentConfigChangePreview({
+  data,
+  failed,
+  args
+}: {
+  data?: ConfigPreview
+  failed: boolean
+  args: ReactNode
+}) {
   const { t } = useTranslation()
   const [showArgs, setShowArgs] = useState(false)
   const [showFull, setShowFull] = useState(false)
-  // One fetch per approval: a later approval gets its own key, so it never shows stale "current" values.
-  const { data, error } = useSWRImmutable(['ai.agent.preview_config_change', approvalId], () =>
-    ipcApi.request('ai.agent.preview_config_change', { approvalId })
-  )
 
   if (!data?.ok) {
     return (
       <div data-testid="agent-config-change-preview">
         <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
-          {error || data ? (
+          {failed || data ? (
             t('agent.toolPermission.agent_config.error')
           ) : (
             <>

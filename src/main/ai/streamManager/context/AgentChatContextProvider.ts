@@ -21,7 +21,9 @@ import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
@@ -67,6 +69,7 @@ export type ValidatedAgentDispatch = {
   serviceTier: ServiceTierSelection
   fastMode?: boolean
   headless: boolean
+  permissionModeOverride?: AgentPermissionMode
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   messageSnapshot: MessageSnapshot
@@ -85,6 +88,7 @@ export type PersistedAgentDispatch = {
 }
 
 export interface AgentSessionTurnAuthority {
+  permissionModeOverride?: AgentPermissionMode
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
 }
@@ -129,6 +133,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const isHeadless = req.headless === true
+    const permissionModeOverride = isHeadless ? authority.permissionModeOverride : undefined
+    if (
+      permissionModeOverride &&
+      !AGENT_RUNTIME_CAPABILITIES[agent.type].permissionModes.some((mode) => mode === permissionModeOverride)
+    ) {
+      throw DataApiErrorFactory.invalidOperation(
+        'run channel turn',
+        'permission mode is not supported by the agent runtime'
+      )
+    }
     // Interactive turns prefer the per-session override; headless runs keep the
     // agent default so background tasks stay independent of sibling sessions.
     const candidate = !isHeadless && session.model ? session.model : agent.model
@@ -189,6 +203,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: isHeadless,
+      ...(permissionModeOverride ? { permissionModeOverride } : {}),
       ...(authority.trustedNotifyChannels !== undefined
         ? { trustedNotifyChannels: authority.trustedNotifyChannels }
         : {}),
@@ -302,6 +317,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         assistantMessageId,
         userMessage,
         headless: validated.headless,
+        ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
         trustedNotifyChannels: validated.trustedNotifyChannels,
         traceId,
         messageSnapshot: validated.messageSnapshot,
@@ -428,6 +444,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
+        ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
         trustedNotifyChannels: validated.trustedNotifyChannels,
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,

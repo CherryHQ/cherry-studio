@@ -775,7 +775,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {
     const work = this.reconcileChain.then(async (): Promise<AgentRuntimeReconcileResult> => {
       try {
-        const next = await this.desktop!.reconcile({ ...this.input, ...input }, this.active)
+        const nextInput = { ...this.input, ...input, permissionModeOverride: input.permissionModeOverride }
+        const next = await this.desktop!.reconcile(nextInput, this.active)
         if (next.permissionChanged) await this.handle!.durable.permissionModeChanged()
         if (
           this.failure ||
@@ -785,6 +786,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           Boolean(input.fastMode) !== Boolean(this.input.fastMode)
         )
           return 'rebuild'
+        if (nextInput.permissionModeOverride !== this.input.permissionModeOverride) {
+          await saveDurableRequest(this.runtime!, this.handle!.thread.id, nextInput)
+          this.input.permissionModeOverride = nextInput.permissionModeOverride
+        }
         return next.permissionChanged ? 'patched' : 'current'
       } catch (error) {
         if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'

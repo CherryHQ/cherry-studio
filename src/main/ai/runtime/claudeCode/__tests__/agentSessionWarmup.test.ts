@@ -1761,6 +1761,24 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['language'])
   })
 
+  it('rebuilds a warm connection when prompt overrides or the native prompt switch change', async () => {
+    const base = { id: 'agent-1', model: 'provider-1::model-1', disabledTools: [], mcps: [] }
+    mocks.getAgent.mockReturnValue(base)
+    const original = await deriveSignature()
+
+    const configuration = { prompt_overrides: { report_artifacts: 'Report in one sentence.' } }
+    mocks.getAgent.mockReturnValue({ ...base, configuration })
+    const overridden = await deriveSignature()
+    expect(overridden.rebuildSignature).not.toBe(original.rebuildSignature)
+
+    mocks.getAgent.mockReturnValue({
+      ...base,
+      configuration: { ...configuration, claude_code_native_prompt_enabled: false }
+    })
+    const withoutNativePrompt = await deriveSignature()
+    expect(withoutNativePrompt.rebuildSignature).not.toBe(overridden.rebuildSignature)
+  })
+
   it('changes the rebuild signature when the global agent.language preference changes', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

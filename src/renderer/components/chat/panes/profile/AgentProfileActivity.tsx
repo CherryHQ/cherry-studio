@@ -13,7 +13,7 @@ import { useSetTaskEnabled, useUpdateTask } from '@renderer/hooks/agent/useTasks
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
-import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { ProfileStarter, ProfileStarterKind } from '@shared/data/cache/cacheValueTypes'
@@ -32,16 +32,6 @@ import { useProfileStarters } from './useProfileStarters'
 const EMPTY_TASKS: ScheduledTaskEntity[] = []
 /** Copy of each suggestion; `prompt` is what goes into the composer. */
 const SUGGESTION_COPY = {
-  feishu: {
-    label: 'chat.profile_pane.suggestions.feishu.label',
-    hint: 'chat.profile_pane.suggestions.feishu.hint',
-    prompt: 'chat.profile_pane.suggestions.feishu.prompt'
-  },
-  wechat: {
-    label: 'chat.profile_pane.suggestions.wechat.label',
-    hint: 'chat.profile_pane.suggestions.wechat.hint',
-    prompt: 'chat.profile_pane.suggestions.wechat.prompt'
-  },
   daily: {
     label: 'chat.profile_pane.suggestions.daily.label',
     hint: 'chat.profile_pane.suggestions.daily.hint',
@@ -200,8 +190,6 @@ type SuggestionId = keyof typeof SUGGESTION_COPY
 
 /** Today's rule-based list, shown when nothing could be generated. */
 const FALLBACK_SUGGESTIONS: { id: SuggestionId; kind: ProfileStarterKind }[] = [
-  { id: 'feishu', kind: 'channel-feishu' },
-  { id: 'wechat', kind: 'channel-wechat' },
   { id: 'daily', kind: 'schedule' },
   { id: 'github', kind: 'github' },
   { id: 'skills', kind: 'skills' },
@@ -209,27 +197,13 @@ const FALLBACK_SUGGESTIONS: { id: SuggestionId; kind: ProfileStarterKind }[] = [
   { id: 'knowledge', kind: 'knowledge' }
 ]
 
-const KIND_ICONS: Record<Exclude<ProfileStarterKind, 'channel-feishu' | 'channel-wechat'>, typeof Clock> = {
+const KIND_ICONS: Record<ProfileStarterKind, typeof Clock> = {
   schedule: Clock,
   github: GitBranch,
   skills: Zap,
   memory: Sparkles,
   knowledge: Database,
   generic: MessageSquare
-}
-
-function SuggestionIcon({ kind }: { kind: ProfileStarterKind }) {
-  if (kind === 'channel-feishu' || kind === 'channel-wechat') {
-    return (
-      <img
-        src={getChannelTypeIcon(kind.slice('channel-'.length))}
-        alt=""
-        className="size-4 rounded-sm object-contain"
-      />
-    )
-  }
-  const Icon = KIND_ICONS[kind]
-  return <Icon className="size-4 text-muted-foreground" />
 }
 
 const listOrNone = (items: string[]) => (items.length ? items.join(', ') : 'none')
@@ -248,7 +222,6 @@ function SuggestionsSection({
   const { t } = useTranslation()
   const caps = AGENT_RUNTIME_CAPABILITIES[agent.type]
   const knowledgeBaseIds = agent.knowledgeBaseIds ?? []
-  const { data: channels, isLoading: channelsLoading } = useQuery('/agent-channels', { query: { agentId: agent.id } })
   const { mcpServers, isLoading: mcpLoading } = useMcpServers(undefined, { enabled: caps.mcp })
   const { skills, loading: skillsLoading } = useInstalledSkills(agent.id, { enabled: caps.skills })
   const { bases, isLoading: basesLoading } = useKnowledgeBases({ enabled: knowledgeBaseIds.length > 0 })
@@ -256,7 +229,6 @@ function SuggestionsSection({
   const linkedServers = mcpServers.filter((server) => linkedServerIds.has(server.id))
   const githubLinked = linkedServers.some((server) => GITHUB_PATTERN.test(server.name))
   const setup = [
-    `Connected channels: ${listOrNone((channels ?? []).map((channel) => channel.type))}`,
     `Scheduled tasks: ${listOrNone(tasks.map((task) => task.name))}`,
     caps.mcp ? `Linked MCP servers: ${listOrNone(linkedServers.map((server) => server.name))}` : 'MCP: not supported',
     caps.knowledgeBases
@@ -271,7 +243,7 @@ function SuggestionsSection({
     mode: 'agent',
     identity: { name: agent.name, description: agent.description, prompt: agent.instructions },
     context: setup,
-    ready: !tasksLoading && !channelsLoading && !mcpLoading && !skillsLoading && !basesLoading,
+    ready: !tasksLoading && !mcpLoading && !skillsLoading && !basesLoading,
     enabled: !!onFillComposer
   })
 
@@ -279,8 +251,6 @@ function SuggestionsSection({
 
   // Only what is not done yet; the same rules apply to generated and fallback suggestions.
   const isOpen: Record<ProfileStarterKind, boolean> = {
-    'channel-feishu': !channels?.some((channel) => channel.type === 'feishu'),
-    'channel-wechat': !channels?.some((channel) => channel.type === 'wechat'),
     schedule: !tasks.length,
     github: caps.mcp && !githubLinked,
     skills: caps.skills,
@@ -297,6 +267,7 @@ function SuggestionsSection({
       : starters.items
   const cards: ProfileStarterCard[] = items.flatMap((item, index) => {
     if (!isOpen[item.kind]) return []
+    const Icon = KIND_ICONS[item.kind]
     // Linking a knowledge base happens in the edit dialog; everything else is asked in this conversation.
     const run =
       item.kind === 'knowledge'
@@ -306,7 +277,7 @@ function SuggestionsSection({
     return [
       {
         key: `${item.kind}-${index}`,
-        icon: <SuggestionIcon kind={item.kind} />,
+        icon: <Icon className="size-4 text-muted-foreground" />,
         title: item.title,
         hint: item.hint,
         onClick: run

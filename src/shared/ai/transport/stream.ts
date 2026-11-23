@@ -253,7 +253,9 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   anchorId?: string
 }
 
-export type AiToolApprovalRespondResponse = { ok: true } | { ok: false; reason: 'undelivered' | 'rejected' }
+export type AiToolApprovalRespondResponse =
+  | { ok: true; approved?: false }
+  | { ok: false; reason: 'undelivered' | 'rejected' }
 
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {

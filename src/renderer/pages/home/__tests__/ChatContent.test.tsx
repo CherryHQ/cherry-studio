@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import type * as RendererIpc from '@renderer/ipc'
+import type * as EventServiceModule from '@renderer/services/EventService'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -68,14 +69,13 @@ vi.mock('@renderer/hooks/useTopicMessages', () => ({
   useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
 }))
 
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: {
-    LOCATE_MESSAGE: 'LOCATE_MESSAGE'
-  },
-  EventEmitter: {
-    emit: mockEventEmit
+vi.mock('@renderer/services/EventService', async (importOriginal) => {
+  const actual = await importOriginal<typeof EventServiceModule>()
+  return {
+    ...actual,
+    EventEmitter: { emit: mockEventEmit, on: actual.EventEmitter.on.bind(actual.EventEmitter) }
   }
-}))
+})
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: mockUseExecutionOverlay
