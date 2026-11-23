@@ -20,26 +20,51 @@ function parseAppEdition(value: unknown): AppEdition {
   throw new Error(`Unsupported application edition: ${String(value)}`)
 }
 
+type PackageMetadata = { cherryEdition?: unknown; cherryUnified?: boolean; cherryRegionBridge?: boolean }
+let packageMetadata: PackageMetadata | undefined
+
+function getPackageMetadata(): PackageMetadata {
+  return (packageMetadata ??= JSON.parse(readFileSync(application.getPath('app.root', 'package.json'), 'utf8')))
+}
+
 function resolveAppEdition(): AppEdition {
   const developmentEdition = process.env.CHERRY_EDITION?.trim().toLowerCase()
   if (!app.isPackaged && developmentEdition) {
     return parseAppEdition(developmentEdition)
   }
 
-  const packageMetadata = JSON.parse(readFileSync(application.getPath('app.root', 'package.json'), 'utf8')) as {
-    cherryEdition?: unknown
-  }
-
-  return parseAppEdition(packageMetadata.cherryEdition)
+  return parseAppEdition(getPackageMetadata().cherryEdition)
 }
 
 let cachedAppEdition: AppEdition | undefined
 
-export function getAppEdition(): AppEdition {
+export function getPackageEdition(): AppEdition {
   cachedAppEdition ??= resolveAppEdition()
   return cachedAppEdition
 }
 
 export function getApplicationId(): string {
-  return APPLICATION_IDS[getAppEdition()]
+  return APPLICATION_IDS[getPackageEdition()]
+}
+
+let runtimeEdition: AppEdition | undefined
+
+export function setRuntimeAppEdition(edition: AppEdition): void {
+  runtimeEdition = edition
+}
+
+export function getRuntimeAppEdition(): AppEdition | undefined {
+  return runtimeEdition
+}
+
+export function getAppEdition(): AppEdition {
+  return runtimeEdition ?? getPackageEdition()
+}
+
+export function isUnifiedPackage(): boolean {
+  return app.isPackaged ? getPackageMetadata().cherryUnified === true : process.env.CHERRY_UNIFIED_RELEASE === '1'
+}
+
+export function isRegionBridgePackage(): boolean {
+  return app.isPackaged && getPackageMetadata().cherryRegionBridge === true
 }

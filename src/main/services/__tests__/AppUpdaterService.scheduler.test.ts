@@ -34,7 +34,7 @@ vi.mock('@logger', () => ({
 
 vi.mock('@main/core/platform', () => ({ isWin: false }))
 
-vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
+vi.mock('@main/utils/appEdition', () => ({ getPackageEdition: () => 'global', isRegionBridgePackage: () => false }))
 
 vi.mock('@main/services/RegionService', () => ({
   regionService: { getCountry: vi.fn(async () => 'US') }

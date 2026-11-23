@@ -31,7 +31,11 @@ import {
   type ResolvedReasoningProfile,
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
-import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
+import {
+  isProviderIdentityAvailable,
+  providerAvailabilityColumns,
+  providerService
+} from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -65,8 +69,7 @@ function selectWithProviderIdentity(tx: Pick<DbType, 'select'>) {
   return tx
     .select({
       model: userModelTable,
-      providerId: userProviderTable.providerId,
-      presetProviderId: userProviderTable.presetProviderId
+      ...providerAvailabilityColumns
     })
     .from(userModelTable)
     .innerJoin(userProviderTable, eq(userProviderTable.providerId, userModelTable.providerId))

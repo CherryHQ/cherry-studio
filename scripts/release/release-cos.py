@@ -76,18 +76,19 @@ def merge_mac_manifests(client, prefix, edition, files):
 def assemble(client, base, prefix, platform, download="all"):
     sha = os.environ["RELEASE_SHA"]
     selected = PLATFORMS if platform == "all" else (platform,)
+    unified = os.environ.get("UNIFIED_RELEASE") == "true"
     files = {}
     if platform != "all":
         baseline = read_json(client, f"{base}/baselines/{sha}.json", optional=True)
-        if baseline is None:
-            raise ValueError("No complete COS inventory for this commit. Run an all-platform build.")
+        if baseline is None or baseline.get("unified", False) != unified:
+            raise ValueError("No complete COS inventory for this commit and distribution. Run an all-platform build.")
         files = {
             relative: entry for relative, entry in baseline["files"].items()
             if relative.split("/")[1] != platform and not (
                 platform == "linux" and relative.startswith("common/")
             )
         }
-    for edition in EDITIONS:
+    for edition in (("global",) if unified else EDITIONS):
         for target in selected:
             for group in inventory_groups(target):
                 incoming = read_json(client, f"{prefix}/{edition}/{group}.json")
@@ -102,7 +103,7 @@ def assemble(client, base, prefix, platform, download="all"):
     }
     download_assets(client, downloads, Path("github-release-artifacts"), editions=("global",))
     body = Path("release_body.txt").read_text(encoding="utf-8")
-    inventory = {"sha": sha, "platform": platform, "files": files, "body": body}
+    inventory = {"sha": sha, "platform": platform, "unified": unified, "files": files, "body": body}
     Path("cos-release.json").write_text(json.dumps(inventory), encoding="utf-8")
 
 

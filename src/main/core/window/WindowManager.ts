@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import {
   BaseService,
+  DependsOn,
   type Disposable,
   Emitter,
   type Event,
@@ -32,6 +33,7 @@ import {
 } from '@main/core/window/types'
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
+import { getRuntimeAppEdition } from '@main/utils/appEdition'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('WindowManager')
@@ -97,6 +99,7 @@ function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
 @Priority(5)
+@DependsOn(['DesktopRegionService'])
 export class WindowManager extends BaseService {
   /** All managed windows keyed by UUID */
   private windows = new Map<string, ManagedWindow>()
@@ -1395,13 +1398,18 @@ export class WindowManager extends BaseService {
     const preloadName = metadata.preload ?? 'preload.js'
     const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
 
+    const edition = getRuntimeAppEdition()
+
     // 1. Create BrowserWindow
     const window = new BrowserWindow({
       ...config,
       show: showMode === 'immediate',
       webPreferences: {
         ...(preloadPath ? { preload: preloadPath } : {}),
-        ...config.webPreferences
+        ...config.webPreferences,
+        ...(edition && {
+          additionalArguments: [...(config.webPreferences?.additionalArguments ?? []), `--cherry-edition=${edition}`]
+        })
       }
     })
 

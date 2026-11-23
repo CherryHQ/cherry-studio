@@ -13,6 +13,7 @@ const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
+  isUnifiedPackage: () => false,
   getAppEdition: () => applicationEdition.current
 }))
 

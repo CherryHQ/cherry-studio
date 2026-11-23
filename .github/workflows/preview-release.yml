@@ -8,6 +8,10 @@ on:
         description: "Repository branch to build"
         required: true
         default: "main"
+      unified_region:
+        description: "Build a unified-region preview using the international package identity"
+        type: boolean
+        default: false
       platform:
         description: "Build platform"
         required: true
@@ -79,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        edition: [global, cn]
+        edition: ${{ fromJSON(inputs.unified_region && '["global"]' || '["global", "cn"]') }}
       fail-fast: false
     steps:
       - uses: actions/checkout@v7
@@ -155,7 +159,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        edition: [global, cn]
+        edition: ${{ fromJSON(inputs.unified_region && '["global"]' || '["global", "cn"]') }}
         target: ${{ fromJSON(needs.resolve.outputs.targets) }}
 
     steps:
@@ -261,7 +265,7 @@ jobs:
         if: matrix.target.platform == 'linux'
         run: |
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm exec electron-builder --linux --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --linux --${{ matrix.target.arch }} --publish never ${{ inputs.unified_region && '--config electron-builder.unified.config.cjs' || matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           NODE_OPTIONS: --max-old-space-size=8192
@@ -270,7 +274,7 @@ jobs:
         if: matrix.target.platform == 'mac'
         run: |
           sudo -H pip install setuptools
-          pnpm exec electron-builder --mac --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --mac --${{ matrix.target.arch }} --publish never ${{ inputs.unified_region && '--config electron-builder.unified.config.cjs' || matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           CSC_FOR_PULL_REQUEST: true
@@ -283,7 +287,7 @@ jobs:
 
       - name: Build Windows
         if: matrix.target.platform == 'windows'
-        run: pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+        run: pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ inputs.unified_region && '--config electron-builder.unified.config.cjs' || matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ

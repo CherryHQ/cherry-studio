@@ -66,8 +66,16 @@ jobs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
       targets: ${{ steps.release-ref.outputs.targets }}
+      unified: ${{ steps.distribution.outputs.unified }}
       draft-id: ${{ steps.draft.outputs.id }}
     steps:
+      - name: Select release distribution
+        id: distribution
+        env:
+          UNIFIED_RELEASE: ${{ vars.CHERRY_UNIFIED_RELEASE }}
+        run: |
+          echo "unified=$(if [[ "$UNIFIED_RELEASE" == "true" ]]; then echo true; else echo false; fi)" >> "$GITHUB_OUTPUT"
+
       - name: Validate release selection
         shell: bash
         env:
@@ -269,6 +277,7 @@ jobs:
   bundle-cn:
     name: Build JS ${{ matrix.edition }}
     needs: prepare
+    if: needs.prepare.outputs.unified != 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -295,6 +304,7 @@ jobs:
       tag: ${{ needs.prepare.outputs.tag }}
       draft-id: ${{ needs.prepare.outputs.draft-id }}
       clean: ${{ inputs.clean }}
+      unified: ${{ needs.prepare.outputs.unified == 'true' }}
     secrets: inherit
 
   release-cn:
@@ -314,7 +324,7 @@ jobs:
   downloads:
     name: CN installer downloads
     needs: [prepare, release, release-cn]
-    if: always() && needs.prepare.result == 'success'
+    if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.unified != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -344,6 +354,9 @@ jobs:
       cancel-in-progress: false
       queue: max
     needs: [prepare, release, release-cn]
+    if: >-
+      !cancelled() && needs.prepare.result == 'success' && needs.release.result == 'success' &&
+      (needs.release-cn.result == 'success' || needs.prepare.outputs.unified == 'true')
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -391,6 +404,7 @@ jobs:
           TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
           TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
           PLATFORM: ${{ inputs.platform }}
+          UNIFIED_RELEASE: ${{ needs.prepare.outputs.unified }}
         run: |
           node -e 'process.stdout.write(require("yaml").parse(require("node:fs").readFileSync("release-source/electron-builder.yml", "utf8")).releaseInfo.releaseNotes)' > release_body.txt
           python scripts/release/release-cos.py assemble "$PLATFORM" manifests
@@ -630,7 +644,7 @@ jobs:
 
   approve:
     name: Approve production release
-    needs: [prepare, release, release-cn, finalize-build]
+    needs: [prepare, finalize-build]
     if: inputs.platform == 'all'
     runs-on: ubuntu-latest
     environment: release
@@ -640,7 +654,7 @@ jobs:
 
   publish:
     name: Publish approved release
-    needs: [prepare, release, release-cn, finalize-build, approve]
+    needs: [prepare, finalize-build, approve]
     runs-on: ubuntu-latest
     concurrency:
       group: release-state
@@ -777,7 +791,7 @@ jobs:
           fi
 
   sync-to-gitcode:
-    name: Sync both editions to GitCode
+    name: Sync release to GitCode
     needs: [prepare, publish]
     if: >-
       !cancelled() && github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' &&

@@ -15,7 +15,7 @@ import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
-import { getAppEdition } from '@renderer/utils/appEdition'
+import { useAppEdition } from '@renderer/utils/appEdition'
 import { miniAppIdFromTabUrl, miniAppResourceKey } from '@renderer/utils/miniAppKeepAlive'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
@@ -144,7 +144,7 @@ async function settleAndInvalidate(
 
 export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const queryEnabled = options.enabled ?? true
-  const appEdition = getAppEdition()
+  const appEdition = useAppEdition()
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
   const { i18n: i18nInstance } = useTranslation()
   const language = i18nInstance.language

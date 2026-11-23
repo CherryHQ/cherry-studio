@@ -53,6 +53,8 @@ Before each update check, the client preserves existing updater headers and sets
 
 The selected electron-updater channel determines which edition-specific manifest the client requests; no separate release-channel header is sent.
 
+An opted-in unified package selects the international update feed, even if the user runs in region CN. A temporary regional compatibility package also selects the international stable feed, preserving the stored test-channel preference for the unified app. When a compatibility package finds a live legacy session without an origin, it holds the upgrade until the original regional service confirms that session or it expires.
+
 ## Differential Downloads
 
 NSIS builds generate differential packages and companion `.blockmap` assets. The existing release workflow uploads these assets and mirrors them to GitCode alongside the installers. Global, China edition and development generic feeds use single-range requests (`useMultipleRangeRequest: false`); HTTP 206 support does not imply multipart-range support.

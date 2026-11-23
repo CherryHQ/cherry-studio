@@ -15,8 +15,9 @@ import { logFailure } from '@main/core/logger/logFailure'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, t } from '@main/i18n'
+import { cherryAccountCredentialStore } from '@main/services/cherryCloud/CherryAccountCredentialStore'
 import { regionService } from '@main/services/RegionService'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getPackageEdition, isRegionBridgePackage } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -283,14 +284,21 @@ export class AppUpdaterService extends BaseService {
 
   private async getUpdateRequest() {
     const currentVersion = app.getVersion()
-    const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
+    const bridge = isRegionBridgePackage()
+    if (bridge) {
+      const session = cherryAccountCredentialStore.get()?.session
+      if (session && !session.apiOrigin && session.sessionExpiresAt > Date.now()) {
+        throw new CancellationError()
+      }
+    }
+    const testPlan = !bridge && application.get('PreferenceService').get('app.dist.test_plan.enabled')
     const requestedChannel = testPlan
       ? application.get('PreferenceService').get('app.dist.test_plan.channel') || UpgradeChannel.RC
       : UpgradeChannel.LATEST
 
     const ipCountry = await regionService.getCountry()
     const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
-    const edition = getAppEdition()
+    const edition = bridge ? 'global' : getPackageEdition()
     const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
     const updateHeaders = getUpdateHeaders({ region, edition })

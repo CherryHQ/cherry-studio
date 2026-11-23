@@ -10,7 +10,7 @@ import { t } from '@main/i18n'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 
 const edition = vi.hoisted(() => ({ current: 'cn' as 'cn' | 'global' }))
-vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => edition.current }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => edition.current, isUnifiedPackage: () => false }))
 
 const { publish } = vi.hoisted(() => ({
   publish: vi.fn<(input: unknown, options?: { recordOnly?: boolean }) => Promise<boolean>>(async () => true)

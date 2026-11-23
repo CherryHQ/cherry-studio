@@ -7,7 +7,7 @@ import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Toolti
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { toast } from '@renderer/services/toast'
-import { getAppEdition } from '@renderer/utils/appEdition'
+import { useAppEdition } from '@renderer/utils/appEdition'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 
 const DEFAULT_MAX_KEEPALIVE = 3
@@ -19,7 +19,7 @@ const DEFAULT_MAX_KEEPALIVE = 3
  */
 const MiniAppDisplaySettings: FC = () => {
   const { t } = useTranslation()
-  const appEdition = getAppEdition()
+  const appEdition = useAppEdition()
   const [maxKeepAlive, setMaxKeepAlive] = usePreference('feature.mini_app.max_keep_alive')
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [checkUpdatesOnOpen, setCheckUpdatesOnOpen] = usePreference('feature.mini_app.check_updates_on_open')

@@ -7,11 +7,12 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
 const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' },
+  applicationEdition: { current: 'cn', unified: false },
   migrationOrigin: { current: false }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
+  isUnifiedPackage: () => applicationEdition.unified,
   getAppEdition: () => applicationEdition.current
 }))
 
@@ -107,6 +108,36 @@ describe('ProviderService edition availability', () => {
       .where(eq(userProviderTable.providerId, 'global-only'))
     expect(persisted.name).toBe('Global only')
     expect(persisted.apiKeys).toEqual([{ id: 'key-1', key: 'secret', isEnabled: true }])
+  })
+
+  it('keeps the previously configured provider usable in a unified CN profile', async () => {
+    applicationEdition.unified = true
+    try {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'global-only',
+          presetProviderId: 'global-only',
+          name: 'Global only',
+          orderKey: 'a0'
+        })
+        .run()
+      expect(providerService.listAvailableProviderIds()).not.toContain('global-only')
+
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          apiKeys: [{ id: 'key-1', key: 'secret', isEnabled: true }]
+        })
+        .where(eq(userProviderTable.providerId, 'global-only'))
+        .run()
+
+      expect(providerService.resolveApiKey('global-only')).toMatchObject({ value: 'secret' })
+      expect(providerService.listAvailableProviderIds()).toContain('global-only')
+      expect(providerService.update('global-only', { name: 'Edited' }).name).toBe('Edited')
+    } finally {
+      applicationEdition.unified = false
+    }
   })
 
   it('enforces edition availability in provider-backed registry reads', async () => {

@@ -1,0 +1,9 @@
+--- a/Squirrel/SQRLUpdater.m
++++ b/Squirrel/SQRLUpdater.m
+@@ -879 +879,5 @@
+-				return [bundle.bundleIdentifier isEqual:NSRunningApplication.currentApplication.bundleIdentifier];
++				NSString *currentID = NSRunningApplication.currentApplication.bundleIdentifier;
++				if ([bundle.bundleIdentifier isEqual:currentID]) return YES;
++				return [[NSBundle.mainBundle objectForInfoDictionaryKey:@"CherryDesktopRegionBridge"] boolValue]
++					&& [currentID isEqual:@"com.cherryai.cherrystudio.cn"]
++					&& [bundle.bundleIdentifier isEqual:@"com.kangfenmao.CherryStudio"];

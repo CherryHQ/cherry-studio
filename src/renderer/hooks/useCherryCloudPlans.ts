@@ -4,7 +4,7 @@ import useSWR from 'swr'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useCherryCloudReceipt } from '@renderer/hooks/useCherryCloudReceipt'
-import { getAppEdition } from '@renderer/utils/appEdition'
+import { useAppEdition } from '@renderer/utils/appEdition'
 
 /** Plans preserve last-known paid display; current entitlement decisions also require isPlansReady. */
 export function useCherryCloudPlans(enabled = true) {
@@ -46,7 +46,7 @@ export function useCherryCloudPlans(enabled = true) {
 /** China-edition Subscribe dot, quiet while current-account plans are unknown. */
 export function useCherryCloudSubscribeReminder(): boolean {
   const [subscribePromptSeen] = usePersistCache('ui.cherry_cloud.subscribe_prompt_seen')
-  const remindToSubscribe = getAppEdition() === 'cn' && !subscribePromptSeen
+  const remindToSubscribe = useAppEdition() === 'cn' && !subscribePromptSeen
   const { session, isPlansReady, activePaid, upcomingPaid } = useCherryCloudPlans(remindToSubscribe)
   return remindToSubscribe && (session.status?.phase === 'signed-out' || (isPlansReady && !activePaid && !upcomingPaid))
 }

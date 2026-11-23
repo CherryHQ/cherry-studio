@@ -10,7 +10,7 @@ const {
   releaseNotesUpdaterInstances,
   trackAppUpdateMock
 } = vi.hoisted(() => ({
-  appEditionState: { current: 'global' },
+  appEditionState: { current: 'global', bridge: false },
   loggerErrorMock: vi.fn(),
   netFetchMock: vi.fn(),
   releaseNotesCheckMock: vi.fn(),
@@ -62,7 +62,8 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: () => appEditionState.current
+  isRegionBridgePackage: () => appEditionState.bridge,
+  getPackageEdition: () => appEditionState.current
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -268,6 +269,22 @@ describe('AppUpdaterService', () => {
         'X-Edition': 'cn',
         'X-Region': 'global'
       })
+    })
+
+    it('sends a CN bridge to the international stable manifest and preserves its test preference', async () => {
+      appEditionState.current = 'cn'
+      appEditionState.bridge = true
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+      try {
+        await (appUpdater as any).configureUpdaterForCheck()
+        expect(autoUpdater.channel).toBe(UpgradeChannel.LATEST)
+        expect(autoUpdater.requestHeaders).toMatchObject({ 'X-Edition': 'global' })
+      } finally {
+        appEditionState.bridge = false
+      }
+      await (appUpdater as any).configureUpdaterForCheck()
+      expect(autoUpdater.channel).toBe('beta-cn')
     })
 
     it('keeps existing updater request headers', async () => {

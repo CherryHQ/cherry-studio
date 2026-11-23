@@ -177,6 +177,18 @@ class ReleaseCosTests(unittest.TestCase):
         self.assertTrue(any(file.name == "latest-mac.yml" for file in downloads))
         self.assertFalse(any("CN" in file.name for file in downloads))
 
+    def test_unified_build_uses_only_the_global_inventory(self):
+        self.populate_targets()
+        for key in list(self.store.objects):
+            if f"{self.prefix}/cn/" in key or f"{self.prefix}/attempt-1/cn/" in key:
+                del self.store.objects[key]
+        with patch.dict(os.environ, {"UNIFIED_RELEASE": "true"}):
+            release.assemble(self.store, self.base, self.prefix, "all", "manifests")
+        inventory = json.loads(Path("cos-release.json").read_text())
+        self.assertTrue(inventory["files"])
+        self.assertTrue(all(name.startswith("global/") for name in inventory["files"]))
+        self.assertIn("global/mac/latest-mac.yml", inventory["files"])
+
     def test_missing_architecture_cannot_create_a_complete_inventory(self):
         self.populate_targets()
         del self.store.objects[f"{self.prefix}/cn/linux/arm64.json"]

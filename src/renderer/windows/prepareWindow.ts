@@ -2,6 +2,7 @@ import { preferenceService } from '@data/PreferenceService'
 import { DataApiDevtools } from '@data/utils/dataApiDevtools'
 import { initI18n } from '@renderer/i18n/resolver'
 import { initSentry } from '@renderer/services/sentry'
+import { watchAppEdition } from '@renderer/utils/appEdition'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
 interface PrepareWindowOptions {
@@ -19,6 +20,7 @@ interface PrepareWindowOptions {
  */
 export async function prepareWindow(options: PrepareWindowOptions): Promise<void> {
   initSentry()
+  watchAppEdition()
 
   // Window-scoped dev bootstrap: expose the DataApi DevTools control surface
   // before the first render (and thus the first DataApi request) so payload

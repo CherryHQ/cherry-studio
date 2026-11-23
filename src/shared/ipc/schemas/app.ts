@@ -1,6 +1,7 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import * as z from 'zod'
 
+import type { AppEdition } from '../../types/appEdition'
 import {
   CACHE_CLEANUP_GROUPS,
   CACHE_CLEANUP_RESULT_STATUSES,
@@ -123,6 +124,7 @@ export type AppUpdaterNotAvailablePayload = {
 export type AppEventSchemas = {
   'app.updater.error': Error
   'app.updater.available': UpdateInfo
+  'app.edition_changed': AppEdition
   'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo

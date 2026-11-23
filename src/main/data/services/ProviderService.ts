@@ -29,7 +29,7 @@ import {
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
-import { getAppEdition } from '@main/utils/appEdition'
+import { getAppEdition, isUnifiedPackage } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -71,7 +71,16 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 }
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
-export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
+export const providerAvailabilityColumns = {
+  providerId: userProviderTable.providerId,
+  presetProviderId: userProviderTable.presetProviderId,
+  isEnabled: userProviderTable.isEnabled,
+  apiKeys: userProviderTable.apiKeys,
+  endpointConfigs: userProviderTable.endpointConfigs,
+  providerSettings: userProviderTable.providerSettings
+}
+
+type ProviderIdentity = Pick<UserProviderRow, keyof typeof providerAvailabilityColumns>
 
 function isProviderAvailableInCurrentEdition(
   provider: Pick<Provider, 'availableInEditions'>,
@@ -91,7 +100,9 @@ function getAvailableProviderMetadata(
     row.providerId,
     row.presetProviderId
   )
-  return isProviderAvailableInCurrentEdition(metadata, db) ? metadata : null
+  if (isProviderAvailableInCurrentEdition(metadata, db)) return metadata
+  const configured = row.isEnabled || row.apiKeys?.length || row.endpointConfigs || row.providerSettings
+  return configured && isUnifiedPackage() ? metadata : null
 }
 
 /** Edition availability from provider metadata, the build edition, and persisted v1 migration origin. */
@@ -406,10 +417,7 @@ class ProviderService {
     const rows = application
       .get('DbService')
       .getDb()
-      .select({
-        providerId: userProviderTable.providerId,
-        presetProviderId: userProviderTable.presetProviderId
-      })
+      .select(providerAvailabilityColumns)
       .from(userProviderTable)
       .where(ids ? inArray(userProviderTable.providerId, ids) : undefined)
       .all()
@@ -427,9 +435,7 @@ class ProviderService {
 
     const rows = tx
       .select({
-        providerId: userProviderTable.providerId,
-        presetProviderId: userProviderTable.presetProviderId,
-        endpointConfigs: userProviderTable.endpointConfigs,
+        ...providerAvailabilityColumns,
         defaultChatEndpoint: userProviderTable.defaultChatEndpoint
       })
       .from(userProviderTable)
@@ -448,10 +454,7 @@ class ProviderService {
     const [row] = application
       .get('DbService')
       .getDb()
-      .select({
-        providerId: userProviderTable.providerId,
-        presetProviderId: userProviderTable.presetProviderId
-      })
+      .select(providerAvailabilityColumns)
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, providerId))
       .limit(1)
@@ -465,10 +468,7 @@ class ProviderService {
     const [row] = application
       .get('DbService')
       .getDb()
-      .select({
-        providerId: userProviderTable.providerId,
-        presetProviderId: userProviderTable.presetProviderId
-      })
+      .select(providerAvailabilityColumns)
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, providerId))
       .limit(1)
@@ -568,12 +568,7 @@ class ProviderService {
       // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
       // into the row and break the "row stores only overrides" contract.
       const [current] = tx
-        .select({
-          providerId: userProviderTable.providerId,
-          providerSettings: userProviderTable.providerSettings,
-          endpointConfigs: userProviderTable.endpointConfigs,
-          presetProviderId: userProviderTable.presetProviderId
-        })
+        .select(providerAvailabilityColumns)
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
@@ -811,10 +806,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const provider = db.transaction((tx) => {
       const [current] = tx
-        .select({
-          providerId: userProviderTable.providerId,
-          presetProviderId: userProviderTable.presetProviderId
-        })
+        .select(providerAvailabilityColumns)
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
@@ -970,10 +962,7 @@ class ProviderService {
     let affectedSessionIds: string[] = []
     const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
-        .select({
-          providerId: userProviderTable.providerId,
-          presetProviderId: userProviderTable.presetProviderId
-        })
+        .select(providerAvailabilityColumns)
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
