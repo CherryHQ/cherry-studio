@@ -2024,6 +2024,12 @@ importers:
 
   packages/memory:
     dependencies:
+      async-mutex:
+        specifier: ^0.5.0
+        version: 0.5.0
+      js-base64:
+        specifier: 3.7.7
+        version: 3.7.7
       zod:
         specifier: 4.4.3
         version: 4.4.3

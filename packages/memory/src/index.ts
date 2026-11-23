@@ -1,3 +1,5 @@
 export * from './entries'
 export * from './files'
 export * from './types'
+export * from './store'
+export type { MemoryStorage, MemoryBackupStorage, MemoryClock } from './storage'
