@@ -18,6 +18,8 @@ For a profile without a confirmed region, ask Config Service's anonymous `POST /
 
 Continue serving compatible targets at legacy update paths. Windows keeps the existing NSIS GUID. Linux AppImage uses legacy manifests and DEB/RPM keep package upgrades. On macOS, serve a signed and notarized CN bridge with the legacy identity. The bridge's pinned Squirrel.Mac build recognizes the exact international bundle identity and retains native signature verification against the legacy team and approved identifiers. The bridge uses the unified stable track and does not overwrite the saved track preference. Assign monotonically increasing versions across each path and publish the bridge only to legacy update clients.
 
+Select the CN macOS bridge by the exact stable tag in the normal Release workflow. Use the same selection for automatic builds and manual retries. Only the CN macOS targets for that tag consume the patched Electron distributions.
+
 ## Alternatives considered
 
 A redirect from the old Mac feed to the new ZIP fails bundle discovery and the legacy designated requirement. Separate ongoing releases keep both the build cost and the coupling to product region. Resolving region on every launch makes a stable profile depend on network changes.

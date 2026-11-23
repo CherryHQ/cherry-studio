@@ -1,5 +1,8 @@
 --- a/Squirrel/SQRLUpdater.m
 +++ b/Squirrel/SQRLUpdater.m
+@@ -863 +863 @@
+-			NSURL *updateBundleURL = [enumerator.rac_sequence objectPassingTest:^(NSURL *URL) {
++			NSURL *updateBundleURL = [enumerator.rac_sequence objectPassingTest:^BOOL(NSURL *URL) {
 @@ -879 +879,5 @@
 -				return [bundle.bundleIdentifier isEqual:NSRunningApplication.currentApplication.bundleIdentifier];
 +				NSString *currentID = NSRunningApplication.currentApplication.bundleIdentifier;

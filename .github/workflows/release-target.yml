@@ -24,6 +24,9 @@ on:
       unified:
         default: false
         type: boolean
+      mac-bridge-electron:
+        default: ""
+        type: string
       clean:
         default: false
         type: boolean
@@ -151,13 +154,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
 
+      - name: Download CN macOS bridge Electron
+        id: mac-bridge
+        if: inputs.edition == 'cn' && fromJSON(inputs.target).platform == 'mac' && inputs.mac-bridge-electron != ''
+        shell: bash
+        env:
+          ASSETS: ${{ inputs.mac-bridge-electron }}
+          TARGET_ARCH: ${{ fromJSON(inputs.target).arch }}
+        run: |
+          url="$(jq -er --arg arch "$TARGET_ARCH" '.[$arch].url' <<< "$ASSETS")"
+          digest="$(jq -er --arg arch "$TARGET_ARCH" '.[$arch].sha256' <<< "$ASSETS")"
+          zip="$RUNNER_TEMP/electron-cn-mac-bridge-$TARGET_ARCH.zip"
+          curl --fail --silent --show-error --location --retry 3 --proto '=https' --proto-redir '=https' --output "$zip" -- "$url"
+          echo "path=$zip" >> "$GITHUB_OUTPUT"
+          echo "sha256=$digest" >> "$GITHUB_OUTPUT"
+
       - name: Build Mac
         if: fromJSON(inputs.target).platform == 'mac'
         run: |
           sudo -H pip install setuptools
-          pnpm exec electron-builder --mac --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.unified && '--config electron-builder.unified.config.cjs' || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --mac --${{ fromJSON(inputs.target).arch }} --publish never ${{ steps.mac-bridge.outputs.path != '' && '--config electron-builder.region-bridge.config.cjs' || inputs.unified && '--config electron-builder.unified.config.cjs' || inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
+          CHERRY_REGION_BRIDGE_EDITION: ${{ steps.mac-bridge.outputs.path != '' && 'cn' || '' }}
+          CHERRY_MAC_BRIDGE_ELECTRON_DIST: ${{ steps.mac-bridge.outputs.path }}
+          CHERRY_MAC_BRIDGE_ELECTRON_SHA256: ${{ steps.mac-bridge.outputs.sha256 }}
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -166,6 +187,22 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Verify CN macOS bridge package
+        if: steps.mac-bridge.outputs.path != ''
+        shell: bash
+        env:
+          EXPECTED_ARCH: ${{ fromJSON(inputs.target).arch == 'x64' && 'x86_64' || 'arm64' }}
+        run: |
+          apps=(dist/mac*/"Cherry Studio.app")
+          test "${#apps[@]}" -eq 1
+          app="${apps[0]}"
+          test "$(lipo -archs "$app/Contents/MacOS/Cherry Studio")" = "$EXPECTED_ARCH"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CherryDesktopRegionBridge' "$app/Contents/Info.plist")" = true
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ElectronSquirrelPreventDowngrades' "$app/Contents/Info.plist")" = true
+          strings -a "$app/Contents/Frameworks/Squirrel.framework/Squirrel" | grep -Fx 'CherryDesktopRegionBridge' >/dev/null
+          codesign --verify --deep --strict "$app"
+          xcrun stapler validate "$app"
 
       - name: Build Windows
         if: fromJSON(inputs.target).platform == 'windows'

@@ -77,10 +77,15 @@ def assemble(client, base, prefix, platform, download="all"):
     sha = os.environ["RELEASE_SHA"]
     selected = PLATFORMS if platform == "all" else (platform,)
     unified = os.environ.get("UNIFIED_RELEASE") == "true"
+    mac_bridge = os.environ.get("MAC_CN_REGION_BRIDGE") == "true"
     files = {}
     if platform != "all":
         baseline = read_json(client, f"{base}/baselines/{sha}.json", optional=True)
-        if baseline is None or baseline.get("unified", False) != unified:
+        if (
+            baseline is None
+            or baseline.get("unified", False) != unified
+            or baseline.get("macCnRegionBridge", False) != mac_bridge
+        ):
             raise ValueError("No complete COS inventory for this commit and distribution. Run an all-platform build.")
         files = {
             relative: entry for relative, entry in baseline["files"].items()
@@ -103,7 +108,10 @@ def assemble(client, base, prefix, platform, download="all"):
     }
     download_assets(client, downloads, Path("github-release-artifacts"), editions=("global",))
     body = Path("release_body.txt").read_text(encoding="utf-8")
-    inventory = {"sha": sha, "platform": platform, "unified": unified, "files": files, "body": body}
+    inventory = {
+        "sha": sha, "platform": platform, "unified": unified, "macCnRegionBridge": mac_bridge,
+        "files": files, "body": body,
+    }
     Path("cos-release.json").write_text(json.dumps(inventory), encoding="utf-8")
 
 

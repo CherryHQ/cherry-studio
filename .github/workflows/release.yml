@@ -67,14 +67,34 @@ jobs:
       tag: ${{ steps.release-ref.outputs.tag }}
       targets: ${{ steps.release-ref.outputs.targets }}
       unified: ${{ steps.distribution.outputs.unified }}
+      mac-bridge-electron: ${{ steps.distribution.outputs.mac-bridge-electron }}
       draft-id: ${{ steps.draft.outputs.id }}
     steps:
       - name: Select release distribution
         id: distribution
         env:
           UNIFIED_RELEASE: ${{ vars.CHERRY_UNIFIED_RELEASE }}
+          TAG: ${{ inputs.tag }}
+          MAC_BRIDGE_TAG: ${{ vars.CHERRY_MAC_CN_REGION_BRIDGE_TAG }}
+          MAC_BRIDGE_ELECTRON_ASSETS: ${{ vars.CHERRY_MAC_BRIDGE_ELECTRON_ASSETS }}
         run: |
           echo "unified=$(if [[ "$UNIFIED_RELEASE" == "true" ]]; then echo true; else echo false; fi)" >> "$GITHUB_OUTPUT"
+          if [[ -n "$MAC_BRIDGE_TAG" && "$TAG" == "$MAC_BRIDGE_TAG" ]]; then
+            if [[ "$UNIFIED_RELEASE" == "true" || ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "The CN macOS bridge requires a stable, non-unified release" >&2
+              exit 1
+            fi
+            if ! assets="$(jq -ces '
+              select(length == 1) | .[0] | select(.version | type == "string") |
+              select(all(.x64, .arm64;
+                (.url | test("^https://[^[:space:]]+$")) and (.sha256 | test("^[a-f0-9]{64}$"))
+              ))' <<< "$MAC_BRIDGE_ELECTRON_ASSETS")"; then
+              echo "Set CHERRY_MAC_BRIDGE_ELECTRON_ASSETS with an Electron version and HTTPS ZIP URLs and SHA-256 values for x64 and arm64" >&2
+              exit 1
+            fi
+            echo "mac-bridge-electron=$assets" >> "$GITHUB_OUTPUT"
+            echo "CN macOS bridge enabled for $TAG" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Validate release selection
         shell: bash
@@ -113,6 +133,7 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
           PLATFORM: ${{ inputs.platform }}
+          MAC_BRIDGE_ELECTRON: ${{ steps.distribution.outputs.mac-bridge-electron }}
         run: |
           PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-source/package.json', 'utf8')).version")"
           if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
@@ -122,6 +143,9 @@ jobs:
           node -e 'const { scripts } = require("./release-source/package.json"); for (const name of ["build:release", "build:release:cn"]) { if (!scripts[name]) throw new Error(`Release source does not support ${name}`) }'
           node -e 'require("node:fs").accessSync("release-source/scripts/release/js-bundle.js")'
           node -e 'const tools = require("./release-source/scripts/download-binaries.js"); if (tools.PACKAGING_DOWNLOAD_VERSION !== 1) throw new Error("Release source does not support packaging tool assets v1"); require("node:fs").accessSync("release-source/scripts/release/prepare-tools.js")'
+          if [[ -n "$MAC_BRIDGE_ELECTRON" ]]; then
+            node -e 'const { devDependencies } = require("./release-source/package.json"); if (JSON.parse(process.env.MAC_BRIDGE_ELECTRON).version !== devDependencies.electron) throw new Error("The bridge Electron distribution must match the release Electron version"); require("node:fs").accessSync("release-source/electron-builder.region-bridge.config.cjs")'
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
 
@@ -305,6 +329,7 @@ jobs:
       draft-id: ${{ needs.prepare.outputs.draft-id }}
       clean: ${{ inputs.clean }}
       unified: ${{ needs.prepare.outputs.unified == 'true' }}
+      mac-bridge-electron: ${{ needs.prepare.outputs.mac-bridge-electron }}
     secrets: inherit
 
   release-cn:
@@ -405,6 +430,7 @@ jobs:
           TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
           PLATFORM: ${{ inputs.platform }}
           UNIFIED_RELEASE: ${{ needs.prepare.outputs.unified }}
+          MAC_CN_REGION_BRIDGE: ${{ needs.prepare.outputs.mac-bridge-electron != '' }}
         run: |
           node -e 'process.stdout.write(require("yaml").parse(require("node:fs").readFileSync("release-source/electron-builder.yml", "utf8")).releaseInfo.releaseNotes)' > release_body.txt
           python scripts/release/release-cos.py assemble "$PLATFORM" manifests
