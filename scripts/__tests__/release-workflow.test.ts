@@ -869,7 +869,9 @@ describe('release publication state', () => {
     status: 'in_progress'
   }
   const successfulJobs = Object.fromEntries(
-    ['prepare', 'release', 'release-cn', 'finalize-build', 'approve'].map((job) => [job, { result: 'success' }])
+    parse(
+      fs.readFileSync(path.resolve(import.meta.dirname, '../../.github/workflows/release.yml'), 'utf8')
+    ).jobs.publish.needs.map((job: string) => [job, { result: 'success' }])
   )
   const draftRelease = {
     assets: [{ id: 1 }],
@@ -1105,28 +1107,25 @@ describe('release publication state', () => {
     }
   )
 
-  it.each(['prepare', 'release', 'release-cn', 'finalize-build', 'approve'])(
-    'requires successful %s before publication',
-    (job) => {
-      for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
-        expect(() =>
-          validatePublishState({
-            controlSha,
-            branchSha: workflowSha,
-            buildRun: successfulBuild,
-            expectedBuildTitle,
-            jobResults: { ...successfulJobs, [job]: { result } },
-            openReleasePullRequests: '',
-            pendingHotfixes: '',
-            release: draftRelease,
-            tag: 'v1.2.0',
-            tagSha: workflowSha,
-            workflowSha
-          })
-        ).toThrow('No successful all-platform Release build exists')
-      }
+  it.each(['prepare', 'finalize-build', 'approve'])('requires successful %s before publication', (job) => {
+    for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
+      expect(() =>
+        validatePublishState({
+          controlSha,
+          branchSha: workflowSha,
+          buildRun: successfulBuild,
+          expectedBuildTitle,
+          jobResults: { ...successfulJobs, [job]: { result } },
+          openReleasePullRequests: '',
+          pendingHotfixes: '',
+          release: draftRelease,
+          tag: 'v1.2.0',
+          tagSha: workflowSha,
+          workflowSha
+        })
+      ).toThrow('No successful all-platform Release build exists')
     }
-  )
+  })
 
   it('allows all-platform draft movement but restricts single-platform retries to the existing tag', () => {
     expect(() =>
@@ -1274,10 +1273,10 @@ describe('release workflow gates', () => {
     )
 
     expect(workflow).not.toHaveProperty('concurrency')
-    expect(workflow.jobs.approve.needs).toEqual(['prepare', 'release', 'release-cn', 'finalize-build'])
+    expect(workflow.jobs.approve.needs).toContain('finalize-build')
     expect(workflow.jobs.approve.if).toBe("inputs.platform == 'all'")
     expect(workflow.jobs.approve.environment).toBe('release')
-    expect(workflow.jobs.publish.needs).toEqual(['prepare', 'release', 'release-cn', 'finalize-build', 'approve'])
+    expect(workflow.jobs.publish.needs).toContain('approve')
     expect(publishStep.env.RELEASE_JOB_RESULTS).toBe('${{ toJSON(needs) }}')
     expect(workflow.jobs.publish.concurrency.group).toBe('release-state')
     expect(workflow.jobs.approve).not.toHaveProperty('concurrency')

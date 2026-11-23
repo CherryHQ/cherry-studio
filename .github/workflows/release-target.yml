@@ -21,6 +21,9 @@ on:
       draft-id:
         required: true
         type: string
+      unified:
+        default: false
+        type: boolean
       clean:
         default: false
         type: boolean
