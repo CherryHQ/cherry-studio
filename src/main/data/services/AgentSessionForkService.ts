@@ -122,7 +122,11 @@ export class AgentSessionForkService {
       messageId: string
       messages: AgentSessionMessageRow[]
       contexts: Array<
-        Pick<AgentSessionContextRow, 'backendId' | 'anchorMessageId'> & { id?: string; nativeThreadId: string }
+        Pick<AgentSessionContextRow, 'backendId' | 'anchorMessageId'> & {
+          id?: string
+          nativeThreadId: string
+          checkpointMapping?: AgentSessionCheckpoints
+        }
       >
     }
   ): void {
@@ -182,7 +186,8 @@ export class AgentSessionForkService {
         sessionId: input.targetSessionId,
         backendId: binding.backendId,
         nativeThreadId: binding.nativeThreadId,
-        anchorMessageId: anchor
+        anchorMessageId: anchor,
+        ...(binding.checkpointMapping !== undefined ? { checkpointMapping: binding.checkpointMapping } : {})
       })
       agentSessionContextService.confirmBranchTx(tx, context.id, input.targetSessionId, anchor, binding.nativeThreadId)
     }

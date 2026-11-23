@@ -548,13 +548,15 @@ export class AgentSessionRuntimeService extends BaseService {
   >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
-  /** Resolved when shutdown starts so a close already waiting on a pending connect
-   * can apply the 1.5s shutdown bound instead of holding the unbounded wait
-   * across both stop and destroy (#23519 review inv_8fa258e00144e9e7). */
-  private shutdownResolve: (() => void) | undefined
-  private readonly shutdownStarted: Promise<void> = new Promise<void>((resolve) => {
-    this.shutdownResolve = resolve
-  })
+  /** Removable shutdown subscriptions for closes waiting on a pending connect.
+   * A `shutdownStarted.then()` promise cannot be unsubscribed, so completed
+   * closes kept their handlers (and their 1.5s timers) until shutdown — 50
+   * closes left 50 redundant timers. Listeners are removed when the wait
+   * settles, and shutdown notifies the current set so an in-progress wait
+   * applies the 1.5s bound instead of holding the unbounded wait across both
+   * stop and destroy (#23519 review inv_8fa258e00144e9e7,
+   * inv_bf75f32eb09d3192). */
+  private readonly shutdownListeners = new Set<() => void>()
   /** Warm-lease holders by session: the window WebContents currently displaying it. The runtime
    *  connection is shared per-session across windows, so its view-close teardown may only start
    *  once this set is empty — a renderer-local count can neither see other windows nor survive
@@ -2161,7 +2163,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
-    this.shutdownResolve?.()
+    for (const listener of [...this.shutdownListeners]) listener()
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
     for (const entry of this.entries.values()) {
@@ -2205,6 +2207,10 @@ export class AgentSessionRuntimeService extends BaseService {
     this.childSubscriptions.dispose()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
+    // Ensure any close already waiting on a pending connect applies the shutdown
+    // bound even if onStop did not run first.
+    if (!this.isShuttingDown) this.isShuttingDown = true
+    for (const listener of [...this.shutdownListeners]) listener()
     // Mirror onStop's bound: onStop timing out leaves entries behind, and
     // unbounded closeAll here would re-exceed the shutdown budget. `forks.cancel()`
     // joins the same race so an edit waiting on native close cannot hold destroy
@@ -4135,6 +4141,47 @@ export class AgentSessionRuntimeService extends BaseService {
     return Promise.allSettled(closings).then(() => undefined)
   }
 
+  /**
+   * Bound a pending `driver.connect()` wait so shutdown never stalls on it.
+   * While shutting down the bound is 1.5s; otherwise the wait is unbounded
+   * until shutdown starts, then 1.5s. Uses a removable shutdown subscription
+   * (not `shutdownStarted.then()`) and clears any timer when the wait settles
+   * so completed closes leave no handlers or timers behind (#23519 review
+   * inv_bf75f32eb09d3192).
+   */
+  private async boundedPendingConnectWait(connectionAttempt: Promise<unknown>): Promise<void> {
+    if (this.isShuttingDown) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          connectionAttempt.catch(() => undefined),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, 1500)
+          })
+        ])
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+      return
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let onShutdown: (() => void) | undefined
+    try {
+      await Promise.race([
+        connectionAttempt.catch(() => undefined),
+        new Promise<void>((resolve) => {
+          onShutdown = () => {
+            timer = setTimeout(resolve, 1500)
+          }
+          this.shutdownListeners.add(onShutdown)
+        })
+      ])
+    } finally {
+      if (onShutdown) this.shutdownListeners.delete(onShutdown)
+      if (timer) clearTimeout(timer)
+    }
+  }
+
   private async closeEntry(entry: AgentSessionRuntimeEntry, interrupt = false): Promise<void> {
     this.clearIdleTimer(entry)
     entry.closing = true
@@ -4153,24 +4200,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // (#23519 review). When shutdown starts mid-wait, the same 1.5s bound applies
     // to the already-in-progress wait so one close cannot consume the 4s budget in
     // both stop and destroy (inv_8fa258e00144e9e7).
-    if (connectionAttempt) {
-      if (this.isShuttingDown) {
-        await Promise.race([
-          connectionAttempt.catch(() => undefined),
-          new Promise<void>((resolve) => setTimeout(resolve, 1500))
-        ])
-      } else {
-        await Promise.race([
-          connectionAttempt.catch(() => undefined),
-          this.shutdownStarted.then(() =>
-            Promise.race([
-              connectionAttempt.catch(() => undefined),
-              new Promise<void>((resolve) => setTimeout(resolve, 1500))
-            ])
-          )
-        ])
-      }
-    }
+    if (connectionAttempt) await this.boundedPendingConnectWait(connectionAttempt)
     if (connectionLoop) await connectionLoop
     await streamDrain
     for (const turn of getAgentSessionRuntimeTurns(entry.runtimeState)) {

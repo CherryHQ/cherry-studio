@@ -215,13 +215,22 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         return { status: 'confirmed', value: access(owner, projection, sessionId, agentId) }
       } catch (error) {
         report(error)
-        // `refresh()` throws `native-storage-missing` for a confirmed-gone
-        // archive; preserve that distinction instead of collapsing everything
-        // to `native-storage-unavailable` so cold start can route the confirmed
-        // case through scoped invalidation while transient failures preserve
-        // bindings (#23519 review inv_ed3f7d595f21b254).
-        const text = error instanceof Error ? (error.message ?? '') : String(error ?? '')
-        if (text.includes('native-storage-missing')) return rejected('open', 'native-storage-missing')
+        // `refresh()` throws a typed `native-storage-missing` (code + operation)
+        // for a confirmed-gone archive; preserve that distinction instead of
+        // collapsing everything to `native-storage-unavailable` so cold start
+        // can route the confirmed case through scoped invalidation while
+        // transient failures preserve bindings (#23519 review inv_ed3f7d595f21b254).
+        // Never match by substring: a transient message (e.g. permission error
+        // with the token in a path) must stay `native-storage-unavailable`
+        // (#23519 review inv_26df6ff6b46cfdaa).
+        const record = error as { code?: unknown; operation?: unknown } | null | undefined
+        const isConfirmedMissing =
+          (typeof record === 'object' &&
+            record !== null &&
+            (record as { code?: unknown }).code === 'native-storage-missing' &&
+            (record as { operation?: unknown }).operation === 'open') ||
+          (error instanceof Error && error.message === 'native-storage-missing')
+        if (isConfirmedMissing) return rejected('open', 'native-storage-missing')
         return rejected('open', 'native-storage-unavailable')
       }
     },

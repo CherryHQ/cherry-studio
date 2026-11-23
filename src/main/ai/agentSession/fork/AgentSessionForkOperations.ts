@@ -365,7 +365,14 @@ export class AgentSessionForkOperations {
           id: result.contextId,
           backendId: group.context.backendId,
           nativeThreadId: result.resumeToken,
-          anchorMessageId: index === 0 ? (firstResetVisibleId ?? null) : messages[start].id
+          anchorMessageId: index === 0 ? (firstResetVisibleId ?? null) : messages[start].id,
+          // The copied reset marker makes the child look unhandled on startup:
+          // without `staleResetHandled` it would try to reserve the same fresh
+          // forked native id at a descendant and hit `Native context already
+          // belongs to another branch`. Persist the copied reset id so the
+          // recovered binding is treated as handled and the child's first send
+          // reuses its forked native id (#23519 review inv_1b2f2c06988481f7).
+          ...(firstResetVisibleId !== null ? { checkpointMapping: { staleResetHandled: firstResetVisibleId } } : {})
         }
       })
       await this.publish(

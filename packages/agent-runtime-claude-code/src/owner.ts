@@ -712,7 +712,18 @@ export class ClaudeOwner {
     this.buffered = []
     this.reading = (async () => {
       const archive = await readArchive(this.runtime.configDir, this.config.cwd, sessionId)
-      if (!archive) throw new Error('native-storage-missing')
+      if (!archive) {
+        // Confirmed-gone archive: carry a typed marker so `runtime.open`
+        // can distinguish it from transient failures whose message may
+        // contain the same token in a path (#23519 review inv_26df6ff6b46cfdaa).
+        const missing = new Error('native-storage-missing') as Error & {
+          code: string
+          operation: string
+        }
+        missing.code = 'native-storage-missing'
+        missing.operation = 'open'
+        throw missing
+      }
       const root = this.projection(sessionId)
       const entriesFor = (agentId?: string): NativeArchiveEntry[] =>
         archive.entries
