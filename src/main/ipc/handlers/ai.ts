@@ -72,7 +72,7 @@ async function exposeAgentTaskError<T>(op: () => T | Promise<T>): Promise<T> {
   try {
     return await op()
   } catch (e) {
-    if (e instanceof Error && (e as { code?: string }).code === JOB_ERROR_CODES.SCHEDULE_TRIGGER_INVALID) {
+    if (e instanceof Error && 'code' in e && e.code === JOB_ERROR_CODES.SCHEDULE_TRIGGER_INVALID) {
       throw new IpcError(aiErrorCodes.AI_AGENT_TASK_TRIGGER_INVALID, e.message)
     }
 
@@ -107,9 +107,9 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
     }
 
     if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
-      const operation = (error.details as { operation?: string } | undefined)?.operation
+      const details = error.details
 
-      if (operation === 'delete pinned session') {
+      if (details && 'operation' in details && details.operation === 'delete pinned session') {
         throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_PINNED, error.message)
       }
     }

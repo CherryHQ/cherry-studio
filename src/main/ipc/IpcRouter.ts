@@ -24,15 +24,14 @@ export class IpcRouter<S extends Record<string, RouteDef>> {
 
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer transport input remains untrusted until the selected route's input schema validates it.
   async dispatch(route: string, input: unknown, ctx: IpcContext): Promise<z.infer<S[keyof S]['output']>> {
-    // Own-property guard: a bare `schemas[route]` resolves inherited members
-    // (__proto__, constructor, toString, …) to truthy Object.prototype values, which
-    // would slip past a plain truthiness check and surface as an INTERNAL TypeError.
-    // Any non-own key is simply an unknown route.
+    // Inherited Object.prototype names are not registered routes.
     if (!Object.hasOwn(this.schemas, route)) {
       throw new IpcError(IpcErrorCode.ROUTE_NOT_FOUND, `Unknown IpcApi route: ${route}`)
     }
 
-    const def = this.schemas[route as keyof S]
+    // SAFETY: The constructor's schema map owns the route catalog, and the own-key check rejects unregistered names.
+    const key = route as keyof S
+    const def = this.schemas[key]
 
     const parsed = def.input.safeParse(input)
 
@@ -40,11 +39,9 @@ export class IpcRouter<S extends Record<string, RouteDef>> {
       throw new IpcError(IpcErrorCode.VALIDATION_FAILED, `Invalid input for ${route}`, { issues: parsed.error.issues })
     }
 
-    const handler = this.handlers[route as keyof S]
+    const handler = this.handlers[key]
 
-    // `parsed.data` is `unknown` here — the generic bound cannot narrow the inferred
-    // input type inside the mapped handler signature. Soundness is guaranteed at the
-    // constructor boundary by the `IpcHandlersFor<S>` constraint, not at this call.
+    // SAFETY: This key selects both the parsed input schema and its IpcHandlersFor<S> handler; only TS's union call signature requires never.
     return handler(parsed.data as never, ctx)
   }
 }

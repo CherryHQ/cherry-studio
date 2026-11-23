@@ -390,6 +390,17 @@ describe('fileHandlers', () => {
     expect(copyNewMock).not.toHaveBeenCalled()
   })
 
+  it.each([null, undefined, false, 0, 'copy failed'])('retains a non-Error copy rejection: %s', async (failure) => {
+    copyNewMock.mockRejectedValueOnce(failure)
+
+    const input: InputFor<'file.copy'> = {
+      sourcePath: '/data/Files/a.png' as AbsoluteFilePath,
+      destPath: '/tmp/export.png' as AbsoluteFilePath
+    }
+
+    await expect(fileHandlers['file.copy'](input, windowCtx)).rejects.toBe(failure)
+  })
+
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
     const items = [
       { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },

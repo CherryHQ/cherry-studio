@@ -20,7 +20,6 @@ import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@m
 import { validateNotesDirectory } from '@main/services/notesDirectory'
 import { copyNew, PathStaleVersionError, probeReadable } from '@main/utils/file'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
@@ -64,14 +63,14 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
 
     if (options.mode === 'range') {
       return dispatchHandle(
-        handle as FileHandle,
+        handle,
         (entryId) => fileManager.readChunk(entryId, options.offset, options.length),
         (path) => readChunkByPath(path, options.offset, options.length)
       )
     }
 
     return dispatchHandle(
-      handle as FileHandle,
+      handle,
       (entryId) => fileManager.read(entryId, { encoding: options.encoding }),
       (path) =>
         readByPath(path, {
@@ -85,7 +84,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       const fileManager = application.get('FileManager')
 
       return await dispatchHandle(
-        handle as FileHandle,
+        handle,
         (entryId) => fileManager.writeIfUnchanged(entryId, data, expectedVersion, expectedContentHash),
         async (path) => {
           await assertOutsideManagedStorageMutation(path)
@@ -118,7 +117,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       items.map(async ({ key, handle }) => {
         try {
           const metadata = await dispatchHandle(
-            handle as FileHandle,
+            handle,
             (entryId) => fileManager.getMetadata(entryId),
             getMetadataByPath
           )
@@ -145,7 +144,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const fileManager = application.get('FileManager')
 
     try {
-      return await dispatchHandle(handle as FileHandle, (id) => fileManager.getMetadata(id), getMetadataByPath)
+      return await dispatchHandle(handle, (id) => fileManager.getMetadata(id), getMetadataByPath)
     } catch (error) {
       logFailure(
         logger,
@@ -199,13 +198,13 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     try {
       await copyNew(sourcePath, destPath)
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
+      const code = error !== null && typeof error === 'object' && 'code' in error ? error.code : undefined
       let external = !managedSource
 
-      if (managedSource && ['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes(code ?? '')) {
+      if (managedSource && typeof code === 'string' && ['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes(code)) {
         // copyFile reports both paths; probe the source before blaming the external destination.
         external = (await probeReadable(sourcePath)) === 'readable'
-      } else if (['EEXIST', 'ENOSPC', 'EROFS'].includes(code ?? '')) {
+      } else if (typeof code === 'string' && ['EEXIST', 'ENOSPC', 'EROFS'].includes(code)) {
         external = true
       }
 
@@ -217,7 +216,7 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const fileManager = application.get('FileManager')
 
     return dispatchHandle(
-      handle as FileHandle,
+      handle,
       (entryId) => fileManager.open(entryId, { channel: 'file.open' }),
       (path) => safeOpen(path, { channel: 'file.open' })
     )
@@ -225,20 +224,16 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.show_in_folder': async (handle) => {
     const fileManager = application.get('FileManager')
 
-    return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
+    return dispatchHandle(handle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
   },
   'file.copy_to_clipboard': async (handle, { senderId }) => {
     if (senderId == null) throw new Error('file.copy_to_clipboard requires a managed window sender')
 
-    return dispatchHandle(
-      handle as FileHandle,
-      (id) => application.get('FileManager').copyToClipboard(id),
-      copyFileToClipboard
-    )
+    return dispatchHandle(handle, (id) => application.get('FileManager').copyToClipboard(id), copyFileToClipboard)
   },
   'file.get_clipboard_status': async (handle) => {
     return dispatchHandle(
-      handle as FileHandle,
+      handle,
       async (id) => {
         try {
           return await getClipboardCopyStatus(application.get('FileManager').getPhysicalPath(id))
@@ -299,6 +294,7 @@ function usesExternalPath(route: string, input: Parameters<(typeof handlers)[key
 }
 
 // Keep classification at the domain boundary; IPC transport only carries the ownership marker.
+// SAFETY: Each own handler key is retained, and its wrapper forwards the same input, context and return value without changing the route contract.
 export const fileHandlers = Object.fromEntries(
   Object.entries(handlers).map(([route, handler]) => [
     route,

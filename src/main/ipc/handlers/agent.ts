@@ -69,10 +69,12 @@ function revisionOf(stats: FileStats | undefined): string {
 }
 
 async function lstatIfExists(targetPath: string): Promise<FileStats | undefined> {
-  return lstat(targetPath).catch((error: NodeJS.ErrnoException) => {
-    if (error.code === 'ENOENT') return undefined
+  try {
+    return await lstat(targetPath)
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
     throw error
-  })
+  }
 }
 
 /**
@@ -107,9 +109,8 @@ async function resolveMemoryPath(dir: string, name: string): Promise<string> {
 
     return matchedPath
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-
-    return exact
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return exact
+    throw error
   }
 }
 
@@ -122,7 +123,7 @@ async function resolveAgentDirectory(agentId: string): Promise<{ root: string; d
   } catch (error) {
     // A missing directory is a valid "nothing remembered yet" state: report every
     // file as missing instead of failing the whole snapshot.
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
   }
 
   return { root, directory }

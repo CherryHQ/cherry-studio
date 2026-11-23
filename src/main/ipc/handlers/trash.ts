@@ -19,9 +19,9 @@ async function exposeArchiveError<T>(operation: () => Promise<T>): Promise<T> {
     }
 
     if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
-      const operation = (error.details as { operation?: string } | undefined)?.operation
+      const details = error.details
 
-      if (operation === 'delete pinned topic') {
+      if (details && 'operation' in details && details.operation === 'delete pinned topic') {
         throw new IpcError(trashErrorCodes.TRASH_TOPIC_PINNED, error.message)
       }
     }
