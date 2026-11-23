@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-23-unified-desktop-release.md
-2026-11-23-unified-desktop-release.md: e3c96e0f91c18f5b573c26ef5aa6661ca9cbb6b5
-2026-11-23-unified-desktop-release.zh.md: c81b8dbcddc3e726cfd1c1d75beba65e14ea9ed7
+2026-11-23-unified-desktop-release.md: 899dcbfde5638ba576878f20d9efe8a004b0e434
+2026-11-23-unified-desktop-release.zh.md: 48590b2076a4796978b3268c163275cc3e97c5d7
