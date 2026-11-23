@@ -14,9 +14,10 @@ const persistedChannelSessions = vi.hoisted(() => ({
   sessions: new Map<string, Record<string, unknown>>()
 }))
 
-vi.mock('@main/ai/runtime/agentSessionWorkspace', () => {
+vi.mock(import('@main/ai/runtime/agentSessionWorkspace'), async (importOriginal) => {
   class MockAgentSessionWorkspaceError extends Error {}
   return {
+    ...(await importOriginal()),
     AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
     isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
     prepareAgentSessionWorkspaceDirectory: vi.fn()
