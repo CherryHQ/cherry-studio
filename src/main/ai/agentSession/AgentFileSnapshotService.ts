@@ -574,20 +574,13 @@ export class AgentFileSnapshotService extends BaseService {
 
   private async undoEligibility(manifest: Manifest, file: SnapshotFile) {
     const state = () => currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))
-    if (
-      file.attempts.some((attempt) => attempt.status === 'unknown') ||
-      (!file.afterHash && file.attempts.some((attempt) => attempt.status === 'written'))
-    ) {
-      return file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written') ||
-        (file.afterHash && (await state()) === 'conflict')
-        ? ('conflict' as const)
-        : ('unknown' as const)
-    }
+    if (file.attempts.some((attempt) => attempt.status === 'unknown')) return 'unknown' as const
     if (file.attempts.some((attempt) => attempt.status === 'unverifiable')) return 'unverifiable' as const
+    if (file.restoredAt) return 'already-restored' as const
     if (file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written'))
       return 'conflict' as const
+    if (!file.afterHash && file.attempts.some((attempt) => attempt.status === 'written')) return 'unknown' as const
     if (!file.afterHash) return 'skipped' as const
-    if (file.restoredAt) return 'already-restored' as const
     const current = await state()
     return current === 'baseline'
       ? ('already-restored' as const)
@@ -638,10 +631,10 @@ export class AgentFileSnapshotService extends BaseService {
           ? 'turn-active'
           : pendingFiles.length
             ? 'pending'
-            : !files.some((file) => file.status === 'changed') && files.some((file) => file.status === 'unknown')
-              ? 'unknown'
-              : !files.some((file) => file.status === 'changed') && files.some((file) => file.status === 'conflict')
-                ? 'conflict'
+            : files.some((file) => file.status === 'conflict')
+              ? 'conflict'
+              : !files.some((file) => file.status === 'changed') && files.some((file) => file.status === 'unknown')
+                ? 'unknown'
                 : manifest.files.length === 0
                   ? 'empty'
                   : manifest.files.every((f) => f.restoredAt)
@@ -678,8 +671,7 @@ export class AgentFileSnapshotService extends BaseService {
         return { files: [], reason: 'pending' }
       const eligibility = await Promise.all(manifest.files.map((file) => this.undoEligibility(manifest, file)))
       if (!(await this.isAttested(input.sessionId, attest))) return { files: [], reason: 'stale' }
-      if (!eligibility.includes('changed') && eligibility.includes('unknown')) return { files: [], reason: 'unknown' }
-      if (!eligibility.includes('changed') && eligibility.includes('conflict'))
+      if (eligibility.includes('conflict'))
         return {
           files: manifest.files.map((file, index) => ({
             path: file.path,
@@ -687,6 +679,7 @@ export class AgentFileSnapshotService extends BaseService {
           })),
           reason: 'conflict'
         }
+      if (!eligibility.includes('changed') && eligibility.includes('unknown')) return { files: [], reason: 'unknown' }
       const files: UndoFileResult[] = []
       for (const file of manifest.files) {
         const status = await this.undoEligibility(manifest, file)
@@ -732,13 +725,16 @@ export class AgentFileSnapshotService extends BaseService {
       }
       return {
         files,
-        reason: files.some((f) => f.status === 'failed' || f.status === 'conflict')
-          ? 'partial'
-          : files.some((f) => f.status === 'unknown')
-            ? 'unknown'
-            : files.some((f) => f.status === 'unverifiable')
-              ? 'unverifiable'
-              : null
+        reason:
+          files.some((f) => f.status === 'failed' || f.status === 'conflict') ||
+          (files.some((f) => f.status === 'restored' || f.status === 'removed') &&
+            files.some((f) => f.status === 'unknown' || f.status === 'skipped' || f.status === 'unverifiable'))
+            ? 'partial'
+            : files.some((f) => f.status === 'unknown')
+              ? 'unknown'
+              : files.some((f) => f.status === 'unverifiable')
+                ? 'unverifiable'
+                : null
       }
     })
   }

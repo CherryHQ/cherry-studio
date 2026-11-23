@@ -284,7 +284,7 @@ describe('AgentFileSnapshotService', () => {
       replyId: round.replyId,
       expectedRevision: state.revision!
     })
-    expect(result).toMatchObject({ reason: 'unknown', files: [{ status: 'restored' }, { status: 'unknown' }] })
+    expect(result).toMatchObject({ reason: 'partial', files: [{ status: 'restored' }, { status: 'unknown' }] })
     expect(await readFile(other, 'utf8')).toBe('before')
   })
   it.skipIf(process.platform === 'win32').each([0o600, 0o755])(
@@ -378,7 +378,7 @@ describe('AgentFileSnapshotService', () => {
     const manifest = JSON.parse(await readFile(path.join(testDir, 'snapshots/session/reply/manifest.json'), 'utf8'))
     expect(manifest.files.find((file: { path: string }) => file.path === large).attempts[0].status).toBe('unverifiable')
     const result = await undo()
-    expect(result.reason).toBe('unverifiable')
+    expect(result.reason).toBe('partial')
     expect(result.files).toContainEqual({ path: large, status: 'unverifiable', reason: 'unverifiable' })
     expect(result.files).toContainEqual({ path: other, status: 'restored' })
     expect((await stat(large)).size).toBe(2048)
@@ -455,7 +455,7 @@ describe('AgentFileSnapshotService', () => {
     expect(await readFile(c, 'utf8')).toBe('untouched')
     expect((await stat(c)).mtimeMs).toBe(untouched.mtimeMs)
   })
-  it('restores verified files and leaves the conflicting created file alone', async () => {
+  it('rejects the whole round on conflict and removes a created file when unchanged', async () => {
     const a = path.join(root, 'a'),
       b = path.join(root, 'b')
     await writeFile(a, 'baseline')
@@ -464,18 +464,18 @@ describe('AgentFileSnapshotService', () => {
     await writeFile(b, 'user')
     await service.markRoundFinished(round.sessionId, round.replyId)
     expect(await service.getUndoState(round.sessionId)).toMatchObject({
-      canUndo: true,
-      reason: null,
+      canUndo: false,
+      reason: 'conflict',
       files: [
         { path: a, status: 'changed' },
         { path: b, status: 'conflict' }
       ]
     })
-    expect((await undo()).reason).toBe('partial')
-    expect(await readFile(a, 'utf8')).toBe('baseline')
+    expect((await undo()).reason).toBe('conflict')
+    expect(await readFile(a, 'utf8')).toBe('agent')
     expect(await readFile(b, 'utf8')).toBe('user')
     await writeFile(b, 'new')
-    expect((await undo()).files.map((f) => f.status)).toEqual(['already-restored', 'removed'])
+    expect((await undo()).files.map((f) => f.status)).toEqual(['restored', 'removed'])
   })
   it('rejects stale revisions and purges session snapshots', async () => {
     const target = path.join(root, 'a')
@@ -586,7 +586,7 @@ describe('AgentFileSnapshotService', () => {
     expect(await readFile(a, 'utf8')).toBe('original a')
     expect(await readFile(b, 'utf8')).toBe('original b')
   })
-  it('restores other files while leaving a replaced target alone', async () => {
+  it('rejects a replaced target without changing other files', async () => {
     const a = path.join(root, 'a'),
       b = path.join(root, 'b')
     await writeFile(a, 'a')
@@ -595,8 +595,10 @@ describe('AgentFileSnapshotService', () => {
     await write(b, 'changed b', '2')
     await rm(b)
     await writeFile(b, 'replacement')
-    expect((await undo()).reason).toBe('partial')
-    expect(await readFile(a, 'utf8')).toBe('a')
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    expect(await service.getUndoState(round.sessionId)).toMatchObject({ canUndo: false, reason: 'conflict' })
+    expect((await undo()).reason).toBe('conflict')
+    expect(await readFile(a, 'utf8')).toBe('changed a')
     expect(await readFile(b, 'utf8')).toBe('replacement')
   })
   it('does not undo an earlier round when the current round is empty', async () => {
@@ -788,7 +790,7 @@ describe('AgentFileSnapshotService', () => {
       canUndo: true,
       reason: null,
       files: [
-        { path: a, status: 'conflict' },
+        { path: a, status: 'unknown' },
         { path: b, status: 'changed' }
       ]
     })
@@ -800,7 +802,7 @@ describe('AgentFileSnapshotService', () => {
     expect(result).toMatchObject({
       reason: 'partial',
       files: [
-        { path: a, status: 'conflict' },
+        { path: a, status: 'unknown' },
         { path: b, status: 'restored' }
       ]
     })
@@ -907,7 +909,7 @@ describe('AgentFileSnapshotService', () => {
       replyId: round.replyId,
       expectedRevision: state.revision!
     })
-    expect(result.reason).toBe(age > 120 ? null : 'pending')
+    expect(result.reason).toBe(age > 120 ? 'partial' : 'pending')
     const updated = JSON.parse(await readFile(manifestPath, 'utf8'))
     expect(updated.files.find((file: { path: string }) => file.path === target).attempts[0].status).toBe(
       age > 120 ? 'cancelled' : 'pending'
@@ -935,7 +937,7 @@ describe('AgentFileSnapshotService', () => {
       replyId: round.replyId,
       expectedRevision: manifest.revision
     })
-    expect(result.reason).toBe(changed ? 'pending' : null)
+    expect(result.reason).toBe(changed ? 'pending' : 'partial')
     const updated = JSON.parse(await readFile(manifestPath, 'utf8'))
     expect(updated.files.find((file: { path: string }) => file.path === target).attempts[0].status).toBe(
       changed ? 'pending' : 'cancelled'
@@ -964,7 +966,7 @@ describe('AgentFileSnapshotService', () => {
       replyId: round.replyId,
       expectedRevision: state.revision!
     })
-    expect(result.reason).toBe(age > 120 ? null : 'pending')
+    expect(result.reason).toBe(age > 120 ? 'partial' : 'pending')
     const updated = JSON.parse(await readFile(manifestPath, 'utf8'))
     expect(updated.files.find((file: { path: string }) => file.path === target).attempts[0].status).toBe(
       age > 120 ? 'cancelled' : 'pending'
