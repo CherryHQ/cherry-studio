@@ -236,12 +236,9 @@ function AssistantEditDialogContent({
   const formBaselineRef = useRef(formBaseline)
   const savedResourceRef = useRef(resource)
   const [savedResource, setSavedResource] = useState(resource)
-  const confirmedDetailRevisionRef = useRef(0)
-  // Resource identity marks a newly confirmed detail read. Do not order saves by
-  // wall-clock timestamps: the clock can move backward. If refresh fails, the
-  // unchanged resource prop does not replace our successful PATCH snapshot.
+  // Detail observations after commit replace its snapshot; reads before commit
+  // are superseded by the commit callback, independent of wall-clock time.
   useEffect(() => {
-    confirmedDetailRevisionRef.current += 1
     savedResourceRef.current = resource
     setSavedResource(resource)
   }, [resource])
@@ -332,13 +329,10 @@ function AssistantEditDialogContent({
     failedSaveKeyRef.current = null
 
     try {
-      const detailRevision = confirmedDetailRevisionRef.current
-      const updated = await updateAssistant(pending.payload)
-      // A detail observed during this write/refresh is newer than its PATCH snapshot.
-      if (confirmedDetailRevisionRef.current === detailRevision) {
+      await updateAssistant(pending.payload, (updated) => {
         savedResourceRef.current = updated
         setSavedResource(updated)
-      }
+      })
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
@@ -492,6 +486,8 @@ function AssistantEditDialogContent({
           <AssistantAdvancedFields
             storedMaxMessages={savedResource.settings.contextSettings?.maxMessages}
             baselineMaxMessages={formBaseline.contextMaxMessages}
+            storedCompressWindow={savedResource.settings.contextSettings?.compressWindow}
+            baselineCompressWindow={formBaseline.contextCompressWindow}
             form={form}
             modelFilter={modelFilter}
             isModelDisabled={isModelDisabled}
@@ -762,6 +758,8 @@ function AssistantToolsFields({
 function AssistantAdvancedFields({
   storedMaxMessages,
   baselineMaxMessages,
+  storedCompressWindow,
+  baselineCompressWindow,
   form,
   modelFilter,
   isModelDisabled,
@@ -771,6 +769,8 @@ function AssistantAdvancedFields({
 }: {
   storedMaxMessages: number | null | undefined
   baselineMaxMessages: number | null
+  storedCompressWindow: number | null | undefined
+  baselineCompressWindow: number | null | undefined
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -945,6 +945,8 @@ function AssistantAdvancedFields({
       <ContextManagementFields
         storedMaxMessages={storedMaxMessages}
         baselineMaxMessages={baselineMaxMessages}
+        storedCompressWindow={storedCompressWindow}
+        baselineCompressWindow={baselineCompressWindow}
         form={form}
         modelFilter={modelFilter}
         isModelDisabled={isModelDisabled}
@@ -980,6 +982,8 @@ function AssistantAdvancedFields({
 function ContextManagementFields({
   storedMaxMessages,
   baselineMaxMessages,
+  storedCompressWindow,
+  baselineCompressWindow,
   form,
   modelFilter,
   isModelDisabled,
@@ -990,6 +994,8 @@ function ContextManagementFields({
 }: {
   storedMaxMessages: number | null | undefined
   baselineMaxMessages: number | null
+  storedCompressWindow: number | null | undefined
+  baselineCompressWindow: number | null | undefined
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter: EditDialogBaseProps['modelFilter']
   isModelDisabled: EditDialogBaseProps['isModelDisabled']
@@ -1019,8 +1025,9 @@ function ContextManagementFields({
         ? globalDefaults.maxMessages
         : storedMaxMessages
       : (values.contextMaxMessages ?? globalDefaults.maxMessages)
-  const effectiveWindow =
-    values.contextCompressWindow === undefined ? globalDefaults.compressWindow : values.contextCompressWindow
+  const outgoingWindow =
+    values.contextCompressWindow === baselineCompressWindow ? storedCompressWindow : values.contextCompressWindow
+  const effectiveWindow = outgoingWindow === undefined ? globalDefaults.compressWindow : outgoingWindow
 
   const onOverrideToggle = (checked: boolean) => {
     if (checked && !hadStoredOverride.current) {

@@ -1600,6 +1600,30 @@ describe('useMutation trigger identity & option freshness', () => {
     expect(result.current.provider.data).toEqual(provider)
   })
 
+  it('publishes the committed snapshot before a failed post-write refresh', async () => {
+    const updated = { id: 'provider-1', name: 'Committed' }
+    vi.spyOn(dataApiService, 'patch').mockResolvedValue(updated as never)
+    const events: string[] = []
+    const onCommitted = vi.fn(() => {
+      events.push('commit')
+    })
+    const refresh = vi.fn(() => {
+      events.push('refresh')
+      throw new Error('read failed after commit')
+    })
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useMutation('PATCH', '/providers/:providerId', { refresh }), {
+      wrapper: Wrapper
+    })
+    await act(async () => {
+      await expect(
+        result.current.trigger({ params: { providerId: 'provider-1' }, body: { name: 'Committed' } }, { onCommitted })
+      ).resolves.toEqual(updated)
+    })
+    expect(events).toEqual(['commit', 'refresh'])
+    expect(onCommitted).toHaveBeenCalledWith(updated)
+  })
+
   it('preserves success and revalidation when onSuccess throws', async () => {
     const callbackError = new Error('onSuccess failed')
     const provider = { id: 'provider-1', name: 'Provider One' }

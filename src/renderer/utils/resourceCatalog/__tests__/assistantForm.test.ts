@@ -423,6 +423,22 @@ describe('context-management override (P2-D)', () => {
 })
 
 describe('compression window edits', () => {
+  it('uses both confirmed bounds when only overflow customization changes', () => {
+    const original = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: { maxMessages: 3, compressWindow: 4 } }
+    })
+    const baseline = initialAssistantFormState(original)
+    const refreshed = {
+      ...original,
+      settings: { ...original.settings, contextSettings: { maxMessages: 5, compressWindow: 7 } }
+    }
+    const form = { ...baseline, contextOverrideEnabled: !baseline.contextOverrideEnabled }
+    expect(diffAssistantUpdate(form, baseline, refreshed)?.dto.settings?.contextSettings).toMatchObject({
+      maxMessages: 5,
+      compressWindow: 7
+    })
+  })
+
   it('preserves explicit unlimited and partial overflow settings on a window-only save', () => {
     const contextSettings = { maxMessages: null, compressWindow: 6, compress: { enabled: false } }
     const assistant = createAssistant({ settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings } })

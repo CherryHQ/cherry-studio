@@ -775,7 +775,11 @@ beforeEach(() => {
     }
     if (method === 'PATCH' && path.startsWith('/assistants/')) {
       return {
-        trigger: ({ body }: { body: unknown }) => updateAssistantMock({ body }),
+        trigger: async ({ body }: { body: unknown }, lifecycle?: { onCommitted?: (value: Assistant) => void }) => {
+          const committed = await updateAssistantMock({ body })
+          lifecycle?.onCommitted?.(committed)
+          return committed
+        },
         isLoading: false,
         error: undefined
       }
@@ -2170,7 +2174,7 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('keeps a newer detail while an older unrelated PATCH is awaiting refresh', async () => {
+  it('replaces a precommit detail with the committed bounds when refresh fails', async () => {
     const user = userEvent.setup()
     const original = {
       ...ASSISTANT,
@@ -2178,6 +2182,79 @@ describe('edit dialogs', () => {
     }
     const pending = Promise.withResolvers<typeof original>()
     updateAssistantMock.mockReturnValueOnce(pending.promise)
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    selectTab('Model')
+    const recent = screen.getByRole('spinbutton', { name: 'Recent verbatim rounds (A)' })
+    await user.clear(recent)
+    await user.type(recent, '4')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    view.rerender(<AssistantEditDialog open resource={{ ...original }} onOpenChange={onOpenChange} />)
+    await act(async () =>
+      pending.resolve({
+        ...original,
+        settings: { ...original.settings, contextSettings: { maxMessages: 4, compressWindow: 6 } }
+      })
+    )
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { settings: { contextSettings: { maxMessages: 4, compressWindow: 7 } } }
+    })
+  })
+
+  it('preserves both refreshed bounds on an overflow-only toggle', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 4 } }
+    }
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    selectTab('Model')
+    view.rerender(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...original,
+          settings: { ...original.settings, contextSettings: { maxMessages: 5, compressWindow: 7 } }
+        }}
+        onOpenChange={onOpenChange}
+      />
+    )
+    await user.click(screen.getByRole('switch', { name: 'Customize context management' }))
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
+      body: { settings: { contextSettings: expect.objectContaining({ maxMessages: 5, compressWindow: 7 }) } }
+    })
+  })
+
+  it('keeps a newer detail while an older unrelated PATCH is awaiting refresh', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const pending = Promise.withResolvers<typeof original>()
+    useMutationMock.mockImplementation((method: string, path: string) => {
+      if (method === 'PATCH' && path.startsWith('/assistants/'))
+        return {
+          trigger: async ({ body }: { body: unknown }, lifecycle?: { onCommitted?: (value: Assistant) => void }) => {
+            updateAssistantMock({ body })
+            const committed = { ...original, name: 'Renamed' }
+            lifecycle?.onCommitted?.(committed)
+            await pending.promise
+            return committed
+          },
+          isLoading: false,
+          error: undefined
+        }
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
+    })
     const onOpenChange = vi.fn()
     const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
     const name = screen.getByRole('textbox', { name: 'Name' })

@@ -208,7 +208,10 @@ export type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' 
  * @property error - Error object if the last mutation failed
  */
 export interface UseMutationResult<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> {
-  trigger: (data?: TriggerArgs<TPath, TMethod>) => Promise<ResponseForPath<TPath, TMethod>>
+  trigger: (
+    data?: TriggerArgs<TPath, TMethod>,
+    lifecycle?: { onCommitted?: (data: ResponseForPath<TPath, TMethod>) => void }
+  ) => Promise<ResponseForPath<TPath, TMethod>>
   isLoading: boolean
   error: Error | undefined
 }
@@ -524,7 +527,10 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
   // options are read via `optionsRef` at call time, so a stable identity does
   // not stale the option callbacks.
   const trigger = useCallback(
-    async (data?: TriggerArgs<TPath, TMethod>): Promise<ResponseForPath<TPath, TMethod>> => {
+    async (
+      data?: TriggerArgs<TPath, TMethod>,
+      lifecycle?: { onCommitted?: (data: ResponseForPath<TPath, TMethod>) => void }
+    ): Promise<ResponseForPath<TPath, TMethod>> => {
       const opts = optionsRef.current
       // Capture args in this call's closure so concurrent triggers don't clobber
       // each other's refresh context (refs would race on overlapping awaits).
@@ -565,6 +571,13 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         const [requestOutcome] = await Promise.allSettled([request, swrTrigger({ request })])
         if (requestOutcome.status === 'rejected') throw requestOutcome.reason
         const result = requestOutcome.value
+        // Commit precedes revalidation. A caller can retain this confirmed result
+        // before any later detail read, including when revalidation fails.
+        try {
+          lifecycle?.onCommitted?.(result)
+        } catch (callbackError) {
+          logger.warn('Mutation commit callback failed; preserving successful result', { error: callbackError })
+        }
 
         // Run refresh after the mutation resolves. We do this in `trigger`
         // itself (not SWR's onSuccess) so args/result are closure-captured
