@@ -280,7 +280,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     try {
       const response = await fetch(validation.url, createAssistantImportFetchInit())
       if (!response.ok) {
-        throw new Error(t('assistants.presets.import.error.fetch_failed'))
+        // The localized summary is chosen below; Details keeps the HTTP status that tells 404 from 429.
+        throw Object.assign(new Error(`HTTP ${response.status} ${response.statusText}`.trim()), {
+          statusCode: response.status
+        })
       }
       if (isAssistantImportResponseTooLarge(response.headers)) {
         throw new LocalizedToastError(t('library.import_dialog.error.response_too_large'))
