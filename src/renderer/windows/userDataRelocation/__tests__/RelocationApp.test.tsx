@@ -143,6 +143,34 @@ describe('RelocationApp', () => {
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard })
     }
   })
+
+  it('drops the copied confirmation when recovery fails with a different error', async () => {
+    useRelocationProgressMock.mockReturnValue({
+      progress: makeProgress('failed', { error: 'disk full' }),
+      restart: restartMock
+    })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const clipboard = navigator.clipboard
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+
+    try {
+      const { rerender } = render(<RelocationApp />)
+      openDetails()
+      fireEvent.click(screen.getByRole('button', { name: 'relocation.support.copy' }))
+      expect(await screen.findByRole('status')).toHaveTextContent('relocation.support.copied')
+
+      useRelocationProgressMock.mockReturnValue({
+        progress: makeProgress('failed', { error: 'EACCES: recovery failed' }),
+        restart: restartMock
+      })
+      rerender(<RelocationApp />)
+
+      expect(screen.getByText('EACCES: recovery failed')).toBeInTheDocument()
+      expect(screen.queryByText('relocation.support.copied')).not.toBeInTheDocument()
+    } finally {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard })
+    }
+  })
 })
 
 function openDetails() {
