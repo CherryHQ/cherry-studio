@@ -115,6 +115,15 @@ const {
   probeKnowledgeSourcePathMock: vi.fn()
 }))
 
+vi.mock('../ingestion/filePreflight', () => ({
+  preflightKnowledgePaths: async (paths: string[]) =>
+    paths.map((path) => ({
+      path,
+      processor: 'pdf',
+      reason: path.endsWith('.exe') ? 'unsupported_format' : 'ok'
+    }))
+}))
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const { default: nodePath } = await import('node:path')
@@ -1526,7 +1535,7 @@ describe('KnowledgeService', () => {
           data: { source: resolvePath('/Users/me/app.exe'), path: resolvePath('/Users/me/app.exe') as AbsoluteFilePath }
         }
       ])
-    ).rejects.toThrow(`Unsupported knowledge file type: ${resolvePath('/Users/me/app.exe')}`)
+    ).rejects.toThrow(`Knowledge file preflight failed: unsupported_format: ${resolvePath('/Users/me/app.exe')}`)
 
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()

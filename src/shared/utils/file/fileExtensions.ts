@@ -1,3 +1,4 @@
+import { KNOWLEDGE_FORMAT_EXTENSIONS } from '@shared/data/presets/knowledgeFormats'
 import { codeLanguages } from '@shared/utils/codeLanguages'
 
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
@@ -5,28 +6,7 @@ export const videoExts = ['.mp4', '.webm', '.ogv', '.mov', '.m4v', '.avi', '.mkv
 export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.odt', '.odp', '.ods']
 export const archiveExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz'] as const
-export const knowledgeSupportedFileExts = [
-  '.txt',
-  '.markdown',
-  '.md',
-  '.mdx',
-  '.pdf',
-  '.html',
-  '.htm',
-  '.xlsx',
-  '.xls',
-  '.docx',
-  '.csv',
-  '.doc',
-  '.pptx',
-  '.ppt',
-  '.odt',
-  '.odp',
-  '.ods',
-  '.rtf',
-  '.epub',
-  '.draftsexport'
-] as const
+export const knowledgeSupportedFileExts = KNOWLEDGE_FORMAT_EXTENSIONS
 /**
  * The extensions a knowledge base routes through a `document_to_markdown` processor.
  *

@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { UpdateKnowledgeBaseSchema } from '@shared/data/api/schemas/knowledges'
+import { KnowledgeFilePreflightSchema } from '@shared/data/presets/knowledgeFormats'
 import {
   CreateKnowledgeBaseSchema,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
@@ -41,6 +42,10 @@ const itemIdsInputSchema = z.strictObject({
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const knowledgeRequestSchemas = {
+  'knowledge.preflight_files': defineRoute({
+    input: z.strictObject({ baseId: baseIdSchema, paths: z.array(AbsoluteFilePathSchema).min(1) }),
+    output: z.array(KnowledgeFilePreflightSchema)
+  }),
   'knowledge.create_base': defineRoute({
     input: z.strictObject({ base: CreateKnowledgeBaseSchema }),
     output: KnowledgeBaseSchema

@@ -2,7 +2,6 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 
 import AddKnowledgeItemDialog from '../AddKnowledgeItemDialog'
@@ -37,6 +36,18 @@ vi.mock('../../KnowledgePageProvider', () => ({
   useKnowledgePage: () => mockUseKnowledgePage()
 }))
 
+vi.mock('../addKnowledgeItemDialog/KnowledgeFilePreflightDialog', async () => {
+  const { useEffect } = await import('react')
+  return {
+    KnowledgeFilePreflightDialog: ({ results, onContinue }: { results: unknown; onContinue: () => void }) => {
+      useEffect(() => {
+        if (results) onContinue()
+      }, [results, onContinue])
+      return null
+    }
+  }
+})
+
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
 }))
@@ -44,6 +55,13 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: vi.fn(async (route: string, handle?: { path?: string }) => {
+      if (route === 'knowledge.preflight_files') {
+        return (handle as unknown as { paths: string[] }).paths.map((path) => ({
+          path,
+          processor: 'pdf',
+          reason: /\.(png|exe)$/i.test(path) ? 'unsupported_format' : 'ok'
+        }))
+      }
       if (route !== 'file.get_metadata') {
         return undefined
       }
@@ -401,7 +419,7 @@ describe('AddKnowledgeItemDialog', () => {
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
     })
 
-    it('drops unsupported picks and warns about the skipped count', async () => {
+    it('omits files rejected by main-process preflight', async () => {
       mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf'), createSelectedFile('photo.png')])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
@@ -411,7 +429,6 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
-      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
     it('submits remaining files when one picked file is missing', async () => {
@@ -461,7 +478,6 @@ describe('AddKnowledgeItemDialog', () => {
         )
       })
       expect(mockFileSelect).not.toHaveBeenCalled()
-      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
     it('submits remaining pending files when one local file is missing', async () => {
@@ -605,11 +621,6 @@ describe('AddKnowledgeItemDialog', () => {
         ])
         expect(mockFileSelect).not.toHaveBeenCalled()
         expect(mockSelectFolder).not.toHaveBeenCalled()
-        expect(mockGetPathForFile.mock.calls).toEqual([[plain]])
-        expect(vi.mocked(ipcApi.request).mock.calls).toEqual([
-          ['file.get_metadata', { kind: 'path', path: '/external/plain.md' }]
-        ])
-        expect(vi.mocked(toast.warning).mock.calls).toEqual([['已跳过 1 个不支持的文件']])
         expect(toast.error).not.toHaveBeenCalled()
         expect(toast.success).not.toHaveBeenCalled()
       }

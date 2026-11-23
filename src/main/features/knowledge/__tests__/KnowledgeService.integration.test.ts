@@ -397,6 +397,24 @@ describe('KnowledgeService integration', () => {
     const baseRows = () =>
       dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, COMPLETED_BASE_ID))
 
+    it('rejects a replacement batch before cancelling jobs or deleting the original when file preflight fails', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+      await expect(
+        service.addItems(
+          COMPLETED_BASE_ID,
+          [
+            noteInput('Doc A\nreplacement'),
+            { type: 'file', data: { source: 'bad.exe', path: '/missing/bad.exe' as never } }
+          ],
+          'replace'
+        )
+      ).rejects.toThrow('Knowledge file preflight failed')
+      expect(await baseRows()).toHaveLength(1)
+      expect((await baseRows())[0].data).toMatchObject({ content: 'Doc A\noriginal body' })
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
     it('adds ten URLs as distinct processing rows in one batch', async () => {
       await seedCompletedBaseWithNote()
       dbh.db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, EXISTING_NOTE_ID)).run()

@@ -64,6 +64,20 @@ export class FileProcessingService extends BaseService {
     this._onDidChangeTask.dispose()
   }
 
+  /** Read configuration and local prerequisites without preparing or submitting a job. */
+  getDocumentPreflightConfig(processorId: FileProcessorId) {
+    const config = resolveProcessorConfigByFeature('document_to_markdown', processorId)
+    const capability = config.capabilities.find((item) => item.feature === 'document_to_markdown')
+    if (!capability) throw new Error('Document processing capability is unavailable')
+    if (config.type === 'api' && processorId !== 'open-mineru' && !config.apiKeys?.some((key) => key.trim())) {
+      throw new Error('API key is required')
+    }
+    if (!capability.apiHost?.trim() && config.type === 'api') {
+      throw new Error('API host is required')
+    }
+    return { processorId, ...capability }
+  }
+
   /**
    * Queue a conversion as a new task.
    *

@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getFileExtension } from '@renderer/utils/file'
 import {
   type KnowledgeFileItemData,
   resolveFileEntryDataFromFile,
@@ -14,6 +14,7 @@ import {
   resolveKnowledgeFileMetadataEntryData,
   selectKnowledgeFileBatchOutcome
 } from '@renderer/utils/knowledgeFileEntry'
+import type { KnowledgeFilePreflight } from '@shared/data/presets/knowledgeFormats'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
@@ -24,6 +25,7 @@ import AddKnowledgeItemDialogHeader from './addKnowledgeItemDialog/AddKnowledgeI
 import AddKnowledgeItemDialogSourceTabs from './addKnowledgeItemDialog/AddKnowledgeItemDialogSourceTabs'
 import { DEFAULT_SOURCE_TYPE } from './addKnowledgeItemDialog/constants'
 import KnowledgeAddConflictDialog from './addKnowledgeItemDialog/KnowledgeAddConflictDialog'
+import { KnowledgeFilePreflightDialog } from './addKnowledgeItemDialog/KnowledgeFilePreflightDialog'
 import type { NoteDraft, NoteItem, NoteSourceMode } from './addKnowledgeItemDialog/types'
 
 type ConflictResolution = 'rename' | 'replace'
@@ -43,18 +45,15 @@ interface AddKnowledgeItemDialogProps {
 // picker directly and submits the selection. Only `note` / `url` still render the dialog panel.
 const isDirectPickSource = (source: KnowledgeItemType) => source === 'file' || source === 'directory'
 
-const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
-// Electron's open-dialog `filters` want bare extensions (no leading dot); the set above keeps the
-// dots for the post-pick safety filter.
+// Electron file filters use bare extensions; Main repeats actual admission checks.
 const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ext.replace(/^\./, ''))
-
-const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
 
 const describeFileMetadata = (file: { origin_name?: string; name?: string }) => file.origin_name || file.name
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
-  const { selectedBaseId, pendingAddSource, pendingAddFiles, pendingAddDirectoryPaths } = useKnowledgePage()
+  const { selectedBaseId, pendingAddSource, pendingAddFiles, pendingAddDirectoryPaths, openRagConfigDrawer } =
+    useKnowledgePage()
   const source = useExitPresence(open ? (pendingAddSource ?? DEFAULT_SOURCE_TYPE) : null)
   const activeSource = source.value ?? DEFAULT_SOURCE_TYPE
   const directPick = isDirectPickSource(activeSource)
@@ -72,13 +71,27 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const [pendingResolution, setPendingResolution] = useState<ConflictResolution | null>(null)
   const { submit: submitKnowledgeItems, isSubmitting: isSubmittingItems } = useAddKnowledgeItems(selectedBaseId)
   const sessionRef = useRef(0)
+  const [preflightResults, setPreflightResults] = useState<KnowledgeFilePreflight[] | null>(null)
+  const preflightResolve = useRef<((proceed: boolean) => void) | null>(null)
+  const finishPreflight = useCallback((proceed: boolean) => {
+    preflightResolve.current?.(proceed)
+    preflightResolve.current = null
+    setPreflightResults(null)
+  }, [])
+  useEffect(
+    () => () => {
+      preflightResolve.current?.(false)
+    },
+    []
+  )
 
   useEffect(() => {
     sessionRef.current += 1
+    finishPreflight(false)
     if (open && pendingAddSource === 'url') {
       setIsResolvingSubmit(false)
     }
-  }, [open, pendingAddSource])
+  }, [open, pendingAddSource, selectedBaseId, finishPreflight])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -248,20 +261,30 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       if (fileOutcome.skipped.length > 0) {
         toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
       }
-      return fileOutcome.resolved.map((data) => ({ type: 'file' as const, data }))
+      if (fileOutcome.resolved.length === 0) return []
+      const session = sessionRef.current
+      const results = await ipcApi.request('knowledge.preflight_files', {
+        baseId: selectedBaseId,
+        paths: fileOutcome.resolved.map((data) => data.path)
+      })
+      if (session !== sessionRef.current) return []
+      const proceed = await new Promise<boolean>((resolve) => {
+        preflightResolve.current = resolve
+        setPreflightResults(results)
+      })
+      if (!proceed || session !== sessionRef.current) return []
+      return fileOutcome.resolved
+        .filter((_, index) => results[index]?.reason === 'ok')
+        .map((data) => ({ type: 'file' as const, data }))
     },
-    [t]
+    [selectedBaseId, t]
   )
 
   // Collect file inputs from the OS picker (or page-level pending files, if any) and submit.
   // Returns null when the user cancels the picker so the caller can close the flow.
   const collectFileInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
     if (pendingAddFiles?.length) {
-      const supportedFiles = pendingAddFiles.filter((file) => isSupportedKnowledgeFile(file.name))
-      const skippedCount = pendingAddFiles.length - supportedFiles.length
-      if (skippedCount > 0) {
-        toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
-      }
+      const supportedFiles = pendingAddFiles
       return collectResolvedFileInputs(supportedFiles, resolveFileEntryDataFromFile, (file) => file.name)
     }
 
@@ -274,23 +297,35 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       return null
     }
 
-    const supportedFiles = selected.filter((file) => isSupportedKnowledgeFile(file.origin_name || file.name))
-    const skippedCount = selected.length - supportedFiles.length
-    if (skippedCount > 0) {
-      toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
-    }
+    const supportedFiles = selected
     return collectResolvedFileInputs(supportedFiles, resolveKnowledgeFileMetadataEntryData, describeFileMetadata)
-  }, [collectResolvedFileInputs, pendingAddFiles, t])
+  }, [collectResolvedFileInputs, pendingAddFiles])
 
   const collectDirectoryInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
+    const session = sessionRef.current
     const directoryPath = await window.api.file.selectFolder()
 
     if (!directoryPath) {
       return null
     }
 
+    const results = await ipcApi.request('knowledge.preflight_files', {
+      baseId: selectedBaseId,
+      paths: [directoryPath]
+    })
+    if (session !== sessionRef.current) return []
+    const proceed = await new Promise<boolean>((resolve) => {
+      preflightResolve.current = resolve
+      setPreflightResults(results)
+    })
+    if (
+      session !== sessionRef.current ||
+      !proceed ||
+      results.some((file) => file.reason !== 'ok' && file.reason !== 'unsupported_format')
+    )
+      return []
     return [{ type: 'directory' as const, data: { source: directoryPath } }]
-  }, [])
+  }, [selectedBaseId])
 
   // For file/directory sources the menu click should feel like "open the OS picker": fire it once
   // on mount, then submit. A ref guards against the effect running twice (StrictMode / re-renders).
@@ -318,11 +353,17 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     directPickStartedRef.current = true
 
     const run = async () => {
+      const session = sessionRef.current
       setIsResolvingSubmit(true)
       try {
         let items: KnowledgeAddItemInput[] | null
         if (pendingAddDirectoryPaths?.length) {
           const fileInputs = pendingAddFiles?.length ? await collectFileInputs() : []
+          if (session !== sessionRef.current) return
+          if (pendingAddFiles?.length && !fileInputs?.length) {
+            handleOpenChange(false)
+            return
+          }
           items = [
             ...(fileInputs ?? []),
             ...pendingAddDirectoryPaths.map((source) => ({ type: 'directory' as const, data: { source } }))
@@ -330,6 +371,22 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         } else {
           items = activeSource === 'file' ? await collectFileInputs() : await collectDirectoryInputs()
         }
+        if (pendingAddDirectoryPaths?.length) {
+          const results = await ipcApi.request('knowledge.preflight_files', {
+            baseId: selectedBaseId,
+            paths: pendingAddDirectoryPaths
+          })
+          if (session !== sessionRef.current) return
+          const proceed = await new Promise<boolean>((resolve) => {
+            preflightResolve.current = resolve
+            setPreflightResults(results)
+          })
+          if (!proceed || results.some((file) => file.reason !== 'ok' && file.reason !== 'unsupported_format')) {
+            handleOpenChange(false)
+            return
+          }
+        }
+        if (session !== sessionRef.current) return
         // Picker cancelled or nothing selectable — close the (panel-less) flow.
         if (!items || items.length === 0) {
           handleOpenChange(false)
@@ -347,6 +404,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     void run()
   }, [
     activeSource,
+    selectedBaseId,
     collectDirectoryInputs,
     collectFileInputs,
     directPick,
@@ -400,6 +458,16 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   return (
     <>
+      <KnowledgeFilePreflightDialog
+        blockPartial={activeSource === 'directory' || Boolean(pendingAddDirectoryPaths?.length)}
+        results={preflightResults}
+        onContinue={() => finishPreflight(true)}
+        onCancel={() => finishPreflight(false)}
+        onConfigure={() => {
+          finishPreflight(false)
+          openRagConfigDrawer()
+        }}
+      />
       {directPick ? null : (
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogContent closeOnOverlayClick={false} size="lg" className="flex max-h-[70vh] flex-col overflow-hidden">

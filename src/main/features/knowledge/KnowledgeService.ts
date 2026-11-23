@@ -16,8 +16,10 @@ import type {
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { KeyedMutex } from '@shared/utils/async'
 
+import { assertBaseCanRunRuntimeOperation } from './base/baseGuards'
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
+import { preflightKnowledgePaths } from './ingestion/filePreflight'
 import { FileProcessingWaitManager } from './ingestion/FileProcessingWaitManager'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
@@ -92,6 +94,11 @@ export class KnowledgeService extends BaseService {
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     return await this.baseAdmin.createBase(dto)
+  }
+
+  async preflightFiles(baseId: string, paths: string[]) {
+    const base = assertBaseCanRunRuntimeOperation(baseId, 'preflightFiles')
+    return preflightKnowledgePaths(paths, base.fileProcessorId)
   }
 
   async deleteBase(baseId: string): Promise<void> {

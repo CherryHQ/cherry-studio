@@ -5,6 +5,7 @@ import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { inspectPdfText, isScannedPdfError } from '@main/utils/pdfText'
+import { FILE_PROCESSOR_PRESET_MAP } from '@shared/data/presets/fileProcessing'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
 import { ocrPdfPagesToMarkdown } from '../pdfPageOcr'
@@ -17,7 +18,7 @@ const logger = loggerService.withContext('LocalDocumentToMarkdownHandler')
  * oversized document up front beats spending most of that budget and then
  * timing out with nothing to show for it.
  */
-const MAX_PDF_PAGES = 300
+const MAX_PDF_PAGES = FILE_PROCESSOR_PRESET_MAP['local-document'].capabilities[0].maxInputPages
 
 type AnydocModule = {
   formatFromExtension: typeof formatFromExtension
