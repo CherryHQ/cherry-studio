@@ -170,7 +170,7 @@ class FileStorage {
     try {
       await shell.trashItem(nativePath)
     } catch (error) {
-      logger.warn(`Failed to move item to trash, deleting permanently: ${nativePath}`, error as Error)
+      logger.warn(`Failed to move item to trash, deleting permanently: ${nativePath}`, error)
       await fs.promises.rm(nativePath, { recursive: true, force: true })
     }
   }
@@ -189,7 +189,7 @@ class FileStorage {
       await this.trashOrRemove(nativePath)
       logger.debug(`External file moved to trash successfully: ${nativePath}`)
     } catch (error) {
-      logger.error('Failed to delete external file:', error as Error)
+      logger.error('Failed to delete external file:', error)
       throw error
     }
   }
@@ -208,7 +208,7 @@ class FileStorage {
       await this.trashOrRemove(nativePath)
       logger.debug(`External directory moved to trash successfully: ${nativePath}`)
     } catch (error) {
-      logger.error('Failed to delete external directory:', error as Error)
+      logger.error('Failed to delete external directory:', error)
       throw error
     }
   }
@@ -232,7 +232,7 @@ class FileStorage {
       await fs.promises.rename(filePath, newPath)
       logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
     } catch (error) {
-      logger.error('Move file failed:', error as Error)
+      logger.error('Move file failed:', error)
       throw error
     }
   }
@@ -256,7 +256,7 @@ class FileStorage {
       await fs.promises.rename(dirPath, newDirPath)
       logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
     } catch (error) {
-      logger.error('Move directory failed:', error as Error)
+      logger.error('Move directory failed:', error)
       throw error
     }
   }
@@ -280,7 +280,7 @@ class FileStorage {
       await fs.promises.rename(filePath, newFilePath)
       logger.debug(`File renamed successfully: ${filePath} to ${newFilePath}`)
     } catch (error) {
-      logger.error('Rename file failed:', error as Error)
+      logger.error('Rename file failed:', error)
       throw error
     }
   }
@@ -304,7 +304,7 @@ class FileStorage {
       await fs.promises.rename(dirPath, newDirPath)
       logger.debug(`Directory renamed successfully: ${dirPath} to ${newDirPath}`)
     } catch (error) {
-      logger.error('Rename directory failed:', error as Error)
+      logger.error('Rename directory failed:', error)
       throw error
     }
   }
@@ -338,7 +338,7 @@ class FileStorage {
 
         return data
       } catch (error) {
-        logger.error('Failed to read document file:', error as Error)
+        logger.error('Failed to read document file:', error)
         throw error
       }
     }
@@ -350,7 +350,7 @@ class FileStorage {
         return await fs.promises.readFile(filePath, 'utf-8')
       }
     } catch (error) {
-      logger.error('Failed to read text file:', error as Error)
+      logger.error('Failed to read text file:', error)
       throw new Error(`Failed to read file: ${filePath}.`)
     }
   }
@@ -428,7 +428,7 @@ class FileStorage {
 
       return dirPath
     } catch (error) {
-      logger.error('Failed to create directory:', error as Error)
+      logger.error('Failed to create directory:', error)
       throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
     }
   }
@@ -471,7 +471,7 @@ class FileStorage {
 
       return null
     } catch (err) {
-      logger.error('[IPC - Error] An error occurred opening the file:', err as Error)
+      logger.error('[IPC - Error] An error occurred opening the file:', err)
 
       return null
     }
@@ -509,7 +509,7 @@ class FileStorage {
 
       return result.filePath
     } catch (err: any) {
-      logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
+      logger.error('[IPC - Error] An error occurred saving the file:', err)
 
       return Promise.reject('An error occurred saving the file: ' + err?.message)
     }
@@ -536,7 +536,7 @@ class FileStorage {
         return true
       }
     } catch (error) {
-      logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
+      logger.error('[IPC - Error] An error occurred saving the image:', error)
     }
 
     return false
@@ -556,7 +556,7 @@ class FileStorage {
 
       return null
     } catch (err) {
-      logger.error('[IPC - Error] An error occurred selecting the folder:', err as Error)
+      logger.error('[IPC - Error] An error occurred selecting the folder:', err)
 
       return null
     }
@@ -639,7 +639,7 @@ class FileStorage {
           fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
         } catch (error) {
           failedFiles += 1
-          logger.error('Failed to prepare file operation:', error as Error, { filePath })
+          logger.error('Failed to prepare file operation:', error, { filePath })
         }
       }
 
@@ -699,7 +699,7 @@ class FileStorage {
         failedFiles
       }
     } catch (error) {
-      logger.error('Batch upload failed:', error as Error)
+      logger.error('Batch upload failed:', error)
       throw error
     }
   }

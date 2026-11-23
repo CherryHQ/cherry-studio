@@ -442,14 +442,16 @@ export class LoggerService {
   /**
    * Log error message
    */
-  public error(message: string, ...data: LogContextData): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown values need not be Error instances; preserve the original payload for the local sink and reporting observer.
+  public error(message: string, ...data: unknown[]): void {
     this.processMainLog(LEVEL.ERROR, message, data)
   }
 
   /**
    * Log warning message
    */
-  public warn(message: string, ...data: LogContextData): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Local warning payloads may be arbitrary thrown values; the main sink applies its existing value handling.
+  public warn(message: string, ...data: unknown[]): void {
     this.processMainLog(LEVEL.WARN, message, data)
   }
 

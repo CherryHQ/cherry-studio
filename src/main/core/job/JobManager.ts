@@ -455,7 +455,7 @@ export class JobManager extends BaseService {
 
         logger.info('Startup recovery complete', stats)
       } catch (err) {
-        logger.error('Startup recovery failed', err as Error)
+        logger.error('Startup recovery failed', err)
       }
     }
 
@@ -483,7 +483,7 @@ export class JobManager extends BaseService {
           logger.info('Resurrected queues from non-terminal jobs', { count: activeQueues.length })
         }
       } catch (err) {
-        logger.error('Queue resurrection failed', err as Error)
+        logger.error('Queue resurrection failed', err)
       }
     }
 
@@ -508,7 +508,7 @@ export class JobManager extends BaseService {
           if (interruptedAt({ step: 'catch-up', schedules, catchUpIndex: cursor })) return
         }
       } catch (err) {
-        logger.error('Overdue detection failed', err as Error)
+        logger.error('Overdue detection failed', err)
       }
     }
 
@@ -519,7 +519,7 @@ export class JobManager extends BaseService {
         try {
           this.armSchedule(schedule)
         } catch (err) {
-          logger.error('armSchedule failed', err as Error, { scheduleId: schedule.id })
+          logger.error('armSchedule failed', err, { scheduleId: schedule.id })
         }
       }
     }
@@ -530,7 +530,7 @@ export class JobManager extends BaseService {
       try {
         this.dispatchAll()
       } catch (err) {
-        logger.error('dispatchAll failed', err as Error)
+        logger.error('dispatchAll failed', err)
       }
     }
 
@@ -864,14 +864,14 @@ export class JobManager extends BaseService {
         logger.info('Pause release: promoted delayed jobs', { count: promoted })
       }
     } catch (err) {
-      logger.error('Pause release: promoteDelayedDue failed', err as Error)
+      logger.error('Pause release: promoteDelayedDue failed', err)
     }
 
     for (const [scheduleId, { jobId, queue }] of this.suppressedPromotionFires) {
       try {
         this.promoteDueAtFire(scheduleId, jobId, queue)
       } catch (err) {
-        logger.error('Pause release: suppressed promotion replay failed', err as Error, { jobId })
+        logger.error('Pause release: suppressed promotion replay failed', err, { jobId })
       }
     }
 
@@ -888,7 +888,7 @@ export class JobManager extends BaseService {
 
         if (snapshot?.enabled) this.armSchedule(snapshot)
       } catch (err) {
-        logger.error('Pause release: suppressed once re-arm failed', err as Error, { scheduleId: id })
+        logger.error('Pause release: suppressed once re-arm failed', err, { scheduleId: id })
       }
     }
 
