@@ -35,8 +35,10 @@ Used by subtree id-based operations: `deleteItems` and `reindexItems`.
 - De-duplicates input item ids.
 - Loads each selected item.
 - Rejects items that do not belong to the requested `baseId`.
-- Removes selected descendants when their selected ancestor is already present.
-- Prevents the same subtree from being deleted or reindexed more than once in a single request.
+- By default, removes selected descendants when their selected ancestor is already present. This remains the rule for subtree deletion, including URL-owned children, and for directory refresh.
+- `reindexItems` passes `preserveUrlChildren: true`: a selected URL owner does not suppress an explicitly selected URL child. Each selected page gets its own reacquisition job. An independently selected directory ancestor still suppresses its selected descendants.
+- Refreshing only a URL owner preserves its existing child rows and indexes; it does not implicitly refresh them. To reacquire both pages, explicitly select both owner and child.
+- De-duplication and directory ancestor collapse prevent duplicate work without dropping explicitly selected URL-page refreshes.
 
 This helper is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
 
@@ -56,7 +58,7 @@ Final hard deletes remove Knowledge-owned vectors, raw files, and `knowledge_ite
 
 Used only by `reindexItems`.
 
-- Runs after selected item ids have been collapsed to top-level roots.
+- Runs after selection normalization: directory descendants collapse, while explicitly selected URL owners and children remain separate refresh roots.
 - Loads each selected root subtree with roots included.
 - Allows reindex only when every item in every selected subtree is terminal: `completed` or `failed`.
 - Rejects active or deleting subtree state: `idle`, `preparing`, `processing`, `reading`, `embedding`, or `deleting`.
@@ -197,13 +199,13 @@ reindexItems(baseId, itemIds)
   -> de-duplicate ids
   -> load selected items
   -> reject items outside baseId
-  -> collapse nested selections to top-level roots
+  -> collapse directory descendants; preserve explicitly selected URL children
   -> no-op if no roots remain
   -> reject unless every selected root source is available
   -> under the base mutation lock:
        reject unless every selected root subtree is completed or failed
-       enqueue knowledge.reindex-subtree
-         idempotency key = knowledge:${baseId}:${sorted root ids}:reindex
+       enqueue one knowledge.reindex-subtree job per selected root
+         idempotency key = knowledge:${baseId}:${root id}:reindex
 ```
 
 ### Why Reindex Requires Terminal Subtrees
@@ -226,7 +228,7 @@ The reindex entrypoint only accepts the durable jobs, one per selected root. It 
 The reindex job owns the destructive and stateful work:
 
 - clear vectors for resolved leaf items;
-- delete previous container descendants when selected roots are containers;
+- delete previous directory descendants when selected roots are directories; URL-owner refresh preserves its independently indexed children;
 - keep selected leaf root source-file metadata because those root items still own their source files;
 - skip any selected root that became `deleting` after the entrypoint guard;
 - reset subtree item state;
@@ -350,7 +352,7 @@ When changing these operations, check the operation-specific failure behavior be
 | --- | --- | --- | --- | --- | --- |
 | `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
-| `reindexItems` | Reject | Yes | Selected root sources available; entire subtree terminal, re-checked under the base lock | None | Throw; no active state was written |
+| `reindexItems` | Reject | Directory ancestors collapse; explicitly selected URL children remain | Selected root sources available; entire subtree terminal, re-checked under the base lock | None | Throw; no active state was written |
 | `enableEmbeddingModel` | Reject | All `completed` leaves | BM25-only base; every root subtree terminal (no source check); no active reindex job; both read under the base lock | Model/dimensions and every `completed` leaf's `processing` in one transaction | Mark that leaf `failed`; schedule the rest; config remains enabled |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 
