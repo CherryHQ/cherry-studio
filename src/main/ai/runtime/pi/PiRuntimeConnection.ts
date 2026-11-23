@@ -891,6 +891,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async reconcile(input: {
+    branchHead?: string | null
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
@@ -903,6 +904,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async reconcileOnce(input: {
+    branchHead?: string | null
     modelId: UniqueModelId
     reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
@@ -916,7 +918,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.input.agentId,
         input.modelId,
         input.knowledgeBaseIds,
-        this.input.branchHead
+        input.branchHead === undefined ? this.input.branchHead : input.branchHead
       )
     } catch (error) {
       if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'

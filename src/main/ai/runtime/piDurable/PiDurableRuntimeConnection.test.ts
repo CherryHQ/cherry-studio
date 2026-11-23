@@ -350,6 +350,40 @@ describe('desktop Pi Durable connection', () => {
     expect(mocks.capture.mock.calls.every((args) => args[4] === 'captured-branch-a')).toBe(true)
     await current.connection.close()
   })
+  it('rebuilds an idle same-model connection for a new handoff and retains native history', async () => {
+    const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
+    mocks.prompt.mockImplementation(buildAgentRuntimePrompt)
+    mocks.capture.mockImplementation(async (_session, _agent, _model, _knowledge, head) => {
+      const handoff = agentSessionService.getModelSwitchHandoff(input.sessionId, head)
+      return { ...snapshot, signature: handoff ?? 'no-handoff', modelSwitchHandoff: handoff }
+    })
+    input.branchHead = null
+    const first = await connect()
+    await first.connection.send({ message: message('Remember native mango history') })
+    const answer = await savedAnswer(first)
+    messages.saveMessage({
+      sessionId: input.sessionId,
+      parentId: answer.id,
+      message: {
+        role: 'system',
+        status: 'success',
+        data: {
+          parts: [{ type: 'text', text: 'Edited brief after switching away and back' }],
+          modelSwitchHandoff: { previousModel: 'test::other', nextModel: modelId, sourceHead: answer.id }
+        }
+      }
+    })
+    const followup = message('Continue with the edited brief')
+    expect(await first.connection.reconcile({ modelId: input.modelId, branchHead: followup.id })).toBe('rebuild')
+    await first.connection.close()
+    input.branchHead = followup.id
+    const reopened = await connect()
+    await reopened.connection.send({ message: followup })
+    await savedAnswer(reopened)
+    const last = script.calls.at(-1)!
+    expect(last.systemPrompt).toContain('Edited brief after switching away and back')
+    expect(JSON.stringify(last.messages)).toContain('Remember native mango history')
+  })
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
     const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
     mocks.prompt.mockImplementation(buildAgentRuntimePrompt)

@@ -2165,6 +2165,7 @@ describe('AgentSessionRuntimeService', () => {
       }
     }
     expect((service as any).connectionTarget(idleEntry)).toEqual({
+      branchHead: idleEntry.branchHead ?? null,
       modelId: switchedModelId,
       reasoningEffort: 'default',
       serviceTier: 'standard',
@@ -2173,6 +2174,20 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     await reader.cancel().catch(() => undefined)
+  })
+
+  it('passes the current captured branch into reconciliation and detects branch changes while awaiting', () => {
+    const service = new AgentSessionRuntimeService() as any
+    const entry = {
+      agentId: 'agent-1',
+      modelId: baseTurnInput.modelId,
+      branchHead: 'after-handoff',
+      runtimeState: { execution: { kind: 'idle' } }
+    }
+    const target = service.connectionTarget(entry, null)
+    expect(target.branchHead).toBe('after-handoff')
+    entry.branchHead = 'later-branch'
+    expect(service.connectionTargetEquals(entry, target)).toBe(false)
   })
 
   it('invalidates an entry with an in-flight connect when the agent model is cleared', async () => {
@@ -2327,6 +2342,7 @@ describe('AgentSessionRuntimeService', () => {
     // (which is also what makes wholesale `configuration` replaces resync a cleared permission_mode:
     // the derive reads the post-update agent row, not the DTO's key presence).
     expect(connection.reconcile).toHaveBeenCalledWith({
+      branchHead: entry.branchHead ?? null,
       modelId: baseTurnInput.modelId,
       reasoningEffort: 'default',
       serviceTier: 'standard',
@@ -2795,6 +2811,7 @@ describe('AgentSessionRuntimeService', () => {
         expect(secondConnection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-2') }))
       )
       expect(firstConnection.reconcile).toHaveBeenCalledWith({
+        branchHead: getEntry(service).branchHead ?? null,
         modelId: baseTurnInput.modelId,
         reasoningEffort: 'default',
         serviceTier: 'standard',
@@ -2846,6 +2863,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() =>
         expect(firstConnection.reconcile).toHaveBeenCalledWith({
+          branchHead: entry.branchHead ?? null,
           modelId: switchedModelId,
           reasoningEffort: 'default',
           serviceTier: 'standard',

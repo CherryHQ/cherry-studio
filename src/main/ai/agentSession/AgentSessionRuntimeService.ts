@@ -277,6 +277,7 @@ type PendingAgentSessionTurn = {
 }
 
 type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
+  branchHead?: string | null
   modelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -2221,6 +2222,7 @@ export class AgentSessionRuntimeService extends BaseService {
         hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
     return live
       ? {
+          branchHead: entry.branchHead ?? null,
           modelId: turn.modelId,
           reasoningEffort: turn.reasoningEffort,
           serviceTier: turn.serviceTier,
@@ -2230,6 +2232,7 @@ export class AgentSessionRuntimeService extends BaseService {
           trustedNotifyChannels: turn.trustedNotifyChannels
         }
       : {
+          branchHead: entry.branchHead ?? null,
           modelId: entry.modelId,
           reasoningEffort: agent?.configuration?.reasoning_effort ?? 'default',
           serviceTier: 'standard',
@@ -2244,6 +2247,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const current = this.connectionTarget(entry, agent)
     const configuredKnowledgeBaseIds = agent?.knowledgeBaseIds
     return (
+      current.branchHead === target.branchHead &&
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
       current.serviceTier === target.serviceTier &&
