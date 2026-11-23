@@ -151,6 +151,16 @@ export interface Settings {
 
 /** The host side (design §6.3); `Workspaces` arrives with the worktree PR. */
 export interface HostPorts {
+  readonly fileWrites?: {
+    protect(input: {
+      thread: string
+      callKey: string
+      tool: string
+      args: JsonValue
+      signal: AbortSignal
+    }): Promise<{ block?: string }>
+    settle(input: { thread: string; callKey: string; tool: string; args: JsonValue; isError: boolean }): Promise<void>
+  }
   readonly approvals: Approvals
   readonly questions: Questions
   readonly models: Models

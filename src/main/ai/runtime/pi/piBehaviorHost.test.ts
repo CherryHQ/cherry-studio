@@ -93,6 +93,8 @@ describe('Pi behavior host model lookup', () => {
     const rootModel = modelService.list({ enabled: true }).find((model) => model.id === 'anthropic::sonnet')!
     const binding = await createTestBinding({ stream: scriptedModel([]).model })
     return createPiBehaviorHost({
+      cwd: process.cwd(),
+      runtime: 'pi',
       input: { sessionId: 'session', agentId: 'agent', modelId: rootModel.id },
       root: () => root,
       model: rootModel,

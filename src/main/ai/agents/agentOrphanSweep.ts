@@ -4,6 +4,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
@@ -78,6 +79,13 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       .map((row) => path.resolve(row.path))
   )
 
+  const sessionIds = new Set(
+    db
+      .select({ id: agentSessionTable.id })
+      .from(agentSessionTable)
+      .all()
+      .map((row) => row.id)
+  )
   const removed: string[] = []
   let agentDirs = 0
   let workspaceDirs = 0
@@ -125,6 +133,8 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       }
     }
   }
+
+  removed.push(...(await application.get('AgentFileSnapshotService').sweepOrphans(sessionIds, options, signal)))
 
   signal?.throwIfAborted()
   const { runtimeSessions, failedDrivers } = await reclaimRuntimeSessions(removed, options, signal)

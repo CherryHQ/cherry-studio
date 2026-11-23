@@ -245,7 +245,17 @@ vi.mock('@cherrystudio/ui', async () => {
       }
       return React.createElement('button', buttonProps, startContent, children)
     },
-    ConfirmDialog: ({ cancelText, confirmText, content, description, onConfirm, onOpenChange, open, title }) =>
+    ConfirmDialog: ({
+      cancelText,
+      confirmDisabled,
+      confirmText,
+      content,
+      description,
+      onConfirm,
+      onOpenChange,
+      open,
+      title
+    }) =>
       open
         ? React.createElement(
             'div',
@@ -258,6 +268,7 @@ vi.mock('@cherrystudio/ui', async () => {
               'button',
               {
                 type: 'button',
+                disabled: confirmDisabled,
                 onClick: async () => {
                   await onConfirm?.()
                   onOpenChange?.(false)

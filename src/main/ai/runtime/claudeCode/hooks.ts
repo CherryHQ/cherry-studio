@@ -27,6 +27,7 @@ import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
 
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
+import { createFileWriteSnapshotHooks } from './fileWriteSnapshot'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { createClaudeCodeIdentityHooks } from './identityHooks'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
@@ -72,6 +73,7 @@ export interface ClaudeCodeHookContext {
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
   const { sessionId, cwd, agentDataPath } = ctx
+  const fileSnapshot = createFileWriteSnapshotHooks(sessionId, cwd)
 
   // The single policy hook: evaluates the guard table with a fire-time context snapshot. Runs as a
   // PreToolUse hook (not in canUseTool) because hooks fire under every permission mode, while the
@@ -262,9 +264,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   return {
     ...createClaudeCodeIdentityHooks(agentDataPath),
-    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook] }],
-    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, fileSnapshot.pre] }],
+    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook, fileSnapshot.post] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook, fileSnapshot.post] }],
     PostToolBatch: [{ hooks: [bashRewriteCleanupHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }

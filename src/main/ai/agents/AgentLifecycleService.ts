@@ -39,6 +39,7 @@ export class AgentSessionArchiveBusyError extends Error {
 @Injectable('AgentLifecycleService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn([
+  'AgentFileSnapshotService',
   'AgentJobsService',
   'AgentImportService',
   'AgentSessionDeliveryService',
@@ -383,6 +384,7 @@ export class AgentLifecycleService extends BaseService {
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
         await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
+        await this.purgeSnapshots(purgedIds)
         await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(purgedIds, tokensBySession))
         return { purgedIds, hasMore: sessionIds.length === limit }
       } finally {
@@ -412,6 +414,7 @@ export class AgentLifecycleService extends BaseService {
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
       if (permanent) {
+        await this.purgeSnapshots(result.deletedIds)
         await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(result.deletedIds, tokensBySession))
       }
       return { deletedIds: result.deletedIds }
@@ -481,6 +484,7 @@ export class AgentLifecycleService extends BaseService {
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
       )
       if (permanent && targetState === 'active' && deleteSessions) {
+        await this.purgeSnapshots(result.deletedSessionIds ?? [])
         await reclaimPurgedRuntimeSessions(
           resumeTokensForDeletedSessions(result.deletedSessionIds ?? [], tokensBySession)
         )
@@ -496,6 +500,16 @@ export class AgentLifecycleService extends BaseService {
       deleteAgent,
       permanent && targetState === 'trashed'
     )
+  }
+
+  private async purgeSnapshots(ids: readonly string[]): Promise<void> {
+    for (const id of ids) {
+      try {
+        await application.get('AgentFileSnapshotService').purgeSessions([id])
+      } catch (error) {
+        logger.warn('Failed to remove purged Agent Session snapshots', { sessionId: id, error })
+      }
+    }
   }
 
   private async removePurgedSystemWorkspaces(workspaces: Array<{ id: string; path: string }>): Promise<void> {

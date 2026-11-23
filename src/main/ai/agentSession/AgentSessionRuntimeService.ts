@@ -520,6 +520,7 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private runtimeActivity?: Disposable
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+  private readonly snapshotRounds = new Map<string, string>()
   private readonly closingSessions = new Map<
     string,
     { promise: Promise<void>; resumeToken?: string; branchHead?: string; entry?: AgentSessionRuntimeEntry }
@@ -637,6 +638,64 @@ export class AgentSessionRuntimeService extends BaseService {
     return entry ? this.liveTurn(entry)?.assistantMessageId : undefined
   }
 
+  getLiveSnapshotRound(sessionId: string) {
+    const entry = this.entries.get(sessionId)
+    const turn = entry && getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    return turn && entry && this.isTurnLive(entry, turn)
+      ? { sessionId, replyId: turn.assistantMessageId, inputMessageIds: turn.taskIds }
+      : undefined
+  }
+
+  attestSnapshotRound(sessionId: string): string | null {
+    return this.snapshotRounds.get(sessionId) ?? null
+  }
+
+  private finishSnapshotRound(sessionId: string, replyId: string): void {
+    try {
+      void application
+        .get('AgentFileSnapshotService')
+        .markRoundFinished(sessionId, replyId)
+        .catch((error) => logger.error('Failed to finish file snapshot round', { sessionId, replyId, error }))
+    } catch (error) {
+      logger.error('Failed to finish file snapshot round', { sessionId, replyId, error })
+    }
+  }
+
+  private admitSnapshotRound(sessionId: string, turn: AgentSessionTurn): void {
+    this.snapshotRounds.set(sessionId, turn.assistantMessageId)
+    try {
+      void application
+        .get('AgentFileSnapshotService')
+        .admitRound({ sessionId, replyId: turn.assistantMessageId, inputMessageIds: turn.taskIds })
+        .catch((error) => logger.error('Failed to admit file snapshot round', { sessionId, error }))
+    } catch (error) {
+      logger.error('Failed to admit file snapshot round', { sessionId, error })
+    }
+  }
+
+  private resumeSnapshotRound(sessionId: string, replyId: string, inputMessageIds: readonly string[]): void {
+    this.snapshotRounds.set(sessionId, replyId)
+    try {
+      void application
+        .get('AgentFileSnapshotService')
+        .resumeRound({ sessionId, replyId, inputMessageIds })
+        .catch((error) => logger.error('Failed to resume file snapshot round', { sessionId, replyId, error }))
+    } catch (error) {
+      logger.error('Failed to resume file snapshot round', { sessionId, replyId, error })
+    }
+  }
+
+  private extendSnapshotRound(sessionId: string, turn: AgentSessionTurn): void {
+    try {
+      void application
+        .get('AgentFileSnapshotService')
+        .extendRoundInputs({ sessionId, replyId: turn.assistantMessageId, inputMessageIds: turn.taskIds })
+        .catch((error) => logger.error('Failed to extend file snapshot round', { sessionId, error }))
+    } catch (error) {
+      logger.error('Failed to extend file snapshot round', { sessionId, error })
+    }
+  }
+
   private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
     return getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
   }
@@ -725,8 +784,18 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private applyRuntimeStateEvent(entry: AgentSessionRuntimeEntry, event: RuntimeStateEvent): void {
     if (!this.isCurrentEntry(entry)) return
+    const execution = entry.runtimeState.execution
+    const previousNativeTurn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
+    const nativeTurn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    if (
+      nativeTurn &&
+      execution.kind === 'autonomous-turn' &&
+      execution.deferred?.turn === nativeTurn &&
+      nativeTurn !== previousNativeTurn
+    )
+      this.resumeSnapshotRound(entry.sessionId, nativeTurn.assistantMessageId, nativeTurn.taskIds)
     if (this.runtimeStatus(entry) !== 'idle' || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
       entry.prediction?.controller.abort()
     this.syncRuntimeActivity()
@@ -862,6 +931,7 @@ export class AgentSessionRuntimeService extends BaseService {
     })
     const { turnId } = turn
     agentSessionMessageService.linkReply(input.sessionId, turn.taskIds, input.assistantMessageId)
+    this.admitSnapshotRound(input.sessionId, turn)
 
     // Prewarming can replace the entry while prepareBranch awaits closure, so recheck before reuse.
     if (
@@ -1000,7 +1070,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!inputs.length) return false
     const turn = this.reserveSteerContinuation(entry, inputs)
     if (turn && followUp) this.awaitFollowedOutcome(entry)
-    if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+    if (turn) {
+      if (turn !== this.currentTurn(entry)) this.admitSnapshotRound(entry.sessionId, turn)
+      else this.extendSnapshotRound(entry.sessionId, turn)
+      this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+    }
     return turn !== undefined
   }
 
@@ -1425,6 +1499,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const isRowRoll =
       entry.runtimeState.execution.kind === 'steer-transition' &&
       entry.runtimeState.execution.source.turn === completedTurn
+    const live = this.liveTurn(entry)
+    if (
+      !entry.stopping &&
+      (!live || live === completedTurn || live.assistantMessageId !== completedTurn.assistantMessageId)
+    )
+      this.finishSnapshotRound(sessionId, completedTurn.assistantMessageId)
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
     if (status === 'success' && !isRowRoll) this.startPromptPrediction(entry)
     const terminal: AgentSessionTurnTerminalEvent = {
@@ -1447,13 +1527,16 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   stopSession(sessionId: string, reason: unknown): Promise<void> {
     const entry = this.entries.get(sessionId)
+    const turn = entry && this.liveTurn(entry)
     const connection = entry && !entry.closing && !this.isShuttingDown ? this.currentConnection(entry) : undefined
     if (!entry || !connection?.retainOnStop || !connection.interrupt || !USER_STOP_REASONS.has(reason))
       // Durable shutdown preserves work; user Stop must record cancellation before closing.
-      return this.closeSession(sessionId, !this.isShuttingDown && reason !== 'app-shutdown')
+      return this.closeSession(sessionId, !this.isShuttingDown && reason !== 'app-shutdown').then(() => {
+        if (turn && !this.isShuttingDown && reason !== 'app-shutdown')
+          this.finishSnapshotRound(sessionId, turn.assistantMessageId)
+      })
     if (entry.stopping) return entry.stopping.settled
     const confirmation = Promise.withResolvers<void>()
-    const turn = this.liveTurn(entry)
     const stopping: NonNullable<AgentSessionRuntimeEntry['stopping']> = {
       connection,
       confirmed: () => confirmation.resolve(),
@@ -1481,6 +1564,9 @@ export class AgentSessionRuntimeService extends BaseService {
           return this.closeSession(sessionId, interruptSettled)
         }
       )
+      .then(() => {
+        if (turn) this.finishSnapshotRound(sessionId, turn.assistantMessageId)
+      })
       .finally(() => {
         clearTimeout(timer)
         if (entry.stopping === stopping) delete entry.stopping
@@ -2716,6 +2802,7 @@ export class AgentSessionRuntimeService extends BaseService {
             reply &&
             ['open', 'attaching', 'unopened'].includes(reply.delivery.kind)
           ) {
+            this.resumeSnapshotRound(entry.sessionId, assistantMessageId, current.taskIds)
             current.continuedInBackground = true
             this.applyRuntimeStateEvent(entry, { type: 'background-reply-resumed' })
             break
@@ -2745,6 +2832,17 @@ export class AgentSessionRuntimeService extends BaseService {
           origin: event.origin,
           ...(background ? { assistantMessageId } : {})
         })
+        if (background)
+          this.resumeSnapshotRound(
+            entry.sessionId,
+            turn.assistantMessageId,
+            source?.assistantMessageId === turn.assistantMessageId
+              ? source.taskIds
+              : event.recoveredInputId
+                ? [event.recoveredInputId]
+                : []
+          )
+        else this.admitSnapshotRound(entry.sessionId, turn)
         if (background) turn.projection = projection
         this.clearIdleTimer(entry)
         this.applyRuntimeStateEvent(entry, {
@@ -2760,6 +2858,7 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'turn-complete': {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         if (turn) {
+          if (!entry.stopping) this.finishSnapshotRound(entry.sessionId, turn.assistantMessageId)
           turn.forkAnchor = event.forkAnchor
             ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
             : undefined
@@ -3631,6 +3730,14 @@ export class AgentSessionRuntimeService extends BaseService {
       headless: pending.headless,
       trustedNotifyChannels: pending.trustedNotifyChannels
     })
+    this.snapshotRounds.set(entry.sessionId, turn.assistantMessageId)
+    try {
+      await application
+        .get('AgentFileSnapshotService')
+        .admitRound({ sessionId: entry.sessionId, replyId: turn.assistantMessageId, inputMessageIds: turn.taskIds })
+    } catch (error) {
+      logger.error('Failed to admit file snapshot round', { error })
+    }
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn, reserved: true })
     if (!effectiveModel) {

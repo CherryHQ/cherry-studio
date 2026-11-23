@@ -24,6 +24,33 @@ const asking = (_call: CallRef, tool: ToolCallFact): ApprovalHostFacts =>
   tool.name === 'danger' ? { ...ALLOWED, autoApproved: false, approvalRequired: true } : ALLOWED
 
 describe('tool gate', () => {
+  it.each([false, true])('protects the final arguments before execution (approval: %s)', async (needsApproval) => {
+    const w = world({
+      extra: register({
+        ...tool('danger'),
+        run: async (call) => ({ text: JSON.stringify(call.args), isError: false })
+      }),
+      host: { approvalFacts: needsApproval ? asking : () => ALLOWED },
+      patchHost: (host) => ({
+        ...host,
+        fileWrites: {
+          protect: async ({ args }) =>
+            JSON.stringify(args).includes('forbidden') ? { block: 'snapshot refused' } : {},
+          settle: async () => {}
+        }
+      })
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('danger', { path: needsApproval ? 'original' : 'forbidden' }), reply('done')])
+    if (needsApproval) w.host.answerApproval({ kind: 'granted', args: { path: 'forbidden' } })
+    await w.fake.sendUser(t, 'go')
+    await w.fake.settle()
+    expect(toolResults(await w.read(t))[0]).toMatchObject({
+      isError: true,
+      text: expect.stringContaining('snapshot refused')
+    })
+  })
+
   // Catches the ask decision's presentation never reaching the host (Stage B Task 7 contract to-do), or a second ask for
   // a call already answered (H6: the answer is memoized under the call key).
   it('asks once per call, with the presentation the attendance chose', async () => {
