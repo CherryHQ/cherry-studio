@@ -8,6 +8,7 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { encodePaintingGenerateError, PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
@@ -101,7 +102,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       messageRef: null
     })
     const usageStartedAt = Date.now()
-    const submit = await transport.submit(submitInput)
+    const submit = await encodePaintingErrors(transport.submit(submitInput))
     if (submit.imageUrls) {
       urls = submit.imageUrls
     } else if (submit.taskId) {
@@ -191,13 +192,15 @@ async function pollUntilDone(
     ctx.signal.addEventListener('abort', cancelRemote, { once: true })
   }
   try {
-    return await transport.poll(taskId, {
-      signal: ctx.signal,
-      onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
-      // Carry the descriptor so the poll rebuilds per-task state on a transport
-      // instance that did not run the submit (DashScope's response family).
-      modelDescriptor: ctx.input.modelDescriptor
-    })
+    return await encodePaintingErrors(
+      transport.poll(taskId, {
+        signal: ctx.signal,
+        onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
+        // Carry the descriptor so the poll rebuilds per-task state on a transport
+        // instance that did not run the submit (DashScope's response family).
+        modelDescriptor: ctx.input.modelDescriptor
+      })
+    )
   } finally {
     if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)
   }
@@ -254,4 +257,17 @@ export async function deleteImageInputEntries(ids: ReadonlyArray<string | undefi
       fileManager.permanentDelete(id).catch((error) => logger.warn('Failed to delete image input entry', { id, error }))
     )
   )
+}
+
+/**
+ * The job keeps only an error's message across the job and IPC boundary. Encode a transport's painting
+ * error (e.g. REQ_ERROR_TOKEN on HTTP 401) into that message so Paintings shows it as that error.
+ */
+async function encodePaintingErrors<T>(call: Promise<T>): Promise<T> {
+  try {
+    return await call
+  } catch (error) {
+    if (error instanceof PaintingGenerateError) throw new Error(encodePaintingGenerateError(error))
+    throw error
+  }
 }

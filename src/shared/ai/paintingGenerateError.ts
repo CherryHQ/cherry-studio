@@ -59,15 +59,28 @@ export function createPaintingGenerateError(
 }
 
 const PAINTING_GENERATE_ERROR_CODE_SET: ReadonlySet<string> = new Set(PAINTING_GENERATE_ERROR_CODES)
+const WIRE_PREFIX = 'PaintingGenerateError:'
 
 /**
- * A main-process transport throws `createPaintingGenerateError(code)`, whose message is the bare code.
- * Crossing the image job and IPC keeps only that message, so the renderer recovers the code from it.
+ * Encode a main-process painting error for the image job, which keeps only an error message across the
+ * job and IPC boundary. The prefix keeps the code apart from any vendor text, so a vendor message that
+ * happens to equal a code is never read as that code.
  */
-export function paintingGenerateErrorCodeFromMessage(message: unknown): PaintingGenerateErrorCode | undefined {
-  return typeof message === 'string' && PAINTING_GENERATE_ERROR_CODE_SET.has(message)
-    ? (message as PaintingGenerateErrorCode)
-    : undefined
+export function encodePaintingGenerateError(error: PaintingGenerateError): string {
+  const message = error.message === error.code ? '' : error.message
+  return `${WIRE_PREFIX}${error.code}:${message}`
+}
+
+/** Rebuild a painting error encoded by `encodePaintingGenerateError`, or `undefined` for any other text. */
+export function decodePaintingGenerateError(message: unknown): PaintingGenerateError | undefined {
+  if (typeof message !== 'string' || !message.startsWith(WIRE_PREFIX)) return undefined
+  const rest = message.slice(WIRE_PREFIX.length)
+  const separator = rest.indexOf(':')
+  if (separator < 0) return undefined
+  const code = rest.slice(0, separator)
+  if (!PAINTING_GENERATE_ERROR_CODE_SET.has(code)) return undefined
+  const text = rest.slice(separator + 1)
+  return createPaintingGenerateError(code as PaintingGenerateErrorCode, text ? { message: text } : undefined)
 }
 
 export function normalizePaintingGenerateError(error: unknown): Error {
@@ -76,9 +89,10 @@ export function normalizePaintingGenerateError(error: unknown): Error {
   }
 
   if (error instanceof Error) {
-    const code = paintingGenerateErrorCodeFromMessage(error.message)
-    if (code) return createPaintingGenerateError(code)
-    return createPaintingGenerateError('REMOTE_ERROR', { message: error.message })
+    return (
+      decodePaintingGenerateError(error.message) ??
+      createPaintingGenerateError('REMOTE_ERROR', { message: error.message })
+    )
   }
 
   return createPaintingGenerateError('GENERATE_FAILED')

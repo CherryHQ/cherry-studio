@@ -2,8 +2,8 @@ import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 import {
   createPaintingGenerateError,
-  normalizePaintingGenerateError,
-  paintingGenerateErrorCodeFromMessage
+  decodePaintingGenerateError,
+  normalizePaintingGenerateError
 } from '@shared/ai/paintingGenerateError'
 import { aiErrorDetail } from '@shared/ipc/errors/ai'
 import type { SerializedError } from '@shared/types/error'
@@ -82,10 +82,10 @@ export async function runPainting(
         throw createPaintingGenerateError('REQ_ERROR_TOKEN')
       }
       // A main-process image transport threw a PaintingGenerateError (e.g. REQ_ERROR_TOKEN on HTTP 401);
-      // the image job and IPC carry only its message, which is the bare code.
-      const transportCode = paintingGenerateErrorCodeFromMessage(detail?.message)
-      if (transportCode) {
-        throw createPaintingGenerateError(transportCode)
+      // the image job encodes it into the only thing it keeps, the error message.
+      const transportError = decodePaintingGenerateError(detail?.message)
+      if (transportError) {
+        throw transportError
       }
       if (detail) {
         throw createPaintingGenerateError('REMOTE_ERROR', { message: aiDetailMessage(detail) })

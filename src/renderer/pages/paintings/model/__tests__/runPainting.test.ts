@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import {
+  createPaintingGenerateError,
+  encodePaintingGenerateError,
+  PaintingGenerateError
+} from '@shared/ai/paintingGenerateError'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -42,26 +46,31 @@ describe('runPainting error surfacing', () => {
     })
   })
 
-  it('recovers a transport error code that crossed the image job as a bare message', async () => {
+  it('recovers a transport painting error encoded across the image job', async () => {
     // A main-process transport throws createPaintingGenerateError('REQ_ERROR_TOKEN') on HTTP 401; the job
-    // keeps only the message, and the IPC layer wraps it as AI_REQUEST_FAILED without a status code.
-    const detail = { name: 'Error', message: 'REQ_ERROR_TOKEN', stack: null }
-    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, 'REQ_ERROR_TOKEN', detail)
+    // handler encodes it into the message, and IPC wraps it as AI_REQUEST_FAILED without a status code.
+    const message = encodePaintingGenerateError(createPaintingGenerateError('REQ_ERROR_TOKEN'))
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, message, { name: 'Error', message, stack: null })
 
     await expect(fail(err)).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_TOKEN' })
   })
 
-  it('recovers a bare transport error code from a plain error', async () => {
-    await expect(fail(new Error('REQ_ERROR_NO_BALANCE'))).rejects.toMatchObject({
-      name: 'PaintingGenerateError',
-      code: 'REQ_ERROR_NO_BALANCE'
-    })
+  it('recovers an encoded painting error from a plain error', async () => {
+    const message = encodePaintingGenerateError(createPaintingGenerateError('REQ_ERROR_NO_BALANCE'))
+    await expect(fail(new Error(message))).rejects.toMatchObject({ code: 'REQ_ERROR_NO_BALANCE' })
   })
 
-  it('keeps a vendor message that merely mentions a code as a remote error', async () => {
-    await expect(fail(new Error('REQ_ERROR_TOKEN: upstream said no'))).rejects.toMatchObject({
+  it('keeps vendor text that equals a code as a remote error (HTTP 422 with message REQ_ERROR_TOKEN)', async () => {
+    const message = encodePaintingGenerateError(
+      createPaintingGenerateError('REMOTE_ERROR', { message: 'REQ_ERROR_TOKEN' })
+    )
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, message, { name: 'Error', message, stack: null })
+    await expect(fail(err)).rejects.toMatchObject({ code: 'REMOTE_ERROR', message: 'REQ_ERROR_TOKEN' })
+
+    const plain = { name: 'Error', message: 'REQ_ERROR_TOKEN', stack: null }
+    await expect(fail(new IpcError(aiErrorCodes.AI_REQUEST_FAILED, 'REQ_ERROR_TOKEN', plain))).rejects.toMatchObject({
       code: 'REMOTE_ERROR',
-      message: 'REQ_ERROR_TOKEN: upstream said no'
+      message: 'REQ_ERROR_TOKEN'
     })
   })
 
