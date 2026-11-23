@@ -1039,6 +1039,8 @@ describe('EnvironmentDependencies', () => {
     const fallback = screen.getByRole('alertdialog')
     expect(fallback).toHaveTextContent('settings.dependencies.removeDefinitionOnlyConfirmMessage')
     expect(fallback).not.toHaveTextContent('Tool is still installed after removal: mytool')
+    // The structured reason explains why cleanup was unsafe in the UI language.
+    expect(fallback).toHaveTextContent('settings.dependencies.cleanupBlockedReason.cleanup_failed')
 
     fireEvent.click(within(fallback).getByTestId('confirm-dialog-confirm'))
     await waitFor(() => expect(ipcMocks.removeTool).toHaveBeenCalledWith({ name: 'mytool', definitionOnly: true }))
