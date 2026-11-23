@@ -939,6 +939,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
 
   const hasNext = useMemo(() => {
     if (!pages.length) return false
+
     // SAFETY: CursorPaginatedPath selects a cursor response; only its nextCursor projection is consumed here.
     const last = pages[pages.length - 1] as Pick<CursorPaginationResponse<unknown>, 'nextCursor'>
 
