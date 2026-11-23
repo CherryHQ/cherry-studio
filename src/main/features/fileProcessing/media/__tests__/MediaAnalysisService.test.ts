@@ -1386,6 +1386,20 @@ describe('MediaAnalysisService local stages', () => {
     expect(runtime.transcribe).toHaveBeenCalledTimes(2)
   })
 
+  it('leaves remote OCR for the send instead of uploading frames on attach', async () => {
+    const remoteOcr = {
+      ...ocrConfig!,
+      processor: { ...ocrConfig!.processor, id: 'mistral', type: 'api' }
+    } as MediaExecutionConfig['ocr']
+    runtime.config = { ...runtime.config, ocr: remoteOcr }
+
+    await service.prepare(file)
+    expect(runtime.ocrImage).not.toHaveBeenCalled()
+
+    await service.analyze(file)
+    expect(runtime.ocrImage).toHaveBeenCalled()
+  })
+
   it('waits for a running pre-analysis instead of transcribing the file twice', async () => {
     const preparing = service.prepare(file)
     const analysis = await service.analyze(file)

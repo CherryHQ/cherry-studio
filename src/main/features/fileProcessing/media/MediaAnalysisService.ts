@@ -104,8 +104,8 @@ export class MediaAnalysisService extends BaseService {
   }
 
   /**
-   * Runs the free local stages (transcription, frame selection, OCR) ahead of a send, so the send
-   * only adds the paid vision calls. Failures are left for the send to report.
+   * Runs the on-device stages (transcription, frame selection, builtin OCR) ahead of a send, so the
+   * send only adds vision and any remote OCR. Failures are left for the send to report.
    */
   async prepare(file: FileHandle, signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
@@ -145,8 +145,10 @@ export class MediaAnalysisService extends BaseService {
     localOnly: boolean
   ): Promise<MediaAnalysis> {
     const resolved = await resolveMediaExecutionConfig(options, signal)
-    // A pre-analysis never pays for vision; the send adds it over the cached local stages.
-    const execution = localOnly ? { ...resolved, vision: null } : resolved
+    // A pre-analysis never leaves the device: no vision, and OCR only on a builtin processor.
+    const execution = localOnly
+      ? { ...resolved, vision: null, ocr: resolved.ocr?.processor.type === 'builtin' ? resolved.ocr : null }
+      : resolved
     const fileKey = fileKeyOf(file, fileInfo)
     const cacheKey = ['media-analysis', fileKey, hashMediaExecutionConfig(execution)].join(':')
     // Re-check after the awaits above so a cache hit cannot mask a cancellation.
