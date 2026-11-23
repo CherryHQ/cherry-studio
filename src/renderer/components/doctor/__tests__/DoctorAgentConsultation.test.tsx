@@ -243,6 +243,21 @@ describe('DoctorAgentConsultation', () => {
     expect(screen.getByText(/^z+…$/).textContent.length).toBeLessThanOrEqual(501)
   })
 
+  it('exposes whether the Details explanation is open on the Details button', async () => {
+    const user = userEvent.setup()
+    mocks.checkDoctorAgentModel.mockRejectedValueOnce(new Error('upstream said: teapot overflow 418x'))
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
+    const details = await screen.findByRole('button', { name: /common\.detail/ })
+    expect(details).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(details)
+    expect(details).toHaveAttribute('aria-expanded', 'true')
+    await user.click(details)
+    expect(details).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('retries a failed check and starts immediately after it passes', async () => {
     const user = userEvent.setup()
     mocks.checkDoctorAgentModel

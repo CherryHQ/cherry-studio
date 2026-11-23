@@ -439,7 +439,7 @@ function FailureNotice({
         role={role}
         title={title}
         action={action}
-        detail={raw ? <ErrorDetailLink onClick={() => setExpanded((open) => !open)} /> : undefined}
+        detail={raw ? <ErrorDetailLink expanded={expanded} onClick={() => setExpanded((open) => !open)} /> : undefined}
       />
       {expanded && raw ? (
         <p className="mt-1.5 max-h-48 select-text overflow-y-auto px-3 font-mono text-[11px] text-muted-foreground leading-4 [overflow-wrap:anywhere]">
