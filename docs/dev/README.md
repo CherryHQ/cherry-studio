@@ -47,6 +47,7 @@
 | [IPC Transport](./references/ai/ipc-transport.md) | Desktop AI commands and shared root/child message projection subscriptions over IpcApi |
 | [Local Agent Runtime](./references/ai/local-agent-runtime.md) | Local CLI agent configuration, native model ownership, protocol drivers, installation reuse, and compatibility verification |
 | [Local Models](./references/ai/local-models.md) | Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models |
+| [MCP Skills Client](./references/ai/mcp-skills-client.md) | On-demand MCP Skills discovery, verified file reads, and ordinary tool approval in Agent sessions |
 | [Model Retry & Fallback](./references/ai/model-retry.md) | User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences |
 | [Observability](./references/ai/observability.md) | OTel tracing for AI calls and agent runtimes — Cherry roots, SDK adapters, runtime spans, local projection, and sinks |
 | [Params Pipeline](./references/ai/params-pipeline.md) | buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request |

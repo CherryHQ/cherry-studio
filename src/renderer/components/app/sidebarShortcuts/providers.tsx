@@ -21,7 +21,6 @@ import {
 import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { FileEntryIdSchema } from '@shared/data/types/file'
-import { CodeCli } from '@shared/types/codeCli'
 
 import { SidebarIcon } from '../sidebarIcons'
 import type { ResolvedShortcut, SidebarShortcutProvider } from './types'
@@ -398,8 +397,14 @@ const codeCliProvider: SidebarShortcutProvider = {
       (tool) => tool.value,
       (tool) => ({
         label: i18n.t(tool.label),
-        renderIcon: ({ slotSize, glyphSize }) => (
-          <CliIcon id={tool.value} size={tool.value === CodeCli.PI ? glyphSize : slotSize} />
+        renderIcon: ({ slotSize, glyphSize, active }) => (
+          <CliIcon
+            id={tool.value}
+            size={slotSize}
+            glyphSize={glyphSize}
+            shape="circle"
+            className={active ? 'bg-transparent' : 'bg-background-subtle'}
+          />
         ),
         supportsNewTab: false
       })

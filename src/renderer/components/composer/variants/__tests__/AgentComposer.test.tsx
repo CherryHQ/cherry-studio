@@ -290,7 +290,11 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
-vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true, useCurrentTabId: () => 'agent-tab' }))
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useIsActiveTab: () => true,
+  useCurrentTabId: () => 'agent-tab'
+}))
 vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, callback: (payload: any) => void) => {
     useEffect(() => {
@@ -3793,6 +3797,77 @@ describe('AgentComposer', () => {
     expect(inputAdapter.insertText).not.toHaveBeenCalled()
     expect(inputAdapter.insertToken).toHaveBeenCalledWith(pdfSkillToken)
     expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('keeps same-named local and remote skills independently selectable and surfaces a failed origin', async () => {
+    mocks.availableSkills = [pdfSkill]
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    mocks.ipcApiRequest.mockImplementation(async (route, { serverId }) => {
+      if (route !== 'mcp.server.list_skills') return {}
+      if (serverId === 'offline') throw new Error('Origin unavailable')
+      return (
+        serverId === 'one' ? ['skill://pdf/SKILL.md', 'skill://team/pdf/SKILL.md'] : ['skill://pdf/SKILL.md']
+      ).map((uri) => ({
+        serverId,
+        serverName: serverId,
+        uri,
+        frontmatter: { name: 'pdf', description: 'Read PDFs' },
+        resources: 'dynamic'
+      }))
+    })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['one', 'two', 'offline'] }}
+      />
+    )
+    await waitFor(() => expect(mocks.registeredLaunchers.get('agent-skills')?.[0].rootSearchItems).toHaveLength(5))
+    const items = mocks.registeredLaunchers.get('agent-skills')![0].rootSearchItems!
+    expect(new Set(items.map((item) => item.id)).size).toBe(5)
+    expect(items.filter((item) => item.label === 'pdf · one')).toHaveLength(2)
+    expect(items.find((item) => item.label === 'pdf · two')?.description).toContain('skill://pdf/SKILL.md')
+    expect(items.find((item) => item.id === 'skill:pdf')?.label).toBe('pdf')
+    expect(items.find((item) => item.disabled)?.description).toContain('Origin unavailable')
+  })
+
+  it('distinguishes and searches identical Skills from same-named servers', async () => {
+    const ids = ['shared-server-one', 'shared-server-two']
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    mocks.ipcApiRequest.mockImplementation(async (route, { serverId }) =>
+      route === 'mcp.server.list_skills'
+        ? [
+            {
+              serverId,
+              serverName: 'Shared',
+              uri: 'skill://pdf/SKILL.md',
+              frontmatter: { name: 'pdf', description: 'Read PDFs' },
+              resources: 'dynamic'
+            }
+          ]
+        : {}
+    )
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ids }}
+      />
+    )
+    await waitFor(() => expect(mocks.registeredLaunchers.get('agent-skills')?.[0].rootSearchItems).toHaveLength(2))
+    const items = mocks.registeredLaunchers.get('agent-skills')![0].rootSearchItems!
+    expect(new Set(items.map((item) => `${item.label} ${item.description}`)).size).toBe(2)
+    for (const serverId of ids) {
+      const item = items.find((item) => item.id === `mcp-skill:${JSON.stringify([serverId, 'skill://pdf/SKILL.md'])}`)!
+      expect(item.description).toContain(serverId)
+      expect(item.filterText).toContain(serverId)
+    }
   })
 
   it('refreshes an already-open skills submenu when the skill list changes', () => {

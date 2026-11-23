@@ -168,6 +168,76 @@ async function startInternalGateway(service: ApiGatewayService) {
 
 const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
 
+describe('internal request budget', () => {
+  it('allows a small request alongside a large one and queues a second large request', async () => {
+    const service = new ApiGatewayService()
+    const signal = new AbortController().signal
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const first = await service.acquireInternalRequestBudget(large, signal)
+    const small = await service.acquireInternalRequestBudget(new Headers({ 'content-length': '1024' }), signal)
+    small()
+
+    let admitted = false
+    const second = service.acquireInternalRequestBudget(large, signal).then((release) => {
+      admitted = true
+      return release
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(admitted).toBe(false)
+    first()
+    const release = await second
+    release()
+  })
+
+  it('admits the next small request when the blocking waiter is cancelled', async () => {
+    const service = new ApiGatewayService()
+    const active = new AbortController().signal
+    const waiting = new AbortController()
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const small = new Headers({ 'content-length': '1024' })
+    const first = await service.acquireInternalRequestBudget(large, active)
+    const cancelled = service.acquireInternalRequestBudget(large, waiting.signal)
+    let releaseNext: (() => void) | undefined
+    const next = service.acquireInternalRequestBudget(small, active).then((release) => {
+      releaseNext = release
+      return release
+    })
+
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(releaseNext).toBeUndefined()
+      waiting.abort()
+      await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(releaseNext).toBeTypeOf('function')
+    } finally {
+      first()
+      const release = await next
+      release()
+    }
+  })
+
+  it('rejects all pending requests when the service stops', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    const signal = new AbortController().signal
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const small = new Headers({ 'content-length': '1024' })
+    const release = await service.acquireInternalRequestBudget(large, signal)
+    const pending = Promise.allSettled([
+      service.acquireInternalRequestBudget(large, signal),
+      service.acquireInternalRequestBudget(small, signal)
+    ])
+
+    try {
+      await service._doStop()
+      expect((await pending).map(({ status }) => status)).toEqual(['rejected', 'rejected'])
+    } finally {
+      release()
+    }
+  })
+})
+
 describe('ApiGatewayService internal gateway', () => {
   it('shares bounded permission retries across consumers and returns usable credentials after recovery', async () => {
     const service = new ApiGatewayService()

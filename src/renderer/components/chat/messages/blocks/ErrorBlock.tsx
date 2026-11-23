@@ -12,6 +12,7 @@ import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErro
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import {
   classifyError,
+  type ErrorCategory,
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure,
@@ -37,7 +38,7 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
   return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
-const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
+const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }> = ({ error, category }) => {
   const { t, i18n } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
 
@@ -112,7 +113,11 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   // resolution message adds no useful recovery detail.
   if (localModelFailure) return null
 
-  if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
+  if (
+    typeof errorStatus === 'number' &&
+    HTTP_ERROR_CODES.includes(errorStatus) &&
+    !(errorStatus === 429 && category === 'quota')
+  ) {
     return (
       <span>
         {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
@@ -289,7 +294,7 @@ const MessageErrorInfo: React.FC<{
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        {cherryCloudQuotaText || <ErrorMessage error={error} />}
+        {cherryCloudQuotaText || <ErrorMessage error={error} category={classification.category} />}
       </div>
 
       {/* Footer */}

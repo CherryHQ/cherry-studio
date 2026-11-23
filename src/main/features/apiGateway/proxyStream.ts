@@ -18,7 +18,16 @@ const logger = loggerService.withContext('ProxyStreamService')
 
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
-export async function processMessage(config: MessageConfig): Promise<Response> {
+export async function processMessage(config: MessageConfig, release?: () => void): Promise<Response> {
+  try {
+    return await startMessage(config, release)
+  } catch (error) {
+    release?.()
+    throw error
+  }
+}
+
+async function startMessage(config: MessageConfig, release?: () => void): Promise<Response> {
   const request = await prepareGatewayMessage(config)
   const { messages, convertedMessages, adapterOptions, internal, outputFormat, logContext, isStreaming } = request
   const { onError, onComplete, signal } = config
@@ -78,6 +87,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           if (closed) return
           closed = true
           signal?.removeEventListener('abort', onAbort)
+          release?.()
           try {
             controller.close()
           } catch {
@@ -295,5 +305,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     throw error
   } finally {
     signal?.removeEventListener('abort', onAbort)
+    release?.()
   }
 }

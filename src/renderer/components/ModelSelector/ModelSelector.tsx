@@ -926,6 +926,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         return (
           <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
             <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
+            {item.titleAction}
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
                 <Button

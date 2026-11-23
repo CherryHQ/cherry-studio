@@ -1,4 +1,4 @@
-import type { ComponentType, FC, SVGProps } from 'react'
+import type { FC } from 'react'
 
 import type { IconComponent } from '@cherrystudio/ui/icons'
 import {
@@ -55,9 +55,7 @@ export const CLI_TOOLS = [
   { value: CodeCli.MINIMAX_CODE, label: 'code.cli_tools.minimax_code', icon: Minimax }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
-type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
-
-const CLI_ICONS: Record<string, SvgIcon> = {
+const CLI_ICONS: Record<string, IconComponent | undefined> = {
   ...Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon])),
   cline: ClineCli,
   kilo: KiloCli,
@@ -95,28 +93,42 @@ const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
 interface CliIconProps {
   id: string
   size?: number
+  glyphSize?: number
+  shape?: 'circle' | 'rounded'
   className?: string
 }
 
-export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
+export const CliIcon: FC<CliIconProps> = ({ id, size = 28, glyphSize, shape = 'rounded', className }) => {
   const Icon = CLI_ICONS[id]
-  if (!Icon) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center rounded-md bg-accent/50 font-medium text-muted-foreground',
-          className
-        )}
-        style={{ width: size, height: size, fontSize: size * 0.4 }}>
-        {id.charAt(0).toUpperCase()}
-      </div>
-    )
-  }
+  const hasTileArtwork = Icon && ('Avatar' in Icon || id === CodeCli.OPENAI_CODEX || id === CodeCli.KIMI_CODE)
+  const artworkSize = hasTileArtwork ? 'size-full' : 'size-[70%]'
 
-  const opticalViewBox = OPTICAL_VIEWBOXES[id as CodeCli]
-  if (opticalViewBox) {
-    return <Icon width={size} height={size} viewBox={opticalViewBox} className={className} />
-  }
+  const croppedViewBox = OPTICAL_VIEWBOXES[id as CodeCli]
+  const opticalViewBox = croppedViewBox ? { viewBox: croppedViewBox } : {}
 
-  return <Icon width={size} height={size} className={className} />
+  return (
+    <span
+      aria-hidden="true"
+      data-slot="cli-icon"
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center overflow-hidden [--icon-neutral-background:var(--muted)] dark:[--icon-neutral-background:initial]',
+        shape === 'circle' ? 'rounded-full' : 'rounded-[32%]',
+        !hasTileArtwork && 'bg-muted',
+        id === CodeCli.OPEN_CODE && 'text-foreground',
+        className
+      )}
+      style={{ width: size, height: size }}>
+      {Icon ? (
+        <Icon
+          {...opticalViewBox}
+          className={artworkSize}
+          style={hasTileArtwork || glyphSize === undefined ? undefined : { width: glyphSize, height: glyphSize }}
+        />
+      ) : (
+        <span className="font-medium text-muted-foreground" style={{ fontSize: size * 0.4 }}>
+          {id.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </span>
+  )
 }

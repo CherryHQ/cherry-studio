@@ -230,6 +230,26 @@ describe('useAgentMessageListProviderValue', () => {
     expect(errorActionsMock.navigateErrorTarget).toHaveBeenCalledWith(expected)
   })
 
+  it('keys Agent lists by session topic while preserving expanded tool steps', () => {
+    const topic = { id: 'agent-session:first', assistantId: 'agent-1', name: 'First', messages: [] } as unknown as Topic
+    const { result, rerender } = renderHook(
+      ({ activeTopic }) =>
+        useAgentMessageListProviderValue({
+          topic: activeTopic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'none'
+        }),
+      { initialProps: { activeTopic: topic } }
+    )
+    expect(result.current.state.listKey).toBe('agent-session:first')
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+    rerender({ activeTopic: { ...topic, id: 'agent-session:second' } })
+    expect(result.current.state.listKey).toBe('agent-session:second')
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+  })
+
   it('keeps historical avatars current until their agent is deleted', () => {
     const messages: CherryUIMessage[] = [
       {

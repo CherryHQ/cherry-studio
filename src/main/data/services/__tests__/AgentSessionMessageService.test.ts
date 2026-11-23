@@ -2259,6 +2259,7 @@ describe('AgentSessionMessageService', () => {
       orderKey: 'a1',
       deletedAt: 250
     })
+    await seedSession({ id: 'live-range-session', name: 'Other live session', orderKey: 'a2' })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
         parentId: seedSessionRoot(dbh.db, SESSION_ID),
@@ -2315,6 +2316,16 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 300
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'live-range-session'),
+        id: 'other-live-range-middle',
+        sessionId: 'live-range-session',
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'other session' }] },
+        status: 'success',
+        createdAt: 250,
+        updatedAt: 250
+      },
+      {
         parentId: seedSessionRoot(dbh.db, 'archived-range-session'),
         id: 'archived-range-middle',
         sessionId: 'archived-range-session',
@@ -2349,7 +2360,7 @@ describe('AgentSessionMessageService', () => {
     const firstPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
       fromMs: 100,
       toMs: 300,
-      limit: 2
+      limit: 3
     })
     const secondPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
       fromMs: 100,
@@ -2358,9 +2369,20 @@ describe('AgentSessionMessageService', () => {
       cursor: firstPage.nextCursor
     })
 
-    expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
+    expect(firstPage.items.map((message) => message.id)).toEqual([
+      'range-end',
+      'other-live-range-middle',
+      'range-tie-a'
+    ])
     expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
     expect(secondPage.nextCursor).toBeUndefined()
+    const scopedPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
+      fromMs: 100,
+      toMs: 300,
+      sessionId: 'live-range-session',
+      limit: 10
+    })
+    expect(scopedPage.items.map((message) => message.id)).toEqual(['other-live-range-middle'])
     for (const metadata of [...firstPage.items, ...secondPage.items]) {
       const entity = agentSessionMessageService.getSessionMessage(metadata.sessionId, metadata.id)
       expect(metadata).not.toHaveProperty('data')
