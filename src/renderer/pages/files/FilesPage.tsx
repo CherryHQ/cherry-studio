@@ -685,7 +685,9 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         )
         const failed = [...effectiveTrashResult.failed, ...removeResult.failed]
         const recordId = singleRecordId(failed)
-        const caught = trashResult.cause ?? removeResult.cause
+        const caught = failed
+          .map(({ id }) => trashResult.causeById.get(id) ?? removeResult.causeById.get(id))
+          .find((cause) => cause !== undefined)
         toastAppError(deleteMessage, caught ?? failureText(failed), {
           source: 'files',
           operation: 'file.delete',
