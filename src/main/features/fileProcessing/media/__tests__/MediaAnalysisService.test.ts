@@ -1353,17 +1353,37 @@ describe('MediaAnalysisService local stages', () => {
   it('reuses a pre-analysis of the picked file when the sent copy has another path', async () => {
     const picked = join(runtime.tempRoot, 'picked.mp4')
     const stored = join(runtime.tempRoot, 'stored.mp4')
-    await writeFile(picked, Buffer.from('same video bytes'))
-    await writeFile(stored, Buffer.from('same video bytes'))
+    const bytes = Buffer.from('same video bytes')
+    await writeFile(picked, bytes)
+    await writeFile(stored, bytes)
     vi.mocked(resolveFileProcessingFileInfo)
-      .mockResolvedValueOnce({ ...runtime.fileInfo, path: picked, modifiedAt: 1 } as never)
-      .mockResolvedValue({ ...runtime.fileInfo, path: stored, modifiedAt: 2 } as never)
+      .mockResolvedValueOnce({ ...runtime.fileInfo, path: picked, size: bytes.length, modifiedAt: 1 } as never)
+      .mockResolvedValue({ ...runtime.fileInfo, path: stored, size: bytes.length, modifiedAt: 2 } as never)
 
     await service.prepare(file)
     await service.analyze({ kind: 'entry', entryId: 'entry-1' })
 
     expect(runtime.transcribe).toHaveBeenCalledTimes(1)
     expect(runtime.detectSceneChanges).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reuse a pre-analysis for a same-size copy edited in the middle', async () => {
+    // Over 2 MiB, so the first and last MiB of both files are identical.
+    const original = Buffer.alloc(3 * 1024 * 1024, 1)
+    const redacted = Buffer.from(original)
+    redacted[original.length / 2] = 2
+    const picked = join(runtime.tempRoot, 'original.wav')
+    const stored = join(runtime.tempRoot, 'redacted.wav')
+    await writeFile(picked, original)
+    await writeFile(stored, redacted)
+    vi.mocked(resolveFileProcessingFileInfo)
+      .mockResolvedValueOnce({ ...runtime.fileInfo, path: picked, size: original.length, modifiedAt: 1 } as never)
+      .mockResolvedValue({ ...runtime.fileInfo, path: stored, size: redacted.length, modifiedAt: 2 } as never)
+
+    await service.prepare(file)
+    await service.analyze({ kind: 'entry', entryId: 'entry-1' })
+
+    expect(runtime.transcribe).toHaveBeenCalledTimes(2)
   })
 
   it('waits for a running pre-analysis instead of transcribing the file twice', async () => {

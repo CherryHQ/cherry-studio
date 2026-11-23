@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, open, readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { application } from '@application'
@@ -12,6 +12,7 @@ import { startTranscription } from '@main/ai/voice/execution'
 import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { resolveFileProcessingFileInfo } from '@main/features/fileProcessing/tasks/jobExecution'
+import { hashWithSize } from '@main/utils/file'
 import type { MediaAnalysisProgress } from '@shared/ai/mediaAnalysisProgress'
 import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 import type { FileHandle } from '@shared/data/types/file'
@@ -84,7 +85,7 @@ export class MediaAnalysisService extends BaseService {
   async analyze(file: FileHandle, signal?: AbortSignal, options: MediaAnalysisOptions = {}): Promise<MediaAnalysis> {
     signal?.throwIfAborted()
     const fileInfo = await resolveFileProcessingFileInfo(file)
-    const contentKey = await contentKeyOf(file, fileInfo)
+    const contentKey = await contentKeyOf(file, fileInfo, signal)
     const pending = this.localPasses.get(contentKey)
     if (pending) {
       // The waiting send shows the running pass's progress instead of a silent wait.
@@ -109,7 +110,7 @@ export class MediaAnalysisService extends BaseService {
   async prepare(file: FileHandle, signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
     const fileInfo = await resolveFileProcessingFileInfo(file)
-    const contentKey = await contentKeyOf(file, fileInfo)
+    const contentKey = await contentKeyOf(file, fileInfo, signal)
     const running = this.localPasses.get(contentKey)
     if (running) return running.done
     const listeners = new Set<(progress: MediaAnalysisProgress) => void>()
@@ -584,23 +585,26 @@ function fileKeyOf(file: FileHandle, fileInfo: FileInfo): string {
   return `${identity}:${fileInfo.modifiedAt}:${fileInfo.size}`
 }
 
-const CONTENT_SAMPLE_BYTES = 1024 * 1024
-
-/** Size plus the first and last MiB: cheap for long videos and equal for a file and its stored copy. */
-async function contentKeyOf(file: FileHandle, fileInfo: FileInfo): Promise<string> {
+/**
+ * Full-content digest, so a file and its stored copy share stage results but two files that differ
+ * anywhere never do. Cached per file version, so a video in the history is read once, not every turn.
+ */
+async function contentKeyOf(file: FileHandle, fileInfo: FileInfo, signal?: AbortSignal): Promise<string> {
+  const fileKey = fileKeyOf(file, fileInfo)
+  const cache = application.get('CacheService')
+  const digestKey = `media-analysis:content:${fileKey}`
+  const known = cache.get<unknown>(digestKey)
+  if (typeof known === 'string') return known
   try {
-    const handle = await open(fileInfo.path, 'r')
-    try {
-      const head = Buffer.alloc(Math.min(CONTENT_SAMPLE_BYTES, fileInfo.size))
-      const tail = Buffer.alloc(Math.min(CONTENT_SAMPLE_BYTES, Math.max(0, fileInfo.size - head.length)))
-      await handle.read(head, 0, head.length, 0)
-      await handle.read(tail, 0, tail.length, fileInfo.size - tail.length)
-      return `content:${createHash('sha256').update(String(fileInfo.size)).update(head).update(tail).digest('hex').slice(0, 32)}`
-    } finally {
-      await handle.close()
-    }
+    const { contentHash, size } = await hashWithSize(fileInfo.path, signal)
+    // A file rewritten while it was read keeps a per-file key instead of sharing results.
+    if (size !== fileInfo.size) return fileKey
+    const contentKey = `content:${contentHash}:${size}`
+    cache.set(digestKey, contentKey, CACHE_TTL_MS)
+    return contentKey
   } catch {
-    return fileKeyOf(file, fileInfo)
+    signal?.throwIfAborted()
+    return fileKey
   }
 }
 
