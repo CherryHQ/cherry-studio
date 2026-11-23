@@ -1,13 +1,14 @@
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const service = vi.hoisted(() => ({ startLogin: vi.fn(), startSubscription: vi.fn() }))
+const service = vi.hoisted(() => ({ startLogin: vi.fn(), startSubscription: vi.fn(), openAmdEntry: vi.fn() }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
 
 import {
+  CherryCloudAmdEntryError,
   CherryCloudLoginUnavailableError,
   CherryCloudPortalOpenError,
   CherryCloudUpgradeRequiredError
@@ -46,5 +47,18 @@ describe('cherryCloudHandlers', () => {
     expect(error).toBeInstanceOf(IpcError)
     expect(error).toHaveProperty('code', code)
     expect(service.startSubscription).toHaveBeenCalledWith(input, 'w1')
+  })
+  it.each([
+    [new CherryCloudLoginUnavailableError(), cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE],
+    [new CherryCloudAmdEntryError('request failed (404)'), cherryCloudErrorCodes.AMD_ENTRY_FAILED]
+  ])('tells the renderer why an AMD entry could not open: %s', async (failure, code) => {
+    service.openAmdEntry.mockRejectedValueOnce(failure)
+    const error = await cherryCloudHandlers['cherry_cloud.amd_entry.open'](
+      { modelId: 'amd/qwen' },
+      { senderId: 'w1' }
+    ).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toHaveProperty('code', code)
+    expect(service.openAmdEntry).toHaveBeenCalledWith('w1', 'amd/qwen')
   })
 })
