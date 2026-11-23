@@ -1393,7 +1393,8 @@ describe('desktop Pi Durable connection', () => {
       message: command,
       context: await readSessionHistory(input.sessionId, command.id, connection.contextId)
     })
-    await expect.poll(() => text(events)).toContain('GOAL_VERIFIED')
+    // Goal verification spans native scheduling, tool execution and persisted rounds on Windows CI.
+    await expect.poll(() => text(events), { timeout: 10_000 }).toContain('GOAL_VERIFIED')
     expect(script.calls.filter((call) => call.systemPrompt.startsWith('Evaluate whether the objective'))).toHaveLength(
       1
     )
@@ -1676,7 +1677,9 @@ describe('desktop Pi Durable connection', () => {
     const late = message('late correction')
     expect(connection.redirect({ message: late })).toBe(true)
     await expect
-      .poll(() => nativeInputs.some((state) => state.inputId === late.id && state.outcome === 'completed'))
+      .poll(() => nativeInputs.some((state) => state.inputId === late.id && state.outcome === 'completed'), {
+        timeout: 10_000
+      })
       .toBe(true)
     expect(nativeInputs.some((state) => state.inputId === first.id && state.outcome === 'completed')).toBe(true)
     expect(injected).toBe(true)

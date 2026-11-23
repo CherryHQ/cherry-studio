@@ -722,6 +722,7 @@
     {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "ollama-chat",
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2992,5 +2993,5 @@
       "name": "Morse"
     }
   ],
-  "version": "ccd7f84caeaf97ae"
+  "version": "c784da2f7a4b379c"
 }

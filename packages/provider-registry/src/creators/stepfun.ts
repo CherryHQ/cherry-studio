@@ -11,5 +11,22 @@ export default defineCreator({
     { pattern: '^step-5-preview$', effort: ['low', 'medium', 'high'] },
     { pattern: 'step-3' },
     { pattern: 'step-r1-v-mini' }
+  ],
+  models: [
+    // TokenHub-served flagship preview (1M context, text/image/video in, always-on
+    // reasoning). Hand-listed to pin the TokenHub-relevant identity; upstream
+    // listings enrich the remaining metadata at generation time. Reasoning is
+    // pinned to the documented low/medium/high tiers: upstream currently reports
+    // a broader vocabulary (none/minimal/xhigh/max) that would otherwise leak onto
+    // the shared row and break the existing StepFun composer contract.
+    {
+      id: 'step-5-preview',
+      name: 'Step 5 Preview',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      reasoning: { controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }] }
+    }
   ]
 })

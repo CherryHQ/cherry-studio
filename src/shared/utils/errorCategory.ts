@@ -40,8 +40,11 @@ export function isErrorCategory(value: unknown): value is ErrorCategory {
  * (CLI stderr); callers holding a real status field must pass that instead.
  */
 export function extractHttpStatus(text: string): number | undefined {
-  const match = /\b([45]\d\d)\b/.exec(text)
-  return match ? Number(match[1]) : undefined
+  const match =
+    /(?:\bHTTP(?:\/\d+(?:\.\d+)?)?\s+|\bAPI Error:\s*)([45]\d{2})\b|\bRequest rejected \(([45]\d{2})\)|^\s*([45]\d{2}):/i.exec(
+      text
+    )
+  return match ? Number(match[1] ?? match[2] ?? match[3]) : undefined
 }
 
 // Groq's entitlement response links to billing; the host confines this exception
@@ -223,7 +226,12 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   }
 
   // Payload too large (413)
-  if (status === 413 || msg.includes('payload too large') || msg.includes('request entity too large')) {
+  if (
+    status === 413 ||
+    msg.includes('payload too large') ||
+    msg.includes('request entity too large') ||
+    msg.includes('failed to buffer the request body: length limit exceeded')
+  ) {
     return 'payload'
   }
 
