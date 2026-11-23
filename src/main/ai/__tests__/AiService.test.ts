@@ -684,21 +684,32 @@ describe('AiService', () => {
     })
   })
 
-  it('hands each model call to Cherry Cloud with its unique model id and surface, for AMD model use', async () => {
+  it('keeps recording each invocation and reports the model that actually answered to Cherry Cloud', () => {
     const service = createService()
-    const reportAmdModelUse = vi.fn()
-    mockApplicationGet.mockReturnValue({ trackTokenUsage: vi.fn(), reportAmdModelUse })
-    const hooks = (service as any).analyticsHookPart(
-      { id: 'cherryai-subscription::amd/qwen', providerId: 'cherryai-subscription', apiModelId: 'amd/qwen' },
-      'agent'
-    )
+    const report = vi.fn()
+    const amdModelUseReporter = vi.fn(() => report)
+    mockApplicationGet.mockReturnValue({ amdModelUseReporter })
+    const persist = vi.fn()
+    const record = (service as any).invocationRecorder(persist, 'agent')
+    const fallbackInvocation = { context: { providerId: 'cherryai-subscription', modelId: 'amd/qwen' } }
 
-    await hooks.onStepFinish({
-      usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8, inputTokenDetails: {}, outputTokenDetails: {} }
+    record(fallbackInvocation)
+
+    expect(persist.mock.calls).toEqual([[fallbackInvocation]])
+    expect(amdModelUseReporter.mock.calls).toEqual([['agent']])
+    expect(report.mock.calls).toEqual([['cherryai-subscription', 'amd/qwen']])
+  })
+
+  it('still records an invocation when Cherry Cloud is unavailable', () => {
+    const service = createService()
+    mockApplicationGet.mockImplementation(() => {
+      throw new Error('service not registered')
     })
-    await hooks.onFinish()
+    const persist = vi.fn()
 
-    expect(reportAmdModelUse.mock.calls).toEqual([['cherryai-subscription::amd/qwen', 'agent']])
+    ;(service as any).invocationRecorder(persist)({ context: { providerId: 'openai', modelId: 'gpt-5' } })
+
+    expect(persist).toHaveBeenCalledOnce()
   })
 
   it('flushes accumulated token analytics when a completed step is followed by cancellation', async () => {

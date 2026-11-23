@@ -2125,20 +2125,67 @@ describe('CherryCloudService', () => {
       expect(reported('amd_activation_detected')).toEqual([])
     })
 
-    it('reports a successful reply from an AMD model, and nothing for other models', async () => {
+    it('reports a model invocation only for AMD models, under the account of its request', async () => {
       const service = await createSignedInService()
       await syncAmd(service, false)
       mocks.trackEvent.mockClear()
 
-      service.reportAmdModelUse(`${CHERRY_CLOUD_PROVIDER_ID}::${amdModelId}`, 'agent')
-      service.reportAmdModelUse(`${CHERRY_CLOUD_PROVIDER_ID}::plan-model`, 'chat')
-      service.reportAmdModelUse('openai::gpt-5', 'chat')
+      const report = service.amdModelUseReporter('agent')
+      report(CHERRY_CLOUD_PROVIDER_ID, amdModelId)
+      report(CHERRY_CLOUD_PROVIDER_ID, 'plan-model')
+      report('openai', 'gpt-5')
 
       await vi.waitFor(() =>
         expect(reported('amd_model_used')).toEqual([
           expect.objectContaining({ model_id: amdModelId, composer: 'agent' })
         ])
       )
+    })
+
+    it('gives every click that joined an in-flight entry its own outcome', async () => {
+      const service = await createSignedInService()
+      await syncAmd(service)
+      mocks.trackEvent.mockClear()
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      await Promise.all([
+        service.openAmdEntry('w1', amdModelId, authorizationId),
+        service.openAmdEntry('w2', amdModelId, sessionId)
+      ])
+
+      await vi.waitFor(() =>
+        expect(reported('amd_entry_open').map(({ flow_id, result }) => [flow_id, result])).toEqual([
+          [authorizationId, 'opened'],
+          [sessionId, 'opened']
+        ])
+      )
+    })
+
+    it('measures activation from the click, not from when the browser opened', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        const service = await createSignedInService()
+        await syncAmd(service)
+        const opened = Promise.withResolvers<void>()
+        mocks.openExternal.mockReturnValueOnce(opened.promise)
+        mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+        const entry = service.openAmdEntry('w1', amdModelId, authorizationId)
+        await vi.waitFor(() => expect(mocks.openExternal).toHaveBeenCalledWith(entryUrl))
+        vi.setSystemTime(Date.now() + 20_000)
+        opened.resolve()
+        await entry
+        mocks.trackEvent.mockClear()
+
+        // 310 s after the click, 290 s after the browser opened.
+        vi.setSystemTime(Date.now() + 290_000)
+        await syncAmd(service, false)
+
+        await vi.waitFor(() =>
+          expect(reported('amd_activation_detected')).toEqual([expect.objectContaining({ since_click: 'under_30m' })])
+        )
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 

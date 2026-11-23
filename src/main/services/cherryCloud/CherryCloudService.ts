@@ -24,8 +24,7 @@ import {
   createUniqueModelId,
   type EndpointType,
   type ModelCapability,
-  parseUniqueModelId,
-  type UniqueModelId
+  parseUniqueModelId
 } from '@shared/data/types/model'
 import {
   type CherryCloudAccountReceipt,
@@ -237,7 +236,9 @@ export class CherryCloudService extends BaseService {
   private subscriptionPromise: Promise<void> | null = null
   private amdEntryPromise: Promise<void> | null = null
   // AMD analytics: the latest entry per model, AMD models in the catalog, and those locked at the last signed-in sync.
-  private readonly amdEntries = new Map<string, { flowId: string; at: number }>()
+  private readonly amdEntries = new Map<string, { flowId: string; at: number; scopeId: string }>()
+  // Clicks waiting on the in-flight entry; each gets the shared outcome under its own flow.
+  private amdEntryClicks: { flowId: string; modelId: string; at: number }[] = []
   private amdModelIds = new Set<string>()
   private lockedAmdModels: { scopeId: string; ids: Set<string> } | null = null
   private revision = 0
@@ -953,8 +954,9 @@ export class CherryCloudService extends BaseService {
 
   /** Signs in when required, then opens the single-use AMD entry the server issues for the model. */
   public async openAmdEntry(senderId: WindowId | null, modelId: string, flowId?: string): Promise<void> {
+    if (flowId) this.amdEntryClicks.push({ flowId, modelId, at: Date.now() })
     if (!this.amdEntryPromise) {
-      const entry = this.openAmdEntryOnce(senderId, modelId, flowId).finally(() => {
+      const entry = this.openAmdEntryOnce(senderId, modelId).finally(() => {
         if (this.amdEntryPromise === entry) this.amdEntryPromise = null
       })
       this.amdEntryPromise = entry
@@ -962,20 +964,23 @@ export class CherryCloudService extends BaseService {
     return this.amdEntryPromise
   }
 
-  private async openAmdEntryOnce(senderId: WindowId | null, modelId: string, flowId?: string): Promise<void> {
+  private async openAmdEntryOnce(senderId: WindowId | null, modelId: string): Promise<void> {
     let scopeId: string | null = null
-    const report = (result: 'opened' | 'already_authorized' | 'not_signed_in' | 'cancelled' | 'failed') => {
-      if (flowId)
-        void trackCherryCloudAnalyticsEvent({ event: 'amd_entry_open', flowId, modelId, result }, scopeId).catch(
-          () => undefined
-        )
+    const settle = (result: 'opened' | 'already_authorized' | 'not_signed_in' | 'cancelled' | 'failed') => {
+      const clicks = this.amdEntryClicks.splice(0)
+      if (result === 'opened' && clicks[0] && scopeId) this.amdEntries.set(modelId, { ...clicks[0], scopeId })
+      // A cancelled attempt may have crossed an account switch, so it is not credited to any account.
+      const reportScope = result === 'cancelled' ? null : scopeId
+      for (const click of clicks)
+        void trackCherryCloudAnalyticsEvent(
+          { event: 'amd_entry_open', flowId: click.flowId, modelId: click.modelId, result },
+          reportScope
+        ).catch(() => undefined)
     }
     try {
-      const result = await this.openAmdEntryAttempt(senderId, modelId, (id) => (scopeId = id))
-      if (result === 'opened' && flowId) this.amdEntries.set(modelId, { flowId, at: Date.now() })
-      report(result)
+      settle(await this.openAmdEntryAttempt(senderId, modelId, (id) => (scopeId = id)))
     } catch (error) {
-      report('failed')
+      settle('failed')
       throw error
     }
   }
@@ -1032,12 +1037,18 @@ export class CherryCloudService extends BaseService {
     return 'opened'
   }
 
-  /** Reports a successful reply from an AMD model; other models report nothing. */
-  public reportAmdModelUse(uniqueModelId: string, composer: 'chat' | 'agent'): void {
-    if (!this.amdModelIds.has(uniqueModelId)) return
-    // Members of amdModelIds are built with createUniqueModelId.
-    const { modelId } = parseUniqueModelId(uniqueModelId as UniqueModelId)
-    void trackCherryCloudAnalyticsEvent({ event: 'amd_model_used', modelId, composer }).catch(() => undefined)
+  /**
+   * Returns a reporter for one request's model invocations, bound to the account scope at its start: an
+   * invocation that finished after an account switch is not credited to the new account.
+   */
+  public amdModelUseReporter(composer: 'chat' | 'agent'): (providerId: string, modelId: string) => void {
+    const scopeId = this.getCurrentScopeId()
+    return (providerId, modelId) => {
+      if (!this.amdModelIds.has(createUniqueModelId(providerId, modelId))) return
+      void trackCherryCloudAnalyticsEvent({ event: 'amd_model_used', modelId, composer }, scopeId).catch(
+        () => undefined
+      )
+    }
   }
 
   /** Locked AMD models of this account that a later sync shows usable; the first sync only records the baseline. */
@@ -1049,7 +1060,8 @@ export class CherryCloudService extends BaseService {
     if (!before) return
     for (const model of amdModels) {
       if (!before.has(model.id) || locked.has(model.id)) continue
-      const entry = this.amdEntries.get(model.id)
+      const recorded = this.amdEntries.get(model.id)
+      const entry = recorded?.scopeId === scopeId ? recorded : undefined
       const sinceClick = entry ? sinceClickBucket(Date.now() - entry.at) : 'none'
       void trackCherryCloudAnalyticsEvent(
         {
