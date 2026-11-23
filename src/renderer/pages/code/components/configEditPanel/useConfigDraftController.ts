@@ -439,7 +439,7 @@ export function useConfigDraftController({
       onClose()
     } catch (err) {
       // Keep the dialog open so the user's edits survive a failed apply.
-      logger.error('Failed to save CLI provider config', err as Error)
+      logger.error('Failed to save CLI provider config', err)
       toast.error(t('code.apply_failed'))
     } finally {
       setSubmitting(false)

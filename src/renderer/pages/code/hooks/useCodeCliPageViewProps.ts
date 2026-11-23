@@ -365,7 +365,7 @@ export function useCodeCliPageViewProps(
           try {
             await clearCliConfig({ cliTool: toolId })
           } catch (err) {
-            logger.error('Failed to clear CLI config on tool removal:', err as Error)
+            logger.error('Failed to clear CLI config on tool removal:', err)
             toast.error(t('code.clear_config_failed'))
           }
         }

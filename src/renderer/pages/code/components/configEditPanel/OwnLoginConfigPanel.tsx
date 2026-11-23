@@ -75,7 +75,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
         if (loadId !== loadIdRef.current) return
         setFiles(loadedFiles)
       })
-      .catch((err) => logger.error('Failed to build own-login config preview', err as Error))
+      .catch((err) => logger.error('Failed to build own-login config preview', err))
   }, [cliTool, initialConfig])
 
   // Tool-param edit → rebuild the managed preview from the new config.
@@ -91,7 +91,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
           if (loadId !== loadIdRef.current) return
           setFiles(nextFiles)
         })
-        .catch((err) => logger.error('Failed to rebuild own-login config preview', err as Error))
+        .catch((err) => logger.error('Failed to rebuild own-login config preview', err))
     },
     [cliTool]
   )
@@ -123,7 +123,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
       onClose()
     } catch (err) {
       // Keep the dialog open so the user's edits survive a failed apply.
-      logger.error('Failed to save own-login config', err as Error)
+      logger.error('Failed to save own-login config', err)
       toast.error(t('code.apply_failed'))
     } finally {
       setSubmitting(false)

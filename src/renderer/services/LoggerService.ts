@@ -165,6 +165,7 @@ export class LoggerService {
 
     // Copy all properties from the base logger
     newLogger.module = module
+
     try {
       newLogger.context = { ...this.context, ...context }
     } catch {

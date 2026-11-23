@@ -99,7 +99,7 @@ export function useDeepSeekHarnessController({
 
       openWebUi(result.url)
     } catch (error) {
-      logger.error('Failed to launch DeepSeek Harness', error as Error)
+      logger.error('Failed to launch DeepSeek Harness', error)
       toast.error(t('code.launch.error'))
     } finally {
       setLaunching(false)
@@ -119,7 +119,7 @@ export function useDeepSeekHarnessController({
 
       return true
     } catch (error) {
-      logger.error('Failed to stop DeepSeek Harness', error as Error)
+      logger.error('Failed to stop DeepSeek Harness', error)
       toast.error(t('code.launch.error'))
 
       return false
@@ -138,7 +138,7 @@ export function useDeepSeekHarnessController({
 
       throw new Error('DeepSeek Harness Web UI is not running')
     } catch (error) {
-      logger.error('Failed to open DeepSeek Harness Web UI', error as Error)
+      logger.error('Failed to open DeepSeek Harness Web UI', error)
       toast.error(t('code.launch.error'))
     }
   }, [openWebUi, t, url])

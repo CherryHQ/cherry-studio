@@ -155,7 +155,7 @@ export function useDoctorController({
           await ipcApi.request('diagnostics.doctor.run', { tier, subject })
         }
       } catch (error) {
-        logger.error('Failed to run system diagnostics', error as Error)
+        logger.error('Failed to run system diagnostics', error)
         toast.error(t('settings.doctor.messages.run_failed'))
       } finally {
         dispatch({ type: 'finish-interaction', kind: 'run' })
@@ -199,7 +199,7 @@ export function useDoctorController({
     try {
       await ipcApi.request('diagnostics.doctor.cancel', { scope, runId: doctorState.runId })
     } catch (error) {
-      logger.error('Failed to cancel system diagnostics', error as Error)
+      logger.error('Failed to cancel system diagnostics', error)
       toast.error(t('settings.doctor.messages.cancel_failed'))
     } finally {
       dispatch({ type: 'finish-interaction', kind: 'cancel' })
@@ -222,7 +222,7 @@ export function useDoctorController({
 
         if (result.status === 'busy') toast.error(t('settings.doctor.messages.run_failed'))
       } catch (error) {
-        logger.error('Failed to confirm a diagnostic check', error as Error)
+        logger.error('Failed to confirm a diagnostic check', error)
         toast.error(t('settings.doctor.messages.action_failed'))
       } finally {
         dispatch({ type: 'finish-interaction', kind: 'confirm-check' })
@@ -242,7 +242,7 @@ export function useDoctorController({
       try {
         await operation()
       } catch (error) {
-        logger.error(errorMessage, error as Error)
+        logger.error(errorMessage, error)
         toast.error(t('settings.doctor.messages.action_failed'))
       } finally {
         dispatch({ type: 'finish-interaction', kind: 'action' })
@@ -276,7 +276,7 @@ export function useDoctorController({
             break
         }
       } catch (error) {
-        logger.error('Failed to apply a system diagnostics action', error as Error)
+        logger.error('Failed to apply a system diagnostics action', error)
         toast.error(t('settings.doctor.messages.fix_failed'))
       } finally {
         dispatch({ type: 'finish-interaction', kind: 'fixing' })

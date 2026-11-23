@@ -71,7 +71,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
       )
       toast.success(t('settings.doctor.messages.copied'))
     } catch (error) {
-      logger.error('Failed to copy system diagnostics results', error as Error)
+      logger.error('Failed to copy system diagnostics results', error)
       toast.error(t('settings.doctor.messages.copy_failed'))
     }
   }

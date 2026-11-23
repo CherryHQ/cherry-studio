@@ -43,7 +43,7 @@ export function useDoctorAgent({
         else if (result.status === 'no_model') toast.error(t('settings.doctor.agent.messages.no_model'))
         else if (result.status === 'failed') toast.error(t('settings.doctor.agent.messages.start_failed'))
       } catch (error) {
-        logger.error('Failed to start the doctor analysis', error as Error)
+        logger.error('Failed to start the doctor analysis', error)
         toast.error(t('settings.doctor.agent.messages.start_failed'))
       } finally {
         setBusy(null)
@@ -59,7 +59,7 @@ export function useDoctorAgent({
     try {
       await ipcApi.request('diagnostics.doctor.agent.cancel', { key, runId: state.runId })
     } catch (error) {
-      logger.error('Failed to cancel the doctor analysis', error as Error)
+      logger.error('Failed to cancel the doctor analysis', error)
       toast.error(t('settings.doctor.messages.cancel_failed'))
     } finally {
       setBusy(null)
@@ -85,7 +85,7 @@ export function useDoctorAgent({
         } else if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
         else toast.error(t('settings.doctor.agent.messages.apply_failed', { message: result.message }))
       } catch (error) {
-        logger.error('Failed to apply a doctor proposal', error as Error)
+        logger.error('Failed to apply a doctor proposal', error)
         toast.error(t('settings.doctor.agent.messages.apply_failed', { message: String(error) }))
       } finally {
         setBusy(null)
@@ -106,7 +106,7 @@ export function useDoctorAgent({
         else if (result.status === 'stale') toast.error(t('settings.doctor.messages.stale'))
         else toast.error(t('settings.doctor.agent.messages.undo_failed', { message: result.message }))
       } catch (error) {
-        logger.error('Failed to undo a doctor change', error as Error)
+        logger.error('Failed to undo a doctor change', error)
         toast.error(t('settings.doctor.agent.messages.undo_failed', { message: String(error) }))
       } finally {
         setBusy(null)

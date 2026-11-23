@@ -103,7 +103,7 @@ export function useOpenClawGatewayController({
 
       await openDashboard()
     } catch (err) {
-      logger.error('Failed to launch OpenClaw dashboard:', err as Error)
+      logger.error('Failed to launch OpenClaw dashboard:', err)
       toast.error(t('code.launch.error'))
     } finally {
       setLaunching(false)
@@ -121,7 +121,7 @@ export function useOpenClawGatewayController({
         return
       }
     } catch (err) {
-      logger.error('Failed to stop OpenClaw gateway:', err as Error)
+      logger.error('Failed to stop OpenClaw gateway:', err)
       toast.error(t('code.launch.error'))
     } finally {
       setStopping(false)
@@ -132,7 +132,7 @@ export function useOpenClawGatewayController({
     try {
       await openDashboard()
     } catch (err) {
-      logger.error('Failed to open OpenClaw dashboard:', err as Error)
+      logger.error('Failed to open OpenClaw dashboard:', err)
       toast.error(t('code.launch.error'))
     }
   }, [openDashboard, t])

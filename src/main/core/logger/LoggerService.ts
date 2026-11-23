@@ -339,6 +339,7 @@ export class LoggerService {
     }
 
     let metadataMessage = ''
+
     if (entry.message) {
       try {
         metadataMessage = ` ${String(entry.message)}`

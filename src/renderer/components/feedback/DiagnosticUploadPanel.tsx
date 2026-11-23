@@ -72,7 +72,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
       if (!retainedBundleId) return
       retainedBundleIdRef.current = null
       void discardRetainedUpload(retainedBundleId).catch((error) =>
-        logger.error('Failed to discard retained diagnostic upload on unmount', error as Error)
+        logger.error('Failed to discard retained diagnostic upload on unmount', error)
       )
     }
   }, [])
@@ -122,7 +122,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         retainedBundleIdRef.current = null
         setRetainedBundleId(null)
       } catch (error) {
-        logger.error('Failed to discard retained diagnostic upload', error as Error)
+        logger.error('Failed to discard retained diagnostic upload', error)
         toast.error(t('settings.about.diagnostics.upload.errors.discard_failed'))
 
         return false
@@ -142,7 +142,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     try {
       await openExternalWebsite(DIAGNOSTIC_FEEDBACK_FORM_URL)
     } catch (error) {
-      logger.error('Failed to open the diagnostic feedback form', error as Error)
+      logger.error('Failed to open the diagnostic feedback form', error)
       toast.error(t('settings.about.diagnostics.upload.errors.open_form_failed'))
     }
   }
@@ -153,7 +153,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     try {
       await openExternalWebsite(result.reportUrl)
     } catch (error) {
-      logger.error('Failed to open diagnostic status page', error as Error)
+      logger.error('Failed to open diagnostic status page', error)
       toast.error(t('settings.about.diagnostics.report.open_failed'))
     }
   }
@@ -164,7 +164,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     try {
       await ipcApi.request('file.show_in_folder', createFilePathHandle(savedUpload.filePath))
     } catch (error) {
-      logger.error('Failed to reveal diagnostic upload fallback', error as Error)
+      logger.error('Failed to reveal diagnostic upload fallback', error)
       toast.error(t('settings.about.diagnostics.errors.reveal_failed'))
     }
   }
@@ -173,7 +173,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
     if (!mountedRef.current) {
       if (uploadResult.status !== 'busy' && uploadResult.status !== 'uploaded') {
         void discardRetainedUpload(uploadResult.bundleId).catch((error) =>
-          logger.error('Failed to discard retained diagnostic upload after unmount', error as Error)
+          logger.error('Failed to discard retained diagnostic upload after unmount', error)
         )
       }
 
@@ -207,7 +207,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 
       acceptSubmissionResult(uploadResult)
     } catch (error) {
-      logger.error('Failed to upload diagnostic bundle', error as Error)
+      logger.error('Failed to upload diagnostic bundle', error)
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
       if (mountedRef.current) setOperationStatus('idle')
@@ -237,7 +237,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
       const retryResult = await ipcApi.request('diagnostics.bundle.retry_upload', { bundleId: retainedBundleId })
       acceptSubmissionResult(retryResult)
     } catch (error) {
-      logger.error('Failed to retry diagnostic upload', error as Error)
+      logger.error('Failed to retry diagnostic upload', error)
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
       if (mountedRef.current) setOperationStatus('idle')
@@ -257,7 +257,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         setSavedUpload(saveResult)
       }
     } catch (error) {
-      logger.error('Failed to save retained diagnostic upload', error as Error)
+      logger.error('Failed to save retained diagnostic upload', error)
       toast.error(t('settings.about.diagnostics.upload.errors.save_failed'))
     } finally {
       if (mountedRef.current) setOperationStatus('idle')

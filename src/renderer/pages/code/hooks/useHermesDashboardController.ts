@@ -97,7 +97,7 @@ export function useHermesDashboardController(
 
       openDashboard(result.url)
     } catch (error) {
-      logger.error('Failed to launch Hermes Dashboard', error as Error)
+      logger.error('Failed to launch Hermes Dashboard', error)
       toast.error(t(START_ERROR_KEYS.startup_failed))
     } finally {
       if (epoch === operationEpoch.current) setPendingOperation(null)
@@ -125,7 +125,7 @@ export function useHermesDashboardController(
 
       return true
     } catch (error) {
-      logger.error('Failed to stop Hermes Dashboard', error as Error)
+      logger.error('Failed to stop Hermes Dashboard', error)
       toast.error(t('code.hermes_dashboard.error.stop_failed'))
 
       return false

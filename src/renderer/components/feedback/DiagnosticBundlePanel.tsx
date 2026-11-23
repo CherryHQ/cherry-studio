@@ -124,7 +124,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
 
       setExportState({ result, status: 'saved' })
     } catch (error) {
-      logger.error('Failed to export diagnostic bundle', error as Error)
+      logger.error('Failed to export diagnostic bundle', error)
       setExportState({ status: 'idle' })
       toast.error(
         t(
@@ -167,7 +167,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
     try {
       await ipcApi.request('file.show_in_folder', createFilePathHandle(savedResult.filePath))
     } catch (error) {
-      logger.error('Failed to reveal diagnostic bundle', error as Error)
+      logger.error('Failed to reveal diagnostic bundle', error)
       toast.error(t('settings.about.diagnostics.errors.reveal_failed'))
     }
   }
@@ -199,7 +199,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
       const query = params.toString().replaceAll('+', '%20')
       await ipcApi.request('system.shell.open_website', `mailto:${SUPPORT_EMAIL}?${query}`)
     } catch (error) {
-      logger.error('Failed to open support email client', error as Error)
+      logger.error('Failed to open support email client', error)
       setCopyEmailFallback(true)
       toast.error(t('settings.about.diagnostics.errors.email_client_failed'))
     }

@@ -90,7 +90,7 @@ export function useLaunchDialogController({
     try {
       await selectFolder()
     } catch (err) {
-      logger.error('Failed to select folder:', err as Error)
+      logger.error('Failed to select folder:', err)
     }
   }, [selectFolder])
 
@@ -127,7 +127,7 @@ export function useLaunchDialogController({
 
         setLaunchOpen(false)
       } catch (err) {
-        logger.error('Failed to launch CLI tool:', err as Error)
+        logger.error('Failed to launch CLI tool:', err)
         toast.error(t('code.launch.error'))
       } finally {
         setLaunching(false)
@@ -202,7 +202,7 @@ export function useLaunchDialogController({
         } catch (err) {
           // Reading is only needed to preserve a raw gateway model. If it fails, rebuild the managed
           // config from preference so launch still uses the current gateway connection.
-          logger.warn('Failed to read CLI config for gateway reconciliation; rewriting', err as Error)
+          logger.warn('Failed to read CLI config for gateway reconciliation; rewriting', err)
         }
 
         let modelId = cliConfigContext.modelId
@@ -269,7 +269,7 @@ export function useLaunchDialogController({
         setLaunchOpen(false)
       }
     } catch (err) {
-      logger.error('Failed to launch CLI tool:', err as Error)
+      logger.error('Failed to launch CLI tool:', err)
       toast.error(t('code.launch.error'))
     } finally {
       setLaunching(false)

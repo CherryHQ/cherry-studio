@@ -88,9 +88,11 @@ export function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<o
 
     if (Array.isArray(value)) {
       const length = value.length
+
       if (typeof length !== 'number' || !Number.isInteger(length) || length < 0 || length > 0xffffffff) return REDACTED
 
       const output = new Array<Serializable>(length)
+
       for (let index = 0; index < length; index++) {
         if (index in value) output[index] = sanitizeLogValue(value[index], depth + 1, seen)
       }

@@ -218,7 +218,7 @@ export function useConfigPanelController({
           gateway
         })
       } catch (err) {
-        logger.error('Failed to inject CLI config on edit:', err as Error)
+        logger.error('Failed to inject CLI config on edit:', err)
 
         // Preference and the external CLI files form one user-visible config. Restore the saved
         // provider snapshot when the external write fails so the UI cannot advertise unapplied values.
@@ -236,7 +236,7 @@ export function useConfigPanelController({
               await deleteProviderConfig(editingProvider.id)
             }
           } catch (rollbackError) {
-            logger.error('Failed to roll back CLI provider config preference:', rollbackError as Error)
+            logger.error('Failed to roll back CLI provider config preference:', rollbackError)
           }
         }
 
@@ -295,7 +295,7 @@ export function useConfigPanelController({
             await setCurrentProvider(isEnabling ? CLI_OWN_LOGIN_PROVIDER_ID : null)
             setCurrentCliConfigConnection(null)
           } catch (err) {
-            logger.error('Failed to apply CLI config on own-login toggle:', err as Error)
+            logger.error('Failed to apply CLI config on own-login toggle:', err)
             toast.error(t('code.apply_failed'))
           }
 
@@ -313,7 +313,7 @@ export function useConfigPanelController({
             await setCurrentProvider(null)
             setCurrentCliConfigConnection(null)
           } catch (err) {
-            logger.error('Failed to clear CLI config on disable:', err as Error)
+            logger.error('Failed to clear CLI config on disable:', err)
             toast.error(t('code.apply_failed'))
           }
 
@@ -354,7 +354,7 @@ export function useConfigPanelController({
             await setCurrentProvider(provider.id)
             setCurrentCliConfigConnection(null)
           } catch (err) {
-            logger.error('Failed to select CLI provider:', err as Error)
+            logger.error('Failed to select CLI provider:', err)
             toast.error(t('code.apply_failed'))
           }
 
@@ -382,7 +382,7 @@ export function useConfigPanelController({
 
           if (gateway) toast.info(t('code.api_gateway.requires_running'))
         } catch (err) {
-          logger.error('Failed to inject CLI config on enable:', err as Error)
+          logger.error('Failed to inject CLI config on enable:', err)
           toast.error(t('code.apply_failed'))
         }
       })().finally(() => {
@@ -422,7 +422,7 @@ export function useConfigPanelController({
         } catch (err) {
           // Rethrow so the submitting dialog treats the save as failed and keeps the
           // user's draft (it owns the failure toast) instead of silently closing.
-          logger.error('Failed to inject own-login config on edit:', err as Error)
+          logger.error('Failed to inject own-login config on edit:', err)
           throw err
         }
       }
