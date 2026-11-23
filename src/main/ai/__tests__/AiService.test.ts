@@ -2644,7 +2644,7 @@ describe('AiService tool approval', () => {
     }
   })
 
-  it('clears the reply media analysis status when preparing an attachment fails', async () => {
+  it('clears the reply media analysis status when preparing an attachment fails and ignores later sibling progress', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
@@ -2660,8 +2660,11 @@ describe('AiService tool approval', () => {
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
       fileAttachments: []
     })
+    let siblingProgress: PrepareChatContext['onMediaProgress']
     mockPrepareChatMessages.mockImplementation(async (_messages, context: PrepareChatContext) => {
       context.onMediaProgress?.({ stage: 'transcribing' })
+      // An older attachment's analysis is still running when the latest one fails.
+      siblingProgress = context.onMediaProgress
       throw new Error('unusable_media_analysis')
     })
     const statuses: unknown[] = []
@@ -2676,6 +2679,7 @@ describe('AiService tool approval', () => {
           mediaAnalysisSink: (progress) => statuses.push(progress)
         })
       ).rejects.toThrow('unusable_media_analysis')
+      siblingProgress?.({ stage: 'reading_frames', done: 1, total: 4 })
 
       expect(statuses).toEqual([{ stage: 'transcribing' }, null])
     } finally {

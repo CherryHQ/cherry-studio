@@ -708,8 +708,15 @@ export class AiService extends BaseService {
     // Route attachments: native files stay inline, non-native become capped text
     // (always visible — never gated on the model calling read_file). The cap is
     // one shared pool, priced against what the rest of the request already spends.
+    // A failed attachment settles preparation while sibling analyses still run; their late progress must not reappear.
+    let mediaProgressOpen = true
+    const mediaAnalysisSink = request.mediaAnalysisSink
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
-      onMediaProgress: request.mediaAnalysisSink,
+      onMediaProgress:
+        mediaAnalysisSink &&
+        ((progress) => {
+          if (mediaProgressOpen) mediaAnalysisSink(progress)
+        }),
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
@@ -729,7 +736,10 @@ export class AiService extends BaseService {
             })) ?? undefined)
           : undefined,
       signal
-    }).finally(() => request.mediaAnalysisSink?.(null))
+    }).finally(() => {
+      mediaProgressOpen = false
+      mediaAnalysisSink?.(null)
+    })
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
