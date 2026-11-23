@@ -117,17 +117,17 @@ export function ErrorNotice({
             </div>
           ) : null}
           {actionButton || trailing ? (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               {actionButton}
               {trailing}
             </div>
           ) : null}
         </>
       ) : (
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{title}</span>
           {actionButton || trailing ? (
-            <div className="flex shrink-0 items-center gap-3">
+            <div className="flex shrink-0 flex-wrap items-center gap-3">
               {actionButton}
               {trailing}
             </div>
