@@ -526,8 +526,8 @@ function runStep(ctx: PromotionContext, step: PromotionStep): void {
     case 'integrity-ok': {
       const result = integrityCheck(ctx.livePath)
 
-      if (result !== 'ok') {
-        throw new Error(`integrity_check on the promoted DB failed: ${result}`)
+      if (!result.ok) {
+        throw new Error(`integrity_check on the promoted DB failed: ${result.error}`)
       }
 
       return
@@ -538,16 +538,18 @@ function runStep(ctx: PromotionContext, step: PromotionStep): void {
   }
 }
 
-function integrityCheck(dbPath: string): string {
+function integrityCheck(dbPath: string): { ok: true } | { ok: false; error: string } {
   let sqlite: Database.Database | undefined
 
   try {
     sqlite = new Database(dbPath, { fileMustExist: true })
 
-    return String(sqlite.pragma('integrity_check', { simple: true }))
+    const result = String(sqlite.pragma('integrity_check', { simple: true }))
+
+    return result === 'ok' ? { ok: true } : { ok: false, error: result }
   } catch (error) {
     // Open failures (missing/locked/not-a-db) are integrity failures too.
-    return getErrorMessage(error, 'Unknown error')
+    return { ok: false, error: getErrorMessage(error, 'Unknown error') }
   } finally {
     try {
       sqlite?.close()

@@ -602,6 +602,32 @@ describe('runRestorePromotion', () => {
     expect(existsSync(stagingDir())).toBe(false)
   })
 
+  it.each([new Error('ok'), 'ok', null])(
+    'rolls back a thrown integrity failure even when its text resembles success: %s',
+    async (failure) => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      const journal = await buildJournal()
+      renameSync(livePath(), asidePath())
+      renameSync(workPath(), livePath())
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
+      const pragma = vi.spyOn(Database.prototype, 'pragma').mockImplementationOnce(() => {
+        throw failure
+      })
+
+      try {
+        await runRestorePromotion()
+        expect(pragma.mock.calls[0]?.[0]).toBe('integrity_check')
+      } finally {
+        pragma.mockRestore()
+      }
+
+      expect(readMarker(livePath())).toBe('old')
+      expect(journalState()).toBe('failed')
+      expect(existsSync(stagingDir())).toBe(false)
+    }
+  )
+
   it('reverts everything when post-commit integrity check fails: old DB back, all file ops undone', async () => {
     makeDb(livePath(), 'old')
     makeDb(workPath(), 'new')
