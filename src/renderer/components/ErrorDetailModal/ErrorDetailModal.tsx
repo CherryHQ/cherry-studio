@@ -571,7 +571,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const [noticeAtOpen, setNoticeAtOpen] = useState(noticeKey)
   if (noticeAtOpen !== null && noticeKey !== noticeAtOpen) setNoticeAtOpen(null)
   const shownNoticeKey = noticeKey === noticeAtOpen ? null : noticeKey
-  const [availableVersion, setAvailableVersion] = useState<string | null>(null)
+  const [availability, setAvailability] = useState<{ channel: UpgradeChannel; version: string | null } | null>(null)
   const [autoUpdatePreference] = usePreference('app.dist.auto_update.enabled')
   // The hook reports the default (on) until the stored value loads; never query on that guess.
   const autoUpdateEnabled = autoUpdatePreference && preferenceService.isCached('app.dist.auto_update.enabled')
@@ -585,12 +585,13 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     if (!autoUpdateEnabled || checking || downloading || downloaded) return
     let active = true
     void appUpdateCheckService.queryAvailableVersion(updateChannel).then((version) => {
-      if (active) setAvailableVersion(version)
+      if (active) setAvailability({ channel: updateChannel, version })
     })
     return () => {
       active = false
     }
   }, [autoUpdateEnabled, updateChannel])
+  const availableVersion = availability?.channel === updateChannel ? availability.version : null
   const copyErrorDetails = useCallback(() => {
     if (!shownError) {
       return
