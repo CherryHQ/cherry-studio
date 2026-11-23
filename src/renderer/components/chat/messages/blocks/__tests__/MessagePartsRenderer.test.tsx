@@ -2470,6 +2470,71 @@ describe('MessagePartsRenderer', () => {
       expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
     })
 
+    it('starts a long completed history collapsed even when tool steps expand', () => {
+      const parts = Array.from({ length: 81 }, (_, index) => toolPart(`read-${index}`))
+      renderParts(
+        parts as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          expandToolSteps: true
+        }
+      )
+
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryAllByTestId('mock-message-tools')).toHaveLength(0)
+
+      fireEvent.click(historyTrigger)
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.queryAllByTestId('mock-message-tools').length).toBeGreaterThan(0)
+    })
+
+    it('starts a text-heavy completed history collapsed even when tool steps expand', () => {
+      renderParts(
+        [{ ...toolPart('read'), output: { content: 'x'.repeat(120_000) } }] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, expandToolSteps: true }
+      )
+
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryAllByTestId('mock-message-tools')).toHaveLength(0)
+
+      fireEvent.click(historyTrigger)
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('stops walking a wide payload once the budget is exhausted', () => {
+      let reads = 0
+      const wide: Record<string, unknown> = {}
+      Object.defineProperty(wide, 'content', { enumerable: true, get: () => 'x'.repeat(120_000) })
+      for (let index = 0; index < 500; index += 1) {
+        Object.defineProperty(wide, `rest-${index}`, {
+          enumerable: true,
+          get: () => {
+            reads += 1
+            return 'y'
+          }
+        })
+      }
+
+      renderParts(
+        [{ ...toolPart('read'), output: wide }] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          expandToolSteps: true
+        }
+      )
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      expect(reads).toBe(0)
+    })
+
     it('reveals completed thinking behind the process summary for a reasoning-and-answer message', () => {
       renderParts([
         { type: 'reasoning', text: 'Deep thought', state: 'done' },

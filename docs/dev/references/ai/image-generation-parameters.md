@@ -1,7 +1,10 @@
 ---
 description: Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile
 sources:
+  - packages/provider-registry/src/creators/bytedance.ts
   - packages/provider-registry/src/schemas/imageParamCatalog.ts
+  - src/shared/ai/seedreamImageContract.ts
+  - src/main/ai/AiService.ts
   - src/renderer/pages/paintings
   - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
@@ -274,6 +277,50 @@ and builds the descriptor, threading it as a **typed field** on the job payload 
 registry is the source of `vendorTransport`, and main already hosts it (the
 renderer's support fetch is an IPC round-trip to the same service), so the
 descriptor is a pure derivation, not a param.
+
+---
+
+## Seedream 5.x — model-scoped assembly and validation
+
+The 5.x contract currently targets **only** `doubao-seedream-5-5`, by exact
+membership in `SEEDREAM_5X_TARGET_IDS`. It does not cover 5.0 Lite, which retains
+its grouping parameters. Assembly follows the existing pipeline with a shared
+cross-field contract at the renderer and main boundaries:
+
+1. **Registry → form.** The ByteDance creator declares generate/edit, at most ten
+   reference images in either mode, `imageResolution` tiers `1K`/`1.5K`/`2K`
+   (default `1K`), and `customSize` paired with `imageResolution`. Watermark
+   defaults to `true`, background to `auto`, and output format to `jpeg`
+   (`jpeg`/`png`). The renderer's transparent-asset preset atomically sets and
+   locks `background=transparent` plus `outputFormat=png`; other setting edits
+   preserve both. Disabling it restores `auto`, keeps PNG and unlocks the
+   individual controls. It uses the existing generate/edit modes.
+2. **Renderer validation → canonical bag → IPC.**
+   `usePaintingGenerationSubmit` invokes the shared contract before the submit
+   guard and input materialization; `canonicalGenerate` checks again before
+   generic validation. Tiers and explicit positive integer `WxH` dimensions are
+   mutually exclusive. Dimensions require 921600–4624220 pixels inclusive and
+   a long-to-short-side ratio at most 16:1; transparent output requires PNG.
+   After catalog validation, custom dimensions project through the effective
+   mode's `pairedEnumKey` into canonical `size`; the paired sentinel and width/
+   height companions are removed. `sanitizeSeedreamImageParams` removes stale
+   grouping/search/stream controls and supplies missing defaults before IPC.
+   Renderer failures use localized messages through `REMOTE_ERROR`.
+3. **Resolved model/provider → main gate → partition → delivery.**
+   `AiService.generateImage` identifies the model using
+   `model.presetModelId ?? parseUniqueModelId(model.id).modelId`. Before
+   `splitParamValues`, image normalization and either delivery branch, it
+   rejects `(provider.presetProviderId ?? provider.id) === 'dmxapi'` for the
+   target: the 5.5 protocol is unverified, including for user-created preset
+   instances. `canonicalGenerate` also rejects that preset before dispatch.
+   Main validates incoming size/background combinations, then sanitizes the
+   bag, removing `numImages`, `sequentialImageGeneration`, `maxImages`,
+   `webSearch`, `stream` and `tools`. Missing values become `1K` (unless explicit
+   dimensions are supplied), `jpeg`, `auto` and watermark `true`; watermark
+   `false` survives. Both SDK and job delivery consume this sanitized bag and
+   default to one image. Main failures reuse `REMOTE_ERROR` with actionable
+   messages. Neither the global `buildParamsSchema` nor the DMXAPI transport
+   implements this model-specific gate.
 
 ---
 

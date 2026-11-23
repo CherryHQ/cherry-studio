@@ -9,6 +9,28 @@ export default defineCreator({
   idPrefixes: ['claude'],
   models: [
     {
+      id: 'claude-fable-5-2',
+      name: 'Claude Fable 5.2',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'high' }]
+      }
+    },
+    {
       id: 'claude-haiku-5-5',
       name: 'Claude Haiku 5.5',
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
@@ -125,6 +147,12 @@ export default defineCreator({
     // Opus 5.5 always uses adaptive thinking.
     {
       pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
+      effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+      toggle: false,
+      wireDialect: 'adaptive-always'
+    },
+    {
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-fable-5[.-]2(?:$|[\\[ @:-])',
       effort: ['low', 'medium', 'high', 'xhigh', 'max'],
       toggle: false,
       wireDialect: 'adaptive-always'

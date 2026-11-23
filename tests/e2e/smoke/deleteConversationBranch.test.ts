@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { mkdir, rm } from 'node:fs/promises'
 
-import { _electron as electron, type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
+import { type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import type { CreateMessageDto } from '../../../src/shared/data/api/schemas/messages'
@@ -9,7 +9,7 @@ import type { DataRequest, DataResponse } from '../../../src/shared/data/api/typ
 import type { Message, TreeResponse } from '../../../src/shared/data/types/message'
 import type { Topic } from '../../../src/shared/data/types/topic'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const ASSISTANT = 'Branch deletion smoke assistant'
 const TOPIC = 'Delete one exclusive conversation branch'
@@ -17,7 +17,7 @@ const TOPIC = 'Delete one exclusive conversation branch'
 function launch(profile: string) {
   const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
   delete env.ELECTRON_RENDERER_URL
-  return electron.launch({
+  return launchSmokeElectron({
     args: ['.'],
     env: Object.fromEntries(Object.entries(env).filter((pair): pair is [string, string] => pair[1] !== undefined)),
     timeout: 60_000
@@ -97,19 +97,8 @@ async function openTopic(page: Page, seeded: { assistantId: string; topicId: str
       })
     )
   }, seeded)
-  // The resource list can mount the same row twice, so pin the locator to the first visible match.
-  const topicRow = page
-    .getByTestId('topic-list-row')
-    .filter({ has: page.getByText(TOPIC, { exact: true }) })
-    .first()
-  const assistantButton = page.getByRole('button', { name: ASSISTANT, exact: true }).first()
-  await expect(assistantButton).toBeVisible({ timeout: 30_000 })
-  for (let attempt = 0; attempt < 4 && !(await topicRow.isVisible()); attempt += 1) {
-    await assistantButton.click()
-    await page.waitForTimeout(500)
-  }
-  await expect(topicRow).toBeVisible({ timeout: 30_000 })
-  await topicRow.click()
+  const activeTab = page.locator('[data-ui~="app.tab-bar"] [data-active="true"]').filter({ hasText: TOPIC })
+  await expect(activeTab).toBeVisible()
 }
 
 async function prepareFlowCanvas(page: Page) {
