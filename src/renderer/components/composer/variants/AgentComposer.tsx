@@ -88,7 +88,11 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { isLocalPermissionConfigOption } from '@shared/ai/localAgent'
+import {
+  isLocalPermissionConfigOption,
+  type LocalAgentConfigOption,
+  type LocalAgentSelection
+} from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -134,6 +138,7 @@ import {
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
 import { LocalAgentConfigControl } from './agent/LocalAgentConfigControl'
 import { LocalAgentPermissionControl } from './agent/LocalAgentPermissionControl'
+import { LocalAgentThoughtControl } from './agent/LocalAgentThoughtControl'
 import { useAgentPromptSuggestion } from './agent/useAgentPromptSuggestion'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
@@ -1772,6 +1777,39 @@ const AgentComposerInner = ({
   )
   const localSecurityOptions = localExtraOptions?.filter((option) => isLocalPermissionConfigOption(option))
   const localNonPermissionOptions = localExtraOptions?.filter((option) => !isLocalPermissionConfigOption(option))
+  const localThoughtConfigOption = localNonPermissionOptions?.find(
+    (option): option is Extract<LocalAgentConfigOption, { type: 'select' }> =>
+      option.category === 'thought_level' &&
+      option.type === 'select' &&
+      option.options.flatMap((choice) => ('group' in choice ? choice.options : [choice])).length > 1
+  )
+  const localThoughtControl: { kind: 'thought' | 'config' | 'mode'; selection: LocalAgentSelection } | undefined =
+    localOptions?.thoughtLevel && localOptions.thoughtLevel.options.length > 1
+      ? { kind: 'thought', selection: localOptions.thoughtLevel }
+      : localThoughtConfigOption
+        ? {
+            kind: 'config',
+            selection: {
+              id: localThoughtConfigOption.id,
+              currentValue: String(localThoughtConfigOption.currentValue),
+              options: localThoughtConfigOption.options
+                .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+                .map((choice) => ({
+                  ...choice,
+                  description: choice.description ?? undefined
+                }))
+            }
+          }
+        : !hasUnifiedPermissionMode &&
+            localPresetId === 'pi-acp' &&
+            localOptions?.mode &&
+            localOptions.mode.options.length > 1
+          ? { kind: 'mode', selection: localOptions.mode }
+          : undefined
+  const localRemainingConfigOptions =
+    localThoughtControl && localThoughtControl.kind !== 'mode'
+      ? localNonPermissionOptions?.filter((option) => option.id !== localThoughtControl.selection.id)
+      : localNonPermissionOptions
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
@@ -1798,14 +1836,23 @@ const AgentComposerInner = ({
             securityOptions={localSecurityOptions}
             disabled={isStreaming}
           />
+          {localThoughtControl ? (
+            <LocalAgentThoughtControl
+              key={`thought:${sessionId}`}
+              sessionId={sessionId}
+              kind={localThoughtControl.kind}
+              selection={localThoughtControl.selection}
+              presetId={localPresetId}
+              disabled={isStreaming}
+            />
+          ) : null}
           <LocalAgentConfigControl
             key={`config:${sessionId}`}
             sessionId={sessionId}
             agentName={agent.name.trim() || undefined}
             presetId={localPresetId}
-            options={localNonPermissionOptions}
-            mode={hasUnifiedPermissionMode ? undefined : localOptions?.mode}
-            thoughtLevel={localOptions?.thoughtLevel}
+            options={localRemainingConfigOptions}
+            mode={hasUnifiedPermissionMode || localThoughtControl?.kind === 'mode' ? undefined : localOptions?.mode}
             disabled={isStreaming}
           />
         </>
