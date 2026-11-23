@@ -148,6 +148,7 @@ describe('useAppUpdateHandler', () => {
     expect(mocks.updateAppUpdateState).toHaveBeenNthCalledWith(1, {
       checking: false,
       downloading: true,
+      downloaded: false,
       info: releaseInfo,
       available: true,
       lastErrorKey: null

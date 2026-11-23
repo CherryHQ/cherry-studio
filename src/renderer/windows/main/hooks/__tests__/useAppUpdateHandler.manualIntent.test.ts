@@ -73,3 +73,23 @@ it('stays silent about a scheduled no-update result after a manual download fini
   expect(toast.error).not.toHaveBeenCalled()
   expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
 })
+
+it('retries a newer release whose download failed instead of confirming it with an earlier download', async () => {
+  const showDialog = vi.fn().mockResolvedValue(undefined)
+  const { result } = renderHook(() => {
+    useAppUpdateHandler()
+    return useAppUpdateState()
+  })
+  appUpdateCheckService.registerUpdateDialog(async () => ({ show: showDialog }))
+  const newer = { ...releaseInfo, version: '2.2.0' }
+
+  emit('app.updater.downloaded', releaseInfo)
+  emit('app.updater.available', newer)
+  emit('app.updater.error', new Error('download failed'))
+  await act(() =>
+    appUpdateCheckService.runAppUpdateCheck(result.current.appUpdateState, result.current.updateAppUpdateState)
+  )
+
+  expect(showDialog).not.toHaveBeenCalled()
+  expect(mocks.request).toHaveBeenCalledWith('app.updater.check_for_update')
+})

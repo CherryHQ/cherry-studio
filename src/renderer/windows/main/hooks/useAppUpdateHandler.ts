@@ -79,9 +79,11 @@ export function useAppUpdateHandler() {
   useIpcOn('app.updater.available', (releaseInfo) => {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
     appUpdateCheckService.markUpdateDownloading(releaseInfo)
+    // Readiness belongs to the artifact that emitted `downloaded`; this release has not.
     updateAppUpdateState({
       checking: false,
       downloading: true,
+      downloaded: false,
       info: releaseInfo,
       available: true,
       lastErrorKey: null
