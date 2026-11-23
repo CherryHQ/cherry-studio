@@ -258,7 +258,7 @@ function mingitUrl(asset) {
 function ffmpegUrl(asset) {
   return `https://github.com/serversideup/ffmpeg-lgpl-builds/releases/download/v${FFMPEG_VERSION}/${asset}`
 }
-const FFMPEG_LGPL_TAG = 'ffmpeg-lgpl-v8.1.2-r1'
+const FFMPEG_LGPL_TAG = 'ffmpeg-lgpl-v8.1.2-r2'
 function ffmpegLgplUrl(asset) {
   return `https://github.com/CherryHQ/cherry-studio-ffmpeg-lgpl/releases/download/${FFMPEG_LGPL_TAG}/${asset}`
 }
@@ -616,8 +616,8 @@ const TOOLS = [
         executableFiles: ['ffmpeg.exe', 'ffprobe.exe'],
         sha256: 'fb2de01912edb449a5eba1cc487696c7f71ebb7b325e5c5c69434642ec2ba6b0'
       },
-      'linux-x64': linuxFfmpegPackage('x64', '1de031a8774b7b10b2e823be50bbed52be27bf89a46b7cf8b33cc48cfb5143d2'),
-      'linux-arm64': linuxFfmpegPackage('arm64', 'e579ec85a8fe6206030e2f0ca1a9b699d3a9db03c7eb1987f5b0aa1083d04f5d')
+      'linux-x64': linuxFfmpegPackage('x64', '79cda3bc8509338b841551706a24c0e50f2d2ec237a1d85898fb799123c6c728'),
+      'linux-arm64': linuxFfmpegPackage('arm64', 'bb64860ec2993ad6688239f58a32b81e91cf5e0f7a3b9efa80bff1c84b955a3f')
     }
   }
 ]
