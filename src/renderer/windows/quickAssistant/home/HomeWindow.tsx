@@ -141,18 +141,22 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     modelId?: string
   } | null>(null)
   // Doctor resolves the failed model from the provider and its local model id.
-  const failedModel = useMemo(
+  const failedModel = useMemo<{ providerId?: string; modelId?: string }>(
     () =>
       currentModel ? { providerId: currentModel.providerId, modelId: parseUniqueModelId(currentModel.id).modelId } : {},
     [currentModel]
   )
+  // A failure belongs to the model it was sent with, even if settings change while it runs.
+  const sentModelRef = useRef(failedModel)
   // The card shows a localized conclusion; the provider's raw text stays in Details.
   const summarizeFlowError = useCallback(
     (cause: unknown) => {
-      const { category, i18nKey } = classifyError(serializeToastError(cause), currentModel?.providerId)
-      return category === 'unknown' ? t('error.diagnosis.unknown') : t(i18nKey)
+      const sentModel = sentModelRef.current
+      const { category, i18nKey } = classifyError(serializeToastError(cause), sentModel.providerId)
+      const message = category === 'unknown' ? t('error.diagnosis.unknown') : t(i18nKey)
+      return { message, cause, ...sentModel }
     },
-    [currentModel, t]
+    [t]
   )
 
   const {
@@ -162,7 +166,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setMessages
   } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (_err, cause) => {
     setIsPreparing(false)
-    setFlowError({ message: summarizeFlowError(cause), cause, ...failedModel })
+    setFlowError(summarizeFlowError(cause))
   })
 
   // Local inputs and projected assistant messages share the existing message list.
@@ -418,6 +422,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
+        sentModelRef.current = failedModel
         const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
         if (!isAssistantMode && currentModel) {
           void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
@@ -425,7 +430,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           void sendMessage(message)
         }
       } catch (streamError) {
-        setFlowError({ message: summarizeFlowError(streamError), cause: streamError, ...failedModel })
+        setFlowError(summarizeFlowError(streamError))
         logger.error(
           'Error fetching result:',
           streamError instanceof Error
