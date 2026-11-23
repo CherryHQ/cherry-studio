@@ -34,7 +34,7 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
   const workspaceId = randomUUID()
   dbh.db
     .insert(agentWorkspaceTable)
-    .values({ id: workspaceId, name: 'Work', type: 'user', path: '/test', orderKey: 'a0' })
+    .values({ id: workspaceId, name: 'Work', type: 'user', path: `/test/${workspaceId}`, orderKey: 'a0' })
     .run()
   const root = randomUUID()
   dbh.db.insert(agentSessionTable).values({ id: root, workspaceId, name: 'Root', orderKey: 'a0' }).run()
@@ -97,6 +97,80 @@ function fixture(beforeRead?: () => Promise<void>, decorate?: MessageDecorator) 
     }
   }
 }
+
+it.each(['', 'partial answer'])(
+  'keeps a failed child reply and its cause through archive recovery (%j)',
+  async (text) => {
+    const f = fixture()
+    await f.projection.attach()
+    const failed = {
+      ...f.item('failure', text),
+      parts: text ? f.item('failure', text).parts : [],
+      metadata: {
+        completeness: 'complete' as const,
+        error: { operation: 'input', code: 'model-error', message: '429: CONCURRENCY_LIMITED' }
+      }
+    }
+    await f.send({ type: 'message.upsert', message: failed })
+    await f.projection.flush()
+    const expected = {
+      parts: [
+        ...(text ? [{ type: 'text', text, state: 'done' }] : []),
+        { type: 'data-error', data: { message: '429: CONCURRENCY_LIMITED', reason: 'model-error' } }
+      ]
+    }
+    expect(f.projection.snapshot().messages).toMatchObject([expected])
+    f.archive.messages = [failed]
+    f.archive.aliases = { failure: 'failure' }
+    await f.send({ type: 'activity.changed', activity: { state: 'idle' } })
+    await f.projection.flush()
+    expect(savedChildView(contexts.context(f.context.id)).messages).toMatchObject([expected])
+    await f.projection.stop()
+    const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, () => f.archive)
+    projections.push(reopened)
+    await reopened.attach()
+    expect(reopened.snapshot().messages).toMatchObject([expected])
+  }
+)
+
+it('retains a failed attempt after the native input completes successfully', async () => {
+  const f = fixture()
+  const prompt: RuntimeMessage = { ...f.item('prompt', 'Inspect'), role: 'user' }
+  const failed: RuntimeMessage = {
+    ...f.item('attempt', ''),
+    parts: [],
+    metadata: {
+      completeness: 'complete',
+      error: { operation: 'input', code: 'model-error', message: '429: CONCURRENCY_LIMITED' }
+    }
+  }
+  f.archive.messages = [prompt, failed]
+  await f.projection.attach()
+  const answer = f.item('answer', 'Recovered')
+  f.archive.messages = [prompt, failed, answer]
+  await f.send({ type: 'message.upsert', message: answer })
+  await f.send({
+    type: 'input.changed',
+    input: {
+      nativeInput: { session: f.handle.thread, id: runtimeId('input') },
+      facts: ['accepted', 'placed'],
+      outcome: 'completed'
+    }
+  })
+  await f.projection.flush()
+  const expected = [
+    { role: 'user' },
+    {
+      metadata: { status: 'success' },
+      parts: [
+        { type: 'data-error', data: { message: '429: CONCURRENCY_LIMITED' } },
+        { type: 'text', text: 'Recovered' }
+      ]
+    }
+  ]
+  expect(f.projection.snapshot().messages).toMatchObject(expected)
+  expect(savedChildView(contexts.context(f.context.id)).messages).toMatchObject(expected)
+})
 
 // Catches closing or backing up before an entered observation applies the final native tail.
 it.each(['stop', 'drain'] as const)('joins blocked observation delivery before %s flushes', async (action) => {
@@ -865,4 +939,35 @@ it('reports each response owner once', async () => {
   await projection.drain()
   await projection.drain()
   expect(reported).toEqual([['response-one', projection.snapshot().messages[0].id]])
+})
+
+// Catches retry status leaking between children, into archives, or surviving settlement.
+it('overlays only the latest live retry status without persisting it', async () => {
+  const first = fixture()
+  const second = fixture()
+  await first.projection.attach()
+  await second.projection.attach()
+  first.projection.retry({ state: 'retrying', modelId: 'model-A', attempt: 2, reason: 'http 429' })
+  first.projection.retry({ state: 'retrying', modelId: 'model-A', attempt: 3, reason: 'http 503' })
+  expect(first.projection.snapshot().messages.flatMap((m) => m.parts)).toEqual([
+    { type: 'data-retry', id: 'retry', data: { state: 'retrying', modelId: 'model-A', attempt: 3, reason: 'http 503' } }
+  ])
+  expect(second.projection.snapshot().messages).toEqual([])
+  const answer = first.item('answer', 'recovered')
+  first.archive.messages = [answer]
+  await first.send({ type: 'message.upsert', message: answer })
+  await first.projection.drain()
+  expect(
+    first.projection
+      .snapshot()
+      .messages.flatMap((m) => m.parts)
+      .filter((p) => p.type === 'data-retry')
+  ).toHaveLength(1)
+  expect(JSON.stringify(savedChildView(contexts.context(first.context.id)))).not.toContain('data-retry')
+  first.projection.retry({ state: 'settled' })
+  expect(first.projection.snapshot().messages.flatMap((m) => m.parts)).toEqual(answer.parts)
+  expect(JSON.stringify(savedChildView(contexts.context(first.context.id)))).toContain('recovered')
+  first.projection.retry({ state: 'retrying', modelId: 'model-A', attempt: 2, reason: 'http 429' })
+  await first.projection.stop()
+  expect(JSON.stringify(first.projection.snapshot())).not.toContain('data-retry')
 })

@@ -9,9 +9,8 @@
  *
  * A task may opt into `reuseSession`, which binds one sticky session through a
  * constrained session→schedule relation and continues it on every
- * fire. That session grows unbounded by design — reset it by disabling and
- * saving, then enabling and saving. Rotate automatically only if unbounded
- * growth turns out to bite in practice.
+ * fire. Terminal context overflow on a reused session releases its binding so
+ * the next fire can start fresh without replaying the failed job.
  *
  * Because a sticky session is reachable by the user (the run log links to it),
  * a reusing fire stands down when that session already has a turn in flight.
@@ -46,6 +45,7 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -115,13 +115,13 @@ function resolveTaskSession(params: {
   agentId: string
   name: string
   workspace: AgentSessionWorkspaceSource
-}): ReturnType<typeof agentSessionService.create> {
+}) {
   const { reuse, reuseBinding, agentId, name, workspace, sessionType } = params
 
   if (reuse.enabled && reuseBinding) {
     const existing = loadReusableSession(reuseBinding.scheduleId, agentId)
     if (existing) {
-      return existing
+      return { session: existing, reused: true }
     }
     logger.info('Reuse session unavailable — creating a new one', {
       scheduleId: reuseBinding?.scheduleId
@@ -137,7 +137,7 @@ function resolveTaskSession(params: {
       workspace
     })
   }
-  return session
+  return { session, reused: false }
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -232,7 +232,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     currentReuse.revision === expectedReuseRevision
   const reuseBinding = reuseIsCurrent && scheduleId ? { scheduleId, reuseRevision: expectedReuseRevision } : null
   const sessionType = isHeartbeat ? 'background' : 'conversation'
-  let session = resolveTaskSession({
+  const resolved = resolveTaskSession({
     sessionType,
     scheduleId,
     reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
@@ -241,6 +241,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     name: taskName ?? 'Scheduled task',
     workspace
   })
+  let session = resolved.session
   // Snapshot the task's configured recipients before starting the run. Adapter availability affects
   // delivery, not authority: a temporarily disconnected configured channel must not hide `notify`.
   const subscribedChannels = scheduleId
@@ -279,6 +280,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     application.get('AiStreamManager').removeListener(topicId, `agent-task:${scheduleId ?? ctx.jobId}`)
     settle()
   }
+  let historyOverflow = false
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     ownsTaskResult: true,
@@ -313,7 +315,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
     },
     onError(result) {
-      complete(() => rejectExecution(new Error(result.error.message ?? 'Execution failed')))
+      complete(() => {
+        const message = result.error.message ?? 'Execution failed'
+        const failure = result.failure ?? toExecutionFailure(result.error, result.modelId)
+        historyOverflow = failure.failure.reasonCode === 'context_length'
+        rejectExecution(new Error(message))
+      })
     },
     // Terminal dispatch calls this before every event. `complete()` is only reached by that
     // terminal callback, then removes the listener synchronously before a queued successor starts.
@@ -386,6 +393,15 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     resultText = await executionDone
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err))
+    if (
+      historyOverflow &&
+      reuseBinding &&
+      !runSignal.aborted &&
+      resolved.reused &&
+      resolved.session.id === session.id
+    ) {
+      application.get('AgentJobsService').releaseOverflowedTaskSession(reuseBinding, session.id)
+    }
     if (pausedStatus) await ctx.patchMetadata({ taskResultStatus: pausedStatus })
     if (!runSignal.aborted && !pausedStatus && subscribedChannels.length > 0) {
       await notifyTaskError(

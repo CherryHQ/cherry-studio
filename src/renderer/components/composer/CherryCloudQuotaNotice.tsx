@@ -3,8 +3,10 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { getAmdActionLabelKey, openAmdRegistration } from '@renderer/components/cherryCloud/amdFreeModels'
 import { useCommandRuntime } from '@renderer/hooks/command'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
+import { useCherryCloudAmdStatus } from '@renderer/hooks/useCherryCloudAmdStatus'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { trackSubscriptionEntryView, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
@@ -18,6 +20,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
   const quota = reason === 'quota_exhausted'
   const signIn = reason === 'sign_in_required'
   const session = useCherryAccountSession(signIn)
+  const amdStatus = useCherryCloudAmdStatus(reason === 'amd_activation_required')
   const offerSubscription = quota
     ? exhaustion.isFreeModel && exhaustion.isSubscribed === false
     : reason === 'subscription_required'
@@ -38,6 +41,8 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
     sign_in_required: t('chat.input.quota_notice.sign_in_required'),
     subscription_required: t('chat.input.quota_notice.subscription_required'),
     not_in_plan: t('chat.input.quota_notice.not_in_plan'),
+    model_delisted: t('chat.input.quota_notice.model_delisted'),
+    amd_activation_required: t('models.amd_free.sign_in_hint'),
     unknown: t(exhaustion.reason === 'unknown' && exhaustion.state === 'error' ? 'error.unknown' : 'common.loading')
   }
   const Icon = quota || reason === 'unknown' ? Clock : Lock
@@ -68,6 +73,10 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
       {signIn ? (
         <Button type="button" size="sm" disabled={session.isAuthorizing} onClick={() => void session.login()}>
           {t('settings.subscription.sign_in')}
+        </Button>
+      ) : exhaustion.reason === 'amd_activation_required' ? (
+        <Button type="button" size="sm" onClick={() => void openAmdRegistration(exhaustion.cloudModelId)}>
+          {t(getAmdActionLabelKey(amdStatus))}
         </Button>
       ) : quota || offerSubscription ? (
         <Button

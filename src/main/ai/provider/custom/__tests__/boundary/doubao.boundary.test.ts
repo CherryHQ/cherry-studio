@@ -1,9 +1,13 @@
 import { createByteDance } from '@ai-sdk/bytedance'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
-import { describe, expect, it } from 'vitest'
+import { generateImage } from 'ai'
+import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import { sanitizeSeedreamImageParams } from '@shared/ai/seedreamImageContract'
+
+import { splitParamValues } from '../../../../utils/imageOptions'
 import { buildVendorProviderOptions } from '../../wire/buildImageRequest'
 import { WIRE_REGISTRY } from '../../wire/wireProfile'
 import { captureWithFetch, runWithResponse } from './captureRequest'
@@ -47,6 +51,49 @@ const deliver = (paramValues: Record<string, unknown>) =>
   buildVendorProviderOptions('doubao', paramValues, WIRE_REGISTRY.doubao, paramValues)
 
 describe('Doubao (Ark) image boundary', () => {
+  it.each([{ size: '2140x2160', background: 'transparent', outputFormat: 'png', addWatermark: false }, {}])(
+    'sends one target request with explicit size, background and format',
+    async (values) => {
+      const params = sanitizeSeedreamImageParams({
+        ...values,
+        numImages: 4,
+        sequentialImageGeneration: 'auto',
+        maxImages: 16,
+        stream: true,
+        webSearch: { enabled: true },
+        tools: [{ type: 'web_search' }]
+      })
+      const { structured, vendorBag } = splitParamValues(params)
+      const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ b64_json: 'aW1hZ2U=' }]
+          }),
+          { status: 200 }
+        )
+      )
+      await generateImage({
+        model: imageModel('doubao-seedream-5-5', fetch),
+        prompt: 'a fox',
+        n: structured.n ?? 1,
+        size: structured.size as `${number}x${number}` | undefined,
+        providerOptions: buildVendorProviderOptions('doubao', params, WIRE_REGISTRY.doubao, vendorBag)
+      })
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(String(fetch.mock.calls[0][0])).toBe(url)
+      expect(fetch.mock.calls[0][1]?.method).toBe('POST')
+      expect(JSON.parse(fetch.mock.calls[0][1]?.body as string)).toEqual({
+        model: 'doubao-seedream-5-5',
+        prompt: 'a fox',
+        size: values.size ?? '1K',
+        background: values.background ?? 'auto',
+        output_format: values.outputFormat ?? 'jpeg',
+        watermark: values.addWatermark ?? true,
+        response_format: 'b64_json'
+      })
+    }
+  )
+
   it('delivers the vendor body under `bytedance`, the key the package reads', () => {
     // Not `doubao` (our provider id) and not `openai-compatible` (the pre-fix id, under
     // which every control below was silently dropped) — `@ai-sdk/bytedance` reads its
@@ -80,7 +127,6 @@ describe('Doubao (Ark) image boundary', () => {
       sequential_image_generation_options: z.strictObject({ max_images: z.literal(4) }),
       response_format: z.literal('b64_json')
     }).parse(req.body)
-    expect(req.body).toMatchSnapshot()
   })
 
   /**

@@ -737,11 +737,13 @@ export class MessageService {
   listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
+    topicId,
     cursor: rawCursor,
     limit
   }: {
     fromMs: number
     toMs: number
+    topicId?: string
     cursor?: string
     limit: number
   }): CursorPaginationResponse<LiveMessageRangeMetadata> {
@@ -764,6 +766,7 @@ export class MessageService {
           isNull(messageTable.deletedAt),
           isNull(topicTable.deletedAt),
           ne(messageTable.role, 'root'),
+          topicId === undefined ? undefined : eq(messageTable.topicId, topicId),
           cursor ? ordering.where(cursor) : undefined
         )
       )
