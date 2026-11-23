@@ -455,7 +455,7 @@ describe('AgentFileSnapshotService', () => {
     expect(await readFile(c, 'utf8')).toBe('untouched')
     expect((await stat(c)).mtimeMs).toBe(untouched.mtimeMs)
   })
-  it('rejects the whole round on conflict and removes a created file when unchanged', async () => {
+  it('restores verified files and leaves the conflicting created file alone', async () => {
     const a = path.join(root, 'a'),
       b = path.join(root, 'b')
     await writeFile(a, 'baseline')
@@ -464,17 +464,18 @@ describe('AgentFileSnapshotService', () => {
     await writeFile(b, 'user')
     await service.markRoundFinished(round.sessionId, round.replyId)
     expect(await service.getUndoState(round.sessionId)).toMatchObject({
-      canUndo: false,
-      reason: 'conflict',
+      canUndo: true,
+      reason: null,
       files: [
         { path: a, status: 'changed' },
         { path: b, status: 'conflict' }
       ]
     })
-    expect((await undo()).reason).toBe('conflict')
-    expect(await readFile(a, 'utf8')).toBe('agent')
+    expect((await undo()).reason).toBe('partial')
+    expect(await readFile(a, 'utf8')).toBe('baseline')
+    expect(await readFile(b, 'utf8')).toBe('user')
     await writeFile(b, 'new')
-    expect((await undo()).files.map((f) => f.status)).toEqual(['restored', 'removed'])
+    expect((await undo()).files.map((f) => f.status)).toEqual(['already-restored', 'removed'])
   })
   it('rejects stale revisions and purges session snapshots', async () => {
     const target = path.join(root, 'a')
@@ -585,7 +586,7 @@ describe('AgentFileSnapshotService', () => {
     expect(await readFile(a, 'utf8')).toBe('original a')
     expect(await readFile(b, 'utf8')).toBe('original b')
   })
-  it('rejects a replaced target without changing other files', async () => {
+  it('restores other files while leaving a replaced target alone', async () => {
     const a = path.join(root, 'a'),
       b = path.join(root, 'b')
     await writeFile(a, 'a')
@@ -594,8 +595,8 @@ describe('AgentFileSnapshotService', () => {
     await write(b, 'changed b', '2')
     await rm(b)
     await writeFile(b, 'replacement')
-    expect((await undo()).reason).toBe('conflict')
-    expect(await readFile(a, 'utf8')).toBe('changed a')
+    expect((await undo()).reason).toBe('partial')
+    expect(await readFile(a, 'utf8')).toBe('a')
     expect(await readFile(b, 'utf8')).toBe('replacement')
   })
   it('does not undo an earlier round when the current round is empty', async () => {
@@ -750,6 +751,62 @@ describe('AgentFileSnapshotService', () => {
       expect(await readFile(target)).toEqual(baseline)
     }
   )
+  it('recognizes durable edits with mixed line endings as undoable', async () => {
+    const target = path.join(root, 'durable')
+    await writeFile(target, 'one\ntwo\r\nthree\r\n')
+    const attempt = await service.protectWrite({
+      ...call(target, 'durable'),
+      runtime: 'pi-durable',
+      intent: { toolName: 'edit', input: { edits: [{ oldText: 'two', newText: 'TWO\nMORE' }] } }
+    })
+    await writeFile(target, 'one\nTWO\nMORE\nthree\n')
+    await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'success' })
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    expect(await service.getUndoState(round.sessionId)).toMatchObject({
+      canUndo: true,
+      reason: null,
+      files: [{ status: 'changed' }]
+    })
+  })
+  it('restores a verified file alongside an unpredictable edit', async () => {
+    const a = path.join(root, 'a')
+    const b = path.join(root, 'b')
+    await writeFile(a, 'original a')
+    await writeFile(b, 'original b')
+    await write(a, 'first a', 'first')
+    const attempt = await service.protectWrite({
+      ...call(a, 'unpredictable'),
+      intent: { toolName: 'edit', input: { edits: [{ oldText: 'missing', newText: 'changed' }] } }
+    })
+    expect(attempt.classification).toBe('undecidable')
+    await writeFile(a, 'unpredictable a')
+    await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'success' })
+    await write(b, 'changed b', 'second')
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    const state = await service.getUndoState(round.sessionId)
+    expect(state).toMatchObject({
+      canUndo: true,
+      reason: null,
+      files: [
+        { path: a, status: 'conflict' },
+        { path: b, status: 'changed' }
+      ]
+    })
+    const result = await service.undoCurrentRound({
+      sessionId: round.sessionId,
+      replyId: round.replyId,
+      expectedRevision: state.revision!
+    })
+    expect(result).toMatchObject({
+      reason: 'partial',
+      files: [
+        { path: a, status: 'conflict' },
+        { path: b, status: 'restored' }
+      ]
+    })
+    expect(await readFile(a, 'utf8')).toBe('unpredictable a')
+    expect(await readFile(b, 'utf8')).toBe('original b')
+  })
   it('marks absent, repeated and overlapping single-edit matches undecidable', async () => {
     const target = path.join(root, 'edit')
     await writeFile(target, 'aaa')

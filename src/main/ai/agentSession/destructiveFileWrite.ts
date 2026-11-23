@@ -5,14 +5,17 @@ const MAX_DIFF_REMAINDER = 4096
 export function candidateBytesFor(
   toolName: string,
   toolInput: Record<string, unknown>,
-  beforeBytes: Uint8Array
+  beforeBytes: Uint8Array,
+  runtime?: 'pi' | 'pi-durable'
 ): Uint8Array | undefined {
   if (toolName === 'Write' || toolName === 'write')
     return typeof toolInput.content === 'string' ? new TextEncoder().encode(toolInput.content) : undefined
   if (toolName === 'edit') {
     const original = Buffer.from(beforeBytes).toString('utf8')
     const normalize = (text: string) => text.replace(/\r\n|\r/g, '\n')
-    const normalized = normalize(original)
+    const bom = runtime === 'pi-durable' && original.startsWith('\uFEFF') ? '\uFEFF' : ''
+    const content = bom ? original.slice(1) : original
+    const normalized = normalize(content)
     if (!Array.isArray(toolInput.edits)) return undefined
     const replacements: { start: number; end: number; text: string }[] = []
     for (const edit of toolInput.edits) {
@@ -25,6 +28,15 @@ export function candidateBytesFor(
     }
     replacements.sort((a, b) => a.start - b.start)
     if (replacements.some((item, i) => i > 0 && replacements[i - 1].end > item.start)) return undefined
+    if (runtime === 'pi-durable') {
+      const crlfIdx = content.indexOf('\r\n')
+      const lfIdx = content.indexOf('\n')
+      const ending = lfIdx !== -1 && crlfIdx !== -1 && crlfIdx < lfIdx ? '\r\n' : '\n'
+      let result = normalized
+      for (const replacement of replacements.toReversed())
+        result = result.slice(0, replacement.start) + replacement.text + result.slice(replacement.end)
+      return Buffer.from(bom + (ending === '\r\n' ? result.replace(/\n/g, '\r\n') : result), 'utf8')
+    }
     let crlf = 0
     let next = original.indexOf('\r\n')
     const toOriginal = (index: number) => {

@@ -29,3 +29,13 @@ it('bounds work for large replacements', () => {
   ).toBe('undecidable')
   expect(diff).not.toHaveBeenCalled()
 })
+
+it.each([
+  ['one\ntwo\r\nthree\r\n', 'one\nTWO\nMORE\nthree\n'],
+  ['one\r\ntwo\nthree\n', 'one\r\nTWO\r\nMORE\r\nthree\r\n'],
+  ['\uFEFFone\ntwo\r\nthree\r\n', '\uFEFFone\nTWO\nMORE\nthree\n']
+])('matches durable line endings and BOM', (before, after) => {
+  expect(
+    candidateBytesFor('edit', { edits: [{ oldText: 'two', newText: 'TWO\nMORE' }] }, Buffer.from(before), 'pi-durable')
+  ).toEqual(Buffer.from(after))
+})

@@ -36,7 +36,7 @@ export type AgentFileSnapshotReason = z.infer<typeof agentFileSnapshotReason>
 
 const file = z.strictObject({
   path: z.string(),
-  status: z.enum(['changed', 'already-restored', 'unknown', 'conflict'])
+  status: z.enum(['changed', 'already-restored', 'unknown', 'conflict', 'skipped', 'unverifiable'])
 })
 
 export const agentFileSnapshotRequestSchemas = {

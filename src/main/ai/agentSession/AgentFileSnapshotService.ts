@@ -385,7 +385,12 @@ export class AgentFileSnapshotService extends BaseService {
       }
       if (file.restoredAt) throw new Error('Cannot write to an undone round')
       const attemptId = randomUUID()
-      const candidate = candidateBytesFor(call.intent.toolName, call.intent.input, before.bytes ?? Buffer.alloc(0))
+      const candidate = candidateBytesFor(
+        call.intent.toolName,
+        call.intent.input,
+        before.bytes ?? Buffer.alloc(0),
+        call.runtime === 'claude-code' ? undefined : call.runtime
+      )
       const classification = classifyDestructiveWrite(
         { exists: before.state.exists, bytes: before.bytes ?? Buffer.alloc(0) },
         candidate
@@ -567,6 +572,30 @@ export class AgentFileSnapshotService extends BaseService {
     return true
   }
 
+  private async undoEligibility(manifest: Manifest, file: SnapshotFile) {
+    const state = () => currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))
+    if (
+      file.attempts.some((attempt) => attempt.status === 'unknown') ||
+      (!file.afterHash && file.attempts.some((attempt) => attempt.status === 'written'))
+    ) {
+      return file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written') ||
+        (file.afterHash && (await state()) === 'conflict')
+        ? ('conflict' as const)
+        : ('unknown' as const)
+    }
+    if (file.attempts.some((attempt) => attempt.status === 'unverifiable')) return 'unverifiable' as const
+    if (file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written'))
+      return 'conflict' as const
+    if (!file.afterHash) return 'skipped' as const
+    if (file.restoredAt) return 'already-restored' as const
+    const current = await state()
+    return current === 'baseline'
+      ? ('already-restored' as const)
+      : current === 'after'
+        ? ('changed' as const)
+        : ('conflict' as const)
+  }
+
   async getUndoState(sessionId: string, attest?: AttestRound) {
     return this.exclusive(sessionId, async () => {
       const stale = { sessionId, replyId: null, revision: null, files: [], canUndo: false, reason: 'stale' as const }
@@ -595,25 +624,11 @@ export class AgentFileSnapshotService extends BaseService {
       const pendingFiles = manifest.files.filter((f) => !f.restoredAt && f.attempts.some((a) => a.status === 'pending'))
       const files = await Promise.all(
         manifest.files.map(async (file) => {
-          let conflict = file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written')
-          if (!file.restoredAt) {
-            if (pendingFiles.includes(file)) conflict = !(await pendingMatchesBaseline(file, this.maxFileBytes))
-            else if (!conflict && file.afterHash && !file.attempts.some((attempt) => attempt.status === 'unverifiable'))
-              conflict =
-                (await currentFileState(file, this.maxFileBytes, () =>
-                  this.matchesParent(manifest, file, file.parent)
-                )) === 'conflict'
-          }
-          return {
-            ...file,
-            status: file.restoredAt
-              ? ('already-restored' as const)
-              : conflict
-                ? ('conflict' as const)
-                : file.attempts.some((attempt) => attempt.status === 'unknown')
-                  ? ('unknown' as const)
-                  : ('changed' as const)
-          }
+          const status =
+            pendingFiles.includes(file) && !(await pendingMatchesBaseline(file, this.maxFileBytes))
+              ? ('conflict' as const)
+              : await this.undoEligibility(manifest, file)
+          return { ...file, status }
         })
       )
       if (!(await this.isAttested(sessionId, attest))) return stale
@@ -623,15 +638,10 @@ export class AgentFileSnapshotService extends BaseService {
           ? 'turn-active'
           : pendingFiles.length
             ? 'pending'
-            : files.some((file) => file.status === 'conflict')
-              ? 'conflict'
-              : !files.some((file) => file.status === 'changed' && file.afterHash) &&
-                  manifest.files.some(
-                    (f) =>
-                      f.attempts.some((a) => a.status === 'unknown') ||
-                      (!f.afterHash && f.attempts.some((a) => a.status === 'written'))
-                  )
-                ? 'unknown'
+            : !files.some((file) => file.status === 'changed') && files.some((file) => file.status === 'unknown')
+              ? 'unknown'
+              : !files.some((file) => file.status === 'changed') && files.some((file) => file.status === 'conflict')
+                ? 'conflict'
                 : manifest.files.length === 0
                   ? 'empty'
                   : manifest.files.every((f) => f.restoredAt)
@@ -666,52 +676,26 @@ export class AgentFileSnapshotService extends BaseService {
       if (!(await this.cancelStalePending(manifest, attest))) return { files: [], reason: 'stale' }
       if (manifest.files.some((f) => f.attempts.some((a) => a.status === 'pending')))
         return { files: [], reason: 'pending' }
-      const unknown = (f: SnapshotFile) =>
-        f.attempts.some((a) => a.status === 'unknown') ||
-        (!f.afterHash && f.attempts.some((a) => a.status === 'written'))
-      const conflicts = new Set<string>()
-      for (const file of manifest.files) {
-        if (file.restoredAt || file.attempts.some((a) => a.status === 'unverifiable')) continue
-        if (
-          file.attempts.some((attempt) => attempt.preconditionConflict && attempt.status === 'written') ||
-          (file.afterHash &&
-            !unknown(file) &&
-            (await currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))) ===
-              'conflict')
-        )
-          conflicts.add(file.path)
-      }
+      const eligibility = await Promise.all(manifest.files.map((file) => this.undoEligibility(manifest, file)))
       if (!(await this.isAttested(input.sessionId, attest))) return { files: [], reason: 'stale' }
-      if (conflicts.size)
+      if (!eligibility.includes('changed') && eligibility.includes('unknown')) return { files: [], reason: 'unknown' }
+      if (!eligibility.includes('changed') && eligibility.includes('conflict'))
         return {
-          files: manifest.files.map((f) => ({
-            path: f.path,
-            status: f.restoredAt ? 'already-restored' : conflicts.has(f.path) ? 'conflict' : 'unknown'
+          files: manifest.files.map((file, index) => ({
+            path: file.path,
+            status: eligibility[index] === 'changed' ? 'unknown' : eligibility[index]
           })),
           reason: 'conflict'
         }
-      if (!manifest.files.some((f) => f.afterHash && !unknown(f)) && manifest.files.some(unknown))
-        return { files: [], reason: 'unknown' }
       const files: UndoFileResult[] = []
       for (const file of manifest.files) {
-        if (unknown(file)) {
-          files.push({ path: file.path, status: 'unknown' })
-          continue
-        }
-        if (file.attempts.some((a) => a.status === 'unverifiable')) {
-          files.push({ path: file.path, status: 'unverifiable', reason: 'unverifiable' })
-          continue
-        }
-        if (!file.afterHash) {
-          files.push({ path: file.path, status: 'skipped' })
-          continue
-        }
-        if (
-          file.restoredAt ||
-          (await currentFileState(file, this.maxFileBytes, () => this.matchesParent(manifest, file, file.parent))) ===
-            'baseline'
-        ) {
-          files.push({ path: file.path, status: 'already-restored' })
+        const status = await this.undoEligibility(manifest, file)
+        if (status !== 'changed') {
+          files.push({
+            path: file.path,
+            status,
+            ...(status === 'unverifiable' ? { reason: 'unverifiable' as const } : {})
+          })
           continue
         }
         try {
