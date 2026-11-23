@@ -36,7 +36,7 @@ import {
   elicitationValidator,
   type ElicitationContent
 } from '@shared/ai/elicitation'
-import type { LocalAcpTool } from '@shared/ai/localAgent'
+import { DSH_LOCAL_MODE_ID, DSH_LOCAL_MODE_OPTIONS, type LocalAcpTool } from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
@@ -131,6 +131,23 @@ export class AcpConnection extends LocalConnection {
   }
   private async startConnection(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, probe === 'models' ? 'models' : false)
+    let dshPermissionMode: (typeof DSH_LOCAL_MODE_OPTIONS)[number]['value'] | undefined
+    if (!probe && this.config.presetId === 'deepseek-harness') {
+      let savedModeValue: string | undefined
+      try {
+        const savedMode = application.get('CacheService').getPersist?.('local_agent.session_overrides')?.[
+          this.sessionId
+        ]?.mode
+        if (savedMode?.configId === DSH_LOCAL_MODE_ID) savedModeValue = savedMode.value
+      } catch {
+        // Standalone unit tests may construct AcpConnection without booting CacheService.
+      }
+      const envMode = this.config.env.DSH_PERMISSION_MODE
+      const candidate = savedModeValue ?? envMode ?? 'workspace-write'
+      const matched = DSH_LOCAL_MODE_OPTIONS.find((item) => item.value === candidate)
+      dshPermissionMode = matched?.value ?? 'workspace-write'
+      launch.env.DSH_PERMISSION_MODE = dshPermissionMode
+    }
     if (!probe && this.config.presetId === 'deepseek-harness' && !this.config.env.DSH_HOME) {
       const prepared = await application
         .get('DeepSeekHarnessService')
@@ -563,6 +580,13 @@ export class AcpConnection extends LocalConnection {
           })
           this.localSessionInfo.activeModel = { id: this.defaultModel }
         } else throw new Error('This agent does not support model selection')
+      }
+      if (dshPermissionMode && !this.localSessionInfo.mode) {
+        this.localSessionInfo.mode = {
+          id: DSH_LOCAL_MODE_ID,
+          currentValue: dshPermissionMode,
+          options: DSH_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+        }
       }
       this.localSessionInfo.protocolInfo.verified.push('session')
       this.events.push({ type: 'resume-token', token: this.nativeId })

@@ -5,7 +5,12 @@ import type { FinishReason } from 'ai'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
-import { CLAUDE_LOCAL_MODE_ID, CLAUDE_LOCAL_MODE_OPTIONS } from '@shared/ai/localAgent'
+import {
+  CLAUDE_LOCAL_MODE_ID,
+  CLAUDE_LOCAL_MODE_OPTIONS,
+  CLAUDE_LOCAL_THOUGHT_LEVEL_ID,
+  CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS
+} from '@shared/ai/localAgent'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { ClaudeCodeStreamAdapter } from '../claudeCode'
@@ -59,6 +64,7 @@ const UNSUPPORTED_CLAUDE_SLASH_COMMANDS = new Set([
 ])
 
 type ClaudePermissionModeValue = (typeof CLAUDE_LOCAL_MODE_OPTIONS)[number]['value']
+type ClaudeThoughtLevelValue = (typeof CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS)[number]['value']
 
 function filterClaudeSlashCommands(commands: AgentSessionSlashCommand[]): AgentSessionSlashCommand[] {
   return commands.filter((command) => !UNSUPPORTED_CLAUDE_SLASH_COMMANDS.has(command.name))
@@ -73,6 +79,7 @@ export class ClaudeConnection extends LocalConnection {
   private gatewayLease?: { dispose: () => void }
   private dynamicCommandsLoaded = false
   private permissionModeOverride?: ClaudePermissionModeValue
+  private thoughtLevelOverride?: ClaudeThoughtLevelValue
 
   override async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.dynamicCommandsLoaded && !this.closed && this.launch) {
@@ -119,6 +126,11 @@ export class ClaudeConnection extends LocalConnection {
         currentValue: this.permissionModeOverride ?? 'default',
         options: CLAUDE_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
       }
+      this.localSessionInfo.thoughtLevel = {
+        id: CLAUDE_LOCAL_THOUGHT_LEVEL_ID,
+        currentValue: this.thoughtLevelOverride ?? 'default',
+        options: CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS.map((option) => ({ ...option }))
+      }
     }
     this.localSessionInfo.resume = true
     this.localSessionInfo.images = true
@@ -133,6 +145,19 @@ export class ClaudeConnection extends LocalConnection {
     }
     this.permissionModeOverride = option.value
     this.localSessionInfo.mode.currentValue = option.value
+    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Claude session state before queuing an event.
+    this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+    return this.localSessionInfo
+  }
+
+  async setThoughtLevel(configId: string, value: string) {
+    if (this.closed || this.active) throw new Error('Claude session is unavailable or busy')
+    const option = CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS.find((item) => item.value === value)
+    if (configId !== CLAUDE_LOCAL_THOUGHT_LEVEL_ID || !option || !this.localSessionInfo.thoughtLevel) {
+      throw new Error('This session option is no longer available')
+    }
+    this.thoughtLevelOverride = option.value
+    this.localSessionInfo.thoughtLevel.currentValue = option.value
     // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Claude session state before queuing an event.
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
     return this.localSessionInfo
@@ -161,6 +186,9 @@ export class ClaudeConnection extends LocalConnection {
         },
         settingSources: ['user', 'project', 'local'],
         model: this.config.nativeModel,
+        ...(this.thoughtLevelOverride && this.thoughtLevelOverride !== 'default'
+          ? { effort: this.thoughtLevelOverride }
+          : {}),
         ...(this.permissionModeOverride
           ? {
               permissionMode: this.permissionModeOverride,

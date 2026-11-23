@@ -428,8 +428,34 @@ export const CODEX_LOCAL_MODE_OPTIONS = [
   { value: 'fullAccess', name: 'Full Access' }
 ] as const
 
+export const DSH_LOCAL_MODE_ID = 'dsh-mode'
+export const DSH_LOCAL_MODE_OPTIONS = [
+  { value: 'read-only', name: 'Read Only' },
+  { value: 'workspace-write', name: 'Workspace' },
+  { value: 'danger-full-access', name: 'Full Access' }
+] as const
+
+export const CLAUDE_LOCAL_THOUGHT_LEVEL_ID = 'claude-effort'
+export const CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS = [
+  { value: 'default', name: 'Default' },
+  { value: 'low', name: 'Low' },
+  { value: 'medium', name: 'Medium' },
+  { value: 'high', name: 'High' },
+  { value: 'max', name: 'Max' }
+] as const
+
+export const CODEX_LOCAL_THOUGHT_LEVEL_ID = 'codex-effort'
+export const CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS = [
+  { value: 'default', name: 'Default' },
+  { value: 'low', name: 'Low' },
+  { value: 'medium', name: 'Medium' },
+  { value: 'high', name: 'High' },
+  { value: 'xhigh', name: 'Extra High' }
+] as const
+
 export function getDefaultLocalAgentMode(
-  protocol: LocalAgentConfiguration['protocol']
+  protocol: LocalAgentConfiguration['protocol'],
+  presetId?: string
 ): LocalAgentSelection | undefined {
   if (protocol === 'claude') {
     return {
@@ -445,6 +471,33 @@ export function getDefaultLocalAgentMode(
       options: CODEX_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
     }
   }
+  if (protocol === 'acp' && presetId === 'deepseek-harness') {
+    return {
+      id: DSH_LOCAL_MODE_ID,
+      currentValue: 'workspace-write',
+      options: DSH_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+    }
+  }
+  return undefined
+}
+
+export function getDefaultLocalAgentThoughtLevel(
+  protocol: LocalAgentConfiguration['protocol']
+): LocalAgentSelection | undefined {
+  if (protocol === 'claude') {
+    return {
+      id: CLAUDE_LOCAL_THOUGHT_LEVEL_ID,
+      currentValue: 'default',
+      options: CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS.map((option) => ({ ...option }))
+    }
+  }
+  if (protocol === 'codex') {
+    return {
+      id: CODEX_LOCAL_THOUGHT_LEVEL_ID,
+      currentValue: 'default',
+      options: CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS.map((option) => ({ ...option }))
+    }
+  }
   return undefined
 }
 
@@ -452,6 +505,7 @@ export const LOCAL_PERMISSION_CONFIG_OPTION_IDS = new Set(['allow_all', 'sandbox
 
 export interface LocalAgentSessionOverrides {
   mode?: { configId: string; value: string }
+  thoughtLevel?: { configId: string; value: string }
   configOptions?: Record<string, string | boolean>
   updatedAt: number
 }

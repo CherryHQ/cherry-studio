@@ -145,12 +145,27 @@ describe('local agent session option cache', () => {
       id: 'claude-mode',
       currentValue: 'default'
     })
+    expect(claudeBlank.result.current.options?.thoughtLevel).toMatchObject({
+      id: 'claude-effort',
+      currentValue: 'default'
+    })
 
     const codexBlank = renderHook(() => useLocalAgentSessionInfo('blank-codex', true, 'codex'))
     expect(codexBlank.result.current.options?.mode).toMatchObject({
       id: 'codex-mode',
       currentValue: 'workspace'
     })
+    expect(codexBlank.result.current.options?.thoughtLevel).toMatchObject({
+      id: 'codex-effort',
+      currentValue: 'default'
+    })
+
+    const dshBlank = renderHook(() => useLocalAgentSessionInfo('blank-dsh', true, 'acp', 'deepseek-harness'))
+    expect(dshBlank.result.current.options?.mode).toMatchObject({
+      id: 'dsh-mode',
+      currentValue: 'workspace-write'
+    })
+    expect(dshBlank.result.current.options?.thoughtLevel).toBeUndefined()
 
     const acpBlank = renderHook(() => useLocalAgentSessionInfo('blank-acp', true, 'acp'))
     expect(acpBlank.result.current.options).toBeUndefined()

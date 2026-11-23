@@ -1863,15 +1863,26 @@ describe('local protocol processes', () => {
     await expect(connection.setMode?.('codex-mode', 'invalid')).rejects.toThrow('no longer available')
     await expect(connection.setMode?.('other-id', 'readOnly')).rejects.toThrow('no longer available')
 
+    expect(connection.localSessionInfo.thoughtLevel).toMatchObject({
+      id: 'codex-effort',
+      currentValue: 'default'
+    })
+    await expect(connection.setThoughtLevel?.('codex-effort', 'invalid')).rejects.toThrow('no longer available')
+    await expect(connection.setThoughtLevel?.('other-id', 'high')).rejects.toThrow('no longer available')
+    await connection.setThoughtLevel?.('codex-effort', 'high')
+    expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('high')
+
     await connection.setMode?.('codex-mode', 'readOnly')
     expect(connection.localSessionInfo.mode?.currentValue).toBe('readOnly')
     expect(events.some((event) => event.type === 'local-session-info')).toBe(true)
 
     await connection.send(input)
     await expect(connection.setMode?.('codex-mode', 'workspace')).rejects.toThrow('unavailable or busy')
+    await expect(connection.setThoughtLevel?.('codex-effort', 'low')).rejects.toThrow('unavailable or busy')
     await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1))
 
     await connection.setMode?.('codex-mode', 'fullAccess')
+    await connection.setThoughtLevel?.('codex-effort', 'default')
     await connection.send(input)
     await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(2))
     await connection.close()
@@ -1880,11 +1891,48 @@ describe('local protocol processes', () => {
     const turnStarts = (await readWire()).filter((message) => message.method === 'turn/start')
     expect(turnStarts[0].params).toMatchObject({
       approvalPolicy: 'on-request',
-      sandboxPolicy: { type: 'readOnly', networkAccess: false }
+      sandboxPolicy: { type: 'readOnly', networkAccess: false },
+      effort: 'high'
     })
     expect(turnStarts[1].params).toMatchObject({
       approvalPolicy: 'never',
       sandboxPolicy: { type: 'dangerFullAccess' }
     })
+    expect(turnStarts[1].params.effort).toBeUndefined()
+  })
+
+  it('exposes native DeepSeek Harness modes from ACP config env when ACP omits modes', async () => {
+    const config: LocalAgentConfiguration = {
+      protocol: 'acp',
+      presetId: 'deepseek-harness',
+      enabled: true,
+      executableOverride: process.execPath,
+      args: [fixture, 'acp', 'normal'],
+      env: {
+        FIXTURE_LOG: path.join(cwd, 'wire.jsonl'),
+        DSH_HOME: cwd,
+        DSH_PERMISSION_MODE: 'read-only'
+      }
+    }
+    const connection = new AcpConnection('dsh-session', 'dsh-agent', config)
+    connections.push(connection)
+    const events: AgentRuntimeEvent[] = []
+    const drained = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+
+    await connection.start(cwd)
+    expect(events.length).toBeGreaterThanOrEqual(0)
+    expect(connection.localSessionInfo.mode).toEqual({
+      id: 'dsh-mode',
+      currentValue: 'read-only',
+      options: [
+        { value: 'read-only', name: 'Read Only' },
+        { value: 'workspace-write', name: 'Workspace' },
+        { value: 'danger-full-access', name: 'Full Access' }
+      ]
+    })
+    await connection.close()
+    await drained
   })
 })

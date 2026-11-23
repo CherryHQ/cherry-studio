@@ -63,8 +63,12 @@ import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
 import {
+  DSH_LOCAL_MODE_ID,
+  DSH_LOCAL_MODE_OPTIONS,
   getDefaultLocalAgentMode,
+  getDefaultLocalAgentThoughtLevel,
   LOCAL_PERMISSION_CONFIG_OPTION_IDS,
+  type LocalAgentConfiguration,
   type LocalAgentSessionInfo,
   type LocalAgentSessionOverrides
 } from '@shared/ai/localAgent'
@@ -2552,6 +2556,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const savedOverrides = this.getLocalSessionOverrides(entry.sessionId)
       if (
         savedOverrides?.mode ||
+        savedOverrides?.thoughtLevel ||
         (savedOverrides?.configOptions && Object.keys(savedOverrides.configOptions).length > 0)
       ) {
         if (!(await this.restoreLocalSessionOverrides(entry, connection, attemptId, savedOverrides))) {
@@ -4039,7 +4044,11 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private saveLocalSessionOverride(
     sessionId: string,
-    patch: { mode?: { configId: string; value: string }; configOption?: { configId: string; value: string | boolean } }
+    patch: {
+      mode?: { configId: string; value: string }
+      thoughtLevel?: { configId: string; value: string }
+      configOption?: { configId: string; value: string | boolean }
+    }
   ): void {
     try {
       const cache = application.get('CacheService')
@@ -4049,6 +4058,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const nextEntry: LocalAgentSessionOverrides = {
         ...existing,
         ...(patch.mode ? { mode: patch.mode } : {}),
+        ...(patch.thoughtLevel ? { thoughtLevel: patch.thoughtLevel } : {}),
         ...(patch.configOption
           ? {
               configOptions: {
@@ -4092,6 +4102,28 @@ export class AgentSessionRuntimeService extends BaseService {
           sessionId: entry.sessionId,
           configId: saved.mode.configId,
           value: saved.mode.value
+        })
+      }
+      if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) {
+        return false
+      }
+    }
+    const thoughtInfo = connection.localSessionInfo?.thoughtLevel
+    if (
+      saved.thoughtLevel &&
+      connection.setThoughtLevel &&
+      thoughtInfo &&
+      thoughtInfo.id === saved.thoughtLevel.configId &&
+      thoughtInfo.currentValue !== saved.thoughtLevel.value &&
+      thoughtInfo.options.some((option) => option.value === saved.thoughtLevel!.value)
+    ) {
+      try {
+        await connection.setThoughtLevel(saved.thoughtLevel.configId, saved.thoughtLevel.value)
+      } catch (error) {
+        logger.warn('Failed to restore local session thought level override', error as Error, {
+          sessionId: entry.sessionId,
+          configId: saved.thoughtLevel.configId,
+          value: saved.thoughtLevel.value
         })
       }
       if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) {
@@ -4155,7 +4187,95 @@ export class AgentSessionRuntimeService extends BaseService {
     return info
   }
 
+  private buildLocalFallbackSessionInfo(
+    sessionId: string,
+    protocol: LocalAgentConfiguration['protocol'],
+    presetId?: string,
+    baseInfo?: LocalAgentSessionInfo
+  ): LocalAgentSessionInfo {
+    const saved = this.getLocalSessionOverrides(sessionId)
+    const defaultMode = getDefaultLocalAgentMode(protocol, presetId)
+    const savedMode = saved?.mode
+    const resolvedMode =
+      defaultMode &&
+      savedMode?.configId === defaultMode.id &&
+      defaultMode.options.some((option) => option.value === savedMode.value)
+        ? { ...defaultMode, currentValue: savedMode.value }
+        : defaultMode
+    const defaultThoughtLevel = getDefaultLocalAgentThoughtLevel(protocol)
+    const savedThoughtLevel = saved?.thoughtLevel
+    const resolvedThoughtLevel =
+      defaultThoughtLevel &&
+      savedThoughtLevel?.configId === defaultThoughtLevel.id &&
+      defaultThoughtLevel.options.some((option) => option.value === savedThoughtLevel.value)
+        ? { ...defaultThoughtLevel, currentValue: savedThoughtLevel.value }
+        : defaultThoughtLevel
+    return {
+      models: baseInfo?.models ?? [],
+      images: baseInfo?.images ?? true,
+      resume: baseInfo?.resume ?? true,
+      ...baseInfo,
+      ...(resolvedMode ? { mode: resolvedMode } : {}),
+      ...(resolvedThoughtLevel ? { thoughtLevel: resolvedThoughtLevel } : {})
+    }
+  }
+
   async setLocalMode(sessionId: string, configId: string, value: string) {
+    if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
+    const session = agentSessionService.getById(sessionId)
+    const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
+    const isLocalAgent = agent?.type === 'local'
+    const localConfig = isLocalAgent ? agent.configuration?.localRuntime : undefined
+    // DeepSeek Harness applies DSH_PERMISSION_MODE via launch env (no ACP session/set_mode),
+    // so changing it rebuilds any idle connection with the persisted override cleanly.
+    if (
+      localConfig?.presetId === 'deepseek-harness' &&
+      configId === DSH_LOCAL_MODE_ID &&
+      DSH_LOCAL_MODE_OPTIONS.some((option) => option.value === value)
+    ) {
+      const existingEntry = this.entries.get(sessionId)
+      const existingConnection = existingEntry && this.currentConnection(existingEntry)
+      const baseInfo = existingConnection?.localSessionInfo ? { ...existingConnection.localSessionInfo } : undefined
+      this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+      if (existingConnection) {
+        await this.closeSession(sessionId)
+      }
+      const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId, baseInfo)
+      application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
+      return info
+    }
+    let primeError: unknown
+    let entry = this.entries.get(sessionId)
+    if (!entry || !this.currentConnection(entry)) {
+      if (isLocalAgent) {
+        try {
+          await this.primeConnection(sessionId, { rethrow: true })
+        } catch (error) {
+          primeError = error
+        }
+        entry = this.entries.get(sessionId)
+      }
+    }
+    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
+    if (connection && !this.isSessionBusy(sessionId) && connection.setMode) {
+      const info = await connection.setMode(configId, value)
+      this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+      return info
+    }
+    if (!connection && !this.isSessionBusy(sessionId) && localConfig) {
+      const defaultMode = getDefaultLocalAgentMode(localConfig.protocol, localConfig.presetId)
+      if (defaultMode && defaultMode.id === configId && defaultMode.options.some((option) => option.value === value)) {
+        this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+        const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId)
+        application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
+        return info
+      }
+    }
+    if (primeError) throw primeError
+    throw new Error('Local agent session is unavailable or busy')
+  }
+
+  async setLocalThoughtLevel(sessionId: string, configId: string, value: string) {
     if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
     let primeError: unknown
     let entry = this.entries.get(sessionId)
@@ -4171,34 +4291,30 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
     const connection = entry?.agentType === 'local' && this.currentConnection(entry)
-    if (connection && !this.isSessionBusy(sessionId) && connection.setMode) {
-      const info = await connection.setMode(configId, value)
-      this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+    if (connection && !this.isSessionBusy(sessionId) && connection.setThoughtLevel) {
+      const info = await connection.setThoughtLevel(configId, value)
+      this.saveLocalSessionOverride(sessionId, { thoughtLevel: { configId, value } })
       return info
     }
     if (!connection && !this.isSessionBusy(sessionId)) {
       const session = agentSessionService.getById(sessionId)
       const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
-      const protocol = agent?.type === 'local' ? agent.configuration?.localRuntime?.protocol : undefined
-      const defaultMode = protocol ? getDefaultLocalAgentMode(protocol) : undefined
-      if (defaultMode && defaultMode.id === configId && defaultMode.options.some((option) => option.value === value)) {
-        this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
-        const info: LocalAgentSessionInfo = {
-          models: [],
-          images: true,
-          resume: true,
-          mode: { ...defaultMode, currentValue: value }
-        }
+      const localConfig = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
+      const defaultThoughtLevel = localConfig ? getDefaultLocalAgentThoughtLevel(localConfig.protocol) : undefined
+      if (
+        localConfig &&
+        defaultThoughtLevel &&
+        defaultThoughtLevel.id === configId &&
+        defaultThoughtLevel.options.some((option) => option.value === value)
+      ) {
+        this.saveLocalSessionOverride(sessionId, { thoughtLevel: { configId, value } })
+        const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId)
         application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
         return info
       }
     }
     if (primeError) throw primeError
     throw new Error('Local agent session is unavailable or busy')
-  }
-
-  setLocalThoughtLevel(sessionId: string, configId: string, value: string) {
-    return this.changeLocalOption(sessionId, (connection) => connection.setThoughtLevel?.(configId, value))
   }
 
   getLocalSessionInfo(sessionId: string) {

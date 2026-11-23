@@ -5150,6 +5150,108 @@ describe('AgentSessionRuntimeService', () => {
     )
   })
 
+  it('persists pre-connect thoughtLevel overrides, replays them on reconnect, and rebuilds idle DSH sessions on mode switch', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { presetId: 'claude', protocol: 'claude', enabled: true, args: [], env: {} } }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    const preThought = await service.setLocalThoughtLevel('session-1', 'claude-effort', 'high')
+    expect(preThought.thoughtLevel?.currentValue).toBe('high')
+    expect(preThought.mode).toMatchObject({ id: 'claude-mode', currentValue: 'default' })
+
+    const replayedInfo = {
+      models: [],
+      images: true,
+      resume: true,
+      mode: { id: 'claude-mode', currentValue: 'default', options: [{ value: 'default', name: 'Default' }] },
+      thoughtLevel: {
+        id: 'claude-effort',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Default' },
+          { value: 'high', name: 'High' }
+        ]
+      }
+    }
+    const setThoughtLevel = vi.fn(async (_id: string, val: string) => {
+      replayedInfo.thoughtLevel.currentValue = val
+      return replayedInfo
+    })
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn().mockResolvedValue({
+        ...createAsyncQueue<any>(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        localSessionInfo: replayedInfo,
+        setThoughtLevel
+      }),
+      validateSession: vi.fn()
+    })
+
+    await service.primeConnection('session-1')
+    expect(setThoughtLevel).toHaveBeenCalledWith('claude-effort', 'high')
+    await service.closeSession('session-1')
+
+    // DSH mode change persists override, closes an idle connection for next-turn env injection, and broadcasts mode.
+    mocks.cachePersist.clear()
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-dsh',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: {
+        localRuntime: { presetId: 'deepseek-harness', protocol: 'acp', enabled: true, args: [], env: {} }
+      }
+    })
+    mocks.hasSessionMessages.mockReturnValue(true)
+    mocks.getSessionById.mockReturnValue({ id: 'session-dsh', agentId: 'agent-dsh', workspace: { path: '/workspace' } })
+    const dshClose = vi.fn()
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn().mockResolvedValue({
+        ...createAsyncQueue<any>(dshClose),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        localSessionInfo: {
+          models: [{ id: 'm1', name: 'Model 1' }],
+          images: false,
+          resume: true,
+          mode: {
+            id: 'dsh-mode',
+            currentValue: 'workspace-write',
+            options: [
+              { value: 'read-only', name: 'Read Only' },
+              { value: 'workspace-write', name: 'Workspace' },
+              { value: 'danger-full-access', name: 'Full Access' }
+            ]
+          }
+        }
+      }),
+      validateSession: vi.fn()
+    })
+    await service.primeConnection('session-dsh')
+    mocks.broadcast.mockClear()
+
+    const updatedDsh = await service.setLocalMode('session-dsh', 'dsh-mode', 'read-only')
+    expect(updatedDsh.mode?.currentValue).toBe('read-only')
+    expect(updatedDsh.models).toEqual([{ id: 'm1', name: 'Model 1' }])
+    expect(dshClose).toHaveBeenCalled()
+    expect(
+      (mocks.cachePersist.get('local_agent.session_overrides') as Record<string, any> | undefined)?.['session-dsh']
+        ?.mode
+    ).toEqual({
+      configId: 'dsh-mode',
+      value: 'read-only'
+    })
+    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
+      sessionId: 'session-dsh',
+      info: expect.objectContaining({ mode: expect.objectContaining({ id: 'dsh-mode', currentValue: 'read-only' }) })
+    })
+  })
+
   describe('primeConnection — eager command load on session open', () => {
     it('leaves a new managed DeepSeek Harness task available for model selection until the first turn', async () => {
       const connect = vi.fn().mockResolvedValue({

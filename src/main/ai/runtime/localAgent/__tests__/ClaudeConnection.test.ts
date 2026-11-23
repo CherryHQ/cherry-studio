@@ -293,6 +293,23 @@ describe('native Claude protocol mapping', () => {
       expect(sdk.queryOptions.at(-1)?.permissionMode).toBe('bypassPermissions')
       expect(sdk.queryOptions.at(-1)?.allowDangerouslySkipPermissions).toBe(true)
       expect(events.some((event) => event.type === 'local-session-info')).toBe(true)
+
+      expect(connection.localSessionInfo.thoughtLevel).toMatchObject({
+        id: 'claude-effort',
+        currentValue: 'default'
+      })
+      expect(sdk.queryOptions.at(-1)?.effort).toBeUndefined()
+      await expect(connection.setThoughtLevel('claude-effort', 'invalid')).rejects.toThrow('no longer available')
+      await expect(connection.setThoughtLevel('wrong-id', 'high')).rejects.toThrow('no longer available')
+
+      await connection.setThoughtLevel('claude-effort', 'high')
+      expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('high')
+      await connection.send(input)
+      expect(sdk.queryOptions.at(-1)?.effort).toBe('high')
+
+      await connection.setThoughtLevel('claude-effort', 'default')
+      await connection.send(input)
+      expect(sdk.queryOptions.at(-1)?.effort).toBeUndefined()
     } finally {
       await connection.close()
       await drained

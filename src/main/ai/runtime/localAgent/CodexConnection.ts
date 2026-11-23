@@ -5,7 +5,12 @@ import * as z from 'zod'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
-import { CODEX_LOCAL_MODE_ID, CODEX_LOCAL_MODE_OPTIONS } from '@shared/ai/localAgent'
+import {
+  CODEX_LOCAL_MODE_ID,
+  CODEX_LOCAL_MODE_OPTIONS,
+  CODEX_LOCAL_THOUGHT_LEVEL_ID,
+  CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS
+} from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
@@ -106,6 +111,35 @@ const TokenUsageSchema = z.object({
 })
 const TokenUsageUpdateSchema = z.object({ total: TokenUsageSchema, last: TokenUsageSchema })
 
+const CODEX_EFFORT_LABELS: Record<string, string> = {
+  default: 'Default',
+  none: 'None',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra High',
+  max: 'Max'
+}
+
+function buildCodexThoughtLevelOptions(
+  efforts?: Array<{ reasoningEffort: string; description?: string }>
+): Array<{ value: string; name: string; description?: string }> {
+  if (!efforts?.length) return CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS.map((option) => ({ ...option }))
+  const seen = new Set<string>(['default'])
+  const options: Array<{ value: string; name: string; description?: string }> = [{ value: 'default', name: 'Default' }]
+  for (const entry of efforts) {
+    if (!entry.reasoningEffort || seen.has(entry.reasoningEffort)) continue
+    seen.add(entry.reasoningEffort)
+    options.push({
+      value: entry.reasoningEffort,
+      name: CODEX_EFFORT_LABELS[entry.reasoningEffort] ?? entry.reasoningEffort,
+      ...(entry.description ? { description: entry.description } : {})
+    })
+  }
+  return options
+}
+
 export class CodexConnection extends LocalConnection {
   private process?: ChildProcess
   private lines?: Interface
@@ -116,6 +150,7 @@ export class CodexConnection extends LocalConnection {
   private compacting = false
   private gatewayLease?: { dispose: () => void }
   private modeOverride?: CodexModeValue
+  private thoughtLevelOverride?: string
   private readonly turnHistory: string[] = []
   private usageBaseline?: z.infer<typeof TokenUsageSchema>
   private lastTokenUsage?: z.infer<typeof TokenUsageSchema>
@@ -189,7 +224,14 @@ export class CodexConnection extends LocalConnection {
     this.localSessionInfo.resume = true
     this.localSessionInfo.images = true
     if (probe === true) return this
-    const models: Array<{ id: string; model?: string; displayName: string; inputModalities?: string[] }> = []
+    const models: Array<{
+      id: string
+      model?: string
+      displayName: string
+      inputModalities?: string[]
+      supportedReasoningEfforts?: Array<{ reasoningEffort: string; description?: string }>
+      defaultReasoningEffort?: string
+    }> = []
     let cursor: string | null = null
     do {
       const catalog = z
@@ -199,7 +241,11 @@ export class CodexConnection extends LocalConnection {
               id: z.string(),
               model: z.string().optional(),
               displayName: z.string(),
-              inputModalities: z.array(z.string()).optional()
+              inputModalities: z.array(z.string()).optional(),
+              supportedReasoningEfforts: z
+                .array(z.object({ reasoningEffort: z.string(), description: z.string().optional() }))
+                .optional(),
+              defaultReasoningEffort: z.string().optional()
             })
           ),
           nextCursor: z.string().nullish()
@@ -226,7 +272,8 @@ export class CodexConnection extends LocalConnection {
       .object({
         model: z.string().optional(),
         approvalPolicy: z.unknown().optional(),
-        sandbox: z.object({ type: z.string().optional() }).passthrough().optional()
+        sandbox: z.object({ type: z.string().optional() }).passthrough().optional(),
+        reasoningEffort: z.string().nullish()
       })
       .parse(response)
     const nativeModel = threadMeta.model
@@ -245,6 +292,16 @@ export class CodexConnection extends LocalConnection {
       currentValue: initialMode,
       options: CODEX_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
     }
+    const thoughtOptions = buildCodexThoughtLevelOptions(selected?.supportedReasoningEfforts)
+    const preferredThoughtLevel = this.thoughtLevelOverride ?? threadMeta.reasoningEffort ?? undefined
+    this.localSessionInfo.thoughtLevel = {
+      id: CODEX_LOCAL_THOUGHT_LEVEL_ID,
+      currentValue:
+        preferredThoughtLevel && thoughtOptions.some((option) => option.value === preferredThoughtLevel)
+          ? preferredThoughtLevel
+          : 'default',
+      options: thoughtOptions
+    }
     this.threadId = ThreadSchema.parse(response).thread.id
     this.supportedCommands = CODEX_SUPPORTED_COMMANDS
     this.events.push({ type: 'resume-token', token: this.threadId })
@@ -259,6 +316,19 @@ export class CodexConnection extends LocalConnection {
     }
     this.modeOverride = option.value
     this.localSessionInfo.mode.currentValue = option.value
+    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Codex session state before queuing an event.
+    this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+    return this.localSessionInfo
+  }
+
+  async setThoughtLevel(configId: string, value: string) {
+    if (this.closed || this.active) throw new Error('Codex session is unavailable or busy')
+    const option = this.localSessionInfo.thoughtLevel?.options.find((item) => item.value === value)
+    if (configId !== CODEX_LOCAL_THOUGHT_LEVEL_ID || !option || !this.localSessionInfo.thoughtLevel) {
+      throw new Error('This session option is no longer available')
+    }
+    this.thoughtLevelOverride = option.value
+    this.localSessionInfo.thoughtLevel.currentValue = option.value
     // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Codex session state before queuing an event.
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
     return this.localSessionInfo
@@ -655,6 +725,9 @@ export class CodexConnection extends LocalConnection {
       await this.request('turn/start', {
         threadId: this.threadId,
         ...(this.modeOverride ? CODEX_TURN_MODE_PARAMS[this.modeOverride] : {}),
+        ...(this.thoughtLevelOverride && this.thoughtLevelOverride !== 'default'
+          ? { effort: this.thoughtLevelOverride }
+          : {}),
         input: [
           ...(matchedSkill ? [{ type: 'skill', name: matchedSkill.name, path: matchedSkill.path }] : []),
           ...content.map((part) =>

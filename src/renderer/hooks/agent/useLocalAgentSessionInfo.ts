@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import {
   getDefaultLocalAgentMode,
+  getDefaultLocalAgentThoughtLevel,
   type LocalAgentConfiguration,
   type LocalAgentSessionInfo
 } from '@shared/ai/localAgent'
@@ -26,7 +27,8 @@ function upsertSnapshot(
 export function useLocalAgentSessionInfo(
   sessionId: string,
   enabled: boolean,
-  protocol?: LocalAgentConfiguration['protocol']
+  protocol?: LocalAgentConfiguration['protocol'],
+  presetId?: string
 ) {
   const [snapshots, setSnapshots] = useCache('agent.session.local_options')
   const [persistedSnapshots, setPersistedSnapshots] = usePersistCache('local_agent.session_option_snapshots')
@@ -73,13 +75,30 @@ export function useLocalAgentSessionInfo(
   }, [sessionId, enabled, scope])
 
   const info = enabled && live?.scope === scope ? live.info : null
-  const fallbackMode = useMemo(() => (protocol ? getDefaultLocalAgentMode(protocol) : undefined), [protocol])
+  const base = info ?? snapshots[sessionId] ?? persistedSnapshots[sessionId]
+  const options = useMemo(() => {
+    if (!enabled) return base
+    const fallbackMode = protocol ? getDefaultLocalAgentMode(protocol, presetId) : undefined
+    const fallbackThoughtLevel = protocol ? getDefaultLocalAgentThoughtLevel(protocol) : undefined
+    if (!base) {
+      if (!fallbackMode && !fallbackThoughtLevel) return undefined
+      return {
+        ...(fallbackMode ? { mode: fallbackMode } : {}),
+        ...(fallbackThoughtLevel ? { thoughtLevel: fallbackThoughtLevel } : {})
+      }
+    }
+    const needsMode = !base.mode && fallbackMode
+    const needsThought = !base.thoughtLevel && fallbackThoughtLevel
+    if (!needsMode && !needsThought) return base
+    return {
+      ...base,
+      ...(needsMode ? { mode: fallbackMode } : {}),
+      ...(needsThought ? { thoughtLevel: fallbackThoughtLevel } : {})
+    }
+  }, [base, enabled, presetId, protocol])
+
   return {
     info,
-    options:
-      info ??
-      snapshots[sessionId] ??
-      persistedSnapshots[sessionId] ??
-      (enabled && fallbackMode ? { mode: fallbackMode } : undefined)
+    options
   }
 }

@@ -613,7 +613,8 @@ const AgentComposerInner = ({
   const { info: localInfo, options: localOptions } = useLocalAgentSessionInfo(
     sessionId,
     agent?.type === 'local' && (!currentTabId || isActiveTab),
-    agent?.type === 'local' ? agent.configuration?.localRuntime?.protocol : undefined
+    agent?.type === 'local' ? agent.configuration?.localRuntime?.protocol : undefined,
+    agent?.type === 'local' ? agent.configuration?.localRuntime?.presetId : undefined
   )
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
   const canonicalReasoningEffort = model
