@@ -2042,18 +2042,8 @@ export class JobManager extends BaseService {
       })
   }
 
-  /**
-   * Terminal-state writer. Persists the final status, publishes the snapshot
-   * to the shared cache (renderer subscribers see it instantly), resolves the
-   * `JobHandle.finished` promise, invokes `handler.onSettled`, and kicks the
-   * queue once more in case another pending job is waiting for the freed slot.
-   *
-   * If the terminal-write tx fails we synthesize a `failed` snapshot, kick the
-   * caller's queue, and resolve any pending handle with the synthetic shape.
-   * The DB row stays mismatched until the next process restart's recovery
-   * pass — but the in-memory queue slot frees up and `await handle.finished`
-   * unblocks instead of stranding the caller.
-   */
+  /** Release the local slot even if a failed write leaves a running row for recovery.
+   * Only a terminal snapshot can be sent to settlement observers. */
   private async finalizeJob(
     jobId: string,
     status: 'completed' | 'failed' | 'cancelled',
