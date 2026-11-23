@@ -52,7 +52,8 @@ export function McpServerCatalogGrid({
   onOpenSettings,
   onToggle,
   portalContainer,
-  title
+  title,
+  servers
 }: {
   enabledIds: ReadonlySet<string>
   disabled?: boolean
@@ -61,12 +62,14 @@ export function McpServerCatalogGrid({
   onToggle: (id: string, enabled: boolean) => void
   portalContainer: HTMLElement | null
   title?: string
+  /** A reviewed creation snapshot; display exactly the catalog that seeded selection. */
+  servers?: McpServer[]
 }) {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery('/mcp-servers', {})
   const mcpServers = useMemo<McpServer[]>(
-    () => data?.items.filter((server) => !isBrowserMcpServer(server)) ?? [],
-    [data]
+    () => (servers ?? data?.items ?? []).filter((server) => !isBrowserMcpServer(server)),
+    [data, servers]
   )
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
   const settingsLabel = title ? `${title} ${t('settings.title')}` : t('settings.mcp.title')
@@ -116,7 +119,7 @@ export function McpServerCatalogGrid({
           items={catalog}
           enabledIds={enabledIds}
           disabled={disabled}
-          loading={isLoading}
+          loading={servers === undefined && isLoading}
           onToggle={onToggle}
           emptyLabel={emptyLabel}
           portalContainer={portalContainer}

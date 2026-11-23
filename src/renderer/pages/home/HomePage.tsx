@@ -22,6 +22,7 @@ import {
 } from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
 import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
+import { usePresetMcpReview } from '@renderer/components/resourceCatalog/dialogs/create'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -367,6 +368,8 @@ const HomePage: FC = () => {
     [requestComposerFocus, setActiveTopicAndCloseResourceView]
   )
 
+  const { reviewMcp, reviewDialog } = usePresetMcpReview()
+
   const resolveAssistantIdForSelection = useCallback(
     async (selection: AssistantConversationSelection) => {
       if (selection.type === 'assistant') return selection.assistantId
@@ -377,9 +380,12 @@ const HomePage: FC = () => {
       const existing = assistants.find((assistant) => assistant.name === presetName)
       if (existing) return existing.id
 
-      return (await addAssistant(toCreateAssistantDtoFromCatalogPreset(selection.preset))).id
+      const reviewedMcpServerIds = await reviewMcp()
+      if (reviewedMcpServerIds === null) return null
+      return (await addAssistant({ ...toCreateAssistantDtoFromCatalogPreset(selection.preset), reviewedMcpServerIds }))
+        .id
     },
-    [addAssistant, assistants]
+    [addAssistant, assistants, reviewMcp]
   )
 
   const handleAssistantConversationSelect = useCallback(
@@ -391,6 +397,7 @@ const HomePage: FC = () => {
       setAssistantPickerOpen(false)
       try {
         const assistantId = await resolveAssistantIdForSelection(selection)
+        if (!assistantId) return
 
         const result = await reuseOrCreateTopic(assistantId)
         const rendererTopic = mapApiTopicToRendererTopic(result.topic)
@@ -772,6 +779,7 @@ const HomePage: FC = () => {
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
       userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
+      {reviewDialog}
       <HomeTabRuntime
         title={tabTitle}
         emoji={visibleAssistant?.emoji}

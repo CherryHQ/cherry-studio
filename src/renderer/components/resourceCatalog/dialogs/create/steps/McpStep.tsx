@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { preferenceService } from '@renderer/data/PreferenceService'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 
 import { McpServerCatalogGrid } from '../../components/McpServerCatalogGrid'
@@ -23,6 +24,7 @@ export function McpStep({
 }) {
   const { t } = useTranslation()
   const reviewedIds = useWatch({ control: form.control, name: 'reviewedMcpServerIds' })
+  const [catalog, setCatalog] = useState<McpServer[] | undefined>()
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
@@ -43,6 +45,7 @@ export function McpStep({
         const activeIds = new Set(
           servers.items.filter((server) => server.isActive && !isBrowserMcpServer(server)).map((server) => server.id)
         )
+        setCatalog(servers.items)
         form.setValue(
           'reviewedMcpServerIds',
           [...new Set(ids)].filter((id) => activeIds.has(id))
@@ -76,6 +79,7 @@ export function McpStep({
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">{t('assistant.mcp_defaults.description')}</p>
       <McpServerCatalogGrid
+        servers={catalog}
         title={t('settings.mcp.title')}
         enabledIds={new Set(selectedIds)}
         disabled={disabled}

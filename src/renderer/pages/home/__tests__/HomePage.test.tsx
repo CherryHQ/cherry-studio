@@ -10,6 +10,11 @@ import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrame
 import { useCommandHandler } from '@renderer/hooks/command'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
+const presetReview = vi.hoisted(() => ({ reviewMcp: vi.fn(async (): Promise<string[] | null> => []) }))
+vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
+  usePresetMcpReview: () => ({ reviewMcp: presetReview.reviewMcp, reviewDialog: null })
+}))
+
 const initialTopic: Topic = {
   id: 'topic-initial',
   assistantId: 'assistant-1',
@@ -642,7 +647,8 @@ vi.mock('../components/AssistantConversationPickerDialog', () => ({
                 name: 'Catalog Preset',
                 prompt: 'Preset prompt',
                 description: 'Preset description',
-                emoji: '📦'
+                emoji: '📦',
+                reviewedMcpServerIds: []
               }
             })
           }>
@@ -703,6 +709,7 @@ import HomePage from '../HomePage'
 
 describe('HomePage', () => {
   beforeEach(() => {
+    presetReview.reviewMcp.mockResolvedValue([])
     vi.clearAllMocks()
     homeMocks.entryTopic = initialTopic
     homeMocks.assistants = [{ id: 'assistant-default' }]
@@ -1110,11 +1117,23 @@ describe('HomePage', () => {
         name: 'Catalog Preset',
         prompt: 'Preset prompt',
         description: 'Preset description',
-        emoji: '📦'
+        emoji: '📦',
+        reviewedMcpServerIds: []
       })
     )
     expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-created' })
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-created')
+  })
+
+  it('does not create a preset assistant or topic when MCP review is cancelled', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    presetReview.reviewMcp.mockResolvedValueOnce(null)
+    render(<HomePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select catalog assistant' }))
+    await waitFor(() => expect(presetReview.reviewMcp).toHaveBeenCalled())
+    expect(homeMocks.addAssistant).not.toHaveBeenCalled()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
   it('reuses an existing assistant whose name matches the catalog preset instead of duplicating it', async () => {

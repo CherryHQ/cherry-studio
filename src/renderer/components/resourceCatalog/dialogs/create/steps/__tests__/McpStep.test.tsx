@@ -60,7 +60,7 @@ beforeEach(async () => {
   mockPreferenceState.set(key, ['a', 'inactive', 'removed', 'browser'])
   MockDataApiUtils.resetMocks()
   MockUseDataApiUtils.resetMocks()
-  const response = { items: servers, total: servers.length, page: 1, limit: servers.length }
+  const response = { items: servers, total: servers.length, page: 1 }
   MockDataApiUtils.setCustomResponse('/mcp-servers', 'GET', response)
   MockUseDataApiUtils.mockQueryData('/mcp-servers', response)
 })
@@ -90,6 +90,19 @@ describe('McpStep reviewed selection', () => {
       body: expect.objectContaining({ reviewedMcpServerIds: [] })
     })
     expect(mockPreferenceState.get(key)).toEqual(['b'])
+  })
+
+  it('displays and clears the seed catalog even when the independent picker query has no rows', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.resetMocks()
+    render(<Editor />)
+    const files = await screen.findByRole('switch', { name: 'Files' })
+    expect(files).toBeChecked()
+    await user.click(files)
+    await user.click(screen.getByRole('button', { name: 'Save assistant' }))
+    expect(dataApiService.post).toHaveBeenLastCalledWith('/assistants', {
+      body: expect.objectContaining({ reviewedMcpServerIds: [] })
+    })
   })
 
   it('keeps an unavailable preference unresolved and lets retry recover', async () => {

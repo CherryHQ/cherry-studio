@@ -13,7 +13,7 @@ Status: implemented
 新增一个用户偏好 `assistant.default_mcp_server_ids`（`string[]`，默认 `[]`），保存新建助手应继承的 MCP 服务器。该偏好只在创建助手时读取。
 
 - 偏好声明在 `scripts/data-classify/data/target-key-definitions.json` 中，并生成到 `src/shared/data/preference/preferenceSchemas.ts`；生成文件不手动编辑。
-- 偏好在现有的聊天设置区域中编辑，为 MCP 服务器多选控件。未配置任何服务器时显示空状态。
+- 偏好在常规设置区域中编辑，为 MCP 服务器多选控件。未配置任何服务器时显示空状态。
 - 创建助手时，`mcpServerIds` 由该偏好初始化，并过滤掉已不存在或未激活（`mcpServer.isActive`）的服务器。`mcpMode` 保持现有默认值，因此只有模式为 `manual` 时继承的服务器才会生效，与现状一致。
 - 创建对话框在保存前显示继承的服务器，用户可以仅为该助手修改或清空。
 - 编辑已有助手不会写入该偏好；修改偏好也不会改变已有助手。不执行迁移。
@@ -51,3 +51,5 @@ Status: implemented
 - AC2 — `AssistantService.test.ts` 验证空默认设置保留现有手动 MCP 模式。
 - AC4 — `AssistantService.test.ts` 验证助手编辑与后续默认值更改相互独立。
 - AC5 — `AssistantService.test.ts` 验证跳过不存在及未启用的服务器 ID，且不改写偏好。
+
+- Regression — 资源库与首页首次预设快捷入口在创建前审阅相同的默认选择，允许清空或取消。对话导入显式提交空选择。MCP 步骤使用已成功加载的同一目录展示默认值，即使独立目录查询未完成或失败；在向导步骤间切换时保留此目录。

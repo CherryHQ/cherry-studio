@@ -92,6 +92,7 @@ describe('importService.importConversations', () => {
     // Assistant created exactly once.
     const assistantCalls = calls.filter((c) => c.path === '/assistants')
     expect(assistantCalls).toHaveLength(1)
+    expect(assistantCalls[0].body).toMatchObject({ mcpServerIds: [] })
 
     // One topic per conversation, each linked to the created assistant id.
     const topicCalls = calls.filter((c) => c.path === '/topics')

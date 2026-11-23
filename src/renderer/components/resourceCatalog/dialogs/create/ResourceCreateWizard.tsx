@@ -421,8 +421,15 @@ export function ResourceCreateWizard({
                 {currentStep.id === 'system-prompt' ? (
                   <SystemPromptStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
-                {currentStep.id === 'mcp' ? (
-                  <McpStep form={form} active={open} disabled={submitting} portalContainer={dialogContentElement} />
+                {kind === 'assistant' ? (
+                  <div hidden={currentStep.id !== 'mcp'}>
+                    <McpStep
+                      form={form}
+                      active={open && currentStep.id === 'mcp'}
+                      disabled={submitting}
+                      portalContainer={dialogContentElement}
+                    />
+                  </div>
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
                   <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />

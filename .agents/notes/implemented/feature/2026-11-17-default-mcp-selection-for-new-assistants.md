@@ -51,3 +51,5 @@ A server removed from the MCP list stays in the preference until the user edits 
 - AC2 — `AssistantService.test.ts` verifies empty defaults preserve the existing manual MCP mode.
 - AC4 — `AssistantService.test.ts` verifies edits and later default changes remain independent.
 - AC5 — `AssistantService.test.ts` verifies missing and inactive default IDs are skipped without rewriting the preference.
+
+- Regression — Library and first-time Home preset shortcuts review the same inherited selection and can clear or cancel it before creation. Conversation imports send an explicit empty selection. The MCP step displays its successful seed catalog even if the independent picker query is cold or failed; its catalog stays mounted across wizard navigation.

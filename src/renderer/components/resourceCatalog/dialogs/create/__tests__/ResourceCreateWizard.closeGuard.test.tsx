@@ -68,10 +68,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
 vi.mock('../steps/McpStep', async () => {
   const { useEffect } = await import('react')
   return {
-    McpStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => {
+    McpStep: ({ form, active }: { form: { setValue: (name: string, value: unknown) => void }; active: boolean }) => {
       useEffect(() => {
-        form.setValue('reviewedMcpServerIds', [])
-      }, [form])
+        if (active) form.setValue('reviewedMcpServerIds', [])
+      }, [form, active])
       return null
     }
   }

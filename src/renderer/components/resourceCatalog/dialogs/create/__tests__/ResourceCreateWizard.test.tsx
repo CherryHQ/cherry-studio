@@ -65,10 +65,10 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 vi.mock('../steps/McpStep', async () => {
   const { useEffect } = await import('react')
   return {
-    McpStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => {
+    McpStep: ({ form, active }: { form: { setValue: (name: string, value: unknown) => void }; active: boolean }) => {
       useEffect(() => {
-        if (!mcpStepState.pending) form.setValue('reviewedMcpServerIds', [])
-      }, [form])
+        if (active && !mcpStepState.pending) form.setValue('reviewedMcpServerIds', [])
+      }, [form, active])
       return null
     }
   }
