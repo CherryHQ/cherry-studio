@@ -2,6 +2,7 @@
 description: Why IpcApi is an independent RPC channel beside REST DataApi — layering, trust boundary, IpcContext, error model
 sources:
   - src/main/ipc
+  - src/renderer/ipc
   - src/shared/ipc
 ---
 
@@ -124,6 +125,18 @@ Caller identity **must** be derived by main from the real `event.sender` (`Windo
 Lightweight `IpcError` (`code: string` + `message` + optional `data`), serialized across IPC. **Not** `DataApiError` (HTTP semantics belong to the remotable data layer). The main side returns a **structured result** — `{ ok: true, data }` or `{ ok: false, error: ipcError.toJSON() }` — and **never throws to `ipcMain.handle`**, because Electron's `invoke` reject keeps only `message` and drops `code`/`data`. The renderer facade unwraps: on `ok: false` it rebuilds an `IpcError` and throws.
 
 The router maps invalid input to `VALIDATION_FAILED` and unknown routes to `ROUTE_NOT_FOUND`; an untrusted sender yields `FORBIDDEN_SENDER`; anything else normalizes to `INTERNAL`.
+
+The renderer checks the result envelope: `ok` must be boolean, success must have a
+`data` field (which may be `undefined` for void routes), and failure must carry
+string `code`/`message` fields plus an optional `reportingHandled: true` marker.
+Malformed fields produce an `INTERNAL` IpcError. Opaque error data and original
+transport rejections pass through without conversion.
+
+Envelope decoding returns unknown data. The request method associates that data
+with the requested route's statically typed main handler; it does not run the
+route's output schema in the renderer. Events likewise rely on main's typed
+producer and preload's exact-name demultiplexing, rather than renderer payload
+validation.
 
 ### Error Codes — `IpcErrorCode`
 

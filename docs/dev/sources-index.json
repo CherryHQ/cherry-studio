@@ -355,7 +355,7 @@
     },
     {
       "path": "docs/dev/references/ipc/ipc-overview.md",
-      "sources": ["src/main/ipc","src/shared/ipc"]
+      "sources": ["src/main/ipc","src/renderer/ipc","src/shared/ipc"]
     },
     {
       "path": "docs/dev/references/ipc/ipc-schema-guide.md",
