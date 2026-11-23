@@ -25,8 +25,12 @@ describe('Claude Code process exit diagnostics', () => {
     ['HTTP 403 forbidden', 'permission'],
     ['HTTP 429 rate limit exceeded', 'rate_limit'],
     ['connect ETIMEDOUT api.anthropic.com', 'network'],
+    ['Connection timed out after 500 ms', 'network'],
+    ['Attempt took 500 ms; HTTP 429 rate limit exceeded', 'rate_limit'],
+    ['API Error: Request rejected (429) · Please retry later', 'rate_limit'],
     ['proxy certificate verification failed', 'proxy'],
     ['HTTP 503 service overloaded', 'server'],
+    ['HTTP/1.1 502 Bad Gateway', 'server'],
     ['MCP server connection failed', 'mcp'],
     // Geo-blocks and oversized prompts also ship as bare 4xx; the shared ladder's precedence
     // is what keeps them out of the permission / unknown buckets.

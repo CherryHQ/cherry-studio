@@ -15,7 +15,8 @@ export async function trackCherryCloudAnalyticsEvent(
   const eventScopeId = expectedScopeId === undefined ? admittedScopeId : expectedScopeId
   const matchesScope = current && eventScopeId === admittedScopeId
   // A real click still happened after its intent was superseded; late results do not belong to a new account.
-  if (!matchesScope && eventScopeId !== null && payload.event !== 'subscription_entry_clicked') return
+  const isClick = payload.event === 'subscription_entry_clicked' || payload.event === 'amd_entry_clicked'
+  if (!matchesScope && eventScopeId !== null && !isClick) return
   const testTraffic = import.meta.env.DEV || !!import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
   const environment = testTraffic ? 'development' : 'production'
   const edition = getAppEdition()

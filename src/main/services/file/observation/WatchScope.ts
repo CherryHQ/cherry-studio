@@ -3,7 +3,12 @@ import { Emitter, type Disposable } from '@main/core/lifecycle'
 import type { FileObservationCoverage } from '@shared/ipc/schemas/fileObservation'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import { createDirectoryWatcher, type CreateDirectoryWatcherOptions, type WatcherEvent } from '../watcher'
+import {
+  createDirectoryWatcher,
+  type CreateDirectoryWatcherOptions,
+  type WatcherEvent,
+  type DirectoryWatcherHost
+} from '../watcher'
 
 const logger = loggerService.withContext('WatchScope')
 
@@ -28,9 +33,9 @@ export class WatchScope {
   revision = 0
   coverage: FileObservationCoverage = 'stale'
 
-  constructor(root: AbsoluteFilePath, options: CreateDirectoryWatcherOptions) {
+  constructor(root: AbsoluteFilePath, options: CreateDirectoryWatcherOptions, host: DirectoryWatcherHost) {
     void this.ready.catch(() => {})
-    this.watcher = createDirectoryWatcher(root, options)
+    this.watcher = createDirectoryWatcher(root, options, host)
     this.unsubscribe = this.watcher.onEvent((event) => {
       if (this.closing) return
       if (event.kind === 'ready') {

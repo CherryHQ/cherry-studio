@@ -74,12 +74,15 @@ def merge_mac_manifests(client, prefix, edition, files):
 
 
 def assemble(client, base, prefix, platform, download="all"):
+    distribution = {}
     sha = os.environ["RELEASE_SHA"]
     selected = PLATFORMS if platform == "all" else (platform,)
+    mac_bridge = os.environ.get("MAC_CN_REGION_BRIDGE") == "true"
+    distribution["macCnRegionBridge"] = mac_bridge
     files = {}
     if platform != "all":
         baseline = read_json(client, f"{base}/baselines/{sha}.json", optional=True)
-        if baseline is None:
+        if baseline is None or baseline.get("macCnRegionBridge", False) != mac_bridge:
             raise ValueError("No complete COS inventory for this commit. Run an all-platform build.")
         files = {
             relative: entry for relative, entry in baseline["files"].items()
@@ -102,7 +105,7 @@ def assemble(client, base, prefix, platform, download="all"):
     }
     download_assets(client, downloads, Path("github-release-artifacts"), editions=("global",))
     body = Path("release_body.txt").read_text(encoding="utf-8")
-    inventory = {"sha": sha, "platform": platform, "files": files, "body": body}
+    inventory = {"sha": sha, "platform": platform, "files": files, "body": body, **distribution}
     Path("cos-release.json").write_text(json.dumps(inventory), encoding="utf-8")
 
 

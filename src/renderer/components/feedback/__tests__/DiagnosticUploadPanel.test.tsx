@@ -25,7 +25,9 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.errors.busy': 'Another diagnostic bundle operation is already in progress',
     'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
     'settings.about.diagnostics.report.acknowledgement':
-      'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.',
+      'Upload logs for troubleshooting only. They may contain device information and other data.',
+    'settings.about.diagnostics.report.include_chat_history':
+      'Include chat history from this conversation (last 24 hours) to help us diagnose and fix the issue.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
     'settings.about.diagnostics.report.copy_url': 'Copy status link',
     'settings.about.diagnostics.report.description_label': 'Problem description',
@@ -135,16 +137,19 @@ async function closeResultDialog(user: ReturnType<typeof userEvent.setup>) {
 
 function TestDiagnosticUploadPanel({
   initialDescription = '',
+  chatTopicId,
   onBusyChange,
   onClose = () => undefined
 }: {
   readonly initialDescription?: string
+  readonly chatTopicId?: string
   readonly onBusyChange?: (busy: boolean) => void
   readonly onClose?: () => void
 }) {
   const [description, setDescription] = useState(initialDescription)
   return (
     <DiagnosticUploadPanel
+      chatTopicId={chatTopicId}
       description={description}
       onBusyChange={onBusyChange}
       onClose={onClose}
@@ -196,7 +201,7 @@ describe('DiagnosticUploadPanel', () => {
     const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.'
+      name: 'Upload logs for troubleshooting only. They may contain device information and other data.'
     })
 
     expect(acknowledgement).toBeChecked()
@@ -234,16 +239,17 @@ describe('DiagnosticUploadPanel', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
   })
 
-  it('defaults to uploading all sources for the last 24 hours and blocks submission when unchecked', async () => {
+  it('uploads diagnostics without chat history and blocks submission when unchecked', async () => {
     const user = userEvent.setup()
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.'
+      name: 'Upload logs for troubleshooting only. They may contain device information and other data.'
     })
     const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
     expect(acknowledgement).toBeChecked()
+    expect(screen.queryByRole('checkbox', { name: /include chat history/i })).not.toBeInTheDocument()
     expect(submit).toBeEnabled()
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
@@ -262,12 +268,32 @@ describe('DiagnosticUploadPanel', () => {
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
         description: 'App freezes on launch.   Please investigate.',
-        includeChatRecords: true,
         includeLogs: true,
         includeTraces: true,
         range: '24h'
       })
     )
+  })
+
+  it.each([false, true])('attaches the errored conversation only with opt-in (%s)', async (optIn) => {
+    const user = userEvent.setup()
+    render(<TestDiagnosticUploadPanel initialDescription="A model request failed" chatTopicId="errored-conversation" />)
+
+    const chatHistory = screen.getByRole('checkbox', {
+      name: 'Include chat history from this conversation (last 24 hours) to help us diagnose and fix the issue.'
+    })
+    expect(chatHistory).not.toBeChecked()
+    if (optIn) await user.click(chatHistory)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    expect(await screen.findByText(reportId)).toBeInTheDocument()
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
+      description: 'A model request failed',
+      ...(optIn ? { chatTopicId: 'errored-conversation' } : {}),
+      includeLogs: true,
+      includeTraces: true,
+      range: '24h'
+    })
   })
 
   it('exposes no dismiss action while submitting and shows the report status details on success', async () => {
@@ -364,7 +390,6 @@ describe('DiagnosticUploadPanel', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(2)
     expect(mocks.request).toHaveBeenLastCalledWith('diagnostics.bundle.upload', {
       description: 'The app freezes after reopening.',
-      includeChatRecords: true,
       includeLogs: true,
       includeTraces: true,
       range: '24h'
