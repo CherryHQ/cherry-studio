@@ -1264,15 +1264,20 @@ export function trackPlacedImageInput(
  * `requesting` signal). Only placed inputs share the native response that
  * failed.
  *
- * - Limit failures: the oldest placed over-limit entry wins;
- *   unplaced steers are never reported as sent. When no placement has been
- *   observed yet (e.g. the result arrives before the membership batch), fall
- *   back to oldest-first over-limit attribution so an ordinary two-image
- *   follow-up still yields typed detail. When the oldest placed entry cannot
- *   explain the failure (text-only `0` or within-limit images that may have
- *   grown via tools after submission), the actual sent count is unknown —
- *   retire all settled inputs and return `undefined` so the caller keeps the
- *   provider's own limit text while preserving unplaced steers.
+ * - Limit failures: the oldest placed over-limit entry wins when a single
+ *   placed input carries images; unplaced steers are never reported as sent.
+ *   When no placement has been observed yet (e.g. the result arrives before
+ *   the membership batch), fall back to oldest-first over-limit attribution
+ *   so an ordinary two-image follow-up still yields typed detail. When the
+ *   oldest placed entry cannot explain the failure (text-only `0` or
+ *   within-limit images that may have grown via tools after submission),
+ *   the actual sent count is unknown — retire all settled inputs and return
+ *   `undefined` so the caller keeps the provider's own limit text while
+ *   preserving unplaced steers. When several placed inputs each carry images
+ *   (e.g. a one-image prompt plus a two-image steer sharing one rejected
+ *   continuation), the native request may combine them, so no single entry's
+ *   count is a reliable sent total: retire all settled inputs and return
+ *   `undefined` to preserve the provider text.
  * - Unrelated failures (no parsed limit): settle placed entries response-scoped
  *   (FIFO among placed, matching turn-complete), preserving unplaced steers
  *   for the next limit failure. With no placement observed, falls back to the
@@ -1321,7 +1326,12 @@ export function consumePlacedImageCount(
       return undefined
     }
     const overLimit = placedInOrder.find((entry) => entry.count > limit)
-    const result = overLimit?.count
+    // Several image-carrying inputs sharing one failed native response may
+    // combine in the rejecting continuation (e.g. 1 + 2 = 3 images), so no
+    // single entry's count is a reliable sent total. Retire all settled
+    // inputs below but preserve the provider's limit text.
+    const imageCarrying = placedInOrder.filter((entry) => entry.count > 0)
+    const result = imageCarrying.length > 1 ? undefined : overLimit?.count
     const settledIds = new Set(placedInOrder.map((entry) => entry.inputId))
     for (let i = pending.length - 1; i >= 0; i--) {
       if (settledIds.has(pending[i].inputId)) pending.splice(i, 1)

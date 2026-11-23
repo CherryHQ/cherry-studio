@@ -955,4 +955,48 @@ describe('Claude image-limit result boundary (#20030)', () => {
       normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, nextCount)
     ).toMatchObject({ limit: 1, count: 2, sent: true })
   })
+
+  it('preserves provider text when several placed image inputs share one rejected continuation (inv_03b60903696f8a05)', async () => {
+    // A one-image prompt plus a two-image steer sharing one rejected native
+    // response may combine to three images in the continuation, so reporting
+    // the steer's two as the sent total would understate the request. Retire
+    // both settled inputs but keep the provider's limit text.
+    const { consumePlacedImageCount, normalizeResultImageLimitFailure } = await import('../ClaudeCodeRuntimeDriver')
+    const pending = [
+      { inputId: 'prompt', count: 1 },
+      { inputId: 'steer', count: 2 }
+    ]
+    const placed = new Set(['prompt', 'steer'])
+    const count = consumePlacedImageCount(
+      pending,
+      placed,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    expect(count).toBeUndefined()
+    expect(pending).toEqual([])
+    expect(placed.size).toBe(0)
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, count)
+    ).toBeUndefined()
+
+    // A single image-carrying input among several placed entries still
+    // attributes precisely: a text-only prompt plus a two-image steer fails
+    // with two sent.
+    const single = [
+      { inputId: 'prompt', count: 0 },
+      { inputId: 'steer', count: 2 }
+    ]
+    const singlePlaced = new Set(['prompt', 'steer'])
+    const singleCount = consumePlacedImageCount(
+      single,
+      singlePlaced,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    expect(singleCount).toBe(2)
+    expect(single).toEqual([])
+    expect(singlePlaced.size).toBe(0)
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, singleCount)
+    ).toMatchObject({ limit: 1, count: 2, sent: true })
+  })
 })
