@@ -9,6 +9,8 @@ import { fetchRemoteSkill } from '../skillRemoteSource'
  */
 describe('fetchRemoteSkill gitea source', () => {
   it.each([
+    ['a trailing descriptor slash', 'https://gitea.example.com/o/r/src/branch/main/SKILL.md/'],
+    ['a raw control character', 'https://gitea.example.com/o/r/src/branch/main/di\tr/SKILL.md'],
     ['a non-URL identifier', 'not-a-url'],
     ['a plain-HTTP URL', 'http://gitea.example.com/o/r/src/branch/main/SKILL.md'],
     ['embedded credentials', 'https://user:pass@gitea.example.com/o/r/src/branch/main/SKILL.md'],

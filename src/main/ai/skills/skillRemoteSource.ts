@@ -246,7 +246,7 @@ async function fetchFromGithub(
 async function resolveGiteaSkillTarget(identifier: string, anonymousHome: string) {
   const location = parseGiteaSkillUrl(identifier)
   if (!location) {
-    throw new Error(`Invalid Gitea skill URL: ${identifier}`)
+    throw new Error('Invalid Gitea skill URL')
   }
 
   const { owner, repo, refAndPath, descriptorFileName } = location
@@ -267,7 +267,7 @@ async function fetchFromGitea(
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
   // Validate before materializing anything, then give anonymous Git an empty HOME so curl cannot read .netrc.
-  if (!parseGiteaSkillUrl(identifier)) throw new Error(`Invalid Gitea skill URL: ${identifier}`)
+  if (!parseGiteaSkillUrl(identifier)) throw new Error('Invalid Gitea skill URL')
   const tempDir = await openTempDir()
   const anonymousHome = path.join(tempDir, 'anonymous-home')
   await fs.promises.mkdir(anonymousHome, { recursive: true })
@@ -613,7 +613,8 @@ async function runGit(gitCommand: string, args: string[], anonymousHome?: string
       GIT_CONFIG_NOSYSTEM: '1',
       GIT_CONFIG_SYSTEM: devNull,
       GIT_CONFIG_GLOBAL: devNull,
-      GIT_CEILING_DIRECTORIES: anonymousHome
+      GIT_CEILING_DIRECTORIES: path.dirname(anonymousHome),
+      GIT_CONFIG: devNull
     })
     args = [
       '-C',

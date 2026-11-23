@@ -48,6 +48,15 @@ describe('skills MCP server', () => {
   })
 
   describe('search_skills', () => {
+    it('rejects credential-bearing descriptor URLs without registry requests or secret echo', async () => {
+      const result = await callTool(createServer(), 'search_skills', {
+        query: 'https://name:do-not-disclose@gitea.example/o/r/src/branch/main/SKILL.md'
+      })
+      expect(result.isError).toBe(true)
+      expect(JSON.stringify(result)).not.toContain('do-not-disclose')
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('returns matches with an install_source built from the real directoryPath', async () => {
       mockMarketplace([
         {

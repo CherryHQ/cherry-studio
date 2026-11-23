@@ -273,6 +273,16 @@ describe('parseGiteaSkillUrl (#20206)', () => {
   })
 })
 
+describe('Gitea descriptor raw path validation', () => {
+  it.each([
+    'https://gitea.example/o/r/src/branch/main/SKILL.md/',
+    'https://gitea.example/o/r/src/branch/main/di\tr/SKILL.md',
+    'https://gitea.example/o/r/src/branch/main//SKILL.md'
+  ])('rejects ambiguous descriptor %s', (url) => {
+    expect(parseGiteaSkillUrl(url)).toBeNull()
+  })
+})
+
 describe('buildGiteaSkillResult (#20206)', () => {
   it('canonicalizes a raw/branch URL to the src/branch install source', () => {
     const result = buildGiteaSkillResult('https://gitea.example.com/o/r/raw/branch/dev/skills/x/SKILL.md')

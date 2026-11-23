@@ -39,6 +39,7 @@ describe.skipIf(process.platform !== 'linux')('Gitea smart HTTP installation int
   setupTestDatabase()
   let root: string, source: string, bare: string, base: string, server: Server
   let authRequired = false
+  let redirectRequired = false
   const requests: Array<{ url: string; authorization?: string; cookie?: string; privateHeader?: string }> = []
   let restorePath: { mockRestore: () => void }
 
@@ -103,6 +104,7 @@ describe.skipIf(process.platform !== 'linux')('Gitea smart HTTP installation int
     )
     requests.length = 0
     authRequired = false
+    redirectRequired = false
     state.beforeFetch = undefined
     server = createServer(
       { key: await fs.readFile(keyPath), cert: await fs.readFile(certPath) },
@@ -113,6 +115,11 @@ describe.skipIf(process.platform !== 'linux')('Gitea smart HTTP installation int
           cookie: request.headers.cookie,
           privateHeader: request.headers['x-private-sentinel']?.toString()
         })
+        if (redirectRequired) {
+          response.writeHead(302, { Location: `${base}/redirected` })
+          response.end()
+          return
+        }
         if (authRequired) {
           response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="fixture"' })
           response.end('authentication required')
@@ -233,6 +240,10 @@ describe.skipIf(process.platform !== 'linux')('Gitea smart HTTP installation int
       `#!/bin/sh\nprintf called > '${marker}'\nprintf 'username=fixture\\npassword=sentinel\\n'\n`,
       { mode: 0o700 }
     )
+    // Enclose the profile/temp workspace in a checkout with URL-specific settings.
+    git(['init', '-q', root])
+    git(['-C', root, 'config', `http.${base}/.extraHeader`, 'X-Private-Sentinel: must-not-be-sent'])
+    git(['-C', root, 'config', `http.${base}/.followRedirects`, 'true'])
     const home = state.env.HOME
     await fs.writeFile(
       path.join(home, '.gitconfig'),
@@ -257,6 +268,21 @@ describe.skipIf(process.platform !== 'linux')('Gitea smart HTTP installation int
     expect(requests.every((request) => !request.authorization && !request.cookie && !request.privateHeader)).toBe(true)
     await expect(fs.access(marker)).rejects.toThrow()
     expect(agentGlobalSkillService.listAll()).toEqual([])
+    expect(await fs.readdir(path.join(root, 'temp'))).toEqual([])
+  }, 30_000)
+
+  it('does not inherit redirect or headers from an enclosing checkout', async () => {
+    redirectRequired = true
+    git(['init', '-q', root])
+    git(['-C', root, 'config', `http.${base}/.extraHeader`, 'X-Private-Sentinel: must-not-be-sent'])
+    git(['-C', root, 'config', `http.${base}/.followRedirects`, 'true'])
+    await expect(
+      new SkillService().install({
+        installSource: `gitea:${base}/owner/repo/src/branch/feature/demo/skills/writer/SKILL.md`
+      })
+    ).rejects.toThrow()
+    expect(requests.length).toBeGreaterThan(0)
+    expect(requests.every((request) => !request.privateHeader && !request.url.includes('/redirected'))).toBe(true)
     expect(await fs.readdir(path.join(root, 'temp'))).toEqual([])
   }, 30_000)
 

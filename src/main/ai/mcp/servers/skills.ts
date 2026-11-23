@@ -50,6 +50,19 @@ export function createSkillsServer(agentId: string, sessionId?: string): McpServ
       })
     },
     async ({ query }) => {
+      // A rejected URL is never a public-registry keyword query. In particular,
+      // embedded credentials must not reach network searches, logs or errors.
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(query.trim())) {
+        let parsed: URL
+        try {
+          parsed = new URL(query.trim())
+        } catch {
+          throw new Error('Invalid skill URL')
+        }
+        if (parsed.username || parsed.password) throw new Error('Skill URLs must not contain credentials')
+        if (!(buildGithubSkillResult(query) ?? buildGiteaSkillResult(query)))
+          throw new Error('Invalid skill descriptor URL')
+      }
       // A GitHub or Gitea SKILL.md URL already identifies exactly one skill, so the registries have
       // nothing to add — and a skill they never indexed is only reachable this way.
       const directResult = buildGithubSkillResult(query) ?? buildGiteaSkillResult(query)
