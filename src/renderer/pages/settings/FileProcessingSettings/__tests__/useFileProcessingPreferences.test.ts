@@ -20,7 +20,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 beforeEach(() => {
-  vi.mocked(preferenceService.getAuthoritative).mockImplementation(async () => overridesMock.value as never)
+  vi.mocked(preferenceService.getAuthoritative).mockImplementation(async () => overridesMock.value)
 })
 
 describe('useFileProcessingPreferences', () => {

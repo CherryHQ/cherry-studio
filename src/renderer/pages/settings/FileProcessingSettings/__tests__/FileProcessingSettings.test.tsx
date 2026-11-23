@@ -270,7 +270,7 @@ describe('processing settings pages', () => {
 
   beforeEach(() => {
     MockCacheUtils.resetMocks()
-    vi.mocked(preferenceService.getAuthoritative).mockImplementation(async () => overridesMock.value as never)
+    vi.mocked(preferenceService.getAuthoritative).mockImplementation(async () => overridesMock.value)
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
     overridesMock.value = {}
