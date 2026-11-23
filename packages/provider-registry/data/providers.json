@@ -722,6 +722,7 @@
     {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "ollama-chat",
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2989,5 +2990,5 @@
       "name": "CrowLLM"
     }
   ],
-  "version": "755362e5d4db6be8"
+  "version": "161215ed2b098abc"
 }
