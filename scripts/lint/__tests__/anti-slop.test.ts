@@ -60,6 +60,7 @@ function lint(source: string, rule?: string, filename = 'probe.ts') {
 
 describe('available generic anti-slop rules', () => {
   it.each([
+    ['require-readable-spacing', 'export function first() { return 1 }\nexport function second() { return 2 }'],
     ['no-reflect-apply', 'export const result = Reflect.apply(Math.max, undefined, [1, 2])'],
     ['no-reflect-get', 'export const result = Reflect.get({ value: 1 }, "value")'],
     ['no-object-parameters', 'export function read(value: object) { return value }'],
@@ -149,6 +150,7 @@ describe('available generic anti-slop rules', () => {
     '__tests__/helper.ts',
     '__mocks__/helper.ts',
     'nested/test_utils/helper.ts',
+    'packages/aiCore/setupVitest.ts',
     'packages/agent-behavior/src/contract/helper.ts',
     'packages/agent-behavior/src/fake/helper.ts',
     'scripts/e2e/regression/helper.ts',
