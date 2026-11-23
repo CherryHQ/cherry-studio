@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import {
   extractFtsTokens,
@@ -27,6 +29,20 @@ import type {
 import { encodeVectorBlob } from './vectorBlob'
 
 const logger = loggerService.withContext('KnowledgeIndexStore')
+
+const SqlTextSchema = z.string()
+
+const SearchUnitTextRowSchema = z.object({
+  unit_id: SqlTextSchema,
+  material_id: SqlTextSchema,
+  unit_type: z.literal('chunk'),
+  title: SqlTextSchema.nullish(),
+  body: SqlTextSchema
+})
+
+const SearchMatchTextRowSchema = SearchUnitTextRowSchema.pick({ unit_id: true, material_id: true, body: true })
+
+const MaterialReferenceRowSchema = z.object({ material_id: SqlTextSchema, relative_path: SqlTextSchema })
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
 const RRF_K = 60
@@ -97,7 +113,7 @@ export class KnowledgeIndexStore {
       const priorRow = tx.execute(`SELECT current_content_hash FROM material WHERE material_id = ?`, [materialId])
         .rows[0]
 
-      const priorContentHash = priorRow === undefined ? undefined : (priorRow.current_content_hash as string | null)
+      const priorContentHash = priorRow?.current_content_hash
 
       // 1. Content is immutable by hash — keep the existing row if present.
       tx.execute(`INSERT OR IGNORE INTO content (content_hash, text, created_at) VALUES (?, ?, ?)`, [
@@ -339,23 +355,22 @@ export class KnowledgeIndexStore {
     )
 
     return result.rows.map((row) => {
-      // rebuildMaterial writes a unit and its body row in one transaction, so a
-      // missing body is store corruption. Fail loudly: the search lanes INNER JOIN
-      // (silently excluding the unit), and fabricating '' here would give the same
-      // damage a third symptom — an existing-but-empty chunk in the UI.
+      // A unit without its transactional body row indicates index corruption.
       if (row.body == null) {
-        throw new Error(`Knowledge index store is missing the body text for unit ${row.unit_id as string}`)
+        throw new Error(`Knowledge index store is missing the body text for unit ${row.unit_id}`)
       }
 
+      const decoded = SearchUnitTextRowSchema.parse(row)
+
       return {
-        unitId: row.unit_id as string,
-        materialId: row.material_id as string,
-        unitType: row.unit_type as KnowledgeSearchUnit['unitType'],
+        unitId: decoded.unit_id,
+        materialId: decoded.material_id,
+        unitType: decoded.unit_type,
         unitIndex: Number(row.unit_index),
-        title: (row.title as string | null) ?? null,
+        title: decoded.title ?? null,
         charStart: Number(row.char_start),
         charEnd: Number(row.char_end),
-        text: row.body as string
+        text: decoded.body
       }
     })
   }
@@ -377,9 +392,11 @@ export class KnowledgeIndexStore {
       return null
     }
 
+    const decoded = MaterialReferenceRowSchema.parse(row)
+
     return {
-      materialId: row.material_id as string,
-      relativePath: row.relative_path as string
+      materialId: decoded.material_id,
+      relativePath: decoded.relative_path
     }
   }
 
@@ -405,7 +422,7 @@ export class KnowledgeIndexStore {
       return null
     }
 
-    return row.text as string
+    return SqlTextSchema.parse(row.text)
   }
 
   /**
@@ -640,7 +657,7 @@ export class KnowledgeIndexStore {
       )
 
       for (const row of result.rows) {
-        existing.add(row.embedding_text_hash as string)
+        existing.add(SqlTextSchema.parse(row.embedding_text_hash))
       }
     }
 
@@ -671,18 +688,18 @@ export class KnowledgeIndexStore {
 
 /** Shape a single result row (shared by both lanes) with a precomputed score. */
 function toMatch(row: Record<string, SqlValue>, score: number): KnowledgeIndexSearchMatch {
-  // Every lane selects `st.text AS body` through an INNER JOIN on a NOT NULL
-  // column, so a missing body is store corruption — fail loudly like
-  // listMaterialUnits does instead of fabricating an empty result.
+  // Every search lane joins a required body; absence indicates index corruption.
   if (row.body == null) {
-    throw new Error(`Knowledge index store is missing the body text for unit ${row.unit_id as string}`)
+    throw new Error(`Knowledge index store is missing the body text for unit ${row.unit_id}`)
   }
 
+  const decoded = SearchMatchTextRowSchema.parse(row)
+
   return {
-    unitId: row.unit_id as string,
-    materialId: row.material_id as string,
+    unitId: decoded.unit_id,
+    materialId: decoded.material_id,
     unitIndex: Number(row.unit_index),
-    text: row.body as string,
+    text: decoded.body,
     score
   }
 }

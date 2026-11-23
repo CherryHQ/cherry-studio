@@ -154,6 +154,8 @@ SQLite tables plus FTS5. Vectors are raw little-endian float32 bytes in a plain
 `BLOB`; sqlite-vec supplies the `vec_distance_cosine` scalar function at query
 time. No ANN/vector virtual index exists.
 
+The store decodes textual columns at its query boundaries. Non-text content, unit IDs or material references fail decoding; they are not coerced into text. Nullable titles and missing-material results retain their existing semantics.
+
 The driver enables foreign keys per connection. Callers never `await` index SQL
 or return a Promise from an index transaction callback.
 

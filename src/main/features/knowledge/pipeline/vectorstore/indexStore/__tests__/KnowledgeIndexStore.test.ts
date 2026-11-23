@@ -67,6 +67,26 @@ describe('KnowledgeIndexStore', () => {
   const ftsIntegrityCheck = () =>
     driver.execute(`INSERT INTO search_text_fts(search_text_fts, rank) VALUES('integrity-check', 1)`)
 
+  it('rejects non-text SQLite content instead of returning it as a string', () => {
+    store.rebuildMaterial('material-corrupt', buildInput('body', [[0, 4]]))
+    driver.execute(
+      'UPDATE content SET text = ? WHERE content_hash = (SELECT current_content_hash FROM material WHERE material_id = ?)',
+      [new Uint8Array([1, 2, 3]), 'material-corrupt']
+    )
+
+    expect(() => store.readMaterialContent('material-corrupt')).toThrow()
+  })
+
+  it('rejects a non-text body for a stored search unit', () => {
+    store.rebuildMaterial('material-corrupt', buildInput('body', [[0, 4]]))
+    driver.execute(
+      'UPDATE search_text SET text = ? WHERE target_id IN (SELECT unit_id FROM search_unit WHERE material_id = ?)',
+      [new Uint8Array([1, 2, 3]), 'material-corrupt']
+    )
+
+    expect(() => store.listMaterialUnits('material-corrupt')).toThrow()
+  })
+
   it('persists material, content, units, search_text and embeddings, then lists units in order', async () => {
     store.rebuildMaterial(
       'm1',
