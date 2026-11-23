@@ -9,7 +9,7 @@ import { ipcApi } from '@renderer/ipc'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import { isDev } from '@renderer/utils/platform'
-import { createAppErrorContext } from '@shared/utils/appErrorSnapshot'
+import { createAppErrorContext, stringifyThrown } from '@shared/utils/appErrorSnapshot'
 import { FEEDBACK_MAILTO, officialDownloadUrl } from '@shared/utils/officialLinks'
 
 /**
@@ -31,7 +31,7 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
     createAppErrorContext({
       source: 'renderer',
       operation: 'react.render',
-      message: error instanceof Error ? error.message : String(error),
+      message: error instanceof Error ? error.message : stringifyThrown(error),
       ...(error instanceof Error ? { name: error.name, ...(error.stack ? { stack: error.stack } : {}) } : {})
     })
   )
@@ -130,7 +130,7 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
         {expanded ? (
           <div className="col-start-2 mt-2 flex flex-col gap-1.5 border-border-subtle border-t pt-2">
             <p className="line-clamp-3 select-text break-all font-mono text-[11px] text-muted-foreground leading-4">
-              {error instanceof Error ? `${error.name}: ${error.message}` : String(error)}
+              {error instanceof Error ? `${error.name}: ${error.message}` : stringifyThrown(error)}
             </p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-foreground-tertiary text-xs">
               {links.map((link) => (

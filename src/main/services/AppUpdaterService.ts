@@ -155,6 +155,10 @@ export class AppUpdaterService extends BaseService {
   private stagedAvailable: UpdateInfo | null = null
   private stagedDownloaded: UpdateInfo | null = null
   private stagedProgress: ProgressInfo | null = null
+  // An auto download can fail before checkForUpdates returns; that failure ends its check.
+  private failedGeneration = 0
+  // Channel retirements; a check queued before one belongs to the retired channel.
+  private retirements = 0
   // electron-updater installs whatever it cached last, so installation names the version it confirmed.
   private downloadedVersion: string | null = null
   // electron-updater returns its in-flight check promise. The next check waits
@@ -334,6 +338,7 @@ export class AppUpdaterService extends BaseService {
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
       if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
+      if (!this.acceptedRelease) this.failedGeneration = this.checkGeneration
       logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', error)
     }
@@ -535,6 +540,7 @@ export class AppUpdaterService extends BaseService {
   }
 
   public cancelDownload() {
+    this.retirements += 1
     this.suppressUpdaterEvents()
     this.downloadedVersion = null
     this.cancellationToken.cancel()
@@ -559,7 +565,8 @@ export class AppUpdaterService extends BaseService {
    * broadcast (see `registerAutoUpdaterListeners`), not the return value.
    */
   private performUpdateCheck(manual: boolean) {
-    const run = this.updateCheckQueue.then(() => this.runConfiguredUpdateCheck(manual))
+    const retirement = this.retirements
+    const run = this.updateCheckQueue.then(() => this.runConfiguredUpdateCheck(manual, retirement))
     this.updateCheckQueue = run.then(
       () => undefined,
       () => undefined
@@ -567,7 +574,7 @@ export class AppUpdaterService extends BaseService {
     return run
   }
 
-  private async runConfiguredUpdateCheck(manual: boolean) {
+  private async runConfiguredUpdateCheck(manual: boolean, retirement: number) {
     void application.get('AnalyticsService').trackAppUpdate()
 
     if (this.isPortable()) {
@@ -578,6 +585,9 @@ export class AppUpdaterService extends BaseService {
     }
 
     await this.pendingDownload
+    if (retirement !== this.retirements) {
+      return { currentVersion: autoUpdater.currentVersion, updateInfo: null }
+    }
     const generation = this.beginConfiguredCheck()
     // A click can queue behind a scheduled check; only its own check may answer it.
     application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.check_started', { manual })
@@ -599,7 +609,7 @@ export class AppUpdaterService extends BaseService {
     )
 
     const updateInfo = this.updateCheckResult?.isUpdateAvailable ? this.updateCheckResult.updateInfo : null
-    if (updateInfo?.version) {
+    if (updateInfo?.version && this.failedGeneration !== generation) {
       this.acceptedRelease = { generation, version: updateInfo.version }
       this.flushStagedRelease()
       this.announceAvailable(updateInfo)

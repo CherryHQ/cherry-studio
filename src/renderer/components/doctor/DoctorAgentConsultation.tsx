@@ -26,7 +26,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { checkDoctorAgentModel } from '@renderer/services/modelHealthCheck'
-import { serializeHealthCheckError } from '@renderer/utils/error'
+import { providerErrorText, serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { Model } from '@shared/data/types/model'
 import { normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
@@ -218,7 +218,7 @@ function ModelPicker({
       const classification = classifyError(serializedError, providerId)
       const unclassified = classification.category === 'unknown'
       const message = unclassified ? t('settings.doctor.agent.model_picker.check_failed') : t(classification.i18nKey)
-      const raw = unclassified ? serializedError.message || undefined : undefined
+      const raw = unclassified ? providerErrorText(serializedError) || undefined : undefined
       const settingsPath = normalizeSettingsPath(
         classification.navTarget ??
           (providerId ? `/settings/provider?id=${encodeURIComponent(providerId)}` : '/settings/provider')
@@ -439,10 +439,10 @@ function FailureNotice({
         role={role}
         title={title}
         action={action}
-        detail={raw ? <ErrorDetailLink onClick={() => setExpanded((open) => !open)} /> : undefined}
+        detail={raw ? <ErrorDetailLink expanded={expanded} onClick={() => setExpanded((open) => !open)} /> : undefined}
       />
       {expanded && raw ? (
-        <p className="mt-1.5 select-text break-words px-3 font-mono text-[11px] text-muted-foreground leading-4">
+        <p className="mt-1.5 max-h-48 select-text overflow-y-auto px-3 font-mono text-[11px] text-muted-foreground leading-4 [overflow-wrap:anywhere]">
           {raw}
         </p>
       ) : null}

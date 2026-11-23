@@ -144,8 +144,15 @@ export function queueMainRendererFault(message: string): void {
   })
 }
 
-function flushMainRendererFault(): void {
+/** Deliver a queued crash. MainWindowService retries when the main frame stops loading. */
+export function flushMainRendererFault(): void {
   if (!pendingRendererFault) return
+  // A delivery attempt now would clear tab readiness that the loading page already reported.
+  const mainWindow = application
+    .get('WindowManager')
+    .getWindowsByType(WindowType.Main)
+    .find((win) => !win.isDestroyed())
+  if (mainWindow?.webContents.isLoadingMainFrame()) return
   if (deliverToReadyMain('app.error.open', pendingRendererFault)) pendingRendererFault = undefined
 }
 

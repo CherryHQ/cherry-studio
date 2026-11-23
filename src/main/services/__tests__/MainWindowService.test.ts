@@ -1682,6 +1682,35 @@ describe('MainWindowService', () => {
       expect(applicationMock.forceExit).not.toHaveBeenCalled()
     })
 
+    it('presents a crash whose error receiver mounted while the reload was still loading', () => {
+      attachCrashMonitor(svc, win)
+      let loading = true
+      Object.assign(win.webContents, { isLoadingMainFrame: () => loading, isCrashed: () => false })
+      windowManagerMock.getWindowsByType.mockReturnValue([win])
+      windowManagerMock.getWindowId.mockReturnValue('main-crash-test')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+      windowManagerMock.getWindow.mockReturnValue(win)
+      const ipc = createMockApplication().get('IpcApiService') as { send: ReturnType<typeof vi.fn> }
+      try {
+        getCrashListener(win)(null, { reason: 'crashed' })
+        markMainRendererReadyForTabAttach('main-crash-test')
+        setMainSurfaceReceiver('error', true)
+        expect(ipc.send).not.toHaveBeenCalledWith('main-crash-test', 'app.error.open', expect.anything())
+
+        loading = false
+        for (const [event, listener] of win.webContents.on.mock.calls) if (event === 'did-stop-loading') listener()
+
+        expect(ipc.send).toHaveBeenCalledWith(
+          'main-crash-test',
+          'app.error.open',
+          expect.objectContaining({ operation: 'renderer.crash' })
+        )
+      } finally {
+        resetMainRendererTabAttachDelivery()
+        windowManagerMock.getWindowsByType.mockReturnValue([])
+      }
+    })
+
     function crashTwiceWithinOneMinute() {
       attachCrashMonitor(svc, win)
       const listener = getCrashListener(win)

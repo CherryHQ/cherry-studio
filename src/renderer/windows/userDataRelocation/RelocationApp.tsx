@@ -106,10 +106,11 @@ const Failure = ({
 }) => {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
-  const [copied, setCopied] = useState(false)
+  // The error that was copied, so a replacement error never shows a stale confirmation.
+  const [copiedError, setCopiedError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const openSupportLink = (purpose: SupportLinkPurpose) => {
-    setCopied(false)
+    setCopiedError(null)
     void window.electron.ipcRenderer.invoke(UserDataRelocationIpcChannels.OpenSupportLink, purpose).then(
       (opened: unknown) => {
         setActionError(opened === true ? null : t('relocation.support.open_failed'))
@@ -121,11 +122,11 @@ const Failure = ({
   }
   const copyError = () => {
     if (!error) return
-    setCopied(false)
+    setCopiedError(null)
     void navigator.clipboard.writeText(error).then(
       () => {
         setActionError(null)
-        setCopied(true)
+        setCopiedError(error)
       },
       () => setActionError(t('relocation.support.copy_failed'))
     )
@@ -182,7 +183,7 @@ const Failure = ({
         </div>
       ) : null}
       {actionError ? <p className="col-start-2 mt-1 text-muted-foreground text-xs">{actionError}</p> : null}
-      {copied ? (
+      {copiedError === error ? (
         <p role="status" className="col-start-2 mt-1 text-muted-foreground text-xs">
           {t('relocation.support.copied')}
         </p>

@@ -121,6 +121,8 @@ function copySerialized(error: SerializedError): SerializedError {
 }
 
 const AI_REQUEST_FAILED = 'AI_REQUEST_FAILED'
+// Machine codes like `FILE_EDIT_NO_SPACE` are safe to keep; free-form values (paths, text) are not.
+const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{1,63}$/
 
 /** Provider payload on an AI request IPC failure, without loading the AI error module. */
 function ipcRequestDetail(value: unknown): SerializedError | undefined {
@@ -144,6 +146,7 @@ export function diagnosticErrorFromUnknown(error: unknown): SerializedError | un
     const stack = suppliedStack(value) ?? null
     const statusCode = typeof record.statusCode === 'number' ? record.statusCode : undefined
     const responseBody = typeof record.responseBody === 'string' ? record.responseBody : undefined
+    const code = typeof record.code === 'string' && SAFE_ERROR_CODE.test(record.code) ? record.code : undefined
     if (name === null && message === null && stack === null && statusCode === undefined && responseBody === undefined) {
       return undefined
     }
@@ -152,7 +155,8 @@ export function diagnosticErrorFromUnknown(error: unknown): SerializedError | un
       message,
       stack,
       ...(statusCode !== undefined ? { statusCode } : {}),
-      ...(responseBody !== undefined ? { responseBody } : {})
+      ...(responseBody !== undefined ? { responseBody } : {}),
+      ...(code !== undefined ? { code } : {})
     }
   }
 

@@ -46,6 +46,17 @@ describe('WindowFatalFallback', () => {
     expect(screen.getByRole('button', { name: i18n.t('error.boundary.copy') })).toBeVisible()
   })
 
+  it('keeps reload and details usable for a thrown null-prototype object', async () => {
+    const user = userEvent.setup()
+    const thrown = Object.assign(Object.create(null), { message: 'no prototype' })
+    render(<WindowFatalFallback error={thrown} resetErrorBoundary={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
+    expect(screen.getByRole('button', { name: i18n.t('error.boundary.copy') })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
+    expect(request).toHaveBeenCalledWith('window.main.reload', undefined)
+  })
+
   it('reloads the window when the reload button is clicked', async () => {
     const user = userEvent.setup()
     render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)

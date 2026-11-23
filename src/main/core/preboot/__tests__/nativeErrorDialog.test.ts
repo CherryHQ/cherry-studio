@@ -181,6 +181,47 @@ describe('showSupportedMessageBox', () => {
     expect(showMessageBox.mock.calls[0][0].buttons[0]).not.toBe('dialog.support.ok')
   })
 
+  it('treats Escape as the caller cancel button instead of a support action', async () => {
+    // Electron's rule when cancelId is omitted: defaultId 0 with several buttons cancels to index 1.
+    showMessageBox
+      .mockImplementationOnce(async (options: Electron.MessageBoxOptions) => ({
+        response: options.cancelId ?? (options.defaultId === 0 && (options.buttons?.length ?? 0) > 1 ? 1 : 0)
+      }))
+      .mockResolvedValue({ response: 0 })
+
+    await expect(
+      showSupportedMessageBox({
+        box: { type: 'error', title: 'Screenshot failed', message: 'Capture failed.', buttons: ['OK'], defaultId: 0 },
+        technicalDetail: 'capture error'
+      })
+    ).resolves.toBe(0)
+    expect(writeText).not.toHaveBeenCalled()
+    expect(openExternal).not.toHaveBeenCalled()
+    expect(showMessageBox).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the primary button before the support choices on Windows', async () => {
+    // Electron on Windows moves common labels to the footer and shows the rest as command links first.
+    const windowsOrder = ({ buttons = [], noLink }: Electron.MessageBoxOptions) => {
+      if (noLink) return buttons
+      const common = buttons.filter((label) =>
+        ['ok', 'close', 'cancel', 'yes', 'no', 'retry'].includes(label.toLowerCase())
+      )
+      return [...buttons.filter((label) => !common.includes(label)), ...common]
+    }
+    showMessageBox.mockResolvedValue({ response: 0 })
+
+    await showSupportedMessageBox({
+      box: { type: 'error', title: 'Restore failed', message: 'Kept.', buttons: ['OK'] }
+    })
+
+    expect(windowsOrder(showMessageBox.mock.calls[0][0])).toEqual([
+      'OK',
+      'Copy error and send feedback…',
+      'Open download page'
+    ])
+  })
+
   it('returns the original cancel button when the response is outside the dialog', async () => {
     showMessageBox.mockResolvedValue({ response: 99 })
 
