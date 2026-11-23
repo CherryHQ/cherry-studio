@@ -180,7 +180,7 @@ test(...caseDefinition('MP-82'), async ({ app, mainWindow: page }, testInfo) => 
   const root = await mkdtemp(join(app.paths.workspace, 'mp82-assets-'))
   const documents = root
   const sample = app.fixturesPath('translation-documents', 'sample-chinese.md')
-  testInfo.annotations.push({ type: 'provider', description: 'Uses the run-configured real translation provider.' })
+  testInfo.annotations.push({ type: 'provider', description: 'Uses the translation provider configured for this run.' })
   const source = await readFile(sample, 'utf8')
   const oversized = join(documents, 'oversized.md')
   await writeFile(oversized, Buffer.alloc(5 * 1024 * 1024 + 1, 'a'))
@@ -308,7 +308,7 @@ test(...caseDefinition('MP-83'), async ({ app, mainWindow: page }, testInfo) => 
   await testInfo.attach('MP-83 no-text image', { path: blank, contentType: 'image/png' })
   testInfo.annotations.push({
     type: 'provider',
-    description: 'Real system OCR and run-configured translation provider.'
+    description: 'Real system OCR and the translation provider configured for this run.'
   })
   const preferences = await page.evaluate(async () => ({
     ocr: await window.api.preference.get('feature.file_processing.default_image_to_text'),
@@ -426,6 +426,9 @@ test(...caseDefinition('MP-85'), async ({ mainWindow: page }, testInfo) => {
     'feature.translate.page.bidirectional_enabled': await window.api.preference.get(
       'feature.translate.page.bidirectional_enabled'
     ),
+    'feature.translate.auto_detection_method': await window.api.preference.get(
+      'feature.translate.auto_detection_method'
+    ),
     'feature.translate.model_prompt': await window.api.preference.get('feature.translate.model_prompt')
   }))
   const readLanguages = async () => {
@@ -511,6 +514,7 @@ test(...caseDefinition('MP-85'), async ({ mainWindow: page }, testInfo) => {
           'feature.translate.model_id': modelId,
           'feature.translate.page.source_language': 'en-us',
           'feature.translate.page.bidirectional_enabled': false,
+          'feature.translate.auto_detection_method': 'franc',
           'feature.translate.model_prompt': 'Translate this text into {{target_language}}: {{text}}'
         }),
       createUniqueModelId(providerId, server.modelId)

@@ -265,7 +265,6 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     groups: selectorGroups,
     loading: isLoading || isGroupsLoading || isPinnedLoading,
     pinnedIds,
-    emptyState: { preset: 'no-assistant' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
     onEditItem: handleEditItem,

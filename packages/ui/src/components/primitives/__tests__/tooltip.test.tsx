@@ -2,11 +2,13 @@
 import '@testing-library/jest-dom/vitest'
 import { Root as RadixTooltipRoot } from '@radix-ui/react-tooltip'
 import type * as RadixTooltipModule from '@radix-ui/react-tooltip'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { Activity } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../dropdown-menu'
 import {
   NormalTooltip,
   Tooltip,
@@ -357,6 +359,105 @@ describe('Tooltip', () => {
       fireEvent.focus(trigger)
 
       expect(handleFocus).toHaveBeenCalledTimes(1)
+    })
+
+    describe('focus restored by a menu the trigger opened', () => {
+      function renderMenuTrigger() {
+        render(
+          <>
+            <DropdownMenu>
+              <Tooltip content="menu tip">
+                <DropdownMenuTrigger asChild>
+                  <button type="button">Options</button>
+                </DropdownMenuTrigger>
+              </Tooltip>
+              <DropdownMenuContent>
+                <DropdownMenuItem>Pick</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button type="button">Next</button>
+          </>
+        )
+        const trigger = screen.getByRole('button', { name: 'Options' })
+        // Chromium marks the menu's restoring trigger.focus() as :focus-visible when nothing was
+        // focused before the menu opened; jsdom has no such heuristic, so emulate it.
+        const originalMatches = trigger.matches.bind(trigger)
+        vi.spyOn(trigger, 'matches').mockImplementation(
+          (selector) => selector === ':focus-visible' || originalMatches(selector)
+        )
+        return trigger
+      }
+
+      afterEach(() => {
+        vi.restoreAllMocks()
+      })
+
+      it('does not open the tooltip after a pointer pick from a menu opened with nothing focused', async () => {
+        // A hover would open the tooltip and leave its closed content in the exit window here.
+        const user = userEvent.setup({ skipHover: true })
+        const trigger = renderMenuTrigger()
+        expect(document.activeElement).toBe(document.body)
+
+        await user.click(trigger)
+        await user.click(await screen.findByRole('menuitem', { name: 'Pick' }))
+
+        await waitFor(() => expect(trigger).toHaveFocus())
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      })
+
+      it.each([
+        ['Cmd+Tab', { key: 'Meta', metaKey: true }],
+        ['Alt+Tab', { key: 'Alt', altKey: true }],
+        ['Ctrl+C', { key: 'c', ctrlKey: true }],
+        ['Shift', { key: 'Shift', shiftKey: true }]
+      ])('keeps the tooltip closed when %s follows a pointer pick and focus is restored', async (_, keyInit) => {
+        const user = userEvent.setup({ skipHover: true })
+        const trigger = renderMenuTrigger()
+
+        await user.click(trigger)
+        await user.click(await screen.findByRole('menuitem', { name: 'Pick' }))
+        await waitFor(() => expect(trigger).toHaveFocus())
+
+        fireEvent.keyDown(trigger, keyInit)
+        act(() => trigger.blur())
+        act(() => trigger.focus())
+
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      })
+
+      it('opens the tooltip when the trigger is reached with Tab', async () => {
+        const user = userEvent.setup()
+        const trigger = renderMenuTrigger()
+
+        await user.tab()
+
+        expect(trigger).toHaveFocus()
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('menu tip')
+      })
+
+      it('opens the tooltip when Shift+Tab reaches the trigger after a pointer click', async () => {
+        const user = userEvent.setup({ skipHover: true })
+        const trigger = renderMenuTrigger()
+
+        await user.click(screen.getByRole('button', { name: 'Next' }))
+        await user.tab({ shift: true })
+
+        expect(trigger).toHaveFocus()
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('menu tip')
+      })
+
+      it('opens the tooltip after a keyboard pick returns focus to the trigger', async () => {
+        const user = userEvent.setup()
+        const trigger = renderMenuTrigger()
+
+        await user.tab()
+        await user.keyboard('{Enter}')
+        await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Pick' })).toHaveFocus())
+        await user.keyboard('{Enter}')
+
+        await waitFor(() => expect(trigger).toHaveFocus())
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('menu tip')
+      })
     })
   })
 

@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { TreeMutationEvent } from '@shared/utils/file'
 
-import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
+import type { DirectoryTreeBuilder } from '../builder'
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
+import { createObservedDirectoryTree as createDirectoryTree } from './treeTestUtils'
 
 // Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
 // reads cherry.bin / mise shims — neither is populated under vitest. Point it

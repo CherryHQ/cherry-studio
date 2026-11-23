@@ -22,7 +22,7 @@ vi.mock('@data/services/McpServerService', () => ({ mcpServerService: {} }))
 vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({ toolApprovalRegistry: { abort: vi.fn() } }))
 vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({ createClaudeAgentToolPolicySnapshot: vi.fn() }))
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {}
   return { ...actual, BaseService: StubBase }
 })

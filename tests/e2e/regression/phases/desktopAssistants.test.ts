@@ -23,6 +23,7 @@ async function configureQuickAssistant(
     ({ providerId, model }) =>
       window.api.preference.setMultiple({
         'feature.quick_assistant.enabled': true,
+        'feature.quick_assistant.read_clipboard_at_startup': false,
         'feature.quick_assistant.model_id': `${providerId}::${model}`,
         'shortcut.quick_assistant.toggle': {
           binding: ['CommandOrControl', 'Alt', 'Shift', 'E'],
@@ -75,15 +76,25 @@ async function invokeQuickAssistant(
 }
 
 test(...caseDefinition('C-02'), async ({ app, mainWindow: page }) => {
-  const providerId = await ensureCustomChatProvider(app, page)
-  await configureQuickAssistant(page, providerId, app.config.customProvider.chatModel)
-  await closeSettings(page)
+  const readClipboard = await page.evaluate(() =>
+    window.api.preference.get('feature.quick_assistant.read_clipboard_at_startup')
+  )
+  try {
+    const providerId = await ensureCustomChatProvider(app, page)
+    await configureQuickAssistant(page, providerId, app.config.customProvider.chatModel)
+    await closeSettings(page)
 
-  const prompt = 'Reply with exactly QUICK_ASSISTANT_PASS and nothing else.'
-  await invokeQuickAssistant(app, prompt)
-  page = await app.restart('authenticated')
-  await dismissOnboarding(page)
-  await configureQuickAssistant(page, providerId, app.config.customProvider.chatModel)
-  await closeSettings(page)
-  await invokeQuickAssistant(app, prompt)
+    const prompt = 'Reply with exactly QUICK_ASSISTANT_PASS and nothing else.'
+    await invokeQuickAssistant(app, prompt)
+    page = await app.restart('authenticated')
+    await dismissOnboarding(page)
+    await configureQuickAssistant(page, providerId, app.config.customProvider.chatModel)
+    await closeSettings(page)
+    await invokeQuickAssistant(app, prompt)
+  } finally {
+    await page.evaluate(
+      (value) => window.api.preference.set('feature.quick_assistant.read_clipboard_at_startup', value),
+      readClipboard
+    )
+  }
 })

@@ -14,7 +14,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 vi.mock('lucide-react', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     FileSearch: ({ className, size }: { className?: string; size?: number | string }) => (
