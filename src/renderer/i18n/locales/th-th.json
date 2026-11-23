@@ -3978,6 +3978,7 @@
   "settings.about.diagnostics.report.failure_reasons.submission_rejected": "เซิร์ฟเวอร์ปฏิเสธรายงานวินิจฉัยนี้ ใช้ข้อเสนอแนะด้วยตนเองและแนบไฟล์วินิจฉัยที่บันทึกไว้หากจำเป็น",
   "settings.about.diagnostics.report.feedback_id": "ID ข้อเสนอแนะ",
   "settings.about.diagnostics.report.history_save_failed": "ส่งรายงานแล้ว แต่บันทึกลงประวัติของเครื่องนี้ไม่สำเร็จ กรุณาจด Feedback ID หรือลิงก์สถานะไว้",
+  "settings.about.diagnostics.report.include_chat_history": "แนบประวัติของการสนทนานี้ (24 ชั่วโมงล่าสุด) เพื่อช่วยให้เราหาสาเหตุและแก้ไขปัญหาได้ง่ายขึ้น",
   "settings.about.diagnostics.report.open_failed": "เปิดหน้าสถานะการวินิจฉัยไม่สำเร็จ",
   "settings.about.diagnostics.report.open_location": "เปิดตำแหน่ง",
   "settings.about.diagnostics.report.open_manual_form": "ข้อเสนอแนะด้วยตนเอง",
