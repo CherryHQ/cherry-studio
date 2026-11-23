@@ -4,7 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 
 import ModelCheckDialog from '../ModelCheckDialog'
 
@@ -524,6 +524,43 @@ describe('ModelCheckDialog', () => {
         })
       })
     )
+  })
+
+  it('keeps the conversation probe for a chat-primary model that also advertises embeddings', async () => {
+    const user = userEvent.setup()
+    const gatewayModel: Model = {
+      ...chatModel,
+      id: 'new-api::deepseek-v4-flash',
+      providerId: 'new-api',
+      name: 'deepseek-v4-flash',
+      capabilities: ['embedding'],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+    }
+    health.models = [gatewayModel]
+    const error = { name: 'Error', message: 'chat failed', stack: null, statusCode: 500 }
+    health.singleModelResult = {
+      kind: 'failed',
+      model: gatewayModel,
+      status: HealthStatus.FAILED,
+      keyResults: [
+        {
+          kind: 'failed',
+          status: HealthStatus.FAILED,
+          checking: false,
+          credential: { kind: 'api-key', entry: health.apiKeyEntries[0] },
+          error
+        }
+      ],
+      checking: false,
+      error
+    }
+
+    render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+
+    const shown = showErrorDetailPopup.mock.calls[0]?.[0] as { errorContext: { modelId?: string; imageOnly?: boolean } }
+    expect(shown.errorContext.modelId).toBe('deepseek-v4-flash')
+    expect(shown.errorContext.imageOnly).toBeUndefined()
   })
 
   it('disables a single-model run with an unsupported-only placeholder', async () => {
