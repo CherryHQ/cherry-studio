@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import EChartsPreview from '../EChartsPreview'
@@ -23,6 +23,13 @@ const mocks = vi.hoisted(() => ({
     disconnect: vi.fn(),
     unobserve: vi.fn()
   }
+}))
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 vi.mock('echarts', () => ({
@@ -143,6 +150,21 @@ describe('EChartsPreview', () => {
 
     expect(screen.getByText('preview.render.failed')).toBeInTheDocument()
     expect(mocks.init).not.toHaveBeenCalled()
+  })
+
+  // Catches Details receiving only the translated summary instead of the parser's reason and location.
+  it('keeps the JSON parser reason and location in the payload Details opens', async () => {
+    render(<EChartsPreview>{'{invalid'}</EChartsPreview>)
+    await advanceDebounce()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await vi.waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+
+    const request = detailMocks.open.mock.calls[0][0]
+    expect(request.localizedErrorMessage).toBe('preview.render.failed')
+    expect(request.error.name).toBe('SyntaxError')
+    expect(request.error.message).toContain('line 1 column 2')
+    expect(request.error.message).not.toBe('Invalid JSON configuration')
   })
 
   it('reports an ECharts setOption error as a render failure without the library text', async () => {

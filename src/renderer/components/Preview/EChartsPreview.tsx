@@ -54,9 +54,9 @@ const EChartsPreview = ({
       let option: EChartsCoreOption
       try {
         option = JSON.parse(content) as EChartsCoreOption
-      } catch {
+      } catch (parseError) {
         optionRef.current = null
-        throw new Error(t('code_block.preview.invalid_json'))
+        throw new Error(t('code_block.preview.invalid_json'), { cause: parseError })
       }
 
       optionRef.current = option
