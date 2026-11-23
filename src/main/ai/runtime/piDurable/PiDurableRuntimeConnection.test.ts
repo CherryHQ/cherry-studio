@@ -357,7 +357,7 @@ describe('desktop Pi Durable connection', () => {
       const handoff = agentSessionService.getModelSwitchHandoff(input.sessionId, head)
       return { ...snapshot, signature: handoff ?? 'no-handoff', modelSwitchHandoff: handoff }
     })
-    input.branchHead = null
+    input.branchHead = undefined
     const first = await connect()
     await first.connection.send({ message: message('Remember native mango history') })
     const answer = await savedAnswer(first)

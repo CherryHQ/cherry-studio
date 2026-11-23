@@ -2165,7 +2165,7 @@ describe('AgentSessionRuntimeService', () => {
       }
     }
     expect((service as any).connectionTarget(idleEntry)).toEqual({
-      branchHead: idleEntry.branchHead ?? null,
+      branchHead: idleEntry.branchHead,
       modelId: switchedModelId,
       reasoningEffort: 'default',
       serviceTier: 'standard',
@@ -2342,7 +2342,7 @@ describe('AgentSessionRuntimeService', () => {
     // (which is also what makes wholesale `configuration` replaces resync a cleared permission_mode:
     // the derive reads the post-update agent row, not the DTO's key presence).
     expect(connection.reconcile).toHaveBeenCalledWith({
-      branchHead: entry.branchHead ?? null,
+      branchHead: entry.branchHead,
       modelId: baseTurnInput.modelId,
       reasoningEffort: 'default',
       serviceTier: 'standard',
@@ -2811,7 +2811,7 @@ describe('AgentSessionRuntimeService', () => {
         expect(secondConnection.send).toHaveBeenCalledWith(expect.objectContaining({ message: userMessage('user-2') }))
       )
       expect(firstConnection.reconcile).toHaveBeenCalledWith({
-        branchHead: getEntry(service).branchHead ?? null,
+        branchHead: getEntry(service).branchHead,
         modelId: baseTurnInput.modelId,
         reasoningEffort: 'default',
         serviceTier: 'standard',
@@ -2863,7 +2863,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() =>
         expect(firstConnection.reconcile).toHaveBeenCalledWith({
-          branchHead: entry.branchHead ?? null,
+          branchHead: entry.branchHead,
           modelId: switchedModelId,
           reasoningEffort: 'default',
           serviceTier: 'standard',
