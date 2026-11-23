@@ -2175,3 +2175,72 @@ describe('listModels — Poe declared chat endpoints', () => {
     await expect(listModels(provider, undefined, { throwOnError: true })).rejects.toThrow('listing failed')
   })
 })
+
+describe('Ace Data Cloud typed model discovery', () => {
+  const provider = makeProvider({
+    id: 'acedatacloud',
+    presetProviderId: 'acedatacloud',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.acedata.cloud/v1' } }
+  })
+  const endpoint = (protocol: string) => ({
+    protocol,
+    auth: 'bearer',
+    base_url: protocol === 'messages' ? 'https://api.acedata.cloud' : 'https://api.acedata.cloud/v1',
+    path: protocol === 'messages' ? '/v1/messages' : '/v1/chat/completions'
+  })
+
+  it('intersects live IDs with typed protocols without dropping image-capable chat models', async () => {
+    aiSdkGetFromApiMock.mockImplementation(async ({ url, headers }) => {
+      if (url.startsWith('https://platform.acedata.cloud/')) {
+        expect(headers).toBeUndefined()
+        return {
+          value: {
+            data: [
+              {
+                id: 'gpt-4o-image',
+                type: 'chat',
+                capabilities: ['vision', 'image_generation'],
+                endpoints: [endpoint('chat_completions')]
+              },
+              {
+                id: 'claude-sonnet-5-5',
+                type: 'chat',
+                capabilities: ['vision', 'reasoning'],
+                endpoints: [endpoint('messages')]
+              },
+              { id: 'not-visible', type: 'chat', capabilities: [], endpoints: [endpoint('chat_completions')] },
+              { id: 'image-only', type: 'image', capabilities: [], endpoints: [endpoint('chat_completions')] }
+            ]
+          }
+        }
+      }
+      expect(url).toBe('https://api.acedata.cloud/v1/models')
+      expect(new Headers(headers).get('authorization')).toBe('Bearer AIza-secret-key')
+      expect(new Headers(headers).has('x-api-key')).toBe(false)
+      return { value: { data: ['gpt-4o-image', 'claude-sonnet-5-5', 'image-only'].map((id) => ({ id })) } }
+    })
+    const { models } = await listModels(provider, undefined, { throwOnError: true })
+    expect(models.map((model) => model.apiModelId)).toEqual(['gpt-4o-image', 'claude-sonnet-5-5'])
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+    expect(models[1]).toMatchObject({
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      inputModalities: ['text', 'image'],
+      capabilities: ['reasoning', 'image-recognition'],
+      parameterSupport: { tools: { supported: null } }
+    })
+    expect(models[1].pricing).toBeUndefined()
+    expect(models[1].contextWindow).toBeUndefined()
+  })
+
+  it('leaves a custom host on its configured model-discovery path', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'custom-alias' }] } })
+    const custom = {
+      ...provider,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://custom.example/v1' } }
+    }
+    const { models } = await listModels(custom)
+    expect(models[0].apiModelId).toBe('custom-alias')
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual(['https://custom.example/v1/models'])
+  })
+})

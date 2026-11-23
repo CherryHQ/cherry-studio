@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { extractColorPrimary, resolveActiveLogoDirs, resolveIconTypes } from '../icons-generate'
+import { extractColorPrimary, generateLogoDirDual, resolveActiveLogoDirs, resolveIconTypes } from '../icons-generate'
 import { detectHasBackground, resolveIconComponentModule } from '../icons-generate-avatars'
 
 describe('resolveIconTypes', () => {
@@ -69,5 +69,22 @@ describe('extractColorPrimary', () => {
   it('keeps presentation background variables out of brand-color metadata', () => {
     const svg = '<svg><rect fill="var(--icon-neutral-background, #FFFFFF)"/><path fill="#4285F4"/></svg>'
     expect(extractColorPrimary(svg)).toBe('#4285F4')
+  })
+})
+
+describe('generateLogoDirDual artwork metadata', () => {
+  it('carries a full-canvas source declaration into regenerated asset metadata', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cherry-ui-artwork-'))
+    const source = join(dir, 'source.svg')
+    writeFileSync(
+      source,
+      '<svg xmlns="http://www.w3.org/2000/svg" data-artwork-kind="full-canvas" viewBox="0 0 32 32"><path d="M0 0h32v32H0z"/></svg>'
+    )
+    try {
+      await generateLogoDirDual({ light: source, dark: null }, dir, 'example', 'Example')
+      expect(readFileSync(join(dir, 'example', 'meta.ts'), 'utf8')).toContain("artworkKind: 'full-canvas'")
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

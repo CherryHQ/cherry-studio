@@ -2967,7 +2967,51 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Ace Data Cloud - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.acedata.cloud"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.acedata.cloud/v1"
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "https://api.acedata.cloud/v1"
+        }
+      },
+      "id": "acedatacloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://platform.acedata.cloud/console/applications?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_api_key",
+          "docs": "https://platform.acedata.cloud/documents/openai-chat-completions?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_docs",
+          "models": "https://platform.acedata.cloud/models?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_models",
+          "official": "https://platform.acedata.cloud?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_website"
+        }
+      },
+      "modelResolution": {
+        "defaults": {
+          "capabilities": [],
+          "endpointTypes": ["openai-chat-completions"],
+          "inputModalities": ["text"],
+          "outputModalities": ["text"],
+          "parameterSupport": {
+            "tools": {
+              "supported": null
+            }
+          },
+          "supportsStreaming": true
+        },
+        "source": "provider"
+      },
+      "name": "Ace Data Cloud"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "72ab7623786c5a3e"
 }

@@ -39,7 +39,15 @@ export const isRerankModel = (model: { capabilities?: readonly unknown[] | null 
 
 /** Check if model supports function calling / tool use */
 export const isFunctionCallingModel = (model: Model): boolean =>
-  model.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL)
+  model.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) &&
+  model.parameterSupport?.tools?.supported !== null &&
+  model.parameterSupport?.tools?.supported !== false
+
+/** Permit an explicit tool attempt without advertising unknown support as verified. */
+export const canAttemptFunctionCallingModel = (model: Model): boolean =>
+  model.parameterSupport?.tools?.supported === null ||
+  model.parameterSupport?.tools?.supported === true ||
+  (model.parameterSupport?.tools === undefined && isFunctionCallingModel(model))
 
 /** Check if model supports image generation */
 export const isGenerateImageModel = (model: Model): boolean =>

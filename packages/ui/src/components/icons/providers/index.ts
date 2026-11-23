@@ -3,12 +3,13 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-11-14T13:47:05.390Z
- * Total icons: 175
+ * Generated at: 2026-11-15T17:13:05.721Z
+ * Total icons: 176
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { AbacusIcon as Abacus } from './abacus'
+export { AcedatacloudIcon as Acedatacloud } from './acedatacloud/acedatacloud'
 export { AiOnlyIcon as AiOnly } from './ai-only'
 export { AiStudioIcon as AiStudio } from './ai-studio'
 export { Ai21Icon as Ai21 } from './ai21'

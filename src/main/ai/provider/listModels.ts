@@ -63,6 +63,7 @@ import {
   isSupportedVertexPublisherModel
 } from './listModels/vertex'
 import {
+  AceDataCloudModelsResponseSchema,
   AIHubMixModelsResponseSchema,
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
@@ -1051,6 +1052,64 @@ const poeFetcher: ModelFetcher = {
   }
 }
 
+const aceDataCloudFetcher: ModelFetcher = {
+  match: (provider) =>
+    matchesPreset(provider, SystemProviderIds.acedatacloud) &&
+    formatApiHost(getBaseUrl(provider)) === 'https://api.acedata.cloud/v1',
+  fetch: async (provider, signal) => {
+    const headers = { ...defaultHeaders(provider) }
+    for (const key of Object.keys(headers)) if (key.toLowerCase() === 'x-api-key') delete headers[key]
+    const [catalog, available] = await Promise.all([
+      getFromApi({
+        url: 'https://platform.acedata.cloud/api/v1/models/?type=chat',
+        responseSchema: AceDataCloudModelsResponseSchema,
+        abortSignal: signal
+      }),
+      getFromApi({
+        url: 'https://api.acedata.cloud/v1/models',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      })
+    ])
+    const ids = new Set(available.data.map((model) => model.id))
+    const protocols = [
+      ['chat_completions', '/v1/chat/completions', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      ['responses', '/v1/responses', ENDPOINT_TYPE.OPENAI_RESPONSES],
+      ['messages', '/v1/messages', ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    ] as const
+    return listing(
+      dedup(catalog.data, (model) => model.id).flatMap((model) => {
+        if (model.type !== 'chat' || !ids.has(model.id)) return []
+        const endpointTypes = protocols
+          .filter(([protocol, path]) =>
+            model.endpoints.some(
+              (endpoint) =>
+                endpoint.protocol === protocol &&
+                endpoint.path === path &&
+                endpoint.auth === 'bearer' &&
+                endpoint.base_url ===
+                  (protocol === 'messages' ? 'https://api.acedata.cloud' : 'https://api.acedata.cloud/v1')
+            )
+          )
+          .map(([, , endpoint]) => endpoint)
+        if (!endpointTypes.length) return []
+        return [
+          toModel(model.id, provider, {
+            endpointTypes,
+            parameterSupport: { tools: { supported: null } },
+            inputModalities: model.capabilities.includes('vision') ? [MODALITY.TEXT, MODALITY.IMAGE] : [MODALITY.TEXT],
+            capabilities: [
+              ...(model.capabilities.includes('reasoning') ? [MODEL_CAPABILITY.REASONING] : []),
+              ...(model.capabilities.includes('vision') ? [MODEL_CAPABILITY.IMAGE_RECOGNITION] : [])
+            ]
+          })
+        ]
+      })
+    )
+  }
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
@@ -1241,6 +1300,7 @@ const fetchers: ModelFetcher[] = [
   huggingFaceFetcher,
   openAIFetcher,
   poeFetcher,
+  aceDataCloudFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 

@@ -235,6 +235,16 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   if (overlay.parameterSupport != null) {
     result.parameterSupport = overlay.parameterSupport
   }
+  if (
+    baseline.parameterSupport?.tools !== undefined &&
+    overlay.capabilities != null &&
+    overlay.parameterSupport?.tools === undefined
+  ) {
+    result.parameterSupport = {
+      ...result.parameterSupport,
+      tools: { supported: overlay.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) }
+    }
+  }
   if (overlay.pricing != null) {
     result.pricing = overlay.pricing
   }
@@ -522,8 +532,19 @@ class ModelService {
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     if (registryData?.providerModel) {
+      const values = dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
+      if (
+        values.parameters?.tools !== undefined &&
+        dto.capabilities !== undefined &&
+        dto.parameterSupport?.tools === undefined
+      ) {
+        values.parameters = {
+          ...values.parameters,
+          tools: { supported: dto.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) }
+        }
+      }
       return {
-        ...dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined }),
+        ...values,
         reasoning: mergeUserReasoning(null, dto.reasoning)
       }
     }
@@ -613,6 +634,13 @@ class ModelService {
       }
     }
     if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
+    if (dto.capabilities != null && (updates.parameters ?? existing.parameters)?.tools !== undefined) {
+      updates.parameters = {
+        ...existing.parameters,
+        ...updates.parameters,
+        tools: { supported: dto.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) }
+      }
+    }
     return updates
   }
 

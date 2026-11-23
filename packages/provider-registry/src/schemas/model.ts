@@ -364,6 +364,7 @@ export const ImageGenerationSupportSchema = z.object({
 // Parameter support configuration
 // Defaults reflect the most common LLM provider capabilities
 export const ParameterSupportSchema = z.object({
+  tools: z.object({ supported: z.boolean().nullable() }).optional(),
   temperature: z
     .object({
       supported: z.boolean(),

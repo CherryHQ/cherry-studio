@@ -118,6 +118,8 @@ const NumericRangeSchema = z.object({
 })
 
 export const ParameterSupportDbSchema = z.object({
+  /** Unknown tool support is preserved separately from the caller's actual tools. */
+  tools: z.object({ supported: z.boolean().nullable() }).optional(),
   temperature: z.object({ supported: z.boolean(), range: NumericRangeSchema.optional() }).optional(),
   topP: z.object({ supported: z.boolean(), range: NumericRangeSchema.optional() }).optional(),
   topK: z.object({ supported: z.boolean(), range: NumericRangeSchema.optional() }).optional(),
@@ -265,6 +267,7 @@ export type ParameterSupport = z.infer<typeof ParameterSupportDbSchema>
 
 /** Runtime support retains catalog ranges and accepts legacy flat bounds. */
 export const RuntimeParameterSupportSchema = z.object({
+  tools: z.object({ supported: z.boolean().nullable() }).optional(),
   temperature: z
     .object({
       supported: z.boolean(),
@@ -293,9 +296,9 @@ export const RuntimeParameterSupportSchema = z.object({
     .optional(),
   frequencyPenalty: z.boolean().optional(),
   presencePenalty: z.boolean().optional(),
-  maxTokens: z.boolean(),
-  stopSequences: z.boolean(),
-  systemMessage: z.boolean()
+  maxTokens: z.boolean().optional(),
+  stopSequences: z.boolean().optional(),
+  systemMessage: z.boolean().optional()
 })
 export type RuntimeParameterSupport = z.infer<typeof RuntimeParameterSupportSchema>
 

@@ -422,6 +422,20 @@ export async function resolveProviderAiSdkConfig(
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
 
+  if (
+    matchesPreset(provider, SystemProviderIds.acedatacloud) &&
+    ctx.baseConfig.baseURL.startsWith('https://api.acedata.cloud/')
+  ) {
+    const fetch = config.providerSettings.fetch
+    config.providerSettings.fetch = (input, init) => {
+      const headers = new Headers(init?.headers)
+      const apiKey = headers.get('x-api-key')
+      if (!headers.has('authorization') && apiKey) headers.set('Authorization', `Bearer ${apiKey}`)
+      headers.delete('x-api-key')
+      return fetch(input, { ...init, headers })
+    }
+  }
+
   return {
     config,
     credentialReceipt: resolved.credentialReceipt

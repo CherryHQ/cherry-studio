@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
+  canAttemptFunctionCallingModel,
   getRawModelId,
   isAudioModel,
   isEmbeddingModel,
@@ -182,6 +183,16 @@ describe('shared model capability helpers', () => {
       expect(supportsDynamicallyLoadedTools(modelId)).toBe(expected)
     })
   })
+})
+
+it('permits unknown tools without displaying verified support and retains explicit negatives', () => {
+  const model = { ...createModel(), parameterSupport: { tools: { supported: null } } }
+  expect(canAttemptFunctionCallingModel(model)).toBe(true)
+  expect(isFunctionCallingModel(model)).toBe(false)
+  expect(isFunctionCallingModel({ ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })).toBe(false)
+  expect(canAttemptFunctionCallingModel({ ...model, parameterSupport: { tools: { supported: false } } })).toBe(false)
+  expect(canAttemptFunctionCallingModel(createModel())).toBe(false)
+  expect(canAttemptFunctionCallingModel(createModel([MODEL_CAPABILITY.FUNCTION_CALL]))).toBe(true)
 })
 
 describe('isClaudeFixedSamplingModel', () => {

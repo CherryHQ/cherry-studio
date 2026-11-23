@@ -358,3 +358,39 @@ it('preserves fetched Poe routing through registry enrichment and the create DTO
     endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
   })
 })
+
+it('preserves typed Ace discovery through enrichment and CreateModelDto without inventing tool support', async () => {
+  const fetched = {
+    id: 'ace::claude-sonnet-5-5',
+    providerId: 'ace',
+    apiModelId: 'claude-sonnet-5-5',
+    name: 'claude-sonnet-5-5',
+    capabilities: ['reasoning', 'image-recognition'],
+    inputModalities: ['text', 'image'],
+    endpointTypes: ['anthropic-messages'],
+    parameterSupport: { tools: { supported: null } },
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  }
+  listModelsMock.mockResolvedValue({ models: [fetched] })
+  dataApiGetMock.mockResolvedValue([
+    {
+      ...fetched,
+      capabilities: [],
+      inputModalities: ['text'],
+      endpointTypes: ['openai-chat-completions'],
+      presetModelId: null
+    }
+  ])
+  const { models } = await fetchResolvedProviderModels('ace')
+  const dto = toCreateModelDto('ace', models[0])
+  expect(dto).toMatchObject({
+    capabilities: ['reasoning', 'image-recognition'],
+    inputModalities: ['text', 'image'],
+    endpointTypes: ['anthropic-messages'],
+    parameterSupport: { tools: { supported: null } }
+  })
+  expect(dto).not.toHaveProperty('contextWindow')
+  expect(dto).not.toHaveProperty('pricing')
+})

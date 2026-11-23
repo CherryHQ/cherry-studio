@@ -1,8 +1,11 @@
+import { createAnthropic } from '@ai-sdk/anthropic'
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { generateText, tool } from 'ai'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { readProviderRegistry, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { mergePresetModel } from '@data/services/ProviderRegistryService'
@@ -2436,4 +2439,62 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
   })
+})
+
+it('uses native Ace Messages with the selected Bearer key and an actual caller tool array', async () => {
+  const provider = makeProvider({
+    id: 'acedatacloud',
+    presetProviderId: 'acedatacloud',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://api.acedata.cloud' }
+    }
+  })
+  const model = makeModel({
+    providerId: 'acedatacloud',
+    apiModelId: 'claude-sonnet-5-5',
+    endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+    capabilities: [MODEL_CAPABILITY.REASONING],
+    parameterSupport: { tools: { supported: null } }
+  })
+  vi.mocked(net.fetch).mockResolvedValue(
+    Response.json({
+      id: 'msg_ace',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-sonnet-5-5',
+      content: [{ type: 'text', text: 'OK' }],
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: { input_tokens: 2, output_tokens: 1 }
+    })
+  )
+  const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'ace-selected-key' })
+  expect(config.providerId).toBe('anthropic')
+  const client = createAnthropic(config.providerSettings as Parameters<typeof createAnthropic>[0])
+  const result = await generateText({
+    model: client('claude-sonnet-5-5'),
+    prompt: 'Hello',
+    maxOutputTokens: 16,
+    maxRetries: 0,
+    tools: {
+      lookup: tool({
+        description: 'Look up a value',
+        inputSchema: z.object({ query: z.string() }),
+        execute: async () => 'value'
+      })
+    }
+  })
+  expect(result.text).toBe('OK')
+  const [url, request] = vi.mocked(net.fetch).mock.calls[0]
+  expect(String(url)).toBe('https://api.acedata.cloud/v1/messages')
+  const headers = new Headers(request?.headers)
+  expect(headers.get('authorization')).toBe('Bearer ace-selected-key')
+  expect(headers.has('x-api-key')).toBe(false)
+  const body = JSON.parse(request?.body as string)
+  expect(body.model).toBe('claude-sonnet-5-5')
+  expect(body.max_tokens).toBe(16)
+  expect(Array.isArray(body.tools)).toBe(true)
+  expect(body.tools[0].name).toBe('lookup')
+  expect(JSON.stringify(body)).not.toContain('supported')
 })

@@ -17,7 +17,7 @@ import type { Provider } from '@shared/data/types/provider'
 import {
   isAnthropicModel,
   isFixedReasoningModel,
-  isFunctionCallingModel,
+  canAttemptFunctionCallingModel,
   isGeminiModel,
   isGenerateImageModel,
   isGrokModel,
@@ -85,7 +85,7 @@ export function resolveCapabilities(
   // not this capability. Kept `&& false` so the provider-option plumbing below never fires.
   const enableGenerateImage = isGenerateImageModel(model) && false
 
-  const isSupportedToolUse = isFunctionCallingModel(model)
+  const isSupportedToolUse = canAttemptFunctionCallingModel(model)
 
   const streamOutput = assistant.settings?.streamOutput !== false
 

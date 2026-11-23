@@ -877,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "72ab7623786c5a3e",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -1151,6 +1151,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "acedatacloud",
+        "name": "Ace Data Cloud"
       }
     ]
   },

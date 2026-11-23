@@ -7,6 +7,26 @@
  */
 import * as z from 'zod'
 
+export const AceDataCloudModelsResponseSchema = z.object({
+  data: z.array(
+    z.object({
+      id: z.string(),
+      type: z.string(),
+      capabilities: z.array(z.string()).default([]),
+      endpoints: z
+        .array(
+          z.object({
+            protocol: z.string(),
+            base_url: z.string(),
+            path: z.string(),
+            auth: z.string()
+          })
+        )
+        .min(1)
+    })
+  )
+})
+
 // === OpenAI-compatible (also used by OpenRouter, PPIO, etc.) ===
 
 const OpenAIModelSchema = z.looseObject({
