@@ -221,6 +221,12 @@ const agentModeLabels = new Map<string, Record<string, string>>([
       'Thinking: medium': 'assistants.settings.reasoning_effort.medium',
       'Thinking: high': 'assistants.settings.reasoning_effort.high'
     }
+  ],
+  [
+    'qwen',
+    {
+      'Auto Edit': 'code.adv.permission_modes.auto_edit'
+    }
   ]
 ])
 

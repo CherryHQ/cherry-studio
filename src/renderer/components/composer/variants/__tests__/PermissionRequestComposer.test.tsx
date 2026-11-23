@@ -121,14 +121,19 @@ describe('PermissionRequestComposer', () => {
     )
   })
 
-  it.each(['Always Allow', 'Always allow'])('translates %s without widening custom grants', async (name) => {
+  it.each([
+    { allowName: 'Always Allow', rejectName: 'Reject' },
+    { allowName: 'Always allow', rejectName: 'Reject' },
+    { allowName: 'Allow Always', rejectName: 'Deny' },
+    { allowName: 'Allow Always (risky)', rejectName: 'Deny' }
+  ])('translates $allowName and $rejectName without widening custom grants', async ({ allowName, rejectName }) => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const request = makeRequest()
     request.toolResponse.arguments = {
       localPermissionOptions: [
-        { optionId: 'allow_always', kind: 'allow_always', name },
+        { optionId: 'allow_always', kind: 'allow_always', name: allowName },
         { optionId: 'custom', kind: 'allow_always', name: 'Allow only /tmp/project' },
-        { optionId: 'reject', kind: 'reject_once', name: 'Reject' }
+        { optionId: 'reject', kind: 'reject_once', name: rejectName }
       ]
     }
     render(<PermissionRequestComposer request={request} onRespond={onRespond} />)

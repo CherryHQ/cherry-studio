@@ -506,9 +506,10 @@ export default function PermissionRequestComposer({
                   ? t('agent.toolPermission.button.allow')
                   : /^allow once$/i.test(option.name) && option.kind === 'allow_once'
                     ? t('local_agents.allow_once')
-                    : /^reject$/i.test(option.name) && option.kind === 'reject_once'
+                    : /^(?:reject|deny)$/i.test(option.name) && option.kind === 'reject_once'
                       ? t('agent.toolPermission.button.deny')
-                      : /^always allow$/i.test(option.name) && option.kind === 'allow_always'
+                      : /^(?:always allow|allow always)(?:\s*\(risky\))?$/i.test(option.name) &&
+                          option.kind === 'allow_always'
                         ? t('local_agents.allow_always')
                         : option.name
               return (

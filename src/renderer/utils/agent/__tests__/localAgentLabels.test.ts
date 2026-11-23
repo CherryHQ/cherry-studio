@@ -317,5 +317,15 @@ describe('installed agent translations', () => {
     expect(localized.find((option) => option.value === 'yolo')?.name).toBe(
       zh['code.adv.permission_modes.bypass_high_risk']
     )
+    const qwenLocalized = localAgentModeOptions(
+      {
+        id: 'mode',
+        currentValue: 'auto_edit',
+        options: [{ value: 'auto_edit', name: 'Auto Edit' }]
+      },
+      i18n.t,
+      'qwen'
+    )
+    expect(qwenLocalized[0]?.name).toBe(zh['code.adv.permission_modes.auto_edit'])
   })
 })
