@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 
-import { McpStep } from './steps/McpStep'
 import type { ResourceCreateWizardFormValues } from './types'
+
+const McpStep = lazy(() => import('./steps/McpStep').then((module) => ({ default: module.McpStep })))
 
 /** Preset shortcuts must review inherited tools before they create an assistant. */
 export function usePresetMcpReview() {
@@ -36,7 +37,11 @@ export function usePresetMcpReview() {
       }}>
       <DialogContent>
         <DialogTitle>{t('settings.mcp.title')}</DialogTitle>
-        {open ? <McpStep key="preset-review" form={form} active disabled={false} portalContainer={null} /> : null}
+        {open ? (
+          <Suspense fallback={<p role="status">{t('common.loading')}</p>}>
+            <McpStep key="preset-review" form={form} active disabled={false} portalContainer={null} />
+          </Suspense>
+        ) : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={() => finish(null)}>
             {t('common.cancel')}
