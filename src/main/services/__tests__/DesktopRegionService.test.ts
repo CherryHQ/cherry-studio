@@ -1,7 +1,7 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq, inArray } from 'drizzle-orm'
-import { net } from 'electron'
+import { app, net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { appStateTable } from '@data/db/schemas/appState'
@@ -10,6 +10,12 @@ import * as appEdition from '@main/utils/appEdition'
 import { getAppEdition } from '@main/utils/appEdition'
 
 import { DesktopRegionService, inferDesktopEdition } from '../DesktopRegionService'
+
+const resolveUrl = 'https://config.cherry-ai.com/v1/resolve'
+
+function resolvedRegion(region: 'CN' | 'GLOBAL'): Response {
+  return Response.json({ schema_version: 1, requires_region_selection: false, region })
+}
 
 describe('DesktopRegionService', () => {
   const db = setupTestDatabase()
@@ -29,6 +35,7 @@ describe('DesktopRegionService', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllEnvs()
+    DesktopRegionService.resetInstances()
   })
 
   it.each([
@@ -41,11 +48,23 @@ describe('DesktopRegionService', () => {
   })
 
   it('uses a confirmed profile region after restart without querying the network', async () => {
-    const fetch = vi.spyOn(net, 'fetch').mockResolvedValueOnce(Response.json({ region: 'CN' }))
+    const fetch = vi.spyOn(net, 'fetch').mockResolvedValueOnce(resolvedRegion('CN'))
     const first = new DesktopRegionService()
     await first._doInit()
     expect(getAppEdition()).toBe('cn')
-    expect(fetch.mock.calls[0]?.[0]).toBe('https://config.cherry-ai.com/v1/region')
+    const [url, options] = fetch.mock.calls[0]
+    expect(url).toBe(resolveUrl)
+    expect(options?.method).toBe('POST')
+    const platforms: Partial<Record<NodeJS.Platform, string>> = { darwin: 'macos', win32: 'windows', linux: 'linux' }
+    expect(JSON.parse(options?.body as string)).toEqual({
+      client: 'community_desktop',
+      platform: platforms[process.platform],
+      app_version: app.getVersion()
+    })
+    expect(db.db.select().from(appStateTable).where(eq(appStateTable.key, 'app:region')).get()?.value).toEqual({
+      region: 'cn',
+      source: 'server'
+    })
     await first._doStop()
     DesktopRegionService.resetInstances()
 
@@ -55,6 +74,51 @@ describe('DesktopRegionService', () => {
     expect(getAppEdition()).toBe('cn')
     expect(fetch).toHaveBeenCalledTimes(1)
     await restarted._doStop()
+    DesktopRegionService.resetInstances()
+  })
+
+  it('confirms the saved region at login and rejects a different region', async () => {
+    db.db
+      .insert(appStateTable)
+      .values({ key: 'app:region', value: { region: 'global', source: 'account' } })
+      .run()
+
+    const fetch = vi.spyOn(net, 'fetch').mockResolvedValueOnce(resolvedRegion('GLOBAL'))
+    fetch.mockResolvedValueOnce(resolvedRegion('CN'))
+    const service = new DesktopRegionService()
+    const signal = new AbortController().signal
+
+    await expect(service.confirmLogin(signal)).resolves.toBe('global')
+    const [url, options] = fetch.mock.calls[0]
+    expect(url).toBe(resolveUrl)
+    expect(JSON.parse(options?.body as string)).toMatchObject({ selected_region: 'GLOBAL' })
+
+    await expect(service.confirmLogin(signal)).resolves.toBeNull()
+    expect(db.db.select().from(appStateTable).where(eq(appStateTable.key, 'app:region')).get()?.value).toEqual({
+      region: 'global',
+      source: 'account'
+    })
+    DesktopRegionService.resetInstances()
+  })
+
+  it.each([
+    { status: 503, body: { error: { code: 'REGION_UNAVAILABLE' } } },
+    { status: 200, body: { schema_version: 1, requires_region_selection: true, region: 'GLOBAL' } }
+  ])('keeps the local decision provisional until the server confirms a region ($status)', async ({ status, body }) => {
+    db.db
+      .insert(appStateTable)
+      .values({ key: 'app:region', value: { region: 'cn', source: 'local' } })
+      .run()
+    vi.spyOn(net, 'fetch').mockResolvedValueOnce(Response.json(body, { status }))
+    const service = new DesktopRegionService()
+    await service._doInit()
+
+    expect(getAppEdition()).toBe('cn')
+    expect(db.db.select().from(appStateTable).where(eq(appStateTable.key, 'app:region')).get()?.value).toEqual({
+      region: 'cn',
+      source: 'local'
+    })
+    await service._doStop()
     DesktopRegionService.resetInstances()
   })
 
@@ -74,7 +138,7 @@ describe('DesktopRegionService', () => {
         displayName: null
       }
     })
-    const fetch = vi.spyOn(net, 'fetch').mockResolvedValueOnce(Response.json({ region: 'GLOBAL' }))
+    const fetch = vi.spyOn(net, 'fetch').mockResolvedValueOnce(resolvedRegion('GLOBAL'))
     const bridge = new DesktopRegionService()
     await bridge._doInit()
     await bridge._doStop()
@@ -116,7 +180,7 @@ describe('DesktopRegionService', () => {
       .insert(appStateTable)
       .values({ key: 'app:region', value: { region: 'cn', source: 'local' } })
       .run()
-    const fetch = vi.spyOn(net, 'fetch').mockResolvedValueOnce(Response.json({ region: 'GLOBAL' }))
+    const fetch = vi.spyOn(net, 'fetch').mockResolvedValueOnce(resolvedRegion('GLOBAL'))
     const provisional = new DesktopRegionService()
     await provisional._doInit()
     expect(getAppEdition()).toBe('cn')

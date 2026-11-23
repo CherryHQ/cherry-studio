@@ -39,7 +39,11 @@ const MAINLAND_TIME_ZONES = new Set([
 const PLATFORMS = { win32: 'windows', darwin: 'macos', linux: 'linux' } as const
 const decisionSchema = z.object({ region: z.enum(APP_EDITIONS), source: z.enum(['local', 'server', 'account']) })
 const legacySessionSchema = z.object({ sessionId: z.string().min(1), region: z.enum(APP_EDITIONS) })
-const resolveSchema = z.object({ region: z.enum(['CN', 'GLOBAL']) })
+const resolveSchema = z.object({
+  schema_version: z.literal(1),
+  requires_region_selection: z.literal(false),
+  region: z.enum(['CN', 'GLOBAL'])
+})
 type RegionDecision = z.infer<typeof decisionSchema>
 
 export function inferDesktopEdition(timeZone: string, country: string, locale?: string): AppEdition {
@@ -184,7 +188,7 @@ export class DesktopRegionService extends BaseService {
       ])
       if (!proxy?.converged) return null
       deadline.throwIfAborted()
-      const response = await net.fetch('https://config.cherry-ai.com/v1/region', {
+      const response = await net.fetch('https://config.cherry-ai.com/v1/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
