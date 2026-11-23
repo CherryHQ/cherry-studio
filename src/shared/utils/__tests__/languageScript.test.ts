@@ -17,3 +17,16 @@ describe('readsInLanguage', () => {
     expect(readsInLanguage('Disk full', 'de-DE')).toBe(false)
   })
 })
+
+describe('readsInLanguage beyond the original scripts', () => {
+  it('keeps a Korean message under a Korean UI', () => {
+    expect(readsInLanguage('SKILL.md 파일이 없습니다', 'ko-KR')).toBe(true)
+    expect(readsInLanguage('SKILL.md not found', 'ko-KR')).toBe(false)
+  })
+
+  it('rejects any non-Latin letter script under English while allowing punctuation and identifiers', () => {
+    expect(readsInLanguage('फ़ाइल नहीं मिली', 'en-US')).toBe(false)
+    expect(readsInLanguage('ملف غير موجود', 'en-US')).toBe(false)
+    expect(readsInLanguage('ENOENT: open "/tmp/a_b-1.json" (errno -2) — 50%', 'en-US')).toBe(true)
+  })
+})
