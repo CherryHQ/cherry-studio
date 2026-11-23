@@ -80,28 +80,38 @@ const str = (value: unknown) => (value === undefined ? undefined : String(value)
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest chat arguments are untrusted; rebuild only bounded fields here and leave role/model/content validity to the main capability parser.
 const gateChat = (params: unknown) => {
-  const raw = (params ?? {}) as { messages?: unknown; reasoning?: unknown; model?: unknown }
-  const messages = Array.isArray(raw.messages) ? raw.messages : undefined
+  const raw = params !== null && typeof params === 'object' ? params : {}
+  const sourceMessages = 'messages' in raw ? raw.messages : undefined
+  const hasMessages = Array.isArray(sourceMessages)
+  const messages: Array<{ role: string | undefined; content: string | undefined }> = []
 
-  if (messages && messages.length > MINI_APP_GUEST_LIMITS.chatMessages) {
-    throw guestRefusal(`Mini app chat exceeds the ${MINI_APP_GUEST_LIMITS.chatMessages} message limit`)
-  }
+  if (hasMessages) {
+    const length = sourceMessages.length
 
-  return {
-    messages: messages?.map((m) => {
-      const { role, content } = (m ?? {}) as { role?: unknown; content?: unknown }
-      // Coerced ONCE, and measured on the string that is actually forwarded. Converting a
-      // second time asks the guest's own `toString()` again, and a stateful one can answer
-      // short here and enormous there — the gate passes and main structured-clones the
-      // real size before Zod ever looks at it. `?? ''` measures only; `undefined` still
-      // travels as `undefined`, which main's required `z.string()` refuses as before.
+    if (!Number.isInteger(length) || length < 0 || length > MINI_APP_GUEST_LIMITS.chatMessages) {
+      throw guestRefusal(`Mini app chat exceeds the ${MINI_APP_GUEST_LIMITS.chatMessages} message limit`)
+    }
+
+    messages.length = length
+
+    for (let index = 0; index < length; index++) {
+      if (!(index in sourceMessages)) continue
+      const item: unknown = sourceMessages[index]
+      const message = item !== null && typeof item === 'object' ? item : {}
+      const role = 'role' in message ? message.role : undefined
+      const content = 'content' in message ? message.content : undefined
+      // Stateful conversions must produce the same string that is measured and forwarded.
       const text = str(content)
       assertPayloadSize(text ?? '', MINI_APP_GUEST_LIMITS.chatContentChars, 'chat content')
 
-      return { role: str(role)?.slice(0, 16), content: text }
-    }),
-    reasoning: str(raw.reasoning)?.slice(0, 16),
-    model: str(raw.model)?.slice(0, 16)
+      messages[index] = { role: str(role)?.slice(0, 16), content: text }
+    }
+  }
+
+  return {
+    messages: hasMessages ? messages : undefined,
+    reasoning: str('reasoning' in raw ? raw.reasoning : undefined)?.slice(0, 16),
+    model: str('model' in raw ? raw.model : undefined)?.slice(0, 16)
   }
 }
 
@@ -117,21 +127,23 @@ const gateFetch = (raw: { url?: unknown; method?: unknown; headers?: unknown; bo
   // Coerced once and measured on the forwarded string — see `gateChat`.
   const url = str(params.url)
   assertPayloadSize(url ?? '', MINI_APP_GUEST_LIMITS.fetchUrlChars, 'request url')
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Guest JavaScript can supply native or stateful header values; coerce each once and bound the forwarded string before IPC.
-  const headers = (params.headers ?? {}) as Record<string, unknown>
+  const rawHeaders = params.headers ?? {}
+  const headers =
+    Object.keys(rawHeaders).length <= MINI_APP_GUEST_LIMITS.fetchHeaderCount ? Object.entries(rawHeaders) : undefined
 
-  if (Object.keys(headers).length > MINI_APP_GUEST_LIMITS.fetchHeaderCount) {
+  if (!headers || headers.length > MINI_APP_GUEST_LIMITS.fetchHeaderCount) {
     throw guestRefusal(`Mini app request exceeds the ${MINI_APP_GUEST_LIMITS.fetchHeaderCount} header limit`)
   }
 
-  const bounded: Record<string, string> = {}
+  const bounded = Object.fromEntries(
+    headers.map(([name, value]) => {
+      assertPayloadSize(name, MINI_APP_GUEST_LIMITS.fetchHeaderNameChars, 'header name')
+      const text = String(value ?? '')
+      assertPayloadSize(text, MINI_APP_GUEST_LIMITS.fetchHeaderValueChars, 'header value')
 
-  for (const [name, value] of Object.entries(headers)) {
-    assertPayloadSize(name, MINI_APP_GUEST_LIMITS.fetchHeaderNameChars, 'header name')
-    const text = String(value ?? '')
-    assertPayloadSize(text, MINI_APP_GUEST_LIMITS.fetchHeaderValueChars, 'header value')
-    bounded[name] = text
-  }
+      return [name, text] as const
+    })
+  )
 
   const body = str(params.body)
 

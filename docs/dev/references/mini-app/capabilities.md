@@ -257,3 +257,6 @@ These run inside the page before anything is sent, so an oversized payload never
 | `notification` title / body | 64 / 256 — **truncated**, not rejected |
 | `clipboard.write` text | 1,048,576 |
 | `file.export` suggestedName | 128 |
+
+Length checks use the values sent to the host; the bridge forwards only supported fields.
+The host still validates required fields, message roles, model choices, and permitted network headers.

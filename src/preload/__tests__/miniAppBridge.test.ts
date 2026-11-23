@@ -214,15 +214,77 @@ describe('the guest bridge', () => {
     }
 
     await cherry.clipboard.write({ text: twoFaced(MINI_APP_GUEST_LIMITS.clipboardTextChars) })
-    await cherry.network.fetch({ url: twoFaced(MINI_APP_GUEST_LIMITS.fetchUrlChars) })
+    await cherry.network.fetch({
+      url: twoFaced(MINI_APP_GUEST_LIMITS.fetchUrlChars),
+      headers: { 'x-value': twoFaced(MINI_APP_GUEST_LIMITS.fetchHeaderValueChars) }
+    })
     await cherry.ai.chat({
       messages: [{ role: 'user', content: twoFaced(MINI_APP_GUEST_LIMITS.chatContentChars) }]
     })
 
     const sent = invoke.mock.calls.map(([, payload]) => (payload as { params: never }).params)
     expect(sent[0]).toEqual({ text: 'ok' })
-    expect(sent[1]).toMatchObject({ url: 'ok' })
+    expect(sent[1]).toMatchObject({ url: 'ok', headers: { 'x-value': 'ok' } })
     expect(sent[2]).toMatchObject({ messages: [{ role: 'user', content: 'ok' }] })
+  })
+
+  it('bounds actual message positions even when the caller replaces the array map method', async () => {
+    const messages = Object.assign([{ role: 'user', content: 'bounded' }], {
+      map: () => [{ role: 'user', content: 'x'.repeat(MINI_APP_GUEST_LIMITS.chatContentChars + 1) }]
+    })
+
+    await cherry.ai.chat({ messages })
+
+    expect(invoke.mock.calls[0][1]).toMatchObject({ params: { messages: [{ role: 'user', content: 'bounded' }] } })
+  })
+
+  it('uses one messages snapshot when the guest property changes between reads', async () => {
+    let reads = 0
+
+    await cherry.ai.chat({
+      get messages() {
+        return [{ role: 'user', content: reads++ === 0 ? 'first' : 'later' }]
+      }
+    })
+
+    expect(invoke.mock.calls[0][1]).toMatchObject({ params: { messages: [{ role: 'user', content: 'first' }] } })
+  })
+
+  it('refuses headers that grow beyond the cap after the initial count', async () => {
+    let enumerations = 0
+    const headers = new Proxy(
+      {},
+      {
+        ownKeys: () =>
+          enumerations++ === 0
+            ? ['x-first']
+            : Array.from({ length: MINI_APP_GUEST_LIMITS.fetchHeaderCount + 1 }, (_, index) => `x-later-${index}`),
+        getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true }),
+        get: () => 'bounded'
+      }
+    )
+
+    await expect(cherry.network.fetch({ url: 'https://a.example/', headers })).rejects.toMatchObject({
+      name: 'InvalidArgument'
+    })
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('refuses an oversized header set before reading its values', async () => {
+    const headers = Object.fromEntries(
+      Array.from({ length: MINI_APP_GUEST_LIMITS.fetchHeaderCount + 1 }, (_, index) => [`x-${index}`, 'value'])
+    )
+    Object.defineProperty(headers, 'x-0', {
+      enumerable: true,
+      get: () => {
+        throw new Error('header values must not be read')
+      }
+    })
+
+    await expect(cherry.network.fetch({ url: 'https://a.example/', headers })).rejects.toMatchObject({
+      name: 'InvalidArgument'
+    })
+    expect(invoke).not.toHaveBeenCalled()
   })
 
   it('truncates a notification instead of refusing it', async () => {
