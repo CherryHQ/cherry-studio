@@ -39,8 +39,10 @@ share one behavior instance. `host` implements the existing `HostPorts`: applica
 services such as approval UI, model selection, settings and output storage.
 The adapter owns native execution; behavior owns the product rules. Tests use `createScriptedHost`.
 
-`configureChild({ thread, modelKey })` supplies only the native model and optional model runtime
-once per child context. The selected model must match `modelKey` (`provider/id`). Unspecified
+`configureChild({ thread, modelKey })` supplies the native model, optional model runtime and optional
+`compaction: { reserveTokens, keepRecentTokens }` overrides once per child context. Child compaction
+overrides accept token budgets only, not `enabled` or a custom summarizer; native metering and the
+inherited compaction policy remain in charge. The selected model must match `modelKey` (`provider/id`). Unspecified
 model bindings and extension factories inherit from the root; `onEvent` receives root events only. The adapter installs the behavior extension on every child, filters parent-only tools, and disables native retries and cache warming
 as required by the behavior adapter's request accounting.
 
@@ -207,7 +209,9 @@ for host persistence; billing retains its native response identity independently
 `compaction: { reserveTokens, keepRecentTokens, enabled? }` controls native thresholds. Pi generates the
 summary itself; each native model request is metered and its reported usage is attributed to the captured goal
 and child run. Empty or failed summaries cancel compaction. `pi.compact()` also works when automatic compaction
-is disabled.
+is disabled. A root task's pinned percentage uses the effective model-aware reserve as its safety
+floor, capped at half the context window for small-window feasibility. A lower percentage may
+reserve more, but cannot discard that floor.
 
 [`agent-behavior`](../agent-behavior/README.md) owns AskUserQuestion, Todo, goals, output offload,
 recall and subagent policy. There are no separate Pi extensions to install for these features.

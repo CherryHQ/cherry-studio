@@ -47,7 +47,7 @@ export interface PiRuntimeBehavior {
  * the child's request limit and usage meter, so the native metered summarizer is always used.
  */
 export type PiChildConfiguration = Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>> & {
-  compaction?: Omit<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'summarize'>
+  compaction?: Pick<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'reserveTokens' | 'keepRecentTokens'>
 }
 
 interface PiRuntimeErrorContext {
@@ -221,7 +221,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               ...(!child &&
                 config.compactionPercent !== undefined && {
                   reserveTokens: compactionReserveForPercent(
-                    settings.reserveTokens,
+                    config.compaction?.reserveTokens ?? settings.reserveTokens,
                     model.contextWindow,
                     config.compactionPercent
                   )
