@@ -73,9 +73,12 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 import {
+  classifyNativePermissionMode,
   findLocalDefaultNonPlanOption,
+  findLocalPermissionConfigOption,
   findLocalPlanModeOption,
   isHighRiskLocalOption,
+  isLocalThoughtConfigOption,
   isUnifiedLocalPermissionMode
 } from '@renderer/utils/agent/localAgentLabels'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -674,16 +677,37 @@ const AgentComposerInner = ({
     usesCherryPermissionMode && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const localPresetId = agent?.configuration?.localRuntime?.presetId
   const localMode = agent?.type === 'local' ? localOptions?.mode : undefined
-  const hasUnifiedPermissionMode = isUnifiedLocalPermissionMode(localMode, localPresetId)
-  const localPlanOption = hasUnifiedPermissionMode ? findLocalPlanModeOption(localMode) : undefined
+  const localExtraOptions = useMemo(() => {
+    const primaryModel = localOptions?.configOptions?.find(
+      (item) => item.category === 'model' && item.type === 'select'
+    )
+    return localOptions?.configOptions?.filter(
+      (option) => option.category !== 'model_config' && option !== primaryModel && option.id !== localOptions?.mode?.id
+    )
+  }, [localOptions?.configOptions, localOptions?.mode?.id])
+  const localPermissionSource = useMemo<{ kind: 'mode' | 'config'; selection: LocalAgentSelection } | undefined>(() => {
+    if (isUnifiedLocalPermissionMode(localMode, localPresetId) && localMode) {
+      return { kind: 'mode', selection: localMode }
+    }
+    if (agent?.type !== 'local') return undefined
+    const configSelection = findLocalPermissionConfigOption(localExtraOptions, localPresetId)
+    return configSelection ? { kind: 'config', selection: configSelection } : undefined
+  }, [agent?.type, localExtraOptions, localMode, localPresetId])
+  const hasUnifiedPermissionMode = Boolean(localPermissionSource)
+  const hasUnifiedModePermission = localPermissionSource?.kind === 'mode'
+  const localPermissionSelection = localPermissionSource?.selection
+  const localPlanOption = useMemo(
+    () => (localPermissionSelection ? findLocalPlanModeOption(localPermissionSelection) : undefined),
+    [localPermissionSelection]
+  )
   const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
   const localPlanSwitchInFlightRef = useRef(false)
   useEffect(() => {
-    if (!localMode || !localPlanOption) return
-    if (localMode.currentValue !== localPlanOption.value) {
-      lastNonPlanLocalModeRef.current = { sessionId, value: localMode.currentValue }
+    if (!localPermissionSelection || !localPlanOption) return
+    if (localPermissionSelection.currentValue !== localPlanOption.value) {
+      lastNonPlanLocalModeRef.current = { sessionId, value: localPermissionSelection.currentValue }
     }
-  }, [localMode, localPlanOption, sessionId])
+  }, [localPermissionSelection, localPlanOption, sessionId])
   const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
@@ -710,36 +734,42 @@ const AgentComposerInner = ({
     if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
   }, [dispatchLauncher, getLaunchers, quickPanel])
   const toggleLocalPlanMode = useCallback(() => {
-    if (isStreaming || localPlanSwitchInFlightRef.current || !localMode || !localPlanOption) return
-    const isCurrentlyPlan = localMode.currentValue === localPlanOption.value
+    if (isStreaming || localPlanSwitchInFlightRef.current || !localPermissionSource || !localPlanOption) return
+    const activeSelection = localPermissionSource.selection
+    const isCurrentlyPlan = activeSelection.currentValue === localPlanOption.value
     let targetValue: string | undefined
     if (!isCurrentlyPlan) {
       targetValue = localPlanOption.value
     } else {
       const remembered =
         lastNonPlanLocalModeRef.current?.sessionId === sessionId ? lastNonPlanLocalModeRef.current.value : undefined
-      const rememberedOption = remembered ? localMode.options.find((option) => option.value === remembered) : undefined
+      const rememberedOption = remembered
+        ? activeSelection.options.find((option) => option.value === remembered)
+        : undefined
       if (
         rememberedOption &&
         rememberedOption.value !== localPlanOption.value &&
+        classifyNativePermissionMode(rememberedOption, localPresetId)?.canonicalMode !== 'bypassPermissions' &&
         !isHighRiskLocalOption({
-          kind: 'mode',
-          optionId: localMode.id,
+          kind: localPermissionSource.kind,
+          optionId: activeSelection.id,
           value: rememberedOption.value,
           name: rememberedOption.name
         })
       ) {
         targetValue = rememberedOption.value
       } else {
-        targetValue = findLocalDefaultNonPlanOption(localMode, localPlanOption.value)?.value
+        targetValue = findLocalDefaultNonPlanOption(activeSelection, localPlanOption.value)?.value
       }
     }
-    if (!targetValue || targetValue === localMode.currentValue) return
+    if (!targetValue || targetValue === activeSelection.currentValue) return
     localPlanSwitchInFlightRef.current = true
+    const method =
+      localPermissionSource.kind === 'config' ? 'ai.local_agents.set_config_option' : 'ai.local_agents.set_mode'
     void ipcApi
-      .request('ai.local_agents.set_mode', {
+      .request(method, {
         sessionId,
-        configId: localMode.id,
+        configId: activeSelection.id,
         value: targetValue
       })
       .catch((error) => {
@@ -748,7 +778,7 @@ const AgentComposerInner = ({
       .finally(() => {
         localPlanSwitchInFlightRef.current = false
       })
-  }, [isStreaming, localMode, localPlanOption, sessionId])
+  }, [isStreaming, localPermissionSource, localPlanOption, localPresetId, sessionId])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -1253,9 +1283,21 @@ const AgentComposerInner = ({
   const localPermission = useMemo(
     () =>
       agent?.type === 'local' && !launchOptions?.editing
-        ? { mode: localMode, presetId: localPresetId, disabled: isStreaming }
+        ? {
+            mode: localPermissionSelection,
+            kind: localPermissionSource?.kind,
+            presetId: localPresetId,
+            disabled: isStreaming
+          }
         : undefined,
-    [agent?.type, isStreaming, launchOptions?.editing, localMode, localPresetId]
+    [
+      agent?.type,
+      isStreaming,
+      launchOptions?.editing,
+      localPermissionSelection,
+      localPermissionSource?.kind,
+      localPresetId
+    ]
   )
   const toolsSession = useMemo(
     () => (sessionData && localPermission ? { ...sessionData, localPermission } : sessionData),
@@ -1775,18 +1817,11 @@ const AgentComposerInner = ({
     workspaceChanging
   })
 
-  const localPrimaryModelOption = localOptions?.configOptions?.find(
-    (item) => item.category === 'model' && item.type === 'select'
-  )
-  const localExtraOptions = localOptions?.configOptions?.filter(
-    (option) =>
-      option.category !== 'model_config' && option !== localPrimaryModelOption && option.id !== localOptions?.mode?.id
-  )
+  const localPermissionConfigId =
+    localPermissionSource?.kind === 'config' ? localPermissionSource.selection.id : undefined
   const localThoughtConfigOption = localExtraOptions?.find(
     (option): option is Extract<LocalAgentConfigOption, { type: 'select' }> =>
-      option.category === 'thought_level' &&
-      option.type === 'select' &&
-      option.options.flatMap((choice) => ('group' in choice ? choice.options : [choice])).length > 1
+      option.id !== localPermissionConfigId && isLocalThoughtConfigOption(option)
   )
   const localThoughtControl: { kind: 'thought' | 'config' | 'mode'; selection: LocalAgentSelection } | undefined =
     localOptions?.thoughtLevel && localOptions.thoughtLevel.options.length > 1
@@ -1811,9 +1846,14 @@ const AgentComposerInner = ({
             localOptions.mode.options.length > 1
           ? { kind: 'mode', selection: localOptions.mode }
           : undefined
+  const excludedExtraOptionIds = new Set<string>()
+  if (localPermissionSource?.kind === 'config') excludedExtraOptionIds.add(localPermissionSource.selection.id)
+  if (localThoughtControl && localThoughtControl.kind !== 'mode') {
+    excludedExtraOptionIds.add(localThoughtControl.selection.id)
+  }
   const localRemainingConfigOptions =
-    localThoughtControl && localThoughtControl.kind !== 'mode'
-      ? localExtraOptions?.filter((option) => option.id !== localThoughtControl.selection.id)
+    excludedExtraOptionIds.size > 0
+      ? localExtraOptions?.filter((option) => !excludedExtraOptionIds.has(option.id))
       : localExtraOptions
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
@@ -1847,7 +1887,7 @@ const AgentComposerInner = ({
             agentName={agent.name.trim() || undefined}
             presetId={localPresetId}
             options={localRemainingConfigOptions}
-            mode={hasUnifiedPermissionMode || localThoughtControl?.kind === 'mode' ? undefined : localOptions?.mode}
+            mode={hasUnifiedModePermission || localThoughtControl?.kind === 'mode' ? undefined : localOptions?.mode}
             disabled={isStreaming}
           />
         </>

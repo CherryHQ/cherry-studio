@@ -136,7 +136,12 @@ const NATIVE_PERMISSION_CLASSIFIERS: ReadonlyArray<{
   },
   {
     canonicalMode: 'auto',
-    identifiers: new Map([['auto', 0]])
+    identifiers: new Map([
+      ['auto', 0],
+      ['smart_approve', 1],
+      ['smart approve', 1],
+      ['smart-approve', 1]
+    ])
   },
   {
     canonicalMode: 'acceptEdits',
@@ -164,11 +169,48 @@ const NATIVE_PERMISSION_CLASSIFIERS: ReadonlyArray<{
       ['always-ask', 1],
       ['always_ask', 1],
       ['guarded', 2],
+      ['approve', 2],
       ['manual', 3],
       ['supervised', 4]
     ])
   }
 ]
+
+const PERMISSION_CONFIG_OPTION_IDENTIFIERS = new Set([
+  'permission_mode',
+  'permission mode',
+  'permissionmode',
+  'permissions',
+  'approval_mode',
+  'approval mode'
+])
+
+const THOUGHT_CONFIG_OPTION_IDENTIFIERS = new Set([
+  'thought_level',
+  'thoughtlevel',
+  'reasoning_effort',
+  'reasoningeffort',
+  'reasoning',
+  'thinking',
+  'effort',
+  'thinking_effort',
+  'thinking_level',
+  'thinking_levels',
+  'levels'
+])
+
+const THOUGHT_CHOICE_IDENTIFIERS = new Set([
+  'off',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'auto',
+  'default'
+])
 
 export function classifyNativePermissionMode(
   option: { value: string; name: string },
@@ -179,6 +221,12 @@ export function classifyNativePermissionMode(
   const value = option.value.trim().toLowerCase()
   const name = option.name.trim().toLowerCase()
 
+  if (presetId === 'goose' && (value === 'auto' || name === 'auto')) {
+    return { canonicalMode: 'bypassPermissions', priority: 1 }
+  }
+  if (presetId === 'minimax' && (value === 'ask' || name === 'ask')) {
+    return { canonicalMode: 'default', priority: 1 }
+  }
   if (presetId === 'copilot' && (value === 'agent' || name === 'agent')) {
     return { canonicalMode: 'default', priority: 1 }
   }
@@ -211,6 +259,50 @@ export function isUnifiedLocalPermissionMode(mode?: LocalAgentSelection, presetI
     if (categories.size >= 2) return true
   }
   return false
+}
+
+export function findLocalPermissionConfigOption(
+  options: LocalAgentConfigOption[] | undefined,
+  presetId?: string
+): LocalAgentSelection | undefined {
+  if (!options?.length) return undefined
+  for (const option of options) {
+    if (option.type !== 'select') continue
+    const id = option.id.trim().toLowerCase()
+    const name = option.name.trim().toLowerCase()
+    if (!PERMISSION_CONFIG_OPTION_IDENTIFIERS.has(id) && !PERMISSION_CONFIG_OPTION_IDENTIFIERS.has(name)) continue
+    const selection: LocalAgentSelection = {
+      id: option.id,
+      currentValue: String(option.currentValue),
+      options: option.options
+        .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+        .map((choice) => ({
+          value: choice.value,
+          name: choice.name,
+          description: choice.description ?? undefined
+        }))
+    }
+    if (isUnifiedLocalPermissionMode(selection, presetId)) return selection
+  }
+  return undefined
+}
+
+export function isLocalThoughtConfigOption(
+  option: LocalAgentConfigOption
+): option is Extract<LocalAgentConfigOption, { type: 'select' }> {
+  if (option.type !== 'select') return false
+  const flattened = option.options.flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+  if (flattened.length <= 1) return false
+  if (option.category === 'thought_level') return true
+  const id = option.id.trim().toLowerCase()
+  const name = option.name.trim().toLowerCase()
+  if (!THOUGHT_CONFIG_OPTION_IDENTIFIERS.has(id) && !THOUGHT_CONFIG_OPTION_IDENTIFIERS.has(name)) return false
+  const recognized = flattened.filter(
+    (choice) =>
+      THOUGHT_CHOICE_IDENTIFIERS.has(choice.value.trim().toLowerCase()) ||
+      THOUGHT_CHOICE_IDENTIFIERS.has(choice.name.trim().toLowerCase())
+  )
+  return recognized.length >= 2
 }
 
 export function resolveUnifiedLocalPermissionModes(
@@ -280,6 +372,7 @@ const AUTO_EDIT_MODE_IDENTIFIERS = new Set([
 ])
 const DEFAULT_NON_PLAN_IDENTIFIERS = [
   'default',
+  'approve',
   'workspace',
   'workspace-write',
   'always ask',

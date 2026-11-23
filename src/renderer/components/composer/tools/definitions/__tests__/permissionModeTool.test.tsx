@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { TFunction } from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -307,5 +307,42 @@ describe('permissionModeTool submenu', () => {
     expect(disabledSubmenu.every((item) => item.disabled === true)).toBe(true)
     disabledSubmenu.find((item) => item.id === 'permission-mode-default')?.action?.({} as any)
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
+
+    // Config-backed permissions (e.g. MiniMax / Amp) dispatch set_config_option instead of set_mode.
+    mocks.ipcRequest.mockClear()
+    const ampConfigPermission = {
+      id: 'permissions',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Default' },
+        { value: 'bypass', name: 'Bypass' }
+      ]
+    }
+    rerender(
+      <Runtime
+        context={
+          {
+            ...context,
+            session: {
+              agentId: 'agent-amp',
+              sessionId: 'session-amp',
+              agentType: 'local',
+              localPermission: { mode: ampConfigPermission, kind: 'config', presetId: 'amp-acp', disabled: false }
+            }
+          } as any
+        }
+      />
+    )
+    const ampSubmenu = mocks.registerLaunchers.mock.calls.at(-1)?.[0]?.[0]?.submenu ?? []
+    expect(ampSubmenu.map((item) => item.id)).toEqual(['permission-mode-default', 'permission-mode-bypassPermissions'])
+    act(() => {
+      ampSubmenu.find((item) => item.id === 'permission-mode-bypassPermissions')?.action?.({} as any)
+    })
+    await user.click(await screen.findByRole('button', { name: 'Enable Full Access' }))
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
+      sessionId: 'session-amp',
+      configId: 'permissions',
+      value: 'bypass'
+    })
   })
 })

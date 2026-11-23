@@ -8,9 +8,11 @@ import type { LocalAgentConfigOption } from '@shared/ai/localAgent'
 
 import {
   findLocalDefaultNonPlanOption,
+  findLocalPermissionConfigOption,
   findLocalPlanModeOption,
   getLocalOptionRiskLevel,
   isHighRiskLocalOption,
+  isLocalThoughtConfigOption,
   isUnifiedLocalPermissionMode,
   localAgentConfigOptions,
   localAgentModeOptions,
@@ -500,5 +502,103 @@ describe('installed agent translations', () => {
     }
     expect(isUnifiedLocalPermissionMode(piMode, 'pi-acp')).toBe(false)
     expect(resolveUnifiedLocalPermissionModes(piMode, i18n.t, 'pi-acp')).toBeUndefined()
+
+    // goose maps auto -> bypassPermissions, smart_approve -> auto, approve -> default.
+    const goose = resolveUnifiedLocalPermissionModes(
+      {
+        id: 'mode',
+        currentValue: 'auto',
+        options: [
+          { value: 'auto', name: 'Auto' },
+          { value: 'approve', name: 'approve' },
+          { value: 'smart_approve', name: 'smart_approve' }
+        ]
+      },
+      i18n.t,
+      'goose'
+    )
+    expect(goose?.currentCanonicalMode).toBe('bypassPermissions')
+    expect(goose?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['default', 'approve'],
+      ['auto', 'smart_approve'],
+      ['bypassPermissions', 'auto']
+    ])
+
+    // MiniMax Code & Amp expose permission policies via configOptions instead of session mode.
+    const minimaxPerm = findLocalPermissionConfigOption(
+      [
+        {
+          id: 'permission_mode',
+          name: 'Permission mode',
+          type: 'select',
+          currentValue: 'auto',
+          options: [
+            { value: 'ask', name: 'Ask' },
+            { value: 'auto', name: 'Auto' },
+            { value: 'full_access', name: 'Full access' }
+          ]
+        }
+      ],
+      'minimax'
+    )
+    const minimaxUnified = resolveUnifiedLocalPermissionModes(minimaxPerm, i18n.t, 'minimax')
+    expect(minimaxUnified?.currentCanonicalMode).toBe('auto')
+    expect(minimaxUnified?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['default', 'ask'],
+      ['auto', 'auto'],
+      ['bypassPermissions', 'full_access']
+    ])
+
+    const ampPerm = findLocalPermissionConfigOption(
+      [
+        {
+          id: 'permissions',
+          name: 'Permissions',
+          type: 'select',
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'bypass', name: 'Bypass' }
+          ]
+        }
+      ],
+      'amp-acp'
+    )
+    const ampUnified = resolveUnifiedLocalPermissionModes(ampPerm, i18n.t, 'amp-acp')
+    expect(ampUnified?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+      ['default', 'default'],
+      ['bypassPermissions', 'bypass']
+    ])
+  })
+
+  it('detects uncategorized thinking effort configOptions without catching unrelated selects', () => {
+    expect(
+      isLocalThoughtConfigOption({
+        id: 'reasoning',
+        name: 'Reasoning',
+        type: 'select',
+        currentValue: 'off',
+        options: [
+          { value: 'off', name: 'Off' },
+          { value: 'low', name: 'Low' },
+          { value: 'medium', name: 'Medium' },
+          { value: 'high', name: 'High' },
+          { value: 'max', name: 'Max' }
+        ]
+      })
+    ).toBe(true)
+
+    expect(
+      isLocalThoughtConfigOption({
+        id: 'workflow_mode',
+        name: 'Workflow mode',
+        type: 'select',
+        currentValue: 'off',
+        options: [
+          { value: 'off', name: 'Off' },
+          { value: 'on', name: 'On' }
+        ]
+      })
+    ).toBe(false)
   })
 })

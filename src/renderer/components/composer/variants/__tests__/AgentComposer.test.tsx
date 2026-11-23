@@ -1789,6 +1789,83 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('promotes config-backed permissions and uncategorized reasoning options out of LocalAgentConfigControl', async () => {
+    const permissionsOption = {
+      id: 'permissions',
+      name: 'Permissions',
+      type: 'select' as const,
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Default' },
+        { value: 'bypass', name: 'Bypass' }
+      ]
+    }
+    const reasoningOption = {
+      id: 'reasoning',
+      name: 'Reasoning',
+      type: 'select' as const,
+      currentValue: 'medium',
+      options: [
+        { value: 'off', name: 'Off' },
+        { value: 'low', name: 'Low' },
+        { value: 'medium', name: 'Medium' },
+        { value: 'high', name: 'High' },
+        { value: 'max', name: 'Max' }
+      ]
+    }
+    const executionMode = {
+      id: 'mode',
+      currentValue: 'local',
+      options: [
+        { value: 'local', name: 'Local' },
+        { value: 'orb', name: 'Orb' }
+      ]
+    }
+    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
+      'session-config-routing': {
+        mode: executionMode,
+        configOptions: [permissionsOption, reasoningOption]
+      }
+    })
+    mocks.ipcApiRequest.mockResolvedValue(null)
+    mocks.runtimeHostProps = undefined
+
+    render(
+      <AgentComposer
+        sessionId="session-config-routing"
+        agentId="agent-amp"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          configuration: { localRuntime: { presetId: 'amp-acp' } } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() =>
+      expect(mocks.runtimeHostProps?.session?.localPermission).toMatchObject({
+        kind: 'config',
+        presetId: 'amp-acp',
+        mode: { id: 'permissions', currentValue: 'default' }
+      })
+    )
+
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    expect(getControls().getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.medium'
+    )
+    // Only the non-permission session mode (Local/Orb) remains in LocalAgentConfigControl.
+    expect(getControls().getByRole('button', { name: 'local_agents.configuration' })).toBeInTheDocument()
+    expect(getControls().getByRole('menuitemradio', { name: 'Local' })).toBeInTheDocument()
+    expect(getControls().getByRole('menuitemradio', { name: 'Orb' })).toBeInTheDocument()
+    expect(getControls().queryByRole('menuitemradio', { name: 'Bypass' })).not.toBeInTheDocument()
+    expect(getControls().queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
+  })
+
   it('uses the controlled session, agent, and model context', () => {
     const resolvedAgent = {
       id: 'agent-1',
