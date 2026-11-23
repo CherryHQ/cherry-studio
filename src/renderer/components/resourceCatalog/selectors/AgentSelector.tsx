@@ -160,7 +160,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
       try {
-        created = await createAgent(buildCreateAgentCommand(values))
+        created = await createAgent(buildCreateAgentCommand(values, { entry: 'selector' }))
       } catch (error) {
         logger.error('Failed to create agent from selector', error as Error)
         throw error

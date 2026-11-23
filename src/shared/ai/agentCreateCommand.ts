@@ -5,6 +5,8 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
+import type { AgentCreateAnalytics } from '@shared/ipc/schemas/analytics'
+import { ANALYTICS_PRESET_ID_PATTERN } from '@shared/utils/analyticsModelSource'
 
 /** The avatar a new Agent starts with when none (or no valid emoji) was chosen. */
 export const DEFAULT_AGENT_CREATE_AVATAR = '✨'
@@ -30,8 +32,11 @@ export type AgentCreateValues = {
   channels?: AgentChannelDraft[]
 }
 
-/** Map the shared create values to the Agent create command. */
-export function buildCreateAgentCommand(values: AgentCreateValues): CreateAgentCommand {
+/** Map the shared create values to the Agent create command; `analytics` names the creating UI. */
+export function buildCreateAgentCommand(
+  values: AgentCreateValues,
+  analytics?: { entry: AgentCreateAnalytics['entry']; templateId?: string }
+): CreateAgentCommand {
   const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
   const permissionMode = caps.permissionModes.some((mode) => mode === values.permissionMode)
     ? values.permissionMode
@@ -53,6 +58,14 @@ export function buildCreateAgentCommand(values: AgentCreateValues): CreateAgentC
       ...(values.agentSettings ? buildAgentSettingsConfiguration(values.agentSettings) : {}),
       avatar: values.avatar,
       permission_mode: permissionMode
-    }
+    },
+    ...(analytics && {
+      analytics: {
+        entry: analytics.entry,
+        // Only static template ids; anything else would fail the create command's schema.
+        ...(analytics.templateId &&
+          ANALYTICS_PRESET_ID_PATTERN.test(analytics.templateId) && { target: analytics.templateId })
+      }
+    })
   }
 }

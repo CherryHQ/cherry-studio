@@ -5,6 +5,7 @@ import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@model
 import {
   type EmbeddingModelUsage,
   type FinishReason,
+  getToolName,
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
@@ -72,6 +73,7 @@ import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
+import { trackToolApproval } from './agentSession/agentTurnAnalytics'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
@@ -594,6 +596,12 @@ export class AiService extends BaseService {
     // Only resume once every approval on this turn is decided — a turn can request several tools
     // at once; the not-yet-decided ones keep their cards. Reading the committed post-write parts
     // means concurrent responders agree on who fires the continuation.
+    const approvedPart = committedParts.find(
+      (p) => isToolUIPart(p) && (p as { approval?: { id?: string } }).approval?.id === decision.approvalId
+    )
+    if (appliedApprovalIds.includes(decision.approvalId) && approvedPart && isToolUIPart(approvedPart)) {
+      trackToolApproval('chat', getToolName(approvedPart), decision)
+    }
     const anyStillPending = committedParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
     if (anyStillPending) {
       return { ok: true }

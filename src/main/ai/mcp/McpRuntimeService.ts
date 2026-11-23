@@ -32,6 +32,7 @@ import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
@@ -42,7 +43,7 @@ import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import type { McpAppReference } from '@shared/types/mcpApp'
 import type { McpSkillEntry } from '@shared/types/mcpSkills'
-import type { BuiltinMcpServerName } from '@shared/utils/mcp'
+import { type BuiltinMcpServerName, isBuiltinMcpServerName } from '@shared/utils/mcp'
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -125,6 +126,27 @@ export const McpGetResourcePayloadSchema = z.object({
 })
 
 const logger = loggerService.withContext('McpRuntimeService')
+
+/** One event per real connect attempt; only built-in server slugs are named, and errors stay coarse. */
+function reportMcpConnection(server: McpServer, status: 'success' | 'error', error?: unknown): void {
+  const message = error instanceof Error ? `${error.name} ${error.message}` : ''
+  const errorReason = UnauthorizedError.isInstance(error)
+    ? 'auth'
+    : /timed? ?out|ETIMEDOUT/i.test(message)
+      ? 'timeout'
+      : 'mcp'
+  trackMainProductEvent({
+    event: 'feature_used',
+    feature: 'mcp',
+    action: 'server_connected',
+    status,
+    ...(status === 'error' && { errorReason }),
+    // A user can name a server `@cherry/fetch`; only a built-in install names a preset.
+    ...(server.installSource === 'builtin' &&
+      isBuiltinMcpServerName(server.name) && { target: server.name.replace('@cherry/', '') })
+  })
+}
+
 const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 const MCP_CONNECT_RETRY_BASE_MS = 10_000
@@ -546,6 +568,7 @@ export class McpRuntimeService extends BaseService {
         }
         this.connections.set(serverKey, connection)
         this.setServerStatus(server.id, 'connected')
+        reportMcpConnection(server, 'success')
         this.emitServerLog(server, {
           timestamp: Date.now(),
           level: 'info',
@@ -557,6 +580,7 @@ export class McpRuntimeService extends BaseService {
         const cancelled = controller.signal.aborted && !UnauthorizedError.isInstance(controller.signal.reason)
         if (!cancelled && !this.stopping && !this.removedServerIds.has(server.id)) {
           this.recordConnectionFailure(server, error, interactive)
+          reportMcpConnection(server, 'error', error)
         }
         this.logFailure(server, 'mcp.connect', error, controller.signal)
         this.setServerStatus(server.id, 'error', error)

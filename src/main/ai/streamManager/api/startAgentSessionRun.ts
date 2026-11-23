@@ -6,6 +6,7 @@ import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AgentTurnSource } from '@shared/ipc/schemas/analytics'
 
 import { agentChatContextProvider } from '../context/AgentChatContextProvider'
 import type { StreamListener } from '../types'
@@ -28,6 +29,8 @@ export async function startAgentSessionRun(input: {
   headless?: boolean
   /** Explicit override from a bound channel, scoped to this headless turn. */
   permissionModeOverride?: AgentPermissionMode
+  /** Analytics only: who started the turn. */
+  turnSource?: AgentTurnSource
   /** Recipients authorized only for this run; [] deliberately disables notify. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   requireIdle?: { expectedAgentId: string }
@@ -87,7 +90,8 @@ export async function startAgentSessionRun(input: {
           trigger: 'submit-message',
           topicId,
           userMessageParts: input.userParts,
-          headless: input.headless === true
+          headless: input.headless === true,
+          ...(input.turnSource ? { turnSource: input.turnSource } : {})
         },
         {
           trustedNotifyChannels: input.trustedNotifyChannels,

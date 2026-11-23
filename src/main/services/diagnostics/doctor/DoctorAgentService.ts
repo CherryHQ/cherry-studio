@@ -136,6 +136,7 @@ export class DoctorAgentService extends BaseService {
         userParts: [{ type: 'text', text: this.buildPrompt(scope, report, incident) }],
         listeners: [this.createListener(key, runId)],
         headless: true,
+        turnSource: 'doctor',
         requireIdle: { expectedAgentId: agent.id }
       })
       if (started.mode !== 'started') {

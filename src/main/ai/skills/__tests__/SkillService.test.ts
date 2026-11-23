@@ -674,7 +674,13 @@ describe('SkillService', () => {
         await service.installFromDirectory({ directoryPath })
         await service.installFromDirectory({ directoryPath })
         await expect(service.installFromDirectory({ directoryPath: clashingPath })).rejects.toThrow()
-        const base = { event: 'feature_used', feature: 'skills', action: 'skill_installed' }
+        const base = {
+          event: 'feature_used',
+          feature: 'skills',
+          action: 'skill_installed',
+          origin: 'ui',
+          source: 'local'
+        }
         expect(trackProductEvent.mock.calls).toEqual([[{ ...base, status: 'success' }], [{ ...base, status: 'error' }]])
       } finally {
         MockApplicationUtils.resetServices()
@@ -1280,6 +1286,23 @@ describe('SkillService', () => {
       expect(rows).toHaveLength(0)
       expect(skillService['installer'].uninstall).toHaveBeenCalledOnce()
     })
+
+    it('reports an uninstall only once it succeeded, without naming the skill', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      const skillService = new SkillService()
+      await seedSkills()
+      vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)
+      try {
+        await expect(skillService.uninstall('nonexistent')).rejects.toThrow()
+        await skillService.uninstall(SKILL_ID_1)
+        expect(trackProductEvent.mock.calls).toEqual([
+          [{ event: 'feature_used', feature: 'skills', action: 'skill_uninstalled', origin: 'ui' }]
+        ])
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
+    })
   })
 
   describe('install', () => {
@@ -1410,7 +1433,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(path.join('skills', 'recruit-init')),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md'
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/dev/skills/recruit-init/SKILL.md',
+        { origin: 'ui' }
       )
     })
 
@@ -1436,7 +1460,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md'
+        'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/demo/SKILL.md',
+        { origin: 'ui' }
       )
     })
 
@@ -1544,7 +1569,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.stringContaining(`${path.sep}content`),
         'marketplace',
-        `https://github.com/owner/repo/blob/${oid}/SKILL.md`
+        `https://github.com/owner/repo/blob/${oid}/SKILL.md`,
+        { origin: 'ui' }
       )
     })
 
@@ -1568,7 +1594,8 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md'
+        'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md',
+        { origin: 'ui' }
       )
     })
 
@@ -1867,7 +1894,8 @@ describe('SkillService', () => {
         expect(installSpy).toHaveBeenCalledWith(
           path.join(canonicalContent, 'skills', 'demo'),
           'marketplace',
-          expect.any(String)
+          expect.any(String),
+          { origin: 'ui' }
         )
         await expect(
           fs.promises.access(path.join(canonicalContent, 'skills', 'demo', 'scripts', 'run.ts'))
@@ -2101,7 +2129,8 @@ describe('SkillService', () => {
         expect(installSkillDirSpy).toHaveBeenCalledWith(
           canonicalExtractDir,
           'marketplace',
-          'https://clawhub.ai/ivangdavila/skills/code'
+          'https://clawhub.ai/ivangdavila/skills/code',
+          { origin: 'ui' }
         )
       } finally {
         createTempDirSpy.mockRestore()
@@ -2803,8 +2832,38 @@ describe('SkillService', () => {
         .run()
       try {
         await new SkillService().installMarketplace('pdf-tools')
-        const base = { event: 'feature_used', feature: 'skills', action: 'skill_installed', target: 'pdf-tools' }
+        const base = {
+          event: 'feature_used',
+          feature: 'skills',
+          action: 'skill_installed',
+          origin: 'ui',
+          source: 'marketplace',
+          target: 'pdf-tools'
+        }
         expect(trackProductEvent.mock.calls).toEqual([[{ ...base, status: 'success' }], [{ ...base, status: 'error' }]])
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
+    })
+
+    it('reports a rejected catalog lookup without naming the requested id', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      vi.mocked(net.fetch).mockResolvedValueOnce(Response.json({ error: 'Unavailable' }, { status: 404 }))
+      try {
+        await expect(new SkillService().installMarketplace('my-private-note')).rejects.toThrow('CherryIN HTTP 404')
+        expect(trackProductEvent.mock.calls).toEqual([
+          [
+            {
+              event: 'feature_used',
+              feature: 'skills',
+              action: 'skill_installed',
+              status: 'error',
+              origin: 'ui',
+              source: 'marketplace'
+            }
+          ]
+        ])
       } finally {
         MockApplicationUtils.resetServices()
       }
@@ -2824,6 +2883,8 @@ describe('SkillService', () => {
               feature: 'skills',
               action: 'skill_installed',
               status: 'error',
+              origin: 'ui',
+              source: 'marketplace',
               target: 'pdf-tools'
             }
           ]

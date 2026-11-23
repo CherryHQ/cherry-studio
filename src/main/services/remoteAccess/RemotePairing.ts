@@ -17,11 +17,24 @@ type Claim = RemotePairingClaim & {
   peerIdentity: string
   status: 'pending' | 'rejected' | 'approved'
   deviceId?: string
+  expiryReported?: boolean
 }
 
 export class RemotePairing {
   private invitation?: { invitationId: string; invitationSecret: string; expiresAt: number }
   private claim?: Claim
+
+  /** @param onExpired Called once for a claim that passed its deadline while still awaiting a decision. */
+  constructor(private readonly onExpired: () => void = () => {}) {}
+
+  private isExpired(claim: Claim): boolean {
+    if (Date.parse(claim.expiresAt) > Date.now()) return false
+    if (claim.status === 'pending' && !claim.expiryReported) {
+      claim.expiryReported = true
+      this.onExpired()
+    }
+    return true
+  }
 
   create() {
     this.clear()
@@ -86,7 +99,7 @@ export class RemotePairing {
 
   pending(): RemotePairingClaim[] {
     const claim = this.claim
-    if (!claim || claim.status !== 'pending' || Date.parse(claim.expiresAt) <= Date.now()) return []
+    if (!claim || claim.status !== 'pending' || this.isExpired(claim)) return []
     return [
       {
         claimId: claim.claimId,
@@ -101,7 +114,7 @@ export class RemotePairing {
 
   decide(claimId: string, capabilities: RemoteCapability[] | null): void {
     const claim = this.claim
-    if (!claim || claim.claimId !== claimId || claim.status !== 'pending' || Date.parse(claim.expiresAt) <= Date.now())
+    if (!claim || claim.claimId !== claimId || claim.status !== 'pending' || this.isExpired(claim))
       throw new RemoteRpcError('NOT_FOUND', 'Pairing request expired')
     if (capabilities === null) {
       claim.status = 'rejected'
@@ -124,12 +137,7 @@ export class RemotePairing {
     peerIdentity: string
   ): { status: 'pending' | 'rejected' | 'expired' } | { status: 'approved'; deviceId: string } {
     const claim = this.claim
-    if (
-      !claim ||
-      claim.claimId !== claimId ||
-      claim.peerIdentity !== peerIdentity ||
-      Date.parse(claim.expiresAt) <= Date.now()
-    )
+    if (!claim || claim.claimId !== claimId || claim.peerIdentity !== peerIdentity || this.isExpired(claim))
       return { status: 'expired' }
     if (claim.status === 'approved' && claim.deviceId) return { status: 'approved', deviceId: claim.deviceId }
     return { status: claim.status === 'rejected' ? 'rejected' : 'pending' }

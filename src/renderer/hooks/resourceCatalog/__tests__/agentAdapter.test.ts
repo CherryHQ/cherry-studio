@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentMutations } from '../agentAdapter'
+import { useAgentMutations, useAgentMutationsById } from '../agentAdapter'
 
 const useMutationMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
@@ -87,5 +87,35 @@ describe('useAgentMutations', () => {
 
     expect(result.current.isCreatingAgent).toBe(false)
     expect(invalidateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('useAgentMutationsById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    invalidateMock.mockResolvedValue(undefined)
+  })
+
+  // The command reports skill toggles and setting changes; a DataApi PATCH would skip both.
+  it('saves through the Agent command and refreshes skills when skills changed', async () => {
+    const updated = { id: 'agent-1', name: 'Agent' }
+    ipcRequestMock.mockResolvedValue(updated)
+    const { result } = renderHook(() => useAgentMutationsById('agent-1'))
+    const skillUpdates = [{ skillId: 'skill-1', isEnabled: false }]
+
+    await act(async () => {
+      await expect(result.current.updateAgent({ skillUpdates })).resolves.toEqual(updated)
+      await result.current.updateAgent({ name: 'Renamed' })
+    })
+
+    expect(ipcRequestMock.mock.calls).toEqual([
+      ['ai.agent.update', { agentId: 'agent-1', updates: { skillUpdates } }],
+      ['ai.agent.update', { agentId: 'agent-1', updates: { name: 'Renamed' } }]
+    ])
+    expect(invalidateMock.mock.calls).toEqual([
+      [['/agents', '/agents/agent-1', '/skills']],
+      [['/agents', '/agents/agent-1']]
+    ])
+    expect(useMutationMock).not.toHaveBeenCalled()
   })
 })

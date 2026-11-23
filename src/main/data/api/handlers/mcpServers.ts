@@ -38,6 +38,7 @@ export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
           feature: 'mcp',
           action: 'server_added',
           status,
+          origin: 'ui',
           ...(builtin && { target: parsed.name.replace('@cherry/', '') })
         })
       let server: ReturnType<typeof mcpServerService.create>

@@ -23,7 +23,7 @@ export function AgentCreateDialog({ open, onOpenChange, onStartConversation }: A
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       try {
-        const created = await createAgent(buildCreateAgentCommand(values))
+        const created = await createAgent(buildCreateAgentCommand(values, { entry: 'dialog' }))
         return created.id
       } catch (error) {
         logger.error('Failed to create agent', error as Error)

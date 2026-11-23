@@ -28,6 +28,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
+import type { AgentTurnSource } from '@shared/ipc/schemas/analytics'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
@@ -70,6 +71,7 @@ export type ValidatedAgentDispatch = {
   fastMode?: boolean
   headless: boolean
   permissionModeOverride?: AgentPermissionMode
+  turnSource?: AgentTurnSource
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   messageSnapshot: MessageSnapshot
@@ -204,6 +206,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       fastMode: req.fastMode,
       headless: isHeadless,
       ...(permissionModeOverride ? { permissionModeOverride } : {}),
+      ...(req.turnSource ? { turnSource: req.turnSource } : {}),
       ...(authority.trustedNotifyChannels !== undefined
         ? { trustedNotifyChannels: authority.trustedNotifyChannels }
         : {}),
@@ -318,6 +321,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         userMessage,
         headless: validated.headless,
         ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
+        turnSource: validated.turnSource,
         trustedNotifyChannels: validated.trustedNotifyChannels,
         traceId,
         messageSnapshot: validated.messageSnapshot,
@@ -442,6 +446,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
         ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
+        turnSource: validated.turnSource,
         trustedNotifyChannels: validated.trustedNotifyChannels,
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,

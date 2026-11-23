@@ -212,7 +212,9 @@ export function MarketplaceTemplates({
             }
           }}
           onSubmit={async (values) => {
-            const created = await createAgent(buildCreateAgentCommand(values))
+            const created = await createAgent(
+              buildCreateAgentCommand(values, { entry: 'marketplace', templateId: creating?.id })
+            )
             return created.id
           }}
           onStartConversation={(agentId) => openRoute('/app/agents', { agentId })}

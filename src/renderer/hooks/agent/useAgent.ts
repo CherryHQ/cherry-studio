@@ -9,7 +9,8 @@
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import { toast } from '@renderer/services/toast'
@@ -118,15 +119,17 @@ export const useAgents = (options: { enabled?: boolean } = {}) => {
  */
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
-  const { trigger: updateTrigger } = useMutation('PATCH', '/agents/:agentId', {
-    refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
-  })
+  const invalidate = useInvalidateCache()
 
   const updateAgent: UpdateAgentFunction = useCallback(
     async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
         const { id, ...patch } = form
-        const result = await updateTrigger({ params: { agentId: id }, body: patch })
+        // The command reports which settings changed; DataApi routes stay persistence-only.
+        const result = await ipcApi.request('ai.agent.update', { agentId: id, updates: patch })
+        await invalidate(
+          patch.skillUpdates !== undefined ? ['/agents', `/agents/${id}`, '/skills'] : ['/agents', `/agents/${id}`]
+        )
         if (options?.showSuccessToast ?? true) {
           toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
@@ -140,7 +143,7 @@ export const useUpdateAgent = () => {
         return undefined
       }
     },
-    [updateTrigger, t]
+    [invalidate, t]
   )
 
   const updateModel = useCallback(

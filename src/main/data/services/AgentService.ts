@@ -28,7 +28,13 @@ import { clearSingleFileRefTx, insertSingleFileRefTx } from '@data/services/util
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
-import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
+import {
+  BUILTIN_AGENT_ROLE,
+  type BuiltinAgentRole,
+  CHERRY_SUPPORT_AGENT_ID,
+  isProtectedBuiltinAgentRole
+} from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -208,6 +214,11 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return typeof avatar === 'string' ? avatar : undefined
 }
 
+// Upgraded installs still store the retired `cherry-claw` type, which now runs as Claude Code.
+function normalizeAgentType(type: string): AgentType {
+  return (type === 'cherry-claw' ? 'claude-code' : type) as AgentType
+}
+
 function rowToAgent(
   row: AgentRow,
   modelName: string | null = null,
@@ -221,7 +232,7 @@ function rowToAgent(
     ...(avatarFileId ? { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) } : {}),
     mcps,
     knowledgeBaseIds,
-    type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
+    type: normalizeAgentType(row.type),
     model: (clean.model ?? null) as UniqueModelId | null,
     planModel: clean.planModel as UniqueModelId | undefined,
     smallModel: clean.smallModel as UniqueModelId | undefined,
@@ -873,6 +884,37 @@ export class AgentService {
       updatedAt: timestampToISO(row.updatedAt),
       target: { agentId: row.id }
     }))
+  }
+
+  /** Live agents by runtime, permission mode, and builtin/custom, for the daily analytics snapshot. */
+  countForAnalytics(): { agentCount: number; heartbeatCount: number; withChannelCount: number } & Record<
+    `type:${string}` | `permission:${string}` | `kind:${string}`,
+    number
+  > {
+    const database = application.get('DbService').getDb()
+    const rows = database
+      .select({ id: agentsTable.id, type: agentsTable.type, configuration: agentsTable.configuration })
+      .from(agentsTable)
+      .where(and(isNull(agentsTable.deletedAt), notDoctorAgent))
+      .all()
+    const withChannel = new Set(
+      database
+        .selectDistinct({ agentId: agentChannelTable.agentId })
+        .from(agentChannelTable)
+        .all()
+        .map((row) => row.agentId)
+    )
+    const counts: Record<string, number> = { agentCount: rows.length, heartbeatCount: 0, withChannelCount: 0 }
+    const add = (key: string) => (counts[key] = (counts[key] ?? 0) + 1)
+    for (const row of rows) {
+      const configuration = parseConfiguration(row.configuration, row.id) ?? {}
+      add(`type:${normalizeAgentType(row.type)}`)
+      add(`permission:${configuration.permission_mode ?? 'default'}`)
+      add(`kind:${isProtectedBuiltinAgentRole(configuration.builtin_role) ? 'builtin' : 'custom'}`)
+      if (isHeartbeatEnabled(configuration)) add('heartbeatCount')
+      if (withChannel.has(row.id)) add('withChannelCount')
+    }
+    return counts as ReturnType<AgentService['countForAnalytics']>
   }
 
   /** `replaceAvatarImage` drops an uploaded avatar in the same transaction, so a new emoji is what shows. */

@@ -191,7 +191,7 @@ describe('skills MCP server', () => {
       expect(search.content[0].text).toContain(`github:${canonicalUrl}`)
 
       const install = await callTool(server, 'install_skill', { install_source: `github:${canonicalUrl}` })
-      expect(installMock).toHaveBeenCalledWith({ installSource: `github:${canonicalUrl}` })
+      expect(installMock).toHaveBeenCalledWith({ installSource: `github:${canonicalUrl}` }, 'agent_tool')
       expect(install.isError).toBeFalsy()
     })
 
@@ -230,7 +230,7 @@ describe('skills MCP server', () => {
       await callTool(server, 'search_skills', { query: 'react' })
       const result = await callTool(server, 'install_skill', { install_source: installSource })
 
-      expect(installMock).toHaveBeenCalledWith({ installSource })
+      expect(installMock).toHaveBeenCalledWith({ installSource }, 'agent_tool')
       expect(toggleMock).toHaveBeenCalledWith({ skillId: 'skill-1', agentId: 'agent-42', isEnabled: true })
       expect(result.isError).toBeFalsy()
     })

@@ -1,5 +1,5 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 
@@ -116,5 +116,28 @@ describe('application consent', () => {
     await expect(pending).rejects.toThrow()
     expect(approvals.list('window')).toEqual([])
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('app.computer_use.approved_apps')).toEqual([])
+  })
+})
+
+describe('approval analytics', () => {
+  it('reports each Computer Use choice by scope, never naming the application', async () => {
+    const { application } = await import('@application')
+    const track = vi.mocked(application.get('AnalyticsService').trackProductEvent)
+    track.mockClear()
+
+    for (const scope of ['always', 'session', 'reject'] as const) {
+      const scoped = { ...app, identity: `com.example.editor.${scope}` }
+      const pending = approvals.authorize('owner', scoped, context(), signal())
+      expect(approvals.respond(approvals.list('window')[0].approvalId, scope, 'window')).toBe(true)
+      await pending.catch(() => {})
+    }
+
+    const events = track.mock.calls.map(([event]) => event)
+    expect(events).toEqual([
+      { event: 'tool_approval', surface: 'agent', decision: 'always', tool: 'computer_use_app' },
+      { event: 'tool_approval', surface: 'agent', decision: 'session', tool: 'computer_use_app' },
+      { event: 'tool_approval', surface: 'agent', decision: 'denied', tool: 'computer_use_app' }
+    ])
+    expect(JSON.stringify(events)).not.toMatch(/editor|Editor/)
   })
 })

@@ -353,6 +353,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         userParts: [{ type: 'text', text: effectivePrompt }],
         listeners: [sentinel, ...channelListeners],
         headless: true,
+        turnSource: isHeartbeat ? 'heartbeat' : 'scheduled_task',
         trustedNotifyChannels,
         requireIdle: { expectedAgentId: agentId }
       })

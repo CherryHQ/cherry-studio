@@ -25,7 +25,8 @@ import {
   AgentEntitySchema,
   AgentSkillIdSetSchema,
   ScheduledTaskEntitySchema,
-  TimeoutMinutesAtomSchema
+  TimeoutMinutesAtomSchema,
+  UpdateAgentSchema
 } from '@shared/data/api/schemas/agents'
 import {
   AgentSessionEntitySchema,
@@ -52,6 +53,7 @@ import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
+import { agentCreateAnalyticsSchema } from './analytics'
 import { ImageBytesSchema } from './entityImage'
 
 /**
@@ -97,7 +99,9 @@ export const CreateAgentCommandSchema = AgentBaseSchema.extend({
    * Create-only: channels owned by the new Agent, created in the same DB transaction.
    * QR-login channels are always created inactive.
    */
-  channels: z.array(AgentChannelDraftSchema).optional()
+  channels: z.array(AgentChannelDraftSchema).optional(),
+  /** Analytics only: which UI created the Agent; stripped before persistence. */
+  analytics: agentCreateAnalyticsSchema.optional()
 })
 export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
@@ -425,6 +429,11 @@ export const aiRequestSchemas = {
   // ── Agent session warm-connection lifecycle ──
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,
+    output: AgentEntitySchema
+  }),
+  /** A user's Agent edit from the editor; reports what changed alongside the write. */
+  'ai.agent.update': defineRoute({
+    input: z.object({ agentId: z.string().min(1), updates: UpdateAgentSchema }),
     output: AgentEntitySchema
   }),
   /** What a pending Agent or Assistant create or settings call would do, for its approval card. */

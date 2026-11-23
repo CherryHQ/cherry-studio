@@ -321,6 +321,7 @@ describe('useUpdateAgent', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
+    mockUseInvalidateCache.mockReturnValue(invalidateSpy)
   })
 
   describe('updateAgent', () => {
@@ -335,12 +336,15 @@ describe('useUpdateAgent', () => {
         updatedAt: '2024-01-01T00:00:00Z'
       }
       const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
+      ipcRequestMock.mockImplementation((route: string, input: unknown) =>
+        route === 'ai.agent.update' ? mockTrigger(input) : undefined
+      )
 
       const { result } = renderHook(() => useUpdateAgent())
       const updated = await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Updated' }))
 
-      expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' }, body: { name: 'Updated' } })
+      expect(mockTrigger).toHaveBeenCalledWith({ agentId: 'agent-1', updates: { name: 'Updated' } })
+      expect(invalidateSpy).toHaveBeenCalledWith(['/agents', '/agents/agent-1'])
       expect(updated).toBeDefined()
       expect(updated?.id).toBe('agent-1')
       expect(toast.success).toHaveBeenCalledWith(expect.objectContaining({ key: 'update-agent' }))
@@ -357,7 +361,9 @@ describe('useUpdateAgent', () => {
         updatedAt: ''
       }
       const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
+      ipcRequestMock.mockImplementation((route: string, input: unknown) =>
+        route === 'ai.agent.update' ? mockTrigger(input) : undefined
+      )
 
       const { result } = renderHook(() => useUpdateAgent())
       await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Updated' }, { showSuccessToast: false }))
@@ -367,7 +373,9 @@ describe('useUpdateAgent', () => {
 
     it('shows error toast and returns undefined on failure', async () => {
       const mockTrigger = vi.fn().mockRejectedValue(new Error('Update failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
+      ipcRequestMock.mockImplementation((route: string, input: unknown) =>
+        route === 'ai.agent.update' ? mockTrigger(input) : undefined
+      )
 
       const { result } = renderHook(() => useUpdateAgent())
       const updated = await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Fail' }))
@@ -388,7 +396,9 @@ describe('useUpdateAgent', () => {
         createdAt: '',
         updatedAt: ''
       })
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
+      ipcRequestMock.mockImplementation((route: string, input: unknown) =>
+        route === 'ai.agent.update' ? mockTrigger(input) : undefined
+      )
 
       const { result } = renderHook(() => useUpdateAgent())
       const updated = await act(async () =>
@@ -400,8 +410,8 @@ describe('useUpdateAgent', () => {
       )
 
       expect(mockTrigger).toHaveBeenCalledWith({
-        params: { agentId: 'agent-1' },
-        body: {
+        agentId: 'agent-1',
+        updates: {
           model: 'anthropic::new-model',
           configuration: { reasoning_effort: 'high' }
         }
@@ -419,7 +429,9 @@ describe('useUpdateAgent', () => {
         createdAt: '',
         updatedAt: ''
       })
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
+      ipcRequestMock.mockImplementation((route: string, input: unknown) =>
+        route === 'ai.agent.update' ? mockTrigger(input) : undefined
+      )
 
       const { result } = renderHook(() => useUpdateAgent())
       await act(async () =>
@@ -430,8 +442,8 @@ describe('useUpdateAgent', () => {
       )
 
       expect(mockTrigger).toHaveBeenCalledWith({
-        params: { agentId: 'agent-1' },
-        body: { model: 'anthropic::new-model' }
+        agentId: 'agent-1',
+        updates: { model: 'anthropic::new-model' }
       })
     })
   })

@@ -279,6 +279,7 @@ export class AgentSessionDeliveryService extends BaseService {
           topicId,
           userMessageParts: current.data.parts ?? [],
           headless: true,
+          turnSource: 'delivery',
           agentDeliveryMessage: current
         })
       } catch (error) {

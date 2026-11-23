@@ -10,6 +10,7 @@ import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { AgentTurnSource } from '@shared/ipc/schemas/analytics'
 import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -66,6 +67,8 @@ export type MainDispatchRequest = (
    * task), so runtimes must not enable ask-the-user tools. Never set on renderer requests.
    */
   headless?: boolean
+  /** Main-only, analytics: who started an Agent turn. */
+  turnSource?: AgentTurnSource
   /** Main-only durable user row accepted by the cross-session delivery path. */
   agentDeliveryMessage?: AgentSessionMessageEntity
   /** Trusted main-process sender identity for targeted MCP interaction requests. */

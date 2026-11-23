@@ -25,7 +25,14 @@ describe('POST /mcp-servers usage analytics', () => {
     await mcpServerHandlers['/mcp-servers'].POST({ body: { ...preset } })
 
     expect(reported()).toEqual([
-      { event: 'feature_used', feature: 'mcp', action: 'server_added', status: 'success', target: 'fetch' }
+      {
+        event: 'feature_used',
+        feature: 'mcp',
+        action: 'server_added',
+        status: 'success',
+        origin: 'ui',
+        target: 'fetch'
+      }
     ])
   })
 
@@ -38,8 +45,8 @@ describe('POST /mcp-servers usage analytics', () => {
     } as never)
 
     expect(reported()).toEqual([
-      { event: 'feature_used', feature: 'mcp', action: 'server_added', status: 'success' },
-      { event: 'feature_used', feature: 'mcp', action: 'server_added', status: 'success' }
+      { event: 'feature_used', feature: 'mcp', action: 'server_added', status: 'success', origin: 'ui' },
+      { event: 'feature_used', feature: 'mcp', action: 'server_added', status: 'success', origin: 'ui' }
     ])
   })
 
@@ -47,6 +54,8 @@ describe('POST /mcp-servers usage analytics', () => {
     await expect(
       mcpServerHandlers['/mcp-servers'].POST({ body: { name: '   ', type: 'stdio', command: 'node' } } as never)
     ).rejects.toThrow()
-    expect(reported()).toEqual([{ event: 'feature_used', feature: 'mcp', action: 'server_added', status: 'error' }])
+    expect(reported()).toEqual([
+      { event: 'feature_used', feature: 'mcp', action: 'server_added', status: 'error', origin: 'ui' }
+    ])
   })
 })
