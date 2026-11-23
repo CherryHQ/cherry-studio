@@ -3,7 +3,7 @@ import * as path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
+import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2 } from '@shared/utils/skillMarketplace'
 
 const mockPathExists = vi.fn()
 const mockCopyDirectoryRecursive = vi.fn()
@@ -236,7 +236,7 @@ describe('SkillInstaller', () => {
     const sourceHash = await installer.computeContentHash(resolvePath('/source/skill'))
     const installedHash = await installer.computeContentHash(resolvePath('/installed/skill'))
 
-    expect(sourceHash).toMatch(new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}[a-f0-9]{64}$`))
+    expect(sourceHash).toMatch(new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2}[a-f0-9]{64}$`))
     expect(installedHash).not.toBe(sourceHash)
   })
 

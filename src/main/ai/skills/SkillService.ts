@@ -34,7 +34,8 @@ import {
   hasSkillLocalUpdateProvenance,
   hasSkillRemoteUpdateProvenance,
   isSkillDirectoryContentHash,
-  parseSkillSourceUrl
+  parseSkillSourceUrl,
+  SKILL_DIRECTORY_CONTENT_HASH_PREFIX
 } from '@shared/utils/skillMarketplace'
 import { skillInstallIdentity, subscriptionMemberSource } from '@shared/utils/skillSubscription'
 
@@ -1521,9 +1522,13 @@ export class SkillService {
    * with a pending upstream update would otherwise report a false `localChanges`
    * and require an explicit overwrite. Consulting the legacy fingerprint turns that
    * one-time format migration into a clean update; after the update the baseline
-   * is the new format and later mode edits are protected again. A managed mode-only
-   * edit on a legacy baseline is indistinguishable from untouched (the old format
-   * ignored modes) and is treated as clean for this single migration.
+   * is the new `directory-sha256-v2:` format and later mode edits are protected
+   * again. The versioned prefix keeps the two cases distinct: a legacy `directory-sha256:`
+   * baseline can match the legacy fingerprint, while a new `directory-sha256-v2:`
+   * baseline never equals a legacy fingerprint (different prefix) so a managed
+   * mode-only edit stays dirty. A managed mode-only edit on a legacy baseline is
+   * indistinguishable from untouched (the old format ignored modes) and is treated
+   * as clean for this single migration.
    */
   private async hasManagedLocalChanges(
     folderName: string,
@@ -1531,6 +1536,10 @@ export class SkillService {
     baselineHash: string
   ): Promise<boolean> {
     if (currentHash === baselineHash) return false
+    // Only legacy (`directory-sha256:`) baselines qualify for the migration
+    // fallback. New (`directory-sha256-v2:`) baselines already include modes,
+    // so any fingerprint difference is a real local edit.
+    if (!baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX)) return true
     try {
       const legacyCurrentHash = await this.installer.computeLegacyContentHash(this.getSkillStoragePath(folderName))
       if (legacyCurrentHash === baselineHash) return false

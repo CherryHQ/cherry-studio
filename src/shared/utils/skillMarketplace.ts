@@ -8,6 +8,15 @@ import {
 
 export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
 export const SKILL_DIRECTORY_CONTENT_HASH_PREFIX = 'directory-sha256:'
+/**
+ * Versioned prefix for the mode-aware canonical content hash (canonical
+ * `SKILL.md` sort order plus POSIX executability bits). The legacy prefix
+ * above identifies pre-migration baselines that ignored modes; keeping the
+ * prefixes distinct lets `hasManagedLocalChanges` tell an untouched legacy
+ * install (legacy hash matches) from a managed mode edit on a new baseline
+ * (legacy hex collides but the prefix differs, so it stays dirty).
+ */
+export const SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2 = 'directory-sha256-v2:'
 
 type MarketplaceSource = {
   name: SkillSearchSource
@@ -288,7 +297,10 @@ export function parseSkillSourceUrl(sourceUrl: string): ParsedSkillSourceUrl | n
 }
 
 export function isSkillDirectoryContentHash(contentHash: string): boolean {
-  return new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}[a-f0-9]{64}$`).test(contentHash)
+  return (
+    new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}[a-f0-9]{64}$`).test(contentHash) ||
+    new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2}[a-f0-9]{64}$`).test(contentHash)
+  )
 }
 
 export function hasSkillRemoteUpdateProvenance(skill: {

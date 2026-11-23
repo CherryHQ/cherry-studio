@@ -6,7 +6,11 @@ import { loggerService } from '@logger'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { pathExists } from '@main/utils/legacyFile'
 import { findSkillMdPath } from '@main/utils/markdownParser'
-import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
+import {
+  isSkillDirectoryContentHash,
+  SKILL_DIRECTORY_CONTENT_HASH_PREFIX,
+  SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2
+} from '@shared/utils/skillMarketplace'
 
 import { SkillImportError } from './SkillImportError'
 
@@ -174,7 +178,7 @@ export class SkillInstaller {
     const cleanupPath = this.getCleanupPath(destPath)
     const [backupExists, cleanupExists] = await Promise.all([pathExists(backupPath), pathExists(cleanupPath)])
     if (!backupExists && !cleanupExists) return
-    if (!baselineHash || !baselineHash.startsWith(SKILL_DIRECTORY_CONTENT_HASH_PREFIX)) {
+    if (!baselineHash || !isSkillDirectoryContentHash(baselineHash)) {
       await this.recoverInterruptedInstall(destPath)
       if (cleanupExists) {
         await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
@@ -317,7 +321,7 @@ export class SkillInstaller {
     skillDir: string,
     options: { ignoredRelativePaths?: readonly string[] } = {}
   ): Promise<string> {
-    return `${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}${await this.computeDirectoryHash(skillDir, options)}`
+    return `${SKILL_DIRECTORY_CONTENT_HASH_PREFIX_V2}${await this.computeDirectoryHash(skillDir, options)}`
   }
 
   /**
