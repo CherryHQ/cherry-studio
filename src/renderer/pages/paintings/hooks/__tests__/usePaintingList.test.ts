@@ -193,6 +193,22 @@ describe('usePaintingList', () => {
     expect(setCurrentPainting).toHaveBeenCalledTimes(1)
   })
 
+  it('reports a rejected save or delete as that operation, not as a failed generation', async () => {
+    updatePainting.mockRejectedValueOnce(new Error('SQLITE_BUSY'))
+    deletePainting.mockRejectedValueOnce(new Error('SQLITE_BUSY'))
+    const { result } = renderList({})
+
+    await act(async () => {
+      await result.current.add()
+      await result.current.remove(makePainting({ id: 'other', persistedAt: '2026-01-01' }))
+    })
+
+    expect(vi.mocked(toast.error).mock.calls.map(([message]) => String(message).split(':')[0])).toEqual([
+      'common.save_failed',
+      'common.delete_failed'
+    ])
+  })
+
   it('does not save an ungenerated draft', async () => {
     const { result } = renderList({ painting: makePainting({ prompt: 'Unsaved draft' }) })
     await act(async () => {

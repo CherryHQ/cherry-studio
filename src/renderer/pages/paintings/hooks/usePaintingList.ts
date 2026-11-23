@@ -7,9 +7,9 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
-import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import { createDefaultPainting, type PaintingDraftDefaults } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
@@ -68,10 +68,11 @@ export function usePaintingList({
       )
       return true
     } catch (error) {
-      presentPaintingGenerateError(error)
+      logger.error('Failed to save painting', error as Error)
+      toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
       return false
     }
-  }, [updatePainting])
+  }, [t, updatePainting])
 
   const select = useCallback(
     async (target: PaintingData) => {
@@ -139,7 +140,7 @@ export function usePaintingList({
         // sibling write paths — otherwise the row silently reappears on the
         // next refresh with no toast or log.
         logger.error('Failed to delete painting', error as Error)
-        presentPaintingGenerateError(error)
+        toast.error(formatErrorMessageWithPrefix(error, t('common.delete_failed')))
         return
       }
       if (target.id === paintingRef.current.id) {
