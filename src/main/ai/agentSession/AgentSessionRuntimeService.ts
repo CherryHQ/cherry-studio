@@ -520,7 +520,7 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private runtimeActivity?: Disposable
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
-  private readonly snapshotRounds = new Map<string, string>()
+  private readonly snapshotRounds = new Map<string, { replyId: string; admittedAt: number }>()
   private readonly closingSessions = new Map<
     string,
     { promise: Promise<void>; resumeToken?: string; branchHead?: string; entry?: AgentSessionRuntimeEntry }
@@ -654,13 +654,17 @@ export class AgentSessionRuntimeService extends BaseService {
       do {
         const page = agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: 200 })
         const reply = page.items.find((message) => message.role === 'assistant')
-        if (reply) return reply.status === 'pending' || (live && live !== reply.id) ? null : reply.id
+        if (reply) {
+          if (live)
+            return reply.id === live.replyId || Date.parse(reply.createdAt) <= live.admittedAt ? live.replyId : null
+          return reply.status === 'pending' ? null : reply.id
+        }
         cursor = page.nextCursor
       } while (cursor)
+      return live?.replyId ?? null
     } catch {
       return null
     }
-    return null
   }
 
   revokeSnapshotRounds(sessionIds: readonly string[]): void {
@@ -679,7 +683,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private admitSnapshotRound(sessionId: string, turn: AgentSessionTurn): void {
-    this.snapshotRounds.set(sessionId, turn.assistantMessageId)
+    this.snapshotRounds.set(sessionId, { replyId: turn.assistantMessageId, admittedAt: Date.now() })
     try {
       void application
         .get('AgentFileSnapshotService')
@@ -691,7 +695,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private resumeSnapshotRound(sessionId: string, replyId: string, inputMessageIds: readonly string[]): void {
-    this.snapshotRounds.set(sessionId, replyId)
+    this.snapshotRounds.set(sessionId, { replyId, admittedAt: Date.now() })
     try {
       void application
         .get('AgentFileSnapshotService')
@@ -3747,7 +3751,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless: pending.headless,
       trustedNotifyChannels: pending.trustedNotifyChannels
     })
-    this.snapshotRounds.set(entry.sessionId, turn.assistantMessageId)
+    this.snapshotRounds.set(entry.sessionId, { replyId: turn.assistantMessageId, admittedAt: Date.now() })
     try {
       await application
         .get('AgentFileSnapshotService')

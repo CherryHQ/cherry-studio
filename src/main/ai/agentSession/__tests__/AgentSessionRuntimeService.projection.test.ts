@@ -4,12 +4,14 @@ import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { eq } from 'drizzle-orm'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -202,6 +204,32 @@ async function settleFirstTurn(f: Awaited<ReturnType<typeof fixture>>) {
   await f.handle.listeners[0].onDone(result)
   await f.handle.listeners[1].onDone(result)
 }
+
+it.each([false, true])('attests a live snapshot round when a newer persisted reply exists: %s', async (newer) => {
+  const f = await fixture()
+  dbh.db
+    .update(agentSessionMessageTable)
+    .set({ status: 'success', createdAt: 1 })
+    .where(eq(agentSessionMessageTable.id, f.reply.id))
+    .run()
+  const followup = savedUser(f.reply.id, 'Follow-up')
+  f.service.enqueueUserMessage('root', followup)
+  await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+  const round = f.service.getLiveSnapshotRound('root')!
+  expect(round.replyId).not.toBe(f.reply.id)
+  if (newer) {
+    const reply = messages.saveMessage({
+      sessionId: 'root',
+      message: { role: 'assistant', status: 'success', data: { parts: [] } }
+    })
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ createdAt: Date.now() + 10_000 })
+      .where(eq(agentSessionMessageTable.id, reply.id))
+      .run()
+  }
+  expect(f.service.attestSnapshotRound('root')).toBe(newer ? null : round.replyId)
+})
 
 it.each(['native', 'terminal', 'stop'] as const)(
   'finishes the snapshot after the %s terminal path',
