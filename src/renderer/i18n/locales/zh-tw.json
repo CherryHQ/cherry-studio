@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "載入執行歷史失敗",
   "agent.tasks.logs.result": "結果",
   "agent.tasks.logs.runAt": "執行時間",
+  "agent.tasks.logs.runCancelled": "本次執行已取消",
   "agent.tasks.logs.runFailed": "本次執行失敗",
   "agent.tasks.logs.running": "執行中...",
   "agent.tasks.logs.search": "搜尋執行記錄...",

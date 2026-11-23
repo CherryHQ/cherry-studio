@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "実行履歴の読み込みに失敗しました",
   "agent.tasks.logs.result": "結果",
   "agent.tasks.logs.runAt": "実行時刻",
+  "agent.tasks.logs.runCancelled": "この実行はキャンセルされました",
   "agent.tasks.logs.runFailed": "この実行は失敗しました",
   "agent.tasks.logs.running": "走っている…",
   "agent.tasks.logs.search": "検索ログ...",

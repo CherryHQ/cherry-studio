@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Nu s-a reușit încărcarea istoricului de execuție",
   "agent.tasks.logs.result": "Rezultat",
   "agent.tasks.logs.runAt": "Rulat la",
+  "agent.tasks.logs.runCancelled": "Această rulare a fost anulată",
   "agent.tasks.logs.runFailed": "Această rulare a eșuat",
   "agent.tasks.logs.running": "Alergând...",
   "agent.tasks.logs.search": "Caută jurnalele...",

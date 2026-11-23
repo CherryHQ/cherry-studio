@@ -97,6 +97,8 @@ export function HeartbeatEditorDialog({
   const baseline = document && (hasHeartbeatTasks(document.content) ? document.content : '')
   const dirty = document !== null && content !== baseline
   const result = latest?.output as { result?: string } | undefined
+  // A cancelled run stores its cancellation reason as an error, so the status picks the summary.
+  const latestOutcome = latest?.status === 'cancelled' ? 'agent.tasks.logs.runCancelled' : 'agent.tasks.logs.runFailed'
 
   async function save(run: boolean) {
     if (!document || busy) return
@@ -223,11 +225,11 @@ export function HeartbeatEditorDialog({
                   <ErrorNotice
                     variant="inline"
                     role="group"
-                    title={t('agent.tasks.logs.runFailed')}
+                    title={t(latestOutcome)}
                     detail={
                       <ErrorDetailAction
                         error={latest.error}
-                        message={t('agent.tasks.logs.runFailed')}
+                        message={t(latestOutcome)}
                         source="agent.heartbeat"
                         operation="heartbeat.run"
                         recordId={latest.id}

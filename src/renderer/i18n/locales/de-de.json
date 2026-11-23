@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Fehler beim Laden des Laufverlaufs",
   "agent.tasks.logs.result": "Ergebnis",
   "agent.tasks.logs.runAt": "Ausgeführt am",
+  "agent.tasks.logs.runCancelled": "Dieser Lauf wurde abgebrochen",
   "agent.tasks.logs.runFailed": "Dieser Lauf ist fehlgeschlagen",
   "agent.tasks.logs.running": "Läuft...",
   "agent.tasks.logs.search": "Suchprotokolle...",

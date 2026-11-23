@@ -29,6 +29,11 @@ const TaskFormDialog = lazy(() =>
 )
 const routeApi = getRouteApi('/app/scheduled-tasks')
 
+// A cancelled run stores its cancellation reason as an error, so the status picks the summary.
+function runOutcomeKey(status: string): string {
+  return status === 'cancelled' ? 'agent.tasks.logs.runCancelled' : 'agent.tasks.logs.runFailed'
+}
+
 export default function ScheduledTasksPage() {
   const { t } = useTranslation()
   const { taskId, runId, notificationId } = routeApi.useSearch<AppRouter>()
@@ -257,11 +262,11 @@ export default function ScheduledTasksPage() {
             variant="inline"
             role="group"
             className="mt-4"
-            title={t('agent.tasks.logs.runFailed')}
+            title={t(runOutcomeKey(selectedRun.status))}
             detail={
               <ErrorDetailAction
                 error={selectedRun.error}
-                message={t('agent.tasks.logs.runFailed')}
+                message={t(runOutcomeKey(selectedRun.status))}
                 source="agent.tasks"
                 operation="task.run"
                 recordId={selectedRun.id}

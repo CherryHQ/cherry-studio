@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Impossibile caricare la cronologia delle esecuzioni",
   "agent.tasks.logs.result": "Risultato",
   "agent.tasks.logs.runAt": "Data di esecuzione",
+  "agent.tasks.logs.runCancelled": "Questa esecuzione è stata annullata",
   "agent.tasks.logs.runFailed": "Questa esecuzione non è riuscita",
   "agent.tasks.logs.running": "In esecuzione...",
   "agent.tasks.logs.search": "Cerca nei registri...",

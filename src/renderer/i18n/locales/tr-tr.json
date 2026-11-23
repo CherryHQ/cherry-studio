@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Çalıştırma geçmişi yüklenemedi",
   "agent.tasks.logs.result": "Sonuç",
   "agent.tasks.logs.runAt": "Çalıştırılma Zamanı",
+  "agent.tasks.logs.runCancelled": "Bu çalıştırma iptal edildi",
   "agent.tasks.logs.runFailed": "Bu çalıştırma başarısız oldu",
   "agent.tasks.logs.running": "Çalışıyor...",
   "agent.tasks.logs.search": "Günlüklerde ara...",

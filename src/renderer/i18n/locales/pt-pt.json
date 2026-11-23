@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Falha ao carregar o histórico de execução",
   "agent.tasks.logs.result": "Resultado",
   "agent.tasks.logs.runAt": "Executado em",
+  "agent.tasks.logs.runCancelled": "Esta execução foi cancelada",
   "agent.tasks.logs.runFailed": "Esta execução falhou",
   "agent.tasks.logs.running": "A executar...",
   "agent.tasks.logs.search": "Pesquisar registos...",
