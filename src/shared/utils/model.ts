@@ -339,7 +339,7 @@ export const isClaude47SeriesModel = (model: Model): boolean => {
 
 /** Check if model rejects temperature/top_p/top_k: Claude Opus 4.7+, Claude 5.x, Fable and Mythos. */
 export const isClaudeFixedSamplingModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
+  const id = getLowerBaseModelName(getRawModelId(model), '/').replace(/\[1m\]$/, '')
   return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+)?$/i.test(
     id
   )
