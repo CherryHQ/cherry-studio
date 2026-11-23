@@ -8,7 +8,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import { ipcApi } from '@renderer/ipc'
-import { createAppErrorContext } from '@shared/utils/appError'
+import { createAppErrorContext, stringifyThrown } from '@shared/utils/appError'
 
 import CaptureOverlay from './CaptureOverlay'
 
@@ -25,7 +25,7 @@ export async function dismissScreenshotFault(error: unknown): Promise<void> {
   const context = createAppErrorContext({
     source: 'screenshotWindow',
     operation: 'react.render',
-    message: error instanceof Error ? error.message : String(error),
+    message: error instanceof Error ? error.message : stringifyThrown(error),
     ...(error instanceof Error ? { name: error.name, ...(error.stack ? { stack: error.stack } : {}) } : {})
   })
   let handoffFailed = false

@@ -94,7 +94,7 @@ describe('HeartbeatEditorDialog', () => {
           error: cause,
           message: en['agent.heartbeat.conflict'],
           source: 'agent.heartbeat',
-          operation: 'heartbeat.run',
+          operation: 'heartbeat.save',
           recordId: 'a1'
         })
       )
@@ -163,6 +163,25 @@ describe('HeartbeatEditorDialog', () => {
         })
       )
     )
+  })
+
+  it('summarizes a cancelled latest run by its status and keeps the reason behind Details', async () => {
+    const user = userEvent.setup()
+    const reason = { code: 'cancelled', message: 'stopped by the user', retryable: false }
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
+      scheduleEnabled: true,
+      latestRun: {
+        id: 'run-10',
+        status: 'cancelled',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        error: reason
+      } as JobSnapshot
+    })
+    render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
+    expect(await screen.findByText(en['agent.tasks.logs.runCancelled'])).toBeInTheDocument()
+    expect(screen.queryByText(en['agent.tasks.logs.runFailed'])).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: en['common.detail'] }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalledWith(expect.objectContaining({ error: reason })))
   })
 
   it('allows editing a disabled heartbeat but prevents execution', async () => {

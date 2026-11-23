@@ -13,9 +13,11 @@ import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ipcApi } from '@renderer/ipc'
+import { diagnosticErrorFromUnknown } from '@renderer/services/AppErrorContextService'
 import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDir, type TreeMutationEvent, type TreeNode } from '@shared/utils/file'
+import { redactSecretLiterals } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('SkillFileBrowser')
 const MARKDOWN_EXTENSIONS = new Set(['md', 'mdx', 'markdown'])
@@ -33,9 +35,22 @@ export interface SkillFileBrowserHandles {
 }
 
 // Record ids reach uploaded diagnostics verbatim, so only the root-relative file path is kept.
+// The tree reports slash-normalized paths under a native (possibly Windows) root.
 function fileRecordIdOf(skillId: string, rootPath: string, filePath: string | null): string {
-  if (!filePath?.startsWith(rootPath)) return skillId
-  return `${skillId}:${filePath.slice(rootPath.length).replace(/^[\\/]+/, '')}`
+  const root = rootPath.replace(/\\/g, '/').replace(/\/+$/, '')
+  const file = filePath?.replace(/\\/g, '/')
+  if (!file?.startsWith(`${root}/`)) return skillId
+  return `${skillId}:${file.slice(root.length + 1)}`
+}
+
+// Native fs errors echo the absolute Skill path, which home-directory masking misses in a relocated profile.
+function maskSkillRoot(error: unknown, rootPath: string): unknown {
+  if (!error) return error
+  return redactSecretLiterals(
+    diagnosticErrorFromUnknown(error) ?? error,
+    [rootPath, rootPath.replace(/\\/g, '/')],
+    '<skill>'
+  )
 }
 
 function isMarkdownFile(filePath: string): boolean {
@@ -259,7 +274,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
       setViewMode(isMarkdownFile(nextFile) ? 'preview' : 'edit')
     } catch (error) {
       logger.error('Failed to save Skill file before switching files', error as Error, { skillId, selectedFile })
-      toastAppError(t('settings.skills.editor.saveFailed'), error, {
+      toastAppError(t('settings.skills.editor.saveFailed'), maskSkillRoot(error, rootPath), {
         source: 'skills',
         operation: 'skill.file.save',
         recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
@@ -272,7 +287,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
       await reloadFile()
     } catch (error) {
       logger.error('Failed to reload conflicted Skill file', error as Error, { skillId, selectedFile })
-      toastAppError(t('library.skill_detail.file_load_failed'), error, {
+      toastAppError(t('library.skill_detail.file_load_failed'), maskSkillRoot(error, rootPath), {
         source: 'skills',
         operation: 'skill.file.load',
         recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
@@ -285,13 +300,18 @@ export const SkillFileBrowser = function SkillFileBrowser({
       await keepCurrentDraft()
     } catch (error) {
       logger.error('Failed to save the current Skill draft', error as Error, { skillId, selectedFile })
-      toastAppError(t('settings.skills.editor.saveFailed'), error, {
+      toastAppError(t('settings.skills.editor.saveFailed'), maskSkillRoot(error, rootPath), {
         source: 'skills',
         operation: 'skill.file.save',
         recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
       })
     }
   }, [keepCurrentDraft, rootPath, selectedFile, skillId, t])
+
+  const treeFault = useMemo(() => maskSkillRoot(error, rootPath), [error, rootPath])
+  const saveFault = useMemo(() => maskSkillRoot(fileSession.saveError, rootPath), [fileSession.saveError, rootPath])
+  const syncFault = useMemo(() => maskSkillRoot(syncError, rootPath), [syncError, rootPath])
+  const loadFault = useMemo(() => maskSkillRoot(fileSession.error, rootPath), [fileSession.error, rootPath])
 
   if (isLoading) {
     return (
@@ -311,7 +331,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
           className="min-h-80"
           detail={
             <ErrorDetailAction
-              error={error}
+              error={treeFault}
               message={summary}
               source="skills"
               operation="skill.files.load"
@@ -324,23 +344,23 @@ export const SkillFileBrowser = function SkillFileBrowser({
   }
 
   const fileRecordId = fileRecordIdOf(skillId, rootPath, selectedFile)
-  let sessionFailure: { error: Error; message: string; operation: string } | null = null
+  let sessionFailure: { error: unknown; message: string; operation: string } | null = null
   // A conflict has its own reload / keep-draft recovery instead of a failure detail.
   if (fileSession.saveError && !fileSession.conflict) {
     sessionFailure = {
-      error: fileSession.saveError,
+      error: saveFault,
       message: t('settings.skills.editor.saveFailed'),
       operation: 'skill.file.save'
     }
   } else if (syncError) {
     sessionFailure = {
-      error: syncError,
+      error: syncFault,
       message: t('settings.skills.editor.syncFailed'),
       operation: 'skill.reconcile'
     }
   } else if (fileSession.status === 'error' && fileSession.error) {
     sessionFailure = {
-      error: fileSession.error,
+      error: loadFault,
       message: t('settings.skills.editor.loadFailed'),
       operation: 'skill.file.load'
     }
@@ -574,7 +594,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
             blocker.proceed()
           } catch (error) {
             logger.error('Failed to save Skill file before navigation', error as Error, { skillId, selectedFile })
-            toastAppError(t('settings.skills.editor.saveFailed'), error, {
+            toastAppError(t('settings.skills.editor.saveFailed'), maskSkillRoot(error, rootPath), {
               source: 'skills',
               operation: 'skill.file.save',
               recordId: fileRecordIdOf(skillId, rootPath, selectedFile)

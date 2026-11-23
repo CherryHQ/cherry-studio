@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { I18nextProvider, useTranslation } from 'react-i18next'
 
 import { type PreviewError, type PreviewSelection } from '@cherrystudio/file-preview/core'
 import { Preview } from '@cherrystudio/file-preview/react'
@@ -166,13 +166,16 @@ export default function ElectronFilePreview({
       onError={(error) => setPreviewError({ error, source, refreshKey: previewRefreshKey })}
       onRequestOpen={onRequestOpen}
       errorDetail={
+        // Preview renders this under its own i18n instance, which lacks app keys such as `common.detail`.
         faultError ? (
-          <ErrorDetailAction
-            error={faultError}
-            message={t('file_preview.load_error.description')}
-            source="file.preview"
-            operation={`file.preview.${faultError.code}`}
-          />
+          <I18nextProvider i18n={i18n}>
+            <ErrorDetailAction
+              error={faultError}
+              message={t('file_preview.load_error.description')}
+              source="file.preview"
+              operation={`file.preview.${faultError.code}`}
+            />
+          </I18nextProvider>
         ) : undefined
       }
     />

@@ -103,7 +103,7 @@ function PreviewSession({
     document: PreviewDocument
     plugin: ReturnType<typeof resolvePreviewPlugin>
   } | null>(null)
-  const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number } | null>(null)
+  const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number; tooLarge: boolean } | null>(null)
   // Plugin-requested reload: re-opens the source so the plugin receives a new
   // document (fresh size/revision), which re-reading the retained one cannot do.
   const [reloadNonce, setReloadNonce] = useState(0)
@@ -218,7 +218,7 @@ function PreviewSession({
       } catch (error) {
         close()
         if (controller.signal.aborted) return
-        setFailure({ source, refreshKey })
+        setFailure({ source, refreshKey, tooLarge: error instanceof PreviewError && error.code === 'too_large' })
         reportFailure(error)
       }
     })()
@@ -234,7 +234,7 @@ function PreviewSession({
   const content = !Plugin ? (
     <PreviewState kind="unsupported" />
   ) : failed ? (
-    <PreviewState kind="error" detail={errorDetail} />
+    <PreviewState kind="error" detail={failure.tooLarge ? undefined : errorDetail} />
   ) : !ready ? (
     <PreviewState kind="loading" />
   ) : (

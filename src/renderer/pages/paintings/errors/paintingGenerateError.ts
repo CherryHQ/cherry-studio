@@ -1,3 +1,4 @@
+import { endpointImpliedCapability } from '@cherrystudio/provider-registry'
 import i18n from '@renderer/i18n/resolver'
 import { contextFromUnknown, diagnosticErrorFromUnknown } from '@renderer/services/AppErrorContextService'
 import { popup } from '@renderer/services/popup'
@@ -85,6 +86,9 @@ interface PaintingErrorPresentation {
 /** True only for a model the doctor already treats as non-chat. Unknown models stay unset. */
 function paintingImageOnly(model: Model | undefined): boolean | undefined {
   if (!model) return undefined
+  // Same precedence as AiService: a general-purpose primary endpoint keeps the model chat-capable.
+  const primaryEndpoint = model.endpointTypes?.[0]
+  if (primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined) return undefined
   return isNonChatModel(model) ? true : undefined
 }
 

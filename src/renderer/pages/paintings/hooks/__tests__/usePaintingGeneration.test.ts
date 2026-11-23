@@ -102,4 +102,22 @@ describe('usePaintingGeneration error details', () => {
     expect(context?.imageOnly).toBeUndefined()
     expect(mocks.paintingGenerate).not.toHaveBeenCalled()
   })
+
+  // The model already produced the images; only the local output-reference write failed.
+  it('files an output-save failure after generation as persistence, without the model or params', async () => {
+    mocks.paintingGenerate.mockResolvedValueOnce([{ id: 'file-1' }])
+    mocks.updatePainting
+      .mockResolvedValueOnce({ createdAt: painting.persistedAt })
+      .mockRejectedValueOnce(new Error('SQLITE_BUSY'))
+
+    await runGenerate()
+
+    const context = presentedContext()
+    expect(context).toEqual(
+      expect.objectContaining({ operation: 'painting.persist', providerId: 'openai', recordId: 'painting-1' })
+    )
+    expect(context?.modelId).toBeUndefined()
+    expect(context?.imageOnly).toBeUndefined()
+    expect(context?.params).toBeUndefined()
+  })
 })

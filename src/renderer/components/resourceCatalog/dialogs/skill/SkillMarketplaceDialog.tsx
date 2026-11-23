@@ -24,7 +24,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
-import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
+import { buildGithubSkillResult, SkillSearchFailedError } from '@shared/utils/skillMarketplace'
 
 import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
 
@@ -63,6 +63,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const urlErrorId = useId()
   const isGithubSource = activeSource === 'github'
+  const selectedSourceCause = cause instanceof SkillSearchFailedError ? (cause.failures[activeSource] ?? cause) : cause
 
   const clearPendingSearch = useCallback(() => {
     if (!searchDebounceRef.current) return
@@ -275,7 +276,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
                 : 'library.skill_marketplace.empty_description'
             )}
             error={isGithubSource ? null : error}
-            cause={isGithubSource ? null : (cause ?? null)}
+            cause={isGithubSource ? null : (selectedSourceCause ?? null)}
             searching={!isGithubSource && (searching || searchDebouncing)}
             results={visibleResults}
             installedSources={installedSources}

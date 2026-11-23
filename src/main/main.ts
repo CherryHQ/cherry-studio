@@ -33,6 +33,7 @@ import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
 import { configureRemoteDebugging } from '@main/services/remoteDebugging'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
 import { getApplicationId } from '@main/utils/appEdition'
+import { stringifyThrown } from '@shared/utils/appErrorSnapshot'
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
@@ -100,7 +101,7 @@ const startApp = async () => {
 // for unexpected errors that escape the normal handling path.
 startApp().catch((error) => {
   logger.error('Fatal startup error:', error)
-  const technicalDetail = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  const technicalDetail = error instanceof Error ? `${error.name}: ${error.message}` : stringifyThrown(error)
   // Labels are built only after ready. t() without a language reads PreferenceService,
   // and app.getLocale requires ready on Windows. Both are unavailable in this catch.
   const present = async () => {

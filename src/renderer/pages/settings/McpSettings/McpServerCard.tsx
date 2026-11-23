@@ -14,6 +14,7 @@ import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
@@ -107,9 +108,13 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       await removeMcpServer()
       toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
-      toast.error({ title: t('settings.mcp.deleteError'), cause: error })
+      toastAppError(t('settings.mcp.deleteError'), error, {
+        source: 'mcp',
+        operation: 'mcp.delete',
+        recordId: server.id
+      })
     }
-  }, [removeMcpServer, t])
+  }, [removeMcpServer, t, server.id])
 
   const handleOpenUrl = useCallback(
     (event: React.MouseEvent) => {

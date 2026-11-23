@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useState } from 'react'
+import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -35,12 +35,15 @@ const ObsidianSettings: FC = () => {
   const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [loadError, setLoadError] = useState<unknown>(null)
+  // A rejected write rolls the preference back to empty, which would re-trigger automatic selection forever.
+  const autoSelectRejectedRef = useRef(false)
 
   const saveVault = useCallback(
-    async (vaultName: string) => {
+    async (vaultName: string, automatic = false) => {
       try {
         await setDefaultObsidianVault(vaultName)
       } catch (cause) {
+        if (automatic) autoSelectRejectedRef.current = true
         logger.error('Failed to save Obsidian vault', cause as Error)
         toastAppError(t('common.save_failed'), cause, {
           source: 'settings.obsidian',
@@ -65,8 +68,8 @@ const ObsidianSettings: FC = () => {
 
         setVaults(vaultsData)
 
-        if (!defaultObsidianVault) {
-          void saveVault(vaultsData[0].name)
+        if (!defaultObsidianVault && !autoSelectRejectedRef.current) {
+          void saveVault(vaultsData[0].name, true)
         }
       } catch (caught) {
         logger.error('Failed to fetch Obsidian vaults', caught as Error)

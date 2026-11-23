@@ -114,6 +114,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       pushGenerationState(generationState)
       onPrepared()
 
+      let generated = false
       try {
         const generatedFiles = await paintingGenerate({
           painting: targetPainting,
@@ -121,6 +122,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           tab: 'default',
           abortController: controller
         })
+        generated = true
         await updatePainting(targetPainting.id, {
           files: {
             output: generatedFiles.map((file) => file.id),
@@ -141,7 +143,13 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         }
         cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
         applyIfVisible({ ...targetPainting, ...failedState })
-        if (!isCanceled) {
+        if (generated) {
+          presentPaintingGenerateError(error, {
+            operation: 'painting.persist',
+            providerId: targetPainting.providerId,
+            recordId: targetPainting.id
+          })
+        } else if (!isCanceled) {
           const doctorModel = paintingDoctorModel(models, targetPainting.model)
           presentPaintingGenerateError(error, {
             operation: 'painting.generate',

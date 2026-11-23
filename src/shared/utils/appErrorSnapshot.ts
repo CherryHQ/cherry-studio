@@ -10,6 +10,15 @@ function createAppErrorId(): string {
   return `err-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+/** `String(value)` for any thrown value; a null-prototype object would make `String` throw. */
+export function stringifyThrown(value: unknown): string {
+  try {
+    return String(value)
+  } catch {
+    return Object.prototype.toString.call(value)
+  }
+}
+
 export function createAppErrorContext(
   input: Omit<AppErrorContext, 'id' | 'occurredAt'> & { readonly id?: string; readonly occurredAt?: string }
 ): AppErrorContext {

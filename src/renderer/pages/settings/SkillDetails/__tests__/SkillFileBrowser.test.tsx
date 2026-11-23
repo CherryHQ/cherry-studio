@@ -196,12 +196,12 @@ function createRoot() {
   }
 }
 
-function renderBrowser(access: 'read_only' | 'read_write' = 'read_only') {
+function renderBrowser(access: 'read_only' | 'read_write' = 'read_only', rootPath = '/managed/writer') {
   const manager = new FileEditSessionManager()
   return render(
     <FileEditSessionContext value={manager}>
       <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
-        <SkillFileBrowser rootPath={'/managed/writer' as never} skillId="skill-1" access={access} />
+        <SkillFileBrowser rootPath={rootPath as never} skillId="skill-1" access={access} />
       </SWRConfig>
     </FileEditSessionContext>
   )
@@ -248,6 +248,42 @@ describe('SkillFileBrowser', () => {
     const [request] = mocks.openErrorDetail.mock.calls[0]
     expect(request.context.recordId).toBe('skill-1')
     expect(JSON.stringify(request.context)).not.toContain('/managed/writer')
+  })
+
+  it('masks a relocated Skill directory echoed by a native read error', async () => {
+    mocks.tree = {
+      error: new Error("EACCES: permission denied, scandir '/managed/writer/scripts'"),
+      isLoading: false,
+      root: null,
+      version: 0
+    }
+    renderBrowser()
+
+    await userEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    const report = JSON.stringify(mocks.openErrorDetail.mock.calls[0][0])
+    expect(report).not.toContain('/managed/writer')
+    expect(report).toContain('EACCES: permission denied')
+  })
+
+  it('keeps the root-relative file identity for slash-normalized children of a native Windows root', async () => {
+    mocks.tree = {
+      error: null,
+      isLoading: false,
+      root: { children: { skill: createFile('D:/Skills/writer/SKILL.md') } } as never,
+      version: 7
+    }
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'file.edit.read') throw new Error('unreadable')
+      return undefined
+    })
+    renderBrowser('read_write', 'D:\\Skills\\writer')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(mocks.openErrorDetail.mock.calls[0][0].context.recordId).toBe('skill-1:SKILL.md')
   })
 
   it('shows load details when the selected file cannot be read', async () => {

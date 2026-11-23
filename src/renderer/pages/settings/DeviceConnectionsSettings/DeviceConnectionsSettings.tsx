@@ -41,6 +41,7 @@ import {
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
@@ -143,7 +144,10 @@ const DeviceConnectionsSettings: FC = () => {
       if (requestId === invitationRequestId.current && Date.parse(result.expiresAt) > Date.now()) setInvitation(result)
     } catch (error) {
       if (requestId === invitationRequestId.current) {
-        toast.error({ title: t('deviceConnections.pairing.error'), cause: error })
+        toastAppError(t('deviceConnections.pairing.error'), error, {
+          source: 'settings.devices',
+          operation: 'device.pairing.invite'
+        })
       }
     } finally {
       if (requestId === invitationRequestId.current) setIsCreatingInvitation(false)
@@ -183,7 +187,11 @@ const DeviceConnectionsSettings: FC = () => {
       }
       clearInvitation()
     } catch (error) {
-      toast.error({ title: t('deviceConnections.claims.error'), cause: error })
+      toastAppError(t('deviceConnections.claims.error'), error, {
+        source: 'settings.devices',
+        operation: 'device.pairing.decide',
+        recordId: claim.claimId
+      })
     } finally {
       setDecidingClaimId(undefined)
     }
@@ -212,7 +220,7 @@ const DeviceConnectionsSettings: FC = () => {
     try {
       await ipcApi.request('api_gateway.lan.set_enabled', { enabled })
     } catch (error) {
-      toast.error({ title: t('deviceConnections.lan.error'), cause: error })
+      toastAppError(t('deviceConnections.lan.error'), error, { source: 'settings.devices', operation: 'device.lan' })
     } finally {
       setIsUpdatingLan(false)
     }

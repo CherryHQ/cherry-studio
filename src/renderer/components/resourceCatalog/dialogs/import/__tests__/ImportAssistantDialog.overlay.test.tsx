@@ -4,9 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 
 const importMocks = vi.hoisted(() => ({
   importAssistant: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   toastError: vi.fn(),
   toastSuccess: vi.fn()
 }))
@@ -24,6 +26,11 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/resourceCatalog/assistantAdapter', () => ({
   useImportAssistantMutation: () => ({ importAssistant: importMocks.importAssistant })
+}))
+
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: importMocks.openErrorDetail }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -116,6 +123,30 @@ describe('ImportAssistantDialog', () => {
     expect(alert).toHaveTextContent('library.import_dialog.failure')
     expect(alert).not.toHaveTextContent(cause.message)
     expect(within(alert).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
-    expect(importMocks.toastError).toHaveBeenCalledWith({ title: 'library.import_dialog.failure', cause })
+    expect(importMocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'library.import_dialog.failure',
+        cause,
+        data: expect.objectContaining({ errorContext: expect.objectContaining({ operation: 'assistant.import' }) })
+      })
+    )
+  })
+
+  it.each([404, 429])('keeps the HTTP %s status of a failed URL fetch in its Details', async (status) => {
+    const user = userEvent.setup()
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status }))
+    render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'library.import_dialog.tab.url' }))
+    fireEvent.change(await screen.findByPlaceholderText('https://gist.github.com/...'), {
+      target: { value: 'https://gist.githubusercontent.com/someone/assistant.json' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'library.import_dialog.url.button' }))
+
+    const alert = await screen.findByRole('alert')
+    await user.click(within(alert).getByRole('button', { name: /common\.detail/ }))
+    await waitFor(() => expect(importMocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(importMocks.openErrorDetail.mock.calls[0][0].context.statusCode).toBe(status)
+    fetchMock.mockRestore()
   })
 })
