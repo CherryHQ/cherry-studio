@@ -73,6 +73,12 @@ by their owning consumers.
 `createDirectoryTree(rootPath, options)` is asynchronous. It resolves only after both the initial
 scan and watcher setup complete. After that, `root`, `snapshot()`, and `getNode(path)` are ready.
 
+The main-process factory resolves the root lexically to an absolute path, normalizes separators,
+and validates its path shape before constructing the tree. Relative roots and dot/trailing-separator
+aliases therefore share the same path form across the scan, index, and watcher. This does not
+resolve symlinks or normalize Unicode. A missing root walks parents with the host platform's path
+semantics, retaining Windows drive and UNC roots as absolute watcher paths.
+
 The builder starts the watcher before the scan finishes and serializes early watcher events behind
 the scan. This closes the gap where a path could change after scan enumeration but before watcher
 attachment.

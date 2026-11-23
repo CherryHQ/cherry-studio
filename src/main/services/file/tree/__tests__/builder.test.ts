@@ -73,6 +73,36 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — initial scan', () =>
     }
   })
 
+  it.each(['relative', 'dot-and-trailing-separator'])(
+    'keeps scan, lookup and watcher paths aligned for a %s root',
+    async (form) => {
+      const existing = path.join(tmp, 'existing.md')
+      await writeFile(existing, 'existing')
+      const root = form === 'relative' ? path.relative(process.cwd(), tmp) : `${tmp}${path.sep}.${path.sep}`
+      const builder = await createDirectoryTree(root, { extensions: ['.md'] })
+
+      try {
+        expect(builder.root.path).toBe(tmp.replace(/\\/g, '/'))
+        expect(builder.root.hasChild('existing.md')).toBe(true)
+        expect(builder.getNode(existing)).toBe(builder.root.children['existing.md'])
+
+        const later = path.join(tmp, 'later.md')
+
+        const added = waitForEvent(
+          builder,
+          (event) => event.type === 'added' && event.path === later.replace(/\\/g, '/')
+        )
+        await writeFile(later, 'later')
+        await added
+
+        expect(builder.root.hasChild('later.md')).toBe(true)
+        expect(builder.getNode(later)).toBe(builder.root.children['later.md'])
+      } finally {
+        await builder.disposeAsync()
+      }
+    }
+  )
+
   it('filters out files that fail the extensions allowlist', async () => {
     await writeFile(path.join(tmp, 'a.md'), 'md')
     await writeFile(path.join(tmp, 'b.txt'), 'txt')

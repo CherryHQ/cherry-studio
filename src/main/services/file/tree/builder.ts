@@ -27,7 +27,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
 import { getErrorCode } from '@main/utils/error'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   type DirectoryTreeOptions,
   type SerializedTreeNode,
@@ -103,8 +103,8 @@ async function statQuiet(absPath: string): Promise<TreeNodeStats | undefined> {
   }
 }
 
-async function findNearestExistingDirectory(absPath: string): Promise<string> {
-  let candidate = normalizePath(path.posix.dirname(absPath))
+async function findNearestExistingDirectory(absPath: AbsoluteFilePath): Promise<AbsoluteFilePath> {
+  let candidate = AbsoluteFilePathSchema.parse(normalizePath(path.dirname(absPath)))
 
   while (true) {
     try {
@@ -115,7 +115,7 @@ async function findNearestExistingDirectory(absPath: string): Promise<string> {
       if (getErrorCode(error) !== 'ENOENT') throw error
     }
 
-    const parent = normalizePath(path.posix.dirname(candidate))
+    const parent = AbsoluteFilePathSchema.parse(normalizePath(path.dirname(candidate)))
 
     if (parent === candidate) {
       throw new Error(`No existing directory found above ${absPath}`)
@@ -172,8 +172,8 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private watcherSubscription: Disposable | null = null
   private watcherClosePromise: Promise<void> | null = null
   private readonly options: ResolvedTreeOptions
-  private readonly rootPath: string
-  private watcherRootPath: string
+  private readonly rootPath: AbsoluteFilePath
+  private watcherRootPath: AbsoluteFilePath
   // Loaded once during `init()`; what the user's `.gitignore` (plus the
   // always-on `.git` exclusion) says to skip. `null` when the caller
   // opted out via `respectGitignore: false` or the file isn't readable.
@@ -193,7 +193,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private static readonly RENAME_DEDUP_MS = 1000
 
   constructor(rootPath: string, options: ResolvedTreeOptions) {
-    this.rootPath = normalizePath(rootPath)
+    this.rootPath = AbsoluteFilePathSchema.parse(normalizePath(path.resolve(rootPath)))
     this.watcherRootPath = this.rootPath
     this.options = options
     this.root = new TreeDirRoot(this.rootPath)
@@ -358,7 +358,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
         ? undefined
         : Math.max(0, this.options.maxDepth + rootDepthOffset)
 
-    const watcher = createDirectoryWatcher(this.watcherRootPath as AbsoluteFilePath, {
+    const watcher = createDirectoryWatcher(this.watcherRootPath, {
       recursive: true,
       maxDepth: watcherMaxDepth,
       stabilityThresholdMs: 200,

@@ -485,6 +485,7 @@ export async function listDirectoryEntries(
       try {
         const stat = await fs.promises.stat(entryPath)
 
+        // SAFETY: Listing paths are resolved or joined against the absolute root; a successful stat also excludes NUL bytes.
         return { path: entryPath as AbsoluteFilePath, isDirectory: stat.isDirectory() }
       } catch {
         // Entry vanished between listing and stat — drop it (matches the
