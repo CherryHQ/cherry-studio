@@ -86,16 +86,19 @@ export function findMarkdownCodeRanges(content: string, protectAllCodeBlocks = f
           const raw = content.slice(start.offset, end.offset)
           const offset = start.offset
           const boundary = end.offset
-          const parser = new HtmlParser({
-            oncomment() {
-              const range = {
-                start: offset + parser.startIndex,
-                end: Math.min(boundary, offset + parser.endIndex + 1)
+          const parser = new HtmlParser(
+            {
+              oncomment() {
+                const range = {
+                  start: offset + parser.startIndex,
+                  end: Math.min(boundary, offset + parser.endIndex + 1)
+                }
+                ranges.push(range)
+                allCodeRanges.push(range)
               }
-              ranges.push(range)
-              allCodeRanges.push(range)
-            }
-          })
+            },
+            { xmlMode: true }
+          )
           parser.end(raw)
           continue
         }

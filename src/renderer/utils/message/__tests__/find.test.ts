@@ -337,6 +337,19 @@ describe('getWebSourcesMarkdown', () => {
     expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
   })
 
+  it('distinguishes SVG comments from visible CDATA text', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text: '<!-- note --> <svg><title><!-- [cite:1] --></title></svg>' }
+    ] as MessageExportView['parts'])
+    expect(getCitedWebSources(message)).toEqual([])
+    message.parts[1] = {
+      type: 'text',
+      text: '<!-- note --> <svg><text><![CDATA[Visible claim [cite:1].]]></text></svg>'
+    }
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
   it('collects copy eligibility after duplicate collapse changes Markdown boundaries', () => {
     const message = createExportView([
       { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
