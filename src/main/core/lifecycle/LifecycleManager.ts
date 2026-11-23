@@ -348,8 +348,8 @@ export class LifecycleManager extends EventEmitter {
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
     } catch (error) {
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, LifecycleState.Stopped, error as Error)
-      this.handleError(serviceName, error as Error, metadata.errorStrategy)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, LifecycleState.Stopped, error)
+      this.handleError(serviceName, error, metadata.errorStrategy)
     }
   }
 
@@ -473,7 +473,8 @@ export class LifecycleManager extends EventEmitter {
   /**
    * Handle service initialization error based on strategy
    */
-  private handleError(serviceName: string, error: Error, strategy: 'fail-fast' | 'graceful' | 'custom'): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Hook failures are arbitrary thrown values; classification and fail-fast wrapping preserve the original cause.
+  private handleError(serviceName: string, error: unknown, strategy: 'fail-fast' | 'graceful' | 'custom'): void {
     const cancelled = isCancellation(error)
     logFailure(logger, `Service '${serviceName}' initialization failed:`, error, 'service.initialize', {
       source: 'application',
@@ -497,7 +498,8 @@ export class LifecycleManager extends EventEmitter {
   /**
    * Emit a lifecycle event
    */
-  private emitLifecycleEvent(event: LifecycleEvent, name: string, state: LifecycleState, error?: Error): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error events carry the original hook rejection; event consumers own field narrowing.
+  private emitLifecycleEvent(event: LifecycleEvent, name: string, state: LifecycleState, error?: unknown): void {
     const payload: LifecycleEventPayload = { name, state, error }
     this.emit(event, payload)
   }
@@ -643,7 +645,8 @@ export class LifecycleManager extends EventEmitter {
       const instance = this.container.getInstance(serviceName)
 
       if (!instance) continue
-      void instance._doAllReady().catch((error: Error) => {
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejections can contain any value; forward it unchanged to logging and lifecycle observers.
+      void instance._doAllReady().catch((error: unknown) => {
         logger.error(`Service '${serviceName}' onAllReady failed:`, error)
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, LifecycleState.Ready, error)
       })
@@ -878,10 +881,10 @@ export class LifecycleManager extends EventEmitter {
       logger.info(`Service '${name}' started (${duration.toFixed(3)}ms)`)
     } catch (error) {
       const metadata = this.container.getMetadata(name)
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Stopped, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Stopped, error)
 
       if (metadata) {
-        this.handleError(name, error as Error, metadata.errorStrategy)
+        this.handleError(name, error, metadata.errorStrategy)
       }
 
       return
@@ -904,10 +907,10 @@ export class LifecycleManager extends EventEmitter {
         logger.info(`Service '${depName}' started (cascade) (${depDuration.toFixed(3)}ms)`)
       } catch (error) {
         const metadata = this.container.getMetadata(depName)
-        this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, depName, LifecycleState.Stopped, error as Error)
+        this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, depName, LifecycleState.Stopped, error)
 
         if (metadata) {
-          this.handleError(depName, error as Error, metadata.errorStrategy)
+          this.handleError(depName, error, metadata.errorStrategy)
         }
       }
     }
@@ -971,7 +974,7 @@ export class LifecycleManager extends EventEmitter {
       }
     } catch (error) {
       logger.error(`Error pausing service '${serviceName}':`, error)
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error)
     }
   }
 
@@ -997,7 +1000,7 @@ export class LifecycleManager extends EventEmitter {
       }
     } catch (error) {
       logger.error(`Error resuming service '${serviceName}':`, error)
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error)
     }
   }
 
@@ -1052,7 +1055,7 @@ export class LifecycleManager extends EventEmitter {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ACTIVATED, name, LifecycleState.Ready)
     } catch (error) {
       logger.error(`Error activating '${name}':`, error)
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error)
     }
   }
 
@@ -1090,7 +1093,7 @@ export class LifecycleManager extends EventEmitter {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DEACTIVATED, name, LifecycleState.Ready)
     } catch (error) {
       logger.error(`Error deactivating '${name}':`, error)
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error)
     }
   }
 }

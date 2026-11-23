@@ -94,9 +94,9 @@ export type ErrorStrategy = 'fail-fast' | 'graceful' | 'custom'
 export class ServiceInitError extends Error {
   constructor(
     public readonly serviceName: string,
-    public readonly cause: Error
+    public readonly cause: unknown
   ) {
-    super(`Service '${serviceName}' failed to initialize: ${cause.message}`)
+    super(`Service '${serviceName}' failed to initialize${cause instanceof Error ? `: ${cause.message}` : ''}`)
     this.name = 'ServiceInitError'
   }
 }
@@ -184,8 +184,8 @@ export interface LifecycleEventPayload {
   name: string
   /** Current state */
   state: LifecycleState
-  /** Error if any */
-  error?: Error
+  /** Original thrown value, if any; consumers must narrow before reading fields. */
+  error?: unknown
 }
 
 /**

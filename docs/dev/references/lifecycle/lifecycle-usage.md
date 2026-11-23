@@ -66,6 +66,8 @@ const dbService = application.get('DbService')
 | `fail-fast`          | Throw `ServiceInitError`, abort startup.               |
 | `custom`             | Delegate to `lifecycle:service:error` event listeners. |
 
+`ServiceInitError.cause` preserves the original thrown value as `unknown`, including non-Error rejections. Its message includes the cause's message only for an `Error` instance; narrow `cause` before reading its fields.
+
 ```typescript
 @Injectable('DbService')
 @ErrorHandling('fail-fast')

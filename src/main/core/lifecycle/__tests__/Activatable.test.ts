@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../BaseService'
+import { Injectable } from '../decorators'
 import { LifecycleManager } from '../LifecycleManager'
 import { ServiceContainer } from '../ServiceContainer'
-import { type Activatable, isActivatable, LifecycleEvents, LifecycleState } from '../types'
+import { type Activatable, isActivatable, LifecycleEvents, type LifecycleEventPayload, LifecycleState } from '../types'
 
 // Helper: create an Activatable service class
 function createActivatableServiceClass(name: string) {
@@ -371,6 +372,38 @@ describe('Activatable', () => {
       expect(instance.isActivated).toBe(false)
     })
   })
+
+  it.each(['activate', 'deactivate'] as const)(
+    'preserves a non-Error %s failure and the activation state',
+    async (operation) => {
+      @Injectable('RejectingActivation')
+      class RejectingActivation extends BaseService implements Activatable {
+        async onActivate() {
+          if (operation === 'activate') throw null
+        }
+        async onDeactivate() {
+          throw null
+        }
+      }
+
+      const container = ServiceContainer.getInstance()
+      container.register(RejectingActivation)
+      const instance = container.get<RejectingActivation>('RejectingActivation')
+      await instance._doInit()
+      if (operation === 'deactivate') await instance._doActivate()
+
+      const manager = LifecycleManager.getInstance()
+      const errors: LifecycleEventPayload[] = []
+      manager.on(LifecycleEvents.SERVICE_ERROR, (payload) => errors.push(payload))
+
+      await manager[operation]('RejectingActivation')
+
+      expect(errors).toHaveLength(1)
+      expect(errors[0].error).toBeNull()
+      expect(instance.state).toBe(LifecycleState.Ready)
+      expect(instance.isActivated).toBe(operation === 'deactivate')
+    }
+  )
 
   describe('LifecycleManager.deactivate', () => {
     it('should deactivate an activated service', async () => {

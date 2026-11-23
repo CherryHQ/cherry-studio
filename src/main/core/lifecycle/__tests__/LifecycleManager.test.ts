@@ -1,5 +1,5 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '../BaseService'
 import { when } from '../conditions'
@@ -7,7 +7,14 @@ import { SERVICE_STOP_TIMEOUT_MS } from '../constants'
 import { Conditional, DependsOn, ErrorHandling, Injectable } from '../decorators'
 import { LifecycleManager } from '../LifecycleManager'
 import { ServiceContainer } from '../ServiceContainer'
-import { LifecycleEvents, LifecycleState, type Pausable, Phase, ServiceInitError } from '../types'
+import {
+  LifecycleEvents,
+  type LifecycleEventPayload,
+  LifecycleState,
+  type Pausable,
+  Phase,
+  ServiceInitError
+} from '../types'
 
 afterEach(() => {
   LifecycleManager.reset()
@@ -141,20 +148,32 @@ describe('LifecycleManager', () => {
   // ── Error handling strategies ──
 
   describe('error handling', () => {
-    it('should throw ServiceInitError for fail-fast strategy', async () => {
+    it.each([
+      { cause: new Error('Database connection failed'), suffix: ': Database connection failed' },
+      { cause: 'Database connection failed', suffix: '' },
+      { cause: null, suffix: '' }
+    ])('preserves fail-fast classification and the original cause for $cause', async ({ cause, suffix }) => {
       @Injectable('CriticalService')
       @ErrorHandling('fail-fast')
       class CriticalService extends BaseService {
         protected override onInit() {
-          throw new Error('Database connection failed')
+          throw cause
         }
       }
 
       const manager = LifecycleManager.getInstance()
-      const container = manager['container']
-      container.register(CriticalService)
+      manager['container'].register(CriticalService)
+      const events: LifecycleEventPayload[] = []
+      manager.on(LifecycleEvents.SERVICE_ERROR, (payload) => events.push(payload))
 
-      await expect(initializeServices(manager)).rejects.toThrow(ServiceInitError)
+      const failure = await initializeServices(manager).catch((error: unknown) => error)
+
+      assert(failure instanceof ServiceInitError)
+      expect(failure.serviceName).toBe('CriticalService')
+      expect(failure.message).toBe(`Service 'CriticalService' failed to initialize${suffix}`)
+      expect(failure.cause).toBe(cause)
+      expect(events).toHaveLength(1)
+      expect(events[0].error).toBe(cause)
     })
 
     it('should continue for graceful strategy', async () => {
@@ -1399,39 +1418,37 @@ describe('LifecycleManager', () => {
       expect(healthyCalls).toEqual(['healthy'])
     })
 
-    it('should emit SERVICE_ERROR for services whose onAllReady fails', async () => {
-      const error = new Error('hook failed')
-
-      @Injectable('ErrorService')
-      class ErrorService extends BaseService {
-        protected override onAllReady() {
-          throw error
+    it.each([new Error('hook failed'), 'hook failed', null])(
+      'forwards the original onAllReady rejection %s without changing service readiness',
+      async (error) => {
+        @Injectable('ErrorService')
+        class ErrorService extends BaseService {
+          protected override onAllReady() {
+            throw error
+          }
         }
+
+        const manager = LifecycleManager.getInstance()
+        const container = manager['container']
+        container.register(ErrorService)
+
+        await initializeServices(manager)
+
+        const errors: LifecycleEventPayload[] = []
+        manager.on(LifecycleEvents.SERVICE_ERROR, (payload) => errors.push(payload))
+
+        manager.allReady()
+        // SERVICE_ERROR is emitted from an async .catch on the fire-and-forget hook
+        // promise — drain microtasks so the listener observes the event.
+        await Promise.resolve()
+
+        expect(errors).toHaveLength(1)
+        expect(errors[0].name).toBe('ErrorService')
+        expect(errors[0].state).toBe(LifecycleState.Ready)
+        expect(errors[0].error).toBe(error)
+        expect(container.get('ErrorService').state).toBe(LifecycleState.Ready)
       }
-
-      const manager = LifecycleManager.getInstance()
-      const container = manager['container']
-      container.register(ErrorService)
-
-      await initializeServices(manager)
-
-      const errorListener = vi.fn()
-      manager.on(LifecycleEvents.SERVICE_ERROR, errorListener)
-
-      manager.allReady()
-      // SERVICE_ERROR is emitted from an async .catch on the fire-and-forget hook
-      // promise — drain microtasks so the listener observes the event.
-      await Promise.resolve()
-
-      expect(errorListener).toHaveBeenCalledOnce()
-      expect(errorListener).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'ErrorService',
-          state: LifecycleState.Ready,
-          error
-        })
-      )
-    })
+    )
 
     it('should emit ALL_SERVICES_READY even when some hooks fail', async () => {
       @Injectable('FailService')

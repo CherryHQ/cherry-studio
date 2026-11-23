@@ -296,6 +296,8 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 | `SERVICE_ERROR`        | `{ name, state, error }` | Service encountered an error          |
 | `ALL_SERVICES_READY`   | (none)                   | All `onAllReady` hooks have been invoked (NOT necessarily completed — see [onAllReady](#onallready-system-wide-readiness)) |
 
+`SERVICE_ERROR.error` carries the original thrown value as `unknown`; listeners must narrow it before reading error fields.
+
 ## Inter-Service Communication
 
 `@DependsOn` guarantees initialization order, but some services need to react to work completed by other services at **runtime** (after `onInit()`). For example, `ShortcutService` needs to know when `MainWindowService` creates the main window — which happens after all services have initialized.
