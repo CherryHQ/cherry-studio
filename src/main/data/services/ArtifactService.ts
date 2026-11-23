@@ -135,7 +135,7 @@ export class ArtifactService {
   }
 
   /**
-   * Index files generated in an Assistant topic, owned by the topic's Assistant. Topics that are not
+   * Index files generated in an Assistant topic, owned by that topic. Topics that are not
    * stored (temporary chats) or have no Assistant, and files that no longer exist, are skipped.
    */
   recordTopicFiles(topicId: string, fileEntryIds: readonly string[]): void {
@@ -159,12 +159,11 @@ export class ArtifactService {
         .where(inArray(fileEntryTable.id, [...fileEntryIds]))
         .all()
       if (!files.length) return null
-      const owner = { assistantId: topic.assistantId, topicId, reportedAt }
       tx.insert(artifactTable)
         .values(
           files.map((file) => {
             const title = file.ext ? `${file.name}.${file.ext}` : file.name
-            return { ...owner, fileEntryId: file.id, title, size: file.size }
+            return { topicId, reportedAt, fileEntryId: file.id, title, size: file.size }
           })
         )
         .run()
@@ -403,7 +402,7 @@ export class ArtifactService {
       if (!file) continue
       const title = file.ext ? `${file.name}.${file.ext}` : file.name
       tx.insert(artifactTable)
-        .values({ ...image, assistantId: topic.assistantId, title, size: file.size })
+        .values({ ...image, title, size: file.size })
         .run()
     }
   }
@@ -424,7 +423,7 @@ export class ArtifactService {
             >`(SELECT ${agentWorkspaceTable.path} FROM ${agentWorkspaceTable} WHERE ${agentWorkspaceTable.id} = ${agentSessionTable.workspaceId})`
           }
         : {
-            owned: eq(artifactTable.assistantId, owner.assistantId),
+            owned: eq(topicTable.assistantId, owner.assistantId),
             table: topicTable,
             join: eq(topicTable.id, artifactTable.topicId),
             // Drop outputs whose managed file is gone; the row has no FK so it cannot pin the file.

@@ -1256,6 +1256,12 @@ describe('TopicService', () => {
       expect(movedTopic).toMatchObject({ id: 'move-a', assistantId: 'asst-b' })
       expect(topicService.getById('move-a').assistantId).toBe('asst-b')
       expect(await getOrderedIds()).toEqual(['move-b', 'move-a'])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          { endpoint: '/assistants/:id/artifacts', kind: 'membership', routeParams: { id: 'asst-a' } },
+          { endpoint: '/assistants/:id/artifacts', kind: 'membership', routeParams: { id: 'asst-b' } }
+        ])
+      )
     })
 
     it('rolls back the owner and order when applying the order fails', async () => {

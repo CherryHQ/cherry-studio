@@ -58,9 +58,9 @@ In both kinds, the Settings rows are inline controls that change the value direc
 
 - **Usage.** The usage stats endpoint accepts a source filter (Assistant or Agent ID). Topic, message, session, and task-run counts come from small DataApi count queries. "Last 7 days" is a rolling window. Task runs remain attributable to the Agent after its schedule is deleted.
 - **Recent topics.** The topics endpoint accepts an Assistant filter and sorts by last activity.
-- **Outputs.** One `artifact` table indexes Agent and Assistant outputs with title, size, and time. Queries classify HTML and Markdown as pages, images, audio, and video as media, and other files as files. Historical outputs are indexed after startup. File checks run before the database transaction, and the transaction writes the index and completion marker together. Restored sessions and topics retain their outputs. Agent paths are workspace-relative and resolve against the current workspace.
+- **Outputs.** One `artifact` table indexes Agent and Assistant outputs with title, size, and time. Queries classify HTML and Markdown as pages, images, audio, and video as media, and other files as files. Historical outputs are indexed after startup. File checks run before the database transaction, and the transaction writes the index and completion marker together. Backup capture and restore staging pause new backfill work and wait for any running backfill before fingerprinting the live database. Restored sessions and topics retain their outputs. Agent paths are workspace-relative and resolve against the current workspace.
   - Agent rows come from the `report_artifacts` tool; the owner is the Agent, session, and path.
-  - Assistant rows come from `generate_image` in a saved topic; the owner is the Assistant, topic, and managed file ID.
+  - Assistant rows link `generate_image` outputs in a saved topic to the topic and managed file ID. The topic's current Assistant determines where those outputs are listed.
   - The file ID has no foreign key, so an output never keeps its file from cleanup.
   - The DataApi endpoints `GET /agents/:agentId/artifacts` and `GET /assistants/:id/artifacts` list the outputs and return the count of each kind.
   - HTML and Markdown pages written in Assistant topics are not indexed yet, because the product has no creation hook for them.

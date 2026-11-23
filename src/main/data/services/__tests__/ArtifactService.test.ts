@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { applyMigrations } from '@data/db/applyMigrations'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -15,7 +16,8 @@ import { topicTable } from '@data/db/schemas/topic'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { artifactService } from '@data/services/ArtifactService'
-import { backfillPastOutputs } from '@main/ai/agents/ArtifactBackfillService'
+import { topicService } from '@data/services/TopicService'
+import { ArtifactBackfillService, backfillPastOutputs } from '@main/ai/agents/ArtifactBackfillService'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 const NOW = Date.UTC(2026, 10, 13, 12)
@@ -26,6 +28,31 @@ describe('ArtifactService', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('defers the startup backfill until all database write holds are released', async () => {
+    vi.useFakeTimers()
+    const service = new ArtifactBackfillService()
+    try {
+      const firstHold = service.pause()
+      const secondHold = service.pause()
+      await service._doAllReady()
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(await service.drainInFlight({ timeoutMs: 100 })).toEqual({ settled: true })
+      expect(artifactService.hasBackfilledPastOutputs()).toBe(false)
+
+      firstHold.dispose()
+      firstHold.dispose()
+      expect(artifactService.hasBackfilledPastOutputs()).toBe(false)
+
+      secondHold.dispose()
+      expect(await service.drainInFlight({ timeoutMs: 100 })).toEqual({ settled: true })
+      expect(artifactService.hasBackfilledPastOutputs()).toBe(true)
+    } finally {
+      await service._doStop()
+      vi.useRealTimers()
+    }
   })
 
   describe('Agent outputs', () => {
@@ -343,14 +370,14 @@ describe('ArtifactService', () => {
           .values({ id, name: id, emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, orderKey: id })
           .run()
       }
-      const topic = (id: string, assistantId: string | null, deletedAt?: number) =>
+      const topic = (id: string, orderKey: string, assistantId: string | null, deletedAt?: number) =>
         dbh.db
           .insert(topicTable)
-          .values({ id, name: `Topic ${id}`, assistantId, orderKey: id, deletedAt })
+          .values({ id, name: `Topic ${id}`, assistantId, orderKey, deletedAt })
           .run()
-      topic('t-1', 'writer')
-      topic('t-deleted', 'writer', NOW)
-      topic('t-orphan', null)
+      topic('t-1', 'a0', 'writer')
+      topic('t-deleted', 'a1', 'writer', NOW)
+      topic('t-orphan', 'a2', null)
       for (const [id, name] of [
         [IMAGE_1, 'cover'],
         [IMAGE_2, 'banner']
@@ -394,6 +421,33 @@ describe('ArtifactService', () => {
       artifactService.recordTopicFiles('t-1', ['019606a0-0000-7000-8000-0000000000ff'])
 
       expect(artifactService.list({ assistantId: 'writer' }).counts.all).toBe(0)
+    })
+
+    it('keeps the same image with the moved topic after its previous Assistant is deleted', () => {
+      seed()
+      artifactService.recordTopicFiles('t-1', [IMAGE_1])
+      const [indexedImage] = artifactService.list({ assistantId: 'writer' }).items
+
+      topicService.move('t-1', { assistantId: 'coder', order: { position: 'last' } })
+
+      expect(artifactService.list({ assistantId: 'writer' }).items).toEqual([])
+      expect(artifactService.list({ assistantId: 'coder' }).items).toEqual([indexedImage])
+
+      dbh.db.delete(assistantTable).where(eq(assistantTable.id, 'writer')).run()
+      expect(artifactService.list({ assistantId: 'coder' }).items).toEqual([indexedImage])
+    })
+
+    it('keeps the indexed image across detaching and reassigning its topic', () => {
+      seed()
+      artifactService.recordTopicFiles('t-1', [IMAGE_1])
+      const [indexedImage] = artifactService.list({ assistantId: 'writer' }).items
+
+      topicService.update('t-1', { assistantId: null })
+      expect(artifactService.list({ assistantId: 'writer' }).items).toEqual([])
+      dbh.db.delete(assistantTable).where(eq(assistantTable.id, 'writer')).run()
+
+      topicService.update('t-1', { assistantId: 'coder' })
+      expect(artifactService.list({ assistantId: 'coder' }).items).toEqual([indexedImage])
     })
 
     it('drops the output when its file is deleted', () => {
@@ -470,5 +524,19 @@ describe('ArtifactService', () => {
         true
       )
     })
+  })
+})
+
+describe('artifact migrate-forward', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0043_artifact' })
+
+  it('adds the index to a populated database without changing existing topics', () => {
+    dbh.db.insert(topicTable).values({ id: 'existing', name: 'Existing topic', orderKey: 'a0' }).run()
+
+    applyMigrations(dbh.db, 'migrations/sqlite-drizzle')
+
+    expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, 'existing')).get()?.name).toBe('Existing topic')
+    expect(dbh.db.select().from(artifactTable).all()).toEqual([])
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
 })

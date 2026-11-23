@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ebc2451a-5432-4a1b-9eaa-094ac5930046",
+  "id": "5cff0b11-7ca9-4dc8-9be3-08b73535a887",
   "prevId": "da0ca127-9aa9-4030-800b-b57b79ac14fb",
   "tables": {
     "agent": {
@@ -2167,13 +2167,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "assistant_id": {
-          "name": "assistant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "topic_id": {
           "name": "topic_id",
           "type": "text",
@@ -2234,14 +2227,6 @@
           ],
           "isUnique": false
         },
-        "artifact_assistant_reported_idx": {
-          "name": "artifact_assistant_reported_idx",
-          "columns": [
-            "assistant_id",
-            "reported_at"
-          ],
-          "isUnique": false
-        },
         "artifact_topic_idx": {
           "name": "artifact_topic_idx",
           "columns": [
@@ -2284,19 +2269,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "artifact_assistant_id_assistant_id_fk": {
-          "name": "artifact_assistant_id_assistant_id_fk",
-          "tableFrom": "artifact",
-          "tableTo": "assistant",
-          "columnsFrom": [
-            "assistant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "artifact_topic_id_topic_id_fk": {
           "name": "artifact_topic_id_topic_id_fk",
           "tableFrom": "artifact",
@@ -2316,7 +2288,7 @@
       "checkConstraints": {
         "artifact_owner_check": {
           "name": "artifact_owner_check",
-          "value": "(\"artifact\".\"agent_id\" IS NOT NULL AND \"artifact\".\"session_id\" IS NOT NULL AND \"artifact\".\"assistant_id\" IS NULL AND \"artifact\".\"topic_id\" IS NULL AND \"artifact\".\"path\" IS NOT NULL AND \"artifact\".\"file_entry_id\" IS NULL) OR (\"artifact\".\"agent_id\" IS NULL AND \"artifact\".\"session_id\" IS NULL AND \"artifact\".\"assistant_id\" IS NOT NULL AND \"artifact\".\"topic_id\" IS NOT NULL AND \"artifact\".\"path\" IS NULL AND \"artifact\".\"file_entry_id\" IS NOT NULL)"
+          "value": "(\"artifact\".\"agent_id\" IS NOT NULL AND \"artifact\".\"session_id\" IS NOT NULL AND \"artifact\".\"topic_id\" IS NULL AND \"artifact\".\"path\" IS NOT NULL AND \"artifact\".\"file_entry_id\" IS NULL) OR (\"artifact\".\"agent_id\" IS NULL AND \"artifact\".\"session_id\" IS NULL AND \"artifact\".\"topic_id\" IS NOT NULL AND \"artifact\".\"path\" IS NULL AND \"artifact\".\"file_entry_id\" IS NOT NULL)"
         }
       }
     },
