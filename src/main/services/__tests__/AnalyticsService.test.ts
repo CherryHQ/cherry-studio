@@ -638,6 +638,28 @@ describe('AnalyticsService product events', () => {
     expect(identifies[1].properties.$anon_distinct_id).toBe(signedOutId)
   })
 
+  it('keeps every update step on the device id, signed in or not', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const steps = () => {
+      service.trackProductEvent({ event: 'update_downloaded', status: 'success' })
+      service.trackProductEvent({ event: 'update_install_deferred', choice: 'later' })
+      service.trackProductEvent({ event: 'update_install_failed', errorReason: 'signature' })
+    }
+
+    steps()
+    service.setProductAccount('cloud-api:global:production:account:a1')
+    steps()
+
+    const ids = posthog.capture.mock.calls
+      .map(([message]) => message)
+      .filter(({ event }) => event.startsWith('update_'))
+      .map(({ distinctId }) => distinctId)
+    expect(ids).toEqual(Array(6).fill('test-client-id'))
+  })
+
   it('identifies an account known before start-up, keeping the launch event on the device id', async () => {
     vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
     captured.preferenceValues['app.privacy.policy_version'] = ''

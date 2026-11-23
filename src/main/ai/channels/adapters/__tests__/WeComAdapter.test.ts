@@ -183,8 +183,9 @@ describe('WeCom channel contract', () => {
     await tick()
     expect(fetchRemoteBytes).not.toHaveBeenCalled()
     expect(message).not.toHaveBeenCalled()
-    await instance.sendMessage('group:other', 'private result')
-    await instance.sendMessage('dm:bob', 'private result')
+    // A blocked recipient is a failed delivery, so task delivery analytics cannot count it as sent.
+    await expect(instance.sendMessage('group:other', 'private result')).rejects.toThrow()
+    await expect(instance.sendMessage('dm:bob', 'private result')).rejects.toThrow()
     expect(client.sendMessage).not.toHaveBeenCalled()
   })
 

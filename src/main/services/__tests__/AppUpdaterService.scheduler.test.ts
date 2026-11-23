@@ -361,6 +361,49 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       expect(updateEvents()).toEqual([{ event: 'update_downloaded', status: 'error', errorReason: 'other' }])
     })
 
+    it('reports an install that fails after it started, with the reason', async () => {
+      listener('update-available')(release)
+      listener('update-downloaded')(release)
+      appUpdater.quitAndInstall()
+      listener('error')(
+        Object.assign(new Error('Code signature did not pass validation'), { code: 'ERR_UPDATER_INVALID_SIGNATURE' })
+      )
+      // A later, unrelated error is not another install failure.
+      listener('error')(new Error('later check failed'))
+
+      expect(updateEvents().filter(({ event }) => event.startsWith('update_install'))).toEqual([
+        { event: 'update_install_started' },
+        { event: 'update_install_failed', errorReason: 'signature' }
+      ])
+    })
+
+    it('keeps a check that fails during install staging out of the install outcome', async () => {
+      let rejectCheck: (error: Error) => void = () => {}
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementation(async () => {
+        const feedError = new Error('feed unreachable')
+        listener('error')(feedError, `Cannot check for updates: ${feedError.stack}`)
+        return new Promise((_, reject) => (rejectCheck = reject))
+      })
+      listener('update-available')(release)
+      listener('update-downloaded')(release)
+      appUpdater.quitAndInstall()
+
+      // The genuine staging failure arrives while the unrelated check is still pending.
+      const checking = appUpdater.checkForUpdates()
+      await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalled())
+      listener('error')(
+        Object.assign(new Error('Code signature did not pass validation'), { code: 'ERR_UPDATER_INVALID_SIGNATURE' })
+      )
+      rejectCheck(new Error('feed unreachable'))
+      await checking
+
+      expect(updateEvents().filter(({ event }) => event !== 'update_downloaded')).toEqual([
+        { event: 'update_install_started' },
+        { event: 'update_install_failed', errorReason: 'signature' },
+        { event: 'update_checked', source: 'manual', result: 'error' }
+      ])
+    })
+
     it('names why a download failed by kind, never by its message', async () => {
       const failures: Array<[Error, string]> = [
         [Object.assign(new Error('sha512 checksum mismatch'), { code: 'ERR_CHECKSUM_MISMATCH' }), 'checksum'],

@@ -19,10 +19,11 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { STORED_FILE_REF_PREFIX } from '@shared/data/types/file'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { BEHAVIOR_ANALYTICS_EVENTS, type ProductAnalyticsEvent } from '@shared/ipc/schemas/analytics'
+import { BEHAVIOR_ANALYTICS_EVENTS } from '@shared/ipc/schemas/analytics'
 import { analyticsModelSource } from '@shared/utils/analyticsModelSource'
 import { APP_NAME } from '@shared/utils/constants'
 
+import type { ProductAnalyticsEvent } from './analyticsEvents'
 import { restoreKeptClientId, takePendingReports } from './analyticsPendingReports'
 import { PREFERENCE_ANALYTICS_CATALOG } from './analyticsPreferenceCatalog.gen'
 import { versionService } from './VersionService'
@@ -41,7 +42,10 @@ const DEVICE_EVENTS: ReadonlySet<string> = new Set([
   'app_active',
   'update_checked',
   'update_downloaded',
-  'update_install_started'
+  'update_install_started',
+  // The rest of the update funnel, so every step joins on the same device.
+  'update_install_deferred',
+  'update_install_failed'
 ])
 const SETTING_CHANGE_COALESCE_MS = 2_000
 const SNAPSHOT_CHECK_INTERVAL_MS = 60 * 60_000

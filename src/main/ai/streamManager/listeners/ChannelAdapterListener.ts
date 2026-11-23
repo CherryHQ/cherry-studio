@@ -34,7 +34,9 @@ export class ChannelAdapterListener implements StreamListener {
      */
     private readonly suppressErrorMessage = false,
     /** Response context for the inbound message, including thread placement where supported. */
-    private readonly responseOptions?: SendMessageOptions
+    private readonly responseOptions?: SendMessageOptions,
+    /** Called once the final reply was sent (`true`) or failed to send (`false`); not called when there was nothing to send. */
+    private readonly onDelivered?: (delivered: boolean) => void
   ) {
     const responseKey = this.responseOptions?.replyToMessageId ?? 'unthreaded'
     this.id = `channel:${adapter.channelId}:${this.platformChatId}:${responseKey}`
@@ -105,12 +107,14 @@ export class ChannelAdapterListener implements StreamListener {
       if (!handled && text) {
         await this.deliver(status === 'paused' ? `${text}\n\n_(${t('common.channel_stopped')})_` : text)
       }
+      if (handled || text) this.onDelivered?.(true)
     } catch (err) {
       logger.error('Failed to deliver terminal message to channel', {
         channelId: this.adapter.channelId,
         chatId: this.platformChatId,
         err
       })
+      this.onDelivered?.(false)
     }
   }
 

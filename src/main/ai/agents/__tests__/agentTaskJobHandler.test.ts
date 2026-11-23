@@ -262,7 +262,8 @@ describe('AgentTaskJobHandler', () => {
           skipReason: 'no_file',
           run: 'scheduled',
           durationMs: 1000,
-          channelCount: 0
+          channelCount: 0,
+          taskId: 's1'
         }
       ])
     })

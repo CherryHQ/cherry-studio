@@ -88,7 +88,7 @@ const RELEASE_HISTORY_TIMEOUT_MS = 10_000
 const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
 
 /** electron-updater codes its checksum and signature failures; its own request timeout has no code. */
-function downloadFailureReason(error: Error): Exclude<TransferFailureReason, 'config'> | 'checksum' | 'signature' {
+function updateFailureReason(error: Error): Exclude<TransferFailureReason, 'config'> | 'checksum' | 'signature' {
   const code = (error as { code?: unknown }).code
   if (code === 'ERR_CHECKSUM_MISMATCH') return 'checksum'
   if (code === 'ERR_UPDATER_INVALID_SIGNATURE') return 'signature'
@@ -162,6 +162,7 @@ export class AppUpdaterService extends BaseService {
   private updateCheckResult: UpdateCheckResult | null = null
   /** An available update is downloading; the updater's shared 'error' event then means a failed download. */
   private downloadInProgress = false
+  private installStarted = false
   // Consecutive scheduled-check failures, drives backoff; reset on success.
   private updateCheckFailures = 0
 
@@ -255,15 +256,22 @@ export class AppUpdaterService extends BaseService {
   }
 
   private registerAutoUpdaterListeners(): void {
-    const onError = (error: Error) => {
+    const onError = (error: Error, message?: string) => {
       logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
-      if (this.downloadInProgress) {
+      // electron-updater tags feed-check failures this way; a check reports itself and says nothing
+      // about a download or install that may still be running.
+      const fromCheck = message?.startsWith('Cannot check for updates') === true
+      if (this.downloadInProgress && !fromCheck) {
         this.downloadInProgress = false
         trackMainProductEvent({
           event: 'update_downloaded',
           status: 'error',
-          errorReason: downloadFailureReason(error)
+          errorReason: updateFailureReason(error)
         })
+      }
+      if (this.installStarted && !fromCheck) {
+        this.installStarted = false
+        trackMainProductEvent({ event: 'update_install_failed', errorReason: updateFailureReason(error) })
       }
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', error)
     }
@@ -583,6 +591,7 @@ export class AppUpdaterService extends BaseService {
 
   public quitAndInstall() {
     trackMainProductEvent({ event: 'update_install_started' })
+    this.installStarted = true
     application.markQuitting()
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
   }

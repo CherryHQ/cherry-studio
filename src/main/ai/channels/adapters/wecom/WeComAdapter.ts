@@ -572,6 +572,8 @@ export class WeComAdapter extends ChannelAdapter {
       await this.onStreamComplete(chatId, text, opts)
       return
     }
+    // A recipient outside the allowlist gets nothing; callers must not count that as delivered.
+    if (!this.allowed(chatId)) throw new Error(t('common.wecom_delivery_failed'))
     try {
       await this.sendActive(chatId, text)
     } catch {

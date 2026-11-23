@@ -88,6 +88,19 @@ describe('ChannelAdapterListener', () => {
     expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toContain('[REDACTED]')
   })
 
+  it('tells its owner whether the final reply reached the chat', async () => {
+    const delivered = vi.fn()
+    const reached = new ChannelAdapterListener(makeAdapter(), 'chat-1', true, undefined, delivered)
+    reached.content.snapshot(message('daily summary'), 'chunks')
+    await reached.onDone({ status: 'success' })
+    const rejected = makeAdapter({ sendMessage: vi.fn().mockRejectedValue(new Error('chat not found')) })
+    const lost = new ChannelAdapterListener(rejected, 'chat-1', true, undefined, delivered)
+    lost.content.snapshot(message('daily summary'), 'chunks')
+    await lost.onDone({ status: 'success' })
+
+    expect(delivered.mock.calls).toEqual([[true], [false]])
+  })
+
   it('withholds an incomplete citation marker from live updates', () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')

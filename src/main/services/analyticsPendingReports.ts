@@ -8,7 +8,9 @@ import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
-import type { BackupAnalyticsTarget, MainAnalyticsEvent } from '@shared/ipc/schemas/analytics'
+import type { BackupAnalyticsTarget } from '@shared/ipc/schemas/analytics'
+
+import type { MainAnalyticsEvent } from './analyticsEvents'
 
 const logger = loggerService.withContext('AnalyticsPendingReports')
 

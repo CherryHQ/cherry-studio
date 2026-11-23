@@ -2,15 +2,17 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { classifyNetworkError } from '@main/utils/networkError'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
-import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { type BuiltinAgentRole, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import {
   AGENT_MUTABLE_FIELDS,
   AgentConfigurationSchema,
   type AgentEntity,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
-import type { ProductAnalyticsEvent, TransferFailureReason } from '@shared/ipc/schemas/analytics'
+import type { TransferFailureReason } from '@shared/ipc/schemas/analytics'
 import type { DoctorFixRequest, DoctorFixResult, DoctorRunResult, DoctorRunTier } from '@shared/types/doctor'
+
+import type { ProductAnalyticsEvent } from './analyticsEvents'
 
 export { analyticsModelSource } from '@shared/utils/analyticsModelSource'
 
@@ -60,8 +62,13 @@ export function transferFailureReason(error: unknown): TransferFailureReason {
   return kind === 'unknown' ? 'other' : 'network'
 }
 
+export function analyticsBuiltinRole(agentId: string): BuiltinAgentRole | undefined {
+  const role = agentService.getAgent(agentId)?.configuration?.builtin_role
+  return isProtectedBuiltinAgentRole(role) ? role : undefined
+}
+
 export function analyticsAgentKind(agentId: string): 'builtin' | 'custom' {
-  return isProtectedBuiltinAgentRole(agentService.getAgent(agentId)?.configuration?.builtin_role) ? 'builtin' : 'custom'
+  return analyticsBuiltinRole(agentId) ? 'builtin' : 'custom'
 }
 
 /** For user-started conversation sessions only; background and seeded sessions stay silent. */
