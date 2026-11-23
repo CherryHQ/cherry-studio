@@ -176,6 +176,25 @@ describe('readFile — extracted content', () => {
     expect(continued).toEqual({ text: '[00:10] beta', totalChars: 26 })
   })
 
+  it('rejects a media read cancelled while the analysis cleans up, without keeping its pages', async () => {
+    const controller = new AbortController()
+    getByIdMock.mockResolvedValue({ ext: 'mp4' })
+    mediaAnalysisMock
+      .mockImplementationOnce(async () => {
+        controller.abort()
+        return '[00:00] cancelled run'
+      })
+      .mockResolvedValueOnce('[00:00] fresh run')
+    const attachments = ctx([att('clip.mp4')])
+
+    await expect(readFile(input({ filename: 'clip.mp4' }), attachments, controller.signal)).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    const next = await readFile(input({ filename: 'clip.mp4', offset: 8 }), attachments)
+
+    expect(next).toMatchObject({ text: 'fresh run' })
+  })
+
   it('re-analyzes when paging restarts from the first page', async () => {
     getByIdMock.mockResolvedValue({ ext: 'mp4' })
     mediaAnalysisMock.mockResolvedValueOnce('partial').mockResolvedValueOnce('complete')

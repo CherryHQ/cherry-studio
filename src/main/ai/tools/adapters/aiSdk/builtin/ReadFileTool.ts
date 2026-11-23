@@ -63,6 +63,8 @@ async function readMediaAnalysis(
   const text = await application
     .get('MediaAnalysisService')
     .analyzeToFullText({ kind: 'entry', entryId }, signal, { fallbackVisionModelId: chatModelId })
+  // The service can finish after a cancellation that arrived during its cleanup.
+  signal?.throwIfAborted()
   cache.set(key, text, MEDIA_READ_SNAPSHOT_TTL_MS)
   return text
 }
