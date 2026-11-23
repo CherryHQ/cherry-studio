@@ -1,6 +1,7 @@
 // Runtime service API.
 export { KnowledgeService } from './KnowledgeService'
 export { KnowledgeVectorStoreService } from './pipeline/vectorstore/KnowledgeVectorStoreService'
+export { resolveKnowledgeAddConflicts } from './ingestion/addConflicts'
 
 // Knowledge-owned index and material primitives; store internals remain private.
 export { type MaterialFieldSource, toMaterialRelativePath } from './items'

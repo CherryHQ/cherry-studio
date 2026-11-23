@@ -25,17 +25,21 @@ import {
   type ResolvedReasoningKind,
   resolveSelection
 } from '@main/ai/utils/reasoningSerializers'
+import { WindowType } from '@main/core/window/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
+import { analyticsModelSource, trackMainProductEvent } from '@main/services/productAnalytics'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { FeatureUsedEvent } from '@shared/ipc/schemas/analytics'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isQwenMTModel } from '@shared/utils/model'
 
-import { WebContentsListener } from '../../ai/streamManager'
+import { type StreamListener, WebContentsListener } from '../../ai/streamManager'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -59,6 +63,20 @@ function reasoningKindFor(effort: ReasoningEffortOption, model: Model): Resolved
   return 'effort'
 }
 
+function translateTrigger(windowType: WindowType | undefined, fromMessage: boolean): FeatureUsedEvent['trigger'] {
+  switch (windowType) {
+    case WindowType.Main:
+    case WindowType.SubWindow:
+      return fromMessage ? 'other' : 'page'
+    case WindowType.QuickAssistant:
+      return 'quick_assistant'
+    case WindowType.SelectionAction:
+      return 'selection'
+    default:
+      return 'other'
+  }
+}
+
 export interface TranslateOpenRequest {
   /**
    * Renderer-generated streamId — must be prefixed `translate:`. The renderer
@@ -75,6 +93,8 @@ export interface TranslateOpenRequest {
    * never have to pre-fetch the DTO just to call translate.
    */
   targetLangCode: TranslateLangCode
+  /** Set by chat-message translation, which shares the main window with the translate page. */
+  fromMessage?: boolean
 }
 
 export interface TranslateOpenResult {
@@ -98,7 +118,7 @@ export class TranslateService {
    * `ai.stream.chunk` / `ai.stream.done` / `ai.stream.error` before chunks
    * start flowing.
    */
-  open(sender: Electron.WebContents, req: TranslateOpenRequest): TranslateOpenResult {
+  open(sender: Electron.WebContents, req: TranslateOpenRequest, senderType?: WindowType): TranslateOpenResult {
     if (!req.streamId.startsWith(TRANSLATE_STREAM_PREFIX)) {
       throw new Error(`streamId must be prefixed '${TRANSLATE_STREAM_PREFIX}' (got '${req.streamId}')`)
     }
@@ -110,13 +130,38 @@ export class TranslateService {
     const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
 
     const wcListener = new WebContentsListener(sender, req.streamId)
+    // User-created languages are user-defined, so only built-in codes are reported.
+    const builtinTarget = BUILTIN_TRANSLATE_LANGUAGES.some((language) => language.langCode === req.targetLangCode)
+    const report = (status: 'success' | 'error') =>
+      trackMainProductEvent({
+        event: 'feature_used',
+        feature: 'translate',
+        action: 'translated',
+        status,
+        modelSource: analyticsModelSource(model.providerId),
+        trigger: translateTrigger(senderType, req.fromMessage === true),
+        ...(builtinTarget && { target: req.targetLangCode })
+      })
+    // Lives exactly as long as the window's listener, so it never keeps an abandoned translation running.
+    const analyticsListener: StreamListener = {
+      id: `analytics:${req.streamId}`,
+      onChunk: () => {},
+      // The window shows a blank result as a failure, so it counts as one.
+      onDone: ({ finalMessage }) => {
+        const text = finalMessage?.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+        report(text?.trim() ? 'success' : 'error')
+      },
+      onPaused: () => {},
+      onError: () => report('error'),
+      isAlive: () => wcListener.isAlive()
+    }
 
     const streamManager = application.get('AiStreamManager')
     streamManager.streamPrompt({
       streamId: req.streamId,
       uniqueModelId,
       prompt: content,
-      listener: wcListener,
+      listener: [wcListener, analyticsListener],
       reasoningEffort,
       callOverrides
     })

@@ -12,6 +12,7 @@ import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { MediaKind } from '@main/services/mediaProtocol'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { cropPng } from '@main/utils/image'
 import {
   getScreenCapturePermissionStatus,
@@ -95,6 +96,8 @@ interface OcrRegion {
  * overlay would photograph its own UI and would race whatever the user is trying
  * to capture.
  */
+type CaptureSession = { generation: number; trigger: 'page' | 'shortcut' }
+
 @Injectable('ScreenshotOverlayService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager', 'MediaProtocolService', 'OcrInferenceService'])
@@ -122,7 +125,11 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
+  /** In-app controls pass their window to {@link startCapture}; the global shortcut passes none. */
+  private sessionTrigger: 'page' | 'shortcut' = 'shortcut'
   private savingGeneration: number | null = null
+  /** The session that already reported a successful capture; Copy then Confirm is still one capture. */
+  private capturedGeneration: number | null = null
   private hiddenSourceWindow: BrowserWindow | null = null
   private resultConsumer: {
     submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
@@ -132,11 +139,18 @@ export class ScreenshotOverlayService extends BaseService {
   public async submitResult(result: ScreenshotResultData & { text: string }): Promise<void> {
     const consumer = this.resultConsumer
     const generation = this.sessionGeneration
+    const session = this.currentCaptureSession()
     if (!consumer) throw new Error('No result consumer is available')
-    if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
-      throw new Error('The screenshot could not be decoded')
+    try {
+      if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
+        throw new Error('The screenshot could not be decoded')
+      }
+      await consumer.submit(result)
+    } catch (error) {
+      this.reportCaptured('error', session)
+      throw error
     }
-    await consumer.submit(result)
+    this.reportCaptured('success', session)
     if (generation === this.sessionGeneration) this.dismiss()
   }
 
@@ -256,6 +270,7 @@ export class ScreenshotOverlayService extends BaseService {
       // Advance only once a session is definitely starting: bumping it above the guards
       // would let a blocked second attempt freeze the FIRST session's overlays at opacity 0.
       const generation = ++this.sessionGeneration
+      this.sessionTrigger = sourceWindowId ? 'page' : 'shortcut'
       const manager = application.get('WindowManager')
       this.resultConsumer = consumer ?? null
 
@@ -410,6 +425,7 @@ export class ScreenshotOverlayService extends BaseService {
           void this.showPermissionDialog()
         } else {
           logger.error('Failed to start the screenshot session', error as Error)
+          this.reportCaptured('error')
           // The user pressed a shortcut and nothing happened; a log they never read
           // leaves "unsupported here" (Wayland, absent native binary) looking like a
           // broken app. The reason is included because it is the only clue they get.
@@ -617,8 +633,9 @@ export class ScreenshotOverlayService extends BaseService {
     }
   }
 
-  /** Copy the overlay's result to the clipboard without ending the session. */
-  public async copy(result: ScreenshotResultData): Promise<void> {
+  /** Copy the overlay's result to the clipboard without ending the session; resolves whether it took. */
+  public async copy(result: ScreenshotResultData): Promise<boolean> {
+    const session = this.currentCaptureSession()
     try {
       const bytes = Buffer.from(result.pngBytes)
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
@@ -626,8 +643,12 @@ export class ScreenshotOverlayService extends BaseService {
       if (nativeImage.createFromBuffer(bytes).isEmpty()) throw new Error('the result bytes could not be decoded')
       await clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes]) })])
       logger.info('Screenshot copied to the clipboard')
+      this.reportCaptured('success', session)
+      return true
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)
+      this.reportCaptured('error', session)
+      return false
     }
   }
 
@@ -655,6 +676,7 @@ export class ScreenshotOverlayService extends BaseService {
    */
   public async save(result: ScreenshotResultData): Promise<void> {
     const generation = this.sessionGeneration
+    const session = this.currentCaptureSession()
     if (this.savingGeneration === generation) return
     this.savingGeneration = generation
     try {
@@ -693,9 +715,11 @@ export class ScreenshotOverlayService extends BaseService {
         }
         writeFileSync(dialogResult.filePath, result.pngBytes)
         logger.info('Screenshot saved to file')
+        this.reportCaptured('success', session)
       } catch (error) {
         // Logged, not rethrown: a failed write must not skip the teardown below.
         logger.error('Failed to save the screenshot', error as Error)
+        this.reportCaptured('error', session)
       }
 
       this.dismiss()
@@ -712,6 +736,26 @@ export class ScreenshotOverlayService extends BaseService {
       // not reveal a newer session's overlays over its save panel.
       if (isMac && generation === this.sessionGeneration) this.showAllOverlays()
     }
+  }
+
+  /** The session an async result belongs to; read it before awaiting, since a newer session can start meanwhile. */
+  private currentCaptureSession(): CaptureSession {
+    return { generation: this.sessionGeneration, trigger: this.sessionTrigger }
+  }
+
+  /** One capture outcome: a copied, saved, or delivered result, or a session that failed to start. */
+  private reportCaptured(status: 'success' | 'error', session = this.currentCaptureSession()): void {
+    if (status === 'success') {
+      if (this.capturedGeneration === session.generation) return
+      this.capturedGeneration = session.generation
+    }
+    trackMainProductEvent({
+      event: 'feature_used',
+      feature: 'screenshot',
+      action: 'captured',
+      status,
+      trigger: session.trigger
+    })
   }
 
   /** Close every overlay and release the session's resources. */

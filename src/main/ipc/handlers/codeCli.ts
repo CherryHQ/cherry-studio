@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import type { codeCliRequestSchemas } from '@shared/ipc/schemas/codeCli'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -7,7 +8,20 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
   'code_cli.run': async (input) => {
     // Provider/model validation (incl. login-flow and providerless-CLI exemptions) is owned by
     // CodeCliService.run() as the single source of truth; the handler just delegates.
-    return application.get('CodeCliService').run(input)
+    let launched = false
+    try {
+      const result = await application.get('CodeCliService').run(input)
+      launched = result.success
+      return result
+    } finally {
+      trackMainProductEvent({
+        event: 'feature_used',
+        feature: 'code',
+        action: 'cli_launched',
+        status: launched ? 'success' : 'error',
+        target: input.cliTool
+      })
+    }
   },
   'code_cli.read_config': async (input) => {
     // Non-ENOENT read errors propagate to the router's error model by design.

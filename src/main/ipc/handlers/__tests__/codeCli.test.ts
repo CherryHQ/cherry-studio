@@ -14,11 +14,13 @@ const codeCliService = {
   readConfigFiles: vi.fn(),
   getAvailableTerminalsForPlatform: vi.fn()
 }
+const analytics = { trackProductEvent: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
     if (name === 'CodeCliService') return codeCliService
+    if (name === 'AnalyticsService') return analytics
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -86,6 +88,41 @@ describe('codeCliHandlers', () => {
         success: false,
         message: 'disk full'
       })
+    })
+  })
+
+  describe('code_cli.run analytics', () => {
+    const input = {
+      cliTool: CodeCli.QWEN_CODE as const,
+      mode: 'normal' as const,
+      directory: '/Users/someone/private-project',
+      providerId: 'my-provider',
+      model: 'my-model'
+    }
+    const launchEvents = () =>
+      analytics.trackProductEvent.mock.calls.map(([event]) => event).filter((event) => event.feature === 'code')
+
+    it.each([
+      ['success', { success: true }],
+      ['error', { success: false, message: 'Directory does not exist' }]
+    ] as const)('reports a %s launch with only the preset tool id', async (status, outcome) => {
+      codeCliService.run.mockResolvedValue(outcome)
+
+      await expect(codeCliHandlers['code_cli.run'](input, ctx)).resolves.toEqual(outcome)
+
+      expect(launchEvents()).toEqual([
+        { event: 'feature_used', feature: 'code', action: 'cli_launched', status, target: 'qwen-code' }
+      ])
+    })
+
+    it('reports a thrown launch as an error and still rejects', async () => {
+      codeCliService.run.mockRejectedValue(new Error('spawn failed'))
+
+      await expect(codeCliHandlers['code_cli.run'](input, ctx)).rejects.toThrow('spawn failed')
+
+      expect(launchEvents()).toEqual([
+        { event: 'feature_used', feature: 'code', action: 'cli_launched', status: 'error', target: 'qwen-code' }
+      ])
     })
   })
 

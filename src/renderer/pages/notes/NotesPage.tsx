@@ -34,6 +34,7 @@ import {
   reorderTreeNodes,
   updateTreeNode
 } from '@renderer/services/NotesTreeService'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { NoteRenameResult, NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
@@ -510,6 +511,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           throw new Error('No folder path selected')
         }
         const { path: notePath } = await addNote(name, '', targetPath)
+        trackProductEvent({ event: 'feature_used', feature: 'notes', action: 'note_created' })
         setFolderExpandedByPath(targetPath, true)
         setActiveFilePath(AbsoluteFilePathSchema.parse(notePath))
         setSelectedFolderId(null)

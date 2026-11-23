@@ -5,6 +5,7 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useOptionalTabsContext, useTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 import { toTransientMiniApp } from '@renderer/utils/miniAppDescriptor'
 import {
@@ -13,6 +14,12 @@ import {
   miniAppIdFromTabUrl,
   miniAppResourceKey
 } from '@renderer/utils/miniAppKeepAlive'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
+
+// Built-in ids the analytics catalog accepts as a target; a mixed-case preset id such as 'Felo' would be rejected.
+const BUILTIN_MINI_APP_TARGETS = new Set(
+  PRESETS_MINI_APPS.map((app) => app.id).filter((id) => /^[a-z0-9][a-z0-9:._-]{0,119}$/.test(id))
+)
 
 function useMiniAppDescriptors(appIds: string[]) {
   const { data: apps } = useQuery('/mini-apps')
@@ -147,6 +154,17 @@ export function useMiniAppRuntimeBinding(): void {
           }
         ]
       })
+    for (const request of requests) {
+      // A guest the runtime is about to create, i.e. the app was not already open in this window.
+      if (!request.visible || !request.source || resources.some((resource) => resource.key === request.key)) continue
+      const presetId = byId.get(miniAppIdFromResourceKey(request.key))?.presetMiniAppId
+      trackProductEvent({
+        event: 'feature_used',
+        feature: 'mini_app',
+        action: 'opened',
+        ...(presetId && BUILTIN_MINI_APP_TARGETS.has(presetId) && { target: presetId })
+      })
+    }
     webviewRuntimeService.sync(requests, capacity ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS)
   }, [tabs, activeTabId, split, setSplit, splitMiniAppId, appIds, apps, byId, capacity, closeTabs, resources])
 

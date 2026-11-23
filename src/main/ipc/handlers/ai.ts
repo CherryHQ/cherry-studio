@@ -364,7 +364,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.heartbeat.run': ({ agentId }) => application.get('AgentJobsService').runHeartbeat(agentId),
   'ai.agent.task.create': ({ agentId, ...form }) =>
-    exposeAgentTaskError(() => application.get('AgentJobsService').createTask(agentId, form)),
+    exposeAgentTaskError(() => {
+      const task = application.get('AgentJobsService').createTask(agentId, form)
+      trackMainProductEvent({ event: 'feature_used', feature: 'scheduled_tasks', action: 'task_created' })
+      return task
+    }),
   'ai.agent.task.update': ({ agentId, taskId, patch }) =>
     exposeAgentTaskError(async () => {
       const updated = application.get('AgentJobsService').updateTask(agentId, taskId, patch)

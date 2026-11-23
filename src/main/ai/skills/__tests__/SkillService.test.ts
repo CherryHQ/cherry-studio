@@ -6,6 +6,7 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import Database from 'better-sqlite3'
 import { eq } from 'drizzle-orm'
@@ -658,6 +659,26 @@ describe('SkillService', () => {
         expect.objectContaining({ id: installed.id, name: 'direct-import' })
       ])
       expect(fs.existsSync(path.join(service.getInstalledSkillDirectory(installed), 'SKILL.md'))).toBe(true)
+    })
+
+    it('reports a first local install without naming the skill, a failed one as an error, and no reinstall', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      const directoryPath = path.join(root, 'private-skill')
+      const clashingPath = path.join(root, 'elsewhere', 'private-skill')
+      for (const directory of [directoryPath, clashingPath]) {
+        await fs.promises.mkdir(directory, { recursive: true })
+        await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '---\nname: private-skill\n---')
+      }
+      try {
+        await service.installFromDirectory({ directoryPath })
+        await service.installFromDirectory({ directoryPath })
+        await expect(service.installFromDirectory({ directoryPath: clashingPath })).rejects.toThrow()
+        const base = { event: 'feature_used', feature: 'skills', action: 'skill_installed' }
+        expect(trackProductEvent.mock.calls).toEqual([[{ ...base, status: 'success' }], [{ ...base, status: 'error' }]])
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
     })
 
     it.each(['file.txt', 'directory.zip'])('classifies %s as an invalid ZIP input', async (name) => {
@@ -2451,6 +2472,18 @@ describe('SkillService', () => {
       expect(row?.contentHash).toBe(contentHash)
     })
 
+    it('does not report bundled builtin skills as user installs', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      try {
+        await new SkillService().syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION)
+        expect(dbh.db.select().from(agentGlobalSkillTable).all()).toHaveLength(1)
+        expect(trackProductEvent).not.toHaveBeenCalled()
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
+    })
+
     it('inserts a new builtin skill on first install, already enabled for existing agents without any agent_skill row', async () => {
       const skillService = new SkillService()
       const contentHash = await skillService['computeBuiltinDirectoryHash'](sourcePath)
@@ -2582,11 +2615,11 @@ describe('SkillService', () => {
       vi.mocked(parseSkillMetadata).mockReset()
     })
 
-    function servePackage(files: Record<string, string>, collection = true) {
+    function servePackage(files: Record<string, string>, collection = true, id = itemId) {
       const zip = new JSZip()
       for (const [name, content] of Object.entries(files)) zip.file(name, Buffer.from(content))
       const item = {
-        id: itemId,
+        id,
         name: { en: 'one', zh: null },
         description: { en: '', zh: null },
         longDescription: { en: '', zh: null },
@@ -2599,7 +2632,7 @@ describe('SkillService', () => {
         icon: null,
         packageSize: null,
         packageName: 'skills.zip',
-        downloadUrl: `https://skills.cherryin.ai/api/skills/${encodeURIComponent(itemId)}/download`,
+        downloadUrl: `https://skills.cherryin.ai/api/skills/${encodeURIComponent(id)}/download`,
         hasPackage: true,
         downloads: 1,
         releaseDate: '2026-09-22'
@@ -2754,6 +2787,50 @@ describe('SkillService', () => {
       await service.uninstall(chineseSkill.id)
       expect(fs.existsSync(path.join(root, 'feature.agents.skills', '剪口播'))).toBe(false)
       expect(fs.existsSync(path.join(root, 'feature.agents.skills', '自进化'))).toBe(true)
+    })
+
+    it('reports marketplace members with their catalog id, and a member that fails as an error', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      servePackage(
+        { 'one/SKILL.md': '---\nname: one\n---\n# One', 'two/SKILL.md': '---\nname: two\n---\n# Two' },
+        true,
+        'pdf-tools'
+      )
+      dbh.db
+        .insert(agentGlobalSkillTable)
+        .values({ id: SKILL_ID_2, name: 'two', folderName: 'two', source: 'local', contentHash: 'user' })
+        .run()
+      try {
+        await new SkillService().installMarketplace('pdf-tools')
+        const base = { event: 'feature_used', feature: 'skills', action: 'skill_installed', target: 'pdf-tools' }
+        expect(trackProductEvent.mock.calls).toEqual([[{ ...base, status: 'success' }], [{ ...base, status: 'error' }]])
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
+    })
+
+    it('reports a marketplace package whose download fails as one failed install', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      servePackage({ 'one/SKILL.md': '---\nname: one\n---\n# One' }, true, 'pdf-tools')
+      vi.mocked(remoteFetch.fetchRemoteFile).mockRejectedValueOnce(new Error('download timed out'))
+      try {
+        await expect(new SkillService().installMarketplace('pdf-tools')).rejects.toThrow('download timed out')
+        expect(trackProductEvent.mock.calls).toEqual([
+          [
+            {
+              event: 'feature_used',
+              feature: 'skills',
+              action: 'skill_installed',
+              status: 'error',
+              target: 'pdf-tools'
+            }
+          ]
+        ])
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
     })
 
     it.each<Record<string, string>>([

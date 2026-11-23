@@ -8,6 +8,7 @@
  * All input validation happens here at the system boundary.
  */
 
+import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
 import {
@@ -18,6 +19,7 @@ import {
   UpdateMcpServerSchema
 } from '@shared/data/api/schemas/mcpServers'
 import type { HandlersFor } from '@shared/data/api/types'
+import { isBuiltinMcpServerName } from '@shared/utils/mcp'
 
 export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
   '/mcp-servers': {
@@ -28,7 +30,25 @@ export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
 
     POST: async ({ body }) => {
       const parsed = CreateMcpServerSchema.parse(body)
-      return mcpServerService.create(parsed)
+      // Builtin names look like `@cherry/fetch`; report the preset slug, never a user-chosen name.
+      const builtin = parsed.installSource === 'builtin' && isBuiltinMcpServerName(parsed.name)
+      const report = (status: 'success' | 'error') =>
+        application.get('AnalyticsService').trackProductEvent({
+          event: 'feature_used',
+          feature: 'mcp',
+          action: 'server_added',
+          status,
+          ...(builtin && { target: parsed.name.replace('@cherry/', '') })
+        })
+      let server: ReturnType<typeof mcpServerService.create>
+      try {
+        server = mcpServerService.create(parsed)
+      } catch (error) {
+        report('error')
+        throw error
+      }
+      report('success')
+      return server
     },
 
     PATCH: async ({ body }) => {

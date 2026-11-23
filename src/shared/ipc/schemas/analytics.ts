@@ -15,7 +15,7 @@ export const analyticsModelSourceSchema = z.enum(['cherry_free', 'cherry_cloud',
 export type AnalyticsModelSource = z.infer<typeof analyticsModelSourceSchema>
 
 // Preset identifiers only (built-in mini app ids, provider ids, data-ui tokens); never user-entered names.
-const presetIdSchema = z.string().regex(/^[a-z0-9][a-z0-9:._-]{0,119}$/)
+export const presetIdSchema = z.string().regex(/^[a-z0-9][a-z0-9:._-]{0,119}$/)
 
 const featureSchema = z.enum([
   'translate',
@@ -35,7 +35,7 @@ const featureSchema = z.enum([
   'provider'
 ])
 
-/** One core action of a feature; `target` names a preset (mini app, provider, CLI tool, channel type), else omitted. */
+/** One core action of a feature; `target` names a preset (mini app, provider, CLI tool, channel type, built-in translate language), else omitted. */
 export const featureUsedEventSchema = z.strictObject({
   event: z.literal('feature_used'),
   feature: featureSchema,
@@ -172,7 +172,6 @@ export type MainAnalyticsEvent =
       status: 'success' | 'error' | 'stopped'
       modelSource: AnalyticsModelSource
       durationMs: number
-      firstTokenMs?: number
       usedWebSearch: boolean
       usedKnowledge: boolean
       mcpToolCount: number
