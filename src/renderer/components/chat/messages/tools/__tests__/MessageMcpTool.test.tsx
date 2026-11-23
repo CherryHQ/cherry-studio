@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
 
 import MessageMcpTool from '../mcp/MessageMcpTool'
+import MessageTools from '../MessageTools'
+import { buildToolResponseFromPart } from '../toolResponse'
 
 const mockApproval = vi.hoisted(() => vi.fn())
 const mockActions = vi.hoisted(() => vi.fn(() => ({})))
@@ -18,6 +20,7 @@ vi.mock('../hooks/useToolApproval', () => ({
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockActions(),
+  useOptionalMessageListTopicId: () => undefined,
   useOptionalMessageListUi: () => ({ isToolAutoApproved: mockIsToolAutoApproved }),
   useMessageRenderConfig: () => ({ messageFont: 'sans-serif', fontSize: 14 })
 }))
@@ -167,6 +170,47 @@ describe('MessageMcpTool', () => {
       expect(container.textContent).toContain('"status": "ready"')
       expect(container.textContent).toContain('"installedVersion": "1.0.77"')
     })
+  })
+
+  it('shows an image and its summary from a completed Agent MCP part without result metadata', async () => {
+    const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jT9sAAAAASUVORK5CYII='
+    const toolResponse = buildToolResponseFromPart({
+      type: 'dynamic-tool',
+      toolCallId: 'call-image',
+      toolName: 'mcp__images__generate',
+      state: 'output-available',
+      input: {},
+      output: {
+        content: [
+          { type: 'text', text: 'Image generated' },
+          { type: 'image', data: png, mimeType: 'image/png' }
+        ]
+      }
+    })
+    if (toolResponse?.tool.type !== 'mcp') throw new Error('Expected an MCP tool')
+
+    render(<MessageTools toolResponse={toolResponse} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: /images : generate/ }))
+
+    expect(await screen.findByRole('img', { name: 'Tool output' })).toHaveAttribute(
+      'src',
+      `data:image/png;base64,${png}`
+    )
+    expect(await screen.findByText('Image generated')).toBeVisible()
+  })
+
+  it('keeps the JSON preview for unwrapped results containing audio', async () => {
+    const { container } = render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: [{ type: 'audio', data: 'YXVkaW8=', mimeType: 'audio/wav' }]
+        })}
+      />
+    )
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /CherryBrowser : execute/ }))
+    await waitFor(() => expect(container).toHaveTextContent('"mimeType": "audio/wav"'))
   })
 
   it('previews links in MCP text and resource blocks without displaying their JSON', async () => {
