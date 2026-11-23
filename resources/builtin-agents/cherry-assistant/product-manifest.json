@@ -1288,6 +1288,7 @@
         "enabled": true,
         "truncateThreshold": 50000,
         "maxMessages": null,
+        "compressWindow": null,
         "compress": {
           "enabled": true,
           "modelId": null,

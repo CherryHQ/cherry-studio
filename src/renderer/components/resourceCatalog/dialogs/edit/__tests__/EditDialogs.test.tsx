@@ -1969,7 +1969,7 @@ describe('edit dialogs', () => {
       selectTab('Model')
       const choose = async (name: string) => {
         await user.click(screen.getByRole('combobox', { name: 'Compression window' }))
-        await user.click(await screen.findByRole('option', { name, exact: true }))
+        await user.click(await screen.findByRole('option', { name }))
       }
       await choose('Custom')
       await waitFor(() =>

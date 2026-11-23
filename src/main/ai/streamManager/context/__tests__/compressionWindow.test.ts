@@ -22,7 +22,7 @@ describe('splitCompressionWindow', () => {
   })
 
   it('keeps short histories without inventing a compressed zone or mutating the input', () => {
-    const original = structuredClone(path)
+    const original = path.map((row) => ({ ...row }))
     expect(splitCompressionWindow(path, 10, 20)).toEqual({ window: path, recent: path, middle: [] })
     expect(path).toEqual(original)
     expect(splitCompressionWindow([], 1, 2)).toEqual({ window: [], middle: [], recent: [] })
