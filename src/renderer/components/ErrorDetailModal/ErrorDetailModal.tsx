@@ -1,5 +1,5 @@
 import { ArrowLeft, Copy, FileUp, RefreshCw, Sparkles } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
@@ -567,11 +567,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
   const shownError = technicalError(error, errorContext)
-  // The shared notice can be hours old; this dialog shows only results of checks made after it opened.
-  useLayoutEffect(() => {
-    appUpdateCheckService.setUpdateNotice(null)
-  }, [])
-  const [availableVersion, setAvailableVersion] = useState<string | null>(null)
+  // The shared notice can be hours old and still belong to About; hide it here until a new result replaces it.
+  const [noticeAtOpen, setNoticeAtOpen] = useState(noticeKey)
+  if (noticeAtOpen !== null && noticeKey !== noticeAtOpen) setNoticeAtOpen(null)
+  const shownNoticeKey = noticeKey === noticeAtOpen ? null : noticeKey
+  const [availability, setAvailability] = useState<{ channel: UpgradeChannel; version: string | null } | null>(null)
   const [autoUpdatePreference] = usePreference('app.dist.auto_update.enabled')
   // The hook reports the default (on) until the stored value loads; never query on that guess.
   const autoUpdateEnabled = autoUpdatePreference && preferenceService.isCached('app.dist.auto_update.enabled')
@@ -585,12 +585,13 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     if (!autoUpdateEnabled || checking || downloading || downloaded) return
     let active = true
     void appUpdateCheckService.queryAvailableVersion(updateChannel).then((version) => {
-      if (active) setAvailableVersion(version)
+      if (active) setAvailability({ channel: updateChannel, version })
     })
     return () => {
       active = false
     }
   }, [autoUpdateEnabled, updateChannel])
+  const availableVersion = availability?.channel === updateChannel ? availability.version : null
   const copyErrorDetails = useCallback(() => {
     if (!shownError) {
       return
@@ -692,7 +693,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </DialogHeader>
       <ErrorUpdateBanner
         appUpdateState={appUpdateState}
-        noticeKey={noticeKey}
+        noticeKey={shownNoticeKey}
         onRetry={checkForUpdate}
         availableVersion={availableVersion}
         onUpdate={checkForUpdate}
@@ -727,7 +728,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         </div>
       </ErrorDetailContainer>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Tooltip asChild content={t('error.update_check.hint')}>
           <Button
             variant="ghost"

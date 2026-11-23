@@ -661,6 +661,71 @@ describe('AppUpdaterService', () => {
       )
     })
 
+    it('keeps an auto-download failure terminal when it fires before the check returns', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const ipc = application.get('IpcApiService')
+      const release = { version: '1.3.0', files: [], path: 'app.dmg', sha512: 'x', releaseDate: '2026-01-01' }
+      autoUpdater.autoDownload = true
+      // A macOS manifest without a ZIP rejects the auto download before checkForUpdates resolves.
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+        listeners.get('update-available')?.(release)
+        listeners.get('error')?.(new Error('ZIP file not provided'))
+        return {
+          isUpdateAvailable: true,
+          updateInfo: release,
+          cancellationToken: { cancel: vi.fn() },
+          downloadPromise: Promise.reject(new Error('ZIP file not provided'))
+        } as never
+      })
+
+      await appUpdater.checkForUpdates()
+
+      const events = vi.mocked(ipc.broadcastToType).mock.calls.map(([, event]) => event)
+      expect(events).toContain('app.updater.error')
+      expect(events.slice(events.indexOf('app.updater.error'))).not.toContain('app.updater.available')
+    })
+
+    it('drops a click queued behind a lookup when the channel changes before the click starts', async () => {
+      let releaseFirst: (value: unknown) => void = () => undefined
+      vi.mocked(autoUpdater.checkForUpdates)
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseFirst = resolve
+            }) as never
+        )
+        .mockResolvedValue({
+          isUpdateAvailable: true,
+          updateInfo: { version: '1.3.0', files: [], path: 'app.zip', sha512: 'x', releaseDate: '2026-01-01' },
+          cancellationToken: { cancel: vi.fn() }
+        } as never)
+      vi.mocked(autoUpdater.downloadUpdate).mockResolvedValue([])
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+
+      const slowLookup = appUpdater.checkForUpdates()
+      await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1))
+      const queuedClick = appUpdater.checkForUpdates()
+      appUpdater.cancelDownload()
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.RC)
+      releaseFirst({ isUpdateAvailable: false, updateInfo: { version: '1.0.0' } })
+
+      await slowLookup
+      await expect(queuedClick).resolves.toMatchObject({ updateInfo: null })
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+      expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
+    })
+
     it('installs only the artifact the dialog confirmed, not one a later channel downloaded', async () => {
       const listeners = new Map<string, (...args: unknown[]) => void>()
       vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
