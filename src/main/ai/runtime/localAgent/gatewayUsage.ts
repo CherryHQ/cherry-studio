@@ -396,7 +396,12 @@ export async function bindLocalGatewayUsage(
     return
   }
 
-  const lease = await gateway.createScopedCredential({ path: route.path, model: wireModel, agentSessionId: sessionId })
+  const lease = await gateway.createScopedCredential({
+    path: route.path,
+    model: wireModel,
+    agentSessionId: sessionId,
+    ...(config.presetId !== 'poolside' && { allowPublicCorrelation: true })
+  })
   if (config.presetId === 'poolside') {
     env.POOLSIDE_API_KEY = lease.apiKey
     env.POOLSIDE_STANDALONE_BASE_URL = `${lease.baseUrl}/v1`

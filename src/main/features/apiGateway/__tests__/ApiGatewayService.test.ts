@@ -389,9 +389,27 @@ describe('ApiGatewayService internal gateway', () => {
     const service = new ApiGatewayService()
     await startInternalGateway(service)
     const model = 'openai:gpt-5.4-mini'
+    const privateLease = await service.createScopedCredential({
+      ...CHAT_SCOPE,
+      model,
+      agentSessionId: 'private-session'
+    })
+    mockGetActiveUsageContext.mockImplementation((agentSessionId: string) => ({
+      agentSessionId,
+      assistantMessageId: 'private-reply',
+      source: null
+    }))
+    const publicHeaders = new Headers({ 'x-api-key': 'existing-key' })
+    expect(service.resolveAgentSessionUsage(publicHeaders, 'adapter-response-id', model)).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(new Headers({ 'x-api-key': privateLease.apiKey }))).toMatchObject({
+      agentSessionId: 'private-session',
+      assistantMessageId: 'private-reply'
+    })
+
     const firstLease = await service.createScopedCredential({
       path: '/v1/messages',
       model,
+      allowPublicCorrelation: true,
       agentSessionId: 'session-1'
     })
     mockGetActiveUsageContext.mockImplementation((sessionId: string) =>
@@ -404,7 +422,6 @@ describe('ApiGatewayService internal gateway', () => {
         : undefined
     )
 
-    const publicHeaders = new Headers({ 'x-api-key': 'existing-key' })
     expect(service.resolveAgentSessionUsage(publicHeaders, 'adapter-response-id', model)).toEqual({
       agentSessionId: 'session-1',
       assistantMessageId: 'assistant-1',
@@ -419,6 +436,7 @@ describe('ApiGatewayService internal gateway', () => {
     const secondLease = await service.createScopedCredential({
       path: '/v1/messages',
       model,
+      allowPublicCorrelation: true,
       agentSessionId: 'session-2'
     })
     mockGetActiveUsageContext.mockImplementation((sessionId: string) => ({
@@ -435,6 +453,7 @@ describe('ApiGatewayService internal gateway', () => {
     }))
     expect(service.resolveAgentSessionUsage(publicHeaders, 'adapter-response-id', model)).toBeUndefined()
     firstLease.dispose()
+    privateLease.dispose()
   })
 })
 

@@ -379,6 +379,29 @@ function renderProfile(
   return document.toString()
 }
 
+export function renderDeepSeekHarnessAcpGatewayPatch(
+  receipt: DeepSeekHarnessConfigReceipt,
+  route: string,
+  baseUrl: string,
+  credentialRef: string
+): string {
+  const patch = new Document([])
+  // Cordis replaces plugin configs wholesale; carry forward both effective configs.
+  for (const [id, file] of [
+    ['acp', receipt.acp],
+    ['llm-pi-ai', receipt.profile]
+  ] as const) {
+    const { entries } = parseProfileDocument({ path: file.path, content: file.written })
+    const entry = entries.items.findLast((item) => isMap(item) && item.get('id') === id && !item.has('insert'))
+    if (!isMap(entry)) throw new Error(`Missing DeepSeek Harness ${id} configuration`)
+    patch.add(patch.createNode({ id, config: entry.get('config', true)?.clone() }))
+  }
+  const provider = [1, 'config', 'providers', route]
+  patch.setIn([...provider, 'baseURL'], baseUrl)
+  patch.setIn([...provider, 'apiKeyEnv'], credentialRef)
+  return patch.toString()
+}
+
 function renderHeadlessProfile(snapshot: FileSnapshot): string {
   const { document, entries } = parseProfileDocument(snapshot)
   for (const id of ['credentials', 'authorization', 'deepseek-account']) {

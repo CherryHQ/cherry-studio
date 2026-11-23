@@ -28,6 +28,10 @@ export const deepSeekHarnessRequestSchemas = {
     ])
   }),
   'deepseek_harness.apply_model': defineRoute({ input: configInput, output: operationResultSchema }),
+  'deepseek_harness.select_gateway_model': defineRoute({
+    input: z.object({ uniqueModelId: UniqueModelIdSchema }).strict(),
+    output: z.void()
+  }),
   'deepseek_harness.stop': defineRoute({
     input: z.void(),
     output: operationResultSchema

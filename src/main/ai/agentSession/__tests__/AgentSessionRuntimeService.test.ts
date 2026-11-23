@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
+  hasSessionMessages: vi.fn<(_sessionId: string) => boolean>(),
   hasSessionMessage: vi.fn<(_sessionId: string, _messageId: string) => boolean>(() => true),
   applyToolApprovalDecision: vi.fn(),
   retireAbandonedApproval: vi.fn(),
@@ -130,6 +131,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     replaceMessageParts: mocks.replaceMessageParts,
     markAssistantMessageTerminalError: vi.fn(),
     getSessionMessage: mocks.getSessionMessage,
+    hasSessionMessages: mocks.hasSessionMessages,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     retireAbandonedApproval: mocks.retireAbandonedApproval,
@@ -5045,6 +5047,30 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('primeConnection — eager command load on session open', () => {
+    it('leaves a new managed DeepSeek Harness task available for model selection until the first turn', async () => {
+      const connect = vi.fn().mockResolvedValue({
+        ...createAsyncQueue<any>(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        localSessionInfo: { models: [], images: false, resume: true }
+      })
+      runtimeDriverRegistry.register({ type: 'local', connect, validateSession: vi.fn() })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'local',
+        model: baseTurnInput.modelId,
+        configuration: { localRuntime: { presetId: 'deepseek-harness', env: {} } }
+      })
+      mocks.hasSessionMessages.mockReturnValueOnce(false).mockReturnValueOnce(true)
+
+      const service = new AgentSessionRuntimeService()
+      await expect(service.primeConnection('session-1')).resolves.toBe(false)
+      expect(service.getLocalSessionInfo('session-1')).toBeNull()
+
+      await expect(service.primeConnection('session-1')).resolves.toBe(true)
+      expect(service.getLocalSessionInfo('session-1')).toMatchObject({ resume: true })
+    })
+
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const events = createAsyncQueue<any>()

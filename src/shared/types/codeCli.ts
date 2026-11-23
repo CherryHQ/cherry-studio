@@ -88,6 +88,8 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
  */
 export const CLI_API_GATEWAY_PROVIDER_ID = 'cherry:api-gateway'
 
+export const DEEPSEEK_HARNESS_GATEWAY_ROUTE = 'cherry-studio-codemate-gateway'
+
 /**
  * Fixed ASCII provider-name segment for the gateway in CLI config keys (`cherry-gateway`).
  * The synthetic provider's card title is the localized "统一网关" (Unified Gateway), which would

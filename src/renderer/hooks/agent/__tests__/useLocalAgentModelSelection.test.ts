@@ -100,6 +100,7 @@ it('offers only native models and Cherry models through the gateway', () => {
   const { result } = renderHook(() =>
     useLocalAgentModelSelection(agent.configuration!.localRuntime, [{ id: 'anthropic/native', name: 'Native' }])
   )
+  expect(result.current.models.find((option) => option.source === 'gateway')?.group).toBe('claude')
   expect(result.current.models.map(({ id, source }) => ({ id, source }))).toEqual([
     { id: 'anthropic/native', source: 'native' },
     { id: `gateway-model:${model.id}`, source: 'gateway' }

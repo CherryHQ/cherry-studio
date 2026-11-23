@@ -223,10 +223,10 @@ describe('connection-local gateway attribution', () => {
     expect(await bindLocalGatewayUsage(clineConfig, 'session-cline', {})).toBeDefined()
 
     expect(mocks.create.mock.calls.map(([scope]) => scope)).toEqual([
-      { path: '/v1/responses', model: 'provider:model', agentSessionId: 'session-grok' },
-      { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-pi' },
+      { path: '/v1/responses', model: 'provider:model', agentSessionId: 'session-grok', allowPublicCorrelation: true },
+      { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-pi', allowPublicCorrelation: true },
       { path: '/v1/chat/completions', model: 'provider:model', agentSessionId: 'session-poolside' },
-      { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-cline' }
+      { path: '/v1/messages', model: 'provider:model', agentSessionId: 'session-cline', allowPublicCorrelation: true }
     ])
 
     mocks.create.mockClear()

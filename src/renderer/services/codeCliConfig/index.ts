@@ -22,7 +22,7 @@ export {
 } from './draft'
 export { createCliConfigDraftFiles, validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
-export { gatewayExpectedModel, gatewayModelIdFromAddress } from './gatewayModel'
+export { gatewayExpectedModel, gatewayModelIdFromAddress, getGatewayModelGroup } from './gatewayModel'
 export { resolveLaunchModelId } from './launchModelId'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
 export {

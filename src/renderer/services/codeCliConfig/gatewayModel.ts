@@ -1,5 +1,12 @@
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { deriveModelGroupName, getLowerBaseModelName, getRawModelId } from '@shared/utils/model'
+
+export function getGatewayModelGroup(model: Model): string | undefined {
+  return (
+    model.group?.trim() || model.family?.trim() || deriveModelGroupName(getLowerBaseModelName(getRawModelId(model)))
+  )
+}
 
 /**
  * The gateway-addressed model string ("providerId:apiModelId") for a stored real `UniqueModelId`,

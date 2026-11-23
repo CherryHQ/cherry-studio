@@ -21,7 +21,13 @@ vi.mock('@renderer/components/LazyCodeEditor', () => ({
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() }, useIpcOn: vi.fn() }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
-vi.mock('@renderer/hooks/useApiGatewayProvider', () => ({ useApiGatewayProvider: () => null }))
+vi.mock('@renderer/hooks/useApiGateway', () => ({
+  useApiGateway: () => ({
+    apiGatewayConfig: { host: '127.0.0.1', port: 23333, apiKey: null },
+    apiGatewayRunning: false,
+    startApiGateway: vi.fn()
+  })
+}))
 vi.mock('../hooks/useAvailableTerminals', () => ({ useAvailableTerminals: () => [] }))
 vi.mock('../hooks/useBinaryActions', () => ({
   useBinaryActions: () => ({
@@ -73,8 +79,19 @@ beforeEach(() => {
       }
     }
   ]
+  providers.push({ ...providers[0], id: 'team-gateway', name: 'Team Gateway' })
+  const models = [
+    model,
+    {
+      ...model,
+      providerId: 'team-gateway',
+      apiModelId: 'vendor/deepseek-chat',
+      id: 'team-gateway::vendor/deepseek-chat'
+    },
+    { ...model, id: 'deepseek::deepseek-pro', apiModelId: 'deepseek-pro', name: 'DeepSeek Pro', group: 'My favorites' }
+  ]
   mockUseQuery.mockImplementation((path) => ({
-    data: (path === '/providers' ? providers : path === '/models' ? [model] : undefined) as never,
+    data: (path === '/providers' ? providers : path === '/models' ? models : undefined) as never,
     isLoading: false,
     isRefreshing: false,
     error: undefined,
@@ -96,6 +113,29 @@ describe('managed local Agent details', () => {
       .filter((p) => !getCliConfigTargets(codeCliForLocalAgent(p.id) ?? p.id).length)
       .map((p) => p.id)
     expect(missing).toEqual([])
+  })
+
+  it('groups gateway models across providers while preserving custom groups', async () => {
+    const tool = CodeCli.DEEPSEEK_HARNESS
+    render(
+      <ManagedLocalAgentDetails
+        tool={tool}
+        preset={LOCAL_AGENT_PRESETS.find((preset) => preset.id === tool)}
+        detection={{ presetId: tool, path: '/usr/local/bin/tool', source: 'system' }}
+        installing={false}
+        onInstall={vi.fn()}
+        onNavigate={vi.fn()}
+        onCancelNavigation={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    const list = within(screen.getByRole('region', { name: '模型' }))
+    const family = list.getByRole('button', { name: 'deepseek', expanded: true })
+    expect(list.getAllByRole('button', { name: /DeepSeek Chat$/ })).toHaveLength(2)
+    await userEvent.click(family)
+    expect(list.queryByRole('button', { name: /DeepSeek Chat$/ })).toBeNull()
+    expect(list.getByRole('button', { name: 'My favorites', expanded: true })).toBeVisible()
+    expect(list.getByRole('button', { name: /DeepSeek Pro$/ })).toBeVisible()
   })
 
   it.each([CodeCli.OPENCLAW, CodeCli.DEEPSEEK_HARNESS] as const)(

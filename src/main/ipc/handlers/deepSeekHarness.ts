@@ -14,6 +14,8 @@ export const deepSeekHarnessHandlers: IpcHandlersFor<typeof deepSeekHarnessReque
     await application.get('DeepSeekHarnessService').applyModel(input)
     return { success: true }
   },
+  'deepseek_harness.select_gateway_model': ({ uniqueModelId }) =>
+    application.get('DeepSeekHarnessService').selectGatewayModel(uniqueModelId),
   'deepseek_harness.stop': async () => {
     try {
       await application.get('DeepSeekHarnessService').stop()

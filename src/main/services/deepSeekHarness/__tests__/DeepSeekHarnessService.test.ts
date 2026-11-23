@@ -1,18 +1,20 @@
 import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
 import { MockMainPreferenceServiceExport } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+import { parse } from 'yaml'
 
 import { BaseService } from '@main/core/lifecycle'
 import type * as ProcessRunner from '@main/utils/processRunner'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import type * as DeepSeekHarnessConfigModule from '../config'
 
@@ -30,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   gatewayStart: vi.fn(),
   gatewayEnsureKey: vi.fn(),
   gatewayGetConfig: vi.fn(),
+  gatewayCreateScoped: vi.fn(),
   broadcast: vi.fn(),
   setShared: vi.fn(),
   loggerWarn: vi.fn()
@@ -161,7 +164,8 @@ describe('DeepSeekHarnessService', () => {
         return {
           start: mocks.gatewayStart,
           ensureValidApiKey: mocks.gatewayEnsureKey,
-          getCurrentConfig: mocks.gatewayGetConfig
+          getCurrentConfig: mocks.gatewayGetConfig,
+          createScopedCredential: mocks.gatewayCreateScoped
         }
       }
       if (name === 'PreferenceService') return MockMainPreferenceServiceExport.preferenceService
@@ -179,6 +183,11 @@ describe('DeepSeekHarnessService', () => {
       headless: { path: '/mock/home/.dsh/profiles/headless/cordis.patch.yml', written: 'written headless profile' }
     })
     mocks.rollbackConfig.mockResolvedValue(true)
+    mocks.gatewayCreateScoped.mockImplementation(async ({ agentSessionId }) => ({
+      baseUrl: 'http://127.0.0.1:45555',
+      apiKey: `test-key-${agentSessionId}`,
+      dispose: vi.fn()
+    }))
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.gatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.gatewayGetConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
@@ -387,6 +396,132 @@ describe('DeepSeekHarnessService', () => {
     )
     expect(mocks.spawn).not.toHaveBeenCalled()
     expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
+  it('prepares new ACP sessions with the gateway model saved by either picker', async () => {
+    const preferences = MockMainPreferenceServiceExport.preferenceService
+    const key = 'feature.code_cli.configs'
+    const previous = preferences.get(key)
+    const settings = { agentPreset: 'code', permissionMode: 'read-only' }
+    await preferences.set(key, {
+      [CodeCli.DEEPSEEK_HARNESS]: {
+        current: null,
+        providers: { [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: null, config: settings } }
+      }
+    })
+    try {
+      const service = new DeepSeekHarnessService()
+      await service.selectGatewayModel(startInput.uniqueModelId)
+      expect(preferences.get(key)?.[CodeCli.DEEPSEEK_HARNESS]).toEqual({
+        current: CLI_API_GATEWAY_PROVIDER_ID,
+        providers: { [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: startInput.uniqueModelId, config: settings } }
+      })
+      await expect(service.prepareAgent()).resolves.toEqual({
+        nativeModel: '["cherry-studio-codemate-gateway","anthropic:claude-sonnet"]'
+      })
+      expect(mocks.writeConfig).toHaveBeenLastCalledWith(
+        '/mock/home/.dsh',
+        expect.objectContaining({ modelId: 'anthropic:claude-sonnet', agentPreset: 'code' })
+      )
+    } finally {
+      await preferences.set(key, previous ?? {})
+    }
+  })
+
+  it('isolates gateway credentials for two ACP sessions using the same saved model', async () => {
+    const preferences = MockMainPreferenceServiceExport.preferenceService
+    const previous = preferences.get('feature.code_cli.configs')
+    const dir = await mkdtemp(path.join(tmpdir(), 'dsh-acp-'))
+    const home = path.join(dir, 'home')
+    const route = 'cherry-studio-codemate-gateway'
+    const { writeDeepSeekHarnessConfig } = await vi.importActual<typeof DeepSeekHarnessConfigModule>('../config')
+    mocks.appGetPath.mockImplementation((key: string, file?: string) => {
+      if (key === 'external.deepseek_harness.config') return home
+      if (key === 'app.temp') return path.join(dir, file ?? '')
+      throw new Error(`Unexpected application.getPath(${key})`)
+    })
+    for (let i = 0; i < 3; i++) mocks.writeConfig.mockImplementationOnce(writeDeepSeekHarnessConfig)
+    await mkdir(home)
+    await writeFile(
+      path.join(home, 'cordis.patch.yml'),
+      [
+        '- id: llm-pi-ai',
+        '  config:',
+        '    providers:',
+        '      another-route:',
+        '        api: openai-responses',
+        '        baseURL: https://example.org'
+      ].join('\n')
+    )
+
+    const service = new DeepSeekHarnessService()
+    try {
+      await service.selectGatewayModel(startInput.uniqueModelId)
+      const [first, second] = await Promise.all([service.prepareAgent('first'), service.prepareAgent('second')])
+      expect(first?.gateway?.env.CHERRY_DSH_ACP_GATEWAY_API_KEY).toBe('test-key-first')
+      expect(second?.gateway?.env.CHERRY_DSH_ACP_GATEWAY_API_KEY).toBe('test-key-second')
+      expect(first?.gateway?.patchPath).not.toBe(second?.gateway?.patchPath)
+      expect(mocks.gatewayCreateScoped.mock.calls.map(([scope]) => scope)).toEqual(
+        ['first', 'second'].map((agentSessionId) => ({
+          path: '/v1/chat/completions',
+          model: 'anthropic:claude-sonnet',
+          agentSessionId
+        }))
+      )
+      for (const launch of [first, second]) {
+        expect(launch?.nativeModel).toBe(JSON.stringify([route, 'anthropic:claude-sonnet']))
+        const overlay = await readFile(launch!.gateway!.patchPath, 'utf8')
+        expect(overlay).not.toContain(launch!.gateway!.env.CHERRY_DSH_ACP_GATEWAY_API_KEY)
+        expect(parse(overlay)).toEqual(
+          expect.arrayContaining([
+            { id: 'acp', config: { provider: route, model: 'anthropic:claude-sonnet' } },
+            {
+              id: 'llm-pi-ai',
+              config: {
+                providers: {
+                  'another-route': { api: 'openai-responses', baseURL: 'https://example.org' },
+                  [route]: expect.objectContaining({
+                    baseURL: 'http://127.0.0.1:45555/v1',
+                    apiKeyEnv: 'CHERRY_DSH_ACP_GATEWAY_API_KEY',
+                    models: [expect.objectContaining({ id: 'anthropic:claude-sonnet' })]
+                  })
+                }
+              }
+            }
+          ])
+        )
+      }
+      expect(await readFile(path.join(home, '.credentials.yaml'), 'utf8')).not.toContain('test-key-')
+      expect(await readFile(path.join(home, 'cordis.patch.yml'), 'utf8')).not.toContain('45555')
+      await first!.gateway!.dispose()
+      await expect(readFile(first!.gateway!.patchPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(readFile(second!.gateway!.patchPath)).resolves.toBeDefined()
+      await second!.gateway!.dispose()
+    } finally {
+      await preferences.set('feature.code_cli.configs', previous)
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps the previous ACP default when writing the new gateway model fails', async () => {
+    const preferences = MockMainPreferenceServiceExport.preferenceService
+    const key = 'feature.code_cli.configs'
+    const previous = preferences.get(key)
+    const saved = {
+      [CodeCli.DEEPSEEK_HARNESS]: {
+        current: CLI_API_GATEWAY_PROVIDER_ID,
+        providers: { [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: 'anthropic::previous' as const } }
+      }
+    }
+    await preferences.set(key, saved)
+    mocks.writeConfig.mockRejectedValueOnce(new Error('DSH config is read-only'))
+    try {
+      const service = new DeepSeekHarnessService()
+      await expect(service.selectGatewayModel(startInput.uniqueModelId)).rejects.toThrow('DSH config is read-only')
+      expect(preferences.get(key)).toEqual(saved)
+    } finally {
+      await preferences.set(key, previous ?? {})
+    }
   })
 
   it('uses an enabled API key obtained through CherryIN-style OAuth in direct mode', async () => {

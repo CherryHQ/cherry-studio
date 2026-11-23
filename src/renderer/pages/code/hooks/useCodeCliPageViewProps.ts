@@ -6,7 +6,8 @@ import { useLocalAgentVersion } from '@renderer/hooks/agent/useLocalAgentVersion
 import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { clearCliConfig, resolveCliConfigApplyContext } from '@renderer/services/codeCliConfig'
+import { ipcApi } from '@renderer/ipc'
+import { clearCliConfig, getGatewayModelGroup, resolveCliConfigApplyContext } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
@@ -61,7 +62,6 @@ export function useCodeCliPageViewProps(initialTool: CodeCli): CodeCliPageViewPr
     refreshModels,
     filterProviders,
     makeModelFilter,
-    resolveProviderMeta,
     gatewayModelsById,
     modelById,
     defaultGatewayModelId,
@@ -247,7 +247,7 @@ export function useCodeCliPageViewProps(initialTool: CodeCli): CodeCliPageViewPr
       [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => ({
         id: JSON.stringify([provider.id, model.id]),
         name: model.name || model.id,
-        group: resolveProviderMeta(provider).providerName,
+        group: getGatewayModelGroup(model) ?? t('models.group.ungrouped'),
         source: 'gateway' as const,
         provider,
         model
@@ -261,9 +261,10 @@ export function useCodeCliPageViewProps(initialTool: CodeCli): CodeCliPageViewPr
           activeMeta,
           modelList: {
             models: modelOptions,
-            value: modelOptions.find(
-              (option) =>
-                option.provider.id === enabledProvider?.id && option.model.id === enabledProviderConfig?.modelId
+            value: modelOptions.find((option) =>
+              isDeepSeekHarnessTool
+                ? option.provider.id === currentProviderId && option.model.id === currentProviderConfig?.modelId
+                : option.provider.id === enabledProvider?.id && option.model.id === enabledProviderConfig?.modelId
             )?.id,
             loaded: !isGatewayModelsLoading,
             loading: isGatewayModelsLoading,
@@ -278,7 +279,15 @@ export function useCodeCliPageViewProps(initialTool: CodeCli): CodeCliPageViewPr
               if (!option || providerActionsDisabled) return false
               setModelSaving(true)
               try {
+                if (isDeepSeekHarnessTool) {
+                  await ipcApi.request('deepseek_harness.select_gateway_model', { uniqueModelId: option.model.id })
+                  return true
+                }
                 return await configPanel.selectModel(option.provider, option.model.id)
+              } catch (error) {
+                logger.error('Failed to select DeepSeek Harness model', error as Error)
+                toast.error(t('code.apply_failed'))
+                return false
               } finally {
                 setModelSaving(false)
               }

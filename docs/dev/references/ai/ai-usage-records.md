@@ -84,9 +84,10 @@ create invocation records or change the SQLite schema.
 
 Gateway-configured Local Agents bind a session credential lease on connection
 start while the saved native default matches Cherry's gateway configuration;
-connection disposal revokes it. OpenCode, Kilo, and Poolside isolate that lease
-through a process-local credential overlay, while shared-file CLIs correlate
-public-key requests matching the bound model to a unique active session turn.
+connection disposal revokes it. DeepSeek Harness, OpenCode, Kilo, and Poolside
+isolate that lease through a process-local credential overlay. Only CLIs that
+use the shared gateway key can participate in public-key correlation, which
+requires a unique active session turn matching the bound model.
 Modified endpoints/credentials, concurrent active turns sharing one public-key
 model, unsupported SDK routes, and other Agents retain unknown request
 attribution. A connected gateway does not imply that every native request is

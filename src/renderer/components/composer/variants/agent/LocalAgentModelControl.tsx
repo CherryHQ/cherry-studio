@@ -13,6 +13,7 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/types/agent'
+import { CodeCli } from '@shared/types/codeCli'
 
 import {
   COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
@@ -45,16 +46,31 @@ export function LocalAgentModelControl({
     config,
     false
   )
-  const selection = useLocalAgentModelSelection(config, freshCatalog?.models ?? info?.models ?? catalog?.models ?? [])
+  const isDeepSeekHarness = config?.presetId === CodeCli.DEEPSEEK_HARNESS
+  const activeModel = isDeepSeekHarness ? info?.activeModel : undefined
+  const selection = useLocalAgentModelSelection(
+    config,
+    freshCatalog?.models ?? info?.models ?? catalog?.models ?? [],
+    activeModel?.id
+  )
   const { models, value } = selection
   const modelConfigOptions = info?.configOptions?.filter((option) => option.category === 'model_config')
-  const label = value ? models.find((model) => model.id === value)?.name || value : t('local_agents.follow_cli')
+  const label = isDeepSeekHarness
+    ? selection.dshModelName ||
+      activeModel?.name ||
+      info?.models?.find((model) => model.id === activeModel?.id)?.name ||
+      activeModel?.id ||
+      t('button.select_model')
+    : value
+      ? models.find((model) => model.id === value)?.name || value
+      : t('local_agents.follow_cli')
 
-  const selectedModel = value ? { id: value, name: label } : undefined
+  const selectedModelId = value ?? activeModel?.id
+  const selectedModel = selectedModelId ? { id: selectedModelId, name: label } : undefined
 
   const loadModels = () => refresh().catch(() => {})
   const selectModel = async (nativeModel?: string) => {
-    if (!config || disabled || saving) return false
+    if (!config || disabled || saving || activeModel) return false
     setSaving(true)
     try {
       const updated = await selection.select(agent, nativeModel)
@@ -71,11 +87,12 @@ export function LocalAgentModelControl({
     <LocalAgentModelSelector
       models={models}
       sourceRestrictions={selection.sourceRestrictions}
+      showFollowCli={!isDeepSeekHarness}
       value={value}
-      disabled={disabled || saving}
-      loading={loading}
-      loaded={!!freshCatalog || !!info?.models?.length}
-      error={refreshError}
+      disabled={disabled || saving || !!activeModel}
+      loading={isDeepSeekHarness ? selection.gatewayLoading : loading}
+      loaded={isDeepSeekHarness || !!freshCatalog || !!info?.models?.length}
+      error={isDeepSeekHarness ? undefined : refreshError}
       onOpenSettings={() => openRoute('/settings/local-agents', { id: config.presetId ?? agent.id })}
       side={side}
       onLoad={loadModels}

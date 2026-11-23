@@ -1,4 +1,6 @@
 import { type ChildProcess, execFile } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 
 import { Mutex } from 'async-mutex'
 
@@ -15,7 +17,9 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { parseUniqueModelId, type Model, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { BinaryAvailability } from '@shared/types/binary'
 import {
+  CLI_API_GATEWAY_PROVIDER_ID,
   CodeCli,
+  DEEPSEEK_HARNESS_GATEWAY_ROUTE,
   isApiGatewayProviderId,
   normalizeDeepSeekHarnessSettings,
   type DeepSeekHarnessPermissionMode,
@@ -33,6 +37,7 @@ import {
   type DeepSeekHarnessConfigReceipt,
   type DeepSeekHarnessMode,
   type DeepSeekHarnessProjection,
+  renderDeepSeekHarnessAcpGatewayPatch,
   resolveDeepSeekHarnessEndpoint,
   rollbackDeepSeekHarnessConfig,
   writeDeepSeekHarnessConfig,
@@ -47,7 +52,8 @@ const FORCE_STOP_TIMEOUT_MS = 1000
 const OUTPUT_CAPTURE_LIMIT = 32 * 1024
 const DIAGNOSTIC_LIMIT = 2000
 const NO_KEY_PLACEHOLDER = 'no-key-required'
-const GATEWAY_ROUTE = 'cherry-studio-codemate-gateway'
+const CONFIGS_KEY = 'feature.code_cli.configs'
+const ACP_GATEWAY_CREDENTIAL_REF = 'CHERRY_DSH_ACP_GATEWAY_API_KEY'
 const GATEWAY_CREDENTIAL_REF = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
 const MANAGED_CREDENTIAL_ENV = /^CHERRY_STUDIO_CODEMATE_(?:[A-F0-9]{12}|GATEWAY)_API_KEY$/i
 
@@ -59,6 +65,11 @@ interface DeepSeekHarnessStartInput extends DeepSeekHarnessSettings {
 interface DeepSeekHarnessRuntime {
   path: string
   env: NodeJS.ProcessEnv
+}
+
+interface DeepSeekHarnessAcpLaunch {
+  nativeModel: string
+  gateway?: { patchPath: string; env: NodeJS.ProcessEnv; dispose: () => Promise<void> }
 }
 
 @Injectable('DeepSeekHarnessService')
@@ -89,11 +100,15 @@ export class DeepSeekHarnessService extends BaseService {
 
   async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
     return this.operationMutex.runExclusive(async () => {
-      if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
-        throw new Error(t('code_cli.config.service_running', { tool: 'DeepSeek Harness' }))
-      }
+      this.assertConfigEditable()
       return withDeepSeekHarnessConfigLock(application.getPath('external.deepseek_harness.config'), write)
     })
+  }
+
+  private assertConfigEditable(): void {
+    if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
+      throw new Error(t('code_cli.config.service_running', { tool: 'DeepSeek Harness' }))
+    }
   }
 
   async applyModel(input: DeepSeekHarnessStartInput): Promise<void> {
@@ -102,21 +117,97 @@ export class DeepSeekHarnessService extends BaseService {
     })
   }
 
-  async prepareAgent(): Promise<string | undefined> {
-    const state = application.get('PreferenceService').get('feature.code_cli.configs')[CodeCli.DEEPSEEK_HARNESS]
-    if (!state?.current) return
-    const selected = state.providers[state.current]
-    const uniqueModelId = selected?.modelId
-    if (!uniqueModelId) return
-    const mode = isApiGatewayProviderId(state.current) ? 'gateway' : 'direct'
-    return this.operationMutex.runExclusive(async () => {
-      const { projection } = await this.syncConfig({
+  async selectGatewayModel(uniqueModelId: UniqueModelId): Promise<void> {
+    const preferences = application.get('PreferenceService')
+    const providerId = CLI_API_GATEWAY_PROVIDER_ID
+    await this.operationMutex.runExclusive(async () => {
+      this.assertConfigEditable()
+      const previous = preferences.get(CONFIGS_KEY)[CodeCli.DEEPSEEK_HARNESS]?.providers[providerId]
+      const { receipt } = await this.syncConfig({
         uniqueModelId,
-        mode,
+        mode: 'gateway',
+        ...normalizeDeepSeekHarnessSettings(previous?.config)
+      })
+      const configs = preferences.get(CONFIGS_KEY)
+      const state = configs[CodeCli.DEEPSEEK_HARNESS]
+      try {
+        await preferences.set(CONFIGS_KEY, {
+          ...configs,
+          [CodeCli.DEEPSEEK_HARNESS]: {
+            ...state,
+            current: providerId,
+            providers: {
+              ...state?.providers,
+              [providerId]: { ...state?.providers[providerId], modelId: uniqueModelId }
+            }
+          }
+        })
+      } catch (error) {
+        await this.rollbackConfig(receipt)
+        throw error
+      }
+    })
+  }
+
+  async prepareAgent(sessionId?: string): Promise<DeepSeekHarnessAcpLaunch | undefined> {
+    return this.operationMutex.runExclusive(async () => {
+      const state = application.get('PreferenceService').get(CONFIGS_KEY)[CodeCli.DEEPSEEK_HARNESS]
+      if (!state?.current) return
+      const selected = state.providers[state.current]
+      const uniqueModelId = selected?.modelId
+      if (!uniqueModelId) return
+      const { projection, receipt } = await this.syncConfig({
+        uniqueModelId,
+        mode: isApiGatewayProviderId(state.current) ? 'gateway' : 'direct',
         ...normalizeDeepSeekHarnessSettings(selected.config)
       })
-      return JSON.stringify([projection.route, projection.modelId])
+      const nativeModel = JSON.stringify([projection.route, projection.modelId])
+      const gateway =
+        sessionId && projection.route === DEEPSEEK_HARNESS_GATEWAY_ROUTE
+          ? await this.prepareAcpGateway(sessionId, projection, receipt)
+          : undefined
+      return { nativeModel, gateway }
     })
+  }
+
+  private async prepareAcpGateway(
+    sessionId: string,
+    projection: DeepSeekHarnessProjection,
+    receipt: DeepSeekHarnessConfigReceipt
+  ) {
+    const dir = await mkdtemp(application.getPath('app.temp', 'dsh-acp-'))
+    const patchPath = path.join(dir, 'gateway.patch.yml')
+    const cleanup = () =>
+      rm(dir, { recursive: true, force: true }).catch((error) => {
+        logger.warn('Failed to remove DeepSeek Harness ACP patch', { error })
+      })
+    try {
+      const lease = await application.get('ApiGatewayService').createScopedCredential({
+        path: '/v1/chat/completions',
+        model: projection.modelId,
+        agentSessionId: sessionId
+      })
+      const dispose = () => {
+        lease.dispose()
+        return cleanup()
+      }
+      try {
+        const patch = renderDeepSeekHarnessAcpGatewayPatch(
+          receipt,
+          projection.route,
+          `${lease.baseUrl}/v1`,
+          ACP_GATEWAY_CREDENTIAL_REF
+        )
+        await writeFile(patchPath, patch, { mode: 0o600 })
+      } catch (error) {
+        lease.dispose()
+        throw error
+      }
+      return { patchPath, env: { [ACP_GATEWAY_CREDENTIAL_REF]: lease.apiKey }, dispose }
+    } catch (error) {
+      await cleanup()
+      throw error
+    }
   }
 
   /** Single status-transition point for the main-owned shared snapshot. */
@@ -153,7 +244,7 @@ export class DeepSeekHarnessService extends BaseService {
               this.status !== 'running' ||
               !this.url
             ) {
-              await this.rollbackLaunchConfig(receipt)
+              await this.rollbackConfig(receipt)
               throw new Error(
                 startupAbortController.signal.aborted
                   ? 'DeepSeek Harness startup was cancelled'
@@ -215,7 +306,7 @@ export class DeepSeekHarnessService extends BaseService {
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError as Error)
           })
-          if (receipt) await this.rollbackLaunchConfig(receipt)
+          if (receipt) await this.rollbackConfig(receipt)
           const message = error instanceof Error ? error.message : 'Failed to start DeepSeek Harness'
           return { success: false, message: sanitizeDiagnostic(message) }
         }
@@ -238,12 +329,12 @@ export class DeepSeekHarnessService extends BaseService {
     })
   }
 
-  private async rollbackLaunchConfig(receipt: DeepSeekHarnessConfigReceipt): Promise<void> {
+  private async rollbackConfig(receipt: DeepSeekHarnessConfigReceipt): Promise<void> {
     try {
       const rolledBack = await rollbackDeepSeekHarnessConfig(receipt)
       if (!rolledBack) logger.warn('Skipped DeepSeek Harness config rollback because the files changed concurrently')
     } catch (error) {
-      logger.warn('Failed to roll back DeepSeek Harness config after launch failure', error as Error)
+      logger.warn('Failed to roll back DeepSeek Harness config', error as Error)
     }
   }
 
@@ -293,7 +384,7 @@ export class DeepSeekHarnessService extends BaseService {
       const credentialValue = await gateway.ensureValidApiKey()
       const { host, port } = gateway.getCurrentConfig()
       return {
-        route: GATEWAY_ROUTE,
+        route: DEEPSEEK_HARNESS_GATEWAY_ROUTE,
         credentialRef: GATEWAY_CREDENTIAL_REF,
         credentialValue,
         displayName: 'Cherry Studio Unified Gateway',

@@ -84,7 +84,7 @@ type Terminal = {
 }
 
 export class AcpConnection extends LocalConnection {
-  private gatewayLease?: { dispose: () => void }
+  private gatewayLease?: { dispose: () => void | Promise<void> }
   private openClawLease?: { dispose: () => Promise<void> }
   private releasingOpenClaw?: Promise<void>
   private defaultModel?: string
@@ -132,7 +132,19 @@ export class AcpConnection extends LocalConnection {
   private async startConnection(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, probe === 'models' ? 'models' : false)
     if (!probe && this.config.presetId === 'deepseek-harness' && !this.config.env.DSH_HOME) {
-      launch.nativeModel = await application.get('DeepSeekHarnessService').prepareAgent()
+      const prepared = await application
+        .get('DeepSeekHarnessService')
+        .prepareAgent(this.config.args.length ? undefined : this.sessionId)
+      if (prepared?.gateway) {
+        if (this.abort.signal.aborted) {
+          await prepared.gateway.dispose()
+          this.abort.signal.throwIfAborted()
+        }
+        this.gatewayLease = prepared.gateway
+        launch.args = [...launch.args, '--patch', prepared.gateway.patchPath]
+        Object.assign(launch.env, prepared.gateway.env)
+      }
+      launch.nativeModel = prepared?.nativeModel
     }
     if (
       this.config.presetId === 'openclaw' &&
@@ -150,8 +162,12 @@ export class AcpConnection extends LocalConnection {
       launch.env.OPENCLAW_GATEWAY_URL = lease.url
       if (lease.token) launch.env.OPENCLAW_GATEWAY_TOKEN = lease.token
     }
-    if (!probe) this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
-    this.defaultModel = this.config.nativeModel ?? launch.nativeModel
+    if (!probe && !this.gatewayLease)
+      this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
+    this.defaultModel =
+      this.config.presetId === 'deepseek-harness'
+        ? (launch.nativeModel ?? this.config.nativeModel)
+        : (this.config.nativeModel ?? launch.nativeModel)
     this.abort.signal.throwIfAborted()
     const child = crossPlatformSpawn(launch.executable, launch.args, {
       cwd,
@@ -928,7 +944,7 @@ export class AcpConnection extends LocalConnection {
   }
   protected override dispose() {
     this.clearCompaction()
-    this.gatewayLease?.dispose()
+    void this.gatewayLease?.dispose()
     this.gatewayLease = undefined
     void this.releaseOpenClaw()?.catch((error) => logger.warn('Failed to release OpenClaw Gateway', { error }))
     super.dispose()

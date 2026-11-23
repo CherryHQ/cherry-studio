@@ -79,6 +79,7 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { CodeCli } from '@shared/types/codeCli'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
@@ -1122,6 +1123,14 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!session?.agentId) return false
       const agent = agentService.getAgent(session.agentId)
       if (!agent) return false
+      const local = agent.type === 'local' ? agent.configuration?.localRuntime : undefined
+      // DSH fixes its configured model at startup, so wait for the first turn in empty tasks.
+      if (
+        local?.presetId === CodeCli.DEEPSEEK_HARNESS &&
+        !local.env.DSH_HOME &&
+        !agentSessionMessageService.hasSessionMessages(sessionId)
+      )
+        return false
       // Prime on the effective model so a session override doesn't force a rebuild on first turn.
       const executionId = this.getAgentExecutionId(agent, session.model)
       if (!executionId) return false

@@ -1,5 +1,6 @@
 import { webcrypto } from 'node:crypto'
 
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,13 +8,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentEntity } from '@shared/data/types/agent'
+import type { Model } from '@shared/data/types/model'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import { AgentConversationControls } from '../AgentConversationControls'
 import { LocalAgentModelControl } from '../LocalAgentModelControl'
 
-vi.mock('@renderer/hooks/useModel', () => ({ useModels: () => ({ models: [] }) }))
+const catalog = vi.hoisted(() => ({ models: [] as Model[], providers: [] as { id: string; isEnabled: boolean }[] }))
+vi.mock('@renderer/hooks/useModel', () => ({ useModels: () => ({ models: catalog.models }) }))
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] }),
+  useProviders: () => ({ providers: catalog.providers }),
   getProviderDisplayName: (provider: { name: string }) => provider.name
 }))
 vi.unmock('@cherrystudio/ui')
@@ -55,6 +59,69 @@ beforeEach(async () => {
 })
 
 describe('local agent model persistence', () => {
+  it('shows and changes the saved DeepSeek Harness gateway model from a new chat', async () => {
+    const user = userEvent.setup()
+    const model = {
+      providerId: 'test',
+      capabilities: [],
+      endpointTypes: ['openai-chat-completions'],
+      isEnabled: true,
+      supportsStreaming: true,
+      isHidden: false
+    } satisfies Omit<Model, 'id' | 'name'>
+    const first: Model = { ...model, id: 'test::first', name: 'First gateway model' }
+    const second: Model = { ...model, id: 'test::second', name: 'Second gateway model' }
+    const saved = (modelId: Model['id']) => ({
+      [CodeCli.DEEPSEEK_HARNESS]: {
+        current: CLI_API_GATEWAY_PROVIDER_ID,
+        providers: { [CLI_API_GATEWAY_PROVIDER_ID]: { modelId } }
+      }
+    })
+    const config = { ...agent.configuration!.localRuntime!, presetId: CodeCli.DEEPSEEK_HARNESS, nativeModel: undefined }
+    const props = {
+      agent: { ...agent, configuration: { localRuntime: config } },
+      disabled: false,
+      side: 'bottom'
+    } as const
+    const key = 'feature.code_cli.configs'
+    const previous = mockPreferenceState.get(key)
+    mockPreferenceState.set(key, saved(first.id))
+    catalog.models = [first, second]
+    catalog.providers = [{ id: 'test', isEnabled: true }]
+    vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
+      if (route !== 'deepseek_harness.select_gateway_model') throw new Error(`Unexpected route: ${route}`)
+      mockPreferenceState.set(key, saved((input as { uniqueModelId: Model['id'] }).uniqueModelId))
+      return undefined as never
+    })
+
+    try {
+      const { rerender } = render(<LocalAgentModelControl {...props} />)
+      const trigger = screen.getByRole('button', { name: '选择模型' })
+      expect(trigger).toHaveTextContent(first.name)
+      await user.click(trigger)
+      expect(screen.getByRole('option', { name: first.name })).toHaveAttribute('aria-selected', 'true')
+      await user.click(screen.getByRole('option', { name: second.name }))
+      await waitFor(() => expect(screen.queryByRole('option', { name: second.name })).not.toBeInTheDocument())
+      rerender(<LocalAgentModelControl {...props} />)
+      expect(trigger).toHaveTextContent(second.name)
+
+      rerender(
+        <LocalAgentModelControl
+          {...props}
+          info={{ ...info, activeModel: { id: '["cherry-studio-codemate-gateway","test:first"]', name: 'test:first' } }}
+        />
+      )
+      expect(trigger).toHaveTextContent(first.name)
+      await user.click(trigger)
+      expect(screen.getByRole('option', { name: first.name })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('option', { name: second.name })).toHaveAttribute('aria-disabled', 'true')
+    } finally {
+      mockPreferenceState.set(key, previous)
+      catalog.models = []
+      catalog.providers = []
+    }
+  })
+
   it('respects the common model-editing permission for local agents', () => {
     const props = {
       agent,

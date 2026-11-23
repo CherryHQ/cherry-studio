@@ -103,10 +103,16 @@ archive and chat controls, native file editor, model list and WebUI actions. New
 the same native settings and credentials as the WebUI. The ACP profile override is
 written and rolled back with the existing configuration transaction, preserving
 unrelated user entries. Disabling or uninstalling also stops its managed WebUI.
-Chat follows this managed model selection; global switching from the chat picker
-is not supported. Protocol features depend on the installed CLI: 0.2.1-rc.5 sends
-committed assistant output and supports model/reasoning options, approvals and
-resume, without mode, command, plan, client file/terminal or elicitation callbacks.
+The new-chat picker and Agent Services save the same Unified Gateway default.
+Empty managed tasks connect on the first send so the picker remains editable.
+A connected chat displays the model reported by ACP. An explicit `DSH_HOME`
+uses that profile's own model configuration. For the managed ACP launch and a
+Unified Gateway model, Cherry gives the subprocess a temporary gateway route
+with a session-scoped credential, so usage can be attributed to the reply.
+Protocol features depend on the
+installed CLI: 0.2.1-rc.5 sends committed assistant output and supports
+model/reasoning options, approvals and resume, without mode, command, plan,
+client file/terminal or elicitation callbacks.
 
 Interactive terminal actions open the shared Agent Services launch dialog to select a
 working directory and terminal application. Choices are saved per tool in
@@ -380,8 +386,8 @@ same file view; without an embedded file panel they reuse a file preview tab.
 Missing or invalid lines retain normal opening behavior. Stored
 terminal snapshots remain readable after process release.
 
-Enabled local sessions prewarm on opening so their options are available before
-the first message. Config notifications refresh the controls, including when a model
+Enabled local sessions generally prewarm on opening so their options are
+available before the first message. Config notifications refresh the controls, including when a model
 change removes thought levels. On reconnect, native session configuration is the
 source of truth: Cherry does not reselect an already-matching model and thereby
 reset the restored effort. Persistence of unused settings depends on the CLI; Cherry

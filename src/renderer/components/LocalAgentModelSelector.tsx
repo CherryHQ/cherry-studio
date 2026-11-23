@@ -27,6 +27,7 @@ interface LocalAgentModelSelectorProps {
   trigger: ReactElement
   models: LocalAgentModelOption[]
   sourceRestrictions?: LocalAgentModelSourceRestrictions
+  showFollowCli?: boolean
   value?: string
   disabled?: boolean
   loading?: boolean
@@ -44,6 +45,7 @@ export function LocalAgentModelSelector({
   trigger,
   models,
   sourceRestrictions,
+  showFollowCli = true,
   value,
   disabled,
   loading,
@@ -64,10 +66,10 @@ export function LocalAgentModelSelector({
   const [searchText, setSearchText] = useState('')
   const [focusedKey, setFocusedKey] = useState('')
   const listboxId = useId()
-  const tabs = useLocalAgentModelTabs(models, value)
+  const tabs = useLocalAgentModelTabs(models, value, showFollowCli)
   const source = tabs.sources.includes(tabs.source) ? tabs.source : ''
   const selectionDisabled = disabled || !!sourceRestrictions?.[tabs.source]
-  const options = tabs.source === 'native' ? [undefined, ...tabs.models] : tabs.models
+  const options = tabs.source === 'native' && showFollowCli ? [undefined, ...tabs.models] : tabs.models
   const items = options
     .flatMap((model) => {
       const label = model ? model.name || model.id : t('local_agents.follow_cli')

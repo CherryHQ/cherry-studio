@@ -31,7 +31,12 @@ const AGENT_USAGE_CAPTURE_HEADER = 'x-cherry-agent-usage-capture'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 
 /** What a scoped internal credential may call: one generation path, one model address. */
-export type InternalCredentialScope = { path: string; model: string; agentSessionId?: string }
+export type InternalCredentialScope = {
+  path: string
+  model: string
+  agentSessionId?: string
+  allowPublicCorrelation?: boolean
+}
 
 function presentedToken(headers: Headers): string | undefined {
   return (
@@ -526,7 +531,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     const runtime = application.get('AgentSessionRuntimeService')
     const activeSessionIds = new Set<string>()
     for (const candidate of this.scopedCredentials.values()) {
-      if (!candidate.agentSessionId || candidate.model !== model) continue
+      if (!candidate.allowPublicCorrelation || !candidate.agentSessionId || candidate.model !== model) continue
       if (runtime.getActiveUsageContext(candidate.agentSessionId)?.assistantMessageId) {
         activeSessionIds.add(candidate.agentSessionId)
       }

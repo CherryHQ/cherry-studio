@@ -2,23 +2,19 @@ import { useCallback, useMemo } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
-import { getProviderDisplayName } from '@renderer/hooks/useProvider'
-import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/services/codeCliConfig'
 import {
   filterCliProviders,
   isCliChatModel,
   getGatewayProviderIds,
   isCliGatewayModel
 } from '@renderer/services/codeCliConfig'
-import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 
 /**
  * Provider/model resolution for the code-CLI page: builds the per-tool enabled
- * provider list, the model filter handed to the edit panel's `ModelSelector`,
- * and a display-name resolver for the provider list.
+ * provider list and the model filter handed to the edit panel's `ModelSelector`.
  */
 export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[], isProvidersLoading = false) {
   const { models: allModels, isLoading: isModelsLoading, refetch: refreshModels } = useModels({ enabled: true })
@@ -59,44 +55,10 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     [gatewayProviderIds, selectedCliTool]
   )
 
-  const resolveProviderMetaForTool = useCallback(
-    (toolId: CodeCli, provider: Provider, providerConfig?: CliProviderConfig) => {
-      const config = providerConfig?.config ?? {}
-      // Detailed Claude configs carry no top-level modelId; surface the primary
-      // (fable-role) detailed model instead of hiding the model entirely.
-      const modelId =
-        toolId === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)
-          ? getClaudeContextModelId(
-              provider.id,
-              config,
-              isApiGatewayProviderId(provider.id) ? gatewayModelsById : undefined
-            )
-          : providerConfig?.modelId
-      let modelName: string | undefined
-      if (modelId && isUniqueModelId(modelId)) {
-        const model = modelById.get(modelId)
-        const { modelId: rawId } = parseUniqueModelId(modelId)
-        modelName = model?.name || rawId
-      }
-      return {
-        providerName: getProviderDisplayName(provider),
-        modelName
-      }
-    },
-    [gatewayModelsById, modelById]
-  )
-
-  const resolveProviderMeta = useCallback(
-    (provider: Provider, providerConfig?: CliProviderConfig) =>
-      resolveProviderMetaForTool(selectedCliTool, provider, providerConfig),
-    [resolveProviderMetaForTool, selectedCliTool]
-  )
-
   return {
     refreshModels,
     filterProviders,
     makeModelFilter,
-    resolveProviderMeta,
     gatewayModelsById,
     modelById,
     defaultGatewayModelId,
