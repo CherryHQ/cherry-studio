@@ -414,7 +414,7 @@ export class AuditService extends BaseService {
 
 - Implements `PromiseLike<T>` — can be `await`ed directly
 - `resolve()` can only be called once — double-resolve throws an error
-- Late subscribers receive the resolved value immediately via `onResolved`
+- Late subscribers receive the resolved value immediately via `onResolved` while the signal is not disposed
 - If disposed before `resolve()`, any pending `await` will hang indefinitely (services are stopped in reverse dependency order, so consumers stop before producers)
 
 ## Pause/Resume (Optional)
