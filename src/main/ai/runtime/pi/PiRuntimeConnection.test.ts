@@ -939,7 +939,10 @@ describe('desktop Pi root connection', () => {
       access!.subscribe((update) => updates.push(update))
       answering.open()
       await expect
-        .poll(() => updates.some((update) => update.active && update.patches.some((patch) => patch.type === 'append')))
+        .poll(
+          () => updates.some((update) => update.active && update.patches.some((patch) => patch.type === 'append')),
+          CHILD_WAIT
+        )
         .toBe(true)
       const partial = access!.snapshot()
       // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
