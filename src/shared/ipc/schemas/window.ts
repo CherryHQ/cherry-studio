@@ -51,11 +51,13 @@ export const windowRequestSchemas = {
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
-// All three are sent *directed* to the affected window (IpcApiService.send), never
+// All are sent *directed* to the affected window (IpcApiService.send), never
 // broadcast — a window only cares about its own state transitions.
 export type WindowEventSchemas = {
   'window.maximized_changed': boolean
   'window.fullscreen_changed': boolean
+  // False while minimized or hidden; the document can stay "visible" then, since throttling is off.
+  'window.visibility_changed': boolean
   // Payload = the initData passed to open()/pushInitData(); opaque, consumer casts.
   'window.reused': unknown
 }

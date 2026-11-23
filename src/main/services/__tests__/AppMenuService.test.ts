@@ -127,7 +127,7 @@ describe('AppMenuService', () => {
 
     settingsItem?.click?.(undefined as never, undefined, undefined as never)
 
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined, undefined, 'menu')
   })
 
   it('opens the About settings route from the native app menu', async () => {
@@ -192,8 +192,8 @@ describe('AppMenuService', () => {
     zoomOutItem?.click?.(undefined as never, window, undefined as never)
     zoomResetItem?.click?.(undefined as never, window, undefined as never)
 
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', window)
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.out', window)
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', window)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', window, undefined, 'menu')
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.out', window, undefined, 'menu')
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', window, undefined, 'menu')
   })
 })

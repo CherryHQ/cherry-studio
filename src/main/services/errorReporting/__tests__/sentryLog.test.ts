@@ -79,7 +79,8 @@ vi.mock('@application', async () => {
     PreferenceService: {
       isReady: true,
       get: (key: string) => preferences[key],
-      subscribeChange: () => () => {}
+      subscribeChange: () => () => {},
+      onRendererPreferencesChanged: () => ({ dispose: () => {} })
     }
   })
 })

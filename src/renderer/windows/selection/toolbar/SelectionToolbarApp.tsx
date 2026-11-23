@@ -5,6 +5,7 @@ import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
+import { useUiClickTracking } from '@renderer/hooks/useUsageAnalytics'
 
 import SelectionToolbar from './SelectionToolbar'
 
@@ -12,6 +13,7 @@ import SelectionToolbar from './SelectionToolbar'
 // No dayjs sync — light window (dayjs lives in useWindowRuntime, main/sub only).
 function SelectionToolbarRuntime(): null {
   useLanguageSync()
+  useUiClickTracking('selection')
   useCustomCss()
   return null
 }

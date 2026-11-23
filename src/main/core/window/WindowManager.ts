@@ -1650,6 +1650,12 @@ export class WindowManager extends BaseService {
     window.on('leave-full-screen', () => {
       application.get('IpcApiService').send(windowId, 'window.fullscreen_changed', false)
     })
+    const sendVisibility = (visible: boolean) =>
+      application.get('IpcApiService').send(windowId, 'window.visibility_changed', visible)
+    window.on('minimize', () => sendVisibility(false))
+    window.on('hide', () => sendVisibility(false))
+    window.on('restore', () => sendVisibility(true))
+    window.on('show', () => sendVisibility(true))
 
     // Intercept native close for warmup-tracked windows — hide and return to
     // the idle queue (pool) or preserve hidden state (singleton w/ retention).

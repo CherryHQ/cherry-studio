@@ -6,6 +6,7 @@ import { BaseService, type Disposable, Injectable, Phase, ServicePhase, toDispos
 import { WindowType } from '@main/core/window/types'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import { showNativePopupMenu } from '@main/services/nativePopupMenu'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ContextReader } from '@shared/types/command'
@@ -32,7 +33,7 @@ export class CommandService extends BaseService {
         if (!this.canExecute(command)) {
           return false
         }
-        this.execute(command, window)
+        this.execute(command, window, undefined, 'menu')
         return true
       })
     )
@@ -60,7 +61,12 @@ export class CommandService extends BaseService {
     return Boolean(definition && this.handlers.has(command) && evaluateContextExpr(definition.enablement, context))
   }
 
-  execute(command: CommandId, window?: BrowserWindow, context: ContextReader = this.getDefaultContext()): void {
+  execute(
+    command: CommandId,
+    window?: BrowserWindow,
+    context: ContextReader = this.getDefaultContext(),
+    source: 'shortcut' | 'menu' | 'other' = 'other'
+  ): void {
     const handler = this.handlers.get(command)
     if (!handler || !this.canExecute(command, context)) {
       logger.warn(`Command is not executable: ${command}`)
@@ -71,6 +77,7 @@ export class CommandService extends BaseService {
       void Promise.resolve(handler(window)).catch((error) => {
         logger.error(`Command handler failed: ${command}`, error as Error)
       })
+      trackMainProductEvent({ event: 'command_executed', command, source })
     } catch (error) {
       logger.error(`Command handler failed: ${command}`, error as Error)
     }

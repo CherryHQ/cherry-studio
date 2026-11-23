@@ -233,7 +233,9 @@ export class AppMenuService extends BaseService {
 
     const template = toElectronMenuTemplate(items, {
       executeCommand: (command, context) => {
-        application.get('CommandService').execute(command, context.browserWindow as BrowserWindow | undefined)
+        application
+          .get('CommandService')
+          .execute(command, context.browserWindow as BrowserWindow | undefined, undefined, 'menu')
       }
     })
     const menu = Menu.buildFromTemplate(template)

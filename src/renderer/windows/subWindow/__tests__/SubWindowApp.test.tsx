@@ -14,6 +14,7 @@ const originalMatchMedia = window.matchMedia
 // the window owns MCP interactions even when no tab content is rendered.
 vi.mock('../SubWindowAppShell', () => ({ SubWindowAppShell: () => null }))
 vi.mock('@renderer/hooks/useWindowRuntime', () => ({ useWindowRuntime: () => {} }))
+vi.mock('@renderer/hooks/useUsageAnalytics', () => ({ useTabDwellTracking: () => {}, useUiClickTracking: () => {} }))
 vi.mock('@renderer/components/layout/TabsProvider', () => ({
   TabsProvider: ({ children }: PropsWithChildren) => children
 }))

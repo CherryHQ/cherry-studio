@@ -58,9 +58,9 @@ export function CommandProvider({ children }: { children: ReactNode }) {
     const forScope = (scope: CommandFocusScopeState): CommandRuntime => ({
       registerHandler: (command, handler, options) => scope.registerHandler(command, handler, options),
       hasHandler: (command) => Boolean(findScopeHandler(scope, command)),
-      execute: (command, args) => {
+      execute: (command, args, source) => {
         const entry = findScopeHandler(scope, command)
-        if (entry) runCommandHandler(command, readRegisteredHandler(entry), args)
+        if (entry) runCommandHandler(command, readRegisteredHandler(entry), args, source)
         else logger.warn(`No renderer command handler registered: ${command}`)
       }
     })
@@ -97,7 +97,7 @@ export function CommandProvider({ children }: { children: ReactNode }) {
       const candidate = candidates.get(command)
       if (!candidate || candidate.entry.options.shouldHandleKeyEvent?.(event) === false) return
       event.preventDefault()
-      runCommandHandler(command, candidate.handler)
+      runCommandHandler(command, candidate.handler, undefined, 'shortcut')
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)

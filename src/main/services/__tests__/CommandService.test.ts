@@ -51,7 +51,7 @@ vi.mock('@application', async () => {
   } as any)
 })
 
-vi.mock('@main/core/lifecycle', () => {
+vi.mock('@main/core/lifecycle', async (importOriginal) => {
   class MockBaseService {
     protected readonly handlers = new Map<string, (...args: any[]) => unknown>()
 
@@ -62,6 +62,7 @@ vi.mock('@main/core/lifecycle', () => {
   }
 
   return {
+    ...(await importOriginal<typeof LifecycleModule>()),
     BaseService: MockBaseService,
     Injectable: () => (target: unknown) => target,
     ServicePhase: () => (target: unknown) => target,
@@ -84,6 +85,7 @@ vi.mock('@main/services/mainWindowNavigation', () => ({
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
+import type * as LifecycleModule from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { CommandService } from '../CommandService'
@@ -114,6 +116,21 @@ describe('CommandService', () => {
     service.execute('selection.capture_text')
 
     expect(selectionServiceMock.processSelectTextByShortcut).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a command run from the app menu or a shortcut with its source, and not a blocked one', async () => {
+    const { application } = await import('@application')
+    const track = vi.mocked(application.get('AnalyticsService').trackProductEvent)
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.enabled', false)
+
+    service.execute('app.settings.open', undefined, undefined, 'menu')
+    service.execute('app.window.show', undefined, undefined, 'shortcut')
+    service.execute('quick_assistant.toggle', undefined, undefined, 'shortcut')
+
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'command_executed', command: 'app.settings.open', source: 'menu' },
+      { event: 'command_executed', command: 'app.window.show', source: 'shortcut' }
+    ])
   })
 
   it('gates screenshot.capture on the feature preference through the command context', () => {
