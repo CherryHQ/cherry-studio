@@ -27,6 +27,7 @@ import { stat } from 'node:fs/promises'
 import { loggerService } from '@logger'
 import type { Event } from '@main/core/lifecycle'
 import { Emitter } from '@main/core/lifecycle'
+import { getErrorCode } from '@main/utils/error'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -144,7 +145,7 @@ const defaultStatProbe = async (path: AbsoluteFilePath): Promise<DanglingState> 
 
     return 'present'
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code
+    const code = getErrorCode(err)
 
     if (code === 'ENOENT' || code === 'ENOTDIR') return 'missing'
     logger.warn('statProbe failed; reporting unknown', { path, code, err })

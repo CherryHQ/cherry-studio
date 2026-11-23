@@ -2,6 +2,7 @@ import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { getErrorCode } from '@main/utils/error'
 import { isSameOrInside } from '@main/utils/file'
 
 function overlaps(a: string, b: string): boolean {
@@ -18,7 +19,7 @@ async function nearestExistingRealPath(candidate: string): Promise<string> {
 
       return path.resolve(physical, ...missing)
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
+      const code = getErrorCode(error)
 
       if (code !== 'ENOENT') throw error
       const parent = path.dirname(probe)

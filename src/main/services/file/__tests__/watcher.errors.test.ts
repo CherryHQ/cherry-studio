@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 
+import type { WatcherEvent } from '../watcher'
+
 const mocks = vi.hoisted(() => {
   type Handler = (...args: unknown[]) => void
 
@@ -118,4 +120,58 @@ describe('DirectoryWatcher error recovery', () => {
 
     await watcher.close()
   })
+
+  it('retains the original Error in fatal events', async () => {
+    const createDirectoryWatcher = await loadCreateDirectoryWatcher(false)
+    const watcher = createDirectoryWatcher('/notes' as AbsoluteFilePath)
+    const events: WatcherEvent[] = []
+    watcher.onEvent((event) => events.push(event))
+    const error = new Error('watcher failed')
+
+    mocks.watchers[0].emit('error', error)
+
+    expect(events).toEqual([{ kind: 'error', error }])
+    expect(events[0].kind === 'error' && events[0].error).toBe(error)
+    await watcher.close()
+  })
+
+  it('normalizes non-Error failures for fatal events without discarding the cause', async () => {
+    const createDirectoryWatcher = await loadCreateDirectoryWatcher(false)
+    const watcher = createDirectoryWatcher('/notes' as AbsoluteFilePath)
+    const errors: Error[] = []
+    watcher.onEvent((event) => {
+      if (event.kind === 'error') errors.push(event.error)
+    })
+
+    mocks.watchers[0].emit('error', 'watcher unavailable')
+    mocks.watchers[0].emit('error', null)
+    const revoked = Proxy.revocable({}, {})
+    revoked.revoke()
+    mocks.watchers[0].emit('error', revoked.proxy)
+
+    expect(errors).toHaveLength(3)
+    expect(errors.every((error) => error instanceof Error)).toBe(true)
+    expect(errors[0].message).toBe('watcher unavailable')
+    expect(errors[0].cause).toBe('watcher unavailable')
+    expect(errors[1].cause).toBeNull()
+    expect(errors[2].cause).toBe(revoked.proxy)
+    await watcher.close()
+  })
+
+  it.each([{ code: 'EMFILE' }, { message: 'EMFILE: too many open files' }])(
+    'uses non-Error diagnostics %s to recover with polling before emitting a fatal event',
+    async (error) => {
+      const createDirectoryWatcher = await loadCreateDirectoryWatcher(false)
+      const watcher = createDirectoryWatcher('/notes' as AbsoluteFilePath)
+      const events: WatcherEvent[] = []
+      watcher.onEvent((event) => events.push(event))
+
+      mocks.watchers[0].emit('error', error)
+
+      expect(events).toEqual([])
+      mocks.watchers[1].emit('change', '/notes/file.md')
+      expect(events).toEqual([{ kind: 'change', path: '/notes/file.md' }])
+      await watcher.close()
+    }
+  )
 })

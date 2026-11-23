@@ -10,6 +10,7 @@ import { application } from '@application'
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase, Emitter } from '@main/core/lifecycle'
+import { getErrorCode } from '@main/utils/error'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -378,7 +379,7 @@ export class FileIntakeService extends BaseService {
 
           digest = hash.digest('hex')
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || !upload.entryId || !upload.sha256) throw error
+          if (getErrorCode(error) !== 'ENOENT' || !upload.entryId || !upload.sha256) throw error
           // Publication recovery rehashes the surviving managed file before exposing its entry.
           digest = upload.sha256
           byteLength = upload.byteLength

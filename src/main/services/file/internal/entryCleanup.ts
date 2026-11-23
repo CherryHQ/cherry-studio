@@ -13,6 +13,7 @@
  */
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { EntryCleanupSummary } from '@shared/types/file'
 
@@ -160,7 +161,7 @@ export async function runEntryCleanup(
         failed++
         logger.warn('file-entry-cleanup: candidate failed, retried next pass', {
           id: candidate.id,
-          code: (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+          code: getErrorCode(err) ?? 'UNKNOWN'
         })
       }
     }
@@ -188,7 +189,7 @@ export async function runEntryCleanup(
         unlinkFailures: 0,
         durationMs: Date.now() - startedAt
       },
-      (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      getErrorCode(err) ?? 'UNKNOWN'
     )
   }
 }

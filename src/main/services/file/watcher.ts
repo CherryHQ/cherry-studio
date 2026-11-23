@@ -29,6 +29,7 @@ import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { getErrorCode, getErrorMessage } from '@main/utils/error'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { danglingCache } from './danglingCache'
@@ -136,18 +137,40 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
     fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p }))
     fsw.on('unlinkDir', (p) => this.handle({ kind: 'unlinkDir', path: p }))
     fsw.on('ready', () => this.emitter.fire({ kind: 'ready' }))
-    fsw.on('error', (err) => this.handleError(err as Error))
+    fsw.on('error', (err) => this.handleError(err))
 
     return fsw
   }
 
-  private handleError(err: Error): void {
-    const code = (err as NodeJS.ErrnoException).code
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Chokidar's error event forwards unknown failures; preserve native Errors and normalize other values for the public WatcherEvent contract.
+  private handleError(err: unknown): void {
+    let error: Error
+
+    try {
+      if (err instanceof Error) {
+        error = err
+      } else {
+        const message =
+          err !== null && (typeof err === 'object' || typeof err === 'function')
+            ? Reflect.get(err, 'message') // oxlint-disable-line anti-slop/no-reflect-get -- Preserve message-based recovery for plain objects and virtual Proxy fields.
+            : undefined
+
+        error = new Error(
+          typeof message === 'string' ? message : getErrorMessage(err, 'Unknown filesystem watcher error'),
+          { cause: err }
+        )
+      }
+    } catch {
+      error = new Error('Unreadable filesystem watcher error', { cause: err })
+    }
+
+    const code = getErrorCode(err)
+    const message = getErrorMessage(error, 'Unknown filesystem watcher error')
 
     const isWindowsLockError =
-      isWin && (code === 'EPERM' || code === 'EBUSY' || err.message.includes('EPERM') || err.message.includes('EBUSY'))
+      isWin && (code === 'EPERM' || code === 'EBUSY' || message.includes('EPERM') || message.includes('EBUSY'))
 
-    const shouldFallbackToPolling = code === 'EMFILE' || err.message.includes('EMFILE') || isWindowsLockError
+    const shouldFallbackToPolling = code === 'EMFILE' || message.includes('EMFILE') || isWindowsLockError
 
     if (!this.closed && !this.usingPolling && shouldFallbackToPolling) {
       logger.warn(`chokidar native watcher hit ${code ?? 'an OS error'}; falling back to polling`, err)
@@ -165,7 +188,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
       // parent dir, etc.) silently stop event delivery; without this log a
       // dead watcher leaves the cache stale with no diagnostic trace.
       logger.error('chokidar error', err)
-      this.emitter.fire({ kind: 'error', error: err })
+      this.emitter.fire({ kind: 'error', error })
     }
   }
 

@@ -1,6 +1,8 @@
 import { realpathSync } from 'node:fs'
 import path from 'node:path'
 
+import { getErrorCode } from '@main/utils/error'
+
 export type PathNameBehavior = { caseSensitive: boolean; unicodeSensitive: boolean }
 
 /** Preserve claims beneath missing directories or a parent that was replaced by a file. */
@@ -12,7 +14,7 @@ export function nearestExistingRealPathSync(value: string): string {
     try {
       return path.join(realpathSync.native(current), ...missing)
     } catch (error) {
-      if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+      if (!['ENOENT', 'ENOTDIR'].includes(getErrorCode(error) ?? '')) throw error
       const parent = path.dirname(current)
 
       if (parent === current) throw error

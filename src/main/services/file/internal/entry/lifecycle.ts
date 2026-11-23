@@ -20,6 +20,7 @@
 
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import { remove as fsRemove } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -80,7 +81,7 @@ export async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntr
     } catch (err) {
       logger.warn('permanentDelete: failed to unlink internal physical file (DB row already removed)', {
         id: entry.id,
-        code: (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+        code: getErrorCode(err) ?? 'UNKNOWN'
       })
 
       return { unlinkFailed: true }

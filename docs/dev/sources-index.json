@@ -331,7 +331,7 @@
     },
     {
       "path": "docs/dev/references/file/file-manager-architecture.md",
-      "sources": ["src/main/data/db/schemas/file.ts","src/main/data/services/FileEntryService.ts","src/main/data/services/FileRefService.ts","src/main/services/file","src/shared/data/types/file.ts"]
+      "sources": ["src/main/data/db/schemas/file.ts","src/main/data/services/FileEntryService.ts","src/main/data/services/FileRefService.ts","src/main/services/file","src/main/utils/error.ts","src/main/utils/file","src/shared/data/types/file.ts"]
     },
     {
       "path": "docs/dev/references/file/fuzzy-search.md",

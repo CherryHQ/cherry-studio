@@ -8,6 +8,7 @@ import { access, constants, lstat, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { isMac, isWin } from '@main/core/platform'
+import { getErrorCode } from '@main/utils/error'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 const notImplemented = (op: string): never => {
@@ -102,14 +103,14 @@ export async function canonicalizePathForContainment(
   try {
     return await realpath(target)
   } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    if (!allowMissing || getErrorCode(error) !== 'ENOENT') return undefined
 
     try {
       await lstat(target)
 
       return undefined
     } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      if (getErrorCode(statError) !== 'ENOENT') return undefined
     }
   }
 
@@ -119,14 +120,14 @@ export async function canonicalizePathForContainment(
     try {
       return path.resolve(await realpath(parent), path.relative(parent, target))
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      if (getErrorCode(error) !== 'ENOENT') return undefined
 
       try {
         await lstat(parent)
 
         return undefined
       } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+        if (getErrorCode(statError) !== 'ENOENT') return undefined
       }
 
       const next = path.dirname(parent)

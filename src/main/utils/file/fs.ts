@@ -49,6 +49,7 @@ import { finished, pipeline } from 'node:stream/promises'
 import mime from 'mime'
 
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -149,7 +150,7 @@ export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadabi
 
     return 'readable'
   } catch (error) {
-    return (error as NodeJS.ErrnoException)?.code === 'ENOENT' ? 'missing' : 'unverifiable'
+    return getErrorCode(error) === 'ENOENT' ? 'missing' : 'unverifiable'
   }
 }
 
@@ -178,7 +179,7 @@ export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Prom
 
     return sa.dev === sb.dev && sa.ino === sb.ino
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code
+    const code = getErrorCode(err)
 
     if (code !== 'ENOENT') {
       logger.warn('isSameFile: stat failed, treating as different file', { a, b, code, err })
@@ -239,7 +240,7 @@ async function fsyncDirectoryOf(target: string): Promise<void> {
       await dirHandle.close()
     }
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code
+    const code = getErrorCode(err)
 
     if (shouldSilenceFsyncDirError(code)) return
     logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { code })
@@ -285,7 +286,7 @@ async function bestEffortUnlinkTmp(tmp: string): Promise<void> {
   try {
     await unlink(tmp)
   } catch (unlinkErr) {
-    const code = (unlinkErr as NodeJS.ErrnoException).code
+    const code = getErrorCode(unlinkErr)
 
     if (code !== 'ENOENT') {
       logger.warn('atomicWriteFile: tmp cleanup failed; tmp file may remain on disk', {
@@ -867,13 +868,13 @@ export async function move(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promi
   try {
     await rename(src, dest)
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    if (getErrorCode(err) !== 'EXDEV') throw err
     await copy(src, dest)
 
     try {
       await unlink(src)
     } catch (unlinkErr) {
-      const code = (unlinkErr as NodeJS.ErrnoException).code
+      const code = getErrorCode(unlinkErr)
 
       if (code !== 'ENOENT') {
         logger.warn('move: cross-device copy succeeded but source unlink failed; src remains on disk', {
@@ -892,7 +893,7 @@ export async function remove(target: AbsoluteFilePath): Promise<void> {
   try {
     await unlink(target)
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+    if (getErrorCode(err) !== 'ENOENT') throw err
   }
 }
 

@@ -1,4 +1,5 @@
 import type { JobHandler } from '@main/core/job/types'
+import { getErrorCode } from '@main/utils/error'
 import { hashWithSize } from '@main/utils/file'
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 
@@ -62,7 +63,7 @@ export function createContentHashBackfillJobHandler(deps: FileManagerDeps): JobH
               metadata = await hashWithSize(resolvePhysicalPath(entry), ctx.signal)
             } catch (error) {
               if (ctx.signal.aborted) throwIfAborted(ctx.signal)
-              const code = (error as NodeJS.ErrnoException).code
+              const code = getErrorCode(error)
 
               if (code === 'ENOENT' || code === 'ENOTDIR') {
                 ctx.logger.warn('contentHash backfill: skipped orphan entry (blob missing)', { id: entry.id, code })

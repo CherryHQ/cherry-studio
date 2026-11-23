@@ -4,6 +4,7 @@ import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { getErrorCode } from '@main/utils/error'
 import { prepareAtomicCopy, createContentHasher } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -40,7 +41,7 @@ export async function publishIntake(deps: FileManagerDeps, input: PublishFileInt
     try {
       await stat(physical)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (getErrorCode(error) !== 'ENOENT') throw error
       const prepared = await prepareAtomicCopy(input.path, physical)
 
       try {

@@ -27,6 +27,7 @@ import path from 'node:path'
 import ignore, { type Ignore } from 'ignore'
 
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 
 const logger = loggerService.withContext('file/tree/gitignore')
 
@@ -111,7 +112,7 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
     // EACCES / EIO / other = the file exists but we couldn't read it;
     // worth logging so a confused operator (or a future incident) can
     // trace why `.gitignore` rules silently stopped applying.
-    const code = (err as NodeJS.ErrnoException).code
+    const code = getErrorCode(err)
 
     if (code !== 'ENOENT') {
       logger.warn(`Could not read .gitignore under ${normalizedRoot} (${code ?? 'unknown'})`, err)

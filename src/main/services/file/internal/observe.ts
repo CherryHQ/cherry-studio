@@ -23,6 +23,7 @@
  * - Any other throw → re-throws unchanged (no cache mutation, no swallow).
  */
 
+import { getErrorCode } from '@main/utils/error'
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -38,7 +39,7 @@ export async function observeExternalAccess<T>(
     return await op()
   } catch (err) {
     if (entry.origin === 'external') {
-      const code = (err as NodeJS.ErrnoException).code
+      const code = getErrorCode(err)
 
       if (code === 'ENOENT' || code === 'ENOTDIR') {
         deps.danglingCache.onFsEvent(physicalPath, 'missing', 'ops')

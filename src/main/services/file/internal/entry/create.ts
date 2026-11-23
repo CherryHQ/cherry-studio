@@ -18,6 +18,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import {
   prepareAtomicCopy,
   prepareAtomicDownload,
@@ -40,7 +41,7 @@ async function bestEffortCleanup(id: FileEntryId, physical: AbsoluteFilePath, co
   try {
     await fsRemove(physical)
   } catch (cleanupErr) {
-    const code = (cleanupErr as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+    const code = getErrorCode(cleanupErr) ?? 'UNKNOWN'
 
     if (code !== 'ENOENT') {
       logger.warn(`${context}: cleanup unlink failed; physical blob may remain on disk`, {
@@ -190,7 +191,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   } catch (err) {
     logger.warn('createInternal: DB insert failed; unlinking physical file', {
       id,
-      code: (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+      code: getErrorCode(err) ?? 'UNKNOWN'
     })
     await bestEffortCleanup(id, physical, 'createInternal:db-insert-failed')
     throw err
@@ -350,7 +351,7 @@ async function resolveCaseCollisionPeer(newCanonical: AbsoluteFilePath, peers: F
 
       if (peerReal === newReal) return peer
     } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
+      const code = getErrorCode(err)
 
       if (code === 'ENOENT' || code === 'ENOTDIR') continue
       throw err

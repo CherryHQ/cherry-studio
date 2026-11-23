@@ -43,6 +43,7 @@ import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
 
 import { resolvePhysicalPath } from '../utils/pathResolver'
@@ -403,7 +404,7 @@ async function runFileSweepInner(
     try {
       dirents = await readdir(filesDir)
     } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
+      const code = getErrorCode(err)
 
       if (code === 'ENOENT') {
         // First-run / fresh install: feature.files.data is auto-ensured by
@@ -435,7 +436,7 @@ async function runFileSweepInner(
       try {
         st = await lstat(fullPath)
       } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code
+        const code = getErrorCode(err)
 
         if (code !== 'ENOENT') {
           statFailedCount++
@@ -558,7 +559,7 @@ async function runFileSweepInner(
           oldestDeletedMtime = target.mtimeMs
         }
       } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code
+        const code = getErrorCode(err)
 
         if (code === 'ENOENT') continue // genuinely fine — concurrent deletion
         failedDeleted++

@@ -26,6 +26,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
+import { getErrorCode } from '@main/utils/error'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import {
   type DirectoryTreeOptions,
@@ -111,7 +112,7 @@ async function findNearestExistingDirectory(absPath: string): Promise<string> {
 
       if (stats.isDirectory()) return candidate
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (getErrorCode(error) !== 'ENOENT') throw error
     }
 
     const parent = normalizePath(path.posix.dirname(candidate))
@@ -227,7 +228,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       try {
         await nodeStat(this.rootPath)
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        if (getErrorCode(error) !== 'ENOENT') throw error
         this.rootMissingAtInit = true
         this.watcherRootPath = await findNearestExistingDirectory(this.rootPath)
       }
@@ -250,7 +251,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       try {
         await nodeStat(this.rootPath)
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+        if (getErrorCode(error) === 'ENOENT') return
         throw error
       }
     }
@@ -271,7 +272,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
         maxEntries: Number.MAX_SAFE_INTEGER
       })
     } catch (error) {
-      if (this.options.watchMissingRoot && (error as NodeJS.ErrnoException).code === 'ENOENT') return
+      if (this.options.watchMissingRoot && getErrorCode(error) === 'ENOENT') return
       throw error
     }
 

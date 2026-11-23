@@ -6,6 +6,8 @@ sources:
   - src/main/data/services/FileRefService.ts
   - src/main/data/db/schemas/file.ts
   - src/shared/data/types/file.ts
+  - src/main/utils/error.ts
+  - src/main/utils/file
 ---
 
 # FileManager Architecture
@@ -249,6 +251,14 @@ not retry blindly.
 - External rename moves the file inside its current parent and updates path/name in the DB. On a
   DB failure, the implementation best-effort moves the file back.
 
+Filesystem recovery and cleanup diagnostics read only a string `code` through
+`src/main/utils/error.ts#getErrorCode`; they do not assume a caught value is a complete
+`NodeJS.ErrnoException`. Missing, non-string, or unreadable codes remain unclassified. Each operation
+keeps its own recovery policy: managed-storage resolution and missing-root initialization accept
+only `ENOENT`, while external-presence checks also recognize `ENOTDIR`. Error inspection must not
+replace the original failure or interrupt compensation; privacy-restricted cleanup logs retain
+their code-only `UNKNOWN` fallback.
+
 ## 7. Reference Cleanup
 
 `manual` entries with no persistent refs are preserved and can be reported by the DB sweep.
@@ -278,8 +288,11 @@ activity remains an `unlink` plus `add`; the generic watcher does not detect or 
 Options cover recursion/depth, an ignore predicate, write-stability threshold, and whether the
 initial scan emits entries.
 
-Built-in OS-junk names are always ignored. On `EMFILE`, and on Windows `EPERM`, the wrapper retries
-with polling. Other errors are logged and emitted. `close()` is idempotent.
+Built-in OS-junk names are always ignored. On `EMFILE`, and on Windows `EPERM` or `EBUSY`, the wrapper
+retries once with polling; matching message text remains a fallback when a code is absent. Other
+errors are logged and emitted. Chokidar's error callback accepts unknown values, while public
+`WatcherEvent` errors are always `Error` instances: native errors retain their identity, and other
+failures are wrapped with their original value as the cause. `close()` is idempotent.
 
 The factory mirrors file `add`/`unlink` observations into `DanglingCache`. The only production
 constructor today is `DirectoryTreeBuilder`; there is no global watcher covering every external
