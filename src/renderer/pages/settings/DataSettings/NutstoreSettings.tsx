@@ -31,7 +31,6 @@ import {
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
 import NutstorePathPopup from './NutstorePathPopup'
@@ -191,7 +190,7 @@ const NutstoreSettings: FC = () => {
         {nutstoreSyncState.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <WarnTooltip
-            content={formatErrorMessageWithPrefix(nutstoreSyncState.lastSyncError, t('settings.data.webdav.syncError'))}
+            content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
             iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}

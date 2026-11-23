@@ -1,11 +1,14 @@
 import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { setBackupSyncState } from '@renderer/services/BackupService'
 import { toast } from '@renderer/services/toast'
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 vi.mock('@renderer/components/LocalBackupManager', () => ({ LocalBackupManager: () => null }))
 vi.mock('@renderer/components/LocalBackupModals', () => ({
   LocalBackupModal: () => null,
@@ -75,5 +78,21 @@ describe('LocalBackupSettings', () => {
     })
     expect(MockUsePreferenceUtils.getPreferenceValue('data.backup.local.dir')).toBe('/saved-backups')
     expect(input).toHaveValue('/saved-backups')
+  })
+
+  it('keeps the stored, already translated failure reason in the status tooltip', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('data.backup.local.sync_interval', 60)
+    await i18next.changeLanguage('de-DE')
+    const reason = i18next.t('backup.error.disk_full')
+    try {
+      act(() => setBackupSyncState('local', { lastSyncError: reason, lastSyncTime: Date.now() }))
+      render(<LocalBackupSettings />)
+
+      // The warning icon's accessible label is its tooltip text.
+      expect(screen.getByLabelText(new RegExp(reason))).toBeInTheDocument()
+    } finally {
+      act(() => setBackupSyncState('local', { lastSyncError: null, lastSyncTime: null }))
+      await i18next.changeLanguage('en-US')
+    }
   })
 })
