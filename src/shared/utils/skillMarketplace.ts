@@ -373,6 +373,13 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
   }
 ]
 
+/** Every registry failed; `failures` keeps each registry's own cause for the one the user selected. */
+export class SkillSearchFailedError extends Error {
+  constructor(readonly failures: Partial<Record<SkillSearchSource, unknown>>) {
+    super(SKILL_SEARCH_FAILED_ERROR, { cause: Object.values(failures)[0] })
+  }
+}
+
 /**
  * Search every supported registry with caller-provided transport.
  * Partial failures are preserved; only an all-source failure rejects.
@@ -391,19 +398,19 @@ export async function searchSkillMarketplaces(
     sources.map(async (source) => source.normalize(await fetchJson(source.buildUrl(trimmed))))
   )
   const combined: SkillSearchResult[] = []
-  const failures: unknown[] = []
+  const failures: Partial<Record<SkillSearchSource, unknown>> = {}
 
   for (const [index, result] of settled.entries()) {
     if (result.status === 'fulfilled') {
       combined.push(...result.value)
     } else {
-      failures.push(result.reason)
+      failures[sources[index].name] = result.reason
       onSourceFailure?.(sources[index].name, result.reason)
     }
   }
 
-  if (failures.length === sources.length) {
-    throw new Error(SKILL_SEARCH_FAILED_ERROR, { cause: failures[0] })
+  if (Object.keys(failures).length === sources.length) {
+    throw new SkillSearchFailedError(failures)
   }
 
   const seen = new Set<string>()
