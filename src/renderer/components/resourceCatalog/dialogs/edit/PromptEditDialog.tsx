@@ -12,6 +12,8 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
@@ -43,11 +45,20 @@ interface FormData {
   visibility: PromptVisibility
 }
 
+export interface PromptEditFailure {
+  readonly error: unknown
+  readonly title: string
+  readonly operation: string
+  readonly recordId?: string
+}
+
 interface PromptEditDialogProps {
   open: boolean
   prompt?: Prompt | null
   defaultVisibility?: PromptVisibility
   saving?: boolean
+  /** A save failure shown inside the dialog, since its focus trap keeps a toast's Details out of keyboard reach. */
+  failure?: PromptEditFailure | null
   onSave: (data: { title: string; content: string; visibility: PromptVisibility }) => Promise<void>
   onCancel: () => void
 }
@@ -57,6 +68,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
   prompt,
   defaultVisibility = 'global',
   saving,
+  failure,
   onSave,
   onCancel
 }) => {
@@ -212,6 +224,22 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
             />
           </div>
         </div>
+
+        {failure ? (
+          <ErrorNotice
+            variant="inline"
+            title={failure.title}
+            detail={
+              <ErrorDetailAction
+                error={failure.error}
+                message={failure.title}
+                source="settings.prompts"
+                operation={failure.operation}
+                {...(failure.recordId ? { recordId: failure.recordId } : {})}
+              />
+            }
+          />
+        ) : null}
 
         <DialogFooter>
           <Button variant="outline" onClick={onCancel} disabled={isSaving}>

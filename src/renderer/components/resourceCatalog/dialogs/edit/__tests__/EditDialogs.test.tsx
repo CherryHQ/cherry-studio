@@ -38,6 +38,7 @@ const {
   ipcRequestMock,
   knowledgeBasesState,
   mcpStatusState,
+  openDetailMock,
   openSettingsTabMock,
   promptCatalogState,
   promptProcessorMock,
@@ -81,6 +82,7 @@ const {
     ]
   },
   mcpStatusState: { current: {} },
+  openDetailMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
   promptCatalogState: {
     current: {
@@ -331,6 +333,11 @@ vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
     useDefaultModel: () => ({ defaultModel: DEFAULT_PROMPT_MODEL })
   }
 })
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => openDetailMock(request),
+  showDetailOpenFailed: vi.fn()
+}))
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: openSettingsTabMock
@@ -806,6 +813,12 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
 })
+
+async function tabTo(target: HTMLElement) {
+  const user = userEvent.setup()
+  for (let step = 0; step < 80 && document.activeElement !== target; step++) await user.tab()
+  expect(target).toHaveFocus()
+}
 
 function selectTab(name: string) {
   const tab = screen.getByRole('tab', { name })
@@ -1295,15 +1308,53 @@ describe('edit dialogs', () => {
     expect(within(alert).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
   })
 
-  it('titles a failed prompt link with the translated conclusion and keeps the raw text as the cause', async () => {
-    const cause = new Error('FOREIGN KEY constraint failed')
-    bindPromptMock.mockRejectedValueOnce(cause)
-    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
+  // The edit dialog traps focus, so a Details entry that only lives in the global toast is unreachable by keyboard.
+  it('keeps a failed prompt link inside the edit dialog with keyboard-reachable Details', async () => {
+    const user = userEvent.setup()
+    bindPromptMock.mockRejectedValueOnce(new Error('FOREIGN KEY constraint failed'))
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
+    selectTab('Prompts')
     fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
     fireEvent.click(await screen.findByText('Reusable prompt'))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith({ title: 'Failed to link prompt', cause }))
+    const panel = screen.getByRole('tabpanel', { name: 'Prompts' })
+    expect(await within(panel).findByText('Failed to link prompt')).toBeVisible()
+    await tabTo(within(panel).getByRole('button', { name: /common\.detail/ }))
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(openDetailMock).toHaveBeenCalledTimes(1))
+    expect(openDetailMock.mock.calls[0][0].context).toMatchObject({
+      message: 'FOREIGN KEY constraint failed',
+      operation: 'prompt.bind',
+      recordId: '00000000-0000-4000-8000-000000000001'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed prompt creation inside the nested create dialog with keyboard-reachable Details', async () => {
+    const user = userEvent.setup()
+    createPromptMock.mockRejectedValueOnce(new Error('SQLITE_FULL: database or disk is full'))
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Prompts')
+    await user.click(screen.getByRole('button', { name: 'Add prompt' }))
+    const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
+    await user.type(within(createDialog).getByLabelText('Title'), 'Created prompt')
+    await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Created prompt content')
+    await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
+
+    expect(await within(createDialog).findByText('Failed to create prompt')).toBeVisible()
+    expect(within(createDialog).getByLabelText('Title')).toHaveValue('Created prompt')
+    await tabTo(within(createDialog).getByRole('button', { name: /common\.detail/ }))
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(openDetailMock).toHaveBeenCalledTimes(1))
+    expect(openDetailMock.mock.calls[0][0].context).toMatchObject({
+      message: 'SQLITE_FULL: database or disk is full',
+      operation: 'prompt.create'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('keeps a new target binding locked when the previous target request settles', async () => {

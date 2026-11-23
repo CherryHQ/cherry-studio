@@ -8,10 +8,9 @@ import { useReorder } from '@data/hooks/useReorder'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
-import { toast } from '@renderer/services/toast'
 import type { PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 
-import { PromptEditDialog } from '../edit'
+import { PromptEditDialog, type PromptEditFailure } from '../edit'
 import { AddCatalogPopover, CatalogEmptyPlaceholder } from './CatalogPicker'
 import { FieldLabelWithHelp } from './EditDialogShared'
 
@@ -26,6 +25,9 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
   const { t } = useTranslation()
   const [isCreatePromptOpen, setIsCreatePromptOpen] = useState(false)
   const [isBinding, setIsBinding] = useState(false)
+  // This tab lives in a focus-trapped edit dialog, so failures stay inline instead of in a toast.
+  const [bindingFailure, setBindingFailure] = useState<PromptEditFailure | null>(null)
+  const [createFailure, setCreateFailure] = useState<PromptEditFailure | null>(null)
   const isBindingRef = useRef(false)
   const bindingOperationGenerationRef = useRef(0)
   const bindingTarget = useMemo<PromptBindingTarget>(
@@ -68,6 +70,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
     isBindingRef.current = false
     setIsBinding(false)
     setIsCreatePromptOpen(false)
+    setBindingFailure(null)
   }, [bindingTarget.id, bindingTarget.type])
 
   useEffect(() => {
@@ -90,6 +93,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
       const operationGeneration = bindingOperationGenerationRef.current
       isBindingRef.current = true
       setIsBinding(true)
+      setBindingFailure(null)
       try {
         if (shouldBind) {
           await bindPrompt(promptId)
@@ -97,10 +101,14 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
           await unbindPrompt(promptId)
         }
       } catch (error) {
-        toast.error({
-          title: t(shouldBind ? 'settings.prompts.errors.bindFailed' : 'settings.prompts.errors.unbindFailed'),
-          cause: error
-        })
+        if (bindingOperationGenerationRef.current === operationGeneration) {
+          setBindingFailure({
+            error,
+            title: t(shouldBind ? 'settings.prompts.errors.bindFailed' : 'settings.prompts.errors.unbindFailed'),
+            operation: shouldBind ? 'prompt.bind' : 'prompt.unbind',
+            recordId: promptId
+          })
+        }
       } finally {
         if (bindingOperationGenerationRef.current === operationGeneration) {
           isBindingRef.current = false
@@ -113,6 +121,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
 
   const handleCreatePrompt = useCallback(
     async (data: { title: string; content: string; visibility: PromptVisibility }) => {
+      setCreateFailure(null)
       try {
         await createPrompt({
           ...data,
@@ -120,7 +129,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
         })
         setIsCreatePromptOpen(false)
       } catch (error) {
-        toast.error({ title: t('settings.prompts.errors.createFailed'), cause: error })
+        setCreateFailure({ error, title: t('settings.prompts.errors.createFailed'), operation: 'prompt.create' })
         throw error
       }
     },
@@ -131,7 +140,11 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
   const isLoading = isAllPromptsLoading || isBoundPromptsLoading
   const handleReorderError = useCallback(
     (reorderError: unknown) => {
-      toast.error({ title: t('settings.prompts.errors.reorderFailed'), cause: reorderError })
+      setBindingFailure({
+        error: reorderError,
+        title: t('settings.prompts.errors.reorderFailed'),
+        operation: 'prompt.reorder'
+      })
     },
     [t]
   )
@@ -156,7 +169,10 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
               variant="outline"
               size="sm"
               disabled={!enabled || isBinding}
-              onClick={() => setIsCreatePromptOpen(true)}>
+              onClick={() => {
+                setCreateFailure(null)
+                setIsCreatePromptOpen(true)
+              }}>
               <Plus size={12} className="shrink-0" />
               {t('settings.prompts.add')}
             </Button>
@@ -184,6 +200,23 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
             {t('settings.prompts.manageGlobal')}
           </Button>
         </div>
+
+        {bindingFailure ? (
+          <ErrorNotice
+            variant="inline"
+            title={bindingFailure.title}
+            onDismiss={() => setBindingFailure(null)}
+            detail={
+              <ErrorDetailAction
+                error={bindingFailure.error}
+                message={bindingFailure.title}
+                source="settings.prompts"
+                operation={bindingFailure.operation}
+                {...(bindingFailure.recordId ? { recordId: bindingFailure.recordId } : {})}
+              />
+            }
+          />
+        ) : null}
 
         {error ? (
           <ErrorNotice
@@ -266,6 +299,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
       <PromptEditDialog
         open={isCreatePromptOpen}
         defaultVisibility="restricted"
+        failure={createFailure}
         onSave={handleCreatePrompt}
         onCancel={() => setIsCreatePromptOpen(false)}
       />
