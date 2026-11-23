@@ -11,7 +11,7 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { JSONParseError } from 'ai'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { ipcMain } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
 
 import { application } from '@application'
@@ -293,7 +293,7 @@ describe('Sentry log reporting', () => {
           { ...context, exception: { values: [exception] } },
           { originalException: reported }
         )
-        expect(candidate).not.toBeNull()
+        assert(candidate)
         const sanitized = sanitizeSentryEvent(candidate)
         expect(JSON.stringify(sanitized)).not.toMatch(/my diary|privateDiary|private-document\.txt/)
         expect(context.tags).toMatchObject({ operation: 'file.get_metadata', 'failure.reason': 'ipc_handler_failed' })
@@ -341,7 +341,7 @@ describe('Sentry log reporting', () => {
       expect(captureExceptionMock.mock.calls).toHaveLength(0)
       expect(captureEventMock.mock.calls).toHaveLength(1)
       const candidate = service.filterEvent(captureEventMock.mock.calls[0][0])
-      expect(candidate).not.toBeNull()
+      assert(candidate)
       expect(candidate?.tags).toMatchObject({ operation: 'data.request', 'failure.reason': 'execution_failed' })
       expect(JSON.stringify(sanitizeSentryEvent(candidate))).not.toMatch(/my diary|privateDiary|private-document\.txt/)
     }

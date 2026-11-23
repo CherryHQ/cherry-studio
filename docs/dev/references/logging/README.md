@@ -35,6 +35,10 @@ Production Sentry uploads require data collection to be enabled and the current
 privacy policy to be accepted. Disabling collection blocks outbound reporting;
 local logging continues.
 
+Error-event sanitization removes sensitive fields and redacts credentials in
+free-text diagnostics. Processing metadata remains available to the SDK, which
+excludes it from the error-event payload before transport.
+
 The main-process SDK initializes during preboot in `sentry.ts`, so automatic
 exception capture is installed before lifecycle services start. Reporting stays
 blocked until `PreferenceService` is ready and consent is valid; the same check

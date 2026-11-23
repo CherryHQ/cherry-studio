@@ -1,8 +1,9 @@
+import type { ErrorEvent } from '@sentry/electron/renderer'
 import { prerelease } from 'semver'
 
 import type { AppEdition } from '../types/appEdition'
 import { hasReportingOwner, isCancellation, parseFailureFacts, shouldReportFailure } from './errorReporting'
-import { isSensitiveKey, REDACTED, redactSecretText } from './redaction'
+import { isSensitiveKey, redactSecretText } from './redaction'
 
 export function getSentryBuildContext(name: string, version: string, edition: AppEdition) {
   return {
@@ -53,12 +54,20 @@ export function getSentryLogContext(info: Record<string, unknown>) {
   return { tags, extra: componentStack ? { componentStack } : undefined }
 }
 
-export function sanitizeSentryEvent<T>(event: T): T {
-  return JSON.parse(
-    JSON.stringify(event, (key, value) => {
-      if (isSensitiveKey(key)) return REDACTED
+/** For SDK beforeSend payloads; processing metadata stays under SDK ownership. */
+export function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
+  const { sdkProcessingMetadata, ...payload } = event
+
+  // SAFETY: The SDK beforeSend producers supply finite numeric fields and closed literals unchanged by text redaction.
+  // Sensitive optional/dictionary fields are omitted; the undefined discriminator and opaque SDK metadata bypass JSON projection.
+  const sanitized = JSON.parse(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON serialization supplies arbitrary property and toJSON values; only strings and sensitive key names are interpreted here.
+    JSON.stringify(payload, (key, value: unknown) => {
+      if (isSensitiveKey(key)) return undefined
 
       return typeof value === 'string' ? redactSecretText(value, ['code']) : value
     })
-  ) as T
+  ) as Omit<ErrorEvent, 'type' | 'sdkProcessingMetadata'>
+
+  return { ...sanitized, type: undefined, sdkProcessingMetadata }
 }

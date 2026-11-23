@@ -1,3 +1,4 @@
+import type { ErrorEvent } from '@sentry/electron/renderer'
 import { describe, expect, it } from 'vitest'
 
 import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '../sentry'
@@ -94,6 +95,7 @@ describe('Sentry event sanitization', () => {
     'socks5://alice:demo-password@[::1]:1080/api'
   ])('removes URL credentials embedded in error text: %s', (url) => {
     const event = {
+      type: undefined,
       exception: { values: [{ type: 'Error', value: `Connection failed: ${url}` }] },
       request: { url }
     }
@@ -103,8 +105,8 @@ describe('Sentry event sanitization', () => {
     for (const secret of ['alice', 'demo-password', 'p%40ss', 'p@ss']) {
       expect(JSON.stringify(sanitized)).not.toContain(secret)
     }
-    expect(sanitized.exception.values[0].value).toContain('Connection failed: ')
-    expect(sanitized.request.url).toContain('/api')
+    expect(sanitized.exception?.values?.[0]?.value).toContain('Connection failed: ')
+    expect(sanitized.request?.url).toContain('/api')
     expect(event.request.url).toBe(url)
   })
 
@@ -112,13 +114,14 @@ describe('Sentry event sanitization', () => {
     const message =
       'https://alice:demo-password@example.com/a → https://bob:other-password@example.org/b; https://example.net/@scope/pkg?email=dev@example.net'
 
-    expect(sanitizeSentryEvent({ message }).message).toBe(
+    expect(sanitizeSentryEvent({ type: undefined, message }).message).toBe(
       'https://<redacted>@example.com/a → https://<redacted>@example.org/b; https://example.net/@scope/pkg?email=dev@example.net'
     )
   })
 
   it('redacts nested credentials without discarding diagnostic context or mutating the input', () => {
     const event = {
+      type: undefined,
       message: 'request failed: Authorization: Bearer real-token',
       extra: { apiKey: 'real-api-key' },
       request: { url: 'https://example.com/callback?code=oauth-secret' },
@@ -131,5 +134,80 @@ describe('Sentry event sanitization', () => {
     expect(sanitized.tags).toEqual(event.tags)
     expect(sanitized.exception).toEqual(event.exception)
     expect(event.extra.apiKey).toBe('real-api-key')
+  })
+
+  it('omits sensitive containers and dictionary entries without replacing SDK structures with strings', () => {
+    const event: ErrorEvent = {
+      type: undefined,
+      request: {
+        cookies: { theme: 'private-cookie' },
+        headers: { Authorization: 'private-header', Accept: 'text/plain' }
+      },
+      contexts: {
+        response: { status_code: 503, cookies: [['theme', 'private-response-cookie']] },
+        session: { value: 'private-session' }
+      },
+      measurements: { secret_count: { value: 42, unit: 'none' }, latency: { value: 10, unit: 'millisecond' } }
+    }
+
+    const sanitized = sanitizeSentryEvent(event)
+
+    expect(sanitized.request).toEqual({ headers: { Accept: 'text/plain' } })
+    expect(sanitized.contexts).toEqual({ response: { status_code: 503 } })
+    expect(sanitized.measurements).toEqual({ latency: { value: 10, unit: 'millisecond' } })
+    expect(event.request?.cookies).toEqual({ theme: 'private-cookie' })
+    expect(event.contexts?.response?.cookies).toEqual([['theme', 'private-response-cookie']])
+    expect(JSON.stringify(sanitized)).not.toContain('private')
+  })
+
+  it('keeps the SDK discriminator, grouping fields and opaque processing metadata', () => {
+    const sdkProcessingMetadata: NonNullable<ErrorEvent['sdkProcessingMetadata']> = {
+      requestSession: { status: 'errored' },
+      dynamicSamplingContext: { public_key: 'public-project-key' }
+    }
+    sdkProcessingMetadata.self = sdkProcessingMetadata
+    const event: ErrorEvent = {
+      type: undefined,
+      event_id: 'fault-id',
+      level: 'fatal',
+      platform: 'native',
+      fingerprint: ['application', 'database.open'],
+      exception: {
+        values: [{ type: 'Error', value: 'Storage unavailable', mechanism: { type: 'generic', handled: false } }]
+      },
+      sdkProcessingMetadata
+    }
+
+    const sanitized = sanitizeSentryEvent(event)
+
+    expect(Object.hasOwn(sanitized, 'type')).toBe(true)
+    expect(sanitized.type).toBeUndefined()
+    expect(sanitized.sdkProcessingMetadata).toBe(sdkProcessingMetadata)
+    expect(sanitized.event_id).toBe(event.event_id)
+    expect(sanitized.level).toBe('fatal')
+    expect(sanitized.platform).toBe('native')
+    expect(sanitized.fingerprint).toEqual(event.fingerprint)
+    expect(sanitized.exception).toEqual(event.exception)
+  })
+
+  it('projects native and custom JSON values before redaction without retaining executable toJSON closures', () => {
+    let secret = 'original-private-token'
+    const custom = { toJSON: () => ({ message: `Authorization: Bearer ${secret}`, token: secret }) }
+    const event: ErrorEvent = {
+      type: undefined,
+      extra: { timestamp: new Date('2026-11-23T00:00:00.000Z'), custom, missing: undefined, values: [undefined] }
+    }
+
+    const sanitized = sanitizeSentryEvent(event)
+    secret = 'changed-private-token'
+
+    expect(sanitized.extra).toEqual({
+      timestamp: '2026-11-23T00:00:00.000Z',
+      custom: { message: expect.stringContaining('<redacted>') },
+      values: [null]
+    })
+    expect(JSON.stringify(sanitized)).not.toContain('private-token')
+    expect(custom.toJSON().token).toBe('changed-private-token')
+    expect(event.extra?.timestamp).toBeInstanceOf(Date)
   })
 })
