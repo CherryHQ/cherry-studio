@@ -9,7 +9,13 @@ import { ModelProviderMetadataControls } from '../ModelProviderMetadataControls'
 const mocks = vi.hoisted(() => ({ request: vi.fn(), error: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.error } }))
-vi.mock('@cherrystudio/ui', () => ({ Button: ({ children, ...props }: any) => <button {...props}>{children}</button> }))
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: any) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  )
+}))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 const model = {

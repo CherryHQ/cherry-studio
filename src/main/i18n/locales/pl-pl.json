@@ -251,6 +251,7 @@
   "paintings.comfyui.workflow_failed": "Przepływ pracy ComfyUI nie powiódł się:",
   "paintings.comfyui.workflow_rejected": "ComfyUI odrzucił przepływ pracy (HTTP {{status}})",
   "paintings.generate_failed": "Nie udało się wygenerować obrazu",
+  "paintings.image_download_failed": "Obraz został wygenerowany, ale nie udało się go pobrać.",
   "paintings.image_mix_failed": "Nie udało się połączyć obrazów",
   "selection.name": "Asystent zaznaczenia",
   "settings.mcp.oauth.callback.listen_error": "Nie udało się nasłuchiwać wywołania zwrotnego OAuth na 127.0.0.1:{{port}} ({{reason}}). Sprawdź, czy port jest dostępny, i spróbuj ponownie.",

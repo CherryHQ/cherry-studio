@@ -91,6 +91,15 @@ export default defineCreator({
     },
     { id: 'tc-code', name: 'Tencent Code', capabilities: ['function-call'] },
     { id: 'hy-role', name: 'Hunyuan Role', contextWindow: 32768, maxInputTokens: 28672, maxOutputTokens: 4096 },
+    // Latest role-playing SKU served by TokenHub alongside hy-role
+    // (cloud.tencent.com/document/product/1823/132252): same 32k envelope.
+    {
+      id: 'hunyuan-role-latest',
+      name: 'Hunyuan Role Latest',
+      contextWindow: 32768,
+      maxInputTokens: 28672,
+      maxOutputTokens: 4096
+    },
     { id: 'hy-mt2-pro', name: 'Hunyuan MT2 Pro', contextWindow: 8192, maxOutputTokens: 4096 },
     { id: 'hy-mt2-plus', name: 'Hunyuan MT2 Plus', contextWindow: 8192, maxOutputTokens: 4096 },
     { id: 'hy-mt2-lite', name: 'Hunyuan MT2 Lite', contextWindow: 8192, maxOutputTokens: 4096 },

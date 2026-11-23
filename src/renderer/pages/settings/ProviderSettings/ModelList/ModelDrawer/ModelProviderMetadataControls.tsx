@@ -17,6 +17,17 @@ export function ModelProviderMetadataControls({
   onChange: (model: Model) => void
 }) {
   const { t } = useTranslation()
+  const fieldLabels = {
+    contextWindow: t('settings.models.metadata.field.contextWindow'),
+    maxOutputTokens: t('settings.models.metadata.field.maxOutputTokens'),
+    capabilities: t('settings.models.metadata.field.capabilities')
+  }
+  const sourceLabels = {
+    provider: t('settings.models.metadata.source.provider'),
+    registry: t('settings.models.metadata.source.registry'),
+    user: t('settings.models.metadata.source.user'),
+    unknown: t('settings.models.metadata.source.unknown')
+  }
   const [busy, setBusy] = useState(false)
   const currentId = useRef(model.id)
   currentId.current = model.id
@@ -51,8 +62,7 @@ export function ModelProviderMetadataControls({
       {MODEL_METADATA_FIELDS.map((field) => (
         <div key={field} className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <span>
-            {t(`settings.models.metadata.field.${field}`)}:{' '}
-            {t(`settings.models.metadata.source.${model.metadataSources?.[field] ?? 'unknown'}`)}
+            {fieldLabels[field]}: {sourceLabels[model.metadataSources?.[field] ?? 'unknown']}
           </span>
           <Button
             type="button"
@@ -60,7 +70,7 @@ export function ModelProviderMetadataControls({
             size="sm"
             disabled={disabled || busy || model.providerMetadata?.[field] === undefined}
             onClick={() => void run(field)}
-            aria-label={`${t('settings.models.metadata.reset')} ${t(`settings.models.metadata.field.${field}`)}`}>
+            aria-label={`${t('settings.models.metadata.reset')} ${fieldLabels[field]}`}>
             {t('settings.models.metadata.reset')}
           </Button>
         </div>
