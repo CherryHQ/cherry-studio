@@ -2052,6 +2052,33 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('preserves a newer confirmed detail read during a window-only save', async () => {
+    const user = userEvent.setup()
+    const original = {
+      ...ASSISTANT,
+      updatedAt: '2026-11-23T10:00:00Z',
+      settings: { ...ASSISTANT.settings, contextSettings: { maxMessages: 3, compressWindow: 6 } }
+    }
+    const onOpenChange = vi.fn()
+    const view = render(<AssistantEditDialog open resource={original} onOpenChange={onOpenChange} />)
+    selectTab('Model')
+    const newer = {
+      ...original,
+      updatedAt: '2026-11-23T10:01:00Z',
+      settings: { ...original.settings, contextSettings: { maxMessages: 4, compressWindow: 6 } }
+    }
+    view.rerender(<AssistantEditDialog open resource={newer} onOpenChange={onOpenChange} />)
+    const rounds = screen.getByRole('spinbutton', { name: 'Total retained rounds (B)' })
+    await user.clear(rounds)
+    await user.type(rounds, '7')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenLastCalledWith({
+        body: { settings: { contextSettings: { maxMessages: 4, compressWindow: 7 } } }
+      })
+    )
+  })
+
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 

@@ -235,6 +235,11 @@ function AssistantEditDialogContent({
   const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
   const formBaselineRef = useRef(formBaseline)
   const savedResourceRef = useRef(resource)
+  useEffect(() => {
+    if (resource.id !== savedResourceRef.current.id || resource.updatedAt >= savedResourceRef.current.updatedAt) {
+      savedResourceRef.current = resource
+    }
+  }, [resource])
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -326,7 +331,7 @@ function AssistantEditDialogContent({
 
     try {
       const updated = await updateAssistant(pending.payload)
-      savedResourceRef.current = updated
+      if (updated.updatedAt >= savedResourceRef.current.updatedAt) savedResourceRef.current = updated
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
