@@ -666,11 +666,11 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private formatValidationDetails(issues: OpenClawValidationIssue[]): string {
-    const visible = issues
-      .slice(0, OPENCLAW_VISIBLE_ISSUE_LIMIT)
-      .map((issue) => this.sanitizeDiagnostic(`${issue.path}: ${issue.message}`))
-    const remaining = issues.length - visible.length
+  private formatValidationDetails(issueLines: string[]): string {
+    const visible = issueLines.slice(0, OPENCLAW_VISIBLE_ISSUE_LIMIT)
+    // Check the CLI lines alone; the translated counter would otherwise pass them in any UI language.
+    if (!readsInLanguage(visible.join('\n'), getAppLanguage())) return ''
+    const remaining = issueLines.length - visible.length
     if (remaining > 0) {
       visible.push(t('openclaw.errors.more_issues', { count: remaining }))
     }
@@ -722,13 +722,13 @@ export class OpenClawService extends BaseService {
     const kind = report.issues.some((issue) => isCherryManagedConfigPath(issue.path))
       ? 'binary_incompatible'
       : 'external_config_invalid'
-    const details = this.formatValidationDetails(report.issues)
-    logger.warn('OpenClaw rejected the generated config', { kind, details })
-    const shownDetails = readsInLanguage(details, getAppLanguage()) ? details : ''
+    const issueLines = report.issues.map((issue) => this.sanitizeDiagnostic(`${issue.path}: ${issue.message}`))
+    logger.warn('OpenClaw rejected the generated config', { kind, issues: issueLines })
+    const details = this.formatValidationDetails(issueLines)
     const message =
       kind === 'binary_incompatible'
-        ? t('openclaw.errors.binary_incompatible', { details: shownDetails })
-        : t('openclaw.errors.external_config_invalid', { details: shownDetails })
+        ? t('openclaw.errors.binary_incompatible', { details })
+        : t('openclaw.errors.external_config_invalid', { details })
     throw new OpenClawPreflightError(kind, message)
   }
 

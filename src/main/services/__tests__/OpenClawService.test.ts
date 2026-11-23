@@ -1073,6 +1073,25 @@ describe('OpenClawService gateway status state machine', () => {
         })
       }
     )
+
+    it('never lets the translated issue counter carry English CLI lines into a Chinese message', async () => {
+      preferenceGetMock.mockImplementation((key: string) => (key === 'app.language' ? 'zh-CN' : undefined))
+      validateConfigSpy.mockResolvedValueOnce({
+        valid: false,
+        issues: ['a', 'b', 'c', 'd'].map((name) => ({ path: `tools.${name}`, message: 'Unsupported external field' })),
+        warnings: []
+      })
+
+      const thrown = await (service as any)
+        .assertConfigValid(
+          { source: 'mise', path: resolvePath('/mock/bin/openclaw'), env: { PATH: resolvePath('/mock/bin') } },
+          resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
+        )
+        .catch((error: unknown) => error)
+
+      expect(thrown).toMatchObject({ kind: 'external_config_invalid' })
+      expect((thrown as Error).message).not.toContain('Unsupported external field')
+    })
   })
 
   describe('getDashboardUrl', () => {
