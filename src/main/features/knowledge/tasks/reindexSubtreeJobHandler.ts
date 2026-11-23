@@ -154,6 +154,12 @@ export function createReindexSubtreeJobHandler(
         const rebuildableRootIds = rebuildableRoots.map((item) => item.id)
         const leafItemIds = knowledgeItemService
           .getSubtreeItems(baseId, rebuildableRootIds, { includeRoots: true, leafOnly: true })
+          .filter((item) => {
+            // A URL refresh rebuilds its own readable material, not its independently indexed children.
+            return !rebuildableRoots.some(
+              (root) => root.type === 'url' && root.id !== item.id && item.groupId === root.id
+            )
+          })
           .map((item) => item.id)
 
         await deleteKnowledgeItemVectors(base, leafItemIds)
@@ -216,9 +222,11 @@ export function createReindexSubtreeJobHandler(
           const failError = ctx.signal.aborted
             ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
             : `Failed to schedule reindex after reset: ${message}`
-          knowledgeItemService.setSubtreeStatus(baseId, unscheduledRootIds, 'failed', {
-            error: failError
-          })
+          failSelectedRoots(
+            baseId,
+            resetResult.roots.filter((root) => unscheduledRootIds.includes(root.id)),
+            failError
+          )
         }
         throw error
       }
@@ -266,9 +274,11 @@ async function produceReacquireWrites(
         return { itemId, write: await produce(ctx.signal) }
       } catch (error) {
         if (!ctx.signal.aborted) {
-          knowledgeItemService.setSubtreeStatus(baseId, [itemId], 'failed', {
-            error: error instanceof Error ? error.message : String(error)
-          })
+          failSelectedRoots(
+            baseId,
+            roots.filter((root) => root.id === itemId),
+            error instanceof Error ? error.message : String(error)
+          )
         }
         throw error
       }
@@ -340,7 +350,11 @@ async function markReindexSubtreeFailedOnSettled(
       event.status === 'cancelled'
         ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
         : `Reindex job ${event.status}: ${reason}`
-    knowledgeItemService.setSubtreeStatus(baseId, rootsToFail, 'failed', { error })
+    failSelectedRoots(
+      baseId,
+      rootItems.filter((root) => rootsToFail.includes(root.id)),
+      error
+    )
   } catch (error) {
     logger.error(
       'Failed to flip reindex-subtree targets to failed in onSettled',
@@ -364,4 +378,12 @@ function getRootsWithFollowUpJobs(activeJobs: JobSnapshot[], rootItemIds: string
     }
   }
   return rootsWithFollowUpJobs
+}
+
+function failSelectedRoots(baseId: string, roots: KnowledgeItem[], error: string): void {
+  const subtreeIds = roots.filter((root) => root.type !== 'url').map((root) => root.id)
+  if (subtreeIds.length > 0) knowledgeItemService.setSubtreeStatus(baseId, subtreeIds, 'failed', { error })
+  for (const root of roots.filter((item) => item.type === 'url')) {
+    knowledgeItemService.updateStatus(root.id, 'failed', { error })
+  }
 }

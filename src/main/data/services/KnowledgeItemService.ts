@@ -370,9 +370,16 @@ export class KnowledgeItemService {
       .update(knowledgeItemTable)
       .set({ status: 'failed', error: reason })
       .where(inArray(knowledgeItemTable.status, [...KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES]))
-      .returning({ id: knowledgeItemTable.id })
+      .returning({ id: knowledgeItemTable.id, baseId: knowledgeItemTable.baseId, groupId: knowledgeItemTable.groupId })
       .all()
 
+    // Only URL rollups differ from the pre-crawl invariant: their owner may already be completed.
+    // Reconcile those owners (and their ancestors), leaving ordinary interrupted diagnostics intact.
+    for (const row of updatedRows) {
+      if (!row.groupId) continue
+      const parent = this.getById(row.groupId)
+      if (parent.type === 'url') this.reconcileContainers(row.baseId, [row.groupId])
+    }
     if (updatedRows.length > 0) {
       logger.info('Marked interrupted knowledge items as failed', { count: updatedRows.length })
     }

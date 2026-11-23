@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { KnowledgeItemListResponse, KnowledgeItemSort } from '@shared/data/api/schemas/knowledges'
@@ -75,6 +75,23 @@ export const useKnowledgeItems = (
   // so a scroll-to-bottom stays a single fetch. Driven off the previous render's pages because
   // the value feeds the config that produces those pages.
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
+  // A URL owner can still be fetching its first page while its child list is empty.
+  const { data: owner } = useQuery('/knowledge-items/:id', {
+    params: { id: groupId ?? '' },
+    enabled: Boolean(baseId && groupId),
+    swrOptions: {
+      refreshInterval: (item) =>
+        item &&
+        (!TERMINAL_STATUSES.has(item.status) || (item.type === 'url' && (item.data.crawlProgress?.active ?? 0) > 0))
+          ? KNOWLEDGE_ITEMS_POLLING_INTERVAL
+          : 0
+    }
+  })
+  const ownerCanExpand =
+    owner?.type === 'url' &&
+    owner.data.crawl === true &&
+    !owner.data.crawlExpanded &&
+    !TERMINAL_STATUSES.has(owner.status)
 
   // `null` lists the base's top-level items; a directory item's id lists that directory's
   // direct children (drill-down). Memoized so a stable object re-keys the query only on change.
@@ -92,11 +109,16 @@ export const useKnowledgeItems = (
     enabled: Boolean(baseId),
     swrOptions: {
       refreshInterval: (pages?: KnowledgeItemListResponse[]) =>
-        hasNonTerminalItem(pages) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0,
+        hasNonTerminalItem(pages) || ownerCanExpand ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0,
       keepPreviousData: false,
       revalidateAll: revalidateAllPages
     }
   })
+
+  const ownerExpanded = owner?.type === 'url' && owner.data.crawlExpanded === true
+  useEffect(() => {
+    if (ownerExpanded) void refresh()
+  }, [ownerExpanded, refresh])
 
   useEffect(() => {
     setRevalidateAllPages(hasNonTerminalItem(pages))

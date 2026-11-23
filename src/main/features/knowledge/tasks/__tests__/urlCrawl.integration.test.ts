@@ -17,6 +17,10 @@ import {
   createDeleteSubtreeJobHandler,
   createIndexDocumentsJobHandler,
   createJobSnapshot,
+  createReindexSubtreeJobHandler,
+  deleteMaterialsMock,
+  ingestionService,
+  scheduleItemMock,
   enqueueMock,
   fetchKnowledgeWebPageMock,
   FileProcessingWaitManager,
@@ -69,7 +73,8 @@ describe('URL crawl jobs with the production item service and migrated SQLite', 
       updateStatus: service.updateStatus.bind(service),
       updateSnapshotRelativePath: service.updateSnapshotRelativePath.bind(service),
       prepareUrlCrawl: service.prepareUrlCrawl.bind(service),
-      deleteItemsByIds: service.deleteItemsByIds.bind(service)
+      deleteItemsByIds: service.deleteItemsByIds.bind(service),
+      setSubtreeStatus: service.setSubtreeStatus.bind(service)
     })
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ id: BASE_ID }))
     loadKnowledgeItemDocumentsMock.mockImplementation(async (item: KnowledgeItemOf<'url'>) => [
@@ -126,6 +131,47 @@ describe('URL crawl jobs with the production item service and migrated SQLite', 
       data: { crawlExpanded: true, crawlProgress: { total: 19, completed: 18, failed: 1, active: 0 } }
     })
     expect(service.getSubtreeItems(BASE_ID, [root.id], { includeRoots: true })).toHaveLength(20)
+  })
+
+  it.each([false, true])(
+    'preserves completed child rows and search materials on owner refresh (fetch fails: %s)',
+    async (fail) => {
+      const root = addRoot()
+      await createIndexDocumentsJobHandler(locks).execute(createCtx({ baseId: BASE_ID, itemId: root.id }))
+      const children = service.getSubtreeItems(BASE_ID, [root.id])
+      for (const child of children) service.updateStatus(child.id, 'completed')
+      const before = children.map((child) => service.getById(child.id))
+      deleteMaterialsMock.mockClear()
+      scheduleItemMock.mockClear()
+      if (fail) fetchKnowledgeWebPageMock.mockRejectedValueOnce(new Error('Root unavailable'))
+      const handler = createReindexSubtreeJobHandler(locks, ingestionService, new FileProcessingWaitManager())
+      const execute = handler.execute(createCtx({ baseId: BASE_ID, rootItemIds: [root.id] }))
+      if (fail) await expect(execute).rejects.toThrow('Root unavailable')
+      else await execute
+      expect(children.map((child) => service.getById(child.id))).toEqual(before)
+      if (fail) {
+        expect(deleteMaterialsMock).not.toHaveBeenCalled()
+        expect(scheduleItemMock).not.toHaveBeenCalled()
+      } else {
+        expect(deleteMaterialsMock).toHaveBeenCalledWith([root.id])
+        expect(scheduleItemMock).toHaveBeenCalledTimes(1)
+      }
+    }
+  )
+
+  it('reconciles a completed crawl owner when its child is interrupted at startup', async () => {
+    const root = addRoot()
+    await createIndexDocumentsJobHandler(locks).execute(createCtx({ baseId: BASE_ID, itemId: root.id }))
+    const children = service.getSubtreeItems(BASE_ID, [root.id])
+    for (const child of children.slice(1)) service.updateStatus(child.id, 'completed')
+    expect(service.getById(root.id).status).toBe('completed')
+    expect(service.failInterruptedItems('Interrupted')).toBe(1)
+    expect(service.getById(root.id)).toMatchObject({
+      status: 'completed',
+      data: {
+        crawlProgress: { total: 19, completed: 18, failed: 1, active: 0 }
+      }
+    })
   })
 
   it('keeps crawl off to one item despite links in its captured Markdown', async () => {

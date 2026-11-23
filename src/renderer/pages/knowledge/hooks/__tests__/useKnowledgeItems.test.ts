@@ -6,6 +6,7 @@ import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowled
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 const mockUseInfiniteQuery = vi.fn()
+const mockUseQuery = vi.fn(() => ({ data: undefined as KnowledgeItem | undefined }))
 
 const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {
   expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/knowledge-bases/:id/items', {
@@ -23,6 +24,7 @@ const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInfiniteQuery: (...args: unknown[]) => mockUseInfiniteQuery(...args),
+  useQuery: () => mockUseQuery(),
   // Flatten pages the same way the real helper does so the hook's `items` is testable.
   useInfiniteFlatItems: (pages?: KnowledgeItemListResponse[]) => pages?.flatMap((page) => page.items) ?? [],
   useInvalidateCache: () => vi.fn()
@@ -66,6 +68,40 @@ const createQueryResult = (
 describe('useKnowledgeItems', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseQuery.mockReturnValue({ data: undefined })
+  })
+
+  it('keeps an empty child list polling until its URL owner has expanded', () => {
+    mockUseInfiniteQuery.mockReturnValue(createQueryResult({ pages: [{ items: [], total: 0 }] }))
+    mockUseQuery.mockReturnValue({
+      data: makeItem({
+        type: 'url',
+        status: 'reading',
+        data: {
+          source: 'https://example.com',
+          url: 'https://example.com',
+          crawl: true
+        }
+      })
+    })
+    const { rerender } = renderHook(() => useKnowledgeItems('base-1', 'owner-1'))
+    let config = mockUseInfiniteQuery.mock.calls.at(-1)![1]
+    expect(config.swrOptions.refreshInterval([{ items: [], total: 0 }])).toBe(2000)
+    mockUseQuery.mockReturnValue({
+      data: makeItem({
+        type: 'url',
+        status: 'completed',
+        data: {
+          source: 'https://example.com',
+          url: 'https://example.com',
+          crawl: true,
+          crawlExpanded: true
+        }
+      })
+    })
+    rerender()
+    config = mockUseInfiniteQuery.mock.calls.at(-1)![1]
+    expect(config.swrOptions.refreshInterval([{ items: [], total: 0 }])).toBe(0)
   })
 
   it('flattens infinite pages and surfaces total, pagination state, and refresh', () => {

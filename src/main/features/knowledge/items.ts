@@ -76,6 +76,9 @@ export async function classifyKnowledgeItemRestoreSource(
     }
     return toSourceState(await probeKnowledgeFile(baseId, toMaterialRelativePath(item)))
   }
+  if (item.type === 'url' && item.data.relativePath) {
+    return toSourceState(await probeKnowledgeFile(baseId, item.data.relativePath))
+  }
   return 'rebuildable'
 }
 
