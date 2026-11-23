@@ -136,7 +136,8 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.doubao,
   SystemProviderIds.dmxapi,
   SystemProviderIds.tokenhub,
-  SystemProviderIds.qwencloud
+  SystemProviderIds.qwencloud,
+  SystemProviderIds.wavespeed
 ] as const
 
 /**

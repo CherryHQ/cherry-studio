@@ -1659,6 +1659,30 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('ppio')
     })
 
+    it('routes WaveSpeed IMAGE models to its transport and keeps CHAT models on the chat host', async () => {
+      const provider = makeProvider({
+        id: 'wavespeed',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://llm.wavespeed.ai/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const imageModel = makeModel({ providerId: 'wavespeed', capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] })
+      const chatModel = makeModel({ providerId: 'wavespeed', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const imageConfig = await providerToAiSdkConfig(provider, imageModel)
+      const chatConfig = await providerToAiSdkConfig(provider, chatModel)
+
+      expect(imageConfig.providerId).toBe('wavespeed')
+      // The prediction API is a different host; the transport supplies it, never the chat baseURL.
+      expect(imageConfig.providerSettings).not.toHaveProperty('imageBaseURL')
+      expect(chatConfig.providerId).toBe('openai-compatible')
+      expect((chatConfig.providerSettings as Record<string, unknown>).baseURL).toBe('https://llm.wavespeed.ai/v1')
+    })
+
     it('routes ComfyUI IMAGE models through ComfyUI config with no API version appended', async () => {
       // ComfyUI's API is unversioned — `/prompt`, `/history` and `/view` sit at the host
       // root — so the extension's transport has to receive the bare host. An appended

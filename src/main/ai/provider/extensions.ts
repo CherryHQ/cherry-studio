@@ -40,6 +40,7 @@ import type { OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import type { PpioProviderSettings } from './custom/ppio/ppioProvider'
 import type { SiliconProviderSettings } from './custom/silicon/siliconProvider'
 import type { TokenhubProviderSettings } from './custom/tokenhub/tokenhubProvider'
+import type { WavespeedProviderSettings } from './custom/wavespeed/wavespeedProvider'
 import type { ZhipuProviderSettings } from './custom/zhipuProvider'
 
 let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
@@ -395,6 +396,16 @@ export const TokenhubExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<TokenhubProviderSettings, ProviderV3, 'tokenhub'>)
 
 /**
+ * WaveSpeed Extension - OpenAI-compatible chat, image via the prediction API
+ * (submit + poll on a separate host).
+ */
+export const WavespeedExtension = ProviderExtension.create({
+  name: 'wavespeed',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/wavespeed/wavespeedProvider')).createWavespeedProvider(settings)
+} as const satisfies ProviderExtensionConfig<WavespeedProviderSettings, ProviderV3, 'wavespeed'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -447,6 +458,7 @@ export const extensions = [
   DashScopeExtension,
   QwencloudExtension,
   TokenhubExtension,
+  WavespeedExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension,

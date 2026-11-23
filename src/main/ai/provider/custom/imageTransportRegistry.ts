@@ -93,6 +93,14 @@ const TRANSPORTS: Record<string, TransportRegistration> = {
       const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
       return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
     }
+  },
+  wavespeed: {
+    supports: () => true,
+    poll: true,
+    load: async (settings) => {
+      const { buildWavespeedTransport } = await import('./wavespeed/wavespeedProvider')
+      return buildWavespeedTransport(settings as Parameters<typeof buildWavespeedTransport>[0])
+    }
   }
 }
 
