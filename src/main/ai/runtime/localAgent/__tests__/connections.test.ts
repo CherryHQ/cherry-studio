@@ -1271,7 +1271,7 @@ describe('local protocol processes', () => {
     expect(events.some((event) => event.type === 'chunk' && event.chunk.type === 'finish')).toBe(false)
   })
 
-  it.each(['allow', 'deny'])('returns the original Codex network %s decision', async (action) => {
+  it.each(['allow', 'deny'])('returns the original Codex network %s decision with readable labels', async (action) => {
     const { connection, events } = create('codex', `codex-network-${action}`)
     await connection.start(cwd)
     await connection.send(input)
@@ -1279,10 +1279,36 @@ describe('local protocol processes', () => {
     const decision = { applyNetworkPolicyAmendment: { network_policy_amendment: { host: 'example.com', action } } }
     const optionId = JSON.stringify(decision)
     expect(approval.request.input.localPermissionOptions).toContainEqual(
-      expect.objectContaining({ optionId, kind: action === 'allow' ? 'allow_always' : 'reject_always' })
+      expect.objectContaining({
+        optionId,
+        name: `${action === 'allow' ? 'Always allow' : 'Always deny'} host: example.com`,
+        kind: action === 'allow' ? 'allow_always' : 'reject_always'
+      })
     )
     toolApprovalRegistry.dispatch(approval.request.approvalId, {
       approved: action === 'allow',
+      updatedInput: { localPermissionOption: optionId }
+    })
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete' }))
+    expect(await readWire()).toContainEqual({ id: 'approval', result: { decision } })
+  })
+
+  it('formats Codex execpolicy amendment decisions cleanly while preserving the original decision', async () => {
+    const { connection, events } = create('codex', 'codex-execpolicy')
+    await connection.start(cwd)
+    await connection.send(input)
+    const approval = await waitForApproval(events)
+    const decision = { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git', 'status'] } }
+    const optionId = JSON.stringify(decision)
+    expect(approval.request.input.localPermissionOptions).toContainEqual(
+      expect.objectContaining({
+        optionId,
+        name: 'Always allow: git status',
+        kind: 'allow_always'
+      })
+    )
+    toolApprovalRegistry.dispatch(approval.request.approvalId, {
+      approved: true,
       updatedInput: { localPermissionOption: optionId }
     })
     await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete' }))
@@ -1813,5 +1839,52 @@ describe('local protocol processes', () => {
 
     await connection.close()
     await drained
+  })
+
+  it('exposes Codex permission modes from thread metadata and applies mode changes to turn/start', async () => {
+    const readonly = create('codex', 'codex-readonly')
+    await readonly.connection.start(cwd)
+    expect(readonly.connection.localSessionInfo.mode?.currentValue).toBe('readOnly')
+    await readonly.connection.close()
+    await readonly.drained
+
+    const { connection, events, drained } = create('codex', 'codex-full-access')
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.mode).toEqual({
+      id: 'codex-mode',
+      currentValue: 'fullAccess',
+      options: [
+        { value: 'readOnly', name: 'Read Only' },
+        { value: 'workspace', name: 'Workspace' },
+        { value: 'fullAccess', name: 'Full Access' }
+      ]
+    })
+
+    await expect(connection.setMode?.('codex-mode', 'invalid')).rejects.toThrow('no longer available')
+    await expect(connection.setMode?.('other-id', 'readOnly')).rejects.toThrow('no longer available')
+
+    await connection.setMode?.('codex-mode', 'readOnly')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('readOnly')
+    expect(events.some((event) => event.type === 'local-session-info')).toBe(true)
+
+    await connection.send(input)
+    await expect(connection.setMode?.('codex-mode', 'workspace')).rejects.toThrow('unavailable or busy')
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1))
+
+    await connection.setMode?.('codex-mode', 'fullAccess')
+    await connection.send(input)
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(2))
+    await connection.close()
+    await drained
+
+    const turnStarts = (await readWire()).filter((message) => message.method === 'turn/start')
+    expect(turnStarts[0].params).toMatchObject({
+      approvalPolicy: 'on-request',
+      sandboxPolicy: { type: 'readOnly', networkAccess: false }
+    })
+    expect(turnStarts[1].params).toMatchObject({
+      approvalPolicy: 'never',
+      sandboxPolicy: { type: 'dangerFullAccess' }
+    })
   })
 })

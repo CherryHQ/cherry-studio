@@ -1718,6 +1718,7 @@ const AgentComposerInner = ({
         <LocalAgentConfigControl
           key={`config:${sessionId}`}
           sessionId={sessionId}
+          agentName={agent.name.trim() || undefined}
           presetId={agent.configuration?.localRuntime?.presetId}
           options={localOptions?.configOptions?.filter(
             (option) =>
@@ -1727,7 +1728,6 @@ const AgentComposerInner = ({
           mode={localOptions?.mode}
           thoughtLevel={localOptions?.thoughtLevel}
           disabled={isStreaming}
-          showApprovalInfo
         />
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />

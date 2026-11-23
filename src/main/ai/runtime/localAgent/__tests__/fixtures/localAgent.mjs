@@ -457,7 +457,13 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
     }
     cwd = message.params.cwd
-    reply(id, { thread: { id: 'native-session' }, model: 'fixture-model' })
+    const threadMode =
+      scenario === 'codex-full-access'
+        ? { approvalPolicy: 'never', sandbox: { type: 'dangerFullAccess' } }
+        : scenario === 'codex-readonly'
+          ? { approvalPolicy: 'on-request', sandbox: { type: 'readOnly', networkAccess: false } }
+          : {}
+    reply(id, { thread: { id: 'native-session' }, model: 'fixture-model', ...threadMode })
   } else if (method === 'thread/name/set' || method === 'thread/fork') {
     if (scenario === 'no-rollout' && turn === 0) {
       return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
@@ -977,7 +983,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       })
       return
     }
-    if (scenario.startsWith('codex-network-')) {
+    if (scenario.startsWith('codex-network-') || scenario === 'codex-execpolicy') {
       emit({
         id: 'approval',
         method: 'item/commandExecution/requestApproval',
@@ -986,11 +992,16 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           turnId: 'turn',
           itemId: 'tool',
           availableDecisions: [
-            {
-              applyNetworkPolicyAmendment: {
-                network_policy_amendment: { host: 'example.com', action: scenario.endsWith('deny') ? 'deny' : 'allow' }
-              }
-            },
+            scenario === 'codex-execpolicy'
+              ? { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git', 'status'] } }
+              : {
+                  applyNetworkPolicyAmendment: {
+                    network_policy_amendment: {
+                      host: 'example.com',
+                      action: scenario.endsWith('deny') ? 'deny' : 'allow'
+                    }
+                  }
+                },
             'cancel'
           ]
         }

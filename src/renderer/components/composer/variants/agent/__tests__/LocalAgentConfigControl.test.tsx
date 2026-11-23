@@ -265,4 +265,65 @@ describe('LocalAgentConfigControl', () => {
       })
     )
   })
+
+  it('renders nothing when no configurable session options exist', () => {
+    const { container } = render(<LocalAgentConfigControl sessionId="session" options={[]} disabled={false} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('requires confirmation before enabling high-risk modes or unsandboxed config options', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockResolvedValue(null)
+    render(
+      <LocalAgentConfigControl
+        sessionId="session"
+        agentName="Codex Local"
+        presetId="codebuddy-code"
+        disabled={false}
+        mode={{
+          id: 'mode',
+          currentValue: 'ask',
+          options: [
+            { value: 'ask', name: 'Always Ask' },
+            { value: 'autopilot', name: 'Autopilot' }
+          ]
+        }}
+        options={[
+          {
+            id: 'sandbox',
+            name: 'Sandbox',
+            type: 'select',
+            currentValue: 'true',
+            options: [
+              { value: 'true', name: 'Sandbox Environment' },
+              { value: 'false', name: 'Local Environment' }
+            ]
+          }
+        ]}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '智能体配置' }))
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: '会话模式' }), { key: 'ArrowRight' })
+    await user.click(screen.getByRole('menuitemradio', { name: 'Autopilot' }))
+
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Codex Local')
+    await user.click(screen.getByRole('button', { name: '取消' }))
+    expect(ipcApi.request).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '智能体配置' }))
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: '沙箱' }), { key: 'ArrowRight' })
+    await user.click(screen.getByRole('menuitemradio', { name: '本机环境' }))
+
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: '启用完全访问' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
+        sessionId: 'session',
+        configId: 'sandbox',
+        value: 'false'
+      })
+    )
+  })
 })

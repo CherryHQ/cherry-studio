@@ -10,6 +10,8 @@ const modeNameKeys = new Map(
     auto: 'code.adv.permission_modes.auto',
     'bypass permissions': 'code.adv.permission_modes.bypass_high_risk',
     'full access': 'code.adv.permission_modes.full_access_high_risk',
+    'read only': 'code.adv.permission_modes.read_only',
+    workspace: 'code.adv.permission_modes.workspace',
     delegate: 'local_agents.modes.delegate',
     'accept edits': 'local_agents.modes.accept_edits',
     "don't ask": 'local_agents.modes.dont_ask',
@@ -20,6 +22,55 @@ const modeNameKeys = new Map(
     plan: 'local_agents.modes.plan'
   })
 )
+
+const HIGH_RISK_MODE_IDENTIFIERS = new Set([
+  'bypass permissions',
+  'full access',
+  'bypasspermissions',
+  'fullaccess',
+  'bypass',
+  'yolo',
+  'autopilot',
+  'danger-full-access',
+  'allow_all'
+])
+
+const UNSANDBOXED_VALUES = new Set(['false', 'off', 'disabled', 'none', 'local', 'local_environment'])
+const UNSANDBOXED_NAMES = new Set(['local environment', 'local'])
+
+export function isHighRiskLocalOption({
+  kind,
+  optionId,
+  value,
+  name
+}: {
+  kind: 'mode' | 'thought' | 'config'
+  optionId: string
+  value: string | boolean
+  name?: string
+}): boolean {
+  if (kind === 'mode') {
+    const normalizedValue = String(value).trim().toLowerCase()
+    const normalizedName = name?.trim().toLowerCase()
+    return (
+      HIGH_RISK_MODE_IDENTIFIERS.has(normalizedValue) ||
+      (!!normalizedName && HIGH_RISK_MODE_IDENTIFIERS.has(normalizedName))
+    )
+  }
+  if (kind === 'config' && optionId === 'allow_all') {
+    return value === true || ['true', 'on'].includes(String(value).trim().toLowerCase())
+  }
+  if (kind === 'config' && optionId === 'sandbox') {
+    const normalizedValue = String(value).trim().toLowerCase()
+    const normalizedName = name?.trim().toLowerCase()
+    return (
+      value === false ||
+      UNSANDBOXED_VALUES.has(normalizedValue) ||
+      (!!normalizedName && UNSANDBOXED_NAMES.has(normalizedName))
+    )
+  }
+  return false
+}
 
 // Translate recognized native descriptions exactly; custom permission semantics stay intact.
 const modeDescriptionKeys = new Map(

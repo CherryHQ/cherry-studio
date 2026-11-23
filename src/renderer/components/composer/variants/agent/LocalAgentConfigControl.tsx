@@ -1,5 +1,5 @@
-import { ChevronDown, Settings2, ShieldAlert, ShieldCheck } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { ChevronDown, Settings2, ShieldAlert } from 'lucide-react'
+import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -14,49 +14,78 @@ import {
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   ScrollArea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { FullAccessConfirmDialog } from '@renderer/components/PermissionModeOption'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { localAgentConfigOptions, localAgentModeOptions } from '@renderer/utils/agent/localAgentLabels'
+import {
+  isHighRiskLocalOption,
+  localAgentConfigOptions,
+  localAgentModeOptions
+} from '@renderer/utils/agent/localAgentLabels'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 
 const triggerClass = 'h-7 min-w-0 max-w-64 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground'
 
+type PendingHighRiskSelection = {
+  kind: 'mode' | 'thought' | 'config'
+  configId: string
+  value: string | boolean
+}
+
 export function LocalAgentConfigControl({
   sessionId,
+  agentName,
   presetId,
   options: nativeOptions = [],
   mode,
   thoughtLevel,
   disabled,
-  showApprovalInfo = false,
   side = 'top'
 }: {
   sessionId: string
+  agentName?: string
   presetId?: string
   options?: LocalAgentConfigOption[]
   mode?: LocalAgentSelection
   thoughtLevel?: LocalAgentSelection
   disabled: boolean
-  showApprovalInfo?: boolean
   side?: 'top' | 'bottom'
 }) {
   const { t } = useTranslation()
   const options = localAgentConfigOptions(nativeOptions, presetId, t)
   const [saving, setSaving] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [pendingHighRisk, setPendingHighRisk] = useState<PendingHighRiskSelection | null>(null)
+  const currentValuesKey = [
+    mode?.currentValue ?? '',
+    ...nativeOptions.map((option) => `${option.id}:${String(option.currentValue)}`)
+  ].join('|')
+  useEffect(() => {
+    setPendingHighRisk(null)
+  }, [currentValuesKey])
+
+  const findRawChoiceName = (
+    kind: 'mode' | 'thought' | 'config',
+    configId: string,
+    value: string | boolean
+  ): string | undefined => {
+    if (typeof value === 'boolean') return undefined
+    if (kind === 'mode' && mode?.id === configId) {
+      return mode.options.find((option) => option.value === value)?.name
+    }
+    const rawOption = nativeOptions.find((option) => option.id === configId)
+    if (!rawOption || rawOption.type !== 'select') return undefined
+    return rawOption.options
+      .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+      .find((choice) => choice.value === value)?.name
+  }
+
   const modeOptions = mode ? localAgentModeOptions(mode, t, presetId) : []
   const currentMode = modeOptions.find((option) => option.value === mode?.currentValue)
-  const riskyMode = !!mode?.options.some(
-    (option) =>
-      option.value === mode.currentValue &&
-      ['bypass permissions', 'full access', 'bypasspermissions', 'bypass', 'yolo'].includes(option.name.toLowerCase())
-  )
   const thoughtOptions = thoughtLevel?.options.map((option) => ({
     ...option,
     name: reasoningEffortLabel(option.value, t, option.name)
@@ -119,23 +148,24 @@ export function LocalAgentConfigControl({
         }
       })
   ]
-  const approvalLabel = t('code.adv.permission_mode')
-  if (!rows.length) {
-    if (!showApprovalInfo) return null
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className={triggerClass}>
-            <ShieldCheck className="lucide-custom size-3.5 shrink-0" />
-            <span className="truncate">{approvalLabel}</span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent side={side} align="end" aria-label={approvalLabel} className="w-64 p-3">
-          <p className="text-xs text-muted-foreground">{t('local_agents.permission_approval_help')}</p>
-        </PopoverContent>
-      </Popover>
+  if (!rows.length) return null
+
+  const riskyMode =
+    (!!mode &&
+      isHighRiskLocalOption({
+        kind: 'mode',
+        optionId: mode.id,
+        value: mode.currentValue,
+        name: findRawChoiceName('mode', mode.id, mode.currentValue)
+      })) ||
+    rows.some(({ kind, option }) =>
+      isHighRiskLocalOption({
+        kind,
+        optionId: option.id,
+        value: option.currentValue,
+        name: findRawChoiceName(kind, option.id, option.currentValue)
+      })
     )
-  }
   const single = rows.length === 1
   const selectedName = (option: LocalAgentConfigOption) =>
     option.type === 'boolean'
@@ -163,6 +193,20 @@ export function LocalAgentConfigControl({
       setSaving(false)
     }
   }
+  const handleSelectValue = (
+    kind: 'mode' | 'thought' | 'config',
+    option: LocalAgentConfigOption,
+    nextValue: string | boolean
+  ) => {
+    if (disabled || saving || nextValue === option.currentValue) return
+    const rawName = findRawChoiceName(kind, option.id, nextValue)
+    if (isHighRiskLocalOption({ kind, optionId: option.id, value: nextValue, name: rawName })) {
+      setMenuOpen(false)
+      setPendingHighRisk({ kind, configId: option.id, value: nextValue })
+      return
+    }
+    void change(kind, option.id, nextValue)
+  }
   const renderChoice = (option: { value: string; name: string; description?: string | null }) => (
     <DropdownMenuRadioItem
       key={option.value}
@@ -180,97 +224,111 @@ export function LocalAgentConfigControl({
     </DropdownMenuRadioItem>
   )
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(triggerClass, riskyMode && 'text-warning-subtle-foreground')}
-          aria-label={t('local_agents.configuration')}>
-          {riskyMode ? (
-            <ShieldAlert className="lucide-custom size-3.5 shrink-0" />
-          ) : (
-            <Settings2 className="lucide-custom size-3.5 shrink-0" />
+    <>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(triggerClass, riskyMode && 'text-warning-subtle-foreground')}
+            aria-label={t('local_agents.configuration')}>
+            {riskyMode ? (
+              <ShieldAlert className="lucide-custom size-3.5 shrink-0" />
+            ) : (
+              <Settings2 className="lucide-custom size-3.5 shrink-0" />
+            )}
+            <span className="truncate">{triggerLabel}</span>
+            <ChevronDown className="lucide-custom size-3 shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          side={side}
+          align={side === 'bottom' ? 'start' : 'end'}
+          alignOffset={single || side === 'bottom' ? 0 : 288}
+          className={cn('overflow-hidden p-1.5', single ? 'w-72' : 'w-64')}>
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            {single ? rows[0].option.name : t('local_agents.configuration')}
+          </DropdownMenuLabel>
+          {disabled && (
+            <p role="status" className="px-2 pb-1.5 text-xs text-muted-foreground">
+              {t('local_agents.configuration_read_only')}
+            </p>
           )}
-          <span className="truncate">{triggerLabel}</span>
-          <ChevronDown className="lucide-custom size-3 shrink-0" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side={side}
-        align={side === 'bottom' ? 'start' : 'end'}
-        alignOffset={single || side === 'bottom' ? 0 : 288}
-        className={cn('overflow-hidden p-1.5', single ? 'w-72' : 'w-64')}>
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
-          {single ? rows[0].option.name : t('local_agents.configuration')}
-        </DropdownMenuLabel>
-        {showApprovalInfo && (
-          <p className="px-2 pb-1.5 text-xs text-muted-foreground">{t('local_agents.permission_approval_help')}</p>
-        )}
-        {disabled && (
-          <p role="status" className="px-2 pb-1.5 text-xs text-muted-foreground">
-            {t('local_agents.configuration_read_only')}
-          </p>
-        )}
-        <ScrollArea className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
-          {rows.map(({ kind, option }) => {
-            const choices =
-              option.type === 'boolean'
-                ? [
-                    { value: 'true', name: t('common.enabled') },
-                    { value: 'false', name: t('common.disabled') }
-                  ]
-                : option.options
-            const currentValue = String(option.currentValue)
-            const content = (
-              <>
-                {option.description && (
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground">{option.description}</p>
-                )}
-                <DropdownMenuRadioGroup
-                  value={currentValue}
-                  onValueChange={(value) =>
-                    void change(kind, option.id, option.type === 'boolean' ? value === 'true' : value)
-                  }>
-                  {choices.map((choice) =>
-                    'group' in choice ? (
-                      <Fragment key={choice.group}>
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">{choice.name}</DropdownMenuLabel>
-                        {choice.options.map(renderChoice)}
-                      </Fragment>
-                    ) : (
-                      renderChoice(choice)
-                    )
+          <ScrollArea className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
+            {rows.map(({ kind, option }) => {
+              const choices =
+                option.type === 'boolean'
+                  ? [
+                      { value: 'true', name: t('common.enabled') },
+                      { value: 'false', name: t('common.disabled') }
+                    ]
+                  : option.options
+              const currentValue = String(option.currentValue)
+              const content = (
+                <>
+                  {option.description && (
+                    <p className="px-2 py-1.5 text-xs text-muted-foreground">{option.description}</p>
                   )}
-                </DropdownMenuRadioGroup>
-              </>
-            )
-            if (single) return <Fragment key={`${kind}:${option.id}`}>{content}</Fragment>
-            return (
-              <Fragment key={`${kind}:${option.id}`}>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger
-                    aria-label={option.name}
-                    disabled={saving}
-                    className="gap-2 rounded-md py-2 text-xs not-last:mb-1">
-                    <span className="shrink-0">{option.name}</span>
-                    <span className="min-w-0 flex-1 truncate text-right text-muted-foreground">
-                      {selectedName(option)}
-                    </span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuSubContent className="w-72 p-1.5" collisionPadding={8}>
-                      <ScrollArea className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
-                        {content}
-                      </ScrollArea>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuSub>
-              </Fragment>
-            )
-          })}
-        </ScrollArea>
-      </DropdownMenuContent>
-    </DropdownMenu>
+                  <DropdownMenuRadioGroup
+                    value={currentValue}
+                    onValueChange={(value) =>
+                      handleSelectValue(kind, option, option.type === 'boolean' ? value === 'true' : value)
+                    }>
+                    {choices.map((choice) =>
+                      'group' in choice ? (
+                        <Fragment key={choice.group}>
+                          <DropdownMenuLabel className="text-xs text-muted-foreground">{choice.name}</DropdownMenuLabel>
+                          {choice.options.map(renderChoice)}
+                        </Fragment>
+                      ) : (
+                        renderChoice(choice)
+                      )
+                    )}
+                  </DropdownMenuRadioGroup>
+                </>
+              )
+              if (single) return <Fragment key={`${kind}:${option.id}`}>{content}</Fragment>
+              return (
+                <Fragment key={`${kind}:${option.id}`}>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger
+                      aria-label={option.name}
+                      disabled={saving}
+                      className="gap-2 rounded-md py-2 text-xs not-last:mb-1">
+                      <span className="shrink-0">{option.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-right text-muted-foreground">
+                        {selectedName(option)}
+                      </span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent className="w-72 p-1.5" collisionPadding={8}>
+                        <ScrollArea className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
+                          {content}
+                        </ScrollArea>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
+                </Fragment>
+              )
+            })}
+          </ScrollArea>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <FullAccessConfirmDialog
+        open={!!pendingHighRisk}
+        onOpenChange={(open) => {
+          if (!open) setPendingHighRisk(null)
+        }}
+        onConfirm={() => {
+          if (!pendingHighRisk) return false
+          const selected = pendingHighRisk
+          setPendingHighRisk(null)
+          void change(selected.kind, selected.configId, selected.value)
+          return true
+        }}
+        scopeName={agentName}
+        t={t}
+      />
+    </>
   )
 }

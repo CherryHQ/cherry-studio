@@ -6,7 +6,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@te
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
-import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as ui from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui/components/primitives/button'
@@ -1552,15 +1552,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('explains where to approve requests when the local agent offers no session options', async () => {
-    const user = userEvent.setup()
-    const realControls = [
-      vi.spyOn(ui, 'Button').mockImplementation(Button),
-      vi.spyOn(ui, 'Popover').mockImplementation(Popover),
-      vi.spyOn(ui, 'PopoverContent').mockImplementation(PopoverContent),
-      vi.spyOn(ui, 'PopoverTrigger').mockImplementation(PopoverTrigger)
-    ]
-    onTestFinished(() => realControls.forEach((control) => control.mockRestore()))
+  it('hides session config and approval buttons when the local agent offers no session options', () => {
     mocks.ipcApiRequest.mockResolvedValue({ models: [], images: false, resume: true, configOptions: [] })
     render(
       <AgentComposer
@@ -1574,10 +1566,8 @@ describe('AgentComposer', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'code.adv.permission_mode' }))
-    const approvalInfo = await screen.findByRole('dialog', { name: 'code.adv.permission_mode' })
-    expect(approvalInfo).toHaveTextContent('local_agents.permission_approval_help')
-    expect(within(approvalInfo).queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'code.adv.permission_mode' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
   })
 
   it('shows only one session configuration entry even with Cherry permission mode pinned', async () => {

@@ -165,6 +165,55 @@ describe('PermissionRequestComposer', () => {
     })
   })
 
+  it('supports Enter/Esc shortcuts and emphasizes only the primary allow option for local options', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'allow-once', kind: 'allow_once', name: 'Allow once' },
+        { optionId: 'allow-session', kind: 'allow_always', name: 'Always allow' },
+        { optionId: 'deny-once', kind: 'reject_once', name: 'Reject' }
+      ]
+    }
+    const { rerender } = render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+
+    const primaryAllow = screen.getByRole('button', { name: '允许一次' })
+    const secondaryAllow = screen.getByRole('button', { name: '始终允许' })
+    const primaryReject = screen.getByRole('button', { name: 'Deny' })
+
+    expect(primaryAllow).toHaveTextContent('Enter')
+    expect(secondaryAllow).not.toHaveTextContent('Enter')
+    expect(primaryReject).toHaveTextContent('Esc')
+    expect(primaryAllow.className).toContain('bg-neutral-900')
+    expect(secondaryAllow.className).toContain('bg-secondary')
+    expect(primaryReject.className).toContain('border-border')
+
+    fireEvent.keyDown(document, { key: 'Enter' })
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'allow-once' }
+      })
+    )
+
+    const nextRequest = makeRequest({
+      approvalId: 'approval-2',
+      match: { ...makeRequest().match, approvalId: 'approval-2' }
+    })
+    nextRequest.toolResponse.arguments = request.toolResponse.arguments
+    rerender(<PermissionRequestComposer request={nextRequest} onRespond={onRespond} />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: nextRequest.match,
+        approved: false,
+        updatedInput: { localPermissionOption: 'deny-once' }
+      })
+    )
+  })
+
   // Catch evidence disclosure accidentally granting permission through the global Enter shortcut.
   it('shows execution facts and lets the user inspect evidence before granting one invocation', async () => {
     const user = userEvent.setup()

@@ -10,11 +10,13 @@ const sdk = vi.hoisted(() => ({
   messages: [] as SDKMessage[],
   openQueries: 0,
   returning: false,
-  returnGate: undefined as Promise<void> | undefined
+  returnGate: undefined as Promise<void> | undefined,
+  queryOptions: [] as Array<Record<string, unknown>>
 }))
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: () => {
+  query: ({ options }: { options: Record<string, unknown> }) => {
     sdk.openQueries++
+    sdk.queryOptions.push(options)
     let closed = false
     return {
       supportedCommands: async () => [],
@@ -86,6 +88,7 @@ beforeEach(() => {
   sdk.messages = []
   sdk.returning = false
   sdk.returnGate = undefined
+  sdk.queryOptions = []
 })
 
 describe('native Claude protocol mapping', () => {
@@ -232,5 +235,67 @@ describe('native Claude protocol mapping', () => {
       expect.arrayContaining(['clear', 'compact', 'context', 'usage', 'goal'])
     )
     await connection.close()
+  })
+
+  it('exposes native Claude modes, switches permissionMode across turns, and syncs init mode when unset', async () => {
+    sdk.messages = [
+      {
+        type: 'system',
+        subtype: 'init',
+        permissionMode: 'acceptEdits',
+        session_id: 'native-session',
+        uuid: randomUUID()
+      } as unknown as SDKMessage,
+      result()
+    ]
+    const connection = new ClaudeConnection('session', 'agent', {
+      protocol: 'claude',
+      enabled: true,
+      args: [],
+      env: {}
+    })
+    const events: AgentRuntimeEvent[] = []
+    const drained = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+
+    try {
+      await connection.start('/tmp')
+      expect(connection.localSessionInfo.mode).toMatchObject({
+        id: 'claude-mode',
+        currentValue: 'default'
+      })
+      expect(connection.localSessionInfo.mode?.options.map((option) => option.value)).toEqual([
+        'default',
+        'acceptEdits',
+        'plan',
+        'auto',
+        'bypassPermissions'
+      ])
+
+      await connection.send(input)
+      expect(sdk.queryOptions.at(-1)?.permissionMode).toBeUndefined()
+      expect(connection.localSessionInfo.mode?.currentValue).toBe('acceptEdits')
+
+      await expect(connection.setMode('claude-mode', 'invalid')).rejects.toThrow('no longer available')
+      await expect(connection.setMode('wrong-id', 'plan')).rejects.toThrow('no longer available')
+
+      await connection.setMode('claude-mode', 'plan')
+      expect(connection.localSessionInfo.mode?.currentValue).toBe('plan')
+      await connection.send(input)
+      expect(sdk.queryOptions.at(-1)?.permissionMode).toBe('plan')
+      expect(sdk.queryOptions.at(-1)?.allowDangerouslySkipPermissions).toBeUndefined()
+      // User-selected override must not be overwritten by subsequent init messages.
+      expect(connection.localSessionInfo.mode?.currentValue).toBe('plan')
+
+      await connection.setMode('claude-mode', 'bypassPermissions')
+      await connection.send(input)
+      expect(sdk.queryOptions.at(-1)?.permissionMode).toBe('bypassPermissions')
+      expect(sdk.queryOptions.at(-1)?.allowDangerouslySkipPermissions).toBe(true)
+      expect(events.some((event) => event.type === 'local-session-info')).toBe(true)
+    } finally {
+      await connection.close()
+      await drained
+    }
   })
 })

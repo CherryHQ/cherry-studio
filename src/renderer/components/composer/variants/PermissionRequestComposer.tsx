@@ -255,6 +255,14 @@ export default function PermissionRequestComposer({
   const hasRejectionReason = rejectionReason.trim().length > 0
   const parsedOptions = LocalPermissionOptionsSchema.safeParse(request.toolResponse.arguments)
   const localOptions = parsedOptions.success ? parsedOptions.data.localPermissionOptions : undefined
+  const primaryAllowOption = localOptions
+    ? (localOptions.find((option) => option.kind === 'allow_once') ??
+      localOptions.find((option) => option.kind.startsWith('allow_')))
+    : undefined
+  const primaryRejectOption = localOptions
+    ? (localOptions.find((option) => option.kind === 'reject_once') ??
+      localOptions.find((option) => option.kind.startsWith('reject_')))
+    : undefined
   const subtitle = getPermissionRequestSubtitle(request)
 
   const respond = useCallback(
@@ -302,16 +310,44 @@ export default function PermissionRequestComposer({
   useHotkeys(
     'enter',
     () => {
-      if (!localOptions) void (hasRejectionReason ? deny() : approve())
+      if (localOptions) {
+        if (!isSubmitting && primaryAllowOption) {
+          void respond(
+            {
+              match: request.match,
+              approved: true,
+              updatedInput: { localPermissionOption: primaryAllowOption.optionId }
+            },
+            'approve'
+          )
+        }
+        return
+      }
+      void (hasRejectionReason ? deny() : approve())
     },
     { enabled: keyboardShortcuts, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
-    [approve, deny, hasRejectionReason, localOptions]
+    [approve, deny, hasRejectionReason, isSubmitting, localOptions, primaryAllowOption, request.match, respond]
   )
   useHotkeys(
     'esc',
-    () => void deny(),
+    () => {
+      if (localOptions && primaryRejectOption) {
+        if (!isSubmitting) {
+          void respond(
+            {
+              match: request.match,
+              approved: false,
+              updatedInput: { localPermissionOption: primaryRejectOption.optionId }
+            },
+            'deny'
+          )
+        }
+        return
+      }
+      void deny()
+    },
     { enabled: keyboardShortcuts, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
-    [deny]
+    [deny, isSubmitting, localOptions, primaryRejectOption, request.match, respond]
   )
 
   return (
@@ -451,44 +487,60 @@ export default function PermissionRequestComposer({
 
         <div className="mt-2.5 flex flex-wrap justify-end gap-2 px-1 pb-0.5">
           {localOptions ? (
-            localOptions.map((option) => (
-              <Button
-                key={option.optionId}
-                type="button"
-                variant={option.kind.startsWith('allow_') ? 'emphasis' : 'outline'}
-                disabled={isSubmitting}
-                onClick={() =>
-                  void respond(
-                    {
-                      match: request.match,
-                      approved: option.kind.startsWith('allow_'),
-                      updatedInput: { localPermissionOption: option.optionId }
-                    },
-                    option.kind.startsWith('allow_') ? 'approve' : 'deny'
+            localOptions.map((option) => {
+              const isPrimaryAllow = option === primaryAllowOption
+              const isPrimaryReject = option === primaryRejectOption
+              const isAllow = option.kind.startsWith('allow_')
+              const buttonLabel = option.label
+                ? t(
+                    (
+                      {
+                        allow: 'agent.toolPermission.button.allow',
+                        allow_session: 'local_agents.allow_session',
+                        deny: 'agent.toolPermission.button.deny',
+                        cancel: 'common.cancel'
+                      } as const
+                    )[option.label]
                   )
-                }>
-                {option.label
-                  ? t(
-                      (
-                        {
-                          allow: 'agent.toolPermission.button.allow',
-                          allow_session: 'local_agents.allow_session',
-                          deny: 'agent.toolPermission.button.deny',
-                          cancel: 'common.cancel'
-                        } as const
-                      )[option.label]
+                : /^allow$/i.test(option.name) && option.kind === 'allow_once'
+                  ? t('agent.toolPermission.button.allow')
+                  : /^allow once$/i.test(option.name) && option.kind === 'allow_once'
+                    ? t('local_agents.allow_once')
+                    : /^reject$/i.test(option.name) && option.kind === 'reject_once'
+                      ? t('agent.toolPermission.button.deny')
+                      : /^always allow$/i.test(option.name) && option.kind === 'allow_always'
+                        ? t('local_agents.allow_always')
+                        : option.name
+              return (
+                <Button
+                  key={option.optionId}
+                  type="button"
+                  variant={isPrimaryAllow ? 'emphasis' : isAllow ? 'secondary' : 'outline'}
+                  disabled={isSubmitting}
+                  onClick={() =>
+                    void respond(
+                      {
+                        match: request.match,
+                        approved: isAllow,
+                        updatedInput: { localPermissionOption: option.optionId }
+                      },
+                      isAllow ? 'approve' : 'deny'
                     )
-                  : /^allow$/i.test(option.name) && option.kind === 'allow_once'
-                    ? t('agent.toolPermission.button.allow')
-                    : /^allow once$/i.test(option.name) && option.kind === 'allow_once'
-                      ? t('local_agents.allow_once')
-                      : /^reject$/i.test(option.name) && option.kind === 'reject_once'
-                        ? t('agent.toolPermission.button.deny')
-                        : /^always allow$/i.test(option.name) && option.kind === 'allow_always'
-                          ? t('local_agents.allow_always')
-                          : option.name}
-              </Button>
-            ))
+                  }>
+                  {buttonLabel}
+                  {keyboardShortcuts && isPrimaryAllow && (
+                    <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                      Enter
+                    </Kbd>
+                  )}
+                  {keyboardShortcuts && isPrimaryReject && (
+                    <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+                      Esc
+                    </Kbd>
+                  )}
+                </Button>
+              )
+            })
           ) : (
             <>
               <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>

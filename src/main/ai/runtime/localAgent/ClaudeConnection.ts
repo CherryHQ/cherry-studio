@@ -57,6 +57,16 @@ const UNSUPPORTED_CLAUDE_SLASH_COMMANDS = new Set([
   'voice'
 ])
 
+const CLAUDE_MODE_OPTIONS = [
+  { value: 'default', name: 'Default' },
+  { value: 'acceptEdits', name: 'Accept Edits' },
+  { value: 'plan', name: 'Plan' },
+  { value: 'auto', name: 'Auto' },
+  { value: 'bypassPermissions', name: 'Bypass Permissions' }
+] as const
+
+type ClaudePermissionModeValue = (typeof CLAUDE_MODE_OPTIONS)[number]['value']
+
 function filterClaudeSlashCommands(commands: AgentSessionSlashCommand[]): AgentSessionSlashCommand[] {
   return commands.filter((command) => !UNSUPPORTED_CLAUDE_SLASH_COMMANDS.has(command.name))
 }
@@ -69,6 +79,7 @@ export class ClaudeConnection extends LocalConnection {
   private launch?: Awaited<ReturnType<typeof resolveLocalAgentLaunch>>
   private gatewayLease?: { dispose: () => void }
   private dynamicCommandsLoaded = false
+  private permissionModeOverride?: ClaudePermissionModeValue
 
   override async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
     if (!this.dynamicCommandsLoaded && !this.closed && this.launch) {
@@ -110,11 +121,30 @@ export class ClaudeConnection extends LocalConnection {
       }
     } else {
       this.supportedCommands = CLAUDE_DEFAULT_COMMANDS
+      this.localSessionInfo.mode = {
+        id: 'claude-mode',
+        currentValue: this.permissionModeOverride ?? 'default',
+        options: CLAUDE_MODE_OPTIONS.map((option) => ({ ...option }))
+      }
     }
     this.localSessionInfo.resume = true
     this.localSessionInfo.images = true
     return this
   }
+
+  async setMode(configId: string, value: string) {
+    if (this.closed || this.active) throw new Error('Claude session is unavailable or busy')
+    const option = CLAUDE_MODE_OPTIONS.find((item) => item.value === value)
+    if (configId !== 'claude-mode' || !option || !this.localSessionInfo.mode) {
+      throw new Error('This session option is no longer available')
+    }
+    this.permissionModeOverride = option.value
+    this.localSessionInfo.mode.currentValue = option.value
+    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Claude session state before queuing an event.
+    this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+    return this.localSessionInfo
+  }
+
   private createQuery(prompt: string | AsyncIterable<SDKUserMessage>) {
     if (!this.launch) throw new Error('Claude executable is unavailable')
     return query({
@@ -138,6 +168,12 @@ export class ClaudeConnection extends LocalConnection {
         },
         settingSources: ['user', 'project', 'local'],
         model: this.config.nativeModel,
+        ...(this.permissionModeOverride
+          ? {
+              permissionMode: this.permissionModeOverride,
+              ...(this.permissionModeOverride === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {})
+            }
+          : {}),
         resume: this.resume,
         includePartialMessages: true,
         canUseTool: async (name, input, options) => {
@@ -212,6 +248,20 @@ export class ClaudeConnection extends LocalConnection {
       if (commands.length > 0) this.publishCommands(commands)
       this.localSessionInfo.models = (await stream.supportedModels()).map((m) => ({ id: m.value, name: m.displayName }))
       for await (const message of stream) {
+        if (
+          !this.permissionModeOverride &&
+          message.type === 'system' &&
+          'subtype' in message &&
+          message.subtype === 'init' &&
+          'permissionMode' in message
+        ) {
+          const reported = CLAUDE_MODE_OPTIONS.find((option) => option.value === message.permissionMode)?.value
+          if (reported && this.localSessionInfo.mode && this.localSessionInfo.mode.currentValue !== reported) {
+            this.localSessionInfo.mode.currentValue = reported
+            // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Claude session state before queuing an event.
+            this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+          }
+        }
         if (
           message.type === 'assistant' &&
           !message.parent_tool_use_id &&

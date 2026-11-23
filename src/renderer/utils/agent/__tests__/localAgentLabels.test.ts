@@ -6,7 +6,7 @@ import zh from '@renderer/i18n/locales/zh-cn.json'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption } from '@shared/ai/localAgent'
 
-import { localAgentConfigOptions, localAgentModeOptions } from '../localAgentLabels'
+import { isHighRiskLocalOption, localAgentConfigOptions, localAgentModeOptions } from '../localAgentLabels'
 
 const i18n = createInstance()
 beforeAll(async () => {
@@ -220,5 +220,45 @@ describe('installed agent translations', () => {
     })
     expect(localAgentConfigOptions(options, 'custom-agent', i18n.t)).toEqual(options)
     expect(options[0].name).toBe('Allow All')
+  })
+
+  it('translates Codex read-only/workspace modes and detects high-risk permission options', () => {
+    const mode = {
+      id: 'codex-mode',
+      currentValue: 'workspace',
+      options: [
+        { value: 'readOnly', name: 'Read Only' },
+        { value: 'workspace', name: 'Workspace' },
+        { value: 'fullAccess', name: 'Full Access' }
+      ]
+    }
+    expect(localAgentModeOptions(mode, i18n.t).map((option) => option.name)).toEqual([
+      '只读',
+      '工作区',
+      '完全访问（高风险）'
+    ])
+    expect(localAgentModeOptions(mode, i18n.getFixedT('en')).map((option) => option.name)).toEqual([
+      'Read Only',
+      'Workspace',
+      'Full Access (High Risk)'
+    ])
+
+    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'yolo', name: 'YOLO' })).toBe(true)
+    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'autopilot', name: 'Autopilot' })).toBe(true)
+    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'danger-full-access' })).toBe(true)
+    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'workspace', name: 'Workspace' })).toBe(false)
+
+    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: true })).toBe(true)
+    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: 'on' })).toBe(true)
+    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: false })).toBe(false)
+    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: 'off' })).toBe(false)
+
+    expect(
+      isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: 'false', name: 'Local Environment' })
+    ).toBe(true)
+    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: false })).toBe(true)
+    expect(
+      isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: 'true', name: 'Sandbox Environment' })
+    ).toBe(false)
   })
 })

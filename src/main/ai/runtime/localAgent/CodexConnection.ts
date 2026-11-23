@@ -71,6 +71,35 @@ const RpcSchema = z.object({
 const ThreadSchema = z.object({ thread: z.object({ id: z.string() }) })
 const ItemSchema = z.object({ id: z.string(), type: z.string() }).passthrough()
 
+const CODEX_MODE_OPTIONS = [
+  { value: 'readOnly', name: 'Read Only' },
+  { value: 'workspace', name: 'Workspace' },
+  { value: 'fullAccess', name: 'Full Access' }
+] as const
+
+type CodexModeValue = (typeof CODEX_MODE_OPTIONS)[number]['value']
+
+const CODEX_TURN_MODE_PARAMS = {
+  readOnly: {
+    approvalPolicy: 'on-request' as const,
+    sandboxPolicy: { type: 'readOnly' as const, networkAccess: false }
+  },
+  workspace: {
+    approvalPolicy: 'on-request' as const,
+    sandboxPolicy: {
+      type: 'workspaceWrite' as const,
+      writableRoots: [] as string[],
+      networkAccess: false,
+      excludeTmpdirEnvVar: false,
+      excludeSlashTmp: false
+    }
+  },
+  fullAccess: {
+    approvalPolicy: 'never' as const,
+    sandboxPolicy: { type: 'dangerFullAccess' as const }
+  }
+}
+
 const tokenCount = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const TokenUsageSchema = z.object({
   inputTokens: tokenCount,
@@ -91,6 +120,7 @@ export class CodexConnection extends LocalConnection {
   private turnId?: string
   private compacting = false
   private gatewayLease?: { dispose: () => void }
+  private modeOverride?: CodexModeValue
   private readonly turnHistory: string[] = []
   private usageBaseline?: z.infer<typeof TokenUsageSchema>
   private lastTokenUsage?: z.infer<typeof TokenUsageSchema>
@@ -197,14 +227,46 @@ export class CodexConnection extends LocalConnection {
           throw error
         })
       : await this.request('thread/start', threadParams)
-    const nativeModel = z.object({ model: z.string().optional() }).parse(response).model
+    const threadMeta = z
+      .object({
+        model: z.string().optional(),
+        approvalPolicy: z.unknown().optional(),
+        sandbox: z.object({ type: z.string().optional() }).passthrough().optional()
+      })
+      .parse(response)
+    const nativeModel = threadMeta.model
     if (nativeModel) this.localSessionInfo.activeModel = { id: nativeModel }
     const selected = models.find((model) => (model.model ?? model.id) === nativeModel)
     this.localSessionInfo.images = (selected?.inputModalities ?? ['text', 'image']).includes('image')
+    const initialMode: CodexModeValue =
+      this.modeOverride ??
+      (threadMeta.sandbox?.type === 'dangerFullAccess' && threadMeta.approvalPolicy === 'never'
+        ? 'fullAccess'
+        : threadMeta.sandbox?.type === 'readOnly'
+          ? 'readOnly'
+          : 'workspace')
+    this.localSessionInfo.mode = {
+      id: 'codex-mode',
+      currentValue: initialMode,
+      options: CODEX_MODE_OPTIONS.map((option) => ({ ...option }))
+    }
     this.threadId = ThreadSchema.parse(response).thread.id
     this.supportedCommands = CODEX_SUPPORTED_COMMANDS
     this.events.push({ type: 'resume-token', token: this.threadId })
     return this
+  }
+
+  async setMode(configId: string, value: string) {
+    if (this.closed || this.active) throw new Error('Codex session is unavailable or busy')
+    const option = CODEX_MODE_OPTIONS.find((item) => item.value === value)
+    if (configId !== 'codex-mode' || !option || !this.localSessionInfo.mode) {
+      throw new Error('This session option is no longer available')
+    }
+    this.modeOverride = option.value
+    this.localSessionInfo.mode.currentValue = option.value
+    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable Codex session state before queuing an event.
+    this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+    return this.localSessionInfo
   }
   private write(message: unknown) {
     if (!this.process?.stdin?.writable) throw new Error('Codex connection is closed')
@@ -261,9 +323,17 @@ export class CodexConnection extends LocalConnection {
             ])
           )
           .parse(params.availableDecisions ?? ['accept', 'acceptForSession', 'decline', 'cancel'])
+        const formatDecisionName = (decision: (typeof decisions)[number]) => {
+          if (typeof decision === 'string') return decision
+          if ('acceptWithExecpolicyAmendment' in decision) {
+            return `Always allow: ${decision.acceptWithExecpolicyAmendment.execpolicy_amendment.join(' ')}`
+          }
+          const { host, action } = decision.applyNetworkPolicyAmendment.network_policy_amendment
+          return `${action === 'allow' ? 'Always allow' : 'Always deny'} host: ${host}`
+        }
         const options = decisions.map((decision) => ({
           optionId: typeof decision === 'string' ? decision : JSON.stringify(decision),
-          name: typeof decision === 'string' ? decision : JSON.stringify(decision),
+          name: formatDecisionName(decision),
           label:
             typeof decision !== 'string'
               ? undefined
@@ -589,6 +659,7 @@ export class CodexConnection extends LocalConnection {
 
       await this.request('turn/start', {
         threadId: this.threadId,
+        ...(this.modeOverride ? CODEX_TURN_MODE_PARAMS[this.modeOverride] : {}),
         input: [
           ...(matchedSkill ? [{ type: 'skill', name: matchedSkill.name, path: matchedSkill.path }] : []),
           ...content.map((part) =>
