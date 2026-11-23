@@ -118,6 +118,7 @@ export type VoiceSessionCommand = (typeof VOICE_SESSION_COMMANDS)[number]
 const revision = z.number().int().nonnegative()
 const playbackControl = z.enum(['pause', 'resume', 'retry', 'stop'])
 
+// SAFETY: Object.keys enumerates the closed, nonempty voice-error catalog; the schema accepts those reason keys.
 const voiceReason = z.enum(
   Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>]
 )
@@ -137,12 +138,7 @@ export type VoicePlaybackState = z.infer<typeof playbackStateSchema>
 
 export type VoicePlaybackControl = z.infer<typeof playbackControl>
 
-const activePhase = z.enum(
-  VOICE_SESSION_PHASES.filter((phase) => phase !== 'idle') as [
-    Exclude<VoiceSessionPhase, 'idle'>,
-    ...Array<Exclude<VoiceSessionPhase, 'idle'>>
-  ]
-)
+const activePhase = z.enum(VOICE_SESSION_PHASES).exclude(['idle'])
 
 export const voiceSessionStateSchema = z.union([
   z.strictObject({ revision, phase: z.literal('idle') }),
@@ -152,9 +148,7 @@ export const voiceSessionStateSchema = z.union([
     source: z.enum(VOICE_SESSION_SOURCES).optional(),
     trigger: z.enum(VOICE_SESSION_TRIGGERS).optional(),
     playback: playbackStateSchema.optional(),
-    reason: z
-      .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
-      .optional()
+    reason: voiceReason.optional()
   })
 ])
 
@@ -180,9 +174,7 @@ export type VoiceEventSchemas = {
 const voiceStatus = z.strictObject({
   status: z.enum(['unsupported', 'not_installed', 'installing', 'ready', 'failed']),
   percent: z.number().min(0).max(100).optional(),
-  reason: z
-    .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
-    .optional()
+  reason: voiceReason.optional()
 })
 
 const speechModelId = z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, QWEN3_TTS_MODEL_ID, KOKORO_TTS_MODEL_ID])
@@ -370,9 +362,7 @@ export const voiceRequestSchemas = {
     output: z.strictObject({
       status: z.enum(['unsupported', 'not_installed', 'installing', 'ready', 'failed']),
       percent: z.number().min(0).max(100).optional(),
-      reason: z
-        .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
-        .optional()
+      reason: voiceReason.optional()
     })
   }),
   'ai.speech.voices.list': defineRoute({
