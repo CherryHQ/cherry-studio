@@ -877,9 +877,9 @@ export function isSerializedDataApiError(error: unknown): error is SerializedDat
     'code' in error &&
     'message' in error &&
     'status' in error &&
-    typeof (error as SerializedDataApiError).code === 'string' &&
-    typeof (error as SerializedDataApiError).message === 'string' &&
-    typeof (error as SerializedDataApiError).status === 'number'
+    typeof error.code === 'string' &&
+    typeof error.message === 'string' &&
+    typeof error.status === 'number'
   )
 }
 

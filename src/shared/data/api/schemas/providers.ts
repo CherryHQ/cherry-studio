@@ -13,7 +13,6 @@ import {
   type AuthConfig,
   AuthConfigSchema,
   type EndpointConfig,
-  type EndpointConfigOverride,
   EndpointConfigOverrideSchema,
   type Provider,
   type ProviderSettings,
@@ -27,11 +26,7 @@ import { CreateLogoSchema } from './logo'
 // Field atoms
 // ============================================================================
 
-/**
- * Per-endpoint-type configuration map. Keys are kebab-case `EndpointType`
- * strings; we keep the TS cast so `endpointConfigs` stays typed without
- * reaching for the full `provider-registry` enum in this file.
- */
+/** Accepted endpoint keys come from the shared endpoint catalog. */
 const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 
 // `z.record(enum, value)` in zod 4 requires every enum key to be present —
@@ -43,9 +38,7 @@ const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 // registry-owned fields (`modelsApiUrls`) are silently stripped here so a
 // renderer echoing a merged runtime snapshot can't re-freeze registry data
 // into the row (#17096).
-const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, EndpointConfigOverrideSchema) as z.ZodType<
-  Partial<Record<EndpointType, EndpointConfigOverride>>
->
+const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, EndpointConfigOverrideSchema)
 
 /** Provider settings accepted while creating a provider. */
 const ProviderSettingsCreateSchema = ProviderSettingsSchema.partial()

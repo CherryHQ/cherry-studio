@@ -470,6 +470,7 @@ export interface ComposerMessageSnapshot {
  * directly with their own logger.
  */
 export function readCherryMeta<P extends CherryMessagePart>(part: P): CherryMetaForPartType<P['type']> | undefined {
+  // SAFETY: This optional projection exposes raw metadata; the selected part schema validates the consumed fields below.
   const raw = (part as { providerMetadata?: { cherry?: unknown } }).providerMetadata?.cherry
 
   if (!raw || typeof raw !== 'object') return undefined
@@ -480,6 +481,7 @@ export function readCherryMeta<P extends CherryMessagePart>(part: P): CherryMeta
 
   if (!result.success) return undefined
 
+  // SAFETY: schemaForPartType mirrors CherryMetaForPartType, and the selected schema accepted this result.
   return result.data as CherryMetaForPartType<P['type']>
 }
 
@@ -492,9 +494,9 @@ export function withCherryMeta<P extends CherryMessagePart>(
   part: P,
   patch: Partial<CherryMetaForPartType<P['type']>>
 ): P {
+  // SAFETY: This optional projection preserves opaque metadata for a shallow patch without asserting its contents.
   const existingMeta = (part as { providerMetadata?: { cherry?: unknown } }).providerMetadata
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Stored Cherry metadata is unvalidated; shallow patches must retain opaque extension values.
-  const existingCherry = (existingMeta?.cherry ?? {}) as Record<string, unknown>
+  const existingCherry = existingMeta?.cherry ?? {}
 
   return {
     ...part,

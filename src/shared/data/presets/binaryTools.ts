@@ -31,7 +31,7 @@ export function isRuntimeDependency(toolSpec: string): boolean {
   if (spec.includes(':')) return false
   const base = spec.split('@')[0]
 
-  return (RUNTIME_INTERPRETERS as readonly string[]).includes(base)
+  return RUNTIME_INTERPRETERS.some((runtime) => runtime === base)
 }
 
 /** Minimal grammar shape the tool-definition validator checks. */
