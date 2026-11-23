@@ -417,7 +417,17 @@ export interface SerializedErrorData {
  */
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
-  const v = value as MessageData
+
+  // SAFETY: This raw view exposes only the fields checked below; part entries remain opaque to the storage predicate.
+  const v = value as {
+    parts?: unknown
+    modelSelection?: unknown
+    turnOptions?: {
+      reasoningEffort?: unknown
+      serviceTier?: unknown
+      fastMode?: unknown
+    } | null
+  }
 
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
 

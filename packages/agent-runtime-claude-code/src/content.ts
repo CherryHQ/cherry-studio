@@ -16,6 +16,7 @@ export type ProjectedBlock = { type: NativeBlock['type']; part: Part } | { resul
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native tool outputs and archived citation payloads have extension-defined shapes; serialize their JSON representation for provider metadata.
 export function json(value: unknown): Metadata[string][string] {
+  // SAFETY: A successful stringify/parse round trip produces JSON values matching the provider metadata contract.
   return JSON.parse(JSON.stringify(value)) as Metadata[string][string]
 }
 

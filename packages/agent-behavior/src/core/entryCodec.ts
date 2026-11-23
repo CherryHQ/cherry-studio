@@ -65,14 +65,16 @@ const STOP_CAUSES: Members<TurnStop['cause']> = {
   'goal-withdraw': true
 }
 
-const isMember = <T extends string>(value: JsonValue, members: Members<T>): boolean =>
+const isMember = <T extends string>(value: JsonValue, members: Members<T>): value is T =>
   typeof value === 'string' && Object.hasOwn(members, value)
 
 const optionalGoalId = (value: JsonValue | undefined): boolean =>
   value === undefined || value === null || typeof value === 'string'
 
-const isOptionalMember = <T extends string>(value: JsonValue | undefined, members: Members<T>): boolean =>
-  value === undefined || isMember(value, members)
+const isOptionalMember = <T extends string>(
+  value: JsonValue | undefined,
+  members: Members<T>
+): value is T | undefined => value === undefined || isMember(value, members)
 
 const withKey = (fields: Fields, key: string | undefined): Fields => (key === undefined ? fields : { ...fields, key })
 
@@ -142,6 +144,7 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
 
       const usage = f.usage
 
+      // SAFETY: This branch requires valid owner fields and all six finite, nonnegative usage fields in the stored JSON.
       return (f.goalId === null || typeof f.goalId === 'string') &&
         (f.goalRoundId === undefined || typeof f.goalRoundId === 'string') &&
         isFields(usage) &&
@@ -158,10 +161,11 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
           ? f.cleared === true && typeof f.at === 'number'
           : isMember(f.phase, GOAL_PHASES) && typeof f.armed === 'boolean'
 
-      return valid ? { type: 'goal', value: f as GoalSnapshot | GoalCleared } : undefined
+      return valid ? { type: 'goal', value: f as GoalSnapshot | GoalCleared } : undefined // oxlint-disable-line anti-slop/require-safety-comment-for-type-assertion -- Historical snapshots retain unchecked fields under the documented compatibility contract.
     }
 
     case ENTRY_KINDS.goalNotice:
+      // SAFETY: The stored notice has a string text and an own member of the allowed notice-level union.
       return typeof f.text === 'string' && isMember(f.level, NOTICE_LEVELS)
         ? { type: 'goal-notice', value: f as GoalNotice }
         : undefined
@@ -173,9 +177,10 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         isMember(f.status, RUN_STATUSES) &&
         isOptionalMember(f.outcome, OUTCOMES) &&
         isOptionalMember(f.stoppedBy, STOPPERS)
-        ? { type: 'subagent-run', value: f as SubagentRunRecord }
+        ? { type: 'subagent-run', value: f as SubagentRunRecord } // oxlint-disable-line anti-slop/require-safety-comment-for-type-assertion -- Historical runs check compatibility fields; remaining fields rely on native writers.
         : undefined
     case ENTRY_KINDS.subagentOrigin:
+      // SAFETY: All four fields required by SubagentOrigin pass the scalar checks before this branch is selected.
       return typeof f.parentToolCallId === 'string' &&
         typeof f.description === 'string' &&
         typeof f.modelKey === 'string' &&
@@ -183,14 +188,17 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         ? { type: 'subagent-origin', value: f as SubagentOrigin }
         : undefined
     case ENTRY_KINDS.plan:
+      // SAFETY: The stored plan's required active and at fields are checked as boolean and number.
       return typeof f.active === 'boolean' && typeof f.at === 'number'
         ? { type: 'plan', value: f as PlanState }
         : undefined
     case ENTRY_KINDS.turnStop:
+      // SAFETY: The stored stop has a numeric timestamp and a cause from the allowed stop-cause union.
       return typeof f.at === 'number' && isMember(f.cause, STOP_CAUSES)
         ? { type: 'turn-stop', value: f as TurnStop }
         : undefined
     case ENTRY_KINDS.idleDriverExit:
+      // SAFETY: The generation field is the complete record contract and is checked as a number.
       return typeof f.generation === 'number'
         ? { type: 'idle-driver-exit', value: f as { readonly generation: number } }
         : undefined
@@ -201,13 +209,13 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         (f.goalRoundId === undefined || typeof f.goalRoundId === 'string') &&
         typeof f.digest === 'string' &&
         typeof f.withdrawn === 'boolean'
-        ? { type: 'subagent-steer', value: f as SubagentSteer }
+        ? { type: 'subagent-steer', value: f as SubagentSteer } // oxlint-disable-line anti-slop/require-safety-comment-for-type-assertion -- Legacy session IDs remain stored strings; compatibility decoding does not revalidate ThreadId branding.
         : undefined
     case ENTRY_KINDS.subagentUserStop:
       return typeof f.sessionId === 'string' &&
         typeof f.at === 'number' &&
         (f.run === undefined || typeof f.run === 'number')
-        ? { type: 'subagent-user-stop', value: f as SubagentUserStop }
+        ? { type: 'subagent-user-stop', value: f as SubagentUserStop } // oxlint-disable-line anti-slop/require-safety-comment-for-type-assertion -- Legacy session IDs remain stored strings; compatibility decoding does not revalidate ThreadId branding.
         : undefined
     default:
       return undefined
@@ -217,6 +225,7 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
 function decodeMarker(kind: string, f: Fields): MarkerFact | undefined {
   switch (kind) {
     case ENTRY_KINDS.goalRound:
+      // SAFETY: The stored round's required scalar fields and round-kind member are checked before this branch is selected.
       return typeof f.id === 'string' &&
         typeof f.goalId === 'string' &&
         typeof f.revision === 'number' &&
@@ -251,8 +260,10 @@ function decodeRuns(list: JsonValue): DeliveredRun[] | undefined {
     if (typeof sessionId !== 'string' || typeof run !== 'number' || !isMember(outcome, OUTCOMES)) return undefined
 
     if (!isOptionalMember(stoppedBy, STOPPERS)) return undefined
-    const delivered = { sessionId: sessionId as ThreadId, run, outcome: outcome as SubagentOutcome }
-    runs.push(stoppedBy === undefined ? delivered : { ...delivered, stoppedBy: stoppedBy as SubagentStopper })
+
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Compatibility notifications preserve stored session IDs without revalidating ThreadId branding.
+    const delivered = { sessionId: sessionId as ThreadId, run, outcome }
+    runs.push(stoppedBy === undefined ? delivered : { ...delivered, stoppedBy })
   }
 
   return runs
