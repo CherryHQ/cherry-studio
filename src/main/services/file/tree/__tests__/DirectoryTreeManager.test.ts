@@ -103,17 +103,20 @@ const owned = (sender: ReturnType<typeof makeSender>) => ({ windowId: sender.win
 describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager integration', () => {
   let tmp: string
   let registry: DirectoryTreeManager
+  let observations: FileObservationService
 
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-tree-registry-'))
     BaseService.resetInstances()
-    MockApplicationUtils.setService('FileObservationService', new FileObservationService())
+    observations = new FileObservationService()
+    MockApplicationUtils.setService('FileObservationService', observations)
     registry = new DirectoryTreeManager()
     await registry._doInit()
   })
 
   afterEach(async () => {
     await registry.disposeAll()
+    await observations._doStop()
     await rm(tmp, { recursive: true, force: true })
     vi.restoreAllMocks()
   })

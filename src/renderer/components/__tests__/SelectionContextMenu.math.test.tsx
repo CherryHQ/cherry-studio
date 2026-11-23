@@ -29,6 +29,53 @@ function selectContents(node: Node) {
   window.getSelection()?.addRange(range)
 }
 
+describe('formula context menu', () => {
+  beforeEach(() => {
+    window.getSelection()?.removeAllRanges()
+  })
+
+  it.each([
+    { displayMode: false, source: String.raw`\frac{1}{2}` },
+    { displayMode: true, source: '\\begin{aligned}\nx&=1\\\\\ny&=2\n\\end{aligned}' }
+  ])('copies the clicked formula without a selection in display mode $displayMode', async ({ displayMode, source }) => {
+    const user = userEvent.setup()
+    const { container } = renderSelection(
+      `Previous: ${katex.renderToString('z=0')} Target: ${katex.renderToString(source, { displayMode })}`
+    )
+    const formula = container.querySelectorAll('.katex-html')[1]
+
+    await user.pointer({ target: formula, keys: '[MouseRight]' })
+    await user.click(await screen.findByRole('menuitem', { name: 'chat.message.copy_latex' }))
+
+    await waitFor(async () => expect(await navigator.clipboard.readText()).toBe(source))
+  })
+
+  it('offers formula copying alongside the selected text and link actions', async () => {
+    const user = userEvent.setup()
+    const source = 'E=mc^2'
+    const { container } = renderSelection(`<a href="https://example.com">Energy: ${katex.renderToString(source)}</a>`)
+    const link = screen.getByRole('link')
+    selectContents(link)
+
+    fireEvent.contextMenu(container.querySelector('.katex-html')!)
+    expect(screen.getByRole('menuitem', { name: 'common.copy' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'common.link.copy' })).toBeVisible()
+    await user.click(screen.getByRole('menuitem', { name: 'chat.message.copy_latex' }))
+
+    await waitFor(async () => expect(await navigator.clipboard.readText()).toBe(source))
+  })
+
+  it('omits the formula action when opening the menu on ordinary text next to selected math', () => {
+    renderSelection(`<span>Prose</span> ${katex.renderToString('x=1')}`)
+    selectContents(screen.getByTestId('message'))
+
+    fireEvent.contextMenu(screen.getByText('Prose'))
+
+    expect(screen.getByRole('menuitem', { name: 'common.copy' })).toBeVisible()
+    expect(screen.queryByRole('menuitem', { name: 'chat.message.copy_latex' })).not.toBeInTheDocument()
+  })
+})
+
 describe('quoting selected math', () => {
   beforeEach(() => {
     vi.restoreAllMocks()

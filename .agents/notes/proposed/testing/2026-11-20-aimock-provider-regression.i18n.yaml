@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/testing/2026-11-20-aimock-provider-regression.md
+2026-11-20-aimock-provider-regression.md: 745d5dad63ef0b2d27d7ddd69840fca22f0e437c
+2026-11-20-aimock-provider-regression.zh.md: 93f102593a9f49108189866c0870583c8a7be02b
