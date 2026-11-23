@@ -84,7 +84,7 @@ Main revalidates revisions and exact-index reconciliation before reranking and b
 
 - Effective-text/embedding jobs, complete lexical/vector publication, crash recovery and correction editing/removal.
 - Arbitrary revision restoration and undoing a rebind.
-- Base backup/restore of durable decisions and history.
+- Cross-base transfer of durable decisions and history, plus native backup/restore acceptance.
 - Original/corrected citation revisions and historical references.
 - Provider-cost disclosure for future correction work and native Electron acceptance.
 
@@ -107,4 +107,15 @@ Changing the embedding model through Restore creates a new base and new source i
 
 Until cross-base transfer can preserve exact source bindings and accepted history, Restore refuses a source base that owns any chunk decision record. This includes labels, corrections, exclusions, neutral records and retired review records. Re-enabling a chunk or discarding an unmatched decision does not erase its history and does not bypass the guard. No new base, copied source, index or job is created by the refusal. The original base and decisions stay unchanged. Do not delete those records as a workaround.
 
-The source base's mutation lock covers the eligibility check and rebuild, so a decision accepted before the rebuild's turn cannot be silently dropped. Untouched bases remain restorable, including when another base has decisions. Existing-base index rebuild and explicit review remain separate operations. This guard prevents unsupported transfer; it does not complete backup/restore acceptance or provide cross-base recovery. Native restore and whole-app archive round-trip acceptance still need verification.
+The source base's mutation lock covers the eligibility check and rebuild, so a decision accepted before the rebuild's turn cannot be silently dropped. Untouched bases remain restorable, including when another base has decisions. Existing-base index rebuild and explicit review remain separate operations. This guard prevents unsupported transfer; it does not complete backup/restore acceptance or provide cross-base recovery. Native application restore acceptance still needs verification. Automated whole-app archive round trips are covered below.
+
+
+## Whole-app archive restore evidence
+
+`KnowledgeGovernanceBackup.integration.test.ts` runs the production version 7 backup, ZIP archive reading/extraction, restore staging, durable journal and preboot promotion on real temporary files and migrated SQLite databases. It closes the live connection before promotion and opens a new connection afterward. This is whole-app replacement with preserved base/item identities, not cross-base transfer.
+
+Both full and slim archives preserve exact decision records and accepted history, including original Unicode text/hashes/offsets, corrections, labels, exclusions, retired bindings, transfer links and discard history. Staging leaves the live database and source file unchanged. After promotion, discarded intent remains restorable and item deletion still cascades to its decisions/history; untouched bases gain no records. A live decision accepted after staging expires promotion instead of overwriting newer intent.
+
+Full backup also restores the captured source file and cache. Slim backup includes the database and cache only: source files are not archived or restored, and a changed source stays changed. Preserved decision rows in a slim restore are not proof that source bytes or derived retrieval indexes are available or current. Existing reconciliation still owns those checks.
+
+Only application lifecycle/drain signals, path routing, cache-flush notification, window messages and relaunch are test boundaries. SQLite, migrations, governance writes, checkpoint/hash, archive I/O, journal and promotion are real. These tests do not verify native Electron relaunch, remote storage, cross-platform restore, cross-base rebuild, provider calls or effective correction indexing. The Spec remains proposed.
