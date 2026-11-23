@@ -1,8 +1,3 @@
-import { pathToFileURL } from 'node:url'
-
-import type { IpcMainEvent } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Tests for the shared-tier TTL synchronization contract (issue #17050).
  *
@@ -20,6 +15,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *  - boundaries: the renderer-origin relay path and onStop stay outside the
  *    unified eviction outlet (no double broadcast, no teardown broadcast).
  */
+import { pathToFileURL } from 'node:url'
+
+import type { IpcMainEvent } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 

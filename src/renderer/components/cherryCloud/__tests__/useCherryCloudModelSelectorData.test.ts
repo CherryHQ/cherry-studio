@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   phase: 'signed-in' as 'signed-in' | 'signed-out',
   data: undefined as CherryCloudAccountPlans | undefined,
   ready: true,
+  amdLocked: [] as CherryCloudPlanModel[],
+  signInLocked: [] as CherryCloudPlanModel[],
   isModelHidden: vi.fn(() => false),
   isModelFree: vi.fn(() => true),
   isModelUnavailable: vi.fn(() => false),
@@ -46,7 +48,9 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
     isModelUnavailable: mocks.isModelUnavailable,
     getModelDescription: mocks.getModelDescription,
     isAvailabilityReady: true,
-    availabilityError: undefined
+    availabilityError: undefined,
+    amdActivationRequiredModels: mocks.amdLocked,
+    signInRequiredModels: mocks.signInLocked
   })
 }))
 
@@ -98,6 +102,8 @@ beforeEach(() => {
   mocks.data = plans()
   mocks.phase = 'signed-in'
   mocks.ready = true
+  mocks.amdLocked = []
+  mocks.signInLocked = []
   mocks.isModelHidden.mockReset().mockReturnValue(false)
   mocks.isModelFree.mockReset().mockReturnValue(true)
   mockUseQuery.mockReturnValue({ data: [], isLoading: false, isRefreshing: false, refetch: vi.fn(), mutate: vi.fn() })
@@ -105,7 +111,7 @@ beforeEach(() => {
 
 describe('Cloud selector policy', () => {
   it.each(['active', 'upcoming'] as const)(
-    'moves CherryAI first for a %s subscription and last when it ends',
+    'keeps CherryAI first before sign-in, when a subscription is %s, and after it ends',
     (state) => {
       const providers: Provider[] = ['other-b', CHERRY_CLOUD_PROVIDER_ID, 'other-a', CHERRYAI_PROVIDER_ID].map(
         (id) => ({
@@ -134,18 +140,27 @@ describe('Cloud selector policy', () => {
         refetch: vi.fn(),
         mutate: vi.fn()
       }))
-      const { result, rerender } = renderHook(() => useCherryCloudModelSelectorData({ searchText: '' }))
+      mocks.phase = 'signed-out'
+      mocks.data = undefined
+      const { result, rerender } = renderHook(() =>
+        useCherryCloudModelSelectorData({ searchText: '', prioritizedProviderIds: ['other-a'] })
+      )
       const groupIds = () =>
         result.current.listItems.flatMap((item) => (item.type === 'group' ? [item.provider?.id] : []))
-      expect(groupIds()).toEqual(['other-b', 'other-a', CHERRYAI_PROVIDER_ID])
+      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-a', 'other-b'])
 
+      mocks.phase = 'signed-in'
       mocks.data = plans(state)
       rerender()
-      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-b', 'other-a'])
+      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-a', 'other-b'])
 
       mocks.data = plans()
       rerender()
-      expect(groupIds()).toEqual(['other-b', 'other-a', CHERRYAI_PROVIDER_ID])
+      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-a', 'other-b'])
+
+      MockUseCacheUtils.setPersistCacheValue('ui.model_selector.cherryai_pinned', false)
+      rerender()
+      expect(groupIds()).toEqual(['other-a', 'other-b', CHERRYAI_PROVIDER_ID])
     }
   )
 
@@ -216,5 +231,62 @@ describe('Cloud selector policy', () => {
       wrapper
     })
     await waitFor(() => expect(result.current.offers.map(({ offer }) => offer.id)).toEqual(['general']))
+  })
+
+  it('shows a signed-out account the free, standalone, paid and AMD catalogs, each behind its own unlock', async () => {
+    mocks.phase = 'signed-out'
+    mocks.data = undefined
+    mocks.signInLocked = [offer('member-model', ['agent', 'chat', 'translate'])]
+    mocks.amdLocked = [offer('amd/qwen', ['chat', 'translate'])]
+    const general = ['agent', 'chat', 'translate'] as const
+    vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        measured_at: '2026-11-09T00:00:00Z',
+        plans: [
+          {
+            id: '4ac04749-49f0-4930-9f9b-fbfe62999227',
+            display_name: 'Free',
+            is_free: true,
+            models: [offer('free-model', [...general]), offer('general', [...general])]
+          },
+          { id: 'bb75457d-ed6e-4b10-bb9a-62f9504b03c4', display_name: 'Plus', is_free: false, models: catalog }
+        ]
+      }
+    })
+    const { result } = renderHook(() => useCherryCloudModelSelectorOffers(true, false, isCherryCloudChatOffer, true), {
+      wrapper
+    })
+    // A model in both a free and a paid plan only needs a sign-in.
+    await waitFor(() =>
+      expect(result.current.offers.map(({ kind, offer }) => [kind, offer.id])).toEqual([
+        ['sign_in', 'free-model'],
+        ['sign_in', 'general'],
+        ['sign_in', 'member-model'],
+        ['amd', 'amd/qwen']
+      ])
+    )
+  })
+
+  it('offers AMD authorization to a signed-in subscriber until the server reports the model authorized', () => {
+    mocks.data = plans('active')
+    mocks.amdLocked = [offer('amd/qwen', ['chat', 'translate'])]
+    const { result, rerender } = renderHook(
+      () => useCherryCloudModelSelectorOffers(true, false, isCherryCloudChatOffer, true),
+      { wrapper }
+    )
+    expect(result.current.offers.map(({ kind, offer }) => [kind, offer.id])).toEqual([['amd', 'amd/qwen']])
+
+    mocks.amdLocked = []
+    rerender()
+    expect(result.current.offers).toEqual([])
+  })
+
+  it('keeps every locked row out of pickers that hide offers', () => {
+    mocks.amdLocked = [offer('amd/qwen', ['chat', 'translate'])]
+    const { result } = renderHook(() => useCherryCloudModelSelectorOffers(true, false, isCherryCloudChatOffer, false), {
+      wrapper
+    })
+    expect(result.current.offers).toEqual([])
   })
 })

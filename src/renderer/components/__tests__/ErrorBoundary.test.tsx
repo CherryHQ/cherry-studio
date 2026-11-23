@@ -35,6 +35,12 @@ describe('ErrorBoundary', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(errorSpy).toHaveBeenCalledTimes(1)
     expect(errorSpy.mock.calls[0]).toContain(boomError)
+    expect(errorSpy.mock.calls[0]).toContainEqual(
+      expect.objectContaining({
+        operation: 'react.render',
+        failure: { source: 'application', kind: 'defect', reason: 'render_failed', outcome: 'failed' }
+      })
+    )
   })
 
   it('composes a caller-supplied onError with the default logging', () => {

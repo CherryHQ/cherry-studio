@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import { createServer, type AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -22,7 +23,9 @@ vi.mock('electron', () => ({
 
 import { application } from '@application'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { shouldReportFailure } from '@shared/utils/errorReporting'
 
+import { classifyMcpFailure } from '../../failureFacts'
 import { McpAuthorizationCompleted, McpOAuthCoordinator } from '../../oauth/McpOAuthCoordinator'
 import { McpOAuthClientProvider } from '../../oauth/provider'
 import { oauthServerUrlHash } from '../../oauth/storage'
@@ -76,6 +79,109 @@ beforeEach(() => {
 })
 
 describe('ExternalMcpConnection transport fallback policy', () => {
+  it.each(['auto', 'legacy'] as const)(
+    'keeps a real refused TCP connection local during the %s handshake',
+    async (mode) => {
+      const listener = createServer()
+      await new Promise<void>((resolve) => listener.listen(0, '127.0.0.1', resolve))
+      const port = (listener.address() as AddressInfo).port
+      await new Promise<void>((resolve, reject) => listener.close((error) => (error ? reject(error) : resolve())))
+      const methods: string[] = []
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        if (request.method === 'POST') {
+          const method = (await request.clone().json()).method
+          methods.push(method)
+          if (mode === 'legacy' && method === 'server/discover') return new Response(null, { status: 404 })
+        }
+        return fetch(request)
+      })
+      const error = await createExternalMcpConnection({
+        server: { ...server, baseUrl: `http://127.0.0.1:${port}/mcp` },
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        connectTimeoutMs: 5_000
+      }).then(
+        (connection) => connection.close(),
+        (rejection: unknown) => rejection
+      )
+      expect(error).toBeInstanceOf(Error)
+      expect(methods).toEqual(['server/discover', 'initialize'])
+      const codes: unknown[] = []
+      const seen = new Set<object>()
+      let cause = error
+      while (cause && typeof cause === 'object' && !seen.has(cause)) {
+        seen.add(cause)
+        if ('code' in cause) codes.push(cause.code)
+        cause = 'cause' in cause ? cause.cause : undefined
+      }
+      expect(codes).toContain('ECONNREFUSED')
+      expect(classifyMcpFailure(error, true)).toMatchObject({
+        source: 'environment',
+        kind: 'expected',
+        reason: 'transport_unavailable'
+      })
+      expect(shouldReportFailure(classifyMcpFailure(error, false))).toBe(true)
+    }
+  )
+
+  it.each([
+    { error: new Error('net::ERR_CONNECTION_REFUSED'), eligible: false },
+    { error: new TypeError('net::ERR_CONNECTION_REFUSED'), eligible: true },
+    { error: new TypeError('Cannot read properties of undefined'), eligible: true },
+    {
+      error: new TypeError('Cannot read properties of undefined with a transport cause', {
+        cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+      }),
+      eligible: true
+    },
+    {
+      error: new Error('Request assembly failed with a nested TypeError', {
+        cause: new TypeError('Cannot read properties of undefined', {
+          cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+        })
+      }),
+      eligible: true
+    },
+    {
+      error: new ReferenceError('Network handler is undefined', {
+        cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+      }),
+      eligible: true
+    },
+    {
+      error: new SyntaxError('Invalid request data', {
+        cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+      }),
+      eligible: true
+    },
+    {
+      error: new SdkError(SdkErrorCode.NotConnected, 'Not connected', undefined, {
+        cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+      }),
+      eligible: true
+    }
+  ])(
+    'retains network provenance without hiding programming errors: $error.name $error.message',
+    async ({ error, eligible }) => {
+      fetchMock.mockRejectedValueOnce(error)
+      const failure = await createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        connectTimeoutMs: 5_000
+      }).then(
+        (connection) => connection.close(),
+        (rejection: unknown) => rejection
+      )
+      expect(failure).toBeInstanceOf(Error)
+      expect(shouldReportFailure(classifyMcpFailure(failure, true))).toBe(eligible)
+      expect(shouldReportFailure(classifyMcpFailure(failure, false))).toBe(true)
+    }
+  )
+
   it('coalesces authorization before credentials can be overwritten and releases failed attempts', async () => {
     const coordinator = new McpOAuthCoordinator()
     const controller = new AbortController()
@@ -485,22 +591,128 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
     }
   })
 
-  it('does not retry a network failure as legacy', async () => {
-    fetchMock.mockRejectedValue(new Error('network unavailable'))
-    const log = createLog()
+  it('connects and lists tools as legacy when server/discover closes without an HTTP response', async () => {
+    const handler = createLegacyHandler()
+    const methods: string[] = []
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'POST') {
+        const method = (await request.clone().json()).method
+        methods.push(method)
+        if (method === 'server/discover') throw new Error('net::ERR_EMPTY_RESPONSE')
+      }
+      return fetchMcpHandler(handler, input, init)
+    })
+    try {
+      const connection = await createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        connectTimeoutMs: 5_000
+      })
+      try {
+        expect(connection.era).toBe('legacy')
+        expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+        expect(methods.filter((method) => method === 'server/discover')).toHaveLength(1)
+        expect(methods.filter((method) => method === 'initialize')).toHaveLength(1)
+      } finally {
+        await connection.close()
+      }
+    } finally {
+      await handler.close()
+    }
+  })
+
+  it('returns the original closed-probe error after exactly one failed legacy handshake', async () => {
+    const handler = createLegacyHandler()
+    const probeError = new Error('net::ERR_EMPTY_RESPONSE')
+    const methods: string[] = []
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'POST') {
+        const method = (await request.clone().json()).method
+        methods.push(method)
+        if (method === 'server/discover') throw probeError
+        if (method === 'initialize') return new Response('<html>502 Bad Gateway</html>', { status: 502 })
+      }
+      return fetchMcpHandler(handler, input, init)
+    })
+    try {
+      const error = await createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        connectTimeoutMs: 5_000
+      }).then(
+        () => null,
+        (rejection: unknown) => rejection
+      )
+      expect(SdkError.isInstance(error)).toBe(true)
+      expect(SdkHttpError.isInstance(error)).toBe(false)
+      expect(error).toMatchObject({
+        code: SdkErrorCode.EraNegotiationFailed,
+        message: expect.stringContaining('net::ERR_EMPTY_RESPONSE'),
+        cause: expect.objectContaining({ message: 'net::ERR_EMPTY_RESPONSE' })
+      })
+      expect(methods).toEqual(['server/discover', 'initialize'])
+    } finally {
+      await handler.close()
+    }
+  })
+
+  it('does not retry as legacy when the caller aborts an in-flight probe', async () => {
+    const controller = new AbortController()
+    const methods: string[] = []
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'POST') {
+        const method = (await request.clone().json()).method
+        methods.push(method)
+        if (method === 'server/discover') controller.abort(new Error('cancelled'))
+      }
+      throw new Error('net::ERR_EMPTY_RESPONSE')
+    })
+    await expect(
+      createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        connectTimeoutMs: 5_000,
+        signal: controller.signal
+      })
+    ).rejects.toBeInstanceOf(Error)
+    expect(methods).toEqual(['server/discover'])
+  })
+
+  it('retries a network failure as legacy once and returns the original probe error', async () => {
+    const probeError = new Error('network unavailable')
+    const methods: string[] = []
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'POST') methods.push((await request.clone().json()).method)
+      throw probeError
+    })
     const error = await createExternalMcpConnection({
       server,
       appVersion: '0.0.0-test',
       events,
-      log,
+      log: createLog(),
       connectTimeoutMs: 5_000
     }).then(
       () => null,
       (rejection: unknown) => rejection
     )
-    expect(error).not.toBeNull()
+    expect(SdkError.isInstance(error)).toBe(true)
     expect(SdkHttpError.isInstance(error)).toBe(false)
-    expect(log.warn).not.toHaveBeenCalledWith(expect.stringContaining('legacy'), expect.anything())
+    expect(error).toMatchObject({
+      code: SdkErrorCode.EraNegotiationFailed,
+      message: expect.stringContaining('network unavailable'),
+      cause: probeError
+    })
+    expect(methods).toEqual(['server/discover', 'initialize'])
   })
 
   it('keeps HTTP 401 as an authentication failure', async () => {
@@ -560,11 +772,19 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
     ).toBe(false)
   })
 
-  it('rejects network and non-HTTP SDK errors as legacy probe evidence', () => {
-    expect(externalMcpConnectionInternals.isLegacyProbeRejection(new Error('network unavailable'))).toBe(false)
+  it('recognizes a non-HTTP SDK probe failure as legacy probe evidence', () => {
     expect(
       externalMcpConnectionInternals.isLegacyProbeRejection(
         new SdkError(SdkErrorCode.EraNegotiationFailed, 'Version negotiation probe failed: network unavailable')
+      )
+    ).toBe(true)
+  })
+
+  it('rejects bare network errors and SDK timeouts as legacy probe evidence', () => {
+    expect(externalMcpConnectionInternals.isLegacyProbeRejection(new Error('network unavailable'))).toBe(false)
+    expect(
+      externalMcpConnectionInternals.isLegacyProbeRejection(
+        new SdkError(SdkErrorCode.RequestTimeout, 'Version negotiation probe timed out')
       )
     ).toBe(false)
   })

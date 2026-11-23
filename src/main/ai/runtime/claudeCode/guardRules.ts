@@ -21,11 +21,14 @@ import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   resolveDelegationApproval,
+  resolveMcpSkillToolAccess,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
+import { type CommandCheck, checkCommand, type CommandDialect } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { t } from '@main/i18n'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
@@ -125,11 +128,54 @@ const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
 }
 
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
-  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)
+  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers, ctx.input)
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
+/** Claude Code's shell tools; on Windows it may run PowerShell instead of Git Bash. */
+export function shellToolDialect(toolName: string): CommandDialect | undefined {
+  return toolName === 'Bash' ? 'bash' : toolName === 'PowerShell' ? 'powershell' : undefined
+}
+
+function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefined {
+  const command = bashCommand(ctx)
+  const dialect = shellToolDialect(ctx.toolName)
+  if (!dialect || !command) return undefined
+  return checkCommand({
+    command,
+    dialect,
+    cwd: ctx.cwd,
+    builtinRole: ctx.builtinRole,
+    permissionMode: ctx.permissionMode
+  })
+}
+
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
+  {
+    id: 'command-policy-deny',
+    bypassBehavior: 'enforce',
+    match: {
+      when: async (ctx) => {
+        const decision = await commandDecision(ctx)
+        return decision?.effect === 'deny' ? { evidence: decision.reason } : null
+      }
+    },
+    effect: 'deny',
+    reason: (hit) => hit.evidence ?? t('command_approval.configuration_error')
+  },
+  {
+    id: 'command-policy-ask',
+    bypassBehavior: 'skipInteractiveEffect',
+    match: {
+      when: async (ctx) => {
+        const decision = await commandDecision(ctx)
+        return decision?.effect === 'ask' ? { evidence: decision.reason } : null
+      }
+    },
+    effect: 'ask',
+    reason: (hit) => hit.evidence ?? t('command_approval.incomplete'),
+    headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+  },
   {
     id: 'browser-tool-disabled',
     bypassBehavior: 'enforce',
@@ -143,7 +189,12 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'disabled-tool',
     bypassBehavior: 'enforce',
-    match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
+    match: {
+      when: (ctx) =>
+        ctx.isDisabled(ctx.toolName) || resolveMcpSkillToolAccess(ctx.toolName, ctx.input ?? {})?.enabled === false
+          ? {}
+          : null
+    },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
   },
