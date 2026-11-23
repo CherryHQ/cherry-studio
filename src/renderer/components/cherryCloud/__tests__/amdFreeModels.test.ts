@@ -24,6 +24,17 @@ describe('openAmdRegistration', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it('opens the entry under the flow id of the click it reports, so Main can report the outcome', async () => {
+    await openAmdRegistration('qwen3-8-27b')
+
+    const [[, click], [, entry]] = request.mock.calls as unknown as [
+      [string, { payload: { event: string; flowId: string } }],
+      [string, { modelId: string; flowId: string }]
+    ]
+    expect(click.payload.event).toBe('amd_entry_clicked')
+    expect(entry).toEqual({ modelId: 'qwen3-8-27b', flowId: click.payload.flowId })
+  })
+
   it.each([
     [cherryCloudErrorCodes.AMD_ENTRY_FAILED, 'models.amd_free.open_failed'],
     [cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE, 'error.http.503'],

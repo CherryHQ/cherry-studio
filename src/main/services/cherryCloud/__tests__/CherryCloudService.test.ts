@@ -3,6 +3,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 
 const mocks = vi.hoisted(() => ({
@@ -2067,6 +2068,77 @@ describe('CherryCloudService', () => {
 
       expect(requestCalls(entryPath)).toHaveLength(0)
       expect(mocks.openExternal).not.toHaveBeenCalled()
+    })
+
+    const reported = (name: string) =>
+      mocks.trackEvent.mock.calls
+        .filter(([event]) => event === name)
+        .map(([, properties]) => properties as Record<string, unknown>)
+
+    it('reports how each entry attempt ended, under the click flow id and never with the entry url', async () => {
+      const service = await createSignedInService()
+      await syncAmd(service)
+      mocks.trackEvent.mockClear()
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+      await service.openAmdEntry('w1', amdModelId, authorizationId)
+      mockCloudRoute(entryPath, cloudErrorResponse(404, 'NOT_FOUND'))
+      await service.openAmdEntry('w1', amdModelId, sessionId).catch(() => undefined)
+      await service.openAmdEntry(null, amdModelId, deviceId)
+      await syncAmd(service, false)
+      await service.openAmdEntry('w1', amdModelId, authorizationId)
+
+      await vi.waitFor(() =>
+        expect(reported('amd_entry_open').map(({ flow_id, model_id, result }) => [flow_id, model_id, result])).toEqual([
+          [authorizationId, amdModelId, 'opened'],
+          [sessionId, amdModelId, 'failed'],
+          [deviceId, amdModelId, 'cancelled'],
+          [authorizationId, amdModelId, 'already_authorized']
+        ])
+      )
+      expect(JSON.stringify(mocks.trackEvent.mock.calls)).not.toContain(token('E'))
+    })
+
+    it('reports an AMD model that turns usable after its entry once, with that entry flow id', async () => {
+      const service = await createSignedInService()
+      await syncAmd(service)
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+      await service.openAmdEntry('w1', amdModelId, authorizationId)
+      mocks.trackEvent.mockClear()
+
+      await syncAmd(service, false)
+      await syncAmd(service, false)
+
+      await vi.waitFor(() =>
+        expect(reported('amd_activation_detected')).toEqual([
+          expect.objectContaining({ model_id: amdModelId, flow_id: authorizationId, since_click: 'under_5m' })
+        ])
+      )
+    })
+
+    it('does not report activation for a model that was usable from the first sync', async () => {
+      const service = await createSignedInService()
+      mocks.trackEvent.mockClear()
+
+      await syncAmd(service, false)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(reported('amd_activation_detected')).toEqual([])
+    })
+
+    it('reports a successful reply from an AMD model, and nothing for other models', async () => {
+      const service = await createSignedInService()
+      await syncAmd(service, false)
+      mocks.trackEvent.mockClear()
+
+      service.reportAmdModelUse(`${CHERRY_CLOUD_PROVIDER_ID}::${amdModelId}`, 'agent')
+      service.reportAmdModelUse(`${CHERRY_CLOUD_PROVIDER_ID}::plan-model`, 'chat')
+      service.reportAmdModelUse('openai::gpt-5', 'chat')
+
+      await vi.waitFor(() =>
+        expect(reported('amd_model_used')).toEqual([
+          expect.objectContaining({ model_id: amdModelId, composer: 'agent' })
+        ])
+      )
     })
   })
 

@@ -27,9 +27,10 @@ export function getAmdActionLabelKey(status: CherryCloudAmdStatus | undefined) {
 
 /** Main signs in when required, then opens the single-use AMD entry that proves the visit came from this client. */
 export async function openAmdRegistration(modelId: string): Promise<void> {
-  trackSubscriptionEvent({ event: 'amd_entry_clicked', flowId: crypto.randomUUID(), modelId })
+  const flowId = crypto.randomUUID()
+  trackSubscriptionEvent({ event: 'amd_entry_clicked', flowId, modelId })
   try {
-    await ipcApi.request('cherry_cloud.amd_entry.open', { modelId })
+    await ipcApi.request('cherry_cloud.amd_entry.open', { modelId, flowId })
   } catch (error) {
     toast.error({
       key: 'cherry-cloud-amd-entry',

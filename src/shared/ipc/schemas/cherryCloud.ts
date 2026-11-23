@@ -207,6 +207,27 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
     event: z.literal('amd_entry_clicked'),
     flowId: subscriptionFlowIdSchema,
     modelId: z.string().max(200)
+  }),
+  // How an AMD entry click ended; the single-use entry URL never enters an event.
+  z.strictObject({
+    event: z.literal('amd_entry_open'),
+    flowId: subscriptionFlowIdSchema,
+    modelId: z.string().max(200),
+    result: z.enum(['opened', 'already_authorized', 'not_signed_in', 'cancelled', 'failed'])
+  }),
+  // An AMD model locked at an earlier sync of this account is usable now; the click is the latest entry for it.
+  z.strictObject({
+    event: z.literal('amd_activation_detected'),
+    modelId: z.string().max(200),
+    sinceClick: z.enum(['under_5m', 'under_30m', 'under_24h', 'over_24h', 'none']),
+    flowId: subscriptionFlowIdSchema.optional()
+  }),
+  // An AMD model call that returned usage; the first one per account is its first successful use.
+  z.strictObject({
+    event: z.literal('amd_model_used'),
+    modelId: z.string().max(200),
+    // Not `surface`: the Cloud contract sets that to `desktop` on every client event.
+    composer: z.enum(['chat', 'agent'])
   })
 ])
 
@@ -277,7 +298,7 @@ export const cherryCloudRequestSchemas = {
     output: z.void()
   }),
   'cherry_cloud.amd_entry.open': defineRoute({
-    input: z.strictObject({ modelId: z.string().min(1).max(200) }),
+    input: z.strictObject({ modelId: z.string().min(1).max(200), flowId: subscriptionFlowIdSchema.optional() }),
     output: z.void()
   }),
   'cherry_cloud.login.cancel': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),

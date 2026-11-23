@@ -1715,6 +1715,7 @@ export class AiService extends BaseService {
         output_tokens: outputTokens,
         source
       })
+      application.get('CherryCloudService').reportAmdModelUse(model.id, source)
     } catch {
       // AnalyticsService may not be activated (data collection disabled)
     }

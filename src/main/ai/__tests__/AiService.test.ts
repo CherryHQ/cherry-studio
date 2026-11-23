@@ -684,6 +684,23 @@ describe('AiService', () => {
     })
   })
 
+  it('hands each model call to Cherry Cloud with its unique model id and surface, for AMD model use', async () => {
+    const service = createService()
+    const reportAmdModelUse = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage: vi.fn(), reportAmdModelUse })
+    const hooks = (service as any).analyticsHookPart(
+      { id: 'cherryai-subscription::amd/qwen', providerId: 'cherryai-subscription', apiModelId: 'amd/qwen' },
+      'agent'
+    )
+
+    await hooks.onStepFinish({
+      usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8, inputTokenDetails: {}, outputTokenDetails: {} }
+    })
+    await hooks.onFinish()
+
+    expect(reportAmdModelUse.mock.calls).toEqual([['cherryai-subscription::amd/qwen', 'agent']])
+  })
+
   it('flushes accumulated token analytics when a completed step is followed by cancellation', async () => {
     const service = createService()
     const trackTokenUsage = vi.fn()
