@@ -216,7 +216,11 @@ export function parseGiteaSkillUrl(rawUrl: string): GiteaSkillLocation | null {
     url = new URL(trimmedUrl)
     const authorityEnd = trimmedUrl.indexOf('/', trimmedUrl.indexOf('://') + 3)
     const rawPath = authorityEnd === -1 ? '' : trimmedUrl.slice(authorityEnd).split(/[?#]/, 1)[0]
-    if (/[\x00-\x20\x7f]/.test(trimmedUrl) || rawPath.endsWith('/')) return null
+    if (
+      Array.from(trimmedUrl).some((character) => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127) ||
+      rawPath.endsWith('/')
+    )
+      return null
     const rawSegments = rawPath.split('/').slice(1).map(decodeURIComponent)
     if (rawSegments.some(invalidPathPart)) return null
     segments = rawSegments
