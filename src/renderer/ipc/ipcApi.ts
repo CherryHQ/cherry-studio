@@ -13,6 +13,7 @@ import type { EventPayload, InputFor, OutputFor } from '@shared/ipc/types'
  * Independent of `dataApiService`: commands default to NO retry (retrying a
  * side-effecting command is dangerous).
  */
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- This private decoder validates only the result envelope; the route-specific caller owns successful payload typing.
 async function unwrap(pending: Promise<unknown>): Promise<unknown> {
   const result = await pending
 
