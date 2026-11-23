@@ -22,7 +22,8 @@ const native = vi.hoisted(() => ({
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: native.query }))
 vi.mock('@main/ai/runtime/claudeCode', () => ({
   buildEnvironment: native.buildEnvironment,
-  resolveClaudeExecutablePath: () => '/native-claude'
+  resolveClaudeExecutablePath: () => '/native-claude',
+  spawnClaudeCodeProcess: vi.fn()
 }))
 
 const previousModel = 'fixture::old' as UniqueModelId
@@ -209,11 +210,52 @@ describe('model-switch handoff persistence and generation', () => {
           env: { CLAUDE_CONFIG_DIR: '/native-login' },
           tools: [],
           mcpServers: {},
-          persistSession: false
+          persistSession: false,
+          spawnClaudeCodeProcess: expect.any(Function)
         })
       })
     )
     expect(close).toHaveBeenCalled()
+  })
+
+  it('enforces the explicit input cap even with a larger context window', async () => {
+    vi.spyOn(modelService, 'getByKey').mockReturnValue({
+      contextWindow: 131072,
+      maxInputTokens: 8192,
+      maxOutputTokens: 4096
+    } as never)
+    agentSessionMessageService.saveMessages({
+      sessionId,
+      messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'x'.repeat(9000) }] } }]
+    })
+    await expect(generateModelSwitchHandoff(sessionId, 'input-cap')).rejects.toThrow(/safe handoff input budget/)
+    expect(generate).not.toHaveBeenCalled()
+  })
+
+  it('accepts a short history with an input cap and no context window', async () => {
+    vi.spyOn(modelService, 'getByKey').mockReturnValue({ maxInputTokens: 131072, maxOutputTokens: 32768 } as never)
+    await expect(generateModelSwitchHandoff(sessionId, 'input-only')).resolves.toMatchObject({ previousModel })
+    expect(generate).toHaveBeenCalledOnce()
+  })
+
+  it('registers cancellation before CLI environment setup and never launches an aborted query', async () => {
+    vi.spyOn(providerService, 'getByProviderId').mockReturnValue({ authMethods: ['external-cli'] } as never)
+    const entered = Promise.withResolvers<void>()
+    const ready = Promise.withResolvers<Record<string, string>>()
+    native.buildEnvironment.mockImplementationOnce(async () => {
+      entered.resolve()
+      return ready.promise
+    })
+    const controller = new AbortController()
+    MockApplicationUtils.setService('AiService', {
+      runWithAbort: async (_id: string, operation: (signal: AbortSignal) => unknown) => operation(controller.signal)
+    })
+    const pending = generateModelSwitchHandoff(sessionId, 'cancel-environment')
+    await entered.promise
+    controller.abort()
+    ready.resolve({ CLAUDE_CONFIG_DIR: '/native-login' })
+    await expect(pending).rejects.toThrow()
+    expect(native.query).not.toHaveBeenCalled()
   })
 
   it('rejects oversized stored history before any dispatch instead of retrying it unbounded', async () => {

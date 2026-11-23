@@ -1,6 +1,6 @@
 export { prepareClaudeBranch, reserveClaudeBranchTx } from './claudeContext'
 export { ClaudeCodeBinaryService } from './ClaudeCodeBinaryService'
-export { ClaudeCodeProcessManager } from './ClaudeCodeProcessManager'
+export { ClaudeCodeProcessManager, spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 export { ClaudeCodeSessionStateService } from './ClaudeCodeSessionStateService'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
 export { createClaudeCodeRuntimeDriver } from './loaders'

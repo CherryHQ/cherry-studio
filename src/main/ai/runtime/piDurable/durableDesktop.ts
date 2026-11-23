@@ -37,14 +37,16 @@ export async function prepareDurableDesktop(
     input.sessionId,
     input.agentId,
     input.modelId,
-    input.knowledgeBaseIds
+    input.knowledgeBaseIds,
+    input.branchHead
   )
   await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
   const snapshot = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
     input.modelId,
-    input.knowledgeBaseIds
+    input.knowledgeBaseIds,
+    input.branchHead
   )
   const { session, agent } = snapshot
   const cwd = session.workspace.path
@@ -68,6 +70,7 @@ export async function prepareDurableDesktop(
   const enabled = (name: string) => !disabled.has(buildPiMcpToolName('cherry-tools', name))
   const prompt = await buildAgentRuntimePrompt({
     sessionId: input.sessionId,
+    branchHead: input.branchHead,
     agent,
     workspacePath: cwd,
     agentDataPath,
@@ -256,7 +259,8 @@ export async function prepareDurableDesktop(
           next.sessionId,
           next.agentId,
           next.modelId,
-          next.knowledgeBaseIds
+          next.knowledgeBaseIds,
+          next.branchHead
         )
         const mode = current.agent.configuration?.permission_mode ?? 'default'
         // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.

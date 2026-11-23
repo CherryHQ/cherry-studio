@@ -343,6 +343,13 @@ describe('desktop Pi Durable connection', () => {
     expect(resumedRequest).not.toContain('Sibling banana')
     expect(resumedRequest.match(/Previous conversation history/g)).toHaveLength(1)
   })
+  it('pins the prompt and signature to the captured branch while desktop setup awaits', async () => {
+    input.branchHead = 'captured-branch-a'
+    const current = await connect()
+    expect(mocks.prompt).toHaveBeenCalledWith(expect.objectContaining({ branchHead: 'captured-branch-a' }))
+    expect(mocks.capture.mock.calls.every((args) => args[4] === 'captured-branch-a')).toBe(true)
+    await current.connection.close()
+  })
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
     const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
     mocks.prompt.mockImplementation(buildAgentRuntimePrompt)

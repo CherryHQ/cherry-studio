@@ -5,7 +5,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { buildEnvironment, resolveClaudeExecutablePath } from '@main/ai/runtime/claudeCode'
+import { buildEnvironment, resolveClaudeExecutablePath, spawnClaudeCodeProcess } from '@main/ai/runtime/claudeCode'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ModelSwitchHandoffDraft } from '@shared/data/api/schemas/agentSessions'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -51,7 +51,10 @@ export async function generateModelSwitchHandoff(
   const prompt = JSON.stringify(source.messages.map(({ role, data }) => ({ role, parts: data.parts })))
   // Never repeat a known oversized request after native compaction. Keep the source intact and
   // fail before dispatch rather than silently discard facts from the handoff.
-  const inputBudget = Math.max(0, Math.floor((model.contextWindow ?? 32_768) - (model.maxOutputTokens ?? 4096)))
+  const windowBudget =
+    model.contextWindow === undefined ? undefined : model.contextWindow - (model.maxOutputTokens ?? 4096)
+  const declaredBudgets = [model.maxInputTokens, windowBudget].filter((value): value is number => value !== undefined)
+  const inputBudget = Math.max(0, Math.floor(declaredBudgets.length ? Math.min(...declaredBudgets) : 28_672))
   if (Buffer.byteLength(prompt + MODEL_SWITCH_HANDOFF_PROMPT, 'utf8') > inputBudget) {
     throw DataApiErrorFactory.invalidOperation('model handoff', 'Stored history exceeds the safe handoff input budget')
   }
@@ -61,9 +64,11 @@ export async function generateModelSwitchHandoff(
     if (!session.agentId) throw DataApiErrorFactory.invalidOperation('model handoff', 'Session has no Agent')
     const agent = agentService.getAgent(session.agentId)
     if (!agent) throw DataApiErrorFactory.invalidOperation('model handoff', 'Session Agent no longer exists')
-    const env = await buildEnvironment(provider, agent)
     text = await application.get('AiService').runWithAbort(requestId, async (signal) => {
+      const env = await buildEnvironment(provider, agent)
+      signal.throwIfAborted()
       const { query } = await import('@anthropic-ai/claude-agent-sdk')
+      signal.throwIfAborted()
       const abortController = new AbortController()
       const abort = () => abortController.abort(signal.reason)
       signal.addEventListener('abort', abort, { once: true })
@@ -81,7 +86,8 @@ export async function generateModelSwitchHandoff(
           settingSources: [],
           persistSession: false,
           maxTurns: 1,
-          abortController
+          abortController,
+          spawnClaudeCodeProcess
         }
       })
       try {
