@@ -6,7 +6,7 @@ English | [中文](2026-10-27-global-error-details.zh.md)
 
 ## Problem
 
-Chat and Agent errors can open error details, run Doctor, and report a problem. Failures from paintings, files, settings, auxiliary windows, and startup cannot: they show a toast or dialog that loses the failed operation and its technical cause. Diagnostic reports do not consistently carry the failure context or the matching AI analysis. An outdated client has no update entry where the error is shown, and early startup failures have no supported way to give feedback or export diagnostics.
+Chat and Agent errors can open error details, run Doctor, and report a problem. Elsewhere, only a failed single-model check in Provider Settings opens error details, and it shows the provider's error without an occurrence context, so Doctor and reports cannot tell which operation failed. Other failures from paintings, files, settings, auxiliary windows, and startup show a toast or dialog that loses the failed operation and its technical cause. Diagnostic reports do not consistently carry the failure context or the matching AI analysis. An outdated client has no update entry where the error is shown, and early startup failures have no supported way to give feedback or export diagnostics.
 
 ## Proposal
 
