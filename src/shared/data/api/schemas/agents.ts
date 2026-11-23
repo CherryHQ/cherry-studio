@@ -112,7 +112,7 @@ export function sanitizeAgentConfiguration(raw: unknown) {
     new Set(parsed.error.issues.map((i) => i.path[0]).filter((p): p is string => typeof p === 'string'))
   )
 
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Extension values are unvalidated and may be native; preserve own fields for the second schema parse.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The non-null object is checked above; its own field values stay unknown until the second schema parse.
   const entries = Object.entries(raw as Record<string, unknown>)
   const filtered = Object.fromEntries(entries.filter(([key]) => !invalidKeys.includes(key)))
   const reparsed = AgentConfigurationSchema.safeParse(filtered)

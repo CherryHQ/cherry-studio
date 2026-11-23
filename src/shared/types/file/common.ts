@@ -111,10 +111,12 @@ export type Base64String = `data:${string};base64,${string}`
 
 export type UrlString = `http://${string}` | `https://${string}`
 
+// SAFETY: The anchored regex accepts only strings with the data: prefix and ;base64, separator required by Base64String.
 export const Base64StringSchema: z.ZodType<Base64String> = z
   .string()
   .regex(/^data:[^;,]+;base64,.+$/) as z.ZodType<Base64String>
 
+// SAFETY: The URL parser and prefix refinement restrict every successful output to an http:// or https:// template member.
 export const UrlStringSchema: z.ZodType<UrlString> = z
   .url()
   .refine((value) => value.startsWith('http://') || value.startsWith('https://')) as z.ZodType<UrlString>

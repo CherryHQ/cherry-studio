@@ -76,6 +76,7 @@ export function resolveSafeExternalUrl(input: string): SafeExternalUrl | null {
     const scheme = parsed.protocol.slice(0, -1)
 
     if (!Object.hasOwn(EXTERNAL_URL_POLICY, scheme)) return null
+    // SAFETY: The own-key check above limits scheme to a key of the closed protocol policy.
     const requiresConfirmation = EXTERNAL_URL_POLICY[scheme as keyof typeof EXTERNAL_URL_POLICY]
     const isKnowledge = scheme === 'obsidian' || scheme === 'zotero' || scheme === 'siyuan'
 

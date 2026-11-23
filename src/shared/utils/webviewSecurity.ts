@@ -23,7 +23,5 @@ export function getWebviewPartition(profile: WebviewSecurityProfile): WebviewSec
 }
 
 export function getWebviewSecurityProfile(partition: string): WebviewSecurityProfile | undefined {
-  return (
-    Object.entries(WEBVIEW_SECURITY_PARTITIONS) as Array<[WebviewSecurityProfile, WebviewSecurityPartition]>
-  ).find(([, candidate]) => candidate === partition)?.[0]
+  return Object.values(WebviewSecurityProfile).find((profile) => WEBVIEW_SECURITY_PARTITIONS[profile] === partition)
 }

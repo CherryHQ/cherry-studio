@@ -41,6 +41,7 @@ export function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
     return null
   }
 
+  // SAFETY: The local anchored regex always captures either allURLs or all three scheme/host/path groups.
   const groups = execResult.groups as
     | { allURLs: string }
     | { allURLs?: never; scheme: string; host: string; path: string }

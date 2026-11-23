@@ -9,7 +9,7 @@ export const CHERRY_SUPPORT_AGENT_ID = 'cherry-support'
 export type BuiltinAgentRole = (typeof BUILTIN_AGENT_ROLE)[keyof typeof BUILTIN_AGENT_ROLE]
 
 export function isProtectedBuiltinAgentRole(role: unknown): role is BuiltinAgentRole {
-  return Object.values(BUILTIN_AGENT_ROLE).includes(role as BuiltinAgentRole)
+  return Object.values(BUILTIN_AGENT_ROLE).some((candidate) => candidate === role)
 }
 
 /** Agents whose runtime ignores user-installed skills and only loads the skills bundled with them. */
