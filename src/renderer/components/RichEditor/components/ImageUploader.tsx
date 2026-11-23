@@ -17,7 +17,6 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('RichEditorImageUploader')
 
@@ -137,19 +136,16 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               accept={{ 'image/*': [] }}
               disabled={loading}
               maxFiles={1}
-              validator={(file) => {
-                const validationError = validateFile(file)
-                return validationError ? { code: 'image-validation-error', message: validationError } : null
-              }}
               onDrop={(files) => {
                 const file = files[0]
                 if (file) {
                   void handleFileSelect(file)
                 }
               }}
+              // Only the `image/*` accept check rejects here; size is validated in handleFileSelect with its own copy.
               onError={(err) => {
                 logger.error('Dropzone validation failed:', err)
-                toast.error(formatErrorMessageWithPrefix(err, t('richEditor.imageUploader.invalidType')))
+                toast.error(t('richEditor.imageUploader.invalidType'))
               }}
               className="min-h-44 border-dashed bg-muted/20 hover:bg-accent/40">
               <div className="flex flex-col items-center justify-center gap-2 text-center">
