@@ -338,22 +338,28 @@ export class AgentSessionForkOperations {
       signal.throwIfAborted()
       const messages = cloneMessages(source.messages, resources.targetSessionId, prepared)
       const positions = new Map(source.messages.map((row, index) => [row.id, index]))
-      // Place the first copied binding on the visible side of a stale-resume reset:
-      // the reset marker is copied into the child, so a root (`null`) anchor would be
-      // hidden by `effectivePath` while still occupying `(sessionId, root)` — the
-      // child's first send would then reserve the same native id at a descendant and
-      // hit `Native context already belongs to another branch`. Anchoring at the
-      // copied reset row keeps the binding resolvable (#23519 inv_49fb89d210e5df10).
-      const firstGroupFirstPos = groups.length > 0 ? positions.get(groups[0].rows[0].id)! : -1
-      let firstResetVisibleId: string | null = null
-      if (firstGroupFirstPos >= 0) {
+      // Place each copied binding on the visible side of the stale-resume reset
+      // covering its own ancestry: the reset marker is copied into the child,
+      // so a root (`null`) or pre-reset anchor would be hidden by
+      // `effectivePath` while still occupying its unique anchor — the child's
+      // first send would then reserve the same native id at a descendant and
+      // hit `Native context already belongs to another branch`. Anchoring at
+      // the copied reset row keeps the binding resolvable, and persisting the
+      // copied reset id marks it handled so the first send reuses its forked
+      // native id (#23519 inv_49fb89d210e5df10, inv_1b2f2c06988481f7,
+      // inv_d75af90853619a5a). The first group's marker must not cover later
+      // groups: after `/clear` + stale recovery the earlier healthy context is
+      // still copied, but only the recovered binding's ancestry contains the
+      // reset, so each group derives its own marker.
+      const resetSourceIndexByGroup = groups.map((group) => {
+        const firstPos = positions.get(group.rows[0].id)!
         let lastResetSourceIndex = -1
         source.messages.forEach((row, index) => {
-          if (index <= firstGroupFirstPos && (row.data as { staleResumeReset?: unknown }).staleResumeReset)
+          if (index <= firstPos && (row.data as { staleResumeReset?: unknown }).staleResumeReset)
             lastResetSourceIndex = index
         })
-        if (lastResetSourceIndex >= 0) firstResetVisibleId = messages[lastResetSourceIndex].id
-      }
+        return lastResetSourceIndex
+      })
       const contexts = prepared.map(({ group, result }, index) => {
         const first = positions.get(group.rows[0].id)!
         const start = source.contexts.reduce((latest, context) => {
@@ -361,18 +367,33 @@ export class AgentSessionForkOperations {
           return position !== undefined && position <= first && position > latest ? position : latest
         }, -1)
         if (index > 0 && start < 0) throw new AgentSessionForkError('history_changed')
+        const groupResetSourceIndex = resetSourceIndexByGroup[index]
+        const groupResetVisibleId = groupResetSourceIndex >= 0 ? messages[groupResetSourceIndex].id : null
+        let anchorMessageId: string | null
+        if (index === 0) {
+          anchorMessageId = groupResetVisibleId ?? null
+        } else if (groupResetVisibleId !== null) {
+          // The source anchor may predate the reset covering this group; the
+          // copied anchor would then be hidden by `effectivePath`. Clamp to
+          // the visible side so the binding stays resolvable.
+          anchorMessageId = start >= groupResetSourceIndex ? messages[start].id : groupResetVisibleId
+        } else {
+          anchorMessageId = messages[start].id
+        }
         return {
           id: result.contextId,
           backendId: group.context.backendId,
           nativeThreadId: result.resumeToken,
-          anchorMessageId: index === 0 ? (firstResetVisibleId ?? null) : messages[start].id,
+          anchorMessageId,
           // The copied reset marker makes the child look unhandled on startup:
           // without `staleResetHandled` it would try to reserve the same fresh
           // forked native id at a descendant and hit `Native context already
           // belongs to another branch`. Persist the copied reset id so the
           // recovered binding is treated as handled and the child's first send
           // reuses its forked native id (#23519 review inv_1b2f2c06988481f7).
-          ...(firstResetVisibleId !== null ? { checkpointMapping: { staleResetHandled: firstResetVisibleId } } : {})
+          // Derived per binding: a later recovered context needs its own
+          // marker even when the first group has none (inv_d75af90853619a5a).
+          ...(groupResetVisibleId !== null ? { checkpointMapping: { staleResetHandled: groupResetVisibleId } } : {})
         }
       })
       await this.publish(
