@@ -1105,7 +1105,7 @@ export class AgentSessionRuntimeService extends BaseService {
    *
    * @returns whether the session has a connection or a turn that owns one.
    */
-  async primeConnection(sessionId: string): Promise<boolean> {
+  async primeConnection(sessionId: string, options?: { rethrow?: boolean }): Promise<boolean> {
     if (this.forks.edits.has(sessionId)) return false
     try {
       const existing = this.entries.get(sessionId)
@@ -1120,6 +1120,7 @@ export class AgentSessionRuntimeService extends BaseService {
           })
           .catch((error) => {
             logger.warn('Failed to re-prime agent session connection', { sessionId, error })
+            if (options?.rethrow) throw error
             return false
           })
       }
@@ -1182,6 +1183,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return true
     } catch (error) {
       logger.warn('Failed to prime agent session connection', { sessionId, error })
+      if (options?.rethrow) throw error
       return false
     }
   }
@@ -4135,7 +4137,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if ((!entry || !this.currentConnection(entry)) && !this.isSessionBusy(sessionId)) {
       const agentId = agentSessionService.getById(sessionId)?.agentId
       if (agentId && agentService.getAgent(agentId)?.type === 'local') {
-        await this.primeConnection(sessionId)
+        await this.primeConnection(sessionId, { rethrow: true })
         entry = this.entries.get(sessionId)
       }
     }
@@ -4155,11 +4157,16 @@ export class AgentSessionRuntimeService extends BaseService {
 
   async setLocalMode(sessionId: string, configId: string, value: string) {
     if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
+    let primeError: unknown
     let entry = this.entries.get(sessionId)
     if (!entry || !this.currentConnection(entry)) {
       const agentId = agentSessionService.getById(sessionId)?.agentId
       if (agentId && agentService.getAgent(agentId)?.type === 'local') {
-        await this.primeConnection(sessionId)
+        try {
+          await this.primeConnection(sessionId, { rethrow: true })
+        } catch (error) {
+          primeError = error
+        }
         entry = this.entries.get(sessionId)
       }
     }
@@ -4186,6 +4193,7 @@ export class AgentSessionRuntimeService extends BaseService {
         return info
       }
     }
+    if (primeError) throw primeError
     throw new Error('Local agent session is unavailable or busy')
   }
 

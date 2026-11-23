@@ -9,6 +9,7 @@ const modeNameKeys = new Map(
     'always ask': 'local_agents.modes.always_ask',
     auto: 'code.adv.permission_modes.auto',
     'bypass permissions': 'code.adv.permission_modes.bypass_high_risk',
+    yolo: 'code.adv.permission_modes.bypass_high_risk',
     'full access': 'code.adv.permission_modes.full_access_high_risk',
     'read only': 'code.adv.permission_modes.read_only',
     workspace: 'code.adv.permission_modes.workspace',

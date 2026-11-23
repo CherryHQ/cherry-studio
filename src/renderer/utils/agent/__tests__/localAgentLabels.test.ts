@@ -302,5 +302,20 @@ describe('installed agent translations', () => {
       ]
     }
     expect(findLocalDefaultNonPlanOption(riskyOnlyMode, 'plan')).toBeUndefined()
+
+    const localized = localAgentModeOptions(
+      {
+        id: 'mode',
+        currentValue: 'build',
+        options: [
+          { value: 'build', name: 'build' },
+          { value: 'yolo', name: 'yolo' }
+        ]
+      },
+      i18n.t
+    )
+    expect(localized.find((option) => option.value === 'yolo')?.name).toBe(
+      zh['code.adv.permission_modes.bypass_high_risk']
+    )
   })
 })

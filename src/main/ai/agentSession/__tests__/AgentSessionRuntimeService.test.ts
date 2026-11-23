@@ -5130,6 +5130,26 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('surfaces the underlying CLI reconnect error instead of unavailable/busy when priming a disconnected ACP session fails', async () => {
+    runtimeDriverRegistry.register({
+      type: 'local',
+      connect: vi.fn().mockRejectedValue(new Error('zcode backend reader exited (backend dead)')),
+      validateSession: vi.fn()
+    })
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { presetId: 'zcode', protocol: 'acp', enabled: true, args: [], env: {} } }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    await expect(service.setLocalMode('session-1', 'mode', 'edit')).rejects.toThrow(
+      'zcode backend reader exited (backend dead)'
+    )
+  })
+
   describe('primeConnection — eager command load on session open', () => {
     it('leaves a new managed DeepSeek Harness task available for model selection until the first turn', async () => {
       const connect = vi.fn().mockResolvedValue({
